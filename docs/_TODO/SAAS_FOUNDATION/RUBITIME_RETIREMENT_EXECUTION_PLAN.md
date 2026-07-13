@@ -724,3 +724,218 @@ Turn the reviewed retirement plan into implementation batches with exact route/s
 ### Prompt: Sonnet R1 worker
 
 Run the existing canonical backfill dry-run in the approved environment, collect `UNMAPPED/DUPLICATE/STALE/CONFLICTS`, and prepare an owner review report. Do not run `--commit` until approved.
+
+## 14. Phase checklists
+
+Use these checklists as the operational tracker. A phase is not complete until every required checkbox is either checked or explicitly moved to an owner-approved exception log with reason, owner and rollback impact.
+
+### R0 — freeze new Rubitime dependency
+
+- [ ] Static search report for current Rubitime references is saved.
+- [ ] No-new-Rubitime-dependency guard is added or explicitly assigned.
+- [ ] Rubitime settings UI is marked deprecated/internal-only or hidden from ordinary clinic flows.
+- [ ] New route/feature work is blocked from adding `rubitime` / `rubitime_legacy` branches.
+- [ ] Current Rubitime route map is recorded.
+- [ ] Current Rubitime table/reference map is recorded.
+- [ ] R0 review confirms no runtime behavior changed.
+
+### R1 — dual-source history reconciliation and canonical backfill
+
+- [ ] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
+- [ ] max `record_at` / freshness comparison is recorded for both sources.
+- [ ] raw-only records are imported to canonical or owner-waived with ids and reason.
+- [ ] legacy-only records are classified.
+- [ ] status/freshness mismatches are classified.
+- [ ] canonical mapping coverage is recorded.
+- [ ] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
+- [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
+- [ ] commit run is approved before any `--commit`.
+- [ ] commit run completes, if approved.
+- [ ] post-run diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0` or approved exceptions.
+- [ ] doctor calendar/list/KPI smoke confirms expected historical records.
+
+### R1-HISTORY-CONTRACT — canonical state history vs raw provider archive
+
+- [ ] Canonical event/history tables for imported appointments are named.
+- [ ] Every imported appointment has canonical current state.
+- [ ] Every imported appointment has at least one canonical import/baseline/history event.
+- [ ] canceled/rescheduled/status semantics are represented where legacy data allows.
+- [ ] unreconstructable provider-only details are documented as raw-archive-only.
+- [ ] raw provider archive/export location is approved.
+- [ ] raw provider archive retention is approved.
+- [ ] raw provider archive access policy is approved.
+- [ ] read-only proof confirms doctor UI, patient history, memberships/packages and analytics do not need raw provider events.
+
+### R2 — doctor read-source canonical-only
+
+- [ ] `booking_doctor_appointments_read_source` is set to `canonical` through Settings service/UI.
+- [ ] doctor appointments list reads canonical.
+- [ ] doctor Today/KPI reads canonical.
+- [ ] schedule/calendar surfaces read canonical.
+- [ ] analytics surfaces using appointment data are checked.
+- [ ] all non-switch `appointment_records` consumers are inventoried.
+- [ ] client history reads are migrated or explicitly assigned.
+- [ ] membership/package appointment status reads are migrated or explicitly assigned.
+- [ ] runtime `rubitime_legacy` branch is removed or frozen behind rollback horizon.
+- [ ] tests expecting legacy switch are updated.
+- [ ] rollback boundary for R2 is documented.
+
+### R3 — patient/public slots and create canonical-only
+
+- [ ] `booking_slots_read_source` is set to `canonical` through Settings service/UI.
+- [ ] patient slots work from canonical scheduling.
+- [ ] public slots work from canonical scheduling.
+- [ ] patient create works without Rubitime.
+- [ ] public create works without Rubitime.
+- [ ] reschedule/cancel work without Rubitime.
+- [ ] occupied canonical slot is rejected.
+- [ ] Rubitime-first create path is removed or frozen behind rollback horizon.
+- [ ] Rubitime rollback path is removed from normal create.
+- [ ] webapp no longer calls integrator Rubitime `/slots`.
+- [ ] webapp no longer calls integrator Rubitime `/create-record`.
+- [ ] canonical DI missing fails as config error, not Rubitime fallback.
+- [ ] test with integrator/Rubitime unavailable passes slots/create.
+
+### R3-TENANT — exact tenant for public/patient booking
+
+- [ ] all `booking_default_organization_id` consumers are inventoried.
+- [ ] public booking derives org from trusted host/link/resource.
+- [ ] authenticated patient booking derives org from enrollment/context.
+- [ ] branch/service based org derivation is validated where used.
+- [ ] conflicting org contexts deny before DB query.
+- [ ] missing org denies before DB query.
+- [ ] ambiguous org denies before DB query.
+- [ ] DB principal is set before canonical booking reads/writes.
+- [ ] no runtime booking path depends on hardcoded default org.
+- [ ] Tenant Hard Mode H6 exact-org proof is saved for booking.
+
+### R3-CATALOG — public booking catalog migration
+
+- [ ] table-by-table disposition exists for `booking_cities`.
+- [ ] table-by-table disposition exists for `booking_branches`.
+- [ ] table-by-table disposition exists for `booking_branch_services`.
+- [ ] table-by-table disposition exists for `booking_services`.
+- [ ] table-by-table disposition exists for `booking_specialists`.
+- [ ] public catalog reads `be_*` or approved compatibility views.
+- [ ] public slots use canonical catalog ids.
+- [ ] public create uses canonical catalog ids.
+- [ ] legacy branch/service ids are removed from primary public API contract.
+- [ ] no patient/public runtime read remains on public `booking_*`.
+- [ ] compatibility adapters have a bounded removal date.
+
+### R4 — provider-neutral canonical downstream events
+
+- [ ] current Rubitime raw webhook GCal writes are inventoried.
+- [ ] current Rubitime raw webhook reminder triggers are inventoried.
+- [ ] current Rubitime-named `booking-event` side effects are inventoried.
+- [ ] provider-neutral lifecycle endpoint is implemented or assigned.
+- [ ] webapp calls provider-neutral lifecycle endpoint.
+- [ ] Rubitime-named lifecycle route is only a bounded compatibility alias.
+- [ ] GCal create/update/delete is canonical lifecycle driven.
+- [ ] reminders are canonical lifecycle driven.
+- [ ] patient/staff Telegram/MAX notifications are preserved.
+- [ ] Web Push behavior is preserved.
+- [ ] payment capture side effects are preserved.
+- [ ] package link/unlink side effects are preserved.
+- [ ] booking delete side effects are preserved.
+- [ ] durable idempotency is based on canonical appointment/event version.
+- [ ] `booking_calendar_map` is migrated/kept as provider-neutral canonical map.
+- [ ] existing GCal events update/delete without duplicates after rekey/migration.
+
+### R5 — disable legacy v1 profile resolve
+
+- [ ] no webapp path still sends Rubitime v1 slots requests.
+- [ ] no webapp path still sends Rubitime v1 create requests.
+- [ ] online LFK/nutrition legacy path is retired or proven unrelated.
+- [ ] non-prod `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested.
+- [ ] v1 requests return `legacy_resolve_disabled`.
+- [ ] canonical/current booking paths are unaffected.
+- [ ] production monitoring window shows no v1 requests.
+- [ ] production flag change is approved.
+- [ ] production flag change has rollback instruction.
+
+### R6 — remove Rubitime runtime routes and code
+
+- [ ] provider cutoff time is announced.
+- [ ] outbound Rubitime bridge is disabled.
+- [ ] external Rubitime webhook ingress is disabled.
+- [ ] `projection_outbox` is drained.
+- [ ] `rubitime_create_retry_jobs` is drained or archived.
+- [ ] no pending/dead Rubitime projection jobs remain.
+- [ ] final dual-source reconciliation after cutoff is run.
+- [ ] final raw-only delta is zero or owner-waived.
+- [ ] Rubitime webhook route is unmounted.
+- [ ] Rubitime `/slots` route is unmounted.
+- [ ] Rubitime `/create-record` route is unmounted.
+- [ ] Rubitime update/cancel/remove routes are unmounted.
+- [ ] provider-neutral booking lifecycle route remains working.
+- [ ] Rubitime connector/api2/throttle code is removed.
+- [ ] Rubitime post-create projection code is removed.
+- [ ] runtime Rubitime env/config keys are removed or archived.
+- [ ] integrator typecheck/lint/tests pass.
+- [ ] webapp booking typecheck/lint/tests pass.
+
+### R7 — archive and drop legacy tables
+
+- [ ] R1-R6 are complete.
+- [ ] fresh metadata inventory finds no runtime references to drop candidates.
+- [ ] owner archive/drop decision is recorded.
+- [ ] raw provider archive/export is completed if required.
+- [ ] `public.appointment_records` archive decision is completed.
+- [ ] `integrator.rubitime_records` archive decision is completed.
+- [ ] `integrator.rubitime_events` archive decision is completed.
+- [ ] `integrator.booking_calendar_map` or replacement is explicitly kept/migrated.
+- [ ] `public.patient_bookings` is explicitly kept.
+- [ ] `be_external_entity_mappings` table is explicitly kept.
+- [ ] public `booking_*` tables are not dropped until R3-CATALOG is complete.
+- [ ] drop migration is generated.
+- [ ] drop migration is tested in non-prod.
+- [ ] fresh restore + migrate proof passes.
+- [ ] no code references dropped tables.
+- [ ] rollback backup/archive is available through approved horizon.
+
+## 15. Final retirement checklist
+
+Rubitime is retired only when all items below are checked.
+
+- [ ] R0 freeze complete.
+- [ ] R1 dual-source history complete.
+- [ ] R1-HISTORY-CONTRACT complete.
+- [ ] R2 doctor canonical read-source complete.
+- [ ] R3 patient/public canonical slots/create complete.
+- [ ] R3-TENANT exact tenant complete.
+- [ ] R3-CATALOG catalog migration complete.
+- [ ] R4 provider-neutral lifecycle complete.
+- [ ] R5 legacy v1 resolve disabled in production.
+- [ ] R6 runtime routes/code removed.
+- [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
+- [ ] No runtime code calls Rubitime API.
+- [ ] No runtime route accepts Rubitime webhook/provider traffic.
+- [ ] No doctor/client path reads `appointment_records`.
+- [ ] No patient/public path reads public legacy `booking_*`.
+- [ ] No canonical booking path uses `booking_default_organization_id` as fallback.
+- [ ] GCal works from canonical lifecycle.
+- [ ] reminders work from canonical lifecycle.
+- [ ] notifications/Web Push/payment/package side effects work from canonical lifecycle.
+- [ ] provider-neutral booking lifecycle route is the only live lifecycle integration route.
+- [ ] all `RR-PROOF-*` artifacts are saved.
+- [ ] production rollback boundary is accepted by owner.
+- [ ] docs listed in section 10 are updated or have assigned follow-up tasks.
+
+## 16. Tenant Hard Mode unblock checklist
+
+Tenant Hard Mode can remove Rubitime quarantine only when this gate is complete.
+
+- [ ] Rubitime runtime is retired or no longer reachable from doctor/client/clinic flows.
+- [ ] Booking domain has exact `organization_id` principal before DB reads/writes.
+- [ ] Public booking derives org from trusted host/link/resource and denies ambiguity.
+- [ ] Patient booking is scoped by org and patient user/enrollment.
+- [ ] No booking path uses default-org compatibility.
+- [ ] No active RLS descriptor requires Rubitime-specific exception.
+- [ ] No active DB role grants broad access to Rubitime legacy tables for doctor/client/clinic roles.
+- [ ] Any remaining Rubitime archive tables are platform/admin-only and not product runtime.
+- [ ] Archive table access has audit logging and retention.
+- [ ] `appointment_records`, raw Rubitime rows and provider archives are not used for doctor/client runtime reads.
+- [ ] SaaS DB regression check passes without Rubitime carve-out.
+- [ ] Tenant wall tests include booking, media, broadcasts and references after Rubitime retirement.
+- [ ] Owner accepts that full Tenant Hard Mode may proceed without Rubitime quarantine.
