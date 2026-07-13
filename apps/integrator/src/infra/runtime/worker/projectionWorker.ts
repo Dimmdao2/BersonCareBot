@@ -7,6 +7,7 @@ import {
 } from '../../db/repos/projectionOutbox.js';
 import { logger } from '../../observability/logger.js';
 import { isRecoverableWebappEmitFailure } from './projectionEmitFailure.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 
 const RETRY_BASE_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 3600;
@@ -15,6 +16,16 @@ export async function runProjectionWorkerTick(
   db: DbPort,
   webappEventsPort: WebappEventsPort,
   batchSize = 10,
+): Promise<number> {
+  return runWithInfraPrincipal({ source: 'worker:projection-outbox-tick' }, () =>
+    runProjectionWorkerTickInner(db, webappEventsPort, batchSize),
+  );
+}
+
+async function runProjectionWorkerTickInner(
+  db: DbPort,
+  webappEventsPort: WebappEventsPort,
+  batchSize: number,
 ): Promise<number> {
   const events = await claimDueProjectionEvents(db, batchSize);
   let processed = 0;

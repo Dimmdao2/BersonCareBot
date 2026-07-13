@@ -4,6 +4,7 @@ import { appSettings } from '../../../config/appSettings.js';
 import { logger } from '../../observability/logger.js';
 import { closeDb } from '../../db/client.js';
 import { tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -12,7 +13,13 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startScheduler(): Promise<void> {
-  const lockHandle = await tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY);
+  // Advisory lock acquisition happens before any staff/patient/org context exists (pre-buildDeps);
+  // under DB_PRINCIPAL_CONTEXT_MODE=locked the connection layer requires SOME principal to be set
+  // before it will touch the DB at all (even for a pg_try_advisory_lock, which isn't RLS-governed
+  // data access). infra is the right shape here — same as the actual dispatch tick below.
+  const lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
+    tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY),
+  );
   if (!lockHandle) {
     logger.warn(
       'Scheduler lock not acquired, another instance is leader. Exiting.',

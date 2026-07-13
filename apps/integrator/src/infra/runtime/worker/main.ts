@@ -11,6 +11,7 @@ import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../../kerne
 import { runWorkerTick } from './runner.js';
 import { runProjectionWorkerTick } from './projectionWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,42 +42,48 @@ async function startWorker(): Promise<void> {
     (async function jobQueueLoop(): Promise<void> {
       while (true) {
         try {
-          while (true) {
-            const jobs = await queue.claimDueJobs(batchSize);
-            if (jobs.length === 0) break;
-            for (const job of jobs) {
-              const tickDeps: import('./runner.js').WorkerRunnerDeps = {
-                claimNextJob: async () => job,
-                completeJob: async (jobId) => queue.completeJob(jobId),
-                failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
-                rescheduleJob: async (jobId, runAt, attempts) => queue.rescheduleJob(jobId, runAt, attempts),
-                logAttempt: async (jobId, result) => queue.logAttempt(jobId, result),
-                dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
-                nowIso: () => new Date().toISOString(),
-                retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
-              };
-              if (webappEvents.notifyPatientWebPush) {
-                const notify = webappEvents.notifyPatientWebPush.bind(webappEvents);
-                tickDeps.dispatchWebappPush = async (pushNotify) => {
-                  const base = (await getAppBaseUrl(projectionDb)).replace(/\/$/, '');
-                  const body = JSON.stringify({
-                    phoneNormalized: pushNotify.phoneNormalized,
-                    topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
-                    intentType: 'appointment_reminder',
-                    slotStartIso: pushNotify.slotStartIso,
-                    openUrl: `${base}/app/patient/booking/new`,
-                    stableKey: pushNotify.stableKey,
-                    nowIso: new Date().toISOString(),
-                  });
-                  await notify({
-                    body,
-                    idempotencyKey: `pwp:${pushNotify.stableKey}`.slice(0, 240),
-                  });
+          // Claim + queue bookkeeping is tenant-agnostic dispatch (rows were already org-filtered
+          // at enqueue time); wrap the whole drain cycle in infra so DB_PRINCIPAL_CONTEXT_MODE=locked
+          // doesn't reject the claim query before per-job dispatch gets a chance to install its own
+          // org principal deeper in the executor pipeline.
+          await runWithInfraPrincipal({ source: 'worker:job-queue-drain' }, async () => {
+            while (true) {
+              const jobs = await queue.claimDueJobs(batchSize);
+              if (jobs.length === 0) break;
+              for (const job of jobs) {
+                const tickDeps: import('./runner.js').WorkerRunnerDeps = {
+                  claimNextJob: async () => job,
+                  completeJob: async (jobId) => queue.completeJob(jobId),
+                  failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
+                  rescheduleJob: async (jobId, runAt, attempts) => queue.rescheduleJob(jobId, runAt, attempts),
+                  logAttempt: async (jobId, result) => queue.logAttempt(jobId, result),
+                  dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
+                  nowIso: () => new Date().toISOString(),
+                  retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
                 };
+                if (webappEvents.notifyPatientWebPush) {
+                  const notify = webappEvents.notifyPatientWebPush.bind(webappEvents);
+                  tickDeps.dispatchWebappPush = async (pushNotify) => {
+                    const base = (await getAppBaseUrl(projectionDb)).replace(/\/$/, '');
+                    const body = JSON.stringify({
+                      phoneNormalized: pushNotify.phoneNormalized,
+                      topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+                      intentType: 'appointment_reminder',
+                      slotStartIso: pushNotify.slotStartIso,
+                      openUrl: `${base}/app/patient/booking/new`,
+                      stableKey: pushNotify.stableKey,
+                      nowIso: new Date().toISOString(),
+                    });
+                    await notify({
+                      body,
+                      idempotencyKey: `pwp:${pushNotify.stableKey}`.slice(0, 240),
+                    });
+                  };
+                }
+                await runWorkerTick(tickDeps);
               }
-              await runWorkerTick(tickDeps);
             }
-          }
+          });
         } catch (err) {
           logger.error({ err }, 'Runtime worker tick failed');
         }
