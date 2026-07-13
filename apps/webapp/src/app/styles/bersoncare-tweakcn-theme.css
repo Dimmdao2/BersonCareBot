@@ -1,0 +1,129 @@
+/**
+ * BersonCare tweakcn hook.
+ *
+ * Source of truth: docs/design/dna/ (Design DNA v1.0 + v1.1).
+ * tweakcn exports shadcn/Tailwind CSS variables; keep this file as the app-level
+ * adapter so future theme iterations do not require component rewrites.
+ *
+ * This file intentionally does not switch the live app to Nunito or the warm
+ * canvas globally. Use `.theme-bersoncare-dna` / `[data-theme="bersoncare-dna"]`
+ * when we are ready to preview the semantic shadcn token mapping.
+ */
+
+:root {
+  --bc-canvas: #f6f4ef;
+  --bc-surface: #ffffff;
+  --bc-rail: #fbfaf6;
+  --bc-warm-selected: #f1eee7;
+
+  --bc-accent-50: #e9f0f8;
+  --bc-accent-100: #dce8f5;
+  --bc-accent-200: #c4d6ec;
+  --bc-accent-500: #386fba;
+  --bc-accent-600: #305f9f;
+  --bc-accent-700: #28518a;
+  --bc-accent-text: #2b548c;
+  --bc-accent-900: #22406b;
+
+  --bc-ink: #232a31;
+  --bc-ink-2: #55606b;
+  --bc-muted: #8b94a0;
+  --bc-faint: #b4bac2;
+
+  --bc-line: #efece4;
+  --bc-divider: #edeae2;
+  --bc-hairline: #f1eee7;
+
+  --bc-warn: #c08a2e;
+  --bc-warn-tint: #f6eedd;
+  --bc-danger: #b4544b;
+  --bc-danger-tint: #f6e5e2;
+  --bc-ok: #3e7d68;
+  --bc-info: var(--bc-accent-500);
+
+  --bc-radius-xs: 5px;
+  --bc-radius-sm: 8px;
+  --bc-radius-md: 11px;
+  --bc-radius-lg: 14px;
+
+  --bc-shadow-micro: 0 1px 2px rgb(40 35 25 / 2.8%), 0 4px 14px rgb(40 35 25 / 3%);
+  --bc-shadow-raised: 0 2px 4px rgb(40 35 25 / 6%), 0 16px 34px rgb(40 35 25 / 10%);
+  --bc-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --bc-font-sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@theme inline {
+  --color-bc-canvas: var(--bc-canvas);
+  --color-bc-surface: var(--bc-surface);
+  --color-bc-rail: var(--bc-rail);
+  --color-bc-warm-selected: var(--bc-warm-selected);
+  --color-bc-accent-50: var(--bc-accent-50);
+  --color-bc-accent-100: var(--bc-accent-100);
+  --color-bc-accent-200: var(--bc-accent-200);
+  --color-bc-accent-500: var(--bc-accent-500);
+  --color-bc-accent-600: var(--bc-accent-600);
+  --color-bc-accent-700: var(--bc-accent-700);
+  --color-bc-accent-text: var(--bc-accent-text);
+  --color-bc-accent-900: var(--bc-accent-900);
+  --color-bc-ink: var(--bc-ink);
+  --color-bc-ink-2: var(--bc-ink-2);
+  --color-bc-muted: var(--bc-muted);
+  --color-bc-faint: var(--bc-faint);
+  --color-bc-line: var(--bc-line);
+  --color-bc-divider: var(--bc-divider);
+  --color-bc-hairline: var(--bc-hairline);
+  --color-bc-warn: var(--bc-warn);
+  --color-bc-warn-tint: var(--bc-warn-tint);
+  --color-bc-danger: var(--bc-danger);
+  --color-bc-danger-tint: var(--bc-danger-tint);
+  --color-bc-ok: var(--bc-ok);
+  --color-bc-info: var(--bc-info);
+  --shadow-bc-micro: var(--bc-shadow-micro);
+  --shadow-bc-raised: var(--bc-shadow-raised);
+  --font-bc-sans: var(--bc-font-sans);
+  --ease-bc: var(--bc-ease);
+}
+
+.theme-bersoncare-dna,
+[data-theme="bersoncare-dna"] {
+  color-scheme: light;
+  background: var(--bc-canvas);
+  color: var(--bc-ink);
+
+  --background: var(--bc-canvas);
+  --foreground: var(--bc-ink);
+  --card: var(--bc-surface);
+  --card-foreground: var(--bc-ink);
+  --popover: var(--bc-surface);
+  --popover-foreground: var(--bc-ink);
+  --primary: var(--bc-accent-500);
+  --primary-foreground: #ffffff;
+  --secondary: var(--bc-rail);
+  --secondary-foreground: var(--bc-ink);
+  --muted: var(--bc-rail);
+  --muted-foreground: var(--bc-muted);
+  --accent: var(--bc-warm-selected);
+  --accent-foreground: var(--bc-ink);
+  --destructive: var(--bc-danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--bc-line);
+  --input: var(--bc-line);
+  --ring: var(--bc-accent-500);
+  --chart-1: var(--bc-accent-500);
+  --chart-2: var(--bc-accent-200);
+  --chart-3: var(--bc-warn);
+  --chart-4: var(--bc-ok);
+  --chart-5: var(--bc-accent-900);
+  --radius: var(--bc-radius-lg);
+}
+
+.bc-vibrancy {
+  background: color-mix(in srgb, var(--bc-rail) 72%, transparent);
+  border-bottom: 1px solid var(--bc-hairline);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.bc-pill {
+  border-radius: 9999px;
+}
