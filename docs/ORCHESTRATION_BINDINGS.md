@@ -1,30 +1,38 @@
 # Orchestration bindings — BersonCare (привязки этого репо к generic-канону)
 
-> **Generic-мастер канона** (метод + роль-промпты) живёт в `/home/dev/orch/` (проект-агностичный shared-дом, НЕ в этом репо). Этот файл — тонкий указатель + привязки именно BersonCare. Другие репо делают свой такой файл со своими значениями.
+> **Generic-мастер канона** (метод + роль-промпты) живёт в `/home/dev/brain/host-orch/` (проект-агностичный shared-дом, НЕ в этом репо). Этот файл — тонкий указатель + привязки именно BersonCare. Другие репо делают свой такой файл со своими значениями.
+>
+> `/home/dev/orch/` на текущем сервере не является актуальным источником канона. `/home/dev/brain/orch/` — это cron/index/runtime-скрипты brain, не host-orch master.
 
 ## Мастер (читать оттуда)
-- Метод: `/home/dev/orch/round3/AGENT_AUTORUN_SCHEME.v3.md` (⇄ копия в `docs/AGENT_AUTORUN_SCHEME.md`)
-- Роль-промпты: `/home/dev/orch/roles/ROLE_PROMPTS_v3.md`
-- Изменения/история: `/home/dev/orch/CANON_v3.1_CHANGELOG.md`
+- Метод: `/home/dev/brain/host-orch/round3/AGENT_AUTORUN_SCHEME.v3.md` (⇄ копия в `docs/AGENT_AUTORUN_SCHEME.md`)
+- Роль-промпты: `/home/dev/brain/host-orch/roles/ROLE_PROMPTS_v3.md`
+- Изменения/история: `/home/dev/brain/host-orch/CANON_v3.1_CHANGELOG.md`
 
 ## Привязки BersonCare (значения плейсхолдеров мастера)
 | Плейсхолдер | Значение для BersonCare |
 |---|---|
-| `{REPO_ROOT}` | `/home/dev/dev-projects/BersonCareBot` (главный worktree на `feat`) |
+| `{REPO_ROOT}` | `/home/dev/dev-projects/BersonCareBot` (главный интеграционный worktree на `feat/doctor-ui-rebuild`). Текущая сессия может работать в изолированном worktree, например `/home/dev/dev-projects/bcb-walls`; всегда проверять `pwd`, `git status -sb`, `git worktree list`. |
 | `{MAIN_BRANCH}` (интеграционная) | `feat/doctor-ui-rebuild` (⛔ НЕ `main` без команды владельца) |
 | `{SERVER}` | `http://127.0.0.1:5200` (один постоянный Next dev на feat) |
 | `{DEV_LOGIN}` | `curl -s -c /tmp/r3.cookies -L "{SERVER}/api/auth/dev-bypass?token=dev%3Adoctor&next=/app/doctor"` (admin: `dev%3Aadmin`) |
-| `{SEAL_LEDGER}` | `/home/dev/orch/round3/SEAL_LEDGER.md` (+ `verify-seals.sh`) |
-| `{RUN_TESTS}` | Прямой запуск нужной команды (`pnpm ...`) разрешён; `/home/dev/orch/run-tests.sh "<cmd>"` только опциональный throttling/fallback, если доступен |
-| `{SCREENSHOTS}` | `{REPO_ROOT}/.claude/screenshots/<ITEM>/` (owner-facing история) |
-| `{QUEUE}` / `{STATUS}` / `{ESCALATIONS}` | `/home/dev/orch/round3/{QUEUE.md, STATUS.json, ESCALATIONS.md}` |
+| `{SEAL_LEDGER}` | `/home/dev/brain/host-orch/round3/SEAL_LEDGER.md` (+ `/home/dev/brain/host-orch/round3/verify-seals.sh`) |
+| `{RUN_TESTS}` | Прямой запуск нужной команды (`pnpm ...`) разрешён; `/home/dev/brain/host-orch/run-tests.sh "<cmd>"` только опциональный throttling/fallback для тяжёлых прогонов, если нужен mutex |
+| `{SCREENSHOTS}` | В интеграционном worktree: `{REPO_ROOT}/.claude/screenshots/<ITEM>/` (owner-facing история). В изолированном worktree каталог может отсутствовать; создавать его только для визуального acceptance или указывать явный screenshot path в плане. |
+| `{QUEUE}` / `{STATUS}` / `{ESCALATIONS}` | `/home/dev/brain/host-orch/round3/{QUEUE.md, STATUS.json, ESCALATIONS.md}` |
 | `{ETALON_UI}` | страница упражнений врача + `apps/webapp/src/shared/ui/doctor/*` |
 | `{RULES}` | `AGENTS.md` + `.cursor/rules/*` (clean-arch, drizzle-only, no-dup) |
-| `{HEARTBEAT}` | `{REPO_ROOT}/.r3-heartbeat` |
+| `{HEARTBEAT}` | Legacy host-orch heartbeat: `{REPO_ROOT}/.r3-heartbeat` в интеграционном worktree. В изолированном Codex-worktree может отсутствовать; не считать это ошибкой локального этапа. |
+| `{CODE_SEARCH}` | точное/лексическое: `node /home/dev/brain/tools/code-search.mjs "<query>" --repo bcb [-k N]`; смысловое: `bash /home/dev/brain/tools/codeq.sh "<query>" --repo bcb [--k N]` |
+| `{TASKDB}` | `node /home/dev/brain/tools/taskdb.mjs <cmd>`; не писать в taskdb сырым SQL |
+| `{SUBAGENTS}` | В Codex использовать MCP/tool `multi_agent_v1.spawn_agent` / `wait_agent` при доступности. Актуальные model overrides: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`; старые формы `gpt-5-5` и `gpt-5-6-sol` не использовать. Host legacy fallback — `/home/dev/brain/tools/lead-delegate.mjs`, только если работа идёт через host-orch loop. |
+| `{ORCH_VERIFY}` | `node /home/dev/brain/tools/orch-verify.mjs <TID> [--dry]` для независимой проверки taskdb-задачи, где применимо |
+| `{CRON}` | только `node /home/dev/brain/tools/cronport.mjs ...`; прямой `crontab` запрещён |
 
 ## Особенности репо
-- Главный worktree — ЭКСКЛЮЗИВНО за контролёром; воркеры лупа и другие чаты — в своих изолированных worktree (см. память `shared-worktree-and-background-agents`).
+- Главный worktree `/home/dev/dev-projects/BersonCareBot` — интеграционный и может быть эксклюзивно за контролёром; воркеры лупа и другие чаты работают в своих изолированных worktree. Для локальных правок использовать фактический текущий worktree, а не слепо `{REPO_ROOT}`.
 - Прод: `main` = автодеплой ОТКЛЮЧЁН (ручной), Telegram-интегратор в `long_polling` для РУ-сервера. feat в main не мержим без команды владельца.
+- Текущий dev/backup push разрешён в рабочую ветку, если это не `main`/`test` и владелец не запретил. Перед коммитом проверять чужие незакоммиченные изменения и не трогать их.
 
 ## Обязательная схема исполнения плана
 
@@ -36,10 +44,10 @@
 - После каждого второго этапа оркестратор запускает быстрого аудитора процесса с вопросом: "Корректно ли идёт оркестрация?". Этому аудитору обязательно дать перечитать этот документ и текущий план.
 
 ### Цикл этапа
-1. **Исполнение:** запустить субагента `gpt-5-5` на один полноценный проход по выбранному этапу. В промпте дать ссылки на план, чек-лист этапа, финальный чек-лист, `AGENTS.md`, `.cursor/rules/*`, `.claude/*`, `.codex/*` и этот документ. Исполнитель обязан вести лог, фиксировать проверенные пункты чек-листа и не расширять scope без явного разрешения.
-2. **Аудит:** запустить отдельного независимого `gpt-5-5` на аудит результата по чек-листу этапа и фактическому коду. Аудит должен быть не поверхностным: трассировка кода, проверка запросов/границ/тестов/миграций/доков по смыслу этапа. Если этап сложный, связан с безопасностью, tenant-isolation, миграциями, интеграциями или есть сомнение в полноте проверки — запускать `gpt-5-6-sol`. При высокой неопределённости можно добавить `opus-4-8` как дополнительный аудит. `opus` используется только на аудит/планирование, не на правки.
-3. **Фиксы и тесты:** запустить агента на исправления по аудиту и релевантные проверки. Простые фиксы — `gpt-5-4`; средние и крупные — `gpt-5-5` или `sonnet-4-6`; при сложном этапе можно держать `sol` сверху как повторный аудит. Агент фиксит конкретные замечания, сдаёт обновлённый чек-лист и результаты тестов.
-4. **Эскалация:** если `gpt-5-5` два раза не справился с одним и тем же этапом или классом замечаний, оркестратор не запускает третий такой же круг. Нужно эскалировать на `gpt-5-6-sol`; в крайнем случае — на `opus-4-8` для аудита/разбора причины провала и уточнения дальнейшего плана.
+1. **Исполнение:** запустить субагента `worker` через `multi_agent_v1.spawn_agent` на один полноценный проход по выбранному этапу. По умолчанию model override не задавать; для сложных этапов можно явно выбрать `gpt-5.5`. В промпте дать ссылки на план, чек-лист этапа, финальный чек-лист, `AGENTS.md`, `.cursor/rules/*`, `.claude/*` при наличии, `.codex/*` при наличии и этот документ. Исполнитель обязан вести лог, фиксировать проверенные пункты чек-листа и не расширять scope без явного разрешения.
+2. **Аудит:** запустить отдельного независимого агента на аудит результата по чек-листу этапа и фактическому коду. Аудит должен быть не поверхностным: трассировка кода, проверка запросов/границ/тестов/миграций/доков по смыслу этапа. Если этап сложный, связан с безопасностью, tenant-isolation, миграциями, интеграциями или есть сомнение в полноте проверки — запускать `gpt-5.6-sol` с повышенным reasoning effort.
+3. **Фиксы и тесты:** запустить агента на исправления по аудиту и релевантные проверки. Простые фиксы — `gpt-5.4` или `gpt-5.6-luna`; средние и крупные — `gpt-5.5` или `gpt-5.6-terra`; для сложных security/tenant этапов — `gpt-5.6-sol`. Агент фиксит конкретные замечания, сдаёт обновлённый чек-лист и результаты тестов.
+4. **Эскалация:** если `gpt-5.5` два раза не справился с одним и тем же этапом или классом замечаний, оркестратор не запускает третий такой же круг. Нужно эскалировать на `gpt-5.6-sol`; при отсутствии подходящего model/tool — остановиться, записать blocked note и вынести владельцу точный вопрос.
 
 ### Обязанности оркестратора
 - Писать точные промпты: что делать, где план, где чек-листы, какие правила читать, что считать готовым, куда писать лог, какие проверки запустить.
