@@ -749,13 +749,19 @@ diagnostic script `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-au
 checkbox is closed yet: this worktree has no allowed local dev `DATABASE_URL`, and the existing legacy backfill
 dry-run output is not PII-safe.
 
-- [ ] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
-- [ ] max `record_at` / freshness comparison is recorded for both sources.
-- [ ] raw-only records are imported to canonical or owner-waived with ids and reason.
+Execution note 2026-07-14: `R1-DUAL-SOURCE-HISTORY-codex-2026-07-14-proof-runner` used the approved dev env
+from `/home/dev/dev-projects/BersonCareBot`, saved sanitized aggregate dual-source JSON to
+`RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`, added a PII-safe `--summary-only` backfill output mode, and
+saved the dry-run summary to `RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`. No `--commit` was run; R2
+was not started.
+
+- [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
+- [x] max `record_at` / freshness comparison is recorded for both sources.
+- [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
 - [ ] legacy-only records are classified.
 - [ ] status/freshness mismatches are classified.
-- [ ] canonical mapping coverage is recorded.
-- [ ] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
+- [x] canonical mapping coverage is recorded.
+- [x] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
 - [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
 - [ ] commit run is approved before any `--commit`.
 - [ ] commit run completes, if approved.

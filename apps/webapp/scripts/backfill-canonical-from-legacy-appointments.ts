@@ -34,6 +34,7 @@
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-stale-from-csv          # AUTO: soft-delete legacy absent from the Rubitime CSV (within its date range)
  *   pnpm backfill-canonical-from-legacy-appointments -- --csv=../../.tmp/rubitime-import/records.csv  # CSV path (default)
  *   pnpm backfill-canonical-from-legacy-appointments -- --org=<uuid>    # override organization id
+ *   pnpm backfill-canonical-from-legacy-appointments -- --summary-only   # PII-safe output: counts/categories only
  *
  * STALE / ERRONEOUS records (resolve against the Rubitime CSV = source of truth, .tmp/rubitime-import/records.csv):
  *  - Records present in legacy but ABSENT from the current CSV within its date range (deleted/moved in Rubitime) →
@@ -48,6 +49,10 @@ import { sql } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
+import type {
+  RubitimeCanonicalProjectionAction,
+  RubitimeCanonicalProjectionInput,
+} from "@/modules/booking-rubitime-bridge/ports";
 
 const TEST_BLOCK_PHONES = ["+79189000782", "+70000000000"];
 const DEFAULT_CSV = "../../.tmp/rubitime-import/records.csv";
@@ -60,6 +65,7 @@ type Cli = {
   dropLegacy: string[];
   csvPath: string;
   dropStaleFromCsv: boolean;
+  summaryOnly: boolean;
 };
 
 function parseCli(): Cli {
@@ -83,6 +89,7 @@ function parseCli(): Cli {
     dropLegacy,
     csvPath,
     dropStaleFromCsv: argv.includes("--drop-stale-from-csv"),
+    summaryOnly: argv.includes("--summary-only") || argv.includes("--pii-safe"),
   };
 }
 
@@ -134,7 +141,7 @@ function loadCsvIndex(csvPath: string): CsvIndex | null {
 }
 
 type Rows = unknown[] | { rows?: unknown[] };
-function rows<T = any>(r: Rows): T[] {
+function rows<T = unknown>(r: Rows): T[] {
   return (Array.isArray(r) ? r : (r.rows ?? [])) as T[];
 }
 
@@ -143,9 +150,29 @@ function list(values: readonly string[]) {
   return sql`(${sql.join(values.map((v) => sql`${v}`), sql`, `)})`;
 }
 
-async function diagnose(csv: CsvIndex | null): Promise<void> {
+type CountRow = {
+  legacy_live: number;
+  canonical_projection: number;
+};
+
+type UnmappedBucketRow = {
+  total: number;
+  test_block: number;
+  cancelled: number;
+  real_active: number;
+  future: number;
+};
+
+type DuplicateClusterRow = {
+  slot: string;
+  phone: string | null;
+  rows: number;
+  distinct_canonical: number;
+};
+
+async function diagnose(csv: CsvIndex | null, opts: { summaryOnly: boolean }): Promise<void> {
   const db = getDrizzle();
-  const counts = rows(
+  const counts = rows<CountRow>(
     await db.execute(sql`
       SELECT
         (SELECT count(*)::int FROM appointment_records WHERE record_at IS NOT NULL AND deleted_at IS NULL) AS legacy_live,
@@ -155,7 +182,7 @@ async function diagnose(csv: CsvIndex | null): Promise<void> {
   console.log(`Canonical rubitime_projection (be_appointments): ${counts.canonical_projection}`);
 
   // Unmapped legacy buckets (records with no canonical mapping)
-  const buckets = rows(
+  const buckets = rows<UnmappedBucketRow>(
     await db.execute(sql`
       WITH unmapped AS (
         SELECT ar.*, coalesce(ar.payload_json->>'name', ar.payload_json->>'contact_name') AS nm
@@ -179,7 +206,7 @@ async function diagnose(csv: CsvIndex | null): Promise<void> {
   console.log(`  • future (should be ~0):   ${buckets.future}`);
 
   // Duplicate clusters (same slot+phone, >1 live row)
-  const dups = rows(
+  const dups = rows<DuplicateClusterRow>(
     await db.execute(sql`
       WITH live AS (
         SELECT ar.record_at, ar.phone_normalized, ar.integrator_record_id, m.canonical_id
@@ -196,17 +223,27 @@ async function diagnose(csv: CsvIndex | null): Promise<void> {
       ORDER BY count(*) DESC`),
   );
   console.log(`\nDUPLICATE clusters (same slot+phone): ${dups.length}`);
-  for (const d of dups) {
-    const flag = d.distinct_canonical > 1 ? "  ⚠ MULTIPLE canonical (double-booking!)" : "";
-    console.log(`  ${d.slot} ${d.phone}: ${d.rows} rows → ${d.distinct_canonical} canonical${flag}`);
+  if (opts.summaryOnly) {
+    const multipleCanonical = dups.filter((d) => d.distinct_canonical > 1).length;
+    console.log(`  • clusters with multiple canonical rows: ${multipleCanonical}`);
+    console.log(`  • detail rows suppressed by --summary-only`);
+  } else {
+    for (const d of dups) {
+      const flag = d.distinct_canonical > 1 ? "  ⚠ MULTIPLE canonical (double-booking!)" : "";
+      console.log(`  ${d.slot} ${d.phone}: ${d.rows} rows → ${d.distinct_canonical} canonical${flag}`);
+    }
   }
 
   // Stale-by-CSV cross-reference (Rubitime export = source of truth)
   if (csv) {
     const stale = await findStaleFromCsv(csv);
     console.log(`\nSTALE vs Rubitime CSV (absent from export, within its date range → deleted in Rubitime): ${stale.length}`);
-    for (const s of stale.slice(0, 30)) console.log(`  ${s.slot} ${s.phone} «${s.name}» ext=${s.id}`);
-    if (stale.length > 30) console.log(`  … +${stale.length - 30} more`);
+    if (opts.summaryOnly) {
+      console.log(`  • detail rows suppressed by --summary-only`);
+    } else {
+      for (const s of stale.slice(0, 30)) console.log(`  ${s.slot} ${s.phone} «${s.name}» ext=${s.id}`);
+      if (stale.length > 30) console.log(`  … +${stale.length - 30} more`);
+    }
     console.log(`  (use --drop-stale-from-csv --commit to soft-delete these)`);
   } else {
     console.log(`\nSTALE vs CSV: skipped (no CSV at given path; pass --csv=<path>)`);
@@ -279,7 +316,15 @@ async function softDeleteCanonicalByExternalIds(ids: readonly string[]): Promise
  */
 async function collapseDuplicates(): Promise<{ clusters: number; softDeleted: number }> {
   const db = getDrizzle();
-  const live = rows(
+  type CollapseLiveRow = {
+    id: string;
+    record_at: string | Date;
+    phone: string | null;
+    status: string;
+    updated_at: string | Date;
+    mapped: boolean;
+  };
+  const live = rows<CollapseLiveRow>(
     await db.execute(sql`
       SELECT ar.id, ar.record_at, ar.phone_normalized AS phone, ar.status, ar.updated_at,
              (m.canonical_id IS NOT NULL) AS mapped
@@ -288,7 +333,7 @@ async function collapseDuplicates(): Promise<{ clusters: number; softDeleted: nu
         ON m.external_system='rubitime' AND m.entity_type='appointment' AND m.external_id = ar.integrator_record_id
       WHERE ar.deleted_at IS NULL AND ar.record_at IS NOT NULL`),
   );
-  const groups = new Map<string, any[]>();
+  const groups = new Map<string, CollapseLiveRow[]>();
   for (const r of live) {
     const key = `${new Date(r.record_at).toISOString()}|${r.phone ?? ""}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
@@ -313,9 +358,23 @@ async function collapseDuplicates(): Promise<{ clusters: number; softDeleted: nu
 }
 
 /** Tolerant per-record projection — never aborts the batch; collects conflicts. */
-async function projectTolerant(orgId: string, bridge: ReturnType<typeof createPgBookingRubitimeBridgePort>) {
+async function projectTolerant(
+  orgId: string,
+  bridge: ReturnType<typeof createPgBookingRubitimeBridgePort>,
+  opts: { summaryOnly: boolean },
+) {
   const db = getDrizzle();
-  const legacy = rows(
+  type ProjectionLegacyRow = {
+    integrator_record_id: string;
+    platform_user_id: string | null;
+    phone_normalized: string | null;
+    record_at: string | Date | null;
+    status: string;
+    last_event: string | null;
+    payload_json: RubitimeCanonicalProjectionInput["payloadJson"];
+    nm: string | null;
+  };
+  const legacy = rows<ProjectionLegacyRow>(
     await db.execute(sql`
       SELECT integrator_record_id, platform_user_id, phone_normalized, record_at, status, last_event, payload_json,
              coalesce(payload_json->>'name', payload_json->>'contact_name') AS nm
@@ -323,7 +382,7 @@ async function projectTolerant(orgId: string, bridge: ReturnType<typeof createPg
       WHERE deleted_at IS NULL AND record_at IS NOT NULL
       ORDER BY record_at`),
   );
-  const tally: Record<string, number> = {};
+  const tally: Partial<Record<RubitimeCanonicalProjectionAction | "conflict", number>> = {};
   const conflicts: Array<{ slot: string; phone: string; name: string; ext: string; error: string }> = [];
   for (const r of legacy) {
     try {
@@ -334,7 +393,7 @@ async function projectTolerant(orgId: string, bridge: ReturnType<typeof createPg
         phoneNormalized: r.phone_normalized ?? null,
         recordAt: r.record_at ? new Date(r.record_at).toISOString() : null,
         legacyStatus: r.status,
-        lastEvent: r.last_event,
+        lastEvent: r.last_event ?? "",
         payloadJson: r.payload_json,
       });
       tally[res.action] = (tally[res.action] ?? 0) + 1;
@@ -354,7 +413,16 @@ async function projectTolerant(orgId: string, bridge: ReturnType<typeof createPg
   for (const [k, v] of Object.entries(tally).sort()) console.log(`  ${k}: ${v}`);
   if (conflicts.length > 0) {
     console.log(`\n⚠ CONFLICTS (${conflicts.length}) — skipped, need review:`);
-    for (const c of conflicts) console.log(`  ${c.slot} ${c.phone} «${c.name}» ext=${c.ext} → ${c.error}`);
+    if (opts.summaryOnly) {
+      const byError = conflicts.reduce<Record<string, number>>((acc, c) => {
+        acc[c.error] = (acc[c.error] ?? 0) + 1;
+        return acc;
+      }, {});
+      for (const [error, count] of Object.entries(byError).sort()) console.log(`  ${error}: ${count}`);
+      console.log(`  detail rows suppressed by --summary-only`);
+    } else {
+      for (const c of conflicts) console.log(`  ${c.slot} ${c.phone} «${c.name}» ext=${c.ext} → ${c.error}`);
+    }
   }
 }
 
@@ -379,9 +447,10 @@ async function main() {
       ? `Rubitime CSV: ${cli.csvPath} (${csv.ids.size} ids, ${new Date(csv.minDay).toISOString().slice(0, 10)}…${new Date(csv.maxDay).toISOString().slice(0, 10)})`
       : `Rubitime CSV: not found at ${cli.csvPath} (stale-by-CSV detection disabled)`,
   );
+  if (cli.summaryOnly) console.log(`Output mode: summary-only (PII-safe; detail rows suppressed)`);
 
   console.log(`\n----- DIAGNOSIS (before) -----`);
-  await diagnose(csv);
+  await diagnose(csv, { summaryOnly: cli.summaryOnly });
 
   if (!cli.commit) {
     console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--collapse-dups] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
@@ -425,10 +494,10 @@ async function main() {
     console.log(`\n✓ Collapsed ${clusters} duplicate clusters → soft-deleted ${softDeleted} loser rows.`);
   }
 
-  await projectTolerant(orgId, bridge);
+  await projectTolerant(orgId, bridge, { summaryOnly: cli.summaryOnly });
 
   console.log(`\n----- DIAGNOSIS (after) -----`);
-  await diagnose(csv);
+  await diagnose(csv, { summaryOnly: cli.summaryOnly });
   console.log(`\n✓ Done.`);
   process.exit(0);
 }

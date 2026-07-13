@@ -1,129 +1,130 @@
 # Rubitime retirement R1 dual-source report
 
-Run id: `R1-DUAL-SOURCE-HISTORY-codex-2026-07-14`
+Run id: `R1-DUAL-SOURCE-HISTORY-codex-2026-07-14-proof-runner`
 
-Scope: Phase R1 only. Read-only/dry-run stage. No `--commit`, no SQL writes, no `/opt` env, no production DB, no PII output. R2 was not started.
+Scope: Phase R1 proof/evidence only. Read-only/dry-run stage. No `--commit`, no SQL writes, no `/opt` env, no production DB, no PII output. R2 was not started.
 
-## Summary
+## Artifacts
 
-R1 is **blocked by environment** in this worktree: no local `.env`, `apps/webapp/.env.dev`, `.env.cutover.dev`, or `.env.cutover` file is present, and `DATABASE_URL` is not set after loading the allowed local env paths.
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_DUAL_SOURCE_RESULT.json`
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
 
-A sanitized opt-in diagnostic script was added:
+Both artifacts use aggregate output only. Dual-source samples were disabled with `--sample-size=0`. Backfill was run with `--summary-only`, which suppresses names, phones, external ids and detail rows.
 
-- `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs`
+## Dual-source audit result
 
-Sol audit fixer update:
-
-- source CTEs now include every non-empty Rubitime external id, including rows with `record_at IS NULL`;
-- both sources now report explicit `record_at_null` / `record_at_not_null` counts;
-- freshness classification now reports both `raw_newer_updated_at` and `legacy_newer_updated_at`;
-- `record_at` null asymmetry is reported in both directions;
-- mapping coverage now validates canonical target existence, canonical soft-delete state, mapping/canonical organization mismatch, canonical source, and expected mapping metadata;
-- DB guard now includes a post-connect `current_database()` verification inside a read-only transaction before the business query;
-- samples default to disabled (`--sample-size=0`), and opt-in samples are hash-only with a per-run salt that is not printed.
-
-The script is read-only by construction:
-
-- refuses non-dev DB names;
-- refuses `/opt` env paths;
-- refuses selected `/opt`-backed env references such as `PGPASSFILE` / `PGSERVICEFILE`;
-- verifies the connected database name is dev and not prod before the main query;
-- uses `BEGIN READ ONLY` / `SET LOCAL statement_timeout`;
-- runs SELECT-only aggregate SQL via `psql`;
-- does not select `payload_json`, names, phones or emails;
-- does not print external-id samples by default; opt-in samples are hash-only, with no raw tail.
-
-## Existing script inspection
-
-| Script | Finding | R1 usability |
-| --- | --- | --- |
-| `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` | Dry-run by default and writes only with `--commit`. However, diagnosis can print phone/name samples for duplicate/stale/conflict rows. | Not run in this environment because dev DB can contain real PII and the script output is not sanitized. Needs sanitized mode or trusted no-PII DB before R1 evidence can use it. |
-| `apps/webapp/scripts/reconcile-appointments-domain.mjs` | Read-only comparison, but requires `DATABASE_URL` + `INTEGRATOR_DATABASE_URL`, loads cutover env candidates including `/opt/env/bersoncarebot/cutover.prod`, prints raw missing external id samples, and does not cover full R1 proof matrix. | Not run. Not suitable for this requested stage as-is. |
-| `apps/webapp/scripts/rubitime-appointment-mapping-audit.sql` | Read-only SQL, but header documents production `/opt` env usage and sample output includes canonical appointment fields. It also references unqualified `rubitime_records`, not the required direct `integrator.rubitime_records` source. | Inspected only. Not run. |
-| `apps/integrator/src/infra/scripts/compare-rubitime-records.ts` | Read-only local-vs-Rubitime-API audit, but it calls the external Rubitime API and can include mismatch reasons with phone/name/email fields. | Not relevant for local dual-source DB proof; not run. |
-
-## Diagnostic script coverage
-
-`rubitime-r1-dual-source-audit.mjs` is intended to produce the `RR-PROOF-01-DUAL-SOURCE` DB aggregate evidence when a safe dev `DATABASE_URL` is available:
-
-- `appointment_records.integrator_record_id` vs `integrator.rubitime_records.rubitime_record_id` anti-joins;
-- total non-empty external-id counts, explicit `record_at` null/not-null counts, live counts, and max `record_at` / `updated_at` freshness for both sources;
-- raw-only count;
-- legacy-only count;
-- status mismatch count;
-- `record_at` mismatch count;
-- raw-newer-than-legacy and legacy-newer-than-raw `updated_at` counts;
-- raw-null/legacy-not-null and legacy-null/raw-not-null `record_at` asymmetry counts;
-- canonical mapping coverage in `be_external_entity_mappings`;
-- mapping validation for canonical target existence, canonical soft-delete state, organization consistency, `source = 'rubitime_projection'`, and expected mapping metadata;
-- orphan Rubitime mapping count where canonical appointment is missing;
-- optional hash-only external-id samples for owner/reviewer triage, disabled by default.
-
-Expected safe run command once dev env is present:
+Command shape:
 
 ```bash
 set -a
-source .env
-source apps/webapp/.env.dev
+source /home/dev/dev-projects/BersonCareBot/.env
+source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev
 set +a
-node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --threshold-minutes=5
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --threshold-minutes=5 --sample-size=0
 ```
 
-Default run keeps `--sample-size=0`. Use a non-zero sample size only when the reviewer explicitly accepts hash-only external-id sample output.
+Sanitized result summary:
 
-The database name in `DATABASE_URL` must include `dev` and must not include `prod`, otherwise the script refuses before opening `psql`. After connecting, the script separately verifies `current_database()` under `BEGIN READ ONLY`; a non-dev or prod connected database is refused before the main business query.
+| Check | Result |
+| --- | ---: |
+| connected DB | `bcb_webapp_dev` on `127.0.0.1:5432` |
+| raw rows with external id (`integrator.rubitime_records`) | 91 |
+| legacy rows with external id (`appointment_records`) | 403 |
+| shared external ids | 91 |
+| raw-only ids | 0 |
+| legacy-only ids | 312 |
+| status mismatches | 4 |
+| `record_at` mismatches over 5 minutes | 2 |
+| raw newer than legacy by threshold | 0 |
+| legacy newer than raw by threshold | 91 |
+| raw mapping coverage | 91 / 91 mapped |
+| legacy mapping coverage | 274 / 403 mapped; 129 unmapped |
+| mapping/canonical org mismatches | 0 |
+| mapping orphans without canonical appointment | 0 |
+| unexpected canonical source in mappings | 6 |
+| missing expected mapping metadata | 6 |
+
+Freshness:
+
+| Source | max `record_at` | max `updated_at` |
+| --- | --- | --- |
+| `appointment_records` | `2026-08-29T18:00:00+02:00` | `2026-07-06T00:19:45.183+02:00` |
+| `integrator.rubitime_records` | `2026-04-21T15:00:00+02:00` | `2026-04-13T20:45:52.113479+02:00` |
+| canonical `rubitime_projection` | max start `2026-08-29T18:00:00+02:00` | n/a |
+
+Interpretation: the direct raw source has no records missing from legacy (`raw_only_count=0`), so no raw-only import is needed before owner review. R1 is still not passable: legacy has 312 ids absent from raw, 129 legacy rows are unmapped to canonical, and there are status/freshness differences that need owner/reviewer classification.
+
+## Backfill dry-run result
+
+The existing backfill script was updated with a report-only flag:
+
+- `--summary-only`
+- alias: `--pii-safe`
+
+The flag suppresses detail rows in duplicate/stale/conflict sections and leaves all write behavior gated exactly as before by `--commit`.
+
+Initial dry-run with the requested dev env failed before DB work because webapp config requires a non-empty `TELEGRAM_BOT_TOKEN`, while the safe dev env keeps send credentials empty. The successful proof run used a process-local non-secret parser placeholder:
+
+```bash
+TELEGRAM_BOT_TOKEN=dev-placeholder-not-real
+```
+
+No real credential was used, and no delivery path was invoked.
+
+Sanitized dry-run summary:
+
+| Check | Result |
+| --- | ---: |
+| mode | `DRY-RUN (read-only)` |
+| Rubitime bridge enabled | `false` |
+| CSV stale detection | skipped; CSV not present at default path |
+| legacy live rows | 400 |
+| canonical `rubitime_projection` live rows | 258 |
+| unmapped legacy total | 126 |
+| unmapped test/block | 13 |
+| unmapped cancelled | 20 |
+| unmapped real active | 99 |
+| unmapped future | 0 |
+| duplicate clusters | 7 |
+| duplicate clusters with multiple canonical rows | 0 |
+| stale vs CSV | not evaluated |
+
+No `--commit` was run.
 
 ## Commands run
 
 | Command | Result |
 | --- | --- |
-| `pwd && git status --short --branch && git rev-parse HEAD && git remote -v` | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, HEAD `69dfc8b2ce03f9fdf9f46e30def71e5c1951e1ee` before this fixer commit. |
-| `sed -n ... AGENTS.md`, `docs/ORCHESTRATION_BINDINGS.md`, `README.md`, `docs/README.md`, required `.cursor/rules/*`, R0 report, R1 plan sections | PASS. Required rules/docs read. |
-| `node /home/dev/brain/tools/code-search.mjs "backfill-canonical-from-legacy-appointments rubitime_records appointment_records reconciliation" --repo bcb -k 50` | PASS. Ran before broad/exact file inspection. |
-| `sed -n ... apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` | PASS. Inspected; dry-run is read-only, but output is not PII-safe. |
-| `sed -n ... apps/webapp/scripts/reconcile-appointments-domain.mjs` | PASS. Inspected; not suitable as-is for requested proof. |
-| `sed -n ... apps/webapp/scripts/rubitime-appointment-mapping-audit.sql` | PASS. Inspected only. |
-| `sed -n ... apps/integrator/src/infra/scripts/compare-rubitime-records.ts` | PASS. Inspected only. |
-| `find . -maxdepth 3 \( -name '.env' -o -name '.env.dev' -o -name '.env.local' -o -name '.env.cutover' -o -name '.env.cutover.dev' \) -print` | PASS, empty result. No allowed local env file found in this worktree. |
-| `set -a; [ -f .env ] && source .env; [ -f apps/webapp/.env.dev ] && source apps/webapp/.env.dev; set +a; node ...` | BLOCKED. `DATABASE_URL missing`. |
-| `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --help` | PASS. Usage printed, no DB access. |
-| `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | BLOCKED as expected. Exit 2: `DATABASE_URL is not set after loading local .env files.` |
-| `DATABASE_URL='postgres://u:p@127.0.0.1:5432/bcb_webapp_prod' node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS fail-safe. Refused non-dev DB before connecting. |
+| `pwd && git status --short --branch && git rev-parse HEAD` | PASS. Worktree `/home/dev/dev-projects/bcb-walls`, branch `auto/code-pg-delta`, starting HEAD `5c348afd47253984806238cb27bee0d18cf3e006`. |
+| Required docs/rules reads (`AGENTS.md`, `docs/ORCHESTRATION_BINDINGS.md`, plan R1/RR-PROOF-01, required `.cursor/rules/*`, core onboarding docs) | PASS. |
+| `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --help` | PASS. |
+| dual-source audit with safe dev env and `--sample-size=0` | PASS; JSON artifact saved. |
+| first backfill dry-run with safe dev env and `--summary-only` | BLOCKED before SQL by required non-empty `TELEGRAM_BOT_TOKEN`. |
+| backfill dry-run with safe dev env, process-local non-secret `TELEGRAM_BOT_TOKEN`, and `--summary-only` | PASS; summary artifact saved. |
 | `node --check docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
-| `pnpm run check:rubitime-retirement-r0` | PASS. R0 guard still active. |
-| `git diff --check` | PASS. |
-| `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs` | PASS. |
 
 ## R1 checklist status
 
-Closed in this run:
-
-- None of the data-proof checkboxes can be closed without a safe dev DB connection and actual aggregate results.
-
-Open / blocked:
+Closed by this proof run:
 
 - `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - max `record_at` / freshness comparison is recorded for both sources.
-- raw-only records are imported to canonical or owner-waived with ids and reason.
-- legacy-only records are classified.
-- status/freshness mismatches are classified.
+- raw-only delta is zero; no raw-only import or waiver is needed from this result.
 - canonical mapping coverage is recorded.
-- `backfill-canonical-from-legacy-appointments` dry-run output is saved.
-- owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
-- commit run is approved before any `--commit`.
-- commit run completes, if approved.
-- post-run diagnosis shows zero deltas/conflicts or approved exceptions.
-- doctor calendar/list/KPI smoke confirms expected historical records.
+- `backfill-canonical-from-legacy-appointments` dry-run output is saved in PII-safe mode.
+
+Open / blocked:
+
+- legacy-only records are not owner-classified.
+- status/freshness mismatches are counted but not owner-classified.
+- owner has not reviewed `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
+- commit run is not approved and was not run.
+- post-run diagnosis does not show `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0`.
+- doctor calendar/list/KPI smoke was not run.
+- stale-by-CSV remains unavailable until an approved current CSV exists in the expected path or an explicit CSV path is provided.
 
 ## RR-PROOF-01-DUAL-SOURCE
 
-Status: **BLOCKED / DRAFT**
+Status: **BLOCKED**
 
-Reason: the proof artifact structure and read-only diagnostic script are prepared, but the actual DB aggregate evidence was not collected because this worktree has no allowed local dev DB env. The legacy backfill dry-run was also not run because its current output can expose PII.
-
-## Residual risks and owner decisions
-
-- Owner/dev-lead needs to provide a safe dev `DATABASE_URL` in allowed local env files for `/home/dev/dev-projects/bcb-walls`, or run the command above in a safe shell and attach sanitized output.
-- `backfill-canonical-from-legacy-appointments` needs either a PII-safe output mode or execution against a no-PII DB snapshot before this R1 worker can save its dry-run output.
-- No raw-only/legacy-only/status/freshness/mapping facts are known from this run; entering R2 remains blocked.
-- No `--commit` run was requested or executed.
+Reason: read-only R1 evidence was collected, but acceptance is not met. Remaining blockers are unresolved legacy-only/mismatch classification, unmapped canonical coverage, duplicate clusters, missing CSV stale proof, owner review, and the forbidden/unapproved `--commit` run.
