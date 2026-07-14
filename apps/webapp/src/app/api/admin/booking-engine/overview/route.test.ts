@@ -16,7 +16,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 describe("GET /api/admin/booking-engine/overview", () => {
-  it("returns read sources and calendarReadSource alias", async () => {
+  it("returns canonical doctor read source even when the retired setting row is legacy", async () => {
     const bridge = {
       getMappingSummary: vi.fn().mockResolvedValue({
         branches: 1,
@@ -67,8 +67,8 @@ describe("GET /api/admin/booking-engine/overview", () => {
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.doctorAppointmentsReadSource).toBe("rubitime_legacy");
+    expect(json.doctorAppointmentsReadSource).toBe("canonical");
     expect(json.bookingSlotsReadSource).toBe("rubitime");
-    expect(json.calendarReadSource).toBe("rubitime_legacy");
+    expect(json.calendarReadSource).toBe("canonical");
   });
 });

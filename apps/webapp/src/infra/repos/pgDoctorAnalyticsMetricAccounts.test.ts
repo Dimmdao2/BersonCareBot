@@ -114,7 +114,7 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(params).toContain(EXCLUDED);
   });
 
-  it("today_appointments_week uses legacy appointment_records when read source is rubitime_legacy", async () => {
+  it("today_appointments_week uses canonical SQL even when retired read source is rubitime_legacy", async () => {
     const port = createPgDoctorAnalyticsMetricAccountsPort(
       async () => ORG_ID,
       async () => "rubitime_legacy",
@@ -131,10 +131,11 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     const firstCall = runWebappPgTextMock.mock.calls[0];
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
-    expect(sql).toContain("appointment_records");
+    expect(sql).toContain("be_appointments");
     expect(sql).toContain("Запись на неделе");
-    expect(sql).toContain("ar.status <> 'canceled'");
-    expect(sql).not.toContain("be_appointments");
+    expect(sql).toContain("a.status <> ALL");
+    expect(sql).not.toContain("LEFT JOIN appointment_records ar");
+    expect(sql).not.toContain("ar.status <> 'canceled'");
   });
 
   it("appointments_cancellation_actions excludes staff-purged canonical rows", async () => {

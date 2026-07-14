@@ -44,9 +44,10 @@ function mockPort(tag: string): DoctorAppointmentsPort {
 }
 
 describe("parseDoctorAppointmentsReadSource", () => {
-  it("defaults to rubitime_legacy for unknown values", () => {
-    expect(parseDoctorAppointmentsReadSource(undefined)).toBe("rubitime_legacy");
-    expect(parseDoctorAppointmentsReadSource("hybrid")).toBe("rubitime_legacy");
+  it("defaults to canonical for old or unknown values", () => {
+    expect(parseDoctorAppointmentsReadSource(undefined)).toBe("canonical");
+    expect(parseDoctorAppointmentsReadSource("hybrid")).toBe("canonical");
+    expect(parseDoctorAppointmentsReadSource("rubitime_legacy")).toBe("canonical");
   });
 
   it("accepts canonical", () => {
@@ -56,7 +57,7 @@ describe("parseDoctorAppointmentsReadSource", () => {
 });
 
 describe("createDoctorAppointmentsReadSwitchPort", () => {
-  it("uses legacy port by default", async () => {
+  it("uses canonical port even when the retired setting resolves to rubitime_legacy", async () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
@@ -65,9 +66,9 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       resolveReadSource: async () => "rubitime_legacy",
     });
     const rows = await port.listAppointmentsForSpecialist({ kind: "futureActive" });
-    expect(rows[0]?.id).toBe("legacy");
-    expect(legacy.listAppointmentsForSpecialist).toHaveBeenCalled();
-    expect(canonical.listAppointmentsForSpecialist).not.toHaveBeenCalled();
+    expect(rows[0]?.id).toBe("canonical");
+    expect(canonical.listAppointmentsForSpecialist).toHaveBeenCalled();
+    expect(legacy.listAppointmentsForSpecialist).not.toHaveBeenCalled();
   });
 
   it("uses canonical when configured and port available", async () => {
@@ -83,7 +84,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     expect(canonical.listAppointmentsForSpecialist).toHaveBeenCalled();
   });
 
-  it("falls back to legacy when canonical requested but port missing", async () => {
+  it("falls back to legacy only when canonical port is missing", async () => {
     const legacy = mockPort("legacy");
     const port = createDoctorAppointmentsReadSwitchPort({
       legacyPort: legacy,
@@ -139,7 +140,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     expect(legacy.getScheduleKpis).toHaveBeenCalled();
   });
 
-  it("getScheduleKpis does not affect routing of the other read-path methods", async () => {
+  it("all other read-path methods are canonical-only after R2 cutover", async () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
@@ -148,9 +149,9 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       resolveReadSource: async () => "rubitime_legacy",
     });
     await port.getScheduleKpis(KPI_QUERY);
-    // List/stats must still follow the flag (legacy by default) — no regression.
     const rows = await port.listAppointmentsForSpecialist({ kind: "futureActive" });
-    expect(rows[0]?.id).toBe("legacy");
-    expect(canonical.listAppointmentsForSpecialist).not.toHaveBeenCalled();
+    expect(rows[0]?.id).toBe("canonical");
+    expect(canonical.listAppointmentsForSpecialist).toHaveBeenCalled();
+    expect(legacy.listAppointmentsForSpecialist).not.toHaveBeenCalled();
   });
 });

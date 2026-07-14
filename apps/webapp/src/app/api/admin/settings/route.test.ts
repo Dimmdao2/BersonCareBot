@@ -497,6 +497,18 @@ describe("PATCH /api/admin/settings", () => {
     expect(res.status).toBe(200);
   });
 
+  it("rejects retired rubitime_legacy booking_doctor_appointments_read_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_doctor_appointments_read_source", value: "rubitime_legacy" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("returns 200 for admin updating max_debug_page_enabled (AdminSettingsSection body)", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);

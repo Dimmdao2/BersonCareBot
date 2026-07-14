@@ -397,7 +397,7 @@ export async function PATCH(request: Request) {
   if (parsed.data.key === "booking_doctor_appointments_read_source") {
     const inner = normalizedValue.value;
     const raw = typeof inner === "string" ? inner.trim() : "";
-    if (raw !== "rubitime_legacy" && raw !== "canonical") {
+    if (raw !== "canonical") {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: raw };

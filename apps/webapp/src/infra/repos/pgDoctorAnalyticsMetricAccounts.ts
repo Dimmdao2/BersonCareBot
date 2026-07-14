@@ -80,10 +80,15 @@ function mapRow(row: ListRow): DoctorAnalyticsMetricAccountItem {
   };
 }
 
+function canonicalDoctorAppointmentsReadSource(): DoctorAppointmentsReadSource {
+  return "canonical";
+}
+
 export function createPgDoctorAnalyticsMetricAccountsPort(
   getDefaultOrganizationId: () => Promise<string>,
   resolveReadSource: () => Promise<DoctorAppointmentsReadSource> = async () => "canonical",
 ): DoctorAnalyticsMetricAccountsPort {
+  void resolveReadSource;
   return {
     async listMetricAccounts({
       metric,
@@ -111,7 +116,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
       const start = range.startUtcIso;
       const endExclusive = range.endExclusiveUtcIso;
       const notifHours = Math.min(720, Math.max(1, Math.floor(windowHours ?? 168) || 168));
-      const appointmentsReadSource = await resolveReadSource();
+      const appointmentsReadSource = canonicalDoctorAppointmentsReadSource();
 
       const queryByMetric = async (metricKey: DoctorAnalyticsMetricKey): Promise<ListRow[]> => {
         if (metricKey === "appointments_past_visits") {

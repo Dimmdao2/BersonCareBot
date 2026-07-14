@@ -4,16 +4,8 @@ import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsRead
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy" | "canonical" {
-  if (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    "value" in (valueJson as Record<string, unknown>) &&
-    (valueJson as { value: unknown }).value === "canonical"
-  ) {
-    return "canonical";
-  }
-  if (valueJson === "canonical") return "canonical";
-  return "rubitime_legacy";
+  void valueJson;
+  return "canonical";
 }
 
 export async function GET() {

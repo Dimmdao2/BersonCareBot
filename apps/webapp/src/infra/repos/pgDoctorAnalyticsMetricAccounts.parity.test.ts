@@ -79,7 +79,7 @@ describe("pgDoctorAnalyticsMetricAccounts SQL parity", () => {
     }
   });
 
-  it("uses legacy appointment_records SQL when read source is rubitime_legacy", async () => {
+  it("uses canonical SQL even when the retired read source resolves to rubitime_legacy", async () => {
     const port = createPgDoctorAnalyticsMetricAccountsPort(
       async () => ORG_ID,
       async () => "rubitime_legacy",
@@ -96,8 +96,10 @@ describe("pgDoctorAnalyticsMetricAccounts SQL parity", () => {
 
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("FROM appointment_records ar");
-    expect(sql).toContain("ar.status <> 'canceled'");
+    expect(sql).toContain("FROM be_appointments a");
+    expect(sql).toContain("a.status <> ALL");
+    expect(sql).not.toContain("LEFT JOIN appointment_records ar");
+    expect(sql).not.toContain("ar.status <> 'canceled'");
   });
 
   it("paginates with hasMore when row count exceeds limit", async () => {

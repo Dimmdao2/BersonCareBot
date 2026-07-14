@@ -26,7 +26,7 @@ import { apiJson } from "@/shared/lib/apiJson";
 
 const BASE = "/api/admin/booking-engine";
 
-type DoctorAppointmentsReadSource = "rubitime_legacy" | "canonical";
+type DoctorAppointmentsReadSource = "canonical";
 type BookingSlotsReadSource = "rubitime" | "canonical";
 
 type Overview = {
@@ -64,11 +64,6 @@ type Overview = {
     appointments: number;
   };
 };
-
-const READ_SOURCE_ITEMS: { value: DoctorAppointmentsReadSource; label: string }[] = [
-  { value: "rubitime_legacy", label: "Rubitime legacy" },
-  { value: "canonical", label: "Канон" },
-];
 
 const SLOTS_READ_SOURCE_ITEMS: { value: BookingSlotsReadSource; label: string }[] = [
   { value: "rubitime", label: "Rubitime legacy" },
@@ -119,8 +114,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
       const res = await apiJson<{ ok: boolean; error?: string } & Partial<Overview>>(`${BASE}/overview`);
       setData({
         ...(res as Overview),
-        doctorAppointmentsReadSource:
-          res.doctorAppointmentsReadSource === "canonical" ? "canonical" : "rubitime_legacy",
+        doctorAppointmentsReadSource: "canonical",
         bookingSlotsReadSource: res.bookingSlotsReadSource === "rubitime" ? "rubitime" : "canonical",
       });
       setOrgTitle(res.organization?.title ?? "");
@@ -199,37 +193,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
               <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <Label>Список записей врача</Label>
-                <Select
-                  value={data.doctorAppointmentsReadSource}
-                  disabled={isPending}
-                  onValueChange={(value) =>
-                    run(async () => {
-                      const res = await apiJson<{ ok: boolean }>("/api/admin/settings", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          key: "booking_doctor_appointments_read_source",
-                          value,
-                        }),
-                      });
-                      if (!res.ok) throw new Error("read_source_save_failed");
-                    })
-                  }
-                >
-                  <SelectTrigger
-                    className="w-[10rem]"
-                    displayLabel={
-                      READ_SOURCE_ITEMS.find((i) => i.value === data.doctorAppointmentsReadSource)?.label
-                    }
-                  />
-                  <SelectContent>
-                    {READ_SOURCE_ITEMS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input className="w-[10rem]" value="Канон" readOnly disabled={isPending} />
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Свободные слоты пациента</Label>
@@ -269,12 +233,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
                 Календарь сейчас:{" "}
                 {data.calendarReadSource === "canonical" ? "Канон" : "Rubitime"}
               </p>
-              {data.doctorAppointmentsReadSource === "rubitime_legacy" &&
-              data.bookingSlotsReadSource === "canonical" ? (
-                <p className="text-sm text-destructive">Источники расходятся</p>
-              ) : null}
-              {data.doctorAppointmentsReadSource === "canonical" &&
-              data.bookingSlotsReadSource === "rubitime" ? (
+              {data.bookingSlotsReadSource === "rubitime" ? (
                 <p className="text-sm text-destructive">Источники расходятся</p>
               ) : null}
               <div className="flex items-center gap-2">

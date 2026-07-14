@@ -6,16 +6,8 @@ import {
 import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 
 function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy" | "canonical" {
-  if (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    "value" in (valueJson as Record<string, unknown>) &&
-    (valueJson as { value: unknown }).value === "canonical"
-  ) {
-    return "canonical";
-  }
-  if (valueJson === "canonical") return "canonical";
-  return "rubitime_legacy";
+  void valueJson;
+  return "canonical";
 }
 
 export type BookingAdminOverviewData =

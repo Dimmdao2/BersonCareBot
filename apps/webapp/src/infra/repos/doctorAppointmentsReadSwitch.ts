@@ -1,6 +1,6 @@
 import type { DoctorAppointmentsPort } from "@/modules/doctor-appointments/ports";
 
-/** Источник списка записей врача на переходном этапе (см. `booking_doctor_appointments_read_source`). */
+/** Retired source setting value kept only for parsing old rows/docs during Rubitime retirement. */
 export type DoctorAppointmentsReadSource = "rubitime_legacy" | "canonical";
 
 function unwrapSettingValue(valueJson: unknown): unknown {
@@ -17,19 +17,13 @@ function unwrapSettingValue(valueJson: unknown): unknown {
 export function parseDoctorAppointmentsReadSource(valueJson: unknown): DoctorAppointmentsReadSource {
   const value = unwrapSettingValue(valueJson);
   if (value === "canonical") return "canonical";
-  return "rubitime_legacy";
+  return "canonical";
 }
 
 /**
- * Выбирает legacy Rubitime (`appointment_records`) или канон (`be_appointments`) по настройке.
- * Default: `rubitime_legacy` — канон не подменяет Rubitime-read без явного cutover.
- *
- * Исключение (S2b, по D1 «canonical = единый источник KPI»): `getScheduleKpis` всегда
- * читает из canonical-порта, когда он доступен, НЕЗАВИСИМО от `booking_doctor_appointments_read_source`.
- * Причина: у legacy-порта `getScheduleKpis` — заглушка из всех нулей (per-patient аналитики там нет),
- * настоящий расчёт 9 метрик реализован только в canonical. Узкий cutover: остальной read-path
- * (список/stats/дашборд-метрики) по-прежнему следует флагу read-source, чтобы не задеть других потребителей.
- * Если canonical-порт недоступен (например, in-memory режим) — fallback на legacy.
+ * Rubitime R2 cutover: doctor-facing appointment reads are canonical-only.
+ * The legacy port remains as a non-prod/in-memory fallback until the table-drop phase,
+ * but `booking_doctor_appointments_read_source` no longer changes runtime behavior.
  */
 export function createDoctorAppointmentsReadSwitchPort(input: {
   legacyPort: DoctorAppointmentsPort;
@@ -37,11 +31,8 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
   resolveReadSource: () => Promise<DoctorAppointmentsReadSource>;
 }): DoctorAppointmentsPort {
   const pick = async (): Promise<DoctorAppointmentsPort> => {
-    const source = await input.resolveReadSource();
-    if (source === "canonical" && input.canonicalPort) {
-      return input.canonicalPort;
-    }
-    return input.legacyPort;
+    void input.resolveReadSource;
+    return input.canonicalPort ?? input.legacyPort;
   };
 
   return {
@@ -50,7 +41,6 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
     getAppointmentStats: async (filter, audience) => (await pick()).getAppointmentStats(filter, audience),
     getDashboardAppointmentMetrics: async (audience) =>
       (await pick()).getDashboardAppointmentMetrics(audience),
-    // KPI всегда из canonical (см. doc-comment выше); legacy — лишь fallback при отсутствии canonical.
     getScheduleKpis: async (query, audience) =>
       (input.canonicalPort ?? input.legacyPort).getScheduleKpis(query, audience),
     getAppointmentDailySeries: async (filter, audience) =>

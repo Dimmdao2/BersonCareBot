@@ -1,6 +1,6 @@
 # Rubitime retirement — execution plan
 
-Статус: R1 blocked after clean-dump rehearsal, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки этим документом не меняются.
+Статус: R2 doctor read-source canonical-only closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
 
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix, placeholder bookings Дмитрия Берсона, specialist consolidation и R1 aggregate audits. Этот execution plan не заменяет runbook.
 
@@ -795,7 +795,9 @@ Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`
 
 Execution note 2026-07-14: `R1-DOCTOR-UI-SMOKE-codex-2026-07-14` closed the doctor calendar/list/KPI smoke gate. The smoke used current local `bcb_webapp_dev` after read-only aggregate re-check because disposable clean-dump mirrors had already been removed by owner request. Aggregate risks remained closed against the owner CSV: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`, `raw_only=0`. Doctor calendar API returned `readSource=canonical` with 301 events over the CSV span; schedule KPI returned 200; appointments list API returned 200; `/app/doctor`, `/app/doctor/schedule?tab=cal`, and legacy `/app/doctor/appointments` (redirect to schedule tab) returned 200. Details: `RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md`.
 
-Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1 canon. Anything present in the
+Execution note 2026-07-14: `R2-DOCTOR-READ-SOURCE-codex-2026-07-14` made doctor-facing appointment reads canonical-only in the working branch. `booking_doctor_appointments_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime legacy for doctor appointment reads; the settings API rejects `rubitime_legacy`; doctor analytics ignores the retired resolver and uses canonical SQL. Remaining `appointment_records` consumers are inventoried and assigned to later table-drop/canonicalization phases. Details: `RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md`.
+
+Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
 fresh Rubitime CSV is needed; anything absent from it is not needed. `integrator.rubitime_records` is
 non-authoritative when it disagrees with the fresh export / `appointment_records` history. The export is
 matched through existing city/branch mappings and the R1 history belongs to one specialist resolved through
@@ -833,17 +835,17 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R2 — doctor read-source canonical-only
 
-- [ ] `booking_doctor_appointments_read_source` is set to `canonical` through Settings service/UI.
-- [ ] doctor appointments list reads canonical.
-- [ ] doctor Today/KPI reads canonical.
-- [ ] schedule/calendar surfaces read canonical.
-- [ ] analytics surfaces using appointment data are checked.
-- [ ] all non-switch `appointment_records` consumers are inventoried.
-- [ ] client history reads are migrated or explicitly assigned.
-- [ ] membership/package appointment status reads are migrated or explicitly assigned.
-- [ ] runtime `rubitime_legacy` branch is removed or frozen behind rollback horizon.
-- [ ] tests expecting legacy switch are updated.
-- [ ] rollback boundary for R2 is documented.
+- [x] `booking_doctor_appointments_read_source` is set to canonical behavior through the app layer. *(The old row may remain for audit, but UI/API/runtime no longer allow it to switch doctor reads back to Rubitime legacy; direct prod DB writes were not performed.)*
+- [x] doctor appointments list reads canonical.
+- [x] doctor Today/KPI reads canonical.
+- [x] schedule/calendar surfaces read canonical.
+- [x] analytics surfaces using appointment data are checked.
+- [x] all non-switch `appointment_records` consumers are inventoried.
+- [x] client history reads are migrated or explicitly assigned. *(Assigned to later canonicalization/table-drop preparation; not an active doctor read-source blocker.)*
+- [x] membership/package appointment status reads are migrated or explicitly assigned. *(Assigned to package lifecycle canonicalization before table drop.)*
+- [x] runtime `rubitime_legacy` branch is removed or frozen behind rollback horizon.
+- [x] tests expecting legacy switch are updated.
+- [x] rollback boundary for R2 is documented.
 
 ### R3 — patient/public slots and create canonical-only
 

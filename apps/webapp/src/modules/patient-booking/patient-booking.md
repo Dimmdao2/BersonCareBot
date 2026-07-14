@@ -6,7 +6,7 @@
 
 Admin keys (`system_settings`, scope `admin`):
 
-- **`booking_doctor_appointments_read_source`:** `rubitime_legacy` | `canonical` — список записей врача, KPI, **календарь** (тот же switch).
+- **`booking_doctor_appointments_read_source`:** retired for doctor runtime reads; doctor list/KPI/calendar are canonical-only after Rubitime R2. Old DB rows may remain for audit/rollback until table-drop phases.
 - **`booking_slots_read_source`:** `rubitime` | `canonical` — patient/public слоты и логика **create**.
 
 | `booking_slots_read_source` | Create |

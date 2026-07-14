@@ -20,8 +20,10 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 - Не писать ad hoc SQL, пока не доказано, что существующие скрипты ниже не покрывают задачу.
 - Любой R1 отчет должен быть aggregate-only: без пациентских ФИО, телефонов, email, raw payloads и внешних ids.
 - R2/R3/R4 Rubitime retirement запрещены, пока R1 clean-copy proof не закрыт и не принят владельцем.
-- R1 source of truth: свежая выгрузка Rubitime CSV. Есть в CSV — надо сохранить/импортировать/маппить;
-  нет в CSV — не надо. `integrator.rubitime_records` не является каноном, если есть свежий CSV.
+- R1/R2 source of truth: свежая выгрузка Rubitime CSV. Есть в CSV — надо сохранить/импортировать/маппить;
+  нет в CSV — не надо. `integrator.rubitime_records` не является каноном, если есть свежий CSV. Для текущего
+  R1/R2 proof выгрузка сопоставляется через города/филиалы и относится к одному специалисту владельца,
+  идентифицированному по phone tail `9643805480`.
 
 ## 1. Что читать на старте
 
