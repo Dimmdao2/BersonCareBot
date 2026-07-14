@@ -19,6 +19,8 @@ This proof covers the first R6 code split before destructive integrator Rubitime
 - Doctor/admin manual create no longer resolves legacy Rubitime branch-service mapping when
   `booking_rubitime_bridge_enabled=false`. Canonical manual create remains available; Rubitime `create-record` remains
   gated for cutoff-dependent bridge-enabled flows.
+- Patient/public canonical create no longer contains hard-disabled Rubitime-first or Rubitime-create-mirror branches.
+  Normal patient/public create uses canonical scheduling/booking plus provider-neutral lifecycle events.
 
 No production DB, env, service, webhook, or Rubitime endpoint was changed.
 
@@ -39,4 +41,7 @@ the lifecycle handler body out of `integrations/rubitime` or delete the Rubitime
   `.next/cache` / standalone output were not touched.
 - `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/manual/route.test.ts src/app/api/admin/booking-engine/appointments/manual/route.test.ts` - passed, 10 tests.
 - `pnpm --dir apps/webapp exec eslint src/app/api/doctor/booking-engine/appointments/manual/route.ts src/app/api/admin/booking-engine/appointments/manual/route.ts src/app/api/doctor/booking-engine/appointments/manual/route.test.ts src/app/api/admin/booking-engine/appointments/manual/route.test.ts` - passed.
+- `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts` - passed, 16 tests.
+- `pnpm --dir apps/webapp exec eslint src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/canonicalCreate.test.ts` - passed.
+- `rg -n "isRubitimeFirstCreateEnabled|isRubitimeCreateMirrorEnabled|createRubitimeRecord\\(|rollbackFailedRubitimeCreate|waitForRubitimeProjectionMapping|extractRubitimeManageUrl|rubitime_projection_not_ready|rubitimeFirst|bridgeEnabled|syncPort\\.createRecord|syncPort\\.deleteRecord" apps/webapp/src/modules/patient-booking/canonicalCreate.ts` - no matches.
 - `rg -n "api/doctor/appointments/rubitime|appointments/rubitime/(update|cancel)" apps/webapp/src apps/webapp/INTEGRATOR_CONTRACT.md apps/webapp/src/app/api/api.md -g '*.ts' -g '*.tsx' -g '*.md'` - no runtime code hits; only retired-doc note remains.

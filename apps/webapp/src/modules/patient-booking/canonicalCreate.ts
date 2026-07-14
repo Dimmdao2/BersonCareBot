@@ -1,6 +1,6 @@
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { AppointmentStatus, BeAppointment, BeBranch, BeClinicService } from "@/modules/booking-engine/types";
+import type { BeBranch, BeClinicService } from "@/modules/booking-engine/types";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 import type { createBookingFormService } from "@/modules/booking-form/service";
@@ -26,17 +26,12 @@ import type {
 } from "./ports";
 import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
 import type { BookingSlotsReadSource } from "./slotsReadSource";
-import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
 import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
 import {
   resolveBookingNotifyTargets,
   type BookingLifecycleNotificationsSettings,
 } from "./bookingLifecycleNotifications";
-import {
-  rollbackFailedRubitimeCreate,
-  waitForRubitimeProjectionMapping,
-} from "./rubitimeCreateRollback";
 import { sendBookingConfirmationEmail } from "./sendBookingConfirmationEmail";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
@@ -136,99 +131,6 @@ function toPendingRowInPerson(
   };
 }
 
-type LegacyRubitimeCreateContext = {
-  branch: { rubitimeBranchId: string };
-  specialist: { rubitimeCooperatorId: string };
-  branchService: { rubitimeServiceId: string };
-};
-
-async function createRubitimeRecord(
-  deps: CanonicalBookingDeps,
-  createInput: CreatePatientBookingInput,
-  pendingId: string,
-  resolved: LegacyRubitimeCreateContext | undefined,
-): Promise<{ rubitimeId: string; raw: Record<string, unknown> }> {
-  let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
-  if (createInput.type === "online") {
-    sync = await deps.syncPort.createRecord({
-      type: "online",
-      category: createInput.category,
-      slotStart: createInput.slotStart,
-      slotEnd: createInput.slotEnd,
-      contactName: createInput.contactName,
-      contactPhone: createInput.contactPhone,
-      contactEmail: createInput.contactEmail,
-    });
-  } else if (resolved) {
-    sync = await deps.syncPort.createRecord({
-      version: "v2",
-      rubitimeBranchId: resolved.branch.rubitimeBranchId,
-      rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
-      rubitimeServiceId: resolved.branchService.rubitimeServiceId,
-      slotStart: createInput.slotStart,
-      contactName: createInput.contactName,
-      contactPhone: createInput.contactPhone,
-      contactEmail: createInput.contactEmail,
-      localBookingId: pendingId,
-    });
-  } else {
-    throw new Error("catalog_unavailable");
-  }
-  const rubitimeId = sync.rubitimeId?.trim() ?? "";
-  if (!rubitimeId) throw new Error("rubitime_id_missing");
-  return { rubitimeId, raw: sync.raw };
-}
-
-function isRubitimeFirstCreateEnabled(): boolean {
-  return false;
-}
-
-async function isRubitimeCreateMirrorEnabled(): Promise<boolean> {
-  return false;
-}
-
-/**
- * Rubitime-first create runs integrator postCreateProjection before this returns.
- * Re-use the projected `be_appointments` row — never insert a second native row (overlap).
- */
-async function resolveCanonicalAppointmentAfterRubitimeCreate(
-  deps: CanonicalBookingDeps,
-  input: {
-    organizationId: string;
-    rubitimeId: string;
-    targetStatus: AppointmentStatus;
-    pendingBookingId: string;
-  },
-): Promise<BeAppointment> {
-  if (!deps.bookingEngine) throw new Error("canonical_booking_unavailable");
-  const projectedId = await waitForRubitimeProjectionMapping(deps.bookingEngine, {
-    organizationId: input.organizationId,
-    rubitimeId: input.rubitimeId,
-  });
-  if (!projectedId) {
-    await deps.bookingsPort.markFailedSync(input.pendingBookingId);
-    await rollbackFailedRubitimeCreate({
-      syncPort: deps.syncPort,
-      bookingEngine: deps.bookingEngine,
-      organizationId: input.organizationId,
-      rubitimeId: input.rubitimeId,
-    });
-    throw new Error("rubitime_projection_not_ready");
-  }
-  const existing = await deps.bookingEngine.getAppointment(projectedId);
-  if (!existing) throw new Error("projected_appointment_missing");
-  if (existing.status === input.targetStatus) return existing;
-  try {
-    return await deps.bookingEngine.transitionAppointmentStatus({
-      appointmentId: existing.id,
-      toStatus: input.targetStatus,
-      payload: { source: "patient_booking_rubitime_first" },
-    });
-  } catch {
-    return existing;
-  }
-}
-
 export async function createBookingOnCanonicalEngine(
   deps: CanonicalBookingDeps,
   createInput: CreatePatientBookingInput,
@@ -237,9 +139,6 @@ export async function createBookingOnCanonicalEngine(
   if (!deps.bookingEngine || !deps.bookingScheduling) {
     throw new Error("canonical_booking_unavailable");
   }
-
-  void deps.resolveSlotsReadSource;
-  const rubitimeFirst = isRubitimeFirstCreateEnabled();
 
   let pendingRow: CreatePendingPatientBookingInput;
   let durationMinutes = 60;
@@ -253,16 +152,14 @@ export async function createBookingOnCanonicalEngine(
   if (createInput.type === "online") {
     if (!orgId) throw new Error("ambiguous_booking_tenant");
     pendingRow = toPendingRowOnline(createInput);
-    if (!rubitimeFirst) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        organizationId: orgId,
-        specialistId: null,
-        roomId: null,
-        slotStart: createInput.slotStart,
-        slotEnd: createInput.slotEnd,
-        durationMinutes: 60,
-      });
-    }
+    await deps.bookingScheduling.assertSlotAvailable({
+      organizationId: orgId,
+      specialistId: null,
+      roomId: null,
+      slotStart: createInput.slotStart,
+      slotEnd: createInput.slotEnd,
+      durationMinutes: 60,
+    });
   } else {
     inPersonCtx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
     if (!inPersonCtx) throw new Error("branch_service_not_found");
@@ -286,14 +183,12 @@ export async function createBookingOnCanonicalEngine(
     if (createInput.cityCode.trim().toLowerCase() !== expectedCity) throw new Error("city_mismatch");
     pendingRow = toPendingRowInPerson(createInput, { context: inPersonCtx, branch, service });
     durationMinutes = inPersonCtx.durationMinutes;
-    if (!rubitimeFirst) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        branchServiceId: createInput.branchServiceId,
-        slotStart: createInput.slotStart,
-        slotEnd: createInput.slotEnd,
-        durationMinutes,
-      });
-    }
+    await deps.bookingScheduling.assertSlotAvailable({
+      branchServiceId: createInput.branchServiceId,
+      slotStart: createInput.slotStart,
+      slotEnd: createInput.slotEnd,
+      durationMinutes,
+    });
     // In-person bookings MUST resolve a concrete specialist: a NULL specialist_id
     // bypasses the be_appointments_specialist_no_overlap exclusion constraint
     // (it only covers non-null rows), allowing an overlapping booking. Only ONLINE
@@ -403,95 +298,39 @@ export async function createBookingOnCanonicalEngine(
   const initialAppointmentStatus = needsPrepayment ? "awaiting_payment" : "confirmed";
 
   const phoneNormalized = normalizeRuPhoneE164(createInput.contactPhone) ?? createInput.contactPhone.trim();
-  let rubitimeId: string | null = null;
-  let rubitimeManageUrl: string | null = null;
-
-  if (rubitimeFirst) {
-    try {
-      const sync = await createRubitimeRecord(deps, createInput, pending.id, undefined);
-      rubitimeId = sync.rubitimeId;
-      rubitimeManageUrl = extractRubitimeManageUrlFromIntegratorCreateRaw(sync.raw);
-    } catch (err) {
-      await deps.bookingsPort.markFailedSync(pending.id);
-      const code = err instanceof Error ? err.message : "rubitime_sync_failed";
-      throw new Error(code === "rubitime_id_missing" ? code : "rubitime_sync_failed");
-    }
-  }
+  const rubitimeId: string | null = null;
+  const rubitimeManageUrl: string | null = null;
 
   let appointment;
   try {
-    appointment =
-      rubitimeFirst && rubitimeId
-        ? await resolveCanonicalAppointmentAfterRubitimeCreate(deps, {
-            organizationId: orgId,
-            rubitimeId,
-            targetStatus: initialAppointmentStatus,
-            pendingBookingId: pending.id,
-          })
-        : await deps.bookingEngine.createAppointment({
-            organizationId: orgId,
-            branchId: canonicalBranchId,
-            roomId: canonicalRoomId,
-            specialistId: canonicalSpecialistId,
-            serviceId: canonicalServiceId,
-            platformUserId: createInput.userId,
-            startAt: createInput.slotStart,
-            endAt: createInput.slotEnd,
-            durationMinutes: slotDurationMinutes,
-            source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
-            status: initialAppointmentStatus,
-            phoneNormalized,
-            actorId: createInput.userId,
-            attributionJson: {
-              ...(createInput.attribution ?? {}),
-              ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
-              ...(productPurchaseId ? { productPurchaseId } : {}),
-            },
-          });
+    appointment = await deps.bookingEngine.createAppointment({
+      organizationId: orgId,
+      branchId: canonicalBranchId,
+      roomId: canonicalRoomId,
+      specialistId: canonicalSpecialistId,
+      serviceId: canonicalServiceId,
+      platformUserId: createInput.userId,
+      startAt: createInput.slotStart,
+      endAt: createInput.slotEnd,
+      durationMinutes: slotDurationMinutes,
+      source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
+      status: initialAppointmentStatus,
+      phoneNormalized,
+      actorId: createInput.userId,
+      attributionJson: {
+        ...(createInput.attribution ?? {}),
+        ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
+        ...(productPurchaseId ? { productPurchaseId } : {}),
+      },
+    });
   } catch (err) {
-    const errCode = err instanceof Error ? err.message : "";
-    if (errCode !== "rubitime_projection_not_ready") {
-      await deps.bookingsPort.markFailedSync(pending.id);
-      if (rubitimeFirst && rubitimeId) {
-        await rollbackFailedRubitimeCreate({
-          syncPort: deps.syncPort,
-          bookingEngine: deps.bookingEngine,
-          organizationId: orgId,
-          rubitimeId,
-        });
-      }
-    }
+    await deps.bookingsPort.markFailedSync(pending.id);
     if (isPostgresExclusionViolation(err)) throw new Error("slot_overlap");
     throw err;
   }
 
   if (deps.bookingForm && formAnswers.length > 0) {
     await deps.bookingForm.saveForAppointment(orgId, appointment.id, formAnswers);
-  }
-
-  if (rubitimeFirst && rubitimeId) {
-    await deps.bookingEngine.upsertRubitimeAppointmentMapping({
-      organizationId: orgId,
-      appointmentId: appointment.id,
-      rubitimeId,
-    });
-  }
-
-  const bridgeEnabled = !rubitimeFirst && (await isRubitimeCreateMirrorEnabled());
-
-  if (bridgeEnabled) {
-    try {
-      const sync = await createRubitimeRecord(deps, createInput, pending.id, undefined);
-      rubitimeId = sync.rubitimeId;
-      rubitimeManageUrl = extractRubitimeManageUrlFromIntegratorCreateRaw(sync.raw);
-      await deps.bookingEngine.upsertRubitimeAppointmentMapping({
-        organizationId: orgId,
-        appointmentId: appointment.id,
-        rubitimeId,
-      });
-    } catch {
-      // Rubitime sync is best-effort; canonical appointment remains primary.
-    }
   }
 
   if (needsPrepayment && deps.payments && prepayQuote) {
@@ -522,24 +361,14 @@ export async function createBookingOnCanonicalEngine(
       });
     } catch (reserveErr) {
       await deps.bookingsPort.markFailedSync(pending.id);
-      if (rubitimeFirst && rubitimeId) {
-        await rollbackFailedRubitimeCreate({
-          syncPort: deps.syncPort,
-          bookingEngine: deps.bookingEngine,
-          organizationId: orgId,
-          rubitimeId,
+      try {
+        await deps.bookingEngine.transitionAppointmentStatus({
           appointmentId: appointment.id,
+          toStatus: "cancelled_by_specialist",
+          payload: { source: "package_reserve_failed" },
         });
-      } else {
-        try {
-          await deps.bookingEngine.transitionAppointmentStatus({
-            appointmentId: appointment.id,
-            toStatus: "cancelled_by_specialist",
-            payload: { source: "package_reserve_failed" },
-          });
-        } catch {
-          // Best-effort rollback of orphan appointment.
-        }
+      } catch {
+        // Best-effort rollback of orphan appointment.
       }
       const code =
         reserveErr instanceof Error &&
@@ -564,24 +393,14 @@ export async function createBookingOnCanonicalEngine(
       });
     } catch (consumeErr) {
       await deps.bookingsPort.markFailedSync(pending.id);
-      if (rubitimeFirst && rubitimeId) {
-        await rollbackFailedRubitimeCreate({
-          syncPort: deps.syncPort,
-          bookingEngine: deps.bookingEngine,
-          organizationId: orgId,
-          rubitimeId,
+      try {
+        await deps.bookingEngine.transitionAppointmentStatus({
           appointmentId: appointment.id,
+          toStatus: "cancelled_by_specialist",
+          payload: { source: "product_consume_failed" },
         });
-      } else {
-        try {
-          await deps.bookingEngine.transitionAppointmentStatus({
-            appointmentId: appointment.id,
-            toStatus: "cancelled_by_specialist",
-            payload: { source: "product_consume_failed" },
-          });
-        } catch {
-          // Best-effort rollback of orphan appointment.
-        }
+      } catch {
+        // Best-effort rollback of orphan appointment.
       }
       const code =
         consumeErr instanceof Error &&
@@ -602,24 +421,14 @@ export async function createBookingOnCanonicalEngine(
   });
   if (!confirmed) {
     await deps.bookingsPort.markFailedSync(pending.id);
-    if (rubitimeFirst && rubitimeId) {
-      await rollbackFailedRubitimeCreate({
-        syncPort: deps.syncPort,
-        bookingEngine: deps.bookingEngine,
-        organizationId: orgId,
-        rubitimeId,
+    try {
+      await deps.bookingEngine.transitionAppointmentStatus({
         appointmentId: appointment.id,
+        toStatus: "cancelled_by_specialist",
+        payload: { source: "booking_confirm_failed" },
       });
-    } else {
-      try {
-        await deps.bookingEngine.transitionAppointmentStatus({
-          appointmentId: appointment.id,
-          toStatus: "cancelled_by_specialist",
-          payload: { source: "booking_confirm_failed" },
-        });
-      } catch {
-        // Best-effort rollback of orphan canonical appointment.
-      }
+    } catch {
+      // Best-effort rollback of orphan canonical appointment.
     }
     throw new Error("booking_confirm_failed");
   }
