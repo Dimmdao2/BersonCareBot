@@ -1060,8 +1060,8 @@ only; post-R6 it must pass with `--expect-post-r6`.
   Rubitime M2M client source remains a post-R6 cleanup blocker.)*
 - [x] provider-neutral booking lifecycle route remains working. *(Registered through `integrations/bersoncare/bookingLifecycleRoute.ts`; see `RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md`.)*
 - [x] provider-neutral booking lifecycle handler/schema live outside Rubitime registrar ownership. *(Rubitime route keeps compatibility alias only until cutoff/drain.)*
-- [ ] Rubitime connector/api2/throttle code is removed.
-- [ ] Rubitime post-create projection code is removed.
+- [x] Rubitime connector/api2/throttle code is removed. *(Runtime route/API/throttle/post-create source files removed; historical migrations/docs remain.)*
+- [x] Rubitime post-create projection code is removed. *(Source/tests removed with the R6 legacy source cleanup batch.)*
 - [ ] runtime Rubitime env/config keys are removed or archived.
 - [ ] integrator typecheck/lint/tests pass.
 - [ ] webapp booking typecheck/lint/tests pass.
@@ -1081,6 +1081,14 @@ closed without HTTP. The admin Rubitime M2M facade now fails closed without call
 `bookingM2mApi.test.ts`, targeted eslint and webapp typecheck passed; `rubitime-r6-r7-static-inventory.mjs` no longer
 reports webapp files under `mountedRubitimeRouteLiterals`. Remaining post-R6 blockers are legacy integrator Rubitime
 source modules and API client/throttle/post-create tokens, plus the real owner-gated R6 cutoff/drain proof.
+
+Execution note 2026-07-14: `R6-INTEGRATOR-LEGACY-SOURCE-DELETE-codex-2026-07-14` removed the legacy Rubitime route
+source, external API client, throttle, post-create projection and related tests from
+`apps/integrator/src/integrations/rubitime`. The old compare/resync ops scripts no longer import the live Rubitime API
+client and fail closed with `rubitime_external_api_retired` for external fetch attempts. Validation: integrator
+typecheck passed and `rubitime-r6-r7-static-inventory.mjs --expect-post-r6` reports zero R6 runtime blockers. This is
+still not `RR-PROOF-09`: owner-approved provider cutoff/drain, fresh post-cutoff CSV reconciliation and final R6 proof
+file are still required.
 
 ### R7 — archive and drop legacy tables
 

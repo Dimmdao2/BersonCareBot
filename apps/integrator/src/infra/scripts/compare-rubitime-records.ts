@@ -14,7 +14,6 @@ import { writeFile } from 'node:fs/promises';
 import { getAppDisplayTimezone } from '../../config/appTimezone.js';
 import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 import { createDbPort, closeDb } from '../db/client.js';
-import { fetchRubitimeRecordById } from '../../integrations/rubitime/client.js';
 
 type Args = {
   activeDays: number;
@@ -87,6 +86,10 @@ function asNonEmptyString(value: unknown): string | null {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+async function fetchRubitimeRecordById(_input: { recordId: string }): Promise<unknown> {
+  throw new Error('rubitime_external_api_retired');
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number, min = 1, max = 1_000_000): number {

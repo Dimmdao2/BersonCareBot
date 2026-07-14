@@ -30,7 +30,6 @@ import { fileURLToPath } from 'node:url';
 import { getAppDisplayTimezone } from '../../config/appTimezone.js';
 import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 import { createDbPort, closeDb } from '../db/client.js';
-import { fetchRubitimeRecordById } from '../../integrations/rubitime/client.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,6 +239,10 @@ function nonEmptyStr(value: unknown): string | null {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+async function fetchRubitimeRecordById(_input: { recordId: string }): Promise<unknown> {
+  throw new Error('rubitime_external_api_retired');
 }
 
 function dateToIso(value: unknown): string | null {

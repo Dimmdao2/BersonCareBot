@@ -24,7 +24,7 @@ export type NotifTemplateVars = Partial<{
   reason: string;
 }>;
 
-/** Defaults mirror the hardcoded text functions in recordM2mRoute.ts. */
+/** Defaults mirror the provider-neutral booking lifecycle notification text. */
 export const NOTIF_TEMPLATE_DEFAULTS: Record<NotifTemplateEvent, Record<NotifTemplateAudience, string>> = {
   created: {
     patient: 'Запись подтверждена: {{date}}\n{{type}}{{city}}',

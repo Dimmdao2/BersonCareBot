@@ -38,36 +38,34 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after webapp M2M client cleanup: 2026-07-14 11:10 MSK.
+Latest run time after legacy integrator source cleanup: 2026-07-14 11:16 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | R6 | 38 hits / 3 files | Legacy Rubitime route source files remain before source deletion. |
+| `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
-| `rubitimeApiClientRuntimeTokens` | R6 | 15 hits / 5 files | Rubitime client/throttle/post-create/API code still exists before cutoff. |
+| `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 148 hits / 30 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 131 hits / 26 files | Raw Rubitime table/queue references remain until R6 removal and R7 archive/drop decision. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 38 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 552 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
-The expected post-R6 gate currently fails:
+The post-R6 static inventory gate now passes for runtime Rubitime route/API blockers:
 
 ```text
-rubitime-r6-r7-static-inventory: post-R6 blockers remain:
-mountedRubitimeRouteLiterals=38,
-rubitimeApiClientRuntimeTokens=15
+mountedRubitimeRouteLiterals=0
+integratorRubitimeRuntimeImports=0
+rubitimeApiClientRuntimeTokens=0
 ```
 
-This failure is expected before `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` exists. It becomes a hard validation
-failure after R6 code removal.
+This does not by itself complete R6 because `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` still requires owner-approved
+cutoff/drain, fresh post-cutoff CSV reconciliation and proof capture.
 
 ## Current R6 blocker files
 
 Mounted Rubitime route literals:
 
-- `apps/integrator/src/integrations/rubitime/adminM2mRoute.ts`
-- `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
-- `apps/integrator/src/integrations/rubitime/webhook.ts`
+- none after `R6-INTEGRATOR-LEGACY-SOURCE-DELETE-codex-2026-07-14`.
 
 Integrator Rubitime runtime imports:
 
@@ -75,11 +73,7 @@ Integrator Rubitime runtime imports:
 
 Rubitime API/client/runtime tokens:
 
-- `apps/integrator/src/integrations/rubitime/client.ts`
-- `apps/integrator/src/integrations/rubitime/postCreateProjection.ts`
-- `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
-- `apps/integrator/src/integrations/rubitime/rubitimeApiThrottle.ts`
-- `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts`
+- none after `R6-INTEGRATOR-LEGACY-SOURCE-DELETE-codex-2026-07-14`.
 
 Ops/audit/backfill tooling with Rubitime references is reported under `rubitimeOpsToolingRefs`. It includes
 historical backfills, schema cleanup scans, phone-admin purge tooling and seed/audit scripts. These files are not
@@ -115,3 +109,14 @@ M2M facade fails closed without calling integrator.
 
 After this cleanup, the post-R6 inventory no longer reports webapp files under `mountedRubitimeRouteLiterals`.
 Remaining route literal blockers are the legacy integrator Rubitime source modules listed above.
+
+## 2026-07-14 R6 Legacy Integrator Source Cleanup
+
+`R6-INTEGRATOR-LEGACY-SOURCE-DELETE-codex-2026-07-14` removed legacy Rubitime route source, external API client,
+throttle, post-create projection and related tests from `apps/integrator/src/integrations/rubitime`. The old
+compare/resync ops scripts no longer import the live Rubitime client and fail closed with
+`rubitime_external_api_retired` for external fetch attempts.
+
+After this cleanup, `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6`
+passes for the R6 runtime route/API blocker categories. R6 still needs the owner-approved cutoff/drain proof before
+the final checklist may be checked.
