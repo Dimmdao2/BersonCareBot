@@ -515,11 +515,10 @@ const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
-const doctorAppointmentsLegacyPort = inMemoryRepos ? inMemoryDoctorAppointmentsPort : null;
 const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())
-    : null;
+    : inMemoryDoctorAppointmentsPort;
 const bookingRubitimeBridgePort = !inMemoryRepos ? createPgBookingRubitimeBridgePort() : null;
 const appointmentMirrorSync =
   bookingRubitimeBridgePort && bookingEngineCorePort
@@ -650,7 +649,6 @@ const resolveDoctorAppointmentsReadSource = async () => {
   return parseDoctorAppointmentsReadSource(row?.valueJson ?? null);
 };
 const doctorAppointmentsPort = createDoctorAppointmentsReadSwitchPort({
-  legacyPort: doctorAppointmentsLegacyPort,
   canonicalPort: doctorAppointmentsCanonicalPort,
   resolveReadSource: resolveDoctorAppointmentsReadSource,
 });

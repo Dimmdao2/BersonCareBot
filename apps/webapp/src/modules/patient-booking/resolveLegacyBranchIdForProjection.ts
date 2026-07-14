@@ -1,6 +1,6 @@
 import type { LegacyBranchProjectionPort } from "./ports";
 
-/** Map Rubitime branch id → legacy `branches.id` for `appointment_records.branch_id` FK. */
+/** Map Rubitime branch id to legacy branch id for the compatibility projection. */
 export async function resolveLegacyBranchIdForProjection(
   branches: LegacyBranchProjectionPort | null | undefined,
   rubitimeBranchIdSnapshot: string | null | undefined,

@@ -33,6 +33,7 @@
     "check:saas-db-regression": "node scripts/check-saas-db-regression.mjs",
     "check:rubitime-retirement-r0": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs",
     "check:rubitime-retirement-inventory": "node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs",
+    "check:rubitime-doctor-client-no-legacy-reads": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-doctor-client-no-appointment-records.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-lint": "pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-typecheck": "pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",

@@ -44,7 +44,7 @@ export type AppointmentRow = {
   cancellationCountForClient: number;
   /** Branch name from Rubitime (if linked). */
   branchName: string | null;
-  /** F-04: маркер происхождения (все строки из `appointment_records`). */
+  /** Optional schedule source marker for compatibility/import provenance. */
   scheduleProvenancePrefix?: string;
   /** Имя из Rubitime (`payload_json.name`), если отличается от профильной подписи; иначе `null`. */
   rubitimeNameIfDifferent: string | null;

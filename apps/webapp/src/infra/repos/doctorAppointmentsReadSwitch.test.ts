@@ -61,7 +61,6 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: canonical,
       resolveReadSource: async () => "rubitime_legacy",
     });
@@ -75,7 +74,6 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: canonical,
       resolveReadSource: async () => "canonical",
     });
@@ -84,20 +82,19 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     expect(canonical.listAppointmentsForSpecialist).toHaveBeenCalled();
   });
 
-  it("falls back to legacy only when canonical port is missing", async () => {
-    const legacy = mockPort("legacy");
+  it("fails closed when canonical port is missing", async () => {
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: null,
       resolveReadSource: async () => "canonical",
     });
-    const rows = await port.listAppointmentsForSpecialist({ kind: "futureActive" });
-    expect(rows[0]?.id).toBe("legacy");
+
+    await expect(port.listAppointmentsForSpecialist({ kind: "futureActive" })).rejects.toThrow(
+      "doctor_appointments_canonical_port_unavailable",
+    );
   });
 
-  it("fails closed when no canonical or explicit in-memory fallback port exists", async () => {
+  it("fails closed when no canonical port exists", async () => {
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: null,
       canonicalPort: null,
       resolveReadSource: async () => "canonical",
     });
@@ -115,7 +112,6 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: canonical,
       resolveReadSource: async () => "rubitime_legacy",
     });
@@ -130,7 +126,6 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: canonical,
       resolveReadSource: async () => "canonical",
     });
@@ -140,23 +135,21 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     expect(legacy.getScheduleKpis).not.toHaveBeenCalled();
   });
 
-  it("getScheduleKpis falls back to legacy when canonical port is missing", async () => {
-    const legacy = mockPort("legacy");
+  it("getScheduleKpis fails closed when canonical port is missing", async () => {
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: null,
       resolveReadSource: async () => "canonical",
     });
-    const kpis = await port.getScheduleKpis(KPI_QUERY);
-    expect(kpis.recordsInPeriod).toBe(0);
-    expect(legacy.getScheduleKpis).toHaveBeenCalled();
+
+    await expect(port.getScheduleKpis(KPI_QUERY)).rejects.toThrow(
+      "doctor_appointments_canonical_port_unavailable",
+    );
   });
 
   it("all other read-path methods are canonical-only after R2 cutover", async () => {
     const legacy = mockPort("legacy");
     const canonical = mockPort("canonical");
     const port = createDoctorAppointmentsReadSwitchPort({
-      legacyPort: legacy,
       canonicalPort: canonical,
       resolveReadSource: async () => "rubitime_legacy",
     });

@@ -433,7 +433,7 @@ export async function createBookingOnCanonicalEngine(
     throw new Error("booking_confirm_failed");
   }
 
-  // Rubitime post-create projection already fills appointment_records; skip native `be:` row.
+  // Rubitime post-create projection already fills the compatibility projection; skip native `be:` row.
   if (deps.appointmentProjection && !rubitimeId) {
     try {
       const legacyBranchId = await resolveLegacyBranchIdForProjection(

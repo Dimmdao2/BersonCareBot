@@ -44,7 +44,7 @@ Run time: 2026-07-14 09:39 MSK.
 | `mountedRubitimeRouteLiterals` | R6 | 51 hits / 5 files | Rubitime-named HTTP surfaces still exist before cutoff. |
 | `integratorRubitimeRuntimeImports` | R6 | 13 hits / 6 files | Integrator still wires/imports Rubitime runtime code before cutoff. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 26 hits / 10 files | Rubitime client/throttle/post-create/retry code still exists before cutoff. |
-| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 159 hits / 38 files | Legacy appointment table references remain for archive/backfill/compat paths. |
+| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 148 hits / 30 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 120 hits / 24 files | Raw Rubitime table references remain until R6 removal and R7 archive/drop decision. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 38 files | Explicit keep-list references, not a drop signal. |
 

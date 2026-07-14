@@ -818,9 +818,8 @@ dead `patientCabinet` DI surface and `cabinetPastBookingsMerge` projection merge
 fallbacks and clinical visit legacy links remain assigned to R7 table-drop preparation.
 
 Execution note 2026-07-14: `R2-DOCTOR-CONTACT-BREAKDOWN-codex-2026-07-14` moved doctor analytics
-patients-vs-subscribers contact breakdown from `appointment_records` to canonical `be_appointments`. This does not
-close all doctor/client `appointment_records` reads; patient card fallbacks, appointment tab legacy rows, clinical
-links, memberships and table-drop preparation remain separate R7 work.
+patients-vs-subscribers contact breakdown from `appointment_records` to canonical `be_appointments`. This note is
+superseded by the later `R2-DOCTOR-CLIENT-NO-LEGACY-READS` verifier for the full doctor/client runtime path.
 
 Execution note 2026-07-14: `R2-DOCTOR-DASHBOARD-PATIENT-METRICS-codex-2026-07-14` moved doctor dashboard patient
 metrics buckets for visited-this-month, new/former/subscriber and cancellations from `appointment_records` to canonical
@@ -859,9 +858,17 @@ canonical `deleted_at` when a canonical appointment id or Rubitime mapping resol
 remain archive/compat state only.
 
 Execution note 2026-07-14: `R2-DOCTOR-LEGACY-PORT-DECOMPOSE-codex-2026-07-14` removed the legacy
-`pgDoctorAppointments` port from PG runtime DI. The read-switch still has an explicit in-memory fallback for tests, but
-production doctor appointment reads fail closed if the canonical port is unavailable instead of falling back to
-`appointment_records`.
+`pgDoctorAppointments` port from PG runtime DI. This note is superseded by
+`R2-DOCTOR-CLIENT-NO-LEGACY-READS-codex-2026-07-14`: the read-switch no longer accepts or falls back to a legacy
+doctor appointment port in any runtime mode; missing canonical wiring fails closed.
+
+Execution note 2026-07-14: `R2-DOCTOR-CLIENT-NO-LEGACY-READS-codex-2026-07-14` added
+`check-rubitime-doctor-client-no-appointment-records.mjs` and package command
+`pnpm run check:rubitime-doctor-client-no-legacy-reads`. The verifier scans doctor/patient routes, UI, modules and
+doctor appointments DI wiring for `appointment_records`, `appointmentRecords`, `createPgDoctorAppointmentsPort`, and
+`doctorAppointmentsLegacyPort`; it passed on 924 runtime files. Remaining legacy table references are
+projection/archive/backfill/admin compatibility, tests, or R6/R7 inventory, not doctor/client runtime reads. Details:
+`RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md`.
 
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
@@ -1065,7 +1072,7 @@ Rubitime is retired only when all items below are checked.
 - [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
 - [ ] No runtime code calls Rubitime API.
 - [ ] No runtime route accepts Rubitime webhook/provider traffic.
-- [ ] No doctor/client path reads `appointment_records`.
+- [x] No doctor/client path reads `appointment_records`. *(`pnpm run check:rubitime-doctor-client-no-legacy-reads` scans doctor/patient routes, UI, modules and DI wiring; PASS on 924 runtime files.)*
 - [x] Patient booking history UI no longer reads `appointment_records`.
 - [x] No patient/public path reads public legacy `booking_*`.
 - [x] No canonical booking path uses `booking_default_organization_id` as fallback. *(Patient/public booking, product payment page, booking payment mock-complete/status and provider webhook resolve organization from resource/payment intent; remaining default-org uses are admin/doctor/integrator compatibility scope.)*

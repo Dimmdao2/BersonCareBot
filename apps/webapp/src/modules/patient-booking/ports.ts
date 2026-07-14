@@ -28,7 +28,7 @@ export type BookingSlotsQuery =
       slotCount?: number;
     };
 
-/** Doctor cabinet projection (`appointment_records`). */
+/** Doctor cabinet compatibility projection. */
 export type AppointmentProjectionPort = {
   upsertRecordFromProjection(params: {
     integratorRecordId: string;
@@ -42,7 +42,7 @@ export type AppointmentProjectionPort = {
   }): Promise<void>;
 };
 
-/** Legacy `branches.id` for `appointment_records.branch_id` FK (not `be_branches.id`). */
+/** Legacy branch id for compatibility projection (not `be_branches.id`). */
 export type LegacyBranchProjectionPort = {
   upsertFromProjection(params: {
     integratorBranchId: number | string;

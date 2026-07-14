@@ -18,7 +18,7 @@ export type AppointmentSummary = {
   /** Для отменённых — причина (tooltip). */
   cancelReason?: string | null;
   startsAt?: string | null;
-  /** F-04: маркер происхождения для строк из `appointment_records` (Rubitime). */
+  /** Optional schedule source marker for compatibility/import provenance. */
   scheduleProvenancePrefix?: string;
 };
 

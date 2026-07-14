@@ -22,17 +22,16 @@ export function parseDoctorAppointmentsReadSource(valueJson: unknown): DoctorApp
 
 /**
  * Rubitime R2 cutover: doctor-facing appointment reads are canonical-only.
- * The legacy port remains as a non-prod/in-memory fallback until the table-drop phase,
- * but `booking_doctor_appointments_read_source` no longer changes runtime behavior.
+ * `booking_doctor_appointments_read_source` no longer changes runtime behavior, and
+ * missing canonical wiring fails closed instead of falling back to legacy rows.
  */
 export function createDoctorAppointmentsReadSwitchPort(input: {
-  legacyPort: DoctorAppointmentsPort | null;
   canonicalPort: DoctorAppointmentsPort | null;
   resolveReadSource: () => Promise<DoctorAppointmentsReadSource>;
 }): DoctorAppointmentsPort {
   const pick = async (): Promise<DoctorAppointmentsPort> => {
     void input.resolveReadSource;
-    const port = input.canonicalPort ?? input.legacyPort;
+    const port = input.canonicalPort;
     if (!port) throw new Error("doctor_appointments_canonical_port_unavailable");
     return port;
   };

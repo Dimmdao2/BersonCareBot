@@ -66,6 +66,18 @@ Current non-R2 consumers are assigned as follows:
 This assignment is the R2 boundary: doctor-facing read-source is canonical-only, while destructive cleanup of the legacy
 projection table is blocked until R7.
 
+Update 2026-07-14:
+
+- `createDoctorAppointmentsReadSwitchPort` no longer accepts or falls back to a legacy doctor appointments port. Missing
+  canonical wiring throws `doctor_appointments_canonical_port_unavailable`.
+- `buildAppDeps` wires the in-memory doctor appointments port as the canonical test/dev substitute and does not define
+  `doctorAppointmentsLegacyPort`.
+- New verifier `pnpm run check:rubitime-doctor-client-no-legacy-reads` scans doctor/patient routes, UI, modules and
+  doctor appointments DI wiring for `appointment_records`, `appointmentRecords`, `createPgDoctorAppointmentsPort`, and
+  `doctorAppointmentsLegacyPort`.
+- The verifier passed on 924 runtime files. Remaining `appointment_records` references are projection/archive/backfill,
+  admin compatibility, tests, or R6/R7 drop-candidate inventory, not doctor/client runtime reads.
+
 ## Rollback Boundary
 
 Normal runtime rollback is a code rollback to the previous branch/commit. The settings value is intentionally no longer
@@ -102,6 +114,7 @@ Commands:
 | `pnpm -C apps/webapp run typecheck` | PASS |
 | `pnpm -C apps/webapp run lint` | PASS |
 | `pnpm --dir apps/webapp exec drizzle-kit check --config=drizzle.config.ts` | PASS |
+| `pnpm run check:rubitime-doctor-client-no-legacy-reads` | PASS, 924 runtime files scanned |
 | `pnpm run check:rubitime-retirement-r0` | PASS |
 | `git diff --check` | PASS |
 

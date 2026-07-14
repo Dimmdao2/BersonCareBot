@@ -29,7 +29,7 @@ export type ClientContactBreakdown = {
   phoneOnly: number;
   /** Нет телефона, email, telegram, max — гость приложения. */
   appGuests: number;
-  /** Клиенты с хотя бы одной записью (appointment_records). */
+  /** Клиенты с хотя бы одной canonical записью. */
   patientsCount: number;
   /** Клиенты без записей (подписчики без визитов). */
   subscribersOnlyCount: number;

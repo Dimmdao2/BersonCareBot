@@ -12,7 +12,7 @@ import {
 import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
 import { clientChannelDeliveryContext } from "./clientChannelDeliveryContext";
 
-/** Строка истории записей на приём (этап 9, `appointment_records`). */
+/** Строка истории записей на приём из canonical doctor/client read model. */
 export type ClientAppointmentHistoryItem = {
   id: string;
   recordAt: string | null;
@@ -20,7 +20,7 @@ export type ClientAppointmentHistoryItem = {
   label: string;
   lastEvent: string;
   updatedAt: string;
-  /** F-04: маркер происхождения для строк из `appointment_records`. */
+  /** Optional schedule source marker for compatibility/import provenance. */
   scheduleProvenancePrefix?: string;
 };
 
@@ -46,7 +46,7 @@ export type ClientProfile = {
 export type DoctorClientsServiceDeps = {
   clientsPort: DoctorClientsPort;
   getUpcomingAppointments: (userId: string) => AppointmentSummary[] | Promise<AppointmentSummary[]>;
-  /** История `appointment_records` по нормализованному телефону (MVP этап 9). */
+  /** История записей по нормализованному телефону. */
   listAppointmentHistoryForPhone: (phoneNormalized: string | null) => Promise<ClientAppointmentHistoryItem[]>;
   listSymptomTrackings: (userId: string, activeOnly?: boolean) => Promise<SymptomTracking[]>;
   listSymptomEntries: (userId: string, limit?: number) => Promise<SymptomEntry[]>;

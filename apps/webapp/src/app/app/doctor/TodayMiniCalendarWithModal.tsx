@@ -48,14 +48,9 @@ type Props = {
 /**
  * Mini-calendar for «Сегодня» with a full appointment modal.
  *
- * Bug fix (Q-C4): the server-rendered `TodayAppointmentItem.id` comes from
- * `appointment_records` (legacy source) while the calendar API uses `be_appointments`
- * (canonical source). These have different IDs for the same appointment → looking up
- * a legacy ID in the calendar API returned nothing → "Запись не найдена".
- *
- * Fix: fetch canonical `CalendarAppointmentEvent` objects client-side (same API as
- * `ScheduleCalendarTab`). Pass the full event object directly to `DoctorCalendarEventPanel`
- * — no re-fetch, no ID mismatch.
+ * Fetch canonical `CalendarAppointmentEvent` objects client-side (same API as
+ * `ScheduleCalendarTab`) and pass the full event object directly to
+ * `DoctorCalendarEventPanel` — no re-fetch, no cross-source ID mismatch.
  */
 export function TodayMiniCalendarWithModal({
   appointments,
