@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { purgePendingMediaDeleteBatch } from "@/app-layer/media/s3MediaStorage";
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  enterWithDbInfraPrincipal({ source: "api/internal/media-pending-delete/purge:POST" });
 
   let limit = 25;
   try {

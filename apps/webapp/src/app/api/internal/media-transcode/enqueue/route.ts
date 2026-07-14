@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { enterWithDbInfraPrincipal } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { enqueueMediaTranscodeJob } from "@/app-layer/media/mediaTranscodeJobs";
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  enterWithDbInfraPrincipal({ source: "api/internal/media-transcode/enqueue:POST" });
 
   const enabled = await getConfigBool("video_hls_pipeline_enabled", false);
   if (!enabled) {
