@@ -119,15 +119,25 @@ function rememberBookingEventKey(key: string): void {
   bookingEventDedup.set(key, Date.now() + BOOKING_EVENT_DEDUP_TTL_MS);
 }
 
-function lifecycleDedupStorageKey(key: string): string {
-  return `booking-lifecycle:${key}`.slice(0, 240);
+function lifecycleDedupStorageKey(input: {
+  eventType: BookingLifecycleEventValidated['eventType'];
+  eventId: string;
+  payload: BookingLifecyclePayloadValidated;
+}): string {
+  const appointmentOrBookingId =
+    asNonEmptyString(input.payload.canonicalAppointmentId) ?? input.payload.bookingId;
+  return `booking-lifecycle:${input.eventType}:${appointmentOrBookingId}:${input.eventId}`.slice(0, 240);
 }
 
 async function acquireBookingLifecycleKey(
-  key: string,
+  input: {
+    eventType: BookingLifecycleEventValidated['eventType'];
+    eventId: string;
+    payload: BookingLifecyclePayloadValidated;
+  },
   idempotencyPort?: IdempotencyPort,
 ): Promise<{ acquired: boolean; storageKey: string; persistent: boolean }> {
-  const storageKey = lifecycleDedupStorageKey(key);
+  const storageKey = lifecycleDedupStorageKey(input);
   if (idempotencyPort) {
     return {
       acquired: await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000),
@@ -518,7 +528,10 @@ async function handleBookingLifecycleEvent(
   const contactPhone = asNonEmptyString(payload.contactPhone);
   const patientName = asNonEmptyString(payload.contactName);
   const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`;
-  const acquiredKey = await acquireBookingLifecycleKey(dedupKey, options.idempotencyPort);
+  const acquiredKey = await acquireBookingLifecycleKey(
+    { eventType, eventId: dedupKey, payload },
+    options.idempotencyPort,
+  );
   if (!acquiredKey.acquired) return;
   const webappEventsPort = options.webappEventsPort;
 

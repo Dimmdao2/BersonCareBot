@@ -439,6 +439,7 @@ describe('POST booking lifecycle event routes', () => {
       payload: {
         ...bookingEventBody().payload,
         bookingId: '1f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        canonicalAppointmentId: '2f24566f-a4de-4ab4-9336-5ddf806cd6ce',
       },
     });
     const headers = makeHeaders(raw);
@@ -461,7 +462,10 @@ describe('POST booking lifecycle event routes', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
-    expect(idempotencyPort.tryAcquire).toHaveBeenCalledWith(`booking-lifecycle:${idem}`, 24 * 60 * 60);
+    expect(idempotencyPort.tryAcquire).toHaveBeenCalledWith(
+      `booking-lifecycle:booking.created:2f24566f-a4de-4ab4-9336-5ddf806cd6ce:${idem}`,
+      24 * 60 * 60,
+    );
     expect(idempotencyPort.tryAcquire).toHaveBeenCalledTimes(2);
     expect(idempotencyPort.release).not.toHaveBeenCalled();
   });

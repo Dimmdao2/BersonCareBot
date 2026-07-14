@@ -56,10 +56,10 @@ Provider-neutral calendar map:
 Durable lifecycle idempotency:
 
 - Lifecycle route now uses the existing integrator `IdempotencyPort` / `idempotency_keys` table when registered through app DI.
-- Storage key format: `booking-lifecycle:<webapp lifecycle idempotencyKey>`.
+- Storage key format: `booking-lifecycle:<eventType>:<canonicalAppointmentId|bookingId>:<webapp lifecycle idempotencyKey>`.
 - TTL remains 24h, matching the previous in-memory dedup window.
 - Test coverage includes two separate Fastify app instances sharing one `IdempotencyPort`, proving a repeated event after process recreation does not repeat side effects.
-- The stricter R4 target "based on canonical appointment id and lifecycle version/event id" remains open because the current webapp event key contract is not yet versioned.
+- The storage key is now anchored to canonical appointment identity when available and keeps the webapp lifecycle idempotency key as the event id component.
 
 ## Raw Rubitime Runtime Inventory
 
@@ -94,7 +94,7 @@ Reminder inventory:
 
 - Raw Rubitime webhook and post-create projection are still present and must be drained/disabled before runtime route removal.
 - GCal map remains `booking_calendar_map`; it must be explicitly kept or migrated before any drop.
-- Durable idempotency is persisted, but still needs final canonical appointment event/version key proof.
+- Raw Rubitime webhook idempotency remains eventGateway-based until R6 removal; canonical lifecycle idempotency is persisted.
 - R6 must remove Rubitime routes only after provider cutoff, drains, and final CSV reconciliation.
 
 ## Validation

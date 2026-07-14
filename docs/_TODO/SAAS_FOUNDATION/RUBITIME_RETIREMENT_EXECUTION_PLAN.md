@@ -907,7 +907,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] payment capture side effects are preserved. *(Lifecycle parity test covers notifications, reminders and GCal update.)*
 - [x] package link/unlink side effects are preserved. *(Lifecycle parity tests cover GCal update without patient notifications.)*
 - [x] booking delete side effects are preserved. *(Lifecycle parity test covers GCal cleanup through canonical appointment key with Rubitime fallback.)*
-- [ ] durable idempotency is based on canonical appointment/event version. *(Storage is now DB-backed via `idempotency_keys`; canonical event/version key contract remains open.)*
+- [x] durable idempotency is based on canonical appointment/event version. *(DB-backed key includes event type, canonical appointment id when available, and lifecycle event id.)*
 - [x] `booking_calendar_map` is migrated/kept as provider-neutral canonical map. *(Table is kept while GCal is active; canonical lifecycle primary key is `be:<appointmentId>`.)*
 - [x] existing GCal events update/delete without duplicates after rekey/migration. *(Canonical sync adopts legacy Rubitime map fallback before upserting `be:*` key.)*
 
