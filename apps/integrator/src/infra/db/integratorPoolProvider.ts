@@ -5,6 +5,7 @@ import {
 	buildDbPrincipalApplyOptionsFromEnv,
 	clearDbPrincipalFromConnection,
 } from '@bersoncare/db-principal';
+import { assertIntegratorLockedPrincipalClassified } from './withClient.js';
 
 type IntegratorPoolProviderConfig = {
 	connectionString: string;
@@ -19,6 +20,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
 		...args: Parameters<Pool['query']>
 	): Promise<Awaited<ReturnType<Pool['query']>>> => {
 		const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
+		assertIntegratorLockedPrincipalClassified(principalApplyOptions);
 		const client = await pool.connect();
 		try {
 			await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);

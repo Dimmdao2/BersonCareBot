@@ -1,10 +1,11 @@
 import type { Pool, PoolClient } from 'pg';
 import {
-  applyCurrentDbPrincipalToConnection,
-  applyCurrentDbPrincipalToTransaction,
-  buildDbPrincipalApplyOptionsFromEnv,
-  clearDbPrincipalFromConnection,
-  type DbPrincipalApplyOptions,
+	applyCurrentDbPrincipalToConnection,
+	applyCurrentDbPrincipalToTransaction,
+	buildDbPrincipalApplyOptionsFromEnv,
+	clearDbPrincipalFromConnection,
+	getCurrentDbPrincipal,
+	type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
@@ -26,12 +27,21 @@ function getPreparedClientOptions(client: PoolClient): DbPrincipalApplyOptions {
 }
 
 function toReleaseError(err: unknown): Error {
-  return err instanceof Error ? err : new Error(String(err));
+	return err instanceof Error ? err : new Error(String(err));
+}
+
+export function assertIntegratorLockedPrincipalClassified(options: DbPrincipalApplyOptions): void {
+	if (options.mode !== 'locked') {
+		return;
+	}
+	if (!getCurrentDbPrincipal()) {
+		throw new Error('DB principal context is required before integrator scoped DB access in locked mode');
+	}
 }
 
 async function prepareIntegratorClient(
-  client: PoolClient,
-  options: DbPrincipalApplyOptions,
+	client: PoolClient,
+	options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
   rememberPreparedClient(client, options);
@@ -63,9 +73,10 @@ export async function destroyPreparedIntegratorClient(client: PoolClient, err: u
 }
 
 export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClient> {
-  const principalApplyOptions = getDbPrincipalApplyOptions();
-  const client = await pool.connect();
-  try {
+	const principalApplyOptions = getDbPrincipalApplyOptions();
+	assertIntegratorLockedPrincipalClassified(principalApplyOptions);
+	const client = await pool.connect();
+	try {
     await prepareIntegratorClient(client, principalApplyOptions);
     return client;
   } catch (err) {
@@ -87,11 +98,12 @@ export async function withIntegratorPoolClient<T>(
 }
 
 export async function withIntegratorPoolTransaction<T>(
-  pool: Pool,
-  fn: (client: PoolClient) => Promise<T>,
+	pool: Pool,
+	fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const principalApplyOptions = getDbPrincipalApplyOptions();
-  const client = await pool.connect();
+	const principalApplyOptions = getDbPrincipalApplyOptions();
+	assertIntegratorLockedPrincipalClassified(principalApplyOptions);
+	const client = await pool.connect();
   try {
     await prepareIntegratorClient(client, principalApplyOptions);
     await client.query('BEGIN');
