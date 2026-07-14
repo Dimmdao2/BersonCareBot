@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const files = {
@@ -10,6 +11,7 @@ const files = {
   hardProtocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   tenantLog: "docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md",
   deployTestSaas: "deploy/host/deploy-test-saas.sh",
+  contract: "docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json",
 };
 
 function read(path) {
@@ -66,24 +68,56 @@ function runFixtureGateDocChecks() {
   ]);
 }
 
+function makeSyntheticFixtureFile() {
+  const contract = JSON.parse(read(files.contract));
+  const tempDir = mkdtempSync(resolve(tmpdir(), "bcb-saas-product-smoke-"));
+  const fixturePath = resolve(tempDir, "synthetic.fixture.json");
+  const fixture = {
+    schemaVersion: 1,
+    authProfiles: {
+      doctor: { headers: { Cookie: "synthetic-doctor-cookie" } },
+      clinic_admin: { headers: { Cookie: "synthetic-admin-cookie" } },
+      patient: { headers: { Cookie: "synthetic-patient-cookie" } },
+      public: { headers: {} },
+    },
+    refs: Object.fromEntries(contract.requiredFixtureRefs.map((key) => [key, `synthetic-${key}`])),
+    forbiddenBodyText: ["synthetic-forbidden-sentinel"],
+  };
+  writeFileSync(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`);
+  return { tempDir, fixturePath };
+}
+
 const steps = [
   ["node", "--check", "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs"],
   ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs", "--check-contract"],
   ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs", "--self-test"],
 ];
 
-for (const step of steps) {
-  console.log(`check-saas-product-smoke-contract: $ ${step.join(" ")}`);
-  const result = spawnSync(step[0], step.slice(1), { stdio: "inherit" });
-  if (result.error) {
-    console.error(`check-saas-product-smoke-contract: failed to start ${step.join(" ")}`);
-    console.error(result.error.message);
-    process.exit(1);
+const { tempDir, fixturePath } = makeSyntheticFixtureFile();
+steps.push([
+  "node",
+  "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs",
+  "--check-fixture",
+  `--fixture-file=${fixturePath}`,
+  "--categories=doctor",
+]);
+
+try {
+  for (const step of steps) {
+    console.log(`check-saas-product-smoke-contract: $ ${step.join(" ")}`);
+    const result = spawnSync(step[0], step.slice(1), { stdio: "inherit" });
+    if (result.error) {
+      console.error(`check-saas-product-smoke-contract: failed to start ${step.join(" ")}`);
+      console.error(result.error.message);
+      process.exit(1);
+    }
+    if (result.status !== 0) {
+      console.error(`check-saas-product-smoke-contract: FAILED ${step.join(" ")}`);
+      process.exit(result.status ?? 1);
+    }
   }
-  if (result.status !== 0) {
-    console.error(`check-saas-product-smoke-contract: FAILED ${step.join(" ")}`);
-    process.exit(result.status ?? 1);
-  }
+} finally {
+  rmSync(tempDir, { recursive: true, force: true });
 }
 
 runFixtureGateDocChecks();

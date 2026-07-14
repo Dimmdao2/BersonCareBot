@@ -21,6 +21,20 @@ DB-free contract validation:
 pnpm run check:saas-product-smoke-contract
 ```
 
+DB-free fixture preflight for an operator-managed fixture file:
+
+```bash
+pnpm run smoke:saas-product -- \
+  --check-fixture \
+  --fixture-file=/run/bersoncarebot/saas-smoke.fixture \
+  --categories=doctor,schedule,working_hours,bookings,client_card,admin_settings,system_health
+```
+
+This validates only the contract and fixture shape, plus non-empty selected scenario filters. It performs no HTTP
+requests, reads no env files, touches no DB/services, and prints only redacted aggregate metadata: auth profile names
+with header counts, fixture ref keys, forbidden-text count, and selected scenario/category counts. It is **not** a
+D3/R1/R2 PASS and cannot replace the owner-authorized live product smoke.
+
 Real deployed-environment smoke, owner-authorized only:
 
 ```bash
@@ -115,3 +129,14 @@ The TEST deploy wrapper accepts the same filter via `SAAS_PRODUCT_SMOKE_CATEGORI
   real fixture values or fallback defaults.
 - Static checks may validate wording and wrapper behavior only. They must not read `/opt/env`, TEST/prod databases,
   TEST/prod secret files, SSH, services, or live delivery channels.
+
+## D3.1 Offline Fixture Preflight
+
+- Operators may run `--check-fixture --fixture-file=...` before authorizing live smoke to confirm the fixture file
+  parses, satisfies the A1 schema, and has a non-empty selected scenario set.
+- `--categories` and `--scenario-ids` are honored in preflight only to prove the requested subset maps to at least
+  one contract scenario and all referenced fixture keys are present.
+- The preflight output is aggregate/redacted and must not include cookie/header values, fixture ref values, response
+  bodies, or credential-bearing URLs.
+- Offline preflight is a readiness check for the secret fixture file only. D3/R1/R2 remain blocked until the owner
+  supplies the readable fixture path and authorizes the real deployed-environment smoke against TEST.

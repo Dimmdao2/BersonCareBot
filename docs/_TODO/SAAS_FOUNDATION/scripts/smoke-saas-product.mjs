@@ -15,11 +15,13 @@ function usage() {
   return [
     "Usage:",
     "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --check-contract",
+    "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --check-fixture --fixture-file=/run/bersoncarebot/saas-smoke.fixture [--categories=doctor] [--scenario-ids=doctor.workspace.home]",
     "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --self-test",
     "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --mode=dormant --base-url=https://test.bersoncare.ru --fixture-file=/run/bersoncarebot/saas-smoke.fixture [--json-output=out.json] [--junit-output=out.xml] [--include-mutations] [--categories=doctor,bookings] [--scenario-ids=doctor.workspace.home]",
     "",
     "Safety:",
     "  This runner never reads repo env files and never connects to a database.",
+    "  --check-fixture performs no HTTP requests and prints only redacted aggregate fixture metadata.",
     "  Auth cookies/headers must come from an operator-managed fixture file outside the repo.",
   ].join("\n");
 }
@@ -33,6 +35,7 @@ function parseArgs(argv) {
     junitOutput: null,
     includeMutations: false,
     checkContract: false,
+    checkFixture: false,
     selfTest: false,
     scenarioIds: new Set(),
     categories: new Set(),
@@ -45,6 +48,10 @@ function parseArgs(argv) {
     }
     if (arg === "--check-contract") {
       options.checkContract = true;
+      continue;
+    }
+    if (arg === "--check-fixture") {
+      options.checkFixture = true;
       continue;
     }
     if (arg === "--self-test") {
@@ -209,6 +216,41 @@ function validateFixture(contract, fixture) {
   if (fixture.forbiddenBodyText !== undefined) {
     assert(Array.isArray(fixture.forbiddenBodyText), "fixture forbiddenBodyText must be an array when present");
   }
+}
+
+function summarizeFixturePreflight({ contract, fixture, scenarios, options }) {
+  return {
+    schemaVersion: 1,
+    phase: contract.phase,
+    check: "fixture-preflight",
+    mode: options.mode,
+    fixtureSchemaVersion: fixture.schemaVersion,
+    authProfiles: Object.fromEntries(
+      Object.entries(fixture.authProfiles)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, profile]) => [name, { headerCount: Object.keys(profile.headers ?? {}).length }]),
+    ),
+    refKeys: Object.keys(fixture.refs).sort(),
+    requiredRefCount: contract.requiredFixtureRefs.length,
+    forbiddenBodyTextCount: Array.isArray(fixture.forbiddenBodyText) ? fixture.forbiddenBodyText.length : 0,
+    selectedScenarioCount: scenarios.length,
+    selectedCategories: [...new Set(scenarios.map((scenario) => scenario.category))].sort(),
+    filters: {
+      scenarioIds: [...options.scenarioIds].sort(),
+      categories: [...options.categories].sort(),
+      includeMutations: options.includeMutations,
+    },
+  };
+}
+
+function runFixturePreflight({ contract, fixture, options }) {
+  validateContract(contract);
+  validateFixture(contract, fixture);
+  const scenarios = filterScenarios(scenarioGroups(contract, options.includeMutations), options);
+  for (const scenario of scenarios) {
+    renderPath(scenario.path, fixture.refs);
+  }
+  return summarizeFixturePreflight({ contract, fixture, scenarios, options });
 }
 
 function renderPath(pathTemplate, refs) {
@@ -494,6 +536,44 @@ function runSelfTest(contract) {
   });
   assert(filtered.length > 0 && filtered.every((scenario) => scenario.category === "doctor"), "category filter failed");
 
+  const fixturePreflight = runFixturePreflight({
+    contract,
+    fixture,
+    options: {
+      mode: "dormant",
+      scenarioIds: new Set(),
+      categories: new Set(["doctor"]),
+      includeMutations: false,
+    },
+  });
+  assert(fixturePreflight.selectedScenarioCount === filtered.length, "fixture preflight scenario count failed");
+  assert(fixturePreflight.authProfiles.doctor.headerCount === 1, "fixture preflight redacted header count failed");
+  assert(
+    fixturePreflight.refKeys.includes("doctorClientUserId") && !JSON.stringify(fixturePreflight).includes("fixture-doctorClientUserId"),
+    "fixture preflight must expose ref keys without ref values",
+  );
+
+  const invalidFixture = {
+    ...fixture,
+    refs: { ...fixture.refs, doctorClientUserId: "" },
+  };
+  let invalidFixtureFailed = false;
+  try {
+    runFixturePreflight({
+      contract,
+      fixture: invalidFixture,
+      options: {
+        mode: "dormant",
+        scenarioIds: new Set(),
+        categories: new Set(["doctor"]),
+        includeMutations: false,
+      },
+    });
+  } catch (error) {
+    invalidFixtureFailed = compactError(error).includes("fixture missing ref doctorClientUserId");
+  }
+  assert(invalidFixtureFailed, "invalid fixture preflight must fail");
+
   console.log("smoke-saas-product self-test: OK");
 }
 
@@ -510,6 +590,16 @@ async function main() {
 
   if (options.checkContract) {
     console.log("smoke-saas-product contract: OK");
+    return;
+  }
+
+  if (options.checkFixture) {
+    if (!options.fixtureFile) {
+      throw new Error(`Fixture preflight requires --fixture-file.\n\n${usage()}`);
+    }
+    const fixture = readJson(options.fixtureFile);
+    const summary = runFixturePreflight({ contract, fixture, options });
+    console.log(`smoke-saas-product fixture preflight: ${JSON.stringify(summary)}`);
     return;
   }
 
