@@ -172,6 +172,30 @@ function parseRubitimeNumericId(raw: string): number | null {
   return Math.trunc(n);
 }
 
+type SignedRequestGuard = (
+  request: FastifyRequest,
+) => { ok: true; rawBody: string } | { ok: false; code: number; err: string };
+
+function createSignedRequestGuard(sharedSecret: string, routeLabel: string): SignedRequestGuard {
+  return (request) => {
+    const req = request as ReqWithRawBody;
+    const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
+    const timestamp = request.headers['x-bersoncare-timestamp'];
+    const signature = request.headers['x-bersoncare-signature'];
+    if (typeof timestamp !== 'string' || typeof signature !== 'string') {
+      return { ok: false, code: 400, err: 'missing_headers' };
+    }
+    if (!sharedSecret) {
+      logger.warn({}, `${routeLabel}: webhook secret not set`);
+      return { ok: false, code: 503, err: 'service_unconfigured' };
+    }
+    if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
+      return { ok: false, code: 401, err: 'invalid_signature' };
+    }
+    return { ok: true, rawBody };
+  };
+}
+
 function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
@@ -665,6 +689,54 @@ async function handleBookingLifecycleEvent(
   }
 }
 
+async function handleBookingEventRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  routeLabel: 'booking lifecycle-event' | 'rubitime booking-event',
+  guard: SignedRequestGuard,
+  dispatchPort: DispatchPort,
+  deps: Pick<RubitimeRecordM2mDeps, 'idempotencyPort' | 'webappEventsPort'>,
+) {
+  const g = guard(request);
+  if (!g.ok) {
+    return reply.code(g.code).send({ ok: false, error: g.err });
+  }
+  const parsed = parseBookingLifecycleEvent(request.body);
+  if (!parsed.success) {
+    logger.warn({ err: parsed.error.flatten() }, `${routeLabel} validation failed`);
+    return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
+  }
+  try {
+    await handleBookingLifecycleEvent(parsed.data, dispatchPort, {
+      ...(deps.idempotencyPort ? { idempotencyPort: deps.idempotencyPort } : {}),
+      ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
+    });
+    return reply.code(200).send({ ok: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn({ err }, `${routeLabel} failed`);
+    return reply.code(502).send({ ok: false, error: msg });
+  }
+}
+
+export async function registerBookingLifecycleM2mRoute(
+  app: FastifyInstance,
+  deps: RubitimeRecordM2mDeps,
+): Promise<void> {
+  const guard = createSignedRequestGuard(deps.sharedSecret, 'booking lifecycle-event');
+
+  app.post('/api/bersoncare/booking/lifecycle-event', async (request, reply) =>
+    handleBookingEventRequest(
+      request,
+      reply,
+      'booking lifecycle-event',
+      guard,
+      deps.dispatchPort,
+      deps,
+    ),
+  );
+}
+
 export async function registerRubitimeRecordM2mRoutes(
   app: FastifyInstance,
   deps: RubitimeRecordM2mDeps,
@@ -676,25 +748,7 @@ export async function registerRubitimeRecordM2mRoutes(
     dispatchPort,
   });
 
-  const guard = (
-    request: FastifyRequest,
-  ): { ok: true; rawBody: string } | { ok: false; code: number; err: string } => {
-    const req = request as ReqWithRawBody;
-    const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
-    const timestamp = request.headers['x-bersoncare-timestamp'];
-    const signature = request.headers['x-bersoncare-signature'];
-    if (typeof timestamp !== 'string' || typeof signature !== 'string') {
-      return { ok: false, code: 400, err: 'missing_headers' };
-    }
-    if (!sharedSecret) {
-      logger.warn({}, 'rubitime m2m: webhook secret not set');
-      return { ok: false, code: 503, err: 'service_unconfigured' };
-    }
-    if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
-      return { ok: false, code: 401, err: 'invalid_signature' };
-    }
-    return { ok: true, rawBody };
-  };
+  const guard = createSignedRequestGuard(sharedSecret, 'rubitime m2m');
 
   app.post('/api/bersoncare/rubitime/update-record', async (request, reply) => {
     const g = guard(request);
@@ -972,38 +1026,14 @@ export async function registerRubitimeRecordM2mRoutes(
     }
   });
 
-  const handleBookingEventRequest = async (
-    request: FastifyRequest,
-    reply: FastifyReply,
-    routeLabel: 'booking lifecycle-event' | 'rubitime booking-event',
-  ) => {
-    const g = guard(request);
-    if (!g.ok) {
-      return reply.code(g.code).send({ ok: false, error: g.err });
-    }
-    const parsed = parseBookingLifecycleEvent(request.body);
-    if (!parsed.success) {
-      logger.warn({ err: parsed.error.flatten() }, `${routeLabel} validation failed`);
-      return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
-    }
-    try {
-      await handleBookingLifecycleEvent(parsed.data, dispatchPort, {
-        ...(deps.idempotencyPort ? { idempotencyPort: deps.idempotencyPort } : {}),
-        ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
-      });
-      return reply.code(200).send({ ok: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn({ err }, `${routeLabel} failed`);
-      return reply.code(502).send({ ok: false, error: msg });
-    }
-  };
-
-  app.post('/api/bersoncare/booking/lifecycle-event', async (request, reply) =>
-    handleBookingEventRequest(request, reply, 'booking lifecycle-event'),
-  );
-
   app.post('/api/bersoncare/rubitime/booking-event', async (request, reply) =>
-    handleBookingEventRequest(request, reply, 'rubitime booking-event'),
+    handleBookingEventRequest(
+      request,
+      reply,
+      'rubitime booking-event',
+      guard,
+      dispatchPort,
+      deps,
+    ),
   );
 }

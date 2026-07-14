@@ -54,6 +54,7 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 }));
 
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
+import { registerBersoncareBookingLifecycleRoute } from '../bersoncare/bookingLifecycleRoute.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
 import type { DbPort, IdempotencyPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
@@ -100,7 +101,7 @@ async function buildApp(
     dispatchPort: sendEmailDispatch,
   });
   const mockWritePort = { writeDb: vi.fn().mockResolvedValue(undefined) };
-  await registerRubitimeRecordM2mRoutes(app, {
+  const bookingLifecycleDeps = {
     sharedSecret: TEST_SECRET,
     dispatchPort: { dispatchOutgoing },
     dbWritePort: mockWritePort,
@@ -108,6 +109,10 @@ async function buildApp(
     ...(webappEventsPort ?
       { webappEventsPort: webappEventsPort as WebappEventsPort }
     : {}),
+  };
+  await registerBersoncareBookingLifecycleRoute(app, bookingLifecycleDeps);
+  await registerRubitimeRecordM2mRoutes(app, {
+    ...bookingLifecycleDeps,
   });
   return app;
 }
