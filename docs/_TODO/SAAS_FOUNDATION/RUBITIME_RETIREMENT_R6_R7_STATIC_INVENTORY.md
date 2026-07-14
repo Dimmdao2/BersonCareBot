@@ -38,12 +38,12 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Run time: 2026-07-14 10:31 MSK.
+Latest run time after integrator wiring cleanup: 2026-07-14 11:03 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
 | `mountedRubitimeRouteLiterals` | R6 | 51 hits / 5 files | Rubitime-named HTTP surfaces still exist before cutoff. |
-| `integratorRubitimeRuntimeImports` | R6 | 11 hits / 4 files | Integrator still wires/imports Rubitime runtime code before cutoff. |
+| `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 15 hits / 5 files | Rubitime client/throttle/post-create/API code still exists before cutoff. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 148 hits / 30 files | Legacy appointment table references remain for archive/backfill/compat paths. |
 | `rubitimeRawTableRuntimeRefs` | R7 | 131 hits / 26 files | Raw Rubitime table/queue references remain until R6 removal and R7 archive/drop decision. |
@@ -55,7 +55,6 @@ The expected post-R6 gate currently fails:
 ```text
 rubitime-r6-r7-static-inventory: post-R6 blockers remain:
 mountedRubitimeRouteLiterals=51,
-integratorRubitimeRuntimeImports=11,
 rubitimeApiClientRuntimeTokens=15
 ```
 
@@ -74,10 +73,7 @@ Mounted Rubitime route literals:
 
 Integrator Rubitime runtime imports:
 
-- `apps/integrator/src/app/di.ts`
-- `apps/integrator/src/app/operatorHealthProbeRunner.ts`
-- `apps/integrator/src/app/routes.ts`
-- `apps/integrator/src/integrations/registry.ts`
+- none after `R6-INTEGRATOR-RUNTIME-WIRING-codex-2026-07-14`.
 
 Rubitime API/client/runtime tokens:
 
@@ -101,3 +97,13 @@ fail by themselves.
    `rubitimeOpsToolingRefs` must stay ops-only and must not be wired into runtime routes/workers.
 5. R7 archive/drop is not complete until this static inventory, the R7 runbook reference scans, fresh restore/migrate
    proof, and owner archive/drop decision all pass.
+
+## 2026-07-14 R6 Integrator Wiring Cleanup
+
+`R6-INTEGRATOR-RUNTIME-WIRING-codex-2026-07-14` removed active integrator wiring for Rubitime record M2M routes,
+Rubitime admin M2M routes, Rubitime webhook registrar default injection, Rubitime registry capability, and the
+operator-health outbound Rubitime schedule probe. The provider-neutral
+`/api/bersoncare/booking/lifecycle-event` route remains mounted.
+
+This does not close R6. Remaining post-R6 blockers are legacy source modules with Rubitime route literals and API
+client/throttle/post-create tokens, plus the webapp Rubitime M2M/admin client cleanup.

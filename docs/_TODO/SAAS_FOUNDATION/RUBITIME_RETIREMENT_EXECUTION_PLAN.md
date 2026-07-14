@@ -1051,10 +1051,13 @@ only; post-R6 it must pass with `--expect-post-r6`.
 - [x] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled.
 - [x] patient/public create has no hard-disabled Rubitime-first/create-mirror branch.
 - [x] patient cancel/reschedule skips outbound Rubitime mirror when bridge is disabled.
-- [ ] Rubitime webhook route is unmounted.
-- [ ] Rubitime `/slots` route is unmounted.
-- [ ] Rubitime `/create-record` route is unmounted.
-- [ ] Rubitime update/cancel/remove routes are unmounted.
+- [x] Rubitime webhook route is unmounted from integrator app wiring. *(Code wiring removed from `buildDeps` /
+  `registerRoutes`; production external ingress disable remains owner-gated.)*
+- [x] Rubitime `/slots` route is unmounted from integrator app wiring. *(Legacy source file still exists until the
+  source cleanup batch; route is no longer registered by `registerRoutes`.)*
+- [x] Rubitime `/create-record` route is unmounted from integrator app wiring. *(Same wiring batch as `/slots`.)*
+- [x] Rubitime update/cancel/remove routes are unmounted from integrator app wiring. *(Same wiring batch; webapp
+  Rubitime M2M client source remains a post-R6 cleanup blocker.)*
 - [x] provider-neutral booking lifecycle route remains working. *(Registered through `integrations/bersoncare/bookingLifecycleRoute.ts`; see `RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md`.)*
 - [x] provider-neutral booking lifecycle handler/schema live outside Rubitime registrar ownership. *(Rubitime route keeps compatibility alias only until cutoff/drain.)*
 - [ ] Rubitime connector/api2/throttle code is removed.
@@ -1062,6 +1065,14 @@ only; post-R6 it must pass with `--expect-post-r6`.
 - [ ] runtime Rubitime env/config keys are removed or archived.
 - [ ] integrator typecheck/lint/tests pass.
 - [ ] webapp booking typecheck/lint/tests pass.
+
+Execution note 2026-07-14: `R6-INTEGRATOR-RUNTIME-WIRING-codex-2026-07-14` removed active integrator app wiring for
+Rubitime record M2M routes, Rubitime admin M2M routes, Rubitime webhook registrar default injection, Rubitime
+integration registry capability, and the operator-health outbound Rubitime schedule probe. The provider-neutral
+`/api/bersoncare/booking/lifecycle-event` route remains registered. Validation: integrator targeted test/lint/typecheck
+passed; `rubitime-r6-r7-static-inventory.mjs` now reports `integratorRubitimeRuntimeImports=0`. This is not
+`RR-PROOF-09`: R6 cutoff/drain owner gates, legacy Rubitime source module deletion, webapp Rubitime M2M client cleanup,
+and final post-R6 inventory are still open.
 
 ### R7 — archive and drop legacy tables
 

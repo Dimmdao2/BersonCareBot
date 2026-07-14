@@ -17,8 +17,6 @@ import {
   resolveActiveOrganizationIdForMessengerIdentity,
   resolveDeploymentSingleActiveOrganizationId,
 } from '../infra/db/repos/channelUsers.js';
-import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
-import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
 import { getAppBaseUrl } from '../config/appBaseUrl.js';
 import { integratorWebhookSecret } from '../config/env.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
@@ -187,18 +185,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     webappEventsPort: deps.webappEventsPort,
   });
 
-  await registerRubitimeRecordM2mRoutes(app, {
-    sharedSecret: integratorWebhookSecret(),
-    dispatchPort: deps.dispatchPort,
-    dbWritePort: deps.dbWritePort,
-    idempotencyPort: deps.idempotencyPort,
-    webappEventsPort: deps.webappEventsPort,
-  });
-
-  await registerRubitimeAdminM2mRoutes(app, {
-    sharedSecret: integratorWebhookSecret(),
-  });
-
   const webhookRouteDb = createDbPort();
   const resolveMessengerStaffAdmin = createMessengerStaffIdsResolver(webhookRouteDb);
   const getAppBaseUrlForWebhooks = (): Promise<string> => getAppBaseUrl(webhookRouteDb);
@@ -221,16 +207,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         await deps.registerTelegramWebhookRoutes?.(instance, telegramWebhookDeps);
       });
     }
-  }
-
-  if (deps.registerRubitimeWebhookRoutes) {
-    app.register(async (instance) => {
-      await deps.registerRubitimeWebhookRoutes?.(instance, {
-        eventGateway: deps.eventGateway,
-        webappEventsPort: deps.webappEventsPort,
-        dispatchPort: deps.dispatchPort,
-      });
-    });
   }
 
   if (deps.registerMaxWebhookRoutes) {

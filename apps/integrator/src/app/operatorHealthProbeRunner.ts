@@ -1,12 +1,9 @@
 import type { DispatchPort } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
-import { createDbPort } from '../infra/db/client.js';
 import { getMaxBotInfo } from '../integrations/max/client.js';
 import { maxConfig } from '../integrations/max/config.js';
 import { probeGoogleCalendarAccess } from '../integrations/google-calendar/probe.js';
 import { getGoogleCalendarConfig } from '../integrations/google-calendar/runtimeConfig.js';
-import { fetchRubitimeSchedule } from '../integrations/rubitime/client.js';
-import { pickAnyActiveRubitimeScheduleTriple } from '../integrations/rubitime/db/bookingProfilesRepo.js';
 import { getBotInstance } from '../integrations/telegram/client.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { reportOperatorFailure } from '../infra/operatorIncident/reportOperatorFailure.js';
@@ -18,7 +15,6 @@ import {
 export type ProbeOutcome = 'ok' | 'fail' | 'skipped_not_configured';
 
 const MAX_PROBE_TIMEOUT_MS = 15_000;
-const RUBITIME_PROBE_TIMEOUT_MS = 15_000;
 const TELEGRAM_PROBE_TIMEOUT_MS = 15_000;
 const GOOGLE_CALENDAR_PROBE_TIMEOUT_MS = 15_000;
 
@@ -55,7 +51,7 @@ export type OperatorHealthProbeRunResult = {
 };
 
 /**
- * Синтетические пробы MAX + Rubitime; при успехе — resolve открытых probe-инцидентов по префиксу.
+ * Синтетические пробы внешних каналов; при успехе — resolve открытых probe-инцидентов по префиксу.
  */
 export async function runOperatorHealthProbes(input: {
   dispatchPort: DispatchPort;
@@ -89,38 +85,7 @@ export async function runOperatorHealthProbes(input: {
     details.max = 'skipped_not_configured';
   }
 
-  const db = createDbPort();
-  const triple = await pickAnyActiveRubitimeScheduleTriple(db);
-  if (triple === null) {
-    details.rubitime = 'no_active_booking_profile';
-  } else {
-    try {
-      await fetchRubitimeSchedule({
-        params: {
-          branchId: triple.branchId,
-          cooperatorId: triple.cooperatorId,
-          serviceId: triple.serviceId,
-        },
-        fetchImpl: fetchWithTimeout(RUBITIME_PROBE_TIMEOUT_MS),
-      });
-      rubitime = 'ok';
-      details.rubitime = 'ok';
-      const n = await resolveOpenOperatorIncidentsByDedupKeyPrefix('outbound:rubitime:');
-      if (n > 0) details.rubitimeResolved = String(n);
-    } catch (err) {
-      rubitime = 'fail';
-      const msg = err instanceof Error ? err.message : String(err);
-      details.rubitime = msg;
-      await reportOperatorFailure({
-        dispatchPort: input.dispatchPort,
-        direction: 'outbound',
-        integration: 'rubitime',
-        errorClass: 'rubitime_get_schedule_failed',
-        errorDetail: msg,
-        alertLines: ['Rubitime get-schedule probe failed', msg],
-      });
-    }
-  }
+  details.rubitime = 'retired';
 
   if (telegramConfig.botToken.trim().length > 0) {
     try {
@@ -181,7 +146,7 @@ export async function runOperatorHealthProbes(input: {
     }
   }
 
-  const anyFail = max === 'fail' || rubitime === 'fail' || telegram === 'fail' || google_calendar === 'fail';
+  const anyFail = max === 'fail' || telegram === 'fail' || google_calendar === 'fail';
   try {
     const streak = await recordOperatorOutboundProbeRun({
       max,

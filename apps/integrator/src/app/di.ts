@@ -57,7 +57,6 @@ import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
-import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
@@ -104,15 +103,6 @@ export type TelegramRoutesRegistrar = (
   } & MessengerWebappEntryIdentityDeps,
 ) => Promise<void> | void;
 
-export type RubitimeRoutesRegistrar = (
-  app: FastifyInstance,
-  deps: {
-    eventGateway: EventGateway;
-    webappEventsPort: WebappEventsPort;
-    dispatchPort: DispatchPort;
-  },
-) => Promise<void> | void;
-
 export type MaxRoutesRegistrar = (
   app: FastifyInstance,
   deps: {
@@ -128,7 +118,6 @@ export type BuildDepsInput = {
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
-  registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
 };
 
@@ -154,7 +143,6 @@ export type AppDeps = {
   contextQueryPort: ContextQueryPort;
   eventGateway: EventGateway;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
-  registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
   // eslint-disable-next-line no-secrets/no-secrets -- JSDoc identifier, not a secret
@@ -323,7 +311,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     webappEventsPort,
     webPushAccessPort,
     ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
-    registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),
   };
 }
