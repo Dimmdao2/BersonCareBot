@@ -159,6 +159,10 @@ export function createPatientBookingService(input: {
     slotsCache.clear();
   }
 
+  async function isRubitimeOutboundMirrorEnabled(): Promise<boolean> {
+    return input.isRubitimeBridgeEnabled ? input.isRubitimeBridgeEnabled() : false;
+  }
+
   const canonicalDeps: CanonicalBookingDeps | null =
     input.bookingEngine && input.bookingScheduling
       ? {
@@ -436,7 +440,7 @@ export function createPatientBookingService(input: {
       }
 
       const rubitimeMirrorStatus =
-        row.rubitimeId && row.canonicalAppointmentId
+        row.rubitimeId && row.canonicalAppointmentId && (await isRubitimeOutboundMirrorEnabled())
           ? await mirrorPatientRescheduleToRubitime({
               bookingId: row.id,
               rubitimeId: row.rubitimeId,
@@ -610,7 +614,7 @@ export function createPatientBookingService(input: {
         }
 
         const rubitimeMirrorStatus =
-          row.rubitimeId && row.canonicalAppointmentId
+          row.rubitimeId && row.canonicalAppointmentId && (await isRubitimeOutboundMirrorEnabled())
             ? await mirrorPatientCancelToRubitime({
                 bookingId: row.id,
                 rubitimeId: row.rubitimeId,
@@ -788,7 +792,7 @@ export function createPatientBookingService(input: {
       }
 
       await input.bookingsPort.markCancelling(row.id);
-      const legacyRubitimeMirror = row.rubitimeId
+      const legacyRubitimeMirror = row.rubitimeId && (await isRubitimeOutboundMirrorEnabled())
         ? await mirrorPatientCancelToRubitime({
             bookingId: row.id,
             rubitimeId: row.rubitimeId,

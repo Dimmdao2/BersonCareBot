@@ -23,6 +23,8 @@ This proof covers the first R6 code split before destructive integrator Rubitime
   gated for cutoff-dependent bridge-enabled flows.
 - Patient/public canonical create no longer contains hard-disabled Rubitime-first or Rubitime-create-mirror branches.
   Normal patient/public create uses canonical scheduling/booking plus provider-neutral lifecycle events.
+- Patient cancel/reschedule no longer attempts outbound Rubitime mirror when `booking_rubitime_bridge_enabled=false`;
+  canonical lifecycle state changes and provider-neutral lifecycle events still run.
 
 No production DB, env, service, webhook, or Rubitime endpoint was changed.
 
@@ -46,6 +48,7 @@ alias, Rubitime M2M/admin/webhook routes and raw runtime after the cutoff/drain 
 - `pnpm --dir apps/webapp exec eslint src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/canonicalCreate.test.ts` - passed.
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/integrations/rubitime/schema.test.ts` - passed, 64 tests.
 - `pnpm --dir apps/integrator exec eslint src/integrations/bersoncare/bookingLifecycleRoute.ts src/integrations/bersoncare/bookingLifecycleSchema.ts src/integrations/bersoncare/bookingNotificationFormat.ts src/integrations/rubitime/recordM2mRoute.ts src/integrations/rubitime/schema.ts src/integrations/rubitime/recordM2mRoute.test.ts src/integrations/rubitime/schema.test.ts` - passed.
+- `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/service.test.ts src/modules/patient-booking/bookingMirrorDesyncMatrix.test.ts src/modules/patient-booking/patientMirrorOutbound.test.ts` - passed, 41 tests.
 - `rg -n "isRubitimeFirstCreateEnabled|isRubitimeCreateMirrorEnabled|createRubitimeRecord\\(|rollbackFailedRubitimeCreate|waitForRubitimeProjectionMapping|extractRubitimeManageUrl|rubitime_projection_not_ready|rubitimeFirst|bridgeEnabled|syncPort\\.createRecord|syncPort\\.deleteRecord" apps/webapp/src/modules/patient-booking/canonicalCreate.ts` - no matches.
 - `rg -n "api/doctor/appointments/rubitime|appointments/rubitime/(update|cancel)" apps/webapp/src apps/webapp/INTEGRATOR_CONTRACT.md apps/webapp/src/app/api/api.md -g '*.ts' -g '*.tsx' -g '*.md'` - no runtime code hits; only retired-doc note remains.
 - `rg -n "handleBookingLifecycleEvent|scheduleBookingReminders|sendBookingWebPush|trySyncCanonicalBookingToGoogleCalendar|BookingLifecyclePayloadSchema|parseBookingLifecycleEvent" apps/integrator/src/integrations/rubitime -g '*.ts'` - no lifecycle handler body remains in Rubitime ownership; `schema.ts` keeps compatibility re-exports only.

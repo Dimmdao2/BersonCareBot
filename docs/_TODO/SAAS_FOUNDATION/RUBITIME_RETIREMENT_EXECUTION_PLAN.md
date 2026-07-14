@@ -939,6 +939,7 @@ the required read-only drain snapshots, fresh CSV reconciliation and owner-appro
 - [x] old webapp doctor Rubitime proxy routes are removed. *(Removed `/api/doctor/appointments/rubitime/update` and `/api/doctor/appointments/rubitime/cancel`; no UI callers found.)*
 - [x] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled.
 - [x] patient/public create has no hard-disabled Rubitime-first/create-mirror branch.
+- [x] patient cancel/reschedule skips outbound Rubitime mirror when bridge is disabled.
 - [ ] Rubitime webhook route is unmounted.
 - [ ] Rubitime `/slots` route is unmounted.
 - [ ] Rubitime `/create-record` route is unmounted.

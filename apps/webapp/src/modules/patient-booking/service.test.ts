@@ -161,6 +161,7 @@ describe("createPatientBookingService", () => {
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      isRubitimeBridgeEnabled: async () => true,
     });
     const result = await svc.cancelBooking({
       userId: row.userId!,
@@ -177,11 +178,39 @@ describe("createPatientBookingService", () => {
     });
   });
 
+  it("cancelBooking: skips Rubitime cancel when bridge is disabled", async () => {
+    const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      isRubitimeBridgeEnabled: async () => false,
+    });
+    const result = await svc.cancelBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+      reason: "busy",
+    });
+    expect(result).toEqual({ ok: true });
+    expect(syncPort.cancelRecord).not.toHaveBeenCalled();
+    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
+      bookingId: row.id,
+      reason: "busy",
+      status: "cancelled",
+    });
+  });
+
   it("createBooking without canonical deps fails instead of calling Rubitime create", async () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      isRubitimeBridgeEnabled: async () => true,
     });
     await expect(svc.createBooking({
       userId: "u1111111-1111-4111-8111-111111111111",
@@ -208,6 +237,7 @@ describe("createPatientBookingService", () => {
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      isRubitimeBridgeEnabled: async () => true,
     });
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
@@ -237,6 +267,7 @@ describe("createPatientBookingService", () => {
       bookingEngine: bookingEngine as never,
       bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
+      isRubitimeBridgeEnabled: async () => true,
     });
     await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
@@ -756,6 +787,7 @@ describe("createPatientBookingService", () => {
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
       bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
+      isRubitimeBridgeEnabled: async () => true,
     });
 
     const result = await svc.rescheduleBooking({
@@ -765,6 +797,64 @@ describe("createPatientBookingService", () => {
       slotEnd: newEnd,
     });
     expect(result).toMatchObject({ ok: true, rubitimeMirrorFailed: true });
+  });
+
+  it("rescheduleBooking: skips Rubitime update when bridge is disabled", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      rubitimeId: "r1",
+      canonicalAppointmentId: "appt-1",
+    });
+    const newStart = "2026-06-10T10:00:00.000Z";
+    const newEnd = "2026-06-10T11:00:00.000Z";
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.updateSlotsAfterReschedule.mockResolvedValue({
+      ...row,
+      slotStart: newStart,
+      slotEnd: newEnd,
+    });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const appointmentLifecycle = {
+      patientReschedule: vi.fn().mockResolvedValue({
+        ok: true,
+        appointment: {
+          id: "appt-1",
+          startAt: newStart,
+          endAt: newEnd,
+          branchId: null,
+          specialistId: null,
+          serviceId: null,
+          status: "confirmed",
+        },
+        reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+      }),
+      patchLatestRescheduleNotifications: vi.fn().mockResolvedValue(undefined),
+    };
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
+    };
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
+      isRubitimeBridgeEnabled: async () => false,
+    });
+
+    const result = await svc.rescheduleBooking({
+      userId: row.userId!,
+      bookingId: row.id,
+      slotStart: newStart,
+      slotEnd: newEnd,
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(syncPort.updateRecord).not.toHaveBeenCalled();
+    expect(bookingsPort.updateSlotsAfterReschedule).toHaveBeenCalled();
   });
 
   it("rescheduleBooking: canonical path returns paymentOutcomeFailed when carry-over fails", async () => {
@@ -919,6 +1009,7 @@ describe("createPatientBookingService", () => {
       bookingCatalog: null,
       bookingEngine: bookingEngine as never,
       appointmentLifecycle: appointmentLifecycle as never,
+      isRubitimeBridgeEnabled: async () => true,
     });
 
     const result = await svc.cancelBooking({
@@ -1121,6 +1212,24 @@ describe("createPatientBookingService", () => {
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
+      catalog: {
+        getBranch: vi.fn().mockResolvedValue({
+          id: r.branch.id,
+          organizationId: "org-1",
+          cityCode: "msk",
+          isActive: true,
+        }),
+      },
+      services: {
+        getService: vi.fn().mockResolvedValue({
+          id: r.service.id,
+          organizationId: "org-1",
+          title: r.service.title,
+          durationMinutes: r.service.durationMinutes,
+          priceMinor: r.service.priceMinor,
+          isActive: true,
+        }),
+      },
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),

@@ -84,6 +84,7 @@ function svc() {
     bookingsPort: bookingsPort as never,
     syncPort: syncPort as never,
     bookingCatalog: null,
+    isRubitimeBridgeEnabled: async () => true,
   });
 }
 
@@ -208,7 +209,7 @@ describe("booking mirror desync matrix (P2)", () => {
     expect(String(query.mock.calls[1]?.[0])).toContain("rubitime_manage_url = NULL");
   });
 
-  it("5 rebook same slot after cancel → createPending invoked without slot_overlap", async () => {
+  it("5 rebook same slot after cancel → no Rubitime create fallback without canonical deps", async () => {
     const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
     bookingsPort.getByIdForUser.mockResolvedValue(row);
     bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
@@ -218,29 +219,20 @@ describe("booking mirror desync matrix (P2)", () => {
 
     await svc().cancelBooking({ userId: row.userId!, bookingId: row.id });
 
-    const pending = sampleRow({
-      id: "b-new",
-      status: "creating",
-      rubitimeId: null,
-      rubitimeManageUrl: null,
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r2", raw: { link: "https://x" } });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r2" });
-
-    const created = await svc().createBooking({
+    await expect(svc().createBooking({
       userId: row.userId!,
       type: "online",
+      organizationId: "org-1",
       category: "general",
       slotStart: row.slotStart,
       slotEnd: row.slotEnd,
       contactName: row.contactName,
       contactPhone: row.contactPhone,
       contactEmail: row.contactEmail ?? undefined,
-    });
+    })).rejects.toThrow("canonical_booking_unavailable");
 
-    expect(bookingsPort.createPending).toHaveBeenCalled();
-    expect(created.status).toBe("confirmed");
+    expect(bookingsPort.createPending).not.toHaveBeenCalled();
+    expect(syncPort.createRecord).not.toHaveBeenCalled();
   });
 
   it("6 inbound create after prior cancel → revive guard skips upsert", async () => {
