@@ -14,12 +14,25 @@ Owner-approved historical fallback import for pre-webapp active rows: **COMPLETE
 
 Owner-approved stale-vs-owner-CSV cleanup: **COMPLETED** in dev DB.
 
+Fresh current dump replay: **COMPLETED** on disposable DB
+`bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` from
+`/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`; `#667` and R1 cleanup/import
+sequence passed.
+
 The approved cleanup path is scripted in `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts`.
 It must be rehearsed on a fresh copy of the live database before production cutover; do not reproduce the cleanup with manual SQL.
 
-`RR-PROOF-01-DUAL-SOURCE`: **BLOCKED** until owner decisions below are resolved and R1 acceptance is updated in the execution plan.
+Owner source-of-truth decision, 2026-07-14: **Rubitime export is the canon**. Anything present in the
+fresh Rubitime CSV is needed; anything absent from that CSV is not needed. `integrator.rubitime_records` is
+non-authoritative for R1 when the fresh Rubitime export exists; absence from integrator raw is not a blocker.
+The R1 export is matched through existing city/branch mappings and the records are treated as one-specialist
+history resolved through owner-provided doctor phone tail `9643805480`.
 
-R2 must not start while this packet has unresolved decisions.
+`RR-PROOF-01-DUAL-SOURCE`: **DATA PASS** after fresh replay and owner source-of-truth decision. Cleanup
+buckets are closed; raw-vs-legacy disagreements are resolved by the Rubitime CSV rule. Doctor UI smoke is
+still required before R1 acceptance.
+
+R2 must not start until doctor calendar/list/KPI smoke is recorded or explicitly waived.
 
 ## Source Artifacts
 
@@ -151,25 +164,45 @@ Owner-approved stale-vs-owner-CSV cleanup, summary-only, after commit:
 
 Additional commit flags used: `--commit --cleanup-only --drop-stale-from-csv --summary-only --csv=<owner-csv>`.
 
-R1 cleanup/import gates now closed in dev DB for stale/unmapped/duplicate blockers: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. Remaining R1 decisions are legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
+R1 cleanup/import gates now closed in dev DB for stale/unmapped/duplicate blockers: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. The later fresh replay plus owner source-of-truth decision resolves legacy-only/mismatch/mapping policy; doctor calendar/list/KPI smoke remains.
+
+Fresh current dump replay, after `#667` and the same cleanup/import sequence:
+
+| Fact | Count |
+| --- | ---: |
+| stale-vs-owner-CSV rows | 0 |
+| unmapped real active rows | 0 |
+| duplicate clusters | 0 |
+| legacy-only rows | 290 |
+| legacy-only live rows mapped to existing canonical | 195 |
+| legacy-only deleted rows | 95 |
+| live mapping to non-`rubitime_projection` canonical | 2 |
+| status mismatches | 4 |
+| `record_at` mismatches | 2 |
+
+Plain-language classification: `legacy-only=290` is not a cleanup backlog. It means the old public
+`appointment_records` archive is richer than `integrator.rubitime_records`. The live part is already mapped
+to canonical appointments; the unmapped part is already soft-deleted. The fresh Rubitime CSV decides which
+rows are needed; absence from `integrator.rubitime_records` alone is not a reason to delete anything.
 
 ## Owner Decisions
 
 | Decision | Options | Impact |
 | --- | --- | --- |
-| Classify legacy-only 312 | A: import or map as valid history. B: waive as legacy-only archive with reason. C: split by bucket after reviewer analysis. | Until classified, R1 cannot prove complete canonical history and R2 remains blocked. |
-| Classify 4 status mismatches and 2 record_at mismatches | A: canonical is correct. B: legacy projection is correct and needs repair. C: accept documented historical divergence. | Determines whether follow-up import or manual repair is required before acceptance. |
-| Handle unmapped legacy and backfill unmapped buckets | B partial completed: approved test/block rows and non-confirmed rows were soft-deleted. Historical owner fallback imported 98 CSV-present active rows. Remaining: 1 stale active unmapped row requires stale policy or explicit exception. | Acceptance requires unmapped zero or explicit owner-approved exceptions. |
-| Resolve duplicate clusters 7 | C partial completed: canceled duplicate losers were soft-deleted only. Remaining 3 clusters require a separate owner decision. | Prevents double counting in calendar, list, KPI, and future migration proof. |
-| Classify stale-vs-CSV 10 | A: authorize scripted stale cleanup after reviewer confirmation. B: waive as approved historical exceptions with reason. C: require a newer CSV and rerun before any commit. | Stale proof source was provided and rerun after fallback import/canceled cleanup; active stale cleanup remains unauthorized and R1 remains blocked until classification/approval is recorded. |
-| Authorize backfill commit | Narrow cleanup commit completed with `--cleanup-only --delete-test --collapse-canceled-dups`; non-confirmed cleanup completed with `--cleanup-only --delete-non-confirmed`. Other commit modes remain unauthorized. | This resolved only the approved cleanup categories; broad projection/collapse/stale/drop-legacy remain gated. |
+| Classify legacy-only 290 | Accepted by owner source-of-truth rule: fresh Rubitime CSV is canon; `appointment_records` is the historical proof source where raw integrator mirror is incomplete/non-authoritative. All live legacy-only rows are mapped to canonical; all unmapped legacy-only rows are already soft-deleted. | Removes the misleading “290 dirty rows” blocker. No additional cleanup action proposed. |
+| Classify 4 status mismatches and 2 `record_at` mismatches | Accepted by owner source-of-truth rule: Rubitime CSV / canonical projection wins over raw-vs-legacy disagreement. | No targeted repair packet required for R1. |
+| Handle unmapped legacy and backfill buckets | Completed in fresh replay: unmapped real active = 0. | No remaining unmapped cleanup blocker. |
+| Resolve duplicate clusters | Completed in fresh replay: duplicate clusters = 0. | No remaining duplicate cleanup blocker. |
+| Classify stale-vs-CSV | Completed in fresh replay: stale-vs-owner-CSV = 0. | No remaining stale cleanup blocker. |
+| Authorize backfill commit | Completed for the owner-approved sequence and replayed on fresh dump. Broad `--collapse-dups` and ad hoc `--drop-legacy` remain unauthorized and unnecessary for this proof. | R1 data cleanup proof is replayed; policy/smoke items remain. |
+| Classify 2 live native mappings | Accepted by owner source-of-truth rule if present in fresh Rubitime CSV; they are mapped to live canonical appointments and are not a cleanup target. | No mapping repair required for R1 unless UI smoke proves a visible issue. |
 | Doctor calendar/list/KPI smoke acceptance | A: owner accepts targeted smoke after commit. B: require pre-commit visual/read-only smoke too. C: require broader doctor analytics smoke. | R1 acceptance cannot close without the agreed smoke surface passing or being waived. |
 
 ## Hard Gate
 
 Do not start R2 until all of the following are true:
 
-- Owner decisions in this packet are resolved.
+- Owner decisions in this packet are resolved or explicitly accepted as R1 waivers.
 - R1 execution-plan checklist is updated with accepted decisions or explicit exceptions.
 - `RR-PROOF-01-DUAL-SOURCE` is no longer blocked.
 - Any approved commit run has completed, or owner explicitly accepts a no-commit R1 exception.

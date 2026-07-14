@@ -114,7 +114,7 @@ Drop must be migration-backed and preceded by archive/export decision. No ad hoc
 
 Required before implementation:
 
-1. **History source.** Confirm the dual-source reconciliation result: `public.appointment_records` and `integrator.rubitime_records` both audited; raw-only deltas either imported to canonical or explicitly archived/waived.
+1. **History source.** Owner decision recorded 2026-07-14: fresh Rubitime export is the R1 canon. `public.appointment_records` plus canonical mappings are checked against the export; `integrator.rubitime_records` is audit-only and non-authoritative when the fresh export exists.
 2. **Archive window.** Decide whether legacy Rubitime raw tables are archived to SQL/CSV before drop, and how long archives are retained.
 3. **Google Calendar ownership.** Confirm provider-neutral canonical lifecycle becomes the only source of GCal writes and `booking_calendar_map` is migrated/kept as canonical infrastructure.
 4. **Downstream ownership.** Confirm canonical booking lifecycle becomes the only source for booking reminders, patient/staff notifications, Web Push, payment capture, package link/unlink and booking delete side effects.
@@ -446,8 +446,8 @@ Cutoff/drain work:
 - drain `projection_outbox`;
 - drain or explicitly archive `rubitime_create_retry_jobs`;
 - confirm no pending/dead Rubitime projection jobs;
-- rerun dual-source reconciliation after cutoff;
-- verify no late raw-only deltas;
+- rerun fresh Rubitime CSV reconciliation after cutoff;
+- verify no late CSV-present rows are missing from canonical;
 - only then unmount routes/remove code.
 
 Work:
@@ -564,7 +564,7 @@ These are not optional acceptance notes; each proof must produce a saved artifac
 
 | Proof id | Phase gate | Owner | Required artifact | Minimum checks |
 |---|---|---|---|---|
-| `RR-PROOF-01-DUAL-SOURCE` | before R2 | R1 worker + reviewer | dual-source reconciliation report | `appointment_records` vs `integrator.rubitime_records` anti-joins, max freshness, status mismatch list, canonical mapping coverage, raw-only delta imported/waived. |
+| `RR-PROOF-01-DUAL-SOURCE` | before R2 | R1 worker + reviewer | Rubitime CSV reconciliation report | Fresh Rubitime CSV is canon; `appointment_records` + canonical mappings are checked against it. `integrator.rubitime_records` anti-joins are audit-only and non-authoritative. |
 | `RR-PROOF-02-STATE-HISTORY` | before R2 | booking data worker | state-history/archive contract report | every imported appointment has canonical state + baseline/history event; raw events archived with retention/access policy; runtime no longer needs raw provider event history. |
 | `RR-PROOF-03-NO-RUBITIME-SLOTS-CREATE` | before R5 | booking implementation worker | automated test output + route trace | patient/public slots and create pass with integrator/Rubitime unavailable; canonical DI missing fails as config error, not provider fallback. |
 | `RR-PROOF-04-EXACT-TENANT` | before Tenant Hard Mode enforce | tenant worker | integration test + negative cases | public/patient booking derives exact org from trusted host/link/resource/enrollment; conflicting contexts deny; missing/ambiguous org denies before DB query. |
@@ -621,7 +621,7 @@ After R7:
 ## 9. Risks
 
 - Historical data loss if R1 is skipped or CSV is stale/incomplete.
-- Historical data loss if `integrator.rubitime_records` has raw-only deltas not imported to canonical.
+- Historical data loss if CSV-present Rubitime rows are not imported/mapped to canonical.
 - GCal breakage if raw webhook path is removed before canonical lifecycle replacement.
 - Reminder/notification/payment/package breakage if booking lifecycle endpoint is removed because it is currently Rubitime-named.
 - Hidden v1 online path if legacy resolve is disabled too early.
@@ -650,8 +650,8 @@ Owner: 5-5/Sonnet ops worker.
 Scope:
 
 - Run dry-run script.
-- Run direct `integrator.rubitime_records` vs `appointment_records` reconciliation.
-- Import/waive raw-only deltas before cutover.
+- Run fresh Rubitime CSV vs `appointment_records`/canonical reconciliation.
+- Import/map CSV-present deltas before cutover.
 - Collect output.
 - If conflicts, prepare owner review list.
 - Run commit only after approval.
@@ -787,25 +787,31 @@ It soft-deleted 47 legacy rows and 34 mapped canonical `rubitime_projection` row
 is now 28. No `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, Rubitime runtime/table removal, or R2
 work was used. R1 remains blocked.
 
-Execution note 2026-07-14: owner-approved fallback import, strict canceled cleanup, and stale-vs-owner-CSV cleanup were completed in dev DB only and are recorded in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`, `RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`, and `RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md`. Current dev aggregate blockers for stale/unmapped/duplicates are closed: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. Remaining R1 blockers are legacy-only classification/waiver, 4 status mismatches, 2 record-time mismatches, mapping anomaly policy, doctor calendar/list/KPI smoke, and clean-copy transfer/rehearsal proof.
+Execution note 2026-07-14: owner-approved fallback import, strict canceled cleanup, and stale-vs-owner-CSV cleanup were completed in dev DB only and are recorded in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`, `RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`, and `RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md`. Current dev aggregate blockers for stale/unmapped/duplicates are closed: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. This older dev-only note is superseded by the fresh-dump replay and owner source-of-truth decision below.
 
 Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` restored the best locally readable prod-like dump into an isolated user-owned PG16 on `127.0.0.1:55432`; rehearsal result was `FAIL`. The dump has canonical Rubitime seed, but `pnpm run migrate` fails at `0143_seed_staff_organization_members.sql`, required current columns/tables are missing before migration, and the exact cutoff CSV is not locally present. No current `bcb_webapp_dev`, production DB, `/opt/env`, or live channels were touched. `RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` defines the required transfer-final-state contract and next rehearsal commands.
 
-Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415` superseded the failed old-dump attempt. Fresh dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` was restored into disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`. `scripts/deploy-saas-667.sh` passed after `p0-data-fix-doctor-admin-split.sql` archived 2 identifier-less active admin stubs before membership seeding. The R1 cleanup/import sequence from `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` replayed successfully on that clean copy: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`, preflight PASS. Remaining R1 blockers are legacy-only classification/waiver, 4 status mismatches, 2 record-time mismatches, mapping anomaly policy, and doctor calendar/list/KPI smoke. R2 remains blocked until those are accepted or explicitly waived.
+Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415` superseded the failed old-dump attempt. Fresh dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` was restored into disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`. `scripts/deploy-saas-667.sh` passed after `p0-data-fix-doctor-admin-split.sql` archived 2 identifier-less active admin stubs before membership seeding. The R1 cleanup/import sequence from `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` replayed successfully on that clean copy: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`, preflight PASS. Owner then set fresh Rubitime export as canon, which resolves the legacy-only/raw mismatch policy. Remaining R1 gate before R2 is doctor calendar/list/KPI smoke.
+
+Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1 canon. Anything present in the
+fresh Rubitime CSV is needed; anything absent from it is not needed. `integrator.rubitime_records` is
+non-authoritative when it disagrees with the fresh export / `appointment_records` history. The export is
+matched through existing city/branch mappings and the R1 history belongs to one specialist resolved through
+owner-provided doctor phone tail `9643805480`.
 
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
-- [ ] legacy-only records are classified.
-- [ ] status/freshness mismatches are classified.
+- [x] legacy-only records are classified. *(Not a cleanup blocker: live rows are mapped to canonical; unmapped rows are already soft-deleted; fresh Rubitime export is canon, not integrator raw.)*
+- [x] status/freshness mismatches are classified. *(Resolved by owner source-of-truth policy: fresh Rubitime export / canonical projection wins over raw integrator disagreement.)*
 - [x] canonical mapping coverage is recorded.
 - [x] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
 - [x] owner-provided CSV stale dry-run proof is saved and owner-approved stale cleanup completed in dev. *(current stale-vs-owner-CSV is 0.)*
-- [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
+- [x] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`. *(Owner decision: fresh Rubitime export is canon; cleanup buckets are closed after replay.)*
 - [x] commit run is approved before any `--commit`. *(approved only for the narrow cleanup flags in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; other commit modes remain gated.)*
 - [x] commit run completes, if approved. *(narrow cleanup only; R1 proof still blocked.)*
 - [x] post-run cleanup diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, and `STALE 0` in dev.
-- [ ] `CONFLICTS` / mismatch / mapping anomaly policy is owner-reviewed or explicitly waived.
+- [x] `CONFLICTS` / mismatch / mapping anomaly policy is owner-reviewed or explicitly waived. *(Owner decision: fresh Rubitime export is canon; remaining live native mappings are not cleanup targets unless UI smoke exposes a visible issue.)*
 - [x] clean-dump rehearsal was attempted on the best locally readable prod-like dump.
 - [x] clean-dump rehearsal passes on a fresh current unified dump with exact cutoff CSV.
 - [x] transfer-final-state bundle/runbook is implemented and rehearsed, if replay remains non-self-contained. *(Replay is now self-contained for the owner-approved cleanup/import sequence; no transfer bundle required for this proof.)*

@@ -6,7 +6,65 @@ Nickname: `blocker-classification`
 
 Scope: owner-facing technical classification after fresh owner CSV proof. Aggregate-only, no row list, no PII, no `--commit`, no `--drop-stale-from-csv`, no `--drop-legacy`, no R2, no cleanup.
 
-## Current rerun after fallback import
+## Fresh current dump replay classification
+
+Run id: `R1-FRESH-DUMP-REPLAY-codex-2026-07-14-0415`
+
+This supersedes the older dev-only counts below for R1 acceptance. It was run on the disposable fresh-copy DB
+after `scripts/deploy-saas-667.sh` and the owner-approved R1 cleanup/import sequence passed.
+
+Plain-language result: the `legacy-only=290` count is **not 290 dirty visible appointments**. It means
+`public.appointment_records` has historical rows that are absent from `integrator.rubitime_records`. After
+the fresh replay:
+
+| Legacy-only split | Count | Meaning |
+| --- | ---: | --- |
+| live + mapped to existing canonical | 195 | already represented in canonical history |
+| deleted + mapped to deleted canonical | 57 | already soft-deleted cleanup residue |
+| deleted + mapped to existing canonical | 8 | deleted legacy row points to a surviving canonical row |
+| deleted + unmapped | 30 | already soft-deleted legacy-only residue |
+| **total** | **290** | source-archive gap, not a cleanup bucket |
+
+Owner decision recorded 2026-07-14: **Rubitime export is the canon**. Anything present in the fresh
+Rubitime CSV is needed; anything absent from that CSV is not needed. `integrator.rubitime_records` is
+explicitly non-authoritative for R1 acceptance when a fresh Rubitime export exists. It may be kept as an
+audit signal only; absence from integrator raw is not a blocker and must not drive cleanup.
+
+Operational scope recorded by owner:
+
+- match the fresh Rubitime export through the existing city/branch mappings;
+- these R1 history records belong to one specialist, resolved through the owner-provided doctor phone tail
+  `9643805480`;
+- do not invent an extra specialist split from incomplete raw integrator data.
+
+Residual acceptance items after this split:
+
+| Item | Current count | Classification |
+| --- | ---: | --- |
+| stale-vs-owner-CSV rows | 0 | closed |
+| unmapped real active rows | 0 | closed |
+| duplicate clusters | 0 | closed |
+| status mismatches | 4 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
+| `record_at` mismatches | 2 | accepted as raw-vs-legacy divergence; Rubitime CSV / canonical projection wins |
+| live mapping to non-`rubitime_projection` canonical | 2 | accepted if present in Rubitime CSV; not a cleanup target |
+
+Mapping anomaly clarification:
+
+| Reported anomaly bucket | Count | Live impact |
+| --- | ---: | --- |
+| mapped to deleted canonical | 74 | all 74 are already deleted legacy rows |
+| unmapped legacy rows | 30 | all 30 are already deleted legacy rows |
+| missing expected mapping metadata | 6 | 4 deleted/native, 2 live/native |
+| unexpected canonical source | 2 | the only live mapping-policy residue |
+
+R1 decision: accept `appointment_records` + the owner CSV as the historical proof source. All live
+legacy-only rows are already mapped to canonical appointments; all unmapped legacy-only rows are already
+soft-deleted. Do not delete legacy-only rows merely because `integrator.rubitime_records` lacks them.
+
+## Historical dev rerun after fallback import — superseded
+
+This section is retained as historical evidence only. It is superseded by the fresh current dump replay and
+the owner source-of-truth decision above.
 
 After the owner-confirmed historical specialist fallback import and the strict legacy-canceled cleanup rerun, the classifier was rerun read-only on the current dev DB snapshot.
 
@@ -32,7 +90,8 @@ Interpretation after fallback import and owner-approved stale cleanup:
 - The old `99` active import blocker is closed.
 - The remaining stale-vs-owner-CSV rows were owner-approved for cleanup and are now zero.
 - Duplicate clusters are now zero because the duplicate overlap was stale-only legacy residue.
-- The next decisions are dual-source policy items: legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
+- Historical interpretation at that point: the next decisions were source-of-truth policy items and doctor
+  smoke. Source-of-truth is now decided above: fresh Rubitime export is canon.
 
 ## Historical rerun after non-confirmed cleanup
 
@@ -260,7 +319,10 @@ Mapping anomaly buckets:
 | Unexpected canonical source | 2 |
 | Missing expected mapping metadata | 6 |
 
-Classification: `legacy-only=312` is a raw-vs-public source discrepancy, not a raw-only import blocker. Raw-only is still zero. It blocks R1 because public legacy contains history that raw no longer has; owner must accept `appointment_records` as the history source for these rows, or require a separate archive/waiver/import policy. It materially overlaps the open blockers: all `99` unmapped real active rows and `28` of the stale rows are legacy-only.
+Historical classification before the fresh replay and owner source-of-truth decision: `legacy-only=312` was
+a raw-vs-public source discrepancy, not a raw-only import blocker. This is superseded by the fresh replay:
+fresh Rubitime export is canon, `integrator.rubitime_records` is non-authoritative, stale/unmapped/duplicate
+buckets are closed, and `legacy-only=290` is not a cleanup backlog.
 
 ## Real blockers
 
