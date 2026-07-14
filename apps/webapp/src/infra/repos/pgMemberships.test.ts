@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPgMembershipsPort } from "./pgMemberships";
 
@@ -73,6 +74,14 @@ describe("createPgMembershipsPort", () => {
     expect(db.execute).not.toHaveBeenCalled();
     expect(txSelect.select).toHaveBeenCalledTimes(1);
     expect(dbSelect.select).not.toHaveBeenCalled();
+  });
+
+  it("resolves appointment statuses from canonical appointments, not appointment_records", () => {
+    const src = readFileSync(new URL("./pgMemberships.ts", import.meta.url), "utf8");
+
+    expect(src).toContain("LEFT JOIN be_appointments bea");
+    expect(src).not.toContain("FROM appointment_records");
+    expect(src).not.toContain("JOIN appointment_records");
   });
 
   it("upserts catalog packages in a transaction and reads the result on the transaction executor", async () => {

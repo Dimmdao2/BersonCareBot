@@ -46,11 +46,7 @@ import type {
 
 /**
  * FALLBACK denylist of `be_appointments.status` values meaning "definitely did NOT happen",
- * used ONLY when the canonical projection has no record for the appointment (`canonicalStatus
- * === "none"`). The primary truth is the canonical projection (`canonicalStatus`), which is
- * the SAME verdict the doctor sees in the patient card — `be_appointments.status` drifts when
- * the rubitime bridge is offline (it froze at "confirmed" for visits the doctor sees cancelled),
- * so it must not be the gate. See CanonicalAppointmentStatus.
+ * used only when the canonical appointment row is missing from the repo-side status lookup.
  *
  * "rescheduled" is excluded because it means the appointment was moved to a new slot — the
  * original slot never happened.
@@ -64,10 +60,10 @@ const APPOINTMENT_INELIGIBLE_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Returns true if a PAST appointment is eligible for package deduction — i.e. the doctor sees
- * it as состоявшийся. The canonical projection (`canonicalStatus`) is authoritative: `canceled`
- * → never eligible, `happened` → eligible. Only when no canonical record maps (`none`) do we
- * fall back to the (possibly stale) `be_appointments.status` denylist.
+ * Returns true if a PAST appointment is eligible for package deduction.
+ * Repo-side `canonicalStatus` is authoritative: `canceled` -> never eligible,
+ * `happened` -> eligible. Only when the row is missing (`none`) do we fall back
+ * to the appointment status denylist.
  */
 function isAppointmentEligibleForConsume(
   status: string,

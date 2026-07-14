@@ -1120,7 +1120,7 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     appointmentId: over.id,
     startsAt: over.startsAt ?? '2050-01-01T00:00:00Z',
     status: over.status ?? 'completed',
-    // Default "none" → eligibility falls back to be_appointments.status denylist (legacy semantics).
+    // Default "none" -> eligibility falls back to the appointment status denylist.
     canonicalStatus: over.canonicalStatus ?? ('none' as CanonicalAppointmentStatus),
     serviceId: over.serviceId === undefined ? 'svc-1' : over.serviceId,
     usages: (over.usageRows ?? []).map((u, idx) => ({
@@ -1245,9 +1245,8 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(res.skipped).toHaveLength(0);
   });
 
-  it("canonical 'canceled' overrides be-status 'confirmed' → NOT debited (root data-bug fix)", async () => {
-    // The 923df858 bug: be_appointments.status froze at "confirmed" for a visit the doctor sees
-    // cancelled. Canonical projection is authoritative → eligibility must exclude it.
+  it("canonical 'canceled' overrides be-status 'confirmed' → NOT debited", async () => {
+    // Repo-side canonicalStatus is authoritative → eligibility must exclude it.
     const port = recalcPort([
       candidate({ id: 'a-frozen', status: 'confirmed', canonicalStatus: 'canceled' }),
     ]);
@@ -1264,9 +1263,8 @@ describe('recalcPastSessionsForPackage (ST-01 bulk «Пересчитать»)',
     expect(port.recalcConsumeForAppointment).not.toHaveBeenCalled();
   });
 
-  it("canonical 'happened' overrides be-status 'cancelled_by_patient' → debited (1c312a64 case)", async () => {
-    // eaa5d368: be says cancelled_by_patient, but the canonical record maps to a completed visit
-    // — the doctor sees it состоявшимся, so it must be consumed.
+  it("canonical 'happened' overrides be-status 'cancelled_by_patient' → debited", async () => {
+    // Repo-side canonicalStatus is authoritative → eligibility must allow it.
     const port = recalcPort([
       candidate({ id: 'a-stale', status: 'cancelled_by_patient', canonicalStatus: 'happened' }),
     ]);

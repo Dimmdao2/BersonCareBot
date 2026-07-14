@@ -829,6 +829,11 @@ Execution note 2026-07-14: `R2-DOCTOR-PATIENT-APPOINTMENT-TAB-CLINICAL-LINK-code
 canonical `be_appointments`. The old `appointment_record_id` column is retained only as nullable compatibility/archive
 state for R7; new doctor runtime links use canonical appointment ids.
 
+Execution note 2026-07-14: `R2-MEMBERSHIPS-CANONICAL-APPOINTMENT-STATUS-codex-2026-07-14` moved memberships/package
+session appointment verdicts from the old doctor projection lookup to canonical `be_appointments`. Package session
+accounting no longer reads `appointment_records`; `CanonicalAppointmentStatus` remains the service-level verdict type
+but is now derived from canonical appointment rows.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
@@ -875,7 +880,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] schedule/calendar surfaces read canonical.
 - [x] analytics surfaces using appointment data are checked.
 - [x] all non-switch `appointment_records` consumers are inventoried.
-- [x] client history reads are migrated or explicitly assigned. *(Patient booking history UI is migrated off `appointment_records`; doctor client card fallbacks / clinical links remain assigned to R7 table-drop preparation.)*
+- [x] client history reads are migrated or explicitly assigned. *(Patient booking history UI, doctor patient card/list and clinical link are migrated off `appointment_records`; remaining legacy references are archive/projection/drop-prep or separate analytics/purge consumers.)*
 - [x] membership/package appointment status reads are migrated or explicitly assigned. *(Assigned to package lifecycle canonicalization before table drop.)*
 - [x] runtime `rubitime_legacy` branch is removed or frozen behind rollback horizon.
 - [x] tests expecting legacy switch are updated.
