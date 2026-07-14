@@ -921,7 +921,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
 - [ ] production monitoring window shows no v1 requests.
 - [ ] production flag change is approved.
-- [ ] production flag change has rollback instruction.
+- [x] production flag change has rollback instruction. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no production env was changed.)*
 
 ### R6 — remove Rubitime runtime routes and code
 

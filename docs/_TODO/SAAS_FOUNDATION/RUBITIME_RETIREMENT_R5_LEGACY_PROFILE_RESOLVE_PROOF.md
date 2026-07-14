@@ -41,6 +41,38 @@ No production or host env was changed in this proof.
 - Monitoring window for v1 requests is not run here.
 - Full Rubitime route removal remains R6, not R5.
 
+## Production Rollback Instruction
+
+Use only after an owner-approved production flag change has already disabled legacy v1 profile resolve.
+This section is a rollback boundary, not permission to change production now.
+
+Canonical host facts from `deploy/HOST_DEPLOY_README.md`:
+
+- Integrator env: `/opt/env/bersoncarebot/api.prod`
+- Integrator services:
+  - `bersoncarebot-api-prod.service`
+  - `bersoncarebot-worker-prod.service`
+  - `bersoncarebot-scheduler-prod.service`
+
+Rollback if production v1 traffic must be temporarily restored:
+
+1. On the production host, through the approved root/operator env-edit path, set
+   `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=true` in `/opt/env/bersoncarebot/api.prod`, or remove the line so the
+   code falls back to the historical enabled behavior. Do not print env values to chat or logs.
+2. Restart only the integrator services that read `api.prod`:
+
+   ```bash
+   sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service
+   sudo systemctl is-active bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service
+   ```
+
+3. Confirm the incident symptom is resolved in the approved monitoring/log window.
+4. After the rollback window, re-disable the legacy resolver by setting
+   `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` in `/opt/env/bersoncarebot/api.prod`, restart the same three
+   services, and confirm v1 requests again fail with `legacy_resolve_disabled`.
+
+Database rollback is not part of R5. If a database change is involved, stop and use the R6/R7 backup/restore runbooks.
+
 ## Validation
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 54 tests.
