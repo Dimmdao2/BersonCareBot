@@ -71,6 +71,9 @@ function parseEnvFile(content) {
 }
 
 function loadLocalEnv() {
+  // An explicit process URL is the safest input for disposable rehearsal DBs and
+  // should not be blocked by unreadable/secret-mounted repo env files.
+  if (process.env.DATABASE_URL?.trim()) return [];
   const loaded = [];
   for (const file of DEFAULT_ENV_FILES) {
     if (!existsSync(file)) continue;

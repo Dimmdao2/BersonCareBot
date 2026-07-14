@@ -39,10 +39,23 @@ This cleanup is now a scripted R1 cleanup path, not a manual SQL recipe. The row
 Before production cutover, run the same script sequence on a fresh copy of the live database:
 
 1. restore/sync the live DB copy into the approved non-prod environment;
-2. run PII-safe dry-runs for the scripted cleanup/import sequence and save aggregate output;
-3. run commit mode only after owner approval for that exact DB copy;
-4. rerun the PII-safe classifier and dual-source audit after each meaningful step or at minimum after the sequence;
-5. carry only the audited script + flags to the production runbook.
+2. migrate the copy to the current HEAD and require the clean-dump preflight below to pass;
+3. run PII-safe dry-runs for the scripted cleanup/import sequence and save aggregate output;
+4. run commit mode only after owner approval for that exact DB copy;
+5. rerun the PII-safe classifier and dual-source audit after each meaningful step or at minimum after the sequence;
+6. carry only the audited script + flags to the production runbook.
+
+Fail-fast preflight (explicit loopback rehearsal URL; aggregate-only):
+
+```bash
+DATABASE_URL='<loopback-rehearsal-url>' \
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \
+  --csv=<fresh-rubitime-csv>
+```
+
+Do not start cleanup/import unless the result is `PASS`. The preflight rejects an old schema, a missing
+owner CSV, and clean copies without canonical Rubitime projections, appointment/catalog mappings, active
+specialist ownership, branch/service seed, or the settings rows used by the current backfill.
 
 Current dev sequence to rehearse on the live DB copy:
 
