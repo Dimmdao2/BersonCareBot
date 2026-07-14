@@ -1107,6 +1107,8 @@ the only preservation canon; integrator-only rows absent from the CSV are not re
 
 Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it
 defines the required audit, archive/export, migration and fresh restore proof for `RR-PROOF-10`.
+Repo-first DB cleanup handoff for SaaS Foundation: `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`. It prepares the
+non-production archive/drop/defer order and validation contract without requiring current production operations.
 Prepared table disposition: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` +
 `pnpm run check:rubitime-r7-table-disposition`.
 Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.

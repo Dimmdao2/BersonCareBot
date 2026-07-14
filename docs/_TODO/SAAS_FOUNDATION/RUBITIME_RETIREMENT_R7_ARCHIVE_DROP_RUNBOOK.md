@@ -7,6 +7,12 @@ Branch: `feat/doctor-ui-rebuild`.
 
 This is the prepared `RR-PROOF-10-DROP-RESTORE` runbook. It does not approve or execute any drop.
 
+repo-first DB cleanup sequence for the current prep scope:
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`.
+That sequence is the non-production handoff package for SaaS Foundation. It prepares archive/drop/defer order,
+validation and rollback contracts without running production operations, creating final proof placeholders, or
+generating destructive migrations.
+
 R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`.
 
 Table disposition manifest: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`.

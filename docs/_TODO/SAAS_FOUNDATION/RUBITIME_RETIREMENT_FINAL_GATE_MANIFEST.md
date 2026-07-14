@@ -13,10 +13,15 @@ items are still blocked by owner-approved production cutoff/drain, production fl
 Machine checks:
 
 ```bash
+pnpm run check:rubitime-db-cleanup-sequence
 pnpm run check:rubitime-retirement-current
 pnpm run check:rubitime-final-gate
 pnpm run check:rubitime-retirement-complete
 ```
+
+repo-first DB cleanup sequence for the current prep scope:
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`. It is a handoff package, not final proof.
+The final production/archive blockers below remain gated until real R5/R6/R7 proof files exist.
 
 The default check verifies that every current blocker has an explicit expected proof and gate. The
 `check:rubitime-retirement-complete` is the final retirement gate and must fail until all final proof artifacts

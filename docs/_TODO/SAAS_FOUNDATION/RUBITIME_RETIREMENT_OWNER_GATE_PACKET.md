@@ -17,6 +17,7 @@ Canonical entrypoints:
 
 - Agent start: `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`
 - Execution plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`
+- repo-first DB cleanup sequence: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`
 - Final gate manifest: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md`
 - R5 runbook: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`
 - R6 runbook: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`
@@ -25,8 +26,12 @@ Canonical entrypoints:
 Machine check:
 
 ```bash
+pnpm run check:rubitime-db-cleanup-sequence
 pnpm run check:rubitime-final-gate
 ```
+
+The repo-first DB cleanup sequence is the current non-production SaaS handoff package. It does not ask the owner to
+run production operations for task `#757`; the owner gates below are only for later final execution.
 
 ## Data Canon
 

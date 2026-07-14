@@ -20,6 +20,10 @@ const gates = {
       ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-doctor-client-no-appointment-records.mjs'],
     ],
     ['RR proof manifest', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs']],
+    [
+      'DB cleanup sequence',
+      ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-db-cleanup-sequence.mjs'],
+    ],
     ['R7 table disposition', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs']],
     ['section 10 docs', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-section10-docs.mjs']],
     ['final gate manifest', ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs']],
