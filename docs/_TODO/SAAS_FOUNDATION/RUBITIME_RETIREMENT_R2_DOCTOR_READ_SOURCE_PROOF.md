@@ -58,6 +58,7 @@ Current non-R2 consumers are assigned as follows:
 | Doctor patient appointment tab (`pgDoctorClients.listPatientAppointments`) | Migrated to canonical `be_appointments`; service/branch/duration/package data now comes from canonical booking tables. |
 | Doctor clinical booking link (`pgPatientClinical`) | Added `clinical_visit.canonical_appointment_id`, backfilled it from legacy links, and moved new visit linking/package enrichment to canonical appointment ids. Legacy `appointment_record_id` stays nullable compat/archive until R7. |
 | Membership/package appointment status/session accounting (`pgMemberships`) | Migrated appointment verdicts to canonical `be_appointments`; package session accounting no longer reads `appointment_records`. |
+| Doctor analytics metric account lists (`pgDoctorAnalyticsMetricAccounts`) | Removed unreachable Rubitime legacy branches; appointment metric lists use canonical `be_appointments` / canonical lifecycle tables. |
 | Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Keep until canonical deletion/tombstone replacement is designed. |
 | Legacy doctor appointments port (`pgDoctorAppointments`) | Frozen rollback branch only; no longer selected when canonical port exists. |
 | Legacy booking calendar port | Frozen compatibility only; doctor schedule calendar currently uses canonical feed. |
@@ -97,6 +98,7 @@ Commands:
 | `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts` | PASS, 1 file / 16 tests |
 | `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts src/infra/repos/pgPatientClinical.test.ts src/infra/repos/patientResidualPrincipalOrgStamp.test.ts src/app/api/doctor/patients/[userId]/appointments/unlinked/route.test.ts src/app/api/doctor/patients/[userId]/visits/route.test.ts` | PASS, 5 files / 31 tests |
 | `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgMemberships.test.ts src/modules/memberships/service.test.ts` | PASS, 2 files / 48 tests |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts` | PASS, 2 files / 37 tests |
 | `pnpm -C apps/webapp run typecheck` | PASS |
 | `pnpm -C apps/webapp run lint` | PASS |
 | `pnpm --dir apps/webapp exec drizzle-kit check --config=drizzle.config.ts` | PASS |

@@ -834,6 +834,11 @@ session appointment verdicts from the old doctor projection lookup to canonical 
 accounting no longer reads `appointment_records`; `CanonicalAppointmentStatus` remains the service-level verdict type
 but is now derived from canonical appointment rows.
 
+Execution note 2026-07-14: `R2-DOCTOR-ANALYTICS-METRIC-ACCOUNTS-codex-2026-07-14` removed the dead Rubitime legacy
+branches from doctor analytics metric-account list SQL. Appointment metric lists now use canonical `be_appointments`,
+`be_appointment_cancellations`, and `be_appointment_reschedules`; the only remaining `appointment_records` presence in
+those SQL strings is the separately assigned staff-purge tombstone filter.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
