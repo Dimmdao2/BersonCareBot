@@ -60,7 +60,7 @@ Current non-R2 consumers are assigned as follows:
 | Membership/package appointment status/session accounting (`pgMemberships`) | Migrated appointment verdicts to canonical `be_appointments`; package session accounting no longer reads `appointment_records`. |
 | Doctor analytics metric account lists (`pgDoctorAnalyticsMetricAccounts`) | Removed unreachable Rubitime legacy branches; appointment metric lists use canonical `be_appointments` / canonical lifecycle tables. |
 | Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Migrated to canonical `be_appointments.deleted_at`; staff/admin delete now stamps canonical `deleted_at` when a canonical appointment id or mapping is available. Legacy `appointment_records` tombstones remain archive/compat state only. |
-| Legacy doctor appointments port (`pgDoctorAppointments`) | Frozen rollback branch only; no longer selected when canonical port exists. |
+| Legacy doctor appointments port (`pgDoctorAppointments`) | Frozen archive/test artifact only; PG runtime DI no longer creates it as fallback. If the canonical port is unavailable, doctor appointment reads fail closed instead of reading `appointment_records`. |
 | Legacy booking calendar port | Frozen compatibility only; doctor schedule calendar currently uses canonical feed. |
 
 This assignment is the R2 boundary: doctor-facing read-source is canonical-only, while destructive cleanup of the legacy

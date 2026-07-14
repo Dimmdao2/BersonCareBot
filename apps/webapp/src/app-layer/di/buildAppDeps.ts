@@ -98,7 +98,6 @@ import {
   parseDoctorAppointmentsReadSource,
 } from "@/infra/repos/doctorAppointmentsReadSwitch";
 import { createPgDoctorCanonicalAppointmentsPort } from "@/infra/repos/pgDoctorCanonicalAppointments";
-import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import {
   getUpcomingAppointments as getUpcomingAppointmentsMock,
@@ -516,9 +515,7 @@ const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
-const doctorAppointmentsLegacyPort = !inMemoryRepos
-  ? createPgDoctorAppointmentsPort()
-  : inMemoryDoctorAppointmentsPort;
+const doctorAppointmentsLegacyPort = inMemoryRepos ? inMemoryDoctorAppointmentsPort : null;
 const doctorAppointmentsCanonicalPort =
   !inMemoryRepos && bookingEngineCorePort
     ? createPgDoctorCanonicalAppointmentsPort(() => bookingEngineCorePort.getDefaultOrganizationId())

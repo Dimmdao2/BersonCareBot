@@ -847,6 +847,11 @@ from legacy `appointment_records` tombstones to canonical `be_appointments.delet
 canonical `deleted_at` when a canonical appointment id or Rubitime mapping resolves; `appointment_records` tombstones
 remain archive/compat state only.
 
+Execution note 2026-07-14: `R2-DOCTOR-LEGACY-PORT-DECOMPOSE-codex-2026-07-14` removed the legacy
+`pgDoctorAppointments` port from PG runtime DI. The read-switch still has an explicit in-memory fallback for tests, but
+production doctor appointment reads fail closed if the canonical port is unavailable instead of falling back to
+`appointment_records`.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the

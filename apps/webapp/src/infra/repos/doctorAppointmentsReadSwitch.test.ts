@@ -95,6 +95,18 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
     expect(rows[0]?.id).toBe("legacy");
   });
 
+  it("fails closed when no canonical or explicit in-memory fallback port exists", async () => {
+    const port = createDoctorAppointmentsReadSwitchPort({
+      legacyPort: null,
+      canonicalPort: null,
+      resolveReadSource: async () => "canonical",
+    });
+
+    await expect(port.listAppointmentsForSpecialist({ kind: "futureActive" })).rejects.toThrow(
+      "doctor_appointments_canonical_port_unavailable",
+    );
+  });
+
   // S2b (D1): KPI source is pinned to canonical regardless of the read-source flag,
   // because the legacy port's getScheduleKpis is an all-zero stub.
   const KPI_QUERY = { from: "2026-06-01T00:00:00+03:00", to: "2026-07-01T00:00:00+03:00" };

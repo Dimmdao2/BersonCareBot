@@ -26,13 +26,15 @@ export function parseDoctorAppointmentsReadSource(valueJson: unknown): DoctorApp
  * but `booking_doctor_appointments_read_source` no longer changes runtime behavior.
  */
 export function createDoctorAppointmentsReadSwitchPort(input: {
-  legacyPort: DoctorAppointmentsPort;
+  legacyPort: DoctorAppointmentsPort | null;
   canonicalPort: DoctorAppointmentsPort | null;
   resolveReadSource: () => Promise<DoctorAppointmentsReadSource>;
 }): DoctorAppointmentsPort {
   const pick = async (): Promise<DoctorAppointmentsPort> => {
     void input.resolveReadSource;
-    return input.canonicalPort ?? input.legacyPort;
+    const port = input.canonicalPort ?? input.legacyPort;
+    if (!port) throw new Error("doctor_appointments_canonical_port_unavailable");
+    return port;
   };
 
   return {
@@ -42,7 +44,7 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
     getDashboardAppointmentMetrics: async (audience) =>
       (await pick()).getDashboardAppointmentMetrics(audience),
     getScheduleKpis: async (query, audience) =>
-      (input.canonicalPort ?? input.legacyPort).getScheduleKpis(query, audience),
+      (await pick()).getScheduleKpis(query, audience),
     getAppointmentDailySeries: async (filter, audience) =>
       (await pick()).getAppointmentDailySeries(filter, audience),
   };
