@@ -16,6 +16,7 @@ const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANI
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
 const ownerGatePacket = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md';
 const agentReadme = 'docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md';
+const r5Runbook = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md';
 
 const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md',
@@ -47,6 +48,8 @@ const proofContracts = [
       'runtime Rubitime traffic snapshot before/after disable',
       'fresh CSV filename, size, date span and reconciliation output',
       'fresh CSV is canon; integrator-only rows absent from CSV are audit-only',
+      'one-specialist context: `89643805480` / tail `9643805480`',
+      'matched through existing city/branch mappings',
       'owner waivers, if any',
       'route/code removal commit hash',
       'pre/post `rubitime-r6-r7-static-inventory.mjs` outputs',
@@ -159,6 +162,7 @@ function validate({ requireComplete }) {
   const executionPlanSrc = readRel(executionPlan);
   const ownerGatePacketSrc = readRel(ownerGatePacket);
   const agentReadmeSrc = readRel(agentReadme);
+  const r5RunbookSrc = readRel(r5Runbook);
 
   if (!manifestSrc) {
     errors.push(`missing ${manifest}`);
@@ -176,6 +180,10 @@ function validate({ requireComplete }) {
     errors.push(`missing ${agentReadme}`);
     return errors;
   }
+  if (!r5RunbookSrc) {
+    errors.push(`missing ${r5Runbook}`);
+    return errors;
+  }
 
   for (const proof of expectedProofs) {
     if (!manifestSrc.includes(proof)) {
@@ -183,6 +191,22 @@ function validate({ requireComplete }) {
     }
     if (!ownerGatePacketSrc.includes(proof)) {
       errors.push(`${ownerGatePacket}: missing expected proof ${proof}`);
+    }
+  }
+
+  const r5RunbookFragments = [
+    'RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false',
+    '/opt/env/bersoncarebot/api.prod',
+    'bersoncarebot-api-prod.service',
+    'monitoring window start/end',
+    'v1 `/api/bersoncare/rubitime/slots` request count',
+    'v1 `/api/bersoncare/rubitime/create-record` request count',
+    'confirmation that no user-facing booking path required v1 profile resolution',
+    'Do not create placeholder final proof files',
+  ];
+  for (const fragment of r5RunbookFragments) {
+    if (!r5RunbookSrc.includes(fragment)) {
+      errors.push(`${r5Runbook}: missing runbook fragment ${fragment}`);
     }
   }
 

@@ -26,6 +26,14 @@ Final proof filename:
 
 `TODO: state the CSV-canon decision and confirm integrator-only rows absent from CSV were not imported, resurrected, or treated as blockers`.
 
+## one-specialist context: `89643805480` / tail `9643805480`
+
+`TODO: confirm the approved Rubitime export is the one-specialist context for this phone/tail`.
+
+## matched through existing city/branch mappings
+
+`TODO: confirm CSV reconciliation used the existing city/branch mappings and did not expand the preservation set from integrator-only rows`.
+
 ## owner waivers, if any
 
 `TODO: list ids/reasons for waivers, or state none`.

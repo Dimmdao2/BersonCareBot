@@ -18,6 +18,7 @@ Canonical entrypoints:
 - Agent start: `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`
 - Execution plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`
 - Final gate manifest: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md`
+- R5 runbook: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`
 - R6 runbook: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`
 - R7 runbook: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`
 
@@ -82,6 +83,8 @@ Proof must include the sections required by `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN
 - runtime Rubitime traffic snapshot before/after disable;
 - fresh CSV filename, size, date span and reconciliation output;
 - fresh CSV is canon; integrator-only rows absent from CSV are audit-only;
+- one-specialist context: `89643805480` / tail `9643805480`;
+- matched through existing city/branch mappings;
 - owner waivers, if any;
 - route/code removal commit hash;
 - pre/post `rubitime-r6-r7-static-inventory.mjs` outputs;

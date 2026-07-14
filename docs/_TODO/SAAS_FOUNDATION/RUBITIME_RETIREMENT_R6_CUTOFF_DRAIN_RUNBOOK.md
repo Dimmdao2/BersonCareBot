@@ -12,6 +12,8 @@ No production DB, env, service, webhook, or Rubitime endpoint was changed while 
 ## Source Of Truth
 
 - Fresh Rubitime export CSV is canon.
+- The approved export is the one-specialist context: `89643805480` / tail `9643805480`.
+- Reconcile it through the existing city/branch mappings.
 - `integrator.rubitime_records` is audit-only when the fresh CSV exists.
 - Integrator-only rows absent from the fresh CSV must not be imported into canonical.
 - Run destructive or disabling steps only after owner approval and a recorded cutoff timestamp.
@@ -136,6 +138,7 @@ Pass criteria:
 
 - CSV-present missing canonical delta is zero, or every CSV-present missing row is imported/owner-waived with ids and reason.
 - Stale-vs-CSV is zero for active canonical/UI rows.
+- The proof records the one-specialist context `89643805480` / tail `9643805480` and city/branch mapping basis.
 - Integrator-only rows absent from CSV are recorded as audit-only, not import targets.
 
 If the command reports import candidates, do not proceed to R6 removal. Return to R1/R2 remediation with the same fresh CSV.

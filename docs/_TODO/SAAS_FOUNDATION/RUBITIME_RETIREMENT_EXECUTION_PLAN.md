@@ -1018,6 +1018,9 @@ and ignores unknown provider events instead of processing them under `booking_de
 
 ### R5 — disable legacy v1 profile resolve
 
+Prepared runbook: `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`. It is not proof of completed production
+disable; it defines the owner-approved flag-change, monitoring and rollback evidence required for the final R5 proof.
+
 - [x] no webapp path still sends Rubitime v1 slots requests. *(Runtime inventory: patient/public slots use canonical scheduling, not `syncPort.fetchSlots`.)*
 - [x] no webapp path still sends Rubitime v1 create requests. *(Runtime inventory: Rubitime-first/mirror switches are hardcoded false; normal create is canonical.)*
 - [x] online LFK/nutrition legacy path is retired or proven unrelated. *(Categories feed the same canonical online booking path; no separate Rubitime profile path found.)*
