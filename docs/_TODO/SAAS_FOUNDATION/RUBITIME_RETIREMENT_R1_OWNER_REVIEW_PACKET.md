@@ -206,7 +206,50 @@ Do not start R2 until all of the following are true:
 - R1 execution-plan checklist is updated with accepted decisions or explicit exceptions.
 - `RR-PROOF-01-DUAL-SOURCE` is no longer blocked.
 - Any approved commit run has completed, or owner explicitly accepts a no-commit R1 exception.
-- Doctor calendar/list/KPI smoke acceptance is recorded.
+- Doctor calendar/list/KPI smoke acceptance is recorded. **Done:** `R1-DOCTOR-UI-SMOKE-codex-2026-07-14`
+  recorded PASS in `RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md`.
+
+## Doctor UI Smoke
+
+Run id: `R1-DOCTOR-UI-SMOKE-codex-2026-07-14`
+
+Verdict: **PASS**.
+
+The smoke was run on current local `bcb_webapp_dev` after read-only aggregate re-check because disposable clean-dump
+mirror DBs had already been removed by owner request. The clean-dump data proof remains
+`RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+
+Aggregate pre-check against owner CSV:
+
+| Check | Result |
+| --- | ---: |
+| R1 preflight | PASS |
+| Stale vs owner CSV | 0 |
+| Unmapped real active | 0 |
+| Duplicate clusters | 0 |
+| Raw-only records | 0 |
+
+Doctor surfaces:
+
+| Surface | Result |
+| --- | --- |
+| `/api/doctor/booking-engine/calendar` over CSV span | 200, `readSource=canonical`, 301 events |
+| `/api/doctor/schedule-kpis` over CSV span | 200 |
+| `/api/doctor/appointments/list?view=past&limit=50` | 200, 47 rows returned |
+| `/app/doctor` | 200 |
+| `/app/doctor/schedule?tab=cal` | 200 |
+| `/app/doctor/appointments` | 200 after expected redirect to `/app/doctor/schedule?tab=cal` |
+
+Smoke-blocker fixes made during the run:
+
+- Drizzle UUID audience exclusion now renders UUID-cast values instead of a text `notInArray` comparison.
+- Canonical doctor appointment list now joins `package_usage_ref` text to `be_package_usages.id` through a guarded
+  UUID cast.
+
+Validation:
+
+- `pnpm -C apps/webapp exec vitest run src/modules/analytics/analyticsAudience.test.ts src/infra/repos/pgDoctorCanonicalAppointments.test.ts`
+- `pnpm -C apps/webapp run typecheck`
 
 ## Safe Command Templates
 

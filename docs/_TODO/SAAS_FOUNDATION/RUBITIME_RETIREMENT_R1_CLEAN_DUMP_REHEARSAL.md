@@ -64,9 +64,10 @@ Final aggregate result:
 | Missing expected mapping metadata | 6 |
 
 Interpretation: the fresh-copy R1 cleanup proof is now self-contained for the owner-approved cleanup/import
-sequence. The stale/unmapped/duplicate buckets are closed on a clean current prod dump. R1 is still not
-accepted for R2 until the remaining legacy-only/mismatch/mapping-anomaly policy and doctor UI smoke are
-recorded or explicitly waived.
+sequence. The stale/unmapped/duplicate buckets are closed on a clean current prod dump. The remaining
+legacy-only/mismatch/mapping-anomaly policy was resolved by the owner source-of-truth decision: fresh Rubitime CSV is
+canon, and `integrator.rubitime_records` is audit-only when it disagrees. Doctor UI smoke was later recorded as PASS in
+`RUBITIME_RETIREMENT_R1_DOCTOR_UI_SMOKE.md`.
 
 ## Previous isolated rehearsal target — superseded FAIL
 

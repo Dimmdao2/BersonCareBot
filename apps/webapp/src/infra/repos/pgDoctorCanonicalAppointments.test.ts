@@ -14,6 +14,16 @@ describe("pgDoctorCanonicalAppointments purge filter", () => {
   });
 });
 
+describe("pgDoctorCanonicalAppointments typed joins", () => {
+  it("joins package usage through a UUID-safe text cast", () => {
+    const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");
+    expect(src).toContain("function packageUsageJoinCond");
+    expect(src).toContain("packageUsageRef} ~ ${UUID_TEXT_RE}");
+    expect(src).toContain("packageUsageRef}::uuid");
+    expect(src).not.toContain("eq(bePackageUsages.id, beAppointments.packageUsageRef)");
+  });
+});
+
 describe("pgDoctorCanonicalAppointments soft-delete filter (F1b)", () => {
   it("excludes soft-deleted canonical rows across list/stats/KPI/dashboard reads", () => {
     const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");

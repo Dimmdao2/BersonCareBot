@@ -387,4 +387,9 @@ Commit effects:
 
 Post-pass dual-source audit: raw-only `0`, legacy-only `312`, status mismatches `4`, record-time mismatches `2`, legacy unmapped `129`, legacy mappings to soft-deleted canonical appointments `56`.
 
-Residual blockers remain: unmapped real active `99`, duplicate clusters `3`, stale-vs-owner-CSV `28`, legacy-only `312`, mismatch/mapping classifications, and doctor calendar/list/KPI smoke. R1 remains blocked and R2 remains forbidden.
+Residual blockers remained after this early partial pass: unmapped real active `99`, duplicate clusters `3`,
+stale-vs-owner-CSV `28`, legacy-only `312`, mismatch/mapping classifications, and doctor calendar/list/KPI smoke.
+
+Superseded status 2026-07-14: the later owner-approved cleanup/import replay on a fresh current dump closed the
+stale/unmapped/duplicate buckets (`0/0/0`), the owner source-of-truth decision made fresh Rubitime CSV canon over
+integrator raw mismatches, and `R1-DOCTOR-UI-SMOKE-codex-2026-07-14` recorded doctor calendar/list/KPI smoke PASS.

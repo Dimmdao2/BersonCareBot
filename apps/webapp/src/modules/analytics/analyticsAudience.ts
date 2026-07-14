@@ -1,4 +1,4 @@
-import { notInArray, sql, type Column, type SQL } from "drizzle-orm";
+import { sql, type Column, type SQL } from "drizzle-orm";
 import {
   normalizeTestAccountIdentifiersValue,
   type TestAccountIdentifiers,
@@ -101,7 +101,7 @@ export function drizzleExcludeUserIdColumn(
   excludedUserIds: string[],
 ): SQL | undefined {
   if (excludedUserIds.length === 0) return undefined;
-  return notInArray(column, excludedUserIds);
+  return sql`${column} NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`;
 }
 
 /**

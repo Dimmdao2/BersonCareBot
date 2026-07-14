@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   appendSqlExcludeUserIds,
   drizzleExcludeUserIdColumn,
@@ -7,6 +8,8 @@ import {
   resetAnalyticsIncludeTestAccountsCacheForTests,
 } from "./analyticsAudience";
 import { platformUsers } from "../../../db/schema/schema";
+
+const pgDialect = new PgDialect();
 
 describe("analyticsAudience", () => {
   beforeEach(() => {
@@ -107,11 +110,14 @@ describe("analyticsAudience", () => {
       expect(drizzleExcludeUserIdColumn(platformUsers.id, [])).toBeUndefined();
     });
 
-    it("returns notInArray SQL for non-empty list", () => {
+    it("casts excluded ids as uuid values for non-empty list", () => {
       const clause = drizzleExcludeUserIdColumn(platformUsers.id, [
         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       ]);
       expect(clause).toBeDefined();
+      const compiled = pgDialect.sqlToQuery(clause!);
+      expect(compiled.sql).toContain("NOT IN ($1::uuid)");
+      expect(compiled.params).toEqual(["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]);
     });
   });
 

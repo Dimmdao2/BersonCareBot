@@ -15,6 +15,7 @@ import { resolveAppointmentStatsBounds } from "@/modules/doctor-appointments/res
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { appointmentStatusLabel } from "@/modules/booking-calendar/appointmentStatusLabels";
+import { drizzleExcludeUserIdColumn } from "@/modules/analytics/analyticsAudience";
 import {
   filterCanonicalRowsNotPurged,
   PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL,
@@ -39,10 +40,11 @@ const CANCELLED_STATUSES = [
 ] as const;
 
 function appointmentUserAudienceCond(excludedUserIds: string[]) {
-  if (excludedUserIds.length === 0) return undefined;
+  const exclude = drizzleExcludeUserIdColumn(beAppointments.platformUserId, excludedUserIds);
+  if (!exclude) return undefined;
   return or(
     isNull(beAppointments.platformUserId),
-    notInArray(beAppointments.platformUserId, excludedUserIds),
+    exclude,
   );
 }
 
@@ -145,6 +147,12 @@ const listSelect = {
   packageDisplayNumber: bePatientPackages.displayNumber,
 };
 
+const UUID_TEXT_RE = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
+function packageUsageJoinCond() {
+  return sql`${beAppointments.packageUsageRef} ~ ${UUID_TEXT_RE} AND ${bePackageUsages.id} = ${beAppointments.packageUsageRef}::uuid`;
+}
+
 export function createPgDoctorCanonicalAppointmentsPort(
   getDefaultOrganizationId: () => Promise<string>,
 ): DoctorAppointmentsPort {
@@ -174,7 +182,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(base, userAudience, gte(beAppointments.startAt, from), lte(beAppointments.startAt, to)))
           .orderBy(asc(beAppointments.startAt));
@@ -187,7 +195,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(eq(beAppointments.organizationId, organizationId), isNull(beAppointments.deletedAt), userAudience, gte(beAppointments.startAt, from), lt(beAppointments.startAt, toExclusive)))
           .orderBy(desc(beAppointments.startAt));
@@ -199,7 +207,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
@@ -217,7 +225,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
@@ -238,7 +246,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(and(base, userAudience, lt(beAppointments.startAt, nowIso)))
           .orderBy(desc(beAppointments.startAt))
@@ -251,7 +259,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
@@ -270,7 +278,7 @@ export function createPgDoctorCanonicalAppointmentsPort(
           .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
           .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
           .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
-          .leftJoin(bePackageUsages, eq(bePackageUsages.id, beAppointments.packageUsageRef))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
           .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
           .where(
             and(
