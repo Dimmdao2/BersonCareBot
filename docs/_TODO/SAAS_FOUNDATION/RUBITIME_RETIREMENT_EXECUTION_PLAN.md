@@ -818,6 +818,11 @@ filters from `appointment_records` to canonical `be_appointments`; 30-day resche
 `be_appointment_reschedules`, the existing canonical lifecycle source of truth. This does not close patient card
 fallbacks, appointment tab legacy rows, clinical links or memberships.
 
+Execution note 2026-07-14: `R2-DOCTOR-PATIENT-CARD-HEADER-codex-2026-07-14` moved doctor patient-card header
+appointment stats and first/last/next appointment dates from `appointment_records` to canonical `be_appointments`;
+reschedule totals now use `be_appointment_reschedules`. This still does not close the appointment tab / "create visit
+from booking" path because `clinical_visit.appointment_record_id` remains a separate clinical-link migration problem.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the

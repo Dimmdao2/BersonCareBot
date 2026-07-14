@@ -333,6 +333,60 @@ describe("pgDoctorClients repo", () => {
     expect(aggregateSql).not.toContain("appointment_records");
   });
 
+  it("getPatientCardHeader reads appointment stats from canonical appointments", async () => {
+    resolveCanonicalUserIdMock.mockResolvedValue("canonical-1");
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "canonical-1",
+            display_name: "Client",
+            first_name: "A",
+            last_name: "B",
+            patronymic: null,
+            phone_normalized: "+79991234567",
+            email: "c@example.com",
+            email_verified_at: null,
+            is_blocked: false,
+            is_archived: false,
+            role: "client",
+            birth_date: null,
+            gender: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ has_conversation: false }] })
+      .mockResolvedValueOnce({ rows: [{ no_show_count: "0" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            total_visits: "2",
+            cancellations_count: "1",
+            reschedules_count: "1",
+            last_visit_at: "2026-06-01T09:00:00.000Z",
+            next_appt_at: "2026-07-20T10:30:00.000Z",
+            first_visit_at: "2026-05-01T09:00:00.000Z",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const header = await port.getPatientCardHeader("alias-id");
+
+    expect(header?.totalVisits).toBe(2);
+    expect(header?.cancellationsCount).toBe(1);
+    expect(header?.reschedulesCount).toBe(1);
+    expect(header?.lastVisit?.date).toBe("2026-06-01T09:00:00.000Z");
+    expect(header?.nextAppointment?.date).toBe("2026-07-20T10:30:00.000Z");
+    expect(header?.firstVisitDate).toBe("2026-05-01T09:00:00.000Z");
+    const appointmentStatsSql = String(runWebappPgTextMock.mock.calls[4]?.[0] ?? "");
+    expect(appointmentStatsSql).toContain("FROM be_appointments bea");
+    expect(appointmentStatsSql).toContain("LEFT JOIN be_appointment_reschedules r");
+    expect(appointmentStatsSql).not.toContain("appointment_records");
+  });
+
   it("getClientIdentity resolves canonical id and maps bindings", async () => {
     resolveCanonicalUserIdMock.mockResolvedValue("canonical-1");
     runWebappPgTextMock

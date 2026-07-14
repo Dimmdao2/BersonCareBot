@@ -151,7 +151,7 @@ export type PatientCardHeader = {
     /** Полных месяцев на сопровождении, вычислено из startedAt; null если startedAt отсутствует. */
     supportMonthsApprox: number | null;
   };
-  /** Последний визит (клинический визит из clinical_visit, либо прошедший слот из appointment_records). */
+  /** Последний визит (клинический визит из clinical_visit, либо прошедший канонический слот). */
   lastVisit: {
     date: string; // ISO date string
     /** Тип визита: 'Первичный' | 'Повторный' — из clinical_visit.visit_type; null если нет клинического визита. */
@@ -159,24 +159,24 @@ export type PatientCardHeader = {
     /** Город/локация из clinical_visit.location; null если нет клинического визита. */
     city: string | null;
   } | null;
-  /** Следующая запись (будущий слот из appointment_records). */
+  /** Следующая запись (будущий канонический слот). */
   nextAppointment: {
     date: string; // ISO date string
     time: string; // HH:MM
-    /** Город/локация — нет поля в appointment_records; null. */
+    /** Город/локация пока не заполняется в header summary; null. */
     city: null;
-    /** Тип приёма — нет поля в appointment_records; null. */
+    /** Тип приёма пока не заполняется в header summary; null. */
     appointmentType: null;
   } | null;
-  /** Итого посещений (completed slots, status IN ('created','updated') && record_at < now). */
+  /** Итого посещений (non-cancelled canonical slots with start_at < now). */
   totalVisits: number;
-  /** Отмен за всё время (status='canceled' AND last_event NOT IN remove/delete). */
+  /** Отмен за всё время по каноническим статусам отмены. */
   cancellationsCount: number;
-  /** Переносов за всё время (status='updated'). */
+  /** Переносов за всё время по `be_appointment_reschedules`. */
   reschedulesCount: number;
   /** Lifetime no-show counter from be_patient_booking_profiles.no_show_count. */
   noShowCount?: number;
-  /** Дата первого визита (самый ранний record_at < now). */
+  /** Дата первого визита (самый ранний canonical start_at < now). */
   firstVisitDate: string | null;
 };
 

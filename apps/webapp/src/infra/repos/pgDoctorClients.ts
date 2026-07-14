@@ -809,42 +809,34 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         first_visit_at: string | null;
       }>(
         `SELECT
-           COUNT(*) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created','updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at < NOW()
+           COUNT(DISTINCT bea.id) FILTER (
+             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at < NOW()
            )::text AS total_visits,
-           COUNT(*) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status = 'canceled'
-               AND ar.last_event NOT IN ('event-remove-record','event-delete-record')
+           COUNT(DISTINCT bea.id) FILTER (
+             WHERE bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
            )::text AS cancellations_count,
-           COUNT(*) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status = 'updated'
-           )::text AS reschedules_count,
-           MAX(ar.record_at) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created','updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at < NOW()
+           COUNT(DISTINCT r.id)::text AS reschedules_count,
+           MAX(bea.start_at) FILTER (
+             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at < NOW()
            ) AS last_visit_at,
-           MIN(ar.record_at) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created','updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at >= NOW()
+           MIN(bea.start_at) FILTER (
+             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at >= NOW()
            ) AS next_appt_at,
-           MIN(ar.record_at) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created','updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at < NOW()
+           MIN(bea.start_at) FILTER (
+             WHERE bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at < NOW()
            ) AS first_visit_at
-         FROM platform_users pu
-         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
-         WHERE pu.id = $1::uuid`,
+         FROM be_appointments bea
+         LEFT JOIN be_appointment_reschedules r ON r.appointment_id = bea.id
+         WHERE bea.platform_user_id = $1::uuid
+           AND bea.deleted_at IS NULL`,
         [canonicalId],
       );
       const appt = apptRows.rows[0];
@@ -868,7 +860,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
       const latestClinical = clinicalVisitRow.rows[0] ?? null;
 
-      // Last visit: prefer clinical_visit (has visitType + city); fall back to appointment_records date
+      // Last visit: prefer clinical_visit (has visitType + city); fall back to canonical appointment date
       let lastVisit: import("@/modules/doctor-clients/ports").PatientCardHeader["lastVisit"] = null;
       if (latestClinical) {
         lastVisit = {
@@ -892,8 +884,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         nextAppointment = {
           date: dt.toISOString(),
           time: `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`,
-          city: null, // TODO: no city field in appointment_records
-          appointmentType: null, // TODO: no appointmentType field in appointment_records
+          city: null,
+          appointmentType: null,
         };
       }
 
