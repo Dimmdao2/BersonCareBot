@@ -2,26 +2,28 @@
 
 Запись пациента: канонический write-путь (`be_appointments`) + совместимость с `patient_bookings` и уведомлениями.
 
-## Read/write sources (transitional, 2026-05-30)
+## Read/write sources (Rubitime retirement R3, 2026-07-14)
 
 Admin keys (`system_settings`, scope `admin`):
 
 - **`booking_doctor_appointments_read_source`:** retired for doctor runtime reads; doctor list/KPI/calendar are canonical-only after Rubitime R2. Old DB rows may remain for audit/rollback until table-drop phases.
-- **`booking_slots_read_source`:** `rubitime` | `canonical` — patient/public слоты и логика **create**.
+- **`booking_slots_read_source`:** retired for patient/public slots and create; runtime is canonical-only after Rubitime R3. Old DB rows may remain for audit/rollback until table-drop phases.
 
-| `booking_slots_read_source` | Create |
-|-----------------------------|--------|
-| `rubitime` | Rubitime-first: `createRecord` обязателен, канон adopt после projection (retry mapping; **без** native `createAppointment` fallback); при провале projection — `rubitime_projection_not_ready` + rollback `deleteRecord`; без `assertSlotAvailable` на create **и** reschedule |
-| `canonical` | Канон primary; Rubitime best-effort при `booking_rubitime_bridge_enabled` |
+| Area | Runtime source |
+|------|----------------|
+| Patient/public slots | `booking-scheduling` canonical slots |
+| Patient/public create | native `be_appointments` via booking engine |
+| Create overlap guard | `booking-scheduling.assertSlotAvailable` + DB exclusion constraints |
+| Rubitime create/slots M2M | retired from normal runtime; branch-only rollback code until R6/R7 removal |
 
 Код: `canonicalCreate.ts`, `slotsReadSource.ts`, `doctorAppointmentsReadSwitch.ts`, `bookingCalendarReadSwitch.ts`.
 
 ## Поток создания (этап 2)
 
-1. При **`booking_slots_read_source=canonical`:** валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`). При **`rubitime`** — skip assert (слот из Rubitime API).
+1. Валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`).
 2. `be_appointments` со статусом `confirmed` или `awaiting_payment` при обязательной предоплате (exclusion constraint на специалиста).
 3. `patient_bookings` (pending → confirmed), связь `canonical_appointment_id`.
-4. Rubitime — по режиму выше; mapping `appointment` ↔ rubitime.
+4. Rubitime create/slots не вызывается в normal runtime.
 5. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача при canonical cutover / native path.
 6. `emitBookingEvent('booking.created')` → integrator / напоминания.
 
@@ -29,7 +31,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 ## Слоты
 
-`GET /api/booking/slots` — Rubitime API или собственный расчёт (`modules/booking-scheduling`) по **`booking_slots_read_source`**. Query `slotCount` (1–8) для цепочек в canonical mode; UI `/app/patient/booking/slot` фиксирует `slotCount=1` (без multi-slot selector). Legacy `/app/patient/booking/new/slot` остаётся рабочим deeplink.
+`GET /api/booking/slots` — собственный расчёт (`modules/booking-scheduling`). Query `slotCount` (1–8) для цепочек; UI `/app/patient/booking/slot` фиксирует `slotCount=1` (без multi-slot selector). Legacy `/app/patient/booking/new/slot` остаётся рабочим deeplink.
 
 ## Поля формы
 
@@ -47,7 +49,7 @@ Admin keys (`system_settings`, scope `admin`):
 
 1. Preview: `GET /api/booking/actions?bookingId=` → `previewCancel` / `previewReschedule` (политики `booking-policies`, anti-bypass §8.4).
 2. **Отмена:** `booking-appointment-lifecycle.patientCancel` (канон) **до** best-effort Rubitime `cancelRecord`; затем `patient_bookings` → `cancelled`; проекция; `emitBookingEvent('booking.cancelled')`; `notifications_sent` (+ `rubitime_mirror` при сбое моста). API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`, `membershipOutcomeFailed`, `productOutcomeFailed`) — канон уже отменён.
-3. **Перенос:** при `canonical` — проверка слота с `excludeAppointmentId`; при `rubitime` — skip assert (как create); lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
+3. **Перенос:** проверка слота с `excludeAppointmentId`; lifecycle → `patient_bookings.updateSlotsAfterReschedule`; проекция (`native.rescheduled`); `emitBookingEvent('booking.rescheduled')` (integrator schema + handler); история в `be_appointment_reschedules`. API: `{ ok: true }` или partial flags (`rubitimeMirrorFailed`, `notificationOutcomeFailed`, `paymentOutcomeFailed`).
 
 **UI partial outcomes (2026-06-06):** после успешной отмены/переноса при `rubitimeMirrorFailed` — warning toast (`shared/booking/bookingPartialOutcomeToast.ts`) в `CabinetBookingActions`, `useRescheduleBooking`, `ConfirmStepClient`; остальные partial flags пациенту не показываются.
 

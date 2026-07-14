@@ -68,7 +68,7 @@ describe("GET /api/admin/booking-engine/overview", () => {
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.doctorAppointmentsReadSource).toBe("canonical");
-    expect(json.bookingSlotsReadSource).toBe("rubitime");
+    expect(json.bookingSlotsReadSource).toBe("canonical");
     expect(json.calendarReadSource).toBe("canonical");
   });
 });

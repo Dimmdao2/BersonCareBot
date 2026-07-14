@@ -27,7 +27,7 @@ import { apiJson } from "@/shared/lib/apiJson";
 const BASE = "/api/admin/booking-engine";
 
 type DoctorAppointmentsReadSource = "canonical";
-type BookingSlotsReadSource = "rubitime" | "canonical";
+type BookingSlotsReadSource = "canonical";
 
 type Overview = {
   organizationId: string;
@@ -64,11 +64,6 @@ type Overview = {
     appointments: number;
   };
 };
-
-const SLOTS_READ_SOURCE_ITEMS: { value: BookingSlotsReadSource; label: string }[] = [
-  { value: "rubitime", label: "Rubitime legacy" },
-  { value: "canonical", label: "Канон" },
-];
 
 export type BookingEngineSectionMode = "catalog" | "availability" | "integrations";
 
@@ -115,7 +110,7 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
       setData({
         ...(res as Overview),
         doctorAppointmentsReadSource: "canonical",
-        bookingSlotsReadSource: res.bookingSlotsReadSource === "rubitime" ? "rubitime" : "canonical",
+        bookingSlotsReadSource: "canonical",
       });
       setOrgTitle(res.organization?.title ?? "");
       if (res.branches?.[0]) {
@@ -197,45 +192,12 @@ export function BookingEngineSection({ mode = "catalog" }: { mode?: BookingEngin
               </div>
               <div className="flex flex-col gap-1">
                 <Label>Свободные слоты пациента</Label>
-                <Select
-                  value={data.bookingSlotsReadSource}
-                  disabled={isPending}
-                  onValueChange={(value) =>
-                    run(async () => {
-                      const res = await apiJson<{ ok: boolean }>("/api/admin/settings", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          key: "booking_slots_read_source",
-                          value,
-                        }),
-                      });
-                      if (!res.ok) throw new Error("slots_read_source_save_failed");
-                    })
-                  }
-                >
-                  <SelectTrigger
-                    className="w-[10rem]"
-                    displayLabel={
-                      SLOTS_READ_SOURCE_ITEMS.find((i) => i.value === data.bookingSlotsReadSource)?.label
-                    }
-                  />
-                  <SelectContent>
-                    {SLOTS_READ_SOURCE_ITEMS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input className="w-[10rem]" value="Канон" readOnly disabled={isPending} />
               </div>
               <p className="text-sm text-muted-foreground">
                 Календарь сейчас:{" "}
                 {data.calendarReadSource === "canonical" ? "Канон" : "Rubitime"}
               </p>
-              {data.bookingSlotsReadSource === "rubitime" ? (
-                <p className="text-sm text-destructive">Источники расходятся</p>
-              ) : null}
               <div className="flex items-center gap-2">
                 <Switch
                   checked={data.bridgeEnabled}

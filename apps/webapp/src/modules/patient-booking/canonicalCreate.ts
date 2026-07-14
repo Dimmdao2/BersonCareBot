@@ -169,6 +169,14 @@ async function createRubitimeRecord(
   return { rubitimeId, raw: sync.raw };
 }
 
+function isRubitimeFirstCreateEnabled(): boolean {
+  return false;
+}
+
+async function isRubitimeCreateMirrorEnabled(): Promise<boolean> {
+  return false;
+}
+
 /**
  * Rubitime-first create runs integrator postCreateProjection before this returns.
  * Re-use the projected `be_appointments` row — never insert a second native row (overlap).
@@ -239,8 +247,8 @@ export async function createBookingOnCanonicalEngine(
     if (!validation.ok) throw new Error(validation.error);
   }
 
-  const slotsReadSource = (await deps.resolveSlotsReadSource?.()) ?? "canonical";
-  const rubitimeFirst = slotsReadSource === "rubitime";
+  void deps.resolveSlotsReadSource;
+  const rubitimeFirst = isRubitimeFirstCreateEnabled();
 
   let pendingRow: CreatePendingPatientBookingInput;
   let durationMinutes = 60;
@@ -444,7 +452,7 @@ export async function createBookingOnCanonicalEngine(
     });
   }
 
-  const bridgeEnabled = !rubitimeFirst && (await deps.isRubitimeBridgeEnabled());
+  const bridgeEnabled = !rubitimeFirst && (await isRubitimeCreateMirrorEnabled());
 
   if (bridgeEnabled) {
     try {

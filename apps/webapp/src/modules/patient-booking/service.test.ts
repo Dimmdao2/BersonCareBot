@@ -177,44 +177,23 @@ describe("createPatientBookingService", () => {
     });
   });
 
-  it("cancelBooking then createBooking on same slot succeeds (rebook after cancel)", async () => {
-    const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
-    bookingsPort.getByIdForUser.mockResolvedValue(row);
-    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
-    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled", rubitimeManageUrl: null });
-    syncPort.cancelRecord.mockResolvedValue(undefined);
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
+  it("createBooking without canonical deps fails instead of calling Rubitime create", async () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
     });
-    await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-
-    const pending = sampleRow({
-      id: "b-new",
-      status: "creating",
-      rubitimeId: null,
-      rubitimeManageUrl: null,
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r2", raw: { link: "https://rubitime.example/r2" } });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r2" });
-
-    const created = await svc.createBooking({
-      userId: row.userId!,
+    await expect(svc.createBooking({
+      userId: "u1111111-1111-4111-8111-111111111111",
       type: "online",
       category: "general",
-      slotStart: row.slotStart,
-      slotEnd: row.slotEnd,
-      contactName: row.contactName,
-      contactPhone: row.contactPhone,
-      contactEmail: row.contactEmail ?? undefined,
-    });
-
-    expect(bookingsPort.createPending).toHaveBeenCalled();
-    expect(created.rubitimeId).toBe("r2");
+      slotStart: "2026-05-01T10:00:00.000Z",
+      slotEnd: "2026-05-01T11:00:00.000Z",
+      contactName: "Test",
+      contactPhone: "+79990001122",
+    })).rejects.toThrow("canonical_booking_unavailable");
+    expect(syncPort.createRecord).not.toHaveBeenCalled();
+    expect(bookingsPort.createPending).not.toHaveBeenCalled();
   });
 
   it("cancelBooking: Rubitime sync failure still completes legacy cancel", async () => {
@@ -238,29 +217,34 @@ describe("createPatientBookingService", () => {
     });
   });
 
-  it("cancelBooking: Rubitime sync failure invalidates slots cache so next getSlots refetches", async () => {
+  it("cancelBooking: Rubitime sync failure invalidates canonical slots cache so next getSlots refetches", async () => {
     const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
     bookingsPort.getByIdForUser.mockResolvedValue(row);
     bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
     syncPort.cancelRecord.mockRejectedValue(new Error("network"));
     bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
-    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
 
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
     });
     await svc.getSlots({ type: "online", category: "general" });
     await svc.getSlots({ type: "online", category: "general" });
-    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+    expect(getOnlineSlots).toHaveBeenCalledTimes(1);
 
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
 
     await svc.getSlots({ type: "online", category: "general" });
-    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(2);
+    expect(getOnlineSlots).toHaveBeenCalledTimes(2);
   });
 
   it("cancelBooking: canonical path succeeds when doctor projection cancel fails", async () => {
@@ -386,7 +370,7 @@ describe("createPatientBookingService", () => {
     expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalled();
   });
 
-  it("rescheduleBooking: skips assertSlotAvailable when slots read source is rubitime", async () => {
+  it("rescheduleBooking: still calls assertSlotAvailable when retired slots read source is rubitime", async () => {
     const row = sampleRow({
       status: "confirmed",
       rubitimeId: "r1",
@@ -445,7 +429,14 @@ describe("createPatientBookingService", () => {
       slotEnd: newEnd,
     });
     expect(result).toMatchObject({ ok: true });
-    expect(assertSlotAvailable).not.toHaveBeenCalled();
+    expect(assertSlotAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        slotStart: newStart,
+        slotEnd: newEnd,
+        excludeAppointmentId: "appt-1",
+      }),
+    );
   });
 
   it("rescheduleBooking: calls assertSlotAvailable when slots read source is canonical", async () => {
@@ -1009,262 +1000,19 @@ describe("createPatientBookingService", () => {
     expect(bookingsPort.markCancelling).not.toHaveBeenCalled();
   });
 
-  it("createBooking: rubitimeId null marks failed_sync and throws rubitime_id_missing", async () => {
-    const pending = sampleRow({ id: "p-miss", status: "creating", rubitimeId: null });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: null, raw: {} });
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    await expect(
-      svc.createBooking({
-        userId: pending.userId!,
-        type: "online",
-        category: "general",
-        slotStart: pending.slotStart,
-        slotEnd: pending.slotEnd,
-        contactName: pending.contactName,
-        contactPhone: pending.contactPhone,
-      }),
-    ).rejects.toThrow("rubitime_id_missing");
-    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("p-miss");
-    expect(bookingsPort.markConfirmed).not.toHaveBeenCalled();
-  });
-
-  it("createBooking: rubitimeId string confirms as before", async () => {
-    const pending = sampleRow({ id: "p-ok-rid", status: "creating", rubitimeId: null });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    const row = await svc.createBooking({
-      userId: pending.userId!,
-      type: "online",
-      category: "general",
-      slotStart: pending.slotStart,
-      slotEnd: pending.slotEnd,
-      contactName: pending.contactName,
-      contactPhone: pending.contactPhone,
-    });
-    expect(row.status).toBe("confirmed");
-    expect(row.rubitimeId).toBe("123");
-    expect(bookingsPort.markConfirmed).toHaveBeenCalledWith("p-ok-rid", "123", { rubitimeManageUrl: null });
-  });
-
-  it("createBooking: best-effort upserts supplementary contacts and ignores upsert failures", async () => {
-    const pending = sampleRow({
-      id: "p-contacts",
-      status: "creating",
-      rubitimeId: null,
-      contactEmail: "alt@example.com",
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-    const upsert = vi.fn().mockRejectedValue(new Error("contacts db down"));
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-      platformUserContacts: { upsert } as never,
-    });
-    const row = await svc.createBooking({
-      userId: pending.userId!,
-      type: "online",
-      category: "general",
-      slotStart: pending.slotStart,
-      slotEnd: pending.slotEnd,
-      contactName: pending.contactName,
-      contactPhone: pending.contactPhone,
-      contactEmail: pending.contactEmail ?? undefined,
-    });
-    expect(row.status).toBe("confirmed");
-    expect(upsert).toHaveBeenCalled();
-  });
-
-  it("legacy createBooking skips contacts equal to identity when resolver is wired", async () => {
-    const pending = sampleRow({
-      id: "p-contacts-skip",
-      status: "creating",
-      rubitimeId: null,
-      contactPhone: "+79990001122",
-      contactEmail: "same@example.com",
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
-    const upsert = vi.fn();
-    const getPlatformUserIdentityContacts = vi.fn().mockResolvedValue({
-      phone: "+79990001122",
-      email: "same@example.com",
-    });
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-      platformUserContacts: { upsert } as never,
-      getPlatformUserIdentityContacts,
-    });
-    await svc.createBooking({
-      userId: pending.userId!,
-      type: "online",
-      category: "general",
-      slotStart: pending.slotStart,
-      slotEnd: pending.slotEnd,
-      contactName: pending.contactName,
-      contactPhone: pending.contactPhone,
-      contactEmail: pending.contactEmail ?? undefined,
-    });
-    expect(getPlatformUserIdentityContacts).toHaveBeenCalled();
-    expect(upsert).not.toHaveBeenCalled();
-  });
-
-  it("createBooking: createRecord failure calls markFailedSync", async () => {
-    const pending = sampleRow({ id: "p1", status: "creating", rubitimeId: null });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockRejectedValue(new Error("rubitime down"));
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    await expect(
-      svc.createBooking({
-        userId: pending.userId!,
-        type: "online",
-        category: "general",
-        slotStart: pending.slotStart,
-        slotEnd: pending.slotEnd,
-        contactName: pending.contactName,
-        contactPhone: pending.contactPhone,
-      }),
-    ).rejects.toThrow("rubitime down");
-    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("p1");
-  });
-
-  it("createBooking: markConfirmed failure marks failed_sync and cancels rubitime record", async () => {
-    const pending = sampleRow({ id: "p1", status: "creating", rubitimeId: null });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r1", raw: {} });
-    bookingsPort.markConfirmed.mockRejectedValue(new Error("db write failed"));
-    syncPort.deleteRecord.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    await expect(
-      svc.createBooking({
-        userId: pending.userId!,
-        type: "online",
-        category: "general",
-        slotStart: pending.slotStart,
-        slotEnd: pending.slotEnd,
-        contactName: pending.contactName,
-        contactPhone: pending.contactPhone,
-      }),
-    ).rejects.toThrow("booking_confirm_failed");
-    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("p1");
-    expect(syncPort.deleteRecord).toHaveBeenCalledWith("r1");
-  });
-
-  it("createBooking: slot overlap cancels remote rubitime record and local pending booking", async () => {
-    const pending = sampleRow({ id: "p2", status: "creating", rubitimeId: null });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rub-2", raw: {} });
-    bookingsPort.markConfirmed.mockRejectedValue(new Error("slot_overlap"));
-    bookingsPort.markCancelled.mockResolvedValue({ ...pending, status: "cancelled" });
-    syncPort.deleteRecord.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    await expect(
-      svc.createBooking({
-        userId: pending.userId!,
-        type: "online",
-        category: "general",
-        slotStart: pending.slotStart,
-        slotEnd: pending.slotEnd,
-        contactName: pending.contactName,
-        contactPhone: pending.contactPhone,
-      }),
-    ).rejects.toThrow("slot_overlap");
-    expect(syncPort.deleteRecord).toHaveBeenCalledWith("rub-2");
-    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
-      bookingId: pending.id,
-      reason: "slot_overlap",
-      status: "cancelled",
-    });
-  });
-
-  it("createBooking: in_person slot overlap rolls back rubitime and cancels pending (v2 regression)", async () => {
+  it("getSlots: in_person uses canonical scheduling and not integrator v2", async () => {
     const r = resolvedFixture();
-    resolveBranchServiceMock.mockResolvedValue(r);
-    const pending = sampleRow({
-      id: "p-overlap-ip",
-      status: "creating",
-      rubitimeId: null,
-      bookingType: "in_person",
-      city: "moscow",
-      branchServiceId: r.branchService.id,
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rub-ip", raw: {} });
-    bookingsPort.markConfirmed.mockRejectedValue(new Error("slot_overlap"));
-    bookingsPort.markCancelled.mockResolvedValue({ ...pending, status: "cancelled" });
-    syncPort.deleteRecord.mockResolvedValue(undefined);
+    const getInPersonSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
 
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: catalogWithResolve(),
-    });
-    await expect(
-      svc.createBooking({
-        userId: pending.userId!,
-        type: "in_person",
-        branchServiceId: r.branchService.id,
-        cityCode: "moscow",
-        slotStart: pending.slotStart,
-        slotEnd: pending.slotEnd,
-        contactName: pending.contactName,
-        contactPhone: pending.contactPhone,
-      }),
-    ).rejects.toThrow("slot_overlap");
-    expect(syncPort.deleteRecord).toHaveBeenCalledWith("rub-ip");
-    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
-      bookingId: pending.id,
-      reason: "slot_overlap",
-      status: "cancelled",
-    });
-  });
-
-  it("getSlots: in_person calls catalog resolve and integrator v2", async () => {
-    const r = resolvedFixture();
-    resolveBranchServiceMock.mockResolvedValue(r);
-    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: catalogWithResolve(),
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: { getInPersonSlots } as never,
     });
     const slots = await svc.getSlots({
       type: "in_person",
@@ -1272,85 +1020,12 @@ describe("createPatientBookingService", () => {
       date: "2026-05-01",
     });
     expect(slots).toHaveLength(1);
-    expect(resolveBranchServiceMock).toHaveBeenCalledWith(r.branchService.id);
-    expect(syncPort.fetchSlots).toHaveBeenCalledWith({
-      version: "v2",
-      rubitimeBranchId: "17356",
-      rubitimeCooperatorId: "34729",
-      rubitimeServiceId: "67591",
-      slotDurationMinutes: 60,
-      branchTimezone: "Europe/Moscow",
+    expect(getInPersonSlots).toHaveBeenCalledWith({
+      branchServiceId: r.branchService.id,
       date: "2026-05-01",
     });
-  });
-
-  it("getSlots: in_person without catalog throws catalog_unavailable", async () => {
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: null,
-    });
-    await expect(
-      svc.getSlots({
-        type: "in_person",
-        branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
-      }),
-    ).rejects.toThrow("catalog_unavailable");
-  });
-
-  it("createBooking: in_person uses v2 createRecord with localBookingId", async () => {
-    const r = resolvedFixture();
-    resolveBranchServiceMock.mockResolvedValue(r);
-    const pending = sampleRow({
-      id: "p3",
-      status: "creating",
-      rubitimeId: null,
-      bookingType: "in_person",
-      city: "moscow",
-      branchServiceId: r.branchService.id,
-      branchId: r.branch.id,
-      serviceId: r.service.id,
-      cityCodeSnapshot: r.city.code,
-      branchTitleSnapshot: r.branch.title,
-      serviceTitleSnapshot: r.service.title,
-    });
-    bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rx", raw: {} });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "rx" });
-    syncPort.emitBookingEvent.mockResolvedValue(undefined);
-
-    const svc = createPatientBookingService({
-      bookingsPort: bookingsPort as never,
-      syncPort: syncPort as never,
-      bookingCatalog: catalogWithResolve(),
-    });
-    await svc.createBooking({
-      userId: pending.userId!,
-      type: "in_person",
-      branchServiceId: r.branchService.id,
-      cityCode: "moscow",
-      slotStart: pending.slotStart,
-      slotEnd: pending.slotEnd,
-      contactName: pending.contactName,
-      contactPhone: pending.contactPhone,
-    });
-    expect(syncPort.createRecord).toHaveBeenCalledWith(
-      expect.objectContaining({
-        version: "v2",
-        localBookingId: "p3",
-        rubitimeBranchId: "17356",
-      }),
-    );
-    expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "booking.created",
-        payload: expect.objectContaining({
-          branchServiceId: r.branchService.id,
-          cityCodeSnapshot: "moscow",
-          serviceTitleSnapshot: "Сеанс",
-        }),
-      }),
-    );
+    expect(resolveBranchServiceMock).not.toHaveBeenCalled();
+    expect(syncPort.fetchSlots).not.toHaveBeenCalled();
   });
 
   it("cancelBooking: emit booking.cancelled includes v2 snapshot fields for in_person", async () => {
@@ -1393,10 +1068,19 @@ describe("createPatientBookingService", () => {
 
   it("createBooking: inactive branch service (not found) propagates", async () => {
     resolveBranchServiceMock.mockRejectedValue(new Error("branch_service_not_found"));
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
+    const bookingScheduling = {
+      assertSlotAvailable: vi.fn(),
+      resolveInPersonContext: vi.fn(),
+    };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: catalogWithResolve(),
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: bookingScheduling as never,
     });
     await expect(
       svc.createBooking({
@@ -1416,10 +1100,19 @@ describe("createPatientBookingService", () => {
   it("createBooking: in_person rejects cityCode that does not match catalog city", async () => {
     const r = resolvedFixture();
     resolveBranchServiceMock.mockResolvedValue(r);
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
+    const bookingScheduling = {
+      assertSlotAvailable: vi.fn(),
+      resolveInPersonContext: vi.fn(),
+    };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: catalogWithResolve(),
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: bookingScheduling as never,
     });
     await expect(
       svc.createBooking({
@@ -1438,35 +1131,54 @@ describe("createPatientBookingService", () => {
   });
 
   it("getSlots: caches result within TTL (single fetch)", async () => {
-    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+    };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
     });
     await svc.getSlots({ type: "online", category: "general" });
     await svc.getSlots({ type: "online", category: "general" });
-    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+    expect(getOnlineSlots).toHaveBeenCalledTimes(1);
   });
 
   it("createBooking: success invalidates slots cache so next getSlots refetches", async () => {
     const pending = sampleRow({ id: "p-cache", status: "creating", rubitimeId: null });
+    const confirmed = { ...pending, status: "confirmed" as const, canonicalAppointmentId: "appt-1" };
     bookingsPort.createPending.mockResolvedValue(pending);
-    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r1", raw: {} });
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r1" });
+    bookingsPort.markConfirmed.mockResolvedValue(confirmed);
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
-    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
+      upsertRubitimeAppointmentMapping: vi.fn(),
+    };
+    const bookingScheduling = {
+      assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
+      resolveInPersonContext: vi.fn(),
+      getOnlineSlots,
+      getInPersonSlots: vi.fn(),
+    };
 
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: bookingScheduling as never,
+      isRubitimeBridgeEnabled: async () => false,
       slotsTtlMs: 60_000,
     });
     await svc.getSlots({ type: "online", category: "general" });
     await svc.getSlots({ type: "online", category: "general" });
-    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+    expect(getOnlineSlots).toHaveBeenCalledTimes(1);
 
     await svc.createBooking({
       userId: pending.userId!,
@@ -1479,7 +1191,7 @@ describe("createPatientBookingService", () => {
     });
 
     await svc.getSlots({ type: "online", category: "general" });
-    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(2);
+    expect(getOnlineSlots).toHaveBeenCalledTimes(2);
   });
 
   it("createBooking: uses canonical path when bookingEngine and scheduling are wired", async () => {
@@ -1534,19 +1246,32 @@ describe("createPatientBookingService", () => {
     const pending = sampleRow({ id: "p-conc", status: "creating", rubitimeId: null });
     bookingsPort.createPending.mockResolvedValue(pending);
     let release!: () => void;
-    syncPort.createRecord.mockImplementation(
-      () =>
-        new Promise<{ rubitimeId: string; raw: Record<string, unknown> }>((resolve) => {
-          release = () => resolve({ rubitimeId: "r1", raw: {} });
-        }),
-    );
-    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r1" });
+    const bookingEngine = {
+      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      createAppointment: vi.fn(
+        () =>
+          new Promise<{ id: string }>((resolve) => {
+            release = () => resolve({ id: "appt-1" });
+          }),
+      ),
+      upsertRubitimeAppointmentMapping: vi.fn(),
+    };
+    const bookingScheduling = {
+      assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
+      resolveInPersonContext: vi.fn(),
+      getOnlineSlots: vi.fn(),
+      getInPersonSlots: vi.fn(),
+    };
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", canonicalAppointmentId: "appt-1" });
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
 
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      bookingScheduling: bookingScheduling as never,
+      isRubitimeBridgeEnabled: async () => false,
     });
     const payload = {
       userId: pending.userId!,

@@ -13,6 +13,6 @@ function unwrapSettingValue(valueJson: unknown): unknown {
 
 export function parseBookingSlotsReadSource(valueJson: unknown): BookingSlotsReadSource {
   const value = unwrapSettingValue(valueJson);
-  if (value === "rubitime") return "rubitime";
+  if (value === "canonical") return "canonical";
   return "canonical";
 }

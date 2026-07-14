@@ -445,13 +445,13 @@ describe("PATCH /api/admin/settings", () => {
     );
   });
 
-  it("updates booking_slots_read_source", async () => {
+  it("updates booking_slots_read_source to canonical", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
     updateSettingMock.mockResolvedValue({
       key: "booking_slots_read_source",
       scope: "admin",
-      valueJson: { value: "rubitime" },
+      valueJson: { value: "canonical" },
       updatedAt: "",
       updatedBy: "a1",
     });
@@ -459,10 +459,22 @@ describe("PATCH /api/admin/settings", () => {
       new Request("http://localhost/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "booking_slots_read_source", value: "rubitime" }),
+        body: JSON.stringify({ key: "booking_slots_read_source", value: "canonical" }),
       }),
     );
     expect(res.status).toBe(200);
+  });
+
+  it("rejects retired rubitime booking_slots_read_source", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_slots_read_source", value: "rubitime" }),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 
   it("returns 400 for invalid booking_slots_read_source", async () => {

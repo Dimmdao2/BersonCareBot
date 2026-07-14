@@ -1034,7 +1034,7 @@ patientBookingService = createPatientBookingService({
     return { phone: identity.phone, email: identity.email ?? null };
   },
   resolveSlotsReadSource: async () => {
-    if (inMemoryRepos) return "rubitime";
+    if (inMemoryRepos) return "canonical";
     const row = await systemSettingsService.getSetting("booking_slots_read_source", "admin");
     return parseBookingSlotsReadSource(row?.valueJson ?? null);
   },

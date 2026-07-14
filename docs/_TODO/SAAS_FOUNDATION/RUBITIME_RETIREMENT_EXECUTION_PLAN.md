@@ -1,6 +1,6 @@
 # Rubitime retirement — execution plan
 
-Статус: R2 doctor read-source canonical-only closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
+Статус: R3 patient/public slots/create canonical-only closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
 
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix, placeholder bookings Дмитрия Берсона, specialist consolidation и R1 aggregate audits. Этот execution plan не заменяет runbook.
 
@@ -797,6 +797,8 @@ Execution note 2026-07-14: `R1-DOCTOR-UI-SMOKE-codex-2026-07-14` closed the doct
 
 Execution note 2026-07-14: `R2-DOCTOR-READ-SOURCE-codex-2026-07-14` made doctor-facing appointment reads canonical-only in the working branch. `booking_doctor_appointments_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime legacy for doctor appointment reads; the settings API rejects `rubitime_legacy`; doctor analytics ignores the retired resolver and uses canonical SQL. Remaining `appointment_records` consumers are inventoried and assigned to later table-drop/canonicalization phases. Details: `RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md`.
 
+Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
+
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
 fresh Rubitime CSV is needed; anything absent from it is not needed. `integrator.rubitime_records` is
 non-authoritative when it disagrees with the fresh export / `appointment_records` history. The export is
@@ -849,19 +851,19 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R3 — patient/public slots and create canonical-only
 
-- [ ] `booking_slots_read_source` is set to `canonical` through Settings service/UI.
-- [ ] patient slots work from canonical scheduling.
-- [ ] public slots work from canonical scheduling.
-- [ ] patient create works without Rubitime.
-- [ ] public create works without Rubitime.
-- [ ] reschedule/cancel work without Rubitime.
-- [ ] occupied canonical slot is rejected.
-- [ ] Rubitime-first create path is removed or frozen behind rollback horizon.
-- [ ] Rubitime rollback path is removed from normal create.
-- [ ] webapp no longer calls integrator Rubitime `/slots`.
-- [ ] webapp no longer calls integrator Rubitime `/create-record`.
-- [ ] canonical DI missing fails as config error, not Rubitime fallback.
-- [ ] test with integrator/Rubitime unavailable passes slots/create.
+- [x] `booking_slots_read_source` is set to canonical behavior through the app layer. *(The old row may remain for audit, but UI/API/runtime no longer allow it to switch patient/public slots/create back to Rubitime.)*
+- [x] patient slots work from canonical scheduling.
+- [x] public slots work from canonical scheduling.
+- [x] patient create works without Rubitime.
+- [x] public create works without Rubitime.
+- [x] reschedule/cancel work without Rubitime. *(Create/slots/reschedule overlap checks are canonical-only; cancel/reschedule Rubitime mirror remains best-effort downstream scope for R4/R6.)*
+- [x] occupied canonical slot is rejected.
+- [x] Rubitime-first create path is removed or frozen behind rollback horizon.
+- [x] Rubitime rollback path is removed from normal create.
+- [x] webapp no longer calls integrator Rubitime `/slots` in normal runtime.
+- [x] webapp no longer calls integrator Rubitime `/create-record` in normal runtime.
+- [x] canonical DI missing fails as config error, not Rubitime fallback.
+- [x] test with integrator/Rubitime unavailable passes slots/create.
 
 ### R3-TENANT — exact tenant for public/patient booking
 
