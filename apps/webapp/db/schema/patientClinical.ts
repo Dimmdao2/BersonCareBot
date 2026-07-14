@@ -11,7 +11,7 @@ import {
   check,
 } from "drizzle-orm/pg-core";
 import { platformUsers, appointmentRecords } from "./schema";
-import { beOrganizations } from "./bookingEngine";
+import { beAppointments, beOrganizations } from "./bookingEngine";
 
 /**
  * Клинический «ядро» карты пациента (раздел «Карта» кабинета врача).
@@ -81,6 +81,8 @@ export const clinicalVisit = pgTable(
     anamnesisText: text("anamnesis_text"),
     /** Необязательная связь с записью на приём (бронированием). */
     appointmentRecordId: uuid("appointment_record_id"),
+    /** Canonical booking link replacing appointment_record_id for Rubitime retirement. */
+    canonicalAppointmentId: uuid("canonical_appointment_id"),
     exam: text("exam"),
     manipulations: text("manipulations"),
     trialResults: text("trial_results"),
@@ -91,6 +93,7 @@ export const clinicalVisit = pgTable(
   (table) => [
     index("idx_clinical_visit_organization_id").on(table.organizationId),
     index("idx_clinical_visit_patient_user_id").on(table.patientUserId),
+    index("idx_clinical_visit_canonical_appointment_id").on(table.canonicalAppointmentId),
     index("idx_clinical_visit_visited_at").on(table.visitedAt),
     foreignKey({
       columns: [table.organizationId],
@@ -106,6 +109,11 @@ export const clinicalVisit = pgTable(
       columns: [table.appointmentRecordId],
       foreignColumns: [appointmentRecords.id],
       name: "clinical_visit_appointment_record_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.canonicalAppointmentId],
+      foreignColumns: [beAppointments.id],
+      name: "clinical_visit_canonical_appointment_id_fkey",
     }).onDelete("set null"),
     foreignKey({
       columns: [table.createdBy],

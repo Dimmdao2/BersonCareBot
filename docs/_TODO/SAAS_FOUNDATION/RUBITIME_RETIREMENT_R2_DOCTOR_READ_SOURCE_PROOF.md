@@ -55,7 +55,8 @@ Current non-R2 consumers are assigned as follows:
 | Doctor dashboard patient metrics (`pgDoctorClients.getDashboardPatientMetrics`) | Migrated visited/new/former/subscriber/cancellation buckets to canonical `be_appointments`. |
 | Doctor client list badges and filters (`pgDoctorClients.listClients`) | Migrated history/upcoming/visited/cancellation badges to canonical `be_appointments`; reschedule badge uses `be_appointment_reschedules` as the existing canonical lifecycle source of truth. |
 | Doctor patient card header stats (`pgDoctorClients.getPatientCardHeader`) | Migrated total/first/last/next/cancellation counters to canonical `be_appointments`; reschedule count uses `be_appointment_reschedules`. |
-| Doctor patient appointment tab and clinical linking (`pgDoctorClients.listPatientAppointments`, `pgPatientClinical`) | Still tied to legacy `appointment_record_id` linking; assigned to the clinical-link/table-drop preparation slice, not hidden as done. |
+| Doctor patient appointment tab (`pgDoctorClients.listPatientAppointments`) | Migrated to canonical `be_appointments`; service/branch/duration/package data now comes from canonical booking tables. |
+| Doctor clinical booking link (`pgPatientClinical`) | Added `clinical_visit.canonical_appointment_id`, backfilled it from legacy links, and moved new visit linking/package enrichment to canonical appointment ids. Legacy `appointment_record_id` stays nullable compat/archive until R7. |
 | Membership/package appointment status/session accounting (`pgMemberships`) | Assigned to package lifecycle canonicalization before table drop. |
 | Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Keep until canonical deletion/tombstone replacement is designed. |
 | Legacy doctor appointments port (`pgDoctorAppointments`) | Frozen rollback branch only; no longer selected when canonical port exists. |
@@ -93,9 +94,11 @@ Commands:
 | Command | Result |
 | --- | --- |
 | `pnpm -C apps/webapp exec vitest run src/infra/repos/doctorAppointmentsReadSwitch.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts src/app/api/admin/booking-engine/overview/route.test.ts src/app/api/admin/settings/route.test.ts` | PASS, 5 files / 142 tests |
-| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts` | PASS, 1 file / 15 tests |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts` | PASS, 1 file / 16 tests |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts src/infra/repos/pgPatientClinical.test.ts src/infra/repos/patientResidualPrincipalOrgStamp.test.ts src/app/api/doctor/patients/[userId]/appointments/unlinked/route.test.ts src/app/api/doctor/patients/[userId]/visits/route.test.ts` | PASS, 5 files / 31 tests |
 | `pnpm -C apps/webapp run typecheck` | PASS |
 | `pnpm -C apps/webapp run lint` | PASS |
+| `pnpm --dir apps/webapp exec drizzle-kit check --config=drizzle.config.ts` | PASS |
 | `pnpm run check:rubitime-retirement-r0` | PASS |
 | `git diff --check` | PASS |
 

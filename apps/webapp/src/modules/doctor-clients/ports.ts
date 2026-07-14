@@ -28,7 +28,7 @@ export type DoctorClientsFilters = {
   hasApp?: boolean;
   /** Есть активная web-push подписка и глобальный канал web_push не выключен. */
   hasWebPush?: boolean;
-  /** Только пользователи с хотя бы одной неотменённой строкой в `appointment_records` (JOIN по phone). Этап 9. */
+  /** Только пользователи с хотя бы одной неотменённой canonical appointment. */
   onlyWithAppointmentRecords?: boolean;
   /**
    * Клиенты с прошедшим слотом created/updated в текущем UTC-месяце (как плитка дашборда «Были на приёме»).
@@ -74,7 +74,7 @@ export type ClientListItem = {
   hasApp?: boolean;
   hasWebPush?: boolean;
   nextAppointmentLabel: string | null;
-  /** Есть хотя бы одна неотменённая запись (`appointment_records.status IN ('created', 'updated')`). */
+  /** Есть хотя бы одна неотменённая canonical appointment. */
   hasAppointmentHistory?: boolean;
   activeAppointmentsCount?: number;
   /** Хотя бы одна строка `treatment_program_instances` со статусом `active` для этого клиента. */
@@ -206,28 +206,27 @@ export type DoctorDashboardPatientMetrics = {
 export type PatientAppointmentItem = {
   id: string;
   /**
-   * Internal DB uuid of the appointment_records row. Used to link a clinical visit to this
-   * booking (clinical_visit.appointment_record_id → appointment_records.id). Optional because
-   * legacy/in-memory paths may not populate it.
+   * Internal canonical appointment id used to link a clinical visit to this booking.
+   * The field name is kept for compatibility with existing UI code.
    */
   internalId?: string | null;
   /** ISO timestamp момента записи. */
   dateTime: string;
   /**
    * Статус: состоялась / перенос / отмена / предстоит.
-   * Маппинг: created/updated + past → 'completed'; updated + future → 'upcoming';
-   * status='updated' (reschedule flag) → 'rescheduled'; status='canceled' → 'canceled'.
+   * Маппинг: canonical cancelled statuses → 'canceled'; canonical rescheduled → 'rescheduled';
+   * other non-cancelled past/future slots → 'completed' / 'upcoming'.
    */
   status: "completed" | "rescheduled" | "canceled" | "upcoming";
-  /** Тип/услуга из payload_json.service_title. */
+  /** Тип/услуга из canonical service title. */
   serviceName: string | null;
-  /** Локация/филиал из branches.name. */
+  /** Локация/филиал из canonical branch title. */
   location: string | null;
-  /** Продолжительность (мин) из payload_json.duration_minutes или null. */
+  /** Продолжительность (мин) из canonical appointment duration. */
   durationMin: number | null;
   /**
    * Запись списана с абонемента: be_appointments.package_usage_ref IS NOT NULL.
-   * `patientPackageId` is resolved through the same native / Rubitime mapping path when available.
+   * `patientPackageId` is resolved through canonical package usage when available.
    */
   isPackage?: boolean | null;
   patientPackageId?: string | null;

@@ -183,6 +183,50 @@ describe("pgDoctorClients repo", () => {
     expect(list.find((item) => item.userId === "u2")?.hasAppointmentHistory).toBe(true);
   });
 
+  it("listPatientAppointments reads patient rows from canonical appointments", async () => {
+    resolveCanonicalUserIdMock.mockResolvedValue("canonical-1");
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [
+        {
+          internal_id: "appt-1",
+          id: "appt-1",
+          record_at: "2030-01-01T10:00:00.000Z",
+          status: "confirmed",
+          service_title: "Консультация",
+          duration_minutes: 60,
+          branch_name: "Москва",
+          is_package: true,
+          patient_package_id: "pkg-1",
+          package_title: "Абонемент",
+          package_display_number: 12,
+        },
+      ],
+    });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listPatientAppointments("alias-id", "org-1");
+
+    expect(list).toEqual([
+      {
+        id: "appt-1",
+        internalId: "appt-1",
+        dateTime: "2030-01-01T10:00:00.000Z",
+        status: "upcoming",
+        serviceName: "Консультация",
+        location: "Москва",
+        durationMin: 60,
+        isPackage: true,
+        patientPackageId: "pkg-1",
+        packageTitle: "Абонемент",
+        packageDisplayNumber: 12,
+      },
+    ]);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM be_appointments bea");
+    expect(sql).toContain("LEFT JOIN be_package_usages u ON u.id::text = bea.package_usage_ref");
+    expect(sql).not.toContain("appointment_records");
+  });
+
   it("listClients supportStatus on filters by on-support ids", async () => {
     listOnSupportPatientUserIdsMock.mockResolvedValue(new Set(["u2"]));
     runWebappPgTextMock

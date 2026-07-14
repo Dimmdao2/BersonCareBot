@@ -287,60 +287,40 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
         )
         .orderBy(asc(patientFiles.createdAt));
 
-      // Package data by clinical_visit.appointmentRecordId. The visit stores
-      // appointment_records.id, so resolve it to be_appointments through the
-      // native `be:<uuid>` projection or Rubitime external mapping first.
-      const packageByAppointmentRecordId = new Map<
+      const packageByCanonicalAppointmentId = new Map<
         string,
         { title: string; displayNumber: number | null }
       >();
-      const appointmentRecordIds = visitRows
-        .map((v) => v.appointmentRecordId)
+      const canonicalAppointmentIds = visitRows
+        .map((v) => v.canonicalAppointmentId)
         .filter((id): id is string => id != null);
-      if (appointmentRecordIds.length > 0) {
+      if (canonicalAppointmentIds.length > 0) {
         const idValues = sql.join(
-          appointmentRecordIds.map((id) => sql`(${id}::uuid)`),
+          canonicalAppointmentIds.map((id) => sql`(${id}::uuid)`),
           sql`, `,
         );
         const pkgRows = await db.execute<{
-          appointment_record_id: string;
+          canonical_appointment_id: string;
           title: string;
           display_number: number | null;
         }>(sql`
-          WITH visit_ar(id) AS (
+          WITH visit_be(id) AS (
             SELECT * FROM (VALUES ${idValues}) v(id)
-          ),
-          resolved AS (
-            SELECT
-              ar.id AS appointment_record_id,
-              COALESCE(be_from_id.id, be_from_map.id) AS be_appointment_id
-            FROM visit_ar va
-            JOIN appointment_records ar ON ar.id = va.id
-            LEFT JOIN be_external_entity_mappings appt_map
-              ON appt_map.entity_type = 'appointment'
-             AND appt_map.external_system = 'rubitime'
-             AND appt_map.external_id = ar.integrator_record_id
-            LEFT JOIN be_appointments be_from_map ON be_from_map.id = appt_map.canonical_id
-            LEFT JOIN be_appointments be_from_id ON be_from_id.id = CASE
-              WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                THEN (substring(ar.integrator_record_id from 4))::uuid
-              ELSE NULL
-            END
           )
-          SELECT DISTINCT ON (r.appointment_record_id)
-            r.appointment_record_id,
+          SELECT DISTINCT ON (vb.id)
+            vb.id AS canonical_appointment_id,
             pp.title,
             pp.display_number
-          FROM resolved r
+          FROM visit_be vb
           JOIN be_package_usages u
-            ON u.appointment_id = r.be_appointment_id
+            ON u.appointment_id = vb.id
            AND u.usage_kind IN ('consume', 'penalty')
           JOIN be_patient_packages pp ON pp.id = u.patient_package_id
-          ORDER BY r.appointment_record_id, u.occurred_at DESC, u.id DESC
+          ORDER BY vb.id, u.occurred_at DESC, u.id DESC
         `);
         for (const row of pkgRows.rows) {
-          if (!packageByAppointmentRecordId.has(row.appointment_record_id)) {
-            packageByAppointmentRecordId.set(row.appointment_record_id, {
+          if (!packageByCanonicalAppointmentId.has(row.canonical_appointment_id)) {
+            packageByCanonicalAppointmentId.set(row.canonical_appointment_id, {
               title: row.title,
               displayNumber: row.display_number,
             });
@@ -378,8 +358,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           .filter((f) => f.visitId === v.id)
           .map((f) => ({ id: f.id, icon: fileIconForMime(f.mimeType), name: f.fileName }));
 
-        const pkg = v.appointmentRecordId
-          ? (packageByAppointmentRecordId.get(v.appointmentRecordId) ?? null)
+        const pkg = v.canonicalAppointmentId
+          ? (packageByCanonicalAppointmentId.get(v.canonicalAppointmentId) ?? null)
           : null;
 
         return {
@@ -439,49 +419,23 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
     async createVisit(input: CreateVisitInput): Promise<string> {
       return runDrizzleMutationTransaction(async (tx) => {
         const organizationId = currentWriteOrganizationId();
-        if (input.appointmentRecordId) {
-          const appointment = await tx.execute<{ id: string }>(sql`
-            SELECT ar.id
-            FROM appointment_records ar
-            JOIN platform_users pu ON pu.id = ${input.patientUserId}::uuid
-            WHERE ar.id = ${input.appointmentRecordId}::uuid
-              AND ar.deleted_at IS NULL
-              AND (
-                ar.platform_user_id = pu.id
-                OR (
-                  ar.platform_user_id IS NULL
-                  AND ar.phone_normalized IS NOT NULL
-                  AND pu.phone_normalized IS NOT NULL
-                  AND pu.phone_normalized = ar.phone_normalized
-                  AND NOT EXISTS (
-                    SELECT 1 FROM user_phone_history h_other_claim
-                    WHERE h_other_claim.phone_normalized = ar.phone_normalized
-                      AND h_other_claim.platform_user_id <> pu.id
-                      AND h_other_claim.valid_from <= COALESCE(ar.record_at, ar.created_at)
-                      AND (
-                        h_other_claim.valid_to IS NULL
-                        OR h_other_claim.valid_to > COALESCE(ar.record_at, ar.created_at)
-                      )
-                  )
-                )
-                OR (
-                  ar.platform_user_id IS NULL
-                  AND ar.phone_normalized IS NOT NULL
-                  AND EXISTS (
-                    SELECT 1 FROM user_phone_history h
-                    WHERE h.platform_user_id = pu.id
-                      AND h.phone_normalized = ar.phone_normalized
-                      AND h.valid_from <= COALESCE(ar.record_at, ar.created_at)
-                      AND (
-                        h.valid_to IS NULL
-                        OR h.valid_to > COALESCE(ar.record_at, ar.created_at)
-                      )
-                  )
-                )
-              )
+        let canonicalAppointmentId = input.canonicalAppointmentId ?? null;
+        const canonicalCandidate = canonicalAppointmentId ?? input.appointmentRecordId ?? null;
+        if (canonicalCandidate) {
+          const canonicalAppointment = await tx.execute<{ id: string }>(sql`
+            SELECT bea.id
+            FROM be_appointments bea
+            WHERE bea.id = ${canonicalCandidate}::uuid
+              AND bea.platform_user_id = ${input.patientUserId}::uuid
+              AND bea.deleted_at IS NULL
+              AND (${organizationId}::uuid IS NULL OR bea.organization_id = ${organizationId}::uuid)
             LIMIT 1
           `);
-          if (!appointment.rows[0]) throw new Error("clinical_target_not_found");
+          if (canonicalAppointment.rows[0]) {
+            canonicalAppointmentId = canonicalCandidate;
+          } else {
+            throw new Error("clinical_target_not_found");
+          }
         }
         const insertedVisit = await tx
           .insert(clinicalVisit)
@@ -494,7 +448,8 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
             service: input.service ?? null,
             duration: input.duration ?? null,
             anamnesisText: input.anamnesisText ?? null,
-            appointmentRecordId: input.appointmentRecordId ?? null,
+            appointmentRecordId: null,
+            canonicalAppointmentId,
             exam: input.exam ?? null,
             manipulations: input.manipulations ?? null,
             trialResults: input.trialResults ?? null,
@@ -956,7 +911,10 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
       const organizationId = requiredPrincipalOrganizationId();
       const db = getDrizzle();
       const rows = await db
-        .select({ appointmentRecordId: clinicalVisit.appointmentRecordId })
+        .select({
+          canonicalAppointmentId: clinicalVisit.canonicalAppointmentId,
+          appointmentRecordId: clinicalVisit.appointmentRecordId,
+        })
         .from(clinicalVisit)
         .where(
           and(
@@ -966,7 +924,7 @@ export function createPgPatientClinicalPort(): PatientClinicalPort {
           ),
         );
       return rows
-        .map((r) => r.appointmentRecordId)
+        .map((r) => r.canonicalAppointmentId ?? r.appointmentRecordId)
         .filter((id): id is string => id != null);
     },
   };

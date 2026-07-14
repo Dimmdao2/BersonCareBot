@@ -1,14 +1,14 @@
 /**
  * GET /api/doctor/patients/[userId]/appointments/unlinked
  *
- * Returns the patient's appointment_records that do NOT yet have a linked
- * clinical visit (clinical_visit.appointment_record_id IS NULL for this record).
+ * Returns the patient's canonical appointments that do NOT yet have a linked
+ * clinical visit (clinical_visit.canonical_appointment_id IS NULL for this record).
  *
  * Used in the «Создать из записи» flow in NewVisitPanel.
  *
  * Response: { appointments: PatientAppointmentItem[] }
- * Each item includes `internalId` (appointment_records.id uuid) needed to set
- * appointmentRecordId when creating the visit.
+ * Each item includes `internalId` (canonical appointment uuid) needed to set the
+ * visit appointment link.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -42,7 +42,7 @@ export async function GET(
   );
 
   // Filter: keep only appointments not yet linked to a clinical visit.
-  // listPatientAppointments now returns internalId (appointment_records.id uuid).
+  // listPatientAppointments returns internalId (canonical appointment uuid).
   // We do this filter client-side here (no extra DB query) since the list is small
   // and the NOT EXISTS join would complicate the shared repo method.
   // To avoid stale "unlinked" data we cross-reference via the visits port:

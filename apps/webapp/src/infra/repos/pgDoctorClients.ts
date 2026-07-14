@@ -86,31 +86,6 @@ function appendSqlOrganizationColumn(
   };
 }
 
-function legacyAppointmentOrgPredicate(recordAlias: string, organizationId?: string): string {
-  if (!organizationId) return "TRUE";
-  return `(
-    (
-      ${recordAlias}.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-      AND EXISTS (
-        SELECT 1
-        FROM be_appointments bea_scope
-        WHERE bea_scope.id = (SUBSTRING(${recordAlias}.integrator_record_id FROM 4))::uuid
-          AND bea_scope.organization_id = ${sqlLiteralUuid(organizationId)}
-      )
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM be_external_entity_mappings m_scope
-      JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-      WHERE m_scope.external_id = ${recordAlias}.integrator_record_id
-        AND m_scope.entity_type = 'appointment'
-        AND m_scope.external_system = 'rubitime'
-        AND m_scope.organization_id = ${sqlLiteralUuid(organizationId)}
-        AND bea_scope.organization_id = ${sqlLiteralUuid(organizationId)}
-    )
-  )`;
-}
-
 function sqlLiteralUuid(value: string): string {
   return `'${value.replaceAll("'", "''")}'::uuid`;
 }
@@ -543,17 +518,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
-      // Fetch appointment_records attributed to this user via the canonical join.
-      // LEFT JOIN be_appointments (two paths) to surface package_usage_ref:
-      //   1. native: integrator_record_id = 'be:' || be_appointments.id
-      //   2. rubitime: via be_external_entity_mappings (external_id = integrator_record_id)
       const rows = await runWebappPgText<{
         internal_id: string;
         id: string;
-        record_at: Date | null;
+        record_at: Date | string | null;
         status: string;
-        last_event: string | null;
-        payload_json: { service_title?: string; duration_minutes?: number } | null;
+        service_title: string | null;
+        duration_minutes: number | null;
         branch_name: string | null;
         is_package: boolean | null;
         patient_package_id: string | null;
@@ -561,135 +532,26 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         package_display_number: number | null;
       }>(
         `SELECT
-           ar.id AS internal_id,
-           ar.integrator_record_id AS id,
-           ar.record_at,
-           ar.status,
-           ar.last_event,
-           ar.payload_json,
-           b.name AS branch_name,
-           COALESCE(
-             -- native be: path
-             CASE
-               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-               THEN (
-                 SELECT bea_n.package_usage_ref IS NOT NULL
-                 FROM be_appointments bea_n
-                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                 LIMIT 1
-               )
-             END,
-             -- rubitime path via be_external_entity_mappings
-             (
-               SELECT bea_r.package_usage_ref IS NOT NULL
-               FROM be_external_entity_mappings m
-               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
-               WHERE m.external_id = ar.integrator_record_id
-                 AND m.entity_type = 'appointment'
-                 AND m.external_system = 'rubitime'
-               LIMIT 1
-             )
-           ) AS is_package,
-           COALESCE(
-             CASE
-               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-               THEN (
-                 SELECT u_n.patient_package_id::text
-                 FROM be_appointments bea_n
-                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
-                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                 LIMIT 1
-               )
-             END,
-             (
-               SELECT u_r.patient_package_id::text
-               FROM be_external_entity_mappings m
-               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
-               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
-               WHERE m.external_id = ar.integrator_record_id
-                 AND m.entity_type = 'appointment'
-                 AND m.external_system = 'rubitime'
-               LIMIT 1
-             )
-           ) AS patient_package_id,
-           COALESCE(
-             CASE
-               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-               THEN (
-                 SELECT pp_n.title
-                 FROM be_appointments bea_n
-                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
-                 JOIN be_patient_packages pp_n ON pp_n.id = u_n.patient_package_id
-                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                 LIMIT 1
-               )
-             END,
-             (
-               SELECT pp_r.title
-               FROM be_external_entity_mappings m
-               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
-               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
-               JOIN be_patient_packages pp_r ON pp_r.id = u_r.patient_package_id
-               WHERE m.external_id = ar.integrator_record_id
-                 AND m.entity_type = 'appointment'
-                 AND m.external_system = 'rubitime'
-               LIMIT 1
-             )
-           ) AS package_title,
-           COALESCE(
-             CASE
-               WHEN ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-               THEN (
-                 SELECT pp_n.display_number
-                 FROM be_appointments bea_n
-                 JOIN be_package_usages u_n ON u_n.id::text = bea_n.package_usage_ref
-                 JOIN be_patient_packages pp_n ON pp_n.id = u_n.patient_package_id
-                 WHERE bea_n.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                 LIMIT 1
-               )
-             END,
-             (
-               SELECT pp_r.display_number
-               FROM be_external_entity_mappings m
-               JOIN be_appointments bea_r ON bea_r.id = m.canonical_id
-               JOIN be_package_usages u_r ON u_r.id::text = bea_r.package_usage_ref
-               JOIN be_patient_packages pp_r ON pp_r.id = u_r.patient_package_id
-               WHERE m.external_id = ar.integrator_record_id
-                 AND m.entity_type = 'appointment'
-                 AND m.external_system = 'rubitime'
-               LIMIT 1
-             )
-           ) AS package_display_number
-         FROM platform_users pu
-         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
-         LEFT JOIN branches b ON ar.branch_id = b.id
-         WHERE pu.id = $1::uuid
-           AND ar.id IS NOT NULL
-           AND ar.deleted_at IS NULL
-           AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
-           AND (
-             $2::uuid IS NULL
-             OR (
-               ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-               AND EXISTS (
-                 SELECT 1
-                 FROM be_appointments bea_scope
-                 WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                   AND bea_scope.organization_id = $2::uuid
-               )
-             )
-             OR EXISTS (
-               SELECT 1
-               FROM be_external_entity_mappings m_scope
-               JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-               WHERE m_scope.external_id = ar.integrator_record_id
-                 AND m_scope.entity_type = 'appointment'
-                 AND m_scope.external_system = 'rubitime'
-                 AND m_scope.organization_id = $2::uuid
-                 AND bea_scope.organization_id = $2::uuid
-             )
-           )
-         ORDER BY ar.record_at DESC NULLS LAST`,
+           bea.id::text AS internal_id,
+           bea.id::text AS id,
+           bea.start_at AS record_at,
+           bea.status,
+           svc.title AS service_title,
+           bea.duration_minutes,
+           br.title AS branch_name,
+           (bea.package_usage_ref IS NOT NULL)::boolean AS is_package,
+           u.patient_package_id::text AS patient_package_id,
+           pp.title AS package_title,
+           pp.display_number AS package_display_number
+         FROM be_appointments bea
+         LEFT JOIN be_branches br ON br.id = bea.branch_id
+         LEFT JOIN be_clinic_services svc ON svc.id = bea.service_id
+         LEFT JOIN be_package_usages u ON u.id::text = bea.package_usage_ref
+         LEFT JOIN be_patient_packages pp ON pp.id = u.patient_package_id
+         WHERE bea.platform_user_id = $1::uuid
+           AND bea.deleted_at IS NULL
+           AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+         ORDER BY bea.start_at DESC`,
         [canonicalId, organizationId ?? null],
       );
 
@@ -698,10 +560,18 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       return rows.rows.map((row): PatientAppointmentItem => {
         const recordAtMs = row.record_at ? new Date(row.record_at).getTime() : null;
         const isPast = recordAtMs !== null && recordAtMs < now;
-        const payload = row.payload_json ?? {};
 
         let status: PatientAppointmentItem["status"];
         if (row.status === "canceled") {
+          status = "canceled";
+        } else if (row.status === "rescheduled") {
+          status = "rescheduled";
+        } else if (
+          row.status === "cancelled_by_patient"
+          || row.status === "cancelled_by_specialist"
+          || row.status === "late_cancellation"
+          || row.status === "no_show"
+        ) {
           status = "canceled";
         } else if (row.status === "updated") {
           // «updated» = перенесённая запись — показываем актуальный слот
@@ -711,7 +581,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           status = isPast ? "completed" : "upcoming";
         }
 
-        const durationRaw = (payload as { duration_minutes?: unknown }).duration_minutes;
+        const durationRaw = row.duration_minutes;
         const durationMin =
           typeof durationRaw === "number" && Number.isFinite(durationRaw)
             ? Math.round(durationRaw)
@@ -722,7 +592,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           internalId: row.internal_id ?? null,
           dateTime: row.record_at ? new Date(row.record_at).toISOString() : "",
           status,
-          serviceName: (payload.service_title && payload.service_title.trim()) || null,
+          serviceName: (row.service_title && row.service_title.trim()) || null,
           location: row.branch_name ?? null,
           durationMin,
           isPackage: row.is_package ?? null,

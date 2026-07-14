@@ -16,7 +16,7 @@
  *   - Branch dropdown now filters services by location (booking-engine locationAvailability).
  *   - Calendar icon (📅) appears next to branch/service when a source appointment is linked;
  *     clicking it shows a read-only mini-modal with appointment details.
- *   - appointmentRecordId sent on save when created from a booking.
+ *   - canonical appointment id sent on save when created from a booking.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -424,7 +424,7 @@ export function NewVisitPanel({
   /**
    * The booking this visit is being created from (optional).
    * When set: appointment info is shown via calendar icon (📅).
-   * When saving: appointmentRecordId (internalId) is included in the POST body.
+   * When saving: appointmentRecordId compatibility field carries the canonical internalId.
    */
   sourceAppointment?: PatientAppointmentItem | null;
   /** Called once after this component captures pending props into state. */
@@ -844,7 +844,7 @@ export function NewVisitPanel({
       service: service.trim() || undefined,
       duration: duration.trim() || undefined,
       anamnesisText: anamnesisText.trim() || undefined,
-      // appointmentRecordId links the visit to the source booking (uses internalId = appointment_records.id uuid)
+      // appointmentRecordId is a compatibility request field; internalId is the canonical appointment uuid.
       ...(sourceAppointment?.internalId
         ? { appointmentRecordId: sourceAppointment.internalId }
         : {}),

@@ -229,6 +229,7 @@ export type CreateVisitInput = {
   service?: string | null;
   duration?: string | null;
   anamnesisText?: string | null;
+  canonicalAppointmentId?: string | null;
   appointmentRecordId?: string | null;
   exam?: string | null;
   manipulations?: string | null;
