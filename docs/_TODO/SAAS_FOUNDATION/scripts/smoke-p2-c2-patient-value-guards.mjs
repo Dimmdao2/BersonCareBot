@@ -333,61 +333,77 @@ WHERE user_id = ${quoteLiteral(legacyUserA)}
   AND channel_code = 'max' \gset
 ${fatal("p2_c2_legacy_platform_owned_update_allowed", "patient must update legacy channel preference rows owned by platform_user_id")}
 
-\set ON_ERROR_STOP off
-INSERT INTO public.user_channel_preferences (
-  user_id, platform_user_id, channel_code, is_preferred_for_auth
-) VALUES (
-  ${quoteLiteral(legacyUserA)}, ${quoteLiteral(patientA)}::uuid, 'email', true
-);
-\set ON_ERROR_STOP on
-\if :ERROR
+DO $$
+BEGIN
+  INSERT INTO public.user_channel_preferences (
+    user_id, platform_user_id, channel_code, is_preferred_for_auth
+  ) VALUES (
+    ${quoteLiteral(legacyUserA)}, ${quoteLiteral(patientA)}::uuid, 'email', true
+  );
+
+  RAISE EXCEPTION 'patient created a second preferred auth channel through a mixed legacy row';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_channel_preference_auth_preferred_already_exists' THEN
+      RAISE;
+    END IF;
+END;
+$$;
 \echo 'CONFIRMED: patient cannot create a second preferred auth channel through a mixed legacy row.'
-\else
-\echo 'FATAL: patient created a second preferred auth channel through a mixed legacy row.'
-SELECT 1/0;
-\endif
 
-\set ON_ERROR_STOP off
-INSERT INTO public.user_channel_preferences (
-  user_id, platform_user_id, channel_code, is_preferred_for_auth
-) VALUES (
-  ${quoteLiteral(patientA)}, ${quoteLiteral(patientA)}::uuid, 'web_push', true
-);
-\set ON_ERROR_STOP on
-\if :ERROR
+DO $$
+BEGIN
+  INSERT INTO public.user_channel_preferences (
+    user_id, platform_user_id, channel_code, is_preferred_for_auth
+  ) VALUES (
+    ${quoteLiteral(patientA)}, ${quoteLiteral(patientA)}::uuid, 'web_push', true
+  );
+
+  RAISE EXCEPTION 'patient preferred a non-auth channel';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_channel_preference_auth_channel_forbidden' THEN
+      RAISE;
+    END IF;
+END;
+$$;
 \echo 'CONFIRMED: patient cannot prefer a non-auth channel.'
-\else
-\echo 'FATAL: patient preferred a non-auth channel.'
-SELECT 1/0;
-\endif
 
-\set ON_ERROR_STOP off
-INSERT INTO public.user_channel_preferences (
-  user_id, platform_user_id, channel_code, is_preferred_for_auth
-) VALUES (
-  ${quoteLiteral(patientB)}, ${quoteLiteral(patientB)}::uuid, 'sms', false
-);
-\set ON_ERROR_STOP on
-\if :ERROR
+DO $$
+BEGIN
+  INSERT INTO public.user_channel_preferences (
+    user_id, platform_user_id, channel_code, is_preferred_for_auth
+  ) VALUES (
+    ${quoteLiteral(patientB)}, ${quoteLiteral(patientB)}::uuid, 'sms', false
+  );
+
+  RAISE EXCEPTION 'patient inserted channel preference for another user';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_channel_preference_new_row_not_owned' THEN
+      RAISE;
+    END IF;
+END;
+$$;
 \echo 'CONFIRMED: patient cannot insert channel preference for another user.'
-\else
-\echo 'FATAL: patient inserted channel preference for another user.'
-SELECT 1/0;
-\endif
 
-\set ON_ERROR_STOP off
-INSERT INTO public.user_channel_preferences (
-  user_id, platform_user_id, channel_code, is_preferred_for_auth
-) VALUES (
-  ${quoteLiteral(patientA)}, ${quoteLiteral(patientA)}::uuid, 'sms', true
-);
-\set ON_ERROR_STOP on
-\if :ERROR
+DO $$
+BEGIN
+  INSERT INTO public.user_channel_preferences (
+    user_id, platform_user_id, channel_code, is_preferred_for_auth
+  ) VALUES (
+    ${quoteLiteral(patientA)}, ${quoteLiteral(patientA)}::uuid, 'sms', true
+  );
+
+  RAISE EXCEPTION 'patient created two preferred auth channels for one user';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_channel_preference_auth_preferred_already_exists' THEN
+      RAISE;
+    END IF;
+END;
+$$;
 \echo 'CONFIRMED: unique index keeps one preferred auth channel per user.'
-\else
-\echo 'FATAL: patient created two preferred auth channels for one user.'
-SELECT 1/0;
-\endif
 
 UPDATE public.user_channel_preferences
 SET is_preferred_for_auth = false
@@ -399,17 +415,21 @@ INSERT INTO public.user_channel_preferences (
   ${quoteLiteral(patientA)}, ${quoteLiteral(patientA)}::uuid, 'sms', true
 );
 
-\set ON_ERROR_STOP off
-UPDATE public.user_channel_preferences
-SET channel_code = 'web_push'
-WHERE user_id = ${quoteLiteral(patientA)} AND channel_code = 'sms';
-\set ON_ERROR_STOP on
-\if :ERROR
+DO $$
+BEGIN
+  UPDATE public.user_channel_preferences
+  SET channel_code = 'web_push'
+  WHERE user_id = ${quoteLiteral(patientA)} AND channel_code = 'sms';
+
+  RAISE EXCEPTION 'patient updated preferred auth channel to a non-auth channel';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_channel_preference_auth_channel_forbidden' THEN
+      RAISE;
+    END IF;
+END;
+$$;
 \echo 'CONFIRMED: patient cannot update preferred auth channel to a non-auth channel.'
-\else
-\echo 'FATAL: patient updated preferred auth channel to a non-auth channel.'
-SELECT 1/0;
-\endif
 
 INSERT INTO public.reminder_rules (
   integrator_rule_id, organization_id, platform_user_id, integrator_user_id, category,

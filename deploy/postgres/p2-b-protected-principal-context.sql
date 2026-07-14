@@ -112,6 +112,7 @@ $$;
 CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION :"p2_b_owner_role";
 ALTER SCHEMA app OWNER TO :"p2_b_owner_role";
 
+GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role";
 GRANT USAGE ON SCHEMA app TO :"p2_b_staff_role", :"p2_b_patient_role";
 
 SET ROLE :"p2_b_owner_role";

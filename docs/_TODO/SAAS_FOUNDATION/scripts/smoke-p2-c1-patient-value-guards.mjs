@@ -346,6 +346,25 @@ WHERE instance_id = ${quoteLiteral(instanceA)}::uuid
   AND event_type = 'status_changed' \gset
 ${fatal("p2_c1_event_actor_filled", "patient treatment event trigger must fill actor_id")}
 
+DO $$
+BEGIN
+  INSERT INTO public.treatment_program_events (
+    organization_id, instance_id, event_type, target_type, target_id, payload
+  ) VALUES (
+    ${quoteLiteral(orgB)}::uuid, ${quoteLiteral(instanceB)}::uuid,
+    'status_changed', 'stage_item', ${quoteLiteral(itemA)}::uuid, '{}'::jsonb
+  );
+
+  RAISE EXCEPTION 'patient wrote treatment_program_events for cross-org/cross-patient instance';
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM IS DISTINCT FROM 'patient_treatment_event_instance_not_owned' THEN
+      RAISE;
+    END IF;
+END;
+$$;
+\echo 'CONFIRMED: patient cannot write treatment_program_events for cross-org/cross-patient instance.'
+
 \set ON_ERROR_STOP off
 INSERT INTO public.treatment_program_events (
   organization_id, instance_id, actor_id, event_type, target_type, target_id, payload

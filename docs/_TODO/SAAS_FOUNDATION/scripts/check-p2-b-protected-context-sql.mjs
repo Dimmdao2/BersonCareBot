@@ -42,6 +42,7 @@ requireFragments("P2-B ops SQL", opsSql, [
   "CREATE OR REPLACE FUNCTION app.install_signed_context(",
   "SECURITY DEFINER",
   "SET search_path = app, app_ext, pg_catalog",
+  "GRANT USAGE ON SCHEMA app_ext TO :\"p2_b_owner_role\";",
   "p_signature_hex IS NULL OR p_signature_hex !~ '^[0-9a-fA-F]{64}$'",
   "lower(p_signature_hex) IS DISTINCT FROM v_expected",
   "CREATE OR REPLACE FUNCTION app.current_org_id() RETURNS uuid",
