@@ -1,12 +1,23 @@
 # Rubitime retirement — execution plan
 
-Статус: R3 patient/public slots/create canonical-only and R3-TENANT exact runtime tenant closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
+Статус: R1-R4 closed in working branch, 2026-07-14. R5 closed for code/non-prod proof but still needs
+production monitoring/approval. R6/R7 are gated by owner-approved cutoff/drain and archive/drop proof.
+Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только
+отдельными phase-коммитами с proof-документами ниже.
 
-**Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix, placeholder bookings Дмитрия Берсона, specialist consolidation и R1 aggregate audits. Этот execution plan не заменяет runbook.
+**Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там
+сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix,
+placeholder bookings Дмитрия Берсона, specialist consolidation, R1 aggregate audits и порядок R2-R7 gates. Этот
+execution plan не заменяет runbook.
 
 Sol audit `bcb-rubitime-retirement-plan-sol-audit-2026-07-14` вернул исходному черновику `BLOCKED`. Этот документ обновлён с учётом обязательных P0/P1 правок: dual-source history, provider-neutral lifecycle, tenant-safe public booking, table-by-table catalog disposition, cutoff/drain и запрет удаления живых canonical maps.
 
 Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул `FAIL` только для старого локального dump: он не проходил текущую migration chain и не имел точного cutoff CSV. Этот fail superseded более поздним `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`: свежий current prod dump прошел approved sequence по `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` с pre-migration owner doctor/admin data-fix, `scripts/deploy-saas-667.sh`, placeholder cleanup, specialist consolidation, exact cutoff CSV и aggregate preflight/audits. Детали: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+
+**Current canon:** fresh Rubitime CSV decides record preservation. `integrator.rubitime_records` is audit-only when
+the CSV exists. Integrator-only rows absent from the fresh CSV must not be imported/resurrected and must not block
+R1/R2. Counts like `legacy-only=290/312` are archive deltas between `appointment_records` and
+`integrator.rubitime_records`, not a list of dirty visible records.
 
 ## 1. Verdict
 

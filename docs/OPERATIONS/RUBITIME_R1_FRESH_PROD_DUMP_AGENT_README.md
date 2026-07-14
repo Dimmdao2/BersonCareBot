@@ -1,15 +1,47 @@
-# Rubitime retirement fresh prod-dump agent README
+# Rubitime retirement agent README
 
-Статус: операционный старт для агентов, рабочая ветка `feat/doctor-ui-rebuild`, 2026-07-14.
+Статус: единая операционная точка входа для агентов, рабочая ветка `feat/doctor-ui-rebuild`, 2026-07-14.
 
-Цель: один понятный порядок действий для агента, которому нужно подготовить свежий prod dump к
-Rubitime retirement / canonical booking proof. Не начинать с нового SQL и не придумывать новые
+Цель: один понятный порядок действий для агента, которому нужно продолжать Rubitime retirement или
+подготовить свежий prod dump к canonical booking proof. Не начинать с нового SQL и не придумывать новые
 backfill/data-fix скрипты: в рабочей ветке уже есть выверенные scripts, deploy-wrappers и audit docs.
 
 Последний green proof: dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`
 → disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` → `scripts/deploy-saas-667.sh`
 PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подробный агрегатный отчет:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+
+Главный execution plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
+Этот README отвечает на вопрос "что читать и что делать сначала". Execution plan отвечает на вопрос
+"какие phase-gates еще не закрыты".
+
+## Быстрый ответ для следующего агента
+
+1. Работай в `feat/doctor-ui-rebuild`, не в `main`.
+2. Сначала прочитай этот README, потом execution plan и перечисленные ниже runbook/script-файлы.
+3. Для состава Rubitime-записей канон — свежая выгрузка Rubitime CSV, а не `integrator.rubitime_records`.
+4. Записи, которых нет в свежем CSV, не импортировать и не воскресать в canonical только из-за integrator raw state.
+5. Числа `legacy-only=290/312` означают расхождение архивов `appointment_records` и `integrator.rubitime_records`.
+   Это не список видимых грязных записей и не самостоятельный blocker, если CSV-present rows закрыты.
+6. Для clean dump уже есть валидный путь: owner doctor/admin pre-fix → `scripts/deploy-saas-667.sh` или
+   `deploy/host/deploy-test-saas.sh` → placeholder booking purge → specialist consolidation → canonical backfill
+   → R1 aggregate audits → doctor UI smoke.
+7. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
+   `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`.
+8. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
+
+## Что сказал Sol / что из этого следует
+
+Sol-проверка старого локального dump была полезным FAIL: простой путь "restore + plain migrate + новый backfill"
+не является валидным rehearsal. Причина не в Rubitime как каноне, а в неполной/устаревшей копии и отсутствии
+обязательных входов текущего процесса.
+
+После этого свежий current prod dump прошел корректный approved sequence. Поэтому текущий вывод такой:
+
+- R1 clean-copy proof закрывается существующими wrapper/scripts, а не новым SQL.
+- Replay годится только для свежей текущей копии с тем же owner CSV и resolver decisions.
+- При наличии свежего Rubitime CSV `integrator.rubitime_records` остается diagnostic/audit source.
+- Следующие фазы должны идти по execution plan; нельзя перескакивать через R6 cutoff/drain и R7 archive/drop gates.
 
 ## Главный инвариант данных
 
@@ -42,6 +74,10 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
   состав данных.
 - Не требовать `appointment_records` vs `integrator.rubitime_records` delta = 0. Требовать только, чтобы каждая
   CSV-present запись была imported/mapped/owner-waived.
+- Не объяснять остатки `legacy-only` как "активные проблемы", пока не сверены CSV-present buckets. Понятный язык:
+  "это архивная разница между источниками; живой канон решает свежий CSV".
+- Не снимать Rubitime runtime routes до R6 cutoff/drain proof. Если proof не готов, фиксируй это как gate, а не
+  делай преждевременное удаление.
 
 ## 1. Что читать на старте
 
@@ -353,3 +389,20 @@ PII в чат и отчеты не печатать.
 - ссылка на commit с документацией/правками.
 
 `accepted` в taskdb не ставить: это делает только владелец.
+
+## 7. Порядок после R1
+
+После R1 агент не начинает новую миграцию наугад. Он сверяет execution plan и двигается по phase-gates.
+
+| Phase | Что считается gate | Что нельзя делать раньше |
+| --- | --- | --- |
+| R2 | doctor calendar/list/KPI читают canonical, старый doctor read-source не нужен | не удалять raw/provider tables |
+| R3 | patient/public slots/create canonical-only, tenant exact, catalog decisions закрыты | не использовать `booking_default_organization_id` как booking fallback |
+| R4 | GCal, reminders, notifications, payment/package side effects идут из provider-neutral lifecycle | не удалять lifecycle alias, если webapp еще зовет старый путь |
+| R5 | legacy v1 Rubitime profile resolve disabled and monitored | не считать non-prod proof production approval |
+| R6 | owner cutoff timestamp, disabled provider ingress/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation | не unmount Rubitime webhook/M2M routes and raw runtime code |
+| R7 | archive/drop decision, export/backup, fresh restore+migrate proof, no runtime refs | не drop/archive tables |
+
+Текущая рабочая позиция по execution plan: R1-R4 закрыты в ветке; R5 закрыт в коде/non-prod proof, но production
+monitoring/approval еще не закрыты; R6/R7 остаются gated операциями. Если пользователь не дал прямую команду на
+production cutoff, агент работает только с repo docs/code/tests и не трогает prod DB/env/services.
