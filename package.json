@@ -43,6 +43,7 @@
     "check:rubitime-retirement-current": "node docs/_TODO/SAAS_FOUNDATION/scripts/run-rubitime-retirement-gate.mjs --mode=current",
     "check:rubitime-retirement-complete": "node docs/_TODO/SAAS_FOUNDATION/scripts/run-rubitime-retirement-gate.mjs --mode=complete",
     "check:saas-product-smoke-contract": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs",
+    "check:saas-a2-nginx-forwarded-host": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs --self-test",
     "smoke:saas-product": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-lint": "pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",

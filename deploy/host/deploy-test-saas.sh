@@ -42,6 +42,32 @@ log(){ echo; echo "== [deploy-test-saas] $* =="; }
 revoke_bypass(){ sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $DBROLE NOBYPASSRLS;" >/dev/null 2>&1 || true; }
 trap revoke_bypass EXIT   # NEVER leave BYPASSRLS on
 
+run_a2_nginx_preflight(){
+  local dump_file
+  dump_file="$(mktemp /tmp/bcb-nginx-dump.XXXXXX)"
+  sudo nginx -T >"$dump_file" 2>/tmp/bcb-nginx-dump.err
+  node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs --nginx-dump="$dump_file"
+  rm -f "$dump_file" /tmp/bcb-nginx-dump.err
+}
+
+run_a2_product_smoke_if_configured(){
+  if [ -z "${SAAS_PRODUCT_SMOKE_FIXTURE:-}" ]; then
+    echo "   saas product smoke: skipped (SAAS_PRODUCT_SMOKE_FIXTURE not set)"
+    return 0
+  fi
+
+  [ -r "$SAAS_PRODUCT_SMOKE_FIXTURE" ] || { echo "FATAL: SAAS_PRODUCT_SMOKE_FIXTURE is not readable: $SAAS_PRODUCT_SMOKE_FIXTURE"; exit 1; }
+  local smoke_dir
+  smoke_dir="${SAAS_PRODUCT_SMOKE_OUTPUT_DIR:-/tmp/bcb-saas-product-smoke}"
+  mkdir -p "$smoke_dir"
+  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs \
+    --mode="${SAAS_PRODUCT_SMOKE_MODE:-dormant}" \
+    --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
+    --fixture-file="$SAAS_PRODUCT_SMOKE_FIXTURE" \
+    --json-output="$smoke_dir/saas-product-smoke.json" \
+    --junit-output="$smoke_dir/saas-product-smoke.junit.xml"
+}
+
 # 0. preflight (env files are deploy-owned → check as deploy, not as dev)
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
@@ -133,5 +159,9 @@ for u in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$u-test"; done
 sleep 4
 for u in "${UNITS[@]}"; do printf "   %-13s %s\n" "$u:" "$(systemctl is-active "bersoncarebot-$u-test")"; done
 echo -n "   health: "; curl -sk --max-time 10 https://test.bersoncare.ru/api/health || true; echo
+log "A2 nginx forwarded-host preflight"
+run_a2_nginx_preflight
+log "A2 product smoke gate"
+run_a2_product_smoke_if_configured
 echo "   awg-quick@awg0 (must stay active): $(systemctl is-active awg-quick@awg0)"
 log "DONE — clean dormant deploy from zero (walls DORMANT / legacy-guc)"

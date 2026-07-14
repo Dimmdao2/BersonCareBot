@@ -77,3 +77,15 @@ Fixture files may contain real TEST auth material and must live outside the repo
 
 This stage creates the oracle and self-tests it. It does not claim R1 product parity and does not prove G1 on a live
 fresh-copy deployment until an owner-authorized fixture/base URL is provided.
+
+## A2 Integration
+
+Phase A2 adds the nginx forwarded-host contract:
+
+```bash
+pnpm run check:saas-a2-nginx-forwarded-host
+```
+
+`deploy/host/deploy-test-saas.sh` runs the same check against `nginx -T` after TEST unit restart, and runs this
+product smoke only when `SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture` is supplied by the
+operator. Without that fixture it skips the product smoke instead of inventing proof.
