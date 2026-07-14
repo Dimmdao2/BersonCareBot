@@ -880,15 +880,15 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R3-CATALOG — public booking catalog migration
 
-- [ ] table-by-table disposition exists for `booking_cities`.
-- [ ] table-by-table disposition exists for `booking_branches`.
-- [ ] table-by-table disposition exists for `booking_branch_services`.
-- [ ] table-by-table disposition exists for `booking_services`.
-- [ ] table-by-table disposition exists for `booking_specialists`.
-- [ ] public catalog reads `be_*` or approved compatibility views.
-- [ ] public slots use canonical catalog ids.
-- [ ] public create uses canonical catalog ids.
-- [ ] legacy branch/service ids are removed from primary public API contract.
+- [x] table-by-table disposition exists for `booking_cities`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`.)*
+- [x] table-by-table disposition exists for `booking_branches`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`.)*
+- [x] table-by-table disposition exists for `booking_branch_services`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`; legacy `branchServiceId` remains bounded compatibility.)*
+- [x] table-by-table disposition exists for `booking_services`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`.)*
+- [x] table-by-table disposition exists for `booking_specialists`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`.)*
+- [x] public catalog reads `be_*` or approved compatibility views. *(Authenticated patient catalog reads `be_*`; generic public catalog fails closed until host/link org source exists.)*
+- [x] public slots use canonical catalog ids. *(Primary contract is `branchId+serviceId`; legacy `branchServiceId` is compatibility input.)*
+- [x] public create uses canonical catalog ids. *(Primary contract is `branchId+serviceId`; legacy `branchServiceId` is compatibility input.)*
+- [x] legacy branch/service ids are removed from primary public API contract. *(Deprecated `branchServiceId` remains only compatibility.)*
 - [ ] no patient/public runtime read remains on public `booking_*`.
 - [ ] compatibility adapters have a bounded removal date.
 

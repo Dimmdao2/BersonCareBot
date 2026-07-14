@@ -66,7 +66,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
   const publishedHelpSlugs = new Set(helpArticles.map((a) => a.slug));
   const addressHref = resolvePatientAddressHref(publishedHelpSlugs, bookingCityCode);
 
-  const citiesCatalog = await loadBookingCitiesForPatientRsc();
+  const citiesCatalog = await loadBookingCitiesForPatientRsc(session.user.userId);
   const catalogCities = citiesCatalog.ok ? citiesCatalog.cities : [];
   const catalogCitiesError = citiesCatalog.ok ? null : "Не удалось загрузить каталог городов. Попробуйте ещё раз.";
 

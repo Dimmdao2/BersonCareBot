@@ -1,10 +1,21 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 import {
+  listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
   resolveActiveBranchForCity,
   type InPersonServiceListItem,
 } from "@/modules/patient-booking/inPersonServicesCatalog";
+
+type PatientOrganizationServiceLike = {
+  resolveActiveOrganizationForPatient(
+    platformUserId: string,
+  ): Promise<
+    | { ok: true; organizationId: string }
+    | { ok: false; reason: "no_active_enrollment" }
+    | { ok: false; reason: "organization_selection_required"; organizationIds: string[] }
+  >;
+};
 
 export type LoadCitiesResult =
   | { ok: true; cities: BookingCity[] }
@@ -20,28 +31,42 @@ export type LoadInPersonServicesResult =
     }
   | { ok: false; error: "catalog_unavailable" | "city_not_found"; services: [] };
 
-/** RSC: каталог городов (тот же источник, что `GET /api/booking/catalog/cities`). */
-export async function loadBookingCitiesForPatientRsc(): Promise<LoadCitiesResult> {
+async function resolvePatientOrganizationId(
+  deps: { patientOrganization: PatientOrganizationServiceLike | null },
+  platformUserId: string | undefined,
+): Promise<string | null> {
+  if (!platformUserId || !deps.patientOrganization) return null;
+  const resolved = await deps.patientOrganization.resolveActiveOrganizationForPatient(platformUserId);
+  return resolved.ok ? resolved.organizationId : null;
+}
+
+/** RSC: canonical catalog cities for an authenticated patient organization. */
+export async function loadBookingCitiesForPatientRsc(platformUserId: string): Promise<LoadCitiesResult> {
   const deps = buildAppDeps();
-  if (!deps.bookingCatalog) {
+  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  if (!organizationId) {
     return { ok: false, error: "catalog_unavailable", cities: [] };
   }
   try {
-    const cities = await deps.bookingCatalog.listCitiesForPatient();
+    const cities = await listInPersonCitiesForOrganization(deps, organizationId);
+    if (!cities) return { ok: false, error: "catalog_unavailable", cities: [] };
     return { ok: true, cities };
   } catch {
     return { ok: false, error: "catalog_unavailable", cities: [] };
   }
 }
 
-/** RSC: canonical услуги локации по cityCode (первая активная локация города). */
-export async function loadInPersonServicesForCityRsc(cityCode: string): Promise<LoadInPersonServicesResult> {
+/** RSC: canonical services for an authenticated patient organization and city. */
+export async function loadInPersonServicesForCityRsc(
+  cityCode: string,
+  platformUserId?: string,
+): Promise<LoadInPersonServicesResult> {
   const deps = buildAppDeps();
-  if (!deps.bookingEngine) {
+  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  if (!deps.bookingEngine || !organizationId) {
     return { ok: false, error: "catalog_unavailable", services: [] };
   }
   try {
-    const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
     const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
     if (!branch) {
       return { ok: false, error: "city_not_found", services: [] };

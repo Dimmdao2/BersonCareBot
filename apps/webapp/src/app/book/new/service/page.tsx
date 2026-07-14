@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ServiceStepClient } from "@/app/app/patient/booking/new/service/ServiceStepClient";
 import { loadInPersonServicesForCityRsc } from "@/app/app/patient/booking/bookingCatalogRsc";
 import { publicBookPaths } from "@/shared/publicBook/paths";

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
-const listCitiesMock = vi.hoisted(() => vi.fn());
+const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
+const listBranchesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -9,13 +10,23 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    bookingCatalog: { listCitiesForPatient: listCitiesMock },
+    patientOrganization: {
+      resolveActiveOrganizationForPatient: resolveActiveOrganizationForPatientMock,
+    },
+    bookingEngine: {
+      catalog: {
+        listBranches: listBranchesMock,
+      },
+    },
   }),
 }));
 
 import { GET } from "./route";
 
 const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+const ORG_ID = "22222222-2222-4222-8222-222222222222";
+
+resolveActiveOrganizationForPatientMock.mockResolvedValue({ ok: true, organizationId: ORG_ID });
 
 describe("GET /api/booking/catalog/cities", () => {
   it("returns 401 when not authenticated", async () => {
@@ -26,7 +37,9 @@ describe("GET /api/booking/catalog/cities", () => {
 
   it("returns cities when catalog available", async () => {
     getCurrentSessionMock.mockResolvedValue(patientClientSession);
-    listCitiesMock.mockResolvedValue([{ id: "c1", code: "moscow", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" }]);
+    listBranchesMock.mockResolvedValue([
+      { id: "b1", cityCode: "moscow", title: "Москва. Точка Здоровья", isActive: true, sortOrder: 0 },
+    ]);
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();

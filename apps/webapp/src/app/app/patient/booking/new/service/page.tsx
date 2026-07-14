@@ -24,7 +24,7 @@ export default async function BookingNewServicePage({ searchParams }: Props) {
     redirect(routePaths.bookingNew);
   }
 
-  const servicesCatalog = await loadInPersonServicesForCityRsc(cityCode);
+  const servicesCatalog = await loadInPersonServicesForCityRsc(cityCode, session.user.userId);
   if (!servicesCatalog.ok && servicesCatalog.error === "city_not_found") {
     redirect(routePaths.bookingNew);
   }

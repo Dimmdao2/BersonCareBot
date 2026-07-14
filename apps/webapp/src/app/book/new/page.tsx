@@ -1,8 +1,10 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseBookingAttributionFromSearchParams } from "@/modules/booking-attribution/parseBookingAttribution";
+import { titleForBookingCityCode } from "@/modules/patient-booking/inPersonServicesCatalog";
 import { publicBookPaths } from "@/shared/publicBook/paths";
 import { PublicBookingShell } from "../PublicBookingShell";
 import { PublicFormatStepClient } from "./PublicFormatStepClient";
+import type { BookingCity } from "@/modules/booking-catalog/types";
 
 export const dynamic = "force-dynamic";
 
@@ -29,17 +31,8 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   const attr = parseBookingAttributionFromSearchParams(sp);
 
   const deps = buildAppDeps();
-  let cities: Awaited<ReturnType<NonNullable<typeof deps.bookingCatalog>["listCitiesForPatient"]>> = [];
-  let catalogError: string | null = null;
-  if (deps.bookingCatalog) {
-    try {
-      cities = await deps.bookingCatalog.listCitiesForPatient();
-    } catch {
-      catalogError = "Не удалось загрузить каталог.";
-    }
-  } else {
-    catalogError = "Каталог недоступен.";
-  }
+  const cities: BookingCity[] = [];
+  const catalogError: string | null = "Каталог недоступен.";
 
   const { redirect } = await import("next/navigation");
 
@@ -57,44 +50,27 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
   }
 
   const branchServiceId = attr.branchServiceId;
-  if (branchServiceId && deps.bookingScheduling) {
+  if (branchServiceId && deps.bookingScheduling && deps.bookingEngine) {
     try {
       const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
-      const legacy =
-        deps.bookingCatalog != null
-          ? await deps.bookingCatalog.resolveBranchService(branchServiceId).catch(() => null)
-          : null;
-      const cityCode = legacy?.city.code ?? "";
-      const cityTitle = legacy?.city.title ?? "";
-      const title = legacy?.service.title ?? "";
-      const dur = legacy?.service.durationMinutes ?? 60;
       if (ctx?.branchId && ctx.serviceId) {
+        const [branch, service] = await Promise.all([
+          deps.bookingEngine.catalog.getBranch(ctx.branchId),
+          deps.bookingEngine.services.getService(ctx.serviceId),
+        ]);
+        if (!branch || !service || branch.organizationId !== ctx.organizationId || service.organizationId !== ctx.organizationId) {
+          throw new Error("branch_service_not_found");
+        }
         redirect(
           `${publicBookPaths.newSlot}?type=in_person` +
-            `&cityCode=${encodeURIComponent(cityCode)}` +
-            `&cityTitle=${encodeURIComponent(cityTitle)}` +
+            `&cityCode=${encodeURIComponent(branch.cityCode)}` +
+            `&cityTitle=${encodeURIComponent(titleForBookingCityCode(branch.cityCode))}` +
             `&branchId=${encodeURIComponent(ctx.branchId)}` +
             `&serviceId=${encodeURIComponent(ctx.serviceId)}` +
-            `&serviceTitle=${encodeURIComponent(title)}` +
-            `&durationMinutes=${encodeURIComponent(String(dur))}`,
+            `&serviceTitle=${encodeURIComponent(service.title)}` +
+            `&durationMinutes=${encodeURIComponent(String(service.durationMinutes))}`,
         );
       }
-    } catch {
-      // unknown branch service — stay on format step
-    }
-  } else if (branchServiceId && deps.bookingCatalog) {
-    try {
-      const resolved = await deps.bookingCatalog.resolveBranchService(branchServiceId);
-      const title = resolved.service.title;
-      const dur = resolved.service.durationMinutes;
-      redirect(
-        `${publicBookPaths.newSlot}?type=in_person` +
-          `&cityCode=${encodeURIComponent(resolved.city.code)}` +
-          `&cityTitle=${encodeURIComponent(resolved.city.title)}` +
-          `&branchServiceId=${encodeURIComponent(branchServiceId)}` +
-          `&serviceTitle=${encodeURIComponent(title)}` +
-          `&durationMinutes=${encodeURIComponent(String(dur))}`,
-      );
     } catch {
       // unknown branch service — stay on format step
     }

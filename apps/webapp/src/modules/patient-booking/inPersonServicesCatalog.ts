@@ -1,4 +1,5 @@
 import type { OrganizationCatalogPort, ServiceAvailabilityPort } from "@/modules/booking-engine/ports";
+import type { BookingCity } from "@/modules/booking-catalog/types";
 
 export type InPersonServicesCatalogDeps = {
   bookingEngine: {
@@ -17,6 +18,42 @@ export type InPersonServiceListItem = {
   durationMinutes: number;
   priceMinor: number;
 };
+
+export function titleForBookingCityCode(cityCode: string): string {
+  const normalized = cityCode.trim().toLowerCase();
+  if (normalized === "moscow") return "Москва";
+  if (normalized === "spb") return "Санкт-Петербург";
+  return cityCode;
+}
+
+export async function listInPersonCitiesForOrganization(
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+): Promise<BookingCity[] | null> {
+  if (!deps.bookingEngine) return null;
+  const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
+  const firstByCity = new Map<string, { id: string; cityCode: string; sortOrder: number }>();
+  for (const branch of branches) {
+    if (!branch.isActive) continue;
+    const code = branch.cityCode.trim().toLowerCase();
+    if (!code) continue;
+    const current = firstByCity.get(code);
+    if (!current || branch.sortOrder < current.sortOrder) {
+      firstByCity.set(code, { id: branch.id, cityCode: code, sortOrder: branch.sortOrder });
+    }
+  }
+  return Array.from(firstByCity.values())
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.cityCode.localeCompare(b.cityCode))
+    .map((city) => ({
+      id: city.id,
+      code: city.cityCode,
+      title: titleForBookingCityCode(city.cityCode),
+      isActive: true,
+      sortOrder: city.sortOrder,
+      createdAt: "",
+      updatedAt: "",
+    }));
+}
 
 export async function resolveActiveBranchForCity(
   deps: InPersonServicesCatalogDeps,
