@@ -565,7 +565,7 @@ These are not optional acceptance notes; each proof must produce a saved artifac
 | Proof id | Phase gate | Owner | Required artifact | Minimum checks |
 |---|---|---|---|---|
 | `RR-PROOF-01-DUAL-SOURCE` | before R2 | R1 worker + reviewer | Rubitime CSV reconciliation report | Fresh Rubitime CSV is canon; `appointment_records` + canonical mappings are checked against it. `integrator.rubitime_records` anti-joins are audit-only and non-authoritative. |
-| `RR-PROOF-02-STATE-HISTORY` | before R2 | booking data worker | state-history/archive contract report | every imported appointment has canonical state + baseline/history event; raw events archived with retention/access policy; runtime no longer needs raw provider event history. |
+| `RR-PROOF-02-STATE-HISTORY` | before R2 | booking data worker | `RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md` | every imported appointment has canonical state + baseline/history event; raw events archived with retention/access policy; runtime no longer needs raw provider event history. |
 | `RR-PROOF-03-NO-RUBITIME-SLOTS-CREATE` | before R5 | booking implementation worker | automated test output + route trace | patient/public slots and create pass with integrator/Rubitime unavailable; canonical DI missing fails as config error, not provider fallback. |
 | `RR-PROOF-04-EXACT-TENANT` | before Tenant Hard Mode enforce | tenant worker | integration test + negative cases | public/patient booking derives exact org from trusted host/link/resource/enrollment; conflicting contexts deny; missing/ambiguous org denies before DB query. |
 | `RR-PROOF-05-CATALOG-CUTOVER` | before any public `booking_*` drop | catalog worker | table-by-table disposition + tests | public catalog/slots/create read `be_*`; no patient/public runtime reads legacy public `booking_*`; compatibility views/adapters bounded. |
@@ -821,15 +821,15 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R1-HISTORY-CONTRACT — canonical state history vs raw provider archive
 
-- [ ] Canonical event/history tables for imported appointments are named.
-- [ ] Every imported appointment has canonical current state.
-- [ ] Every imported appointment has at least one canonical import/baseline/history event.
-- [ ] canceled/rescheduled/status semantics are represented where legacy data allows.
-- [ ] unreconstructable provider-only details are documented as raw-archive-only.
-- [ ] raw provider archive/export location is approved.
-- [ ] raw provider archive retention is approved.
-- [ ] raw provider archive access policy is approved.
-- [ ] read-only proof confirms doctor UI, patient history, memberships/packages and analytics do not need raw provider events.
+- [x] Canonical event/history tables for imported appointments are named. *(See `RUBITIME_RETIREMENT_R1_STATE_HISTORY_PROOF.md`: `be_appointments`, `be_appointment_events`, `be_appointment_history_events`, lifecycle detail tables.)*
+- [x] Every imported appointment has canonical current state. *(Proof script PASS: 356 `rubitime_projection` canonical rows, 287 live.)*
+- [x] Every imported appointment has at least one canonical import/baseline/history event. *(Proof script PASS: live missing events/history/baseline = `0/0/0`; `projected_from_rubitime` count = 356.)*
+- [x] canceled/rescheduled/status semantics are represented where legacy data allows. *(Canonical event/history buckets include `cancelled`, `rescheduled`, `rubitime_projection_synced`; provider-only details remain archive-only.)*
+- [x] unreconstructable provider-only details are documented as raw-archive-only.
+- [x] raw provider archive/export location is approved. *(R1/R2 location: retain in-place in `integrator.rubitime_events`; destructive export/drop remains R7-gated.)*
+- [x] raw provider archive retention is approved. *(Accepted T0.4-pre disposition: `retain_with_retention`; no R1/R2 purge/drop; exact destructive archive/export/drop policy remains R7-gated.)*
+- [x] raw provider archive access policy is approved. *(No runtime product reads; no payload samples in docs/logs; static proof shows webapp source only has purge-path reference.)*
+- [x] read-only proof confirms doctor UI, patient history, memberships/packages and analytics do not need raw provider events. *(Scope is raw `integrator.rubitime_events`, not deprecated `appointment_records`; `appointment_records` consumers remain R2/R3 work.)*
 
 ### R2 — doctor read-source canonical-only
 
