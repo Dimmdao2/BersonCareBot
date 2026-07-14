@@ -603,6 +603,15 @@ pnpm run check:saas-db-regression
 
 The exact test commands may be narrowed by the implementation worker, but every proof id above must have a recorded result.
 
+Proof index / manifest:
+
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md`
+- `pnpm run check:rubitime-retirement-proofs`
+- final all-proofs gate after R6/R7: `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs --require-complete`
+
+Current status: `RR-PROOF-01`..`RR-PROOF-08` have saved artifacts. `RR-PROOF-09` and `RR-PROOF-10` are prepared
+runbook/static-inventory gates and remain pending until owner-approved cutoff/drain and archive/drop operations.
+
 ## 8. Rollback strategy
 
 Release boundaries:
@@ -1080,7 +1089,7 @@ Rubitime is retired only when all items below are checked.
 - [x] reminders work from canonical lifecycle.
 - [x] notifications/Web Push/payment/package side effects work from canonical lifecycle.
 - [ ] provider-neutral booking lifecycle route is the only live lifecycle integration route.
-- [ ] all `RR-PROOF-*` artifacts are saved.
+- [ ] all `RR-PROOF-*` artifacts are saved. *(`RR-PROOF-01`..`08` saved; `RR-PROOF-09`/`10` remain gated. See `RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` and `pnpm run check:rubitime-retirement-proofs`.)*
 - [ ] production rollback boundary is accepted by owner.
 - [ ] docs listed in section 10 are updated or have assigned follow-up tasks.
 
