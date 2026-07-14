@@ -19,8 +19,8 @@ pnpm run check:rubitime-retirement-complete
 ```
 
 The default check verifies that every current blocker has an explicit expected proof and gate. The
-`check:rubitime-retirement-complete` mode is the final retirement gate and must fail until all final proof artifacts
-exist.
+`check:rubitime-retirement-complete` is the final retirement gate and must fail until all final proof artifacts
+exist. It intentionally runs every final sub-gate and reports all blockers, instead of stopping at the first failure.
 The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 If a final proof file exists, the checker validates its required content fragments against that packet.

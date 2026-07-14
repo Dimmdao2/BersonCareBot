@@ -1096,7 +1096,8 @@ pnpm run check:rubitime-retirement-complete
 ```
 
 Current mode verifies the active non-destructive Rubitime retirement gates. `check:rubitime-retirement-complete` is
-the final acceptance command and must stay red until R5/R6/R7 final proof files exist.
+the final acceptance command and must stay red until R5/R6/R7 final proof files exist; it runs every final sub-gate
+and reports all blockers in one pass.
 Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 
 - [x] R0 freeze complete.
