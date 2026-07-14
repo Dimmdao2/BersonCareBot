@@ -35,6 +35,9 @@ Archive before any destructive migration:
 - `integrator.rubitime_events`
 - populated public shadow `rubitime_records` / `rubitime_events`, if they exist
 
+The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
+canonical preservation set beyond the fresh Rubitime export.
+
 Drop candidates after archive, R6 removal, static no-reference proof, and owner approval:
 
 - `integrator.rubitime_api_throttle`
@@ -131,6 +134,7 @@ Save completed proof as `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` with:
 - `rubitime-r6-r7-static-inventory.mjs --expect-post-r6` output;
 - static reference audit output;
 - archive directory and SHA256SUMS;
+- statement that raw archive is archive-only and must not resurrect integrator-only rows absent from CSV;
 - migration file name;
 - fresh restore + migrate output;
 - typecheck/lint/test output;

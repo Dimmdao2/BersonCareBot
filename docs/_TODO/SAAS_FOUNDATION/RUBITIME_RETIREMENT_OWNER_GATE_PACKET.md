@@ -106,6 +106,7 @@ Proof must include the sections required by `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP
 - schema audit JSON;
 - post-R6 static reference audit;
 - archive directory and SHA256SUMS if archive is required;
+- raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV;
 - migration file name or explicit defer record;
 - fresh restore + migrate output;
 - typecheck/lint/test output;

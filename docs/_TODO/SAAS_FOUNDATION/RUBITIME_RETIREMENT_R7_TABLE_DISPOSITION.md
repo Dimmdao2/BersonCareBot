@@ -42,6 +42,9 @@ Archive/export decision is required before destructive migration:
 - `public.rubitime_records`, if present
 - `public.rubitime_events`, if present
 
+The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
+canonical preservation set beyond the fresh Rubitime export.
+
 ## Drop Candidates
 
 Drop candidates only after archive/export, R6 runtime removal, static no-reference proof and owner approval:

@@ -65,6 +65,7 @@ const r7ProofRequiredFragments = [
   'schema audit JSON',
   'post-R6 static reference audit',
   'archive directory and SHA256SUMS',
+  'raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV',
   'migration file name or explicit defer record',
   'fresh restore + migrate output',
   'typecheck/lint/test output',

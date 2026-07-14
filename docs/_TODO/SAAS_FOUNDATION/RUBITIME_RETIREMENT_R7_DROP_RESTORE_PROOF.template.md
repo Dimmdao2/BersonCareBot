@@ -26,6 +26,10 @@ Final proof filename:
 
 `TODO: archive directory and checksums, or explicit not-required owner decision`.
 
+## raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV
+
+`TODO: confirm archived Rubitime raw tables are retained only for audit/rollback and were not used to import, resurrect, or block on integrator-only rows absent from the fresh CSV`.
+
 ## migration file name or explicit defer record
 
 `TODO: migration file that performs approved drops, or explicit defer record`.
