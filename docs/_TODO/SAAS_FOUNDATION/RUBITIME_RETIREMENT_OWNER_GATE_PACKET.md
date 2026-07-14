@@ -7,7 +7,7 @@ Branch: `feat/doctor-ui-rebuild`.
 
 This is the single owner/ops packet for the remaining Rubitime retirement gates.
 
-It does not approve production changes and does not replace the phase runbooks. It lists the exact owner decisions
+It does not approve live-environment changes and does not replace the phase runbooks. It lists the exact owner decisions
 and proof artifacts required before the final checklist may be completed.
 `check-rubitime-final-gate` treats the proof bullet text below as the required content contract for final proof
 files. If a proof file exists but omits these fragments, the check fails.
@@ -30,8 +30,8 @@ pnpm run check:rubitime-db-cleanup-sequence
 pnpm run check:rubitime-final-gate
 ```
 
-The repo-first DB cleanup sequence is the current non-production SaaS handoff package. It does not ask the owner to
-run production operations for task `#757`; the owner gates below are only for later final execution.
+The repo-first DB cleanup sequence is the current TEST/disposable SaaS handoff package. It does not ask the owner to
+run live-environment operations for task `#757`; the owner gates below are only for later final execution.
 
 ## Data Canon
 
@@ -60,7 +60,7 @@ Owner decisions required:
 
 Proof must include:
 
-- production flag-change timestamp;
+- live flag-change timestamp;
 - monitoring window start/end;
 - aggregate v1 `/api/bersoncare/rubitime/slots` request count;
 - aggregate v1 `/api/bersoncare/rubitime/create-record` request count;

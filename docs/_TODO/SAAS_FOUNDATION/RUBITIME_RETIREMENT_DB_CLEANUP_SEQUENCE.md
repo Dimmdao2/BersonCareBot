@@ -6,10 +6,9 @@ Task: taskdb `#757`.
 
 ## Scope
 
-This is the repo-first, non-production DB cleanup sequence for Rubitime retirement. It prepares the one-pass fresh-copy/TEST cleanup package that SaaS Foundation can use before the later owner-approved production operations.
+This is the repo-first, TEST/disposable-DB cleanup sequence for Rubitime retirement. It prepares the one-pass fresh-copy/TEST cleanup package that SaaS Foundation can use before the next non-Rubitime plan starts.
 
-This document does not approve production changes, does not execute SQL, does not create final proof placeholders, and
-does not generate a destructive migration. R5/R6/R7 final proof files remain future execution artifacts.
+This document does not approve or describe live-environment work, does not create final proof placeholders, and does not generate a destructive migration. R5/R6/R7 final proof files remain future execution artifacts.
 
 Canonical sources for this sequence:
 
@@ -29,15 +28,15 @@ There must be no ad hoc `UPDATE`, no ad hoc `DELETE`, and no direct `DROP TABLE`
 
 ### Disposable fresh-copy rehearsal
 
-Use this for a temporary database that has already been restored from the fresh production dump and is ready for the
+Use this for a temporary database that has already been restored from the approved fresh dump and is ready for the
 approved SaaS migration chain. The database name must be an obvious disposable/rehearsal name; the wrapper refuses
-production-like and permanent dev names.
+live-like and permanent dev names.
 
 ```bash
 DATABASE_URL='<fresh-copy-runtime-owner-url>' \
 SUPERUSER_URL='<same-db-superuser-url>' \
 pnpm run rubitime:db-cleanup:one-pass -- \
-  --dump=<fresh-prod-dump> \
+  --dump=<approved-fresh-dump> \
   --csv=<fresh-rubitime-csv> \
   --run-saas-migrations \
   --execute \
@@ -59,10 +58,10 @@ What this executes in order:
 
 ### TEST from-zero rehearsal
 
-Use this only in the approved TEST flow. The first command recreates the TEST DB from a fresh production dump, deploys
+Use this only in the approved TEST flow. The first command recreates the TEST DB from an approved fresh dump, deploys
 the branch, runs the SaaS migrations in the proven order, applies TEST-safe overrides, consolidates specialists, and
-checks health. The second command runs the Rubitime cleanup package on that same TEST DB. No manual DB cleanup runs in
-between.
+checks health. The second command runs the Rubitime cleanup package on that same TEST DB. No manual DB cleanup runs
+in between.
 
 ```bash
 bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
@@ -99,9 +98,9 @@ pnpm run rubitime:db-cleanup:one-pass -- --csv=<fresh-rubitime-csv>
 
 ## Non-Goals
 
-- No production DB/env/SSH/service/webhook access.
-- No production `pg_dump`, `pg_restore`, `psql`, `pnpm migrate`, or host service commands in this repo-prep task.
-- The future TEST/prod-copy rehearsal may run the documented repo wrappers above; this current package only prepares
+- No live DB/env/SSH/service/webhook access.
+- No live-environment `pg_dump`, `pg_restore`, `psql`, `pnpm migrate`, or host service commands in this repo-prep task.
+- The future TEST/disposable rehearsal may run the documented repo wrappers above; this current package only prepares
   and validates that sequence.
 - No direct `DROP TABLE`.
 - No generated destructive migration in this task.
@@ -142,7 +141,7 @@ pnpm run check:rubitime-retirement-current
 
 ### Step 1. Keep R1-R4/R5 Non-Prod Proof As Input
 
-Use the already saved R1-R4 proof package and R5 code/non-prod proof as input. Do not rerun production operations for
+Use the already saved R1-R4 proof package and R5 code/non-prod proof as input. Do not add live-environment work to
 this sequence.
 
 Required input state before any future archive/drop execution:
@@ -152,7 +151,7 @@ Required input state before any future archive/drop execution:
 - R2 doctor/client no-legacy-read proof closed.
 - R3 slots/create, exact tenant and catalog proofs closed.
 - R4 provider-neutral lifecycle, GCal, reminder and idempotency proof closed.
-- R5 production disable remains future owner-approved proof.
+- R5 live disable remains outside this prep package.
 - R6 cutoff/drain remains future owner-approved proof.
 
 ### Step 2. Archive Policy
@@ -223,7 +222,7 @@ Current remaining raw-table refs are not safe repo-only deletes. They define the
 
 No destructive migration is created in this task. The future R7 worker should use this order:
 
-1. Confirm R5 production disable proof exists.
+1. Confirm R5 live-disable proof exists.
 2. Confirm R6 cutoff/drain proof exists.
 3. Run fresh post-R6 static inventory and schema audit.
 4. Record owner archive/drop/defer decision.
@@ -233,7 +232,7 @@ No destructive migration is created in this task. The future R7 worker should us
    table or mark it as explicitly deferred.
 8. Drop only approved raw/provider tables.
 9. Remove or update Drizzle/schema/runtime cleanup references that depended on dropped tables.
-10. Run fresh restore + migrate proof on a non-prod production dump restore.
+10. Run fresh restore + migrate proof on a TEST/disposable fresh-copy restore.
 11. Save `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` with real command output.
 
 ### Step 6. Validation Order
@@ -286,7 +285,7 @@ SaaS Foundation can proceed with planning and non-Rubitime implementation work w
 
 SaaS Foundation full enforce must still wait for:
 
-- R5 production disable proof;
+- R5 live-disable proof;
 - R6 cutoff/drain proof;
 - R7 archive/drop/defer proof or an owner-approved explicit defer policy;
 - DB restore/migrate proof after any table drop migration;
@@ -305,7 +304,7 @@ SaaS Foundation full enforce must still wait for:
 
 Prepared by this package:
 
-- non-prod/repo-first cleanup order;
+- TEST/disposable repo-first cleanup order;
 - table disposition;
 - archive/export policy;
 - migration order;
@@ -315,7 +314,7 @@ Prepared by this package:
 
 Deferred to future owner-approved execution:
 
-- production monitoring and flag acceptance;
+- live monitoring and flag acceptance;
 - provider cutoff/drain;
 - archive/export;
 - destructive or defer migration;

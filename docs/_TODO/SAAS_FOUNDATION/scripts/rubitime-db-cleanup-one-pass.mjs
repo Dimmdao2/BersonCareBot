@@ -15,7 +15,7 @@ const HELP = `Usage:
     --csv=<fresh-rubitime-csv> --execute
 
 Optional:
-  --dump=<fresh-prod-dump>       Check dump TOC before DB cleanup gates.
+  --dump=<approved-fresh-dump>   Check dump TOC before DB cleanup gates.
   --run-saas-migrations          Run scripts/deploy-saas-667.sh first; requires SUPERUSER_URL and DATABASE_URL.
   --commit-cleanup               Execute approved cleanup writes after dry-runs on the same DB.
   --allow-test-target            Allow TEST DB names. Required for TEST rehearsals.
@@ -26,7 +26,7 @@ Optional:
 Default mode is plan-only. --execute is required to run commands.
 
 Safety:
-  - Refuses prod and permanent dev DB names.
+  - Refuses live-like and permanent dev DB names.
   - Allows disposable/rehearsal DB names by default.
   - Allows TEST only with --allow-test-target.
   - No ad hoc \`UPDATE\`, no ad hoc \`DELETE\`, and no direct \`DROP TABLE\`.
@@ -98,7 +98,7 @@ function assertSafeTarget(dbName, allowTestTarget) {
     'bersoncarebot_dev',
   ]);
   if (exactForbidden.has(dbName) || /(^|[_-])prod(uction)?($|[_-])/i.test(dbName)) {
-    throw new Error(`refusing unsafe production-like database: ${dbName}`);
+    throw new Error(`refusing unsafe live-like database: ${dbName}`);
   }
   if (/(^|[_-])dev($|[_-])/i.test(dbName)) {
     throw new Error(`refusing permanent dev database: ${dbName}`);

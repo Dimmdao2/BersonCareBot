@@ -29,7 +29,7 @@ const proofContracts = [
     proof: expectedProofs[0],
     template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
     requiredFragments: [
-      'production flag-change timestamp',
+      'live flag-change timestamp',
       'monitoring window start/end',
       'v1 `/api/bersoncare/rubitime/slots` request count',
       'v1 `/api/bersoncare/rubitime/create-record` request count',
@@ -84,11 +84,11 @@ const forbiddenProofFragments = [
 
 const blockingItems = [
   {
-    id: 'R5-PROD-DISABLE',
+    id: 'R5-LIVE-DISABLE',
     status: 'gated',
-    checklistText: 'R5 legacy v1 resolve disabled in production.',
+    checklistText: 'R5 legacy v1 resolve disabled in live environment.',
     expectedProof: expectedProofs[0],
-    gate: 'owner-approved production flag change and monitoring window',
+    gate: 'owner-approved live flag change and monitoring window',
   },
   {
     id: 'R6-RUNTIME-REMOVAL',
@@ -133,9 +133,9 @@ const blockingItems = [
     gate: 'RR-PROOF-09 and RR-PROOF-10 completed',
   },
   {
-    id: 'PRODUCTION-ROLLBACK-BOUNDARY-ACCEPTED',
+    id: 'LIVE-ROLLBACK-BOUNDARY-ACCEPTED',
     status: 'gated',
-    checklistText: 'production rollback boundary is accepted by owner.',
+    checklistText: 'live rollback boundary is accepted by owner.',
     expectedProof: expectedProofs[2],
     gate: 'owner accepts rollback horizon in R5/R6/R7 proof files',
   },

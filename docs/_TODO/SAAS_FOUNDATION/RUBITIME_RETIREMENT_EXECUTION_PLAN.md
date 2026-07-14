@@ -745,7 +745,7 @@ Scope:
 Final gate manifest: `RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md`.
 Current-state check: `pnpm run check:rubitime-final-gate`.
 Final completion check: `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete`.
-The completion check must fail until R5 production disable proof, R6 cutoff/drain proof and R7 archive/drop proof
+The completion check must fail until R5 live-disable proof, R6 cutoff/drain proof and R7 archive/drop proof
 exist with real owner decisions and command output.
 
 ### R7-SCHEMA-DROP
@@ -1033,8 +1033,8 @@ disable; it defines the owner-approved flag-change, monitoring and rollback evid
 - [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
 - [ ] production monitoring window shows no v1 requests.
-- [ ] production flag change is approved.
-- [x] production flag change has rollback instruction. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no production env was changed.)*
+- [ ] live flag change is approved.
+- [x] live flag change has rollback instruction. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no live env was changed.)*
 
 ### R6 — remove Rubitime runtime routes and code
 
@@ -1108,7 +1108,7 @@ the only preservation canon; integrator-only rows absent from the CSV are not re
 Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it
 defines the required audit, archive/export, migration and fresh restore proof for `RR-PROOF-10`.
 Repo-first DB cleanup handoff for SaaS Foundation: `RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`. It prepares the
-non-production archive/drop/defer order and validation contract without requiring current production operations.
+TEST/disposable archive/drop/defer order and validation contract without requiring current live-environment work.
 Prepared table disposition: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` +
 `pnpm run check:rubitime-r7-table-disposition`.
 Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
@@ -1155,7 +1155,7 @@ Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PA
 - [x] R3-TENANT exact tenant complete.
 - [x] R3-CATALOG catalog migration complete.
 - [x] R4 provider-neutral lifecycle complete.
-- [ ] R5 legacy v1 resolve disabled in production.
+- [ ] R5 legacy v1 resolve disabled in live environment.
 - [ ] R6 runtime routes/code removed.
 - [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
 - [ ] No runtime code calls Rubitime API.
@@ -1169,7 +1169,7 @@ Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PA
 - [x] notifications/Web Push/payment/package side effects work from canonical lifecycle.
 - [ ] provider-neutral booking lifecycle route is the only live lifecycle integration route.
 - [ ] all `RR-PROOF-*` artifacts are saved. *(`RR-PROOF-01`..`08` saved; `RR-PROOF-09`/`10` remain gated. See `RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` and `pnpm run check:rubitime-retirement-proofs`.)*
-- [ ] production rollback boundary is accepted by owner.
+- [ ] live rollback boundary is accepted by owner.
 - [x] docs listed in section 10 are updated or have assigned follow-up tasks. *(See `RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md`; `pnpm run check:rubitime-section10-docs` passes.)*
 
 ## 16. Tenant Hard Mode unblock checklist

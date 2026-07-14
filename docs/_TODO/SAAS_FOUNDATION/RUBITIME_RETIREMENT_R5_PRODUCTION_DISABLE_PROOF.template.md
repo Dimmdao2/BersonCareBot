@@ -1,4 +1,4 @@
-# Rubitime retirement R5 production disable proof template
+# Rubitime retirement R5 live-disable proof template
 
 Do not rename this template to the final proof until the production action is owner-approved and executed.
 
@@ -6,7 +6,7 @@ Final proof filename:
 
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md`
 
-## production flag-change timestamp
+## live flag-change timestamp
 
 `TODO: YYYY-MM-DDTHH:mm:ss+03:00`, owner-approved.
 

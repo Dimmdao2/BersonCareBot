@@ -9,9 +9,8 @@ This is the prepared `RR-PROOF-10-DROP-RESTORE` runbook. It does not approve or 
 
 repo-first DB cleanup sequence for the current prep scope:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`.
-That sequence is the non-production handoff package for SaaS Foundation. It prepares archive/drop/defer order,
-validation and rollback contracts without running production operations, creating final proof placeholders, or
-generating destructive migrations.
+That sequence is the TEST/disposable-DB handoff package for SaaS Foundation. It prepares archive/drop/defer order,
+validation and rollback contracts without live-environment work, final proof placeholders, or destructive migrations.
 
 R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`.
 
@@ -60,11 +59,10 @@ Drop candidates after archive, R6 removal, static no-reference proof, and owner 
 
 ## 1. Read-Only Schema Audit
 
-Run on production host or a fresh production dump restore. This is read-only.
+Run on the same TEST/disposable fresh-copy DB used for the cleanup rehearsal. This is read-only.
 
 ```bash
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-cd /opt/projects/bersoncarebot
+set -a && source <env-for-the-selected-test-or-disposable-db> && set +a
 pnpm --dir apps/webapp exec tsx scripts/integrator-schema-cleanup/01_audit.ts
 ```
 
@@ -94,11 +92,11 @@ Pass criteria:
 
 ## 3. Archive Export
 
-Run only after owner approval. Use a timestamped directory.
+Run only after owner approval for the selected TEST/disposable DB. Use a timestamped directory outside the repo.
 
 ```bash
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-ARCHIVE_DIR="/opt/backups/postgres/rubitime-retirement-$(date -u +%Y%m%dT%H%M%SZ)"
+set -a && source <env-for-the-selected-test-or-disposable-db> && set +a
+ARCHIVE_DIR="<local-or-test-archive-dir>/rubitime-retirement-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$ARCHIVE_DIR"
 
 pg_dump "$DATABASE_URL" --data-only --table=public.appointment_records --file="$ARCHIVE_DIR/public.appointment_records.sql"
@@ -122,7 +120,7 @@ If any table is missing, record `to_regclass(...)` output in the proof instead o
 
 ## 5. Non-Prod Restore/Migrate Proof
 
-Run on a fresh production dump restore, not directly on production:
+Run on a TEST/disposable fresh-copy restore:
 
 ```bash
 pnpm install --frozen-lockfile

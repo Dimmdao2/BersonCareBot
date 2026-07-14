@@ -8,7 +8,7 @@ Branch: `feat/doctor-ui-rebuild`.
 This manifest is the single machine-readable status packet for the last Rubitime retirement gates.
 
 It does not claim retirement is complete. It records which final checklist items are already proven and which
-items are still blocked by owner-approved production cutoff/drain, production flag acceptance, or archive/drop proof.
+items are still blocked by owner-approved live cutoff/drain, live flag acceptance, or archive/drop proof.
 
 Machine checks:
 
@@ -21,7 +21,7 @@ pnpm run check:rubitime-retirement-complete
 
 repo-first DB cleanup sequence for the current prep scope:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`. It is a handoff package, not final proof.
-The final production/archive blockers below remain gated until real R5/R6/R7 proof files exist.
+The final live/archive blockers below remain gated until real R5/R6/R7 proof files exist.
 
 The default check verifies that every current blocker has an explicit expected proof and gate. The
 `check:rubitime-retirement-complete` is the final retirement gate and must fail until all final proof artifacts
@@ -37,7 +37,7 @@ not contain template placeholders such as `TODO:` or template warning text; the 
 
 | Proof | Required before | Gate |
 | --- | --- | --- |
-| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved production flag change plus monitoring window showing no v1 requests and no user-facing need for v1 profile resolution. |
+| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved live flag change plus monitoring window showing no v1 requests and no user-facing need for v1 profile resolution. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` | R6 route/code removal final acceptance | Owner-approved provider cutoff, disabled webhook/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation with CSV as canon and integrator-only rows audit-only. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | R7 archive/drop final acceptance | R1-R6 complete, owner archive/drop decision, archive-only export, migration-backed drop/defer proof, fresh restore/migrate proof. |
 
@@ -57,14 +57,14 @@ Runbooks:
 
 | ID | Checklist item | Status | Expected proof |
 | --- | --- | --- | --- |
-| `R5-PROD-DISABLE` | R5 legacy v1 resolve disabled in production | `gated` | `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` |
+| `R5-LIVE-DISABLE` | R5 legacy v1 resolve disabled in live environment | `gated` | `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` |
 | `R6-RUNTIME-REMOVAL` | R6 runtime routes/code removed | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` |
 | `R7-ARCHIVE-DROP` | R7 archive/drop complete or explicitly deferred with no runtime references | `gated` | `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` |
 | `NO-RUNTIME-RUBITIME-API` | No runtime code calls Rubitime API | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` plus post-R6 static inventory |
 | `NO-RUBITIME-PROVIDER-ROUTE` | No runtime route accepts Rubitime webhook/provider traffic | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` |
 | `ONLY-PROVIDER-NEUTRAL-LIFECYCLE-ROUTE` | Provider-neutral booking lifecycle route is the only live lifecycle integration route | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` |
 | `ALL-RR-PROOFS-SAVED` | All `RR-PROOF-*` artifacts are saved | `gated` | `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` and `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` |
-| `PRODUCTION-ROLLBACK-BOUNDARY-ACCEPTED` | Production rollback boundary is accepted by owner | `gated` | R5/R6/R7 proof files with owner acceptance notes |
+| `LIVE-ROLLBACK-BOUNDARY-ACCEPTED` | Live rollback boundary is accepted by owner | `gated` | R5/R6/R7 proof files with owner acceptance notes |
 
 ## Non-Negotiable Data Canon
 
@@ -88,7 +88,7 @@ Runbooks:
 4. Run `pnpm run check:rubitime-retirement-complete` only when claiming final Rubitime retirement. It must fail until
    all blockers are converted to `pass` with proof files.
 5. Do not create placeholder proof files to satisfy the checker. Proof files must contain real command output,
-   owner decisions and commit hashes from the relevant production/non-prod run. Files containing template `TODO:`
+   owner decisions and commit hashes from the relevant live/TEST run. Files containing template `TODO:`
    placeholders or template warning text fail the final gate.
 6. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
    fails even in default mode.

@@ -10,7 +10,7 @@ not execute SQL. R7 remains blocked until R1-R6 are complete and the owner recor
 
 repo-first DB cleanup sequence for the current prep scope:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md`. It explains how this disposition is used to
-hand off SaaS Foundation cleanup planning without treating production archive/drop as a current blocker and without
+hand off SaaS Foundation cleanup planning without treating live archive/drop as a current blocker and without
 hiding remaining raw references.
 
 Machine check:

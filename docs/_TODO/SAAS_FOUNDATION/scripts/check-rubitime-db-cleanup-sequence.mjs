@@ -19,14 +19,14 @@ const ownerGatePacket = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GA
 const onePassScript = 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs';
 
 const requiredSequenceFragments = [
-  'repo-first, non-production DB cleanup sequence',
+  'repo-first, TEST/disposable-DB cleanup sequence',
   'one-pass fresh-copy/TEST cleanup package',
   'One-Pass Entrypoints',
   'rubitime-db-cleanup-one-pass.mjs',
   'rubitime:db-cleanup:one-pass',
   'deploy-test-saas.sh feat/doctor-ui-rebuild',
   'scripts/deploy-saas-667.sh',
-  'does not approve production changes',
+  'does not approve or describe live-environment work',
   'does not create final proof placeholders',
   'does not generate a destructive migration',
   'Fresh Rubitime CSV decides the appointment preservation set',
@@ -48,7 +48,7 @@ const requiredOnePassFragments = [
   '--run-saas-migrations',
   '--commit-cleanup',
   '--allow-test-target',
-  'refusing unsafe production-like database',
+  'refusing unsafe live-like database',
   'No ad hoc',
   'r7DropStatus',
 ];
