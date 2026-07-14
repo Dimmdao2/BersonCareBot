@@ -55,7 +55,7 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
-import type { DbPort, WebappEventsPort } from '../../kernel/contracts/index.js';
+import type { DbPort, IdempotencyPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 import * as smtpOutbound from '../../config/smtpOutbound.js';
 
 const resolveSmtpOutboundCfg = 'resolveSmtp' + 'OutboundConfig' as keyof typeof smtpOutbound;
@@ -78,6 +78,7 @@ function makeHeaders(rawBody: string) {
 async function buildApp(
   dispatchOutgoing = vi.fn().mockResolvedValue(undefined),
   webappEventsPort?: Pick<WebappEventsPort, 'notifyPatientWebPush'>,
+  idempotencyPort?: IdempotencyPort,
 ) {
   const app = Fastify();
   vi.spyOn(smtpOutbound, resolveSmtpOutboundCfg).mockResolvedValue({
@@ -103,6 +104,7 @@ async function buildApp(
     sharedSecret: TEST_SECRET,
     dispatchPort: { dispatchOutgoing },
     dbWritePort: mockWritePort,
+    ...(idempotencyPort ? { idempotencyPort } : {}),
     ...(webappEventsPort ?
       { webappEventsPort: webappEventsPort as WebappEventsPort }
     : {}),
@@ -413,6 +415,53 @@ describe('POST booking lifecycle event routes', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('deduplicates lifecycle events through durable idempotency port across app instances', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const keys = new Set<string>();
+    const idempotencyPort: IdempotencyPort = {
+      tryAcquire: vi.fn(async (key: string) => {
+        if (keys.has(key)) return false;
+        keys.add(key);
+        return true;
+      }),
+      release: vi.fn(async (key: string) => {
+        keys.delete(key);
+      }),
+    };
+    const idem = `durable-${Date.now()}`;
+    const raw = JSON.stringify({
+      ...bookingEventBody(),
+      idempotencyKey: idem,
+      payload: {
+        ...bookingEventBody().payload,
+        bookingId: '1f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const headers = makeHeaders(raw);
+    const app1 = await buildApp(dispatchOutgoing, undefined, idempotencyPort);
+    const res1 = await app1.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers,
+      body: raw,
+    });
+    expect(res1.statusCode).toBe(200);
+    const afterFirst = dispatchOutgoing.mock.calls.length;
+
+    const app2 = await buildApp(dispatchOutgoing, undefined, idempotencyPort);
+    const res2 = await app2.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers,
+      body: raw,
+    });
+    expect(res2.statusCode).toBe(200);
+    expect(dispatchOutgoing.mock.calls.length).toBe(afterFirst);
+    expect(idempotencyPort.tryAcquire).toHaveBeenCalledWith(`booking-lifecycle:${idem}`, 24 * 60 * 60);
+    expect(idempotencyPort.tryAcquire).toHaveBeenCalledTimes(2);
+    expect(idempotencyPort.release).not.toHaveBeenCalled();
   });
 
   it('booking.created skips canonical GCal sync when rubitimeId is set (post-create already synced)', async () => {

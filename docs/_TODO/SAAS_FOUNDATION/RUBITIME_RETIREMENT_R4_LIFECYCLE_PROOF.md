@@ -41,6 +41,14 @@ Existing tests around the lifecycle handler cover:
 - reschedule reminder cancellation/re-scheduling;
 - doctor Telegram notification path when configured.
 
+Durable lifecycle idempotency:
+
+- Lifecycle route now uses the existing integrator `IdempotencyPort` / `idempotency_keys` table when registered through app DI.
+- Storage key format: `booking-lifecycle:<webapp lifecycle idempotencyKey>`.
+- TTL remains 24h, matching the previous in-memory dedup window.
+- Test coverage includes two separate Fastify app instances sharing one `IdempotencyPort`, proving a repeated event after process recreation does not repeat side effects.
+- The stricter R4 target "based on canonical appointment id and lifecycle version/event id" remains open because the current webapp event key contract is not yet versioned.
+
 ## Raw Rubitime Runtime Inventory
 
 Raw Rubitime webhook/post-create paths still exist and must not be removed until R6 gates are satisfied:
@@ -74,15 +82,18 @@ Reminder inventory:
 
 - Raw Rubitime webhook and post-create projection are still present and must be drained/disabled before runtime route removal.
 - GCal map remains `booking_calendar_map`; it must be explicitly kept or migrated before any drop.
-- Durable idempotency still needs final canonical appointment event/version proof.
+- Durable idempotency is persisted, but still needs final canonical appointment event/version key proof.
 - R6 must remove Rubitime routes only after provider cutoff, drains, and final CSV reconciliation.
 
 ## Validation
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 45 tests.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/app/routes.projectionHealth.test.ts` - passed, 48 tests.
 - `pnpm -C apps/webapp exec vitest run src/modules/integrator/bookingM2mApi.test.ts` - passed, 17 tests.
 - `pnpm --dir apps/integrator typecheck` - passed.
 - `pnpm -C apps/webapp run typecheck` - passed.
 - `pnpm -C apps/webapp run lint` - passed.
 - `pnpm run check:rubitime-retirement-r0` - passed.
 - `git diff --check` - passed.
+- `pnpm --dir apps/integrator exec eslint src/integrations/rubitime/recordM2mRoute.ts src/integrations/rubitime/recordM2mRoute.test.ts src/app/di.ts src/app/routes.ts src/app/routes.projectionHealth.test.ts` - passed.
+- `pnpm --dir apps/integrator lint` - failed on pre-existing `no-secrets/no-secrets` findings in `src/infra/runtime/scheduler/main.ts`, `src/infra/runtime/worker/main.ts`, and `src/infra/runtime/worker/outgoingDeliveryWorker.ts`; not introduced by this R4 lifecycle change.

@@ -907,7 +907,7 @@ mappings and the owner-approved single-specialist export context.
 - [ ] payment capture side effects are preserved.
 - [ ] package link/unlink side effects are preserved.
 - [ ] booking delete side effects are preserved.
-- [ ] durable idempotency is based on canonical appointment/event version.
+- [ ] durable idempotency is based on canonical appointment/event version. *(Storage is now DB-backed via `idempotency_keys`; canonical event/version key contract remains open.)*
 - [ ] `booking_calendar_map` is migrated/kept as provider-neutral canonical map.
 - [ ] existing GCal events update/delete without duplicates after rekey/migration.
 

@@ -13,12 +13,25 @@ import {
 } from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../kernel/domain/reminders/patientNotificationTopics.js';
-import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
-import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
+import type {
+  DbWritePort,
+  DispatchPort,
+  IdempotencyPort,
+  WebappEventsPort,
+} from '../../kernel/contracts/index.js';
+import {
+  createRubitimeRecord,
+  fetchRubitimeSchedule,
+  removeRubitimeRecord,
+  updateRubitimeRecord,
+} from './client.js';
 import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
-import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezone } from '../../config/appTimezone.js';
+import {
+  formatIsoInstantAsRubitimeRecordLocal,
+  getAppDisplayTimezone,
+} from '../../config/appTimezone.js';
 import {
   isRubitimeUpdateRecordPatchEmpty,
   normalizeRubitimeUpdateRecordPatch,
@@ -44,7 +57,10 @@ import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 import { runPostCreateProjection } from './postCreateProjection.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
-import { syncAppointmentToCalendar, syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
+import {
+  syncAppointmentToCalendar,
+  syncCanonicalAppointmentToCalendar,
+} from '../google-calendar/sync.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
@@ -53,7 +69,12 @@ const WINDOW_SECONDS = 300;
 
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
-function verifySignature(timestamp: string, rawBody: string, signature: string, secret: string): boolean {
+function verifySignature(
+  timestamp: string,
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
   const ts = Number(timestamp);
   if (!Number.isFinite(ts)) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -73,11 +94,11 @@ function parseJsonRecordId(body: unknown): string | null {
   return null;
 }
 
-
 export type RubitimeRecordM2mDeps = {
   sharedSecret: string;
   dispatchPort: DispatchPort;
   dbWritePort: DbWritePort;
+  idempotencyPort?: IdempotencyPort;
   webappEventsPort?: WebappEventsPort;
 };
 
@@ -98,6 +119,41 @@ function rememberBookingEventKey(key: string): void {
   bookingEventDedup.set(key, Date.now() + BOOKING_EVENT_DEDUP_TTL_MS);
 }
 
+function lifecycleDedupStorageKey(key: string): string {
+  return `booking-lifecycle:${key}`.slice(0, 240);
+}
+
+async function acquireBookingLifecycleKey(
+  key: string,
+  idempotencyPort?: IdempotencyPort,
+): Promise<{ acquired: boolean; storageKey: string; persistent: boolean }> {
+  const storageKey = lifecycleDedupStorageKey(key);
+  if (idempotencyPort) {
+    return {
+      acquired: await idempotencyPort.tryAcquire(storageKey, BOOKING_EVENT_DEDUP_TTL_MS / 1000),
+      storageKey,
+      persistent: true,
+    };
+  }
+  if (isBookingEventDuplicate(storageKey)) {
+    return { acquired: false, storageKey, persistent: false };
+  }
+  rememberBookingEventKey(storageKey);
+  return { acquired: true, storageKey, persistent: false };
+}
+
+async function releaseBookingLifecycleKey(
+  acquired: { acquired: boolean; storageKey: string; persistent: boolean },
+  idempotencyPort?: IdempotencyPort,
+): Promise<void> {
+  if (!acquired.acquired) return;
+  if (acquired.persistent) {
+    await idempotencyPort?.release?.(acquired.storageKey);
+    return;
+  }
+  bookingEventDedup.delete(acquired.storageKey);
+}
+
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
@@ -112,9 +168,7 @@ function parseRubitimeNumericId(raw: string): number | null {
 function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
-  const city =
-    asNonEmptyString(payload.cityCodeSnapshot) ??
-    asNonEmptyString(payload.city);
+  const city = asNonEmptyString(payload.cityCodeSnapshot) ?? asNonEmptyString(payload.city);
   const citySuffix = city ? ` (${city})` : '';
   return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}`;
 }
@@ -140,13 +194,19 @@ function doctorCancelledText(payload: BookingLifecyclePayloadValidated, timeZone
   return `Отмена записи: ${name}\nДата: ${dateLabel}`;
 }
 
-function patientRescheduledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+function patientRescheduledText(
+  payload: BookingLifecyclePayloadValidated,
+  timeZone: string,
+): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
   return `Запись перенесена на ${dateLabel}\n${typeLabel}`;
 }
 
-function doctorRescheduledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+function doctorRescheduledText(
+  payload: BookingLifecyclePayloadValidated,
+  timeZone: string,
+): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const name = asNonEmptyString(payload.contactName) ?? 'Пациент';
   const phone = asNonEmptyString(payload.contactPhone) ?? 'без телефона';
@@ -199,8 +259,15 @@ async function sendLinkedChannelMessage(input: {
   }
 }
 
-async function sendDoctorMessage(dispatchPort: DispatchPort, text: string, eventId: string): Promise<void> {
-  if (typeof telegramConfig.adminTelegramId === 'number' && Number.isFinite(telegramConfig.adminTelegramId)) {
+async function sendDoctorMessage(
+  dispatchPort: DispatchPort,
+  text: string,
+  eventId: string,
+): Promise<void> {
+  if (
+    typeof telegramConfig.adminTelegramId === 'number' &&
+    Number.isFinite(telegramConfig.adminTelegramId)
+  ) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
       meta: {
@@ -271,8 +338,16 @@ async function scheduleBookingReminders(input: {
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
   const reminders = [
-    { code: '24h', offsetMs: 24 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 24 часа).` },
-    { code: '2h', offsetMs: 2 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 2 часа).` },
+    {
+      code: '24h',
+      offsetMs: 24 * 60 * 60 * 1000,
+      text: `Напоминание: приём ${dateLabel} (через 24 часа).`,
+    },
+    {
+      code: '2h',
+      offsetMs: 2 * 60 * 60 * 1000,
+      text: `Напоминание: приём ${dateLabel} (через 2 часа).`,
+    },
   ];
 
   for (const reminder of reminders) {
@@ -326,9 +401,9 @@ async function sendBookingWebPush(input: {
   const dbPort = createDbPort();
   const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
   const openUrl =
-    input.intentType === "appointment_lifecycle" ?
-      `${base}/app/patient/messages`
-    : `${base}/app/patient/booking/new`;
+    input.intentType === 'appointment_lifecycle'
+      ? `${base}/app/patient/messages`
+      : `${base}/app/patient/booking/new`;
   const body = JSON.stringify({
     phoneNormalized: input.phoneNormalized,
     topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
@@ -345,10 +420,7 @@ async function sendBookingWebPush(input: {
       idempotencyKey: `pwp:${input.stableKey}`.slice(0, 240),
     });
   } catch (err) {
-    logger.warn(
-      { err, stableKey: input.stableKey },
-      'booking web push notify failed',
-    );
+    logger.warn({ err, stableKey: input.stableKey }, 'booking web push notify failed');
   }
 }
 
@@ -361,8 +433,7 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   const rubitimeRecordId = asNonEmptyString(payload.rubitimeId);
 
   if (eventType === 'booking.deleted') {
-    const mapKey =
-      rubitimeRecordId ?? (appointmentId ? `be:${appointmentId}` : null);
+    const mapKey = rubitimeRecordId ?? (appointmentId ? `be:${appointmentId}` : null);
     if (!mapKey) return;
     try {
       await syncAppointmentToCalendar(
@@ -418,147 +489,162 @@ async function trySyncCanonicalBookingToGoogleCalendar(
 async function handleBookingLifecycleEvent(
   body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
-  webappEventsPort?: WebappEventsPort,
+  options: {
+    idempotencyPort?: IdempotencyPort;
+    webappEventsPort?: WebappEventsPort;
+  } = {},
 ): Promise<void> {
   const { payload, eventType } = body;
   const bookingId = payload.bookingId;
   const contactPhone = asNonEmptyString(payload.contactPhone);
   const patientName = asNonEmptyString(payload.contactName);
   const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`;
-  if (isBookingEventDuplicate(dedupKey)) return;
+  const acquiredKey = await acquireBookingLifecycleKey(dedupKey, options.idempotencyPort);
+  if (!acquiredKey.acquired) return;
+  const webappEventsPort = options.webappEventsPort;
 
-  const dbPort = createDbPort();
-  const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
+  try {
+    const dbPort = createDbPort();
+    const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
 
-  if (eventType === 'booking.created') {
-    const patientText = patientCreatedText(payload, timeZone);
-    await sendLinkedChannelMessage({
-      dispatchPort,
-      phoneNormalized: contactPhone,
-      text: patientText,
-      eventId: `booking-created:${bookingId}`,
-    });
-    await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
-    // Web-push не отправляем при создании записи: пациент, записавшийся через приложение,
-    // уже видит подтверждение на экране (#306). Канальное подтверждение идёт email+.ics
-    // (sendBookingConfirmationEmail в webapp) и Telegram/MAX (sendLinkedChannelMessage выше).
-    await cancelPendingBookingReminders(bookingId);
-    await scheduleBookingReminders({
-      bookingId,
-      slotStartIso: payload.slotStart,
-      phoneNormalized: contactPhone,
-      patientName,
-      timeZone,
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-    });
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
-
-  if (eventType === 'booking.cancelled') {
-    await cancelPendingBookingReminders(bookingId);
-    // R21: врач снял «Уведомлять пациента» — пациентский канал/web-push не шлём;
-    // врач/GCal/отмена напоминаний — как обычно.
-    if (payload.suppressPatientNotification !== true) {
-      const patientText = patientCancelledText(payload, timeZone);
+    if (eventType === 'booking.created') {
+      const patientText = patientCreatedText(payload, timeZone);
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
         text: patientText,
-        eventId: `booking-cancelled:${bookingId}`,
+        eventId: `booking-created:${bookingId}`,
       });
+      await sendDoctorMessage(
+        dispatchPort,
+        doctorCreatedText(payload, timeZone),
+        `booking-created:${bookingId}`,
+      );
+      // Web-push не отправляем при создании записи: пациент, записавшийся через приложение,
+      // уже видит подтверждение на экране (#306). Канальное подтверждение идёт email+.ics
+      // (sendBookingConfirmationEmail в webapp) и Telegram/MAX (sendLinkedChannelMessage выше).
+      await cancelPendingBookingReminders(bookingId);
+      await scheduleBookingReminders({
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+      });
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
+
+    if (eventType === 'booking.cancelled') {
+      await cancelPendingBookingReminders(bookingId);
+      // R21: врач снял «Уведомлять пациента» — пациентский канал/web-push не шлём;
+      // врач/GCal/отмена напоминаний — как обычно.
+      if (payload.suppressPatientNotification !== true) {
+        const patientText = patientCancelledText(payload, timeZone);
+        await sendLinkedChannelMessage({
+          dispatchPort,
+          phoneNormalized: contactPhone,
+          text: patientText,
+          eventId: `booking-cancelled:${bookingId}`,
+        });
+        await sendBookingWebPush({
+          ...(webappEventsPort ? { webappEventsPort } : {}),
+          phoneNormalized: contactPhone,
+          intentType: 'appointment_lifecycle',
+          variant: 'cancelled',
+          slotStartIso: payload.slotStart,
+          stableKey: `booking-cancelled:${bookingId}`,
+        });
+      }
+      await sendDoctorMessage(
+        dispatchPort,
+        doctorCancelledText(payload, timeZone),
+        `booking-cancelled:${bookingId}`,
+      );
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
+
+    if (eventType === 'booking.rescheduled') {
+      await cancelPendingBookingReminders(bookingId);
+      const patientText = patientRescheduledText(payload, timeZone);
+      await sendLinkedChannelMessage({
+        dispatchPort,
+        phoneNormalized: contactPhone,
+        text: patientText,
+        eventId: `booking-rescheduled:${bookingId}`,
+      });
+      await sendDoctorMessage(
+        dispatchPort,
+        doctorRescheduledText(payload, timeZone),
+        `booking-rescheduled:${bookingId}`,
+      );
       await sendBookingWebPush({
         ...(webappEventsPort ? { webappEventsPort } : {}),
         phoneNormalized: contactPhone,
         intentType: 'appointment_lifecycle',
-        variant: 'cancelled',
+        variant: 'rescheduled',
         slotStartIso: payload.slotStart,
-        stableKey: `booking-cancelled:${bookingId}`,
+        stableKey: `booking-rescheduled:${bookingId}`,
       });
+      await scheduleBookingReminders({
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+      });
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
     }
-    await sendDoctorMessage(dispatchPort, doctorCancelledText(payload, timeZone), `booking-cancelled:${bookingId}`);
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
 
-  if (eventType === 'booking.rescheduled') {
-    await cancelPendingBookingReminders(bookingId);
-    const patientText = patientRescheduledText(payload, timeZone);
-    await sendLinkedChannelMessage({
-      dispatchPort,
-      phoneNormalized: contactPhone,
-      text: patientText,
-      eventId: `booking-rescheduled:${bookingId}`,
-    });
-    await sendDoctorMessage(dispatchPort, doctorRescheduledText(payload, timeZone), `booking-rescheduled:${bookingId}`);
-    await sendBookingWebPush({
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-      phoneNormalized: contactPhone,
-      intentType: 'appointment_lifecycle',
-      variant: 'rescheduled',
-      slotStartIso: payload.slotStart,
-      stableKey: `booking-rescheduled:${bookingId}`,
-    });
-    await scheduleBookingReminders({
-      bookingId,
-      slotStartIso: payload.slotStart,
-      phoneNormalized: contactPhone,
-      patientName,
-      timeZone,
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-    });
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
+    if (eventType === 'booking.payment_captured') {
+      const patientText = `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`;
+      await sendLinkedChannelMessage({
+        dispatchPort,
+        phoneNormalized: contactPhone,
+        text: patientText,
+        eventId: `booking-payment:${bookingId}`,
+      });
+      await sendDoctorMessage(
+        dispatchPort,
+        `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
+        `booking-payment:${bookingId}`,
+      );
+      await scheduleBookingReminders({
+        bookingId,
+        slotStartIso: payload.slotStart,
+        phoneNormalized: contactPhone,
+        patientName,
+        timeZone,
+        ...(webappEventsPort ? { webappEventsPort } : {}),
+      });
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
 
-  if (eventType === 'booking.payment_captured') {
-    const patientText = `Оплата записи подтверждена. ${formatBookingRuDateTime(payload.slotStart, timeZone)}`;
-    await sendLinkedChannelMessage({
-      dispatchPort,
-      phoneNormalized: contactPhone,
-      text: patientText,
-      eventId: `booking-payment:${bookingId}`,
-    });
-    await sendDoctorMessage(
-      dispatchPort,
-      `Оплата записи: ${patientName ?? 'пациент'}, ${formatBookingRuDateTime(payload.slotStart, timeZone)}`,
-      `booking-payment:${bookingId}`,
-    );
-    await scheduleBookingReminders({
-      bookingId,
-      slotStartIso: payload.slotStart,
-      phoneNormalized: contactPhone,
-      patientName,
-      timeZone,
-      ...(webappEventsPort ? { webappEventsPort } : {}),
-    });
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
+    if (eventType === 'booking.reschedule_requested') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
 
-  if (eventType === 'booking.reschedule_requested') {
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
+    if (eventType === 'booking.deleted') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
 
-  if (eventType === 'booking.deleted') {
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
-  }
+    if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
+      await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
+      return;
+    }
 
-  if (eventType === 'booking.package_linked' || eventType === 'booking.package_unlinked') {
-    await trySyncCanonicalBookingToGoogleCalendar(eventType, payload, dispatchPort);
-    rememberBookingEventKey(dedupKey);
-    return;
+    throw new Error('unsupported_booking_event_type');
+  } catch (err) {
+    await releaseBookingLifecycleKey(acquiredKey, options.idempotencyPort);
+    throw err;
   }
-
-  throw new Error('unsupported_booking_event_type');
 }
 
 export async function registerRubitimeRecordM2mRoutes(
@@ -572,7 +658,9 @@ export async function registerRubitimeRecordM2mRoutes(
     dispatchPort,
   });
 
-  const guard = (request: FastifyRequest): { ok: true; rawBody: string } | { ok: false; code: number; err: string } => {
+  const guard = (
+    request: FastifyRequest,
+  ): { ok: true; rawBody: string } | { ok: false; code: number; err: string } => {
     const req = request as ReqWithRawBody;
     const rawBody = req.rawBody ?? JSON.stringify(request.body ?? {});
     const timestamp = request.headers['x-bersoncare-timestamp'];
@@ -678,7 +766,10 @@ export async function registerRubitimeRecordM2mRoutes(
         return reply.code(400).send({ ok: false, error: 'invalid_rubitime_ids' });
       }
       const branchTimezone = await getBranchTzWithIncident(String(branchId));
-      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(input.slotStart, branchTimezone);
+      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(
+        input.slotStart,
+        branchTimezone,
+      );
       const rubitimePayload: Record<string, unknown> = {
         branch_id: branchId,
         cooperator_id: cooperatorId,
@@ -694,9 +785,8 @@ export async function registerRubitimeRecordM2mRoutes(
       }
       try {
         const result = await createRubitimeRecord({ data: rubitimePayload });
-        const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
-          ? String(result.id)
-          : null;
+        const recordId =
+          typeof result.id === 'string' || typeof result.id === 'number' ? String(result.id) : null;
 
         let projectionWarning: string | undefined;
         if (recordId) {
@@ -708,10 +798,20 @@ export async function registerRubitimeRecordM2mRoutes(
           if (!proj.projectionOk) {
             projectionWarning = proj.error;
           }
-          logger.info({ recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId }, 'create-record completed with projection');
+          logger.info(
+            { recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId },
+            'create-record completed with projection',
+          );
         }
 
-        return reply.code(200).send({ ok: true, recordId, data: result, ...(projectionWarning ? { projectionWarning } : {}) });
+        return reply
+          .code(200)
+          .send({
+            ok: true,
+            recordId,
+            data: result,
+            ...(projectionWarning ? { projectionWarning } : {}),
+          });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ err }, 'rubitime create-record failed (v2)');
@@ -729,7 +829,10 @@ export async function registerRubitimeRecordM2mRoutes(
         ...(v1.city ? { city: v1.city } : {}),
       });
       if (!scheduleParams) {
-        logger.warn({ type: v1.type, category: v1.category, city: v1.city }, 'rubitime create-record: no booking profile for query');
+        logger.warn(
+          { type: v1.type, category: v1.category, city: v1.city },
+          'rubitime create-record: no booking profile for query',
+        );
         return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
       }
 
@@ -737,13 +840,13 @@ export async function registerRubitimeRecordM2mRoutes(
       const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(v1.slotStart, branchTimezone);
 
       const rubitimePayload: Record<string, unknown> = {
-        branch_id:     scheduleParams.branchId,
+        branch_id: scheduleParams.branchId,
         cooperator_id: scheduleParams.cooperatorId,
-        service_id:    scheduleParams.serviceId,
-        record:        rubitimeDatetime,
-        status:        RUBITIME_CREATE_RECORD_DEFAULT_STATUS,
-        name:          v1.contactName,
-        phone:         v1.contactPhone,
+        service_id: scheduleParams.serviceId,
+        record: rubitimeDatetime,
+        status: RUBITIME_CREATE_RECORD_DEFAULT_STATUS,
+        name: v1.contactName,
+        phone: v1.contactPhone,
       };
       if (v1.contactEmail && v1.contactEmail.trim()) {
         rubitimePayload.email = v1.contactEmail.trim();
@@ -751,9 +854,8 @@ export async function registerRubitimeRecordM2mRoutes(
 
       try {
         const result = await createRubitimeRecord({ data: rubitimePayload });
-        const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
-          ? String(result.id)
-          : null;
+        const recordId =
+          typeof result.id === 'string' || typeof result.id === 'number' ? String(result.id) : null;
 
         let projectionWarning: string | undefined;
         if (recordId) {
@@ -765,10 +867,20 @@ export async function registerRubitimeRecordM2mRoutes(
           if (!proj.projectionOk) {
             projectionWarning = proj.error;
           }
-          logger.info({ recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId }, 'create-record completed with projection');
+          logger.info(
+            { recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId },
+            'create-record completed with projection',
+          );
         }
 
-        return reply.code(200).send({ ok: true, recordId, data: result, ...(projectionWarning ? { projectionWarning } : {}) });
+        return reply
+          .code(200)
+          .send({
+            ok: true,
+            recordId,
+            data: result,
+            ...(projectionWarning ? { projectionWarning } : {}),
+          });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ err, type: v1.type, category: v1.category }, 'rubitime create-record failed');
@@ -831,7 +943,12 @@ export async function registerRubitimeRecordM2mRoutes(
       try {
         const raw = await fetchRubitimeSchedule({ params: scheduleParams });
         const branchTimezone = await getBranchTzWithIncident(String(scheduleParams.branchId));
-        const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, branchTimezone, v1.date);
+        const slots = normalizeRubitimeSchedule(
+          raw,
+          scheduleParams.durationMinutes,
+          branchTimezone,
+          v1.date,
+        );
         return reply.code(200).send({ ok: true, slots });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -860,7 +977,10 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
     }
     try {
-      await handleBookingLifecycleEvent(parsed.data, dispatchPort, deps.webappEventsPort);
+      await handleBookingLifecycleEvent(parsed.data, dispatchPort, {
+        ...(deps.idempotencyPort ? { idempotencyPort: deps.idempotencyPort } : {}),
+        ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
+      });
       return reply.code(200).send({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

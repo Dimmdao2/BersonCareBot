@@ -142,6 +142,7 @@ export type AppDeps = {
   smsClient: SmsClient;
   dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
+  idempotencyPort: IdempotencyPort;
   /** Unified send façade — THE single entry point for outbound sends (PLAN S3). */
   unifiedSender: UnifiedSender;
   contentPort: ContentPort;
@@ -311,6 +312,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     smsClient,
     dbWritePort,
     dispatchPort,
+    idempotencyPort,
     unifiedSender,
     contentPort,
     templatePort,

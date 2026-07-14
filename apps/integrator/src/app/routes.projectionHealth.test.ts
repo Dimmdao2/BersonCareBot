@@ -12,6 +12,7 @@ function createDeps(getProjectionHealth: AppDeps['getProjectionHealth']): AppDep
     smsClient: {} as AppDeps['smsClient'],
     dbWritePort: {} as AppDeps['dbWritePort'],
     dispatchPort: {} as AppDeps['dispatchPort'],
+    idempotencyPort: {} as AppDeps['idempotencyPort'],
     unifiedSender: {} as AppDeps['unifiedSender'],
     contentPort: {} as AppDeps['contentPort'],
     sendMenuOnButtonPress: false,

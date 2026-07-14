@@ -182,6 +182,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
     dispatchPort: deps.dispatchPort,
     dbWritePort: deps.dbWritePort,
+    idempotencyPort: deps.idempotencyPort,
     webappEventsPort: deps.webappEventsPort,
   });
 
