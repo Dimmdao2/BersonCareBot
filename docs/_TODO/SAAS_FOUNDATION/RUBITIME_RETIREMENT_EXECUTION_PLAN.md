@@ -903,7 +903,7 @@ mappings and the owner-approved single-specialist export context.
 - [ ] GCal create/update/delete is canonical lifecycle driven.
 - [x] reminders are canonical lifecycle driven. *(Raw webhook has no direct reminder trigger; lifecycle tests cover create/reschedule/payment reminder scheduling.)*
 - [x] patient/staff Telegram/MAX notifications are preserved. *(Lifecycle tests cover create/cancel/reschedule/payment channel behavior and doctor notification path.)*
-- [ ] Web Push behavior is preserved.
+- [x] Web Push behavior is preserved. *(Lifecycle tests cover created no-push, cancelled suppress/no-suppress, and rescheduled push behavior.)*
 - [x] payment capture side effects are preserved. *(Lifecycle parity test covers notifications, reminders and GCal update.)*
 - [x] package link/unlink side effects are preserved. *(Lifecycle parity tests cover GCal update without patient notifications.)*
 - [x] booking delete side effects are preserved. *(Lifecycle parity test covers GCal cleanup by current map key.)*

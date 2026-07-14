@@ -41,6 +41,7 @@ Existing tests around the lifecycle handler cover:
 - booking-created reminder scheduling through delivery-target topic `appointment_reminders`;
 - payment-captured channel notifications, reminder scheduling, and GCal update;
 - no app Web Push on immediate booking-created confirmation;
+- cancellation and reschedule app Web Push with `appointment_lifecycle` intent and `/app/patient/messages` openUrl;
 - reschedule reminder cancellation/re-scheduling;
 - package link/unlink GCal update without patient notifications;
 - doctor Telegram notification path when configured.
@@ -92,7 +93,7 @@ Reminder inventory:
 ## Validation
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 50 tests.
-- `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/app/routes.projectionHealth.test.ts` - passed, 52 tests.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/app/routes.projectionHealth.test.ts` - passed, 54 tests.
 - `pnpm -C apps/webapp exec vitest run src/modules/integrator/bookingM2mApi.test.ts` - passed, 17 tests.
 - `pnpm --dir apps/integrator typecheck` - passed.
 - `pnpm -C apps/webapp run typecheck` - passed.

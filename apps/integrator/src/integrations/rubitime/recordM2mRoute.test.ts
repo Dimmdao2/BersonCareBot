@@ -306,6 +306,7 @@ describe('POST booking lifecycle event routes', () => {
     enqueueMessageRetryJob.mockClear();
     cancelPendingBookingReminderJobsByBookingId.mockClear();
     dbQuery.mockClear();
+    getTargetsByPhone.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
     mockSyncCanonicalAppointmentToCalendar.mockClear();
   });
@@ -692,6 +693,33 @@ describe('POST booking lifecycle event routes', () => {
     );
   });
 
+  it('booking.cancelled without suppressPatientNotification sends appointment lifecycle Web Push', async () => {
+    const notifyPatientWebPush = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing, { notifyPatientWebPush });
+    const raw = JSON.stringify({
+      eventType: 'booking.cancelled' as const,
+      idempotencyKey: `cancel-webpush-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        bookingId: 'bf24566f-a4de-4ab4-9336-5ddf806cd6ce',
+        canonicalAppointmentId: 'cf24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(notifyPatientWebPush).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(notifyPatientWebPush.mock.calls[0]![0].body)) as Record<string, unknown>;
+    expect(body.intentType).toBe('appointment_lifecycle');
+    expect(body.variant).toBe('cancelled');
+    expect(body.openUrl).toContain('/app/patient/messages');
+  });
+
   it('booking.rescheduled uses rubitime map key for GCal when rubitimeId is set', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);
@@ -719,6 +747,33 @@ describe('POST booking lifecycle event routes', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('booking.rescheduled sends appointment lifecycle Web Push', async () => {
+    const notifyPatientWebPush = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing, { notifyPatientWebPush });
+    const raw = JSON.stringify({
+      eventType: 'booking.rescheduled' as const,
+      idempotencyKey: `rescheduled-webpush-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        bookingId: 'cf34566f-a4de-4ab4-9336-5ddf806cd6ce',
+        canonicalAppointmentId: 'df34566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(notifyPatientWebPush).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(notifyPatientWebPush.mock.calls[0]![0].body)) as Record<string, unknown>;
+    expect(body.intentType).toBe('appointment_lifecycle');
+    expect(body.variant).toBe('rescheduled');
+    expect(body.openUrl).toContain('/app/patient/messages');
   });
 
   it('booking.created does NOT send web-push (patient sees confirmation on-screen, #306)', async () => {
