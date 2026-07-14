@@ -25,7 +25,8 @@ The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 If a final proof file exists, the checker validates its required content fragments against that packet.
 The same fragments are present in `.template.md` files next to each expected final proof; templates are not final
-proofs and must not be renamed until the corresponding owner-approved operation is executed.
+proofs and must not be renamed until the corresponding owner-approved operation is executed. Real proof files must
+not contain template placeholders such as `TODO:` or template warning text; the checker fails if they do.
 
 ## Required Missing Final Proofs
 
@@ -74,7 +75,8 @@ Templates:
 4. Run `pnpm run check:rubitime-retirement-complete` only when claiming final Rubitime retirement. It must fail until
    all blockers are converted to `pass` with proof files.
 5. Do not create placeholder proof files to satisfy the checker. Proof files must contain real command output,
-   owner decisions and commit hashes from the relevant production/non-prod run.
+   owner decisions and commit hashes from the relevant production/non-prod run. Files containing template `TODO:`
+   placeholders or template warning text fail the final gate.
 6. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
    fails even in default mode.
 7. Use the `.template.md` files as copy sources only after the corresponding operation is approved and executed.

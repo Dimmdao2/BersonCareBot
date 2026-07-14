@@ -68,6 +68,12 @@ const proofContracts = [
   },
 ];
 
+const forbiddenProofFragments = [
+  'TODO:',
+  'Do not rename this template',
+  'Final proof filename:',
+];
+
 const blockingItems = [
   {
     id: 'R5-PROD-DISABLE',
@@ -197,6 +203,11 @@ function validate({ requireComplete }) {
       for (const fragment of contract.requiredFragments) {
         if (!proofSrc.includes(fragment)) {
           errors.push(`${contract.proof}: missing required fragment ${fragment}`);
+        }
+      }
+      for (const fragment of forbiddenProofFragments) {
+        if (proofSrc.includes(fragment)) {
+          errors.push(`${contract.proof}: contains placeholder/template fragment ${fragment}`);
         }
       }
     }
