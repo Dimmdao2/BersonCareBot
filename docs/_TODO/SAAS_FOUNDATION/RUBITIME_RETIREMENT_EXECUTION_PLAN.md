@@ -949,6 +949,9 @@ the required read-only drain snapshots, fresh CSV reconciliation and owner-appro
 
 ### R7 — archive and drop legacy tables
 
+Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it
+defines the required audit, archive/export, migration and fresh restore proof for `RR-PROOF-10`.
+
 - [ ] R1-R6 are complete.
 - [ ] fresh metadata inventory finds no runtime references to drop candidates.
 - [ ] owner archive/drop decision is recorded.
