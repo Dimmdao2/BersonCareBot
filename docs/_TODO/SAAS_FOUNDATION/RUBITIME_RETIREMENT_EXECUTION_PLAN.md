@@ -944,6 +944,7 @@ the required read-only drain snapshots, fresh CSV reconciliation and owner-appro
 - [ ] Rubitime `/create-record` route is unmounted.
 - [ ] Rubitime update/cancel/remove routes are unmounted.
 - [x] provider-neutral booking lifecycle route remains working. *(Registered through `integrations/bersoncare/bookingLifecycleRoute.ts`; see `RUBITIME_RETIREMENT_R6_LIFECYCLE_ROUTE_SPLIT_PROOF.md`.)*
+- [x] provider-neutral booking lifecycle handler/schema live outside Rubitime registrar ownership. *(Rubitime route keeps compatibility alias only until cutoff/drain.)*
 - [ ] Rubitime connector/api2/throttle code is removed.
 - [ ] Rubitime post-create projection code is removed.
 - [ ] runtime Rubitime env/config keys are removed or archived.

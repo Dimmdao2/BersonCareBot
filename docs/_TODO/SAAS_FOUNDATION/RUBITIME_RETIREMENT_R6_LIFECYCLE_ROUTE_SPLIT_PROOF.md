@@ -9,10 +9,12 @@ This proof covers the first R6 code split before destructive integrator Rubitime
 
 - `/api/bersoncare/booking/lifecycle-event` is registered through
   `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts`.
+- Booking lifecycle validation, handler implementation and booking notification date formatting now live under
+  `apps/integrator/src/integrations/bersoncare/`, outside the Rubitime registrar ownership.
 - `apps/integrator/src/app/routes.ts` wires the provider-neutral booking lifecycle route separately from
   `registerRubitimeRecordM2mRoutes`.
 - The legacy compatibility alias `/api/bersoncare/rubitime/booking-event` remains mounted in the Rubitime registrar
-  until the R6 cutoff/drain gates allow removal.
+  and delegates to the provider-neutral handler until the R6 cutoff/drain gates allow removal.
 - The old doctor webapp proxy routes `POST /api/doctor/appointments/rubitime/update` and
   `POST /api/doctor/appointments/rubitime/cancel` were removed. `rg` found no UI callers; canonical booking-engine
   doctor/admin routes remain the supported runtime surface.
@@ -26,9 +28,8 @@ No production DB, env, service, webhook, or Rubitime endpoint was changed.
 
 ## Important Caveat
 
-The lifecycle handler implementation is still exported from `recordM2mRoute.ts` in this step to keep the change
-small and behavior-preserving. This proof does not claim Rubitime code removal is complete. A later R6 step must move
-the lifecycle handler body out of `integrations/rubitime` or delete the Rubitime registrar after the cutoff gates pass.
+This proof does not claim Rubitime code removal is complete. A later R6 step must delete the Rubitime compatibility
+alias, Rubitime M2M/admin/webhook routes and raw runtime after the cutoff/drain gates pass.
 
 ## Validation
 
@@ -43,5 +44,8 @@ the lifecycle handler body out of `integrations/rubitime` or delete the Rubitime
 - `pnpm --dir apps/webapp exec eslint src/app/api/doctor/booking-engine/appointments/manual/route.ts src/app/api/admin/booking-engine/appointments/manual/route.ts src/app/api/doctor/booking-engine/appointments/manual/route.test.ts src/app/api/admin/booking-engine/appointments/manual/route.test.ts` - passed.
 - `pnpm --dir apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts` - passed, 16 tests.
 - `pnpm --dir apps/webapp exec eslint src/modules/patient-booking/canonicalCreate.ts src/modules/patient-booking/canonicalCreate.test.ts` - passed.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/integrations/rubitime/schema.test.ts` - passed, 64 tests.
+- `pnpm --dir apps/integrator exec eslint src/integrations/bersoncare/bookingLifecycleRoute.ts src/integrations/bersoncare/bookingLifecycleSchema.ts src/integrations/bersoncare/bookingNotificationFormat.ts src/integrations/rubitime/recordM2mRoute.ts src/integrations/rubitime/schema.ts src/integrations/rubitime/recordM2mRoute.test.ts src/integrations/rubitime/schema.test.ts` - passed.
 - `rg -n "isRubitimeFirstCreateEnabled|isRubitimeCreateMirrorEnabled|createRubitimeRecord\\(|rollbackFailedRubitimeCreate|waitForRubitimeProjectionMapping|extractRubitimeManageUrl|rubitime_projection_not_ready|rubitimeFirst|bridgeEnabled|syncPort\\.createRecord|syncPort\\.deleteRecord" apps/webapp/src/modules/patient-booking/canonicalCreate.ts` - no matches.
 - `rg -n "api/doctor/appointments/rubitime|appointments/rubitime/(update|cancel)" apps/webapp/src apps/webapp/INTEGRATOR_CONTRACT.md apps/webapp/src/app/api/api.md -g '*.ts' -g '*.tsx' -g '*.md'` - no runtime code hits; only retired-doc note remains.
+- `rg -n "handleBookingLifecycleEvent|scheduleBookingReminders|sendBookingWebPush|trySyncCanonicalBookingToGoogleCalendar|BookingLifecyclePayloadSchema|parseBookingLifecycleEvent" apps/integrator/src/integrations/rubitime -g '*.ts'` - no lifecycle handler body remains in Rubitime ownership; `schema.ts` keeps compatibility re-exports only.

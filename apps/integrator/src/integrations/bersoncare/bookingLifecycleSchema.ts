@@ -1,0 +1,52 @@
+import { z } from 'zod';
+
+const BookingLifecyclePayloadSchema = z.object({
+  bookingId: z.string().uuid(),
+  userId: z.string().min(1),
+  rubitimeId: z.string().nullable().optional(),
+  bookingType: z.enum(['in_person', 'online']),
+  city: z.string().nullable().optional(),
+  category: z.enum(['rehab_lfk', 'nutrition', 'general']),
+  slotStart: z.string().min(1),
+  slotEnd: z.string().min(1),
+  contactName: z.string().min(1),
+  contactPhone: z.string().min(1),
+  contactEmail: z.union([z.string().email(), z.null()]).optional(),
+  reason: z.string().optional(),
+  branchServiceId: z.string().uuid().nullable().optional(),
+  cityCodeSnapshot: z.string().nullable().optional(),
+  serviceTitleSnapshot: z.string().nullable().optional(),
+  canonicalAppointmentId: z.string().uuid().optional(),
+  /** R21: врач снял «Уведомлять пациента» - не слать пациентские каналы/web-push. */
+  suppressPatientNotification: z.boolean().optional(),
+});
+
+export const BookingLifecycleEventSchema = z.object({
+  eventType: z.enum([
+    'booking.created',
+    'booking.cancelled',
+    'booking.rescheduled',
+    'booking.reschedule_requested',
+    'booking.deleted',
+    'booking.payment_captured',
+    'booking.package_linked',
+    'booking.package_unlinked',
+  ]),
+  idempotencyKey: z.string().optional(),
+  payload: BookingLifecyclePayloadSchema,
+});
+
+export type BookingLifecycleEventValidated = z.infer<typeof BookingLifecycleEventSchema>;
+export type BookingLifecyclePayloadValidated = z.infer<typeof BookingLifecyclePayloadSchema>;
+
+export function parseBookingLifecycleEvent(raw: unknown): {
+  success: true;
+  data: BookingLifecycleEventValidated;
+} | {
+  success: false;
+  error: z.ZodError;
+} {
+  const result = BookingLifecycleEventSchema.safeParse(raw);
+  if (result.success) return { success: true, data: result.data };
+  return { success: false, error: result.error };
+}
