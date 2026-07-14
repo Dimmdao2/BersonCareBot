@@ -1,4 +1,8 @@
-import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
+import {
+  runWithDbBootstrapPrincipal,
+  runWithDbInfraPrincipal,
+  runWithDbOrganizationPrincipal,
+} from '@bersoncare/db-principal';
 import { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDbPort } from './client.js';
@@ -113,6 +117,58 @@ describe('integrator DB client helpers', () => {
 		expect(release).not.toHaveBeenCalled();
 	});
 
+  it('fails closed in locked mode before checkout for unknown bootstrap principals', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const pool = { connect: vi.fn() };
+
+    await expect(
+      runWithDbBootstrapPrincipal({ source: 'unit-test-unknown-bootstrap' }, () =>
+        withIntegratorPoolClient(pool as never, async () => 'unused'),
+      ),
+    ).rejects.toThrow(
+      'DB bootstrap principal source is not allowed on integrator request pool in locked mode: unit-test-unknown-bootstrap',
+    );
+
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('fails closed in locked mode before checkout for unknown infra principals', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const pool = { connect: vi.fn() };
+
+    await expect(
+      runWithDbInfraPrincipal({ source: 'unit-test-unknown-infra' }, () =>
+        withIntegratorPoolClient(pool as never, async () => 'unused'),
+      ),
+    ).rejects.toThrow(
+      'DB infra principal source is not allowed on integrator request pool in locked mode: unit-test-unknown-infra',
+    );
+
+    expect(pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('allows explicitly listed bootstrap principals in locked mode', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(
+      runWithDbBootstrapPrincipal({ source: 'telegram-webhook:pre-routing' }, () =>
+        withIntegratorPoolClient(pool as never, async () => 'bootstrap-ok'),
+      ),
+    ).resolves.toBe('bootstrap-ok');
+
+    expect(pool.connect).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]).toEqual(['SELECT app.release_principal_context()']);
+    expect(query.mock.calls[1]).toEqual(['RESET ROLE']);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects invalid locked DB principal env before checking out a client', async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
     delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
@@ -180,6 +236,63 @@ describe('integrator DB client helpers', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it('destroys checked-out clients when locked cleanup fails', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql === 'SELECT pg_backend_pid() AS backend_pid') {
+        return { rows: [{ backend_pid: 8383 }], rowCount: 1 };
+      }
+      if (sql === 'SELECT app.release_principal_context()') {
+        throw new Error('cleanup boom');
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(
+      runWithDbOrganizationPrincipal('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', () =>
+        withIntegratorPoolClient(pool as never, async () => 'ok'),
+      ),
+    ).rejects.toThrow('cleanup boom');
+
+    expect(query.mock.calls.at(-1)).toEqual(['RESET ROLE']);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect((release.mock.calls[0]?.[0] as Error).message).toBe('cleanup boom');
+  });
+
+  it('destroys transaction clients when locked cleanup fails after commit', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql === 'SELECT pg_backend_pid() AS backend_pid') {
+        return { rows: [{ backend_pid: 8484 }], rowCount: 1 };
+      }
+      if (sql === 'SELECT app.release_principal_context()') {
+        throw new Error('tx cleanup boom');
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await expect(
+      runWithDbOrganizationPrincipal('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', () =>
+        withIntegratorPoolTransaction(pool as never, async () => 'tx-ok'),
+      ),
+    ).rejects.toThrow('tx cleanup boom');
+
+    expect(query).toHaveBeenCalledWith('COMMIT');
+    expect(query.mock.calls.at(-1)).toEqual(['RESET ROLE']);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect((release.mock.calls[0]?.[0] as Error).message).toBe('tx cleanup boom');
+  });
+
   it('wraps promise-form pool.query with locked DB principal options', async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
     process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
@@ -207,6 +320,38 @@ describe('integrator DB client helpers', () => {
     expect(query.mock.calls.at(-2)).toEqual(['SELECT app.release_principal_context()']);
     expect(query.mock.calls.at(-1)).toEqual(['RESET ROLE']);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroys provider pool.query clients when locked cleanup fails', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql === 'SELECT pg_backend_pid() AS backend_pid') {
+        return { rows: [{ backend_pid: 8585 }], rowCount: 1 };
+      }
+      if (sql === 'SELECT app.release_principal_context()') {
+        throw new Error('provider cleanup boom');
+      }
+      return { rows: [{ ok: true }], rowCount: 1 };
+    });
+    const client = { query, release };
+    vi.spyOn(Pool.prototype, 'connect').mockResolvedValue(client as never);
+    vi.spyOn(Pool.prototype, 'end').mockResolvedValue(undefined);
+    const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
+
+    await expect(
+      runWithDbOrganizationPrincipal('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', () =>
+        pool.query('SELECT ok'),
+      ),
+    ).rejects.toThrow('provider cleanup boom');
+    await pool.end();
+
+    expect(query).toHaveBeenCalledWith('SELECT ok');
+    expect(query.mock.calls.at(-1)).toEqual(['RESET ROLE']);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect((release.mock.calls[0]?.[0] as Error).message).toBe('provider cleanup boom');
   });
 
   it('rejects callback-form pool.query at the provider chokepoint', async () => {

@@ -5,10 +5,31 @@ import {
 	buildDbPrincipalApplyOptionsFromEnv,
 	clearDbPrincipalFromConnection,
 	getCurrentDbPrincipal,
+	type DbPrincipal,
 	type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
+const allowedLockedBootstrapSources = new Set([
+	'max-webhook:pre-routing',
+	'max-webhook:unresolved-org',
+	'max-webhook:verbose-config',
+	'telegram-webhook:clear-menu-unresolved-org',
+	'telegram-webhook:pre-routing',
+	'telegram-webhook:unresolved-org',
+]);
+const allowedLockedInfraSources = new Set([
+	'delivery-handler',
+	'integrator-health-check',
+	'max-webhook:record-outcome',
+	'scheduler:acquire-lock',
+	'scheduler:claim-due-jobs',
+	'scheduler:handle-tick-event',
+	'telegram-webhook:record-outcome',
+	'worker:job-queue-drain',
+	'worker:outgoing-delivery-tick',
+	'worker:projection-outbox-tick',
+]);
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
@@ -30,13 +51,25 @@ function toReleaseError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
 }
 
+function assertAllowedTechnicalPrincipal(principal: DbPrincipal): void {
+	const source = principal.source ?? '';
+	if (principal.kind === 'bootstrap' && !allowedLockedBootstrapSources.has(source)) {
+		throw new Error(`DB bootstrap principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`);
+	}
+	if (principal.kind === 'infra' && !allowedLockedInfraSources.has(source)) {
+		throw new Error(`DB infra principal source is not allowed on integrator request pool in locked mode: ${source || 'missing'}`);
+	}
+}
+
 export function assertIntegratorLockedPrincipalClassified(options: DbPrincipalApplyOptions): void {
 	if (options.mode !== 'locked') {
 		return;
 	}
-	if (!getCurrentDbPrincipal()) {
+	const principal = getCurrentDbPrincipal();
+	if (!principal) {
 		throw new Error('DB principal context is required before integrator scoped DB access in locked mode');
 	}
+	assertAllowedTechnicalPrincipal(principal);
 }
 
 async function prepareIntegratorClient(
@@ -58,11 +91,19 @@ export async function releasePreparedIntegratorClient(
   client: PoolClient,
   options: DbPrincipalApplyOptions = getPreparedClientOptions(client),
 ): Promise<void> {
+  let cleanupError: unknown;
   try {
     await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    cleanupError = err;
+    throw err;
   } finally {
     forgetPreparedClient(client);
-    client.release();
+    if (cleanupError === undefined) {
+      client.release();
+    } else {
+      client.release(toReleaseError(cleanupError));
+    }
   }
 }
 
@@ -70,6 +111,24 @@ export async function destroyPreparedIntegratorClient(client: PoolClient, err: u
   forgetPreparedClient(client);
   const releaseWithError = client.release as unknown as (releaseError?: Error) => void;
   releaseWithError(toReleaseError(err));
+}
+
+async function releasePreparedIntegratorClientAfterSetupFailure(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  try {
+    await clearDbPrincipalFromConnection(client, options);
+  } catch (err) {
+    await destroyPreparedIntegratorClient(client, err);
+    return;
+  }
+  try {
+    forgetPreparedClient(client);
+    client.release();
+  } catch {
+    /* release is synchronous in pg; keep setup failure if a mock throws */
+  }
 }
 
 export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClient> {
@@ -80,7 +139,7 @@ export async function checkoutIntegratorPoolClient(pool: Pool): Promise<PoolClie
     await prepareIntegratorClient(client, principalApplyOptions);
     return client;
   } catch (err) {
-    await releasePreparedIntegratorClient(client, principalApplyOptions);
+    await releasePreparedIntegratorClientAfterSetupFailure(client, principalApplyOptions);
     throw err;
   }
 }

@@ -15,6 +15,15 @@ function prepareIntegratorPoolClient(_client: PoolClient): void {
 	// Dormant SAAS hook: future per-process DB principal setup belongs here.
 }
 
+function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
+	if (cleanupError === undefined) {
+		client.release();
+		return;
+	}
+
+	client.release(cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'));
+}
+
 function installPrincipalAwarePoolQuery(pool: Pool): void {
 	const queryWithPrincipal = async (
 		...args: Parameters<Pool['query']>
@@ -22,17 +31,30 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
 		const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
 		assertIntegratorLockedPrincipalClassified(principalApplyOptions);
 		const client = await pool.connect();
+		let queryError: unknown;
+		let result: Awaited<ReturnType<Pool['query']>> | undefined;
 		try {
 			await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
 			const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool['query']>) => ReturnType<Pool['query']>;
-			return await query(...args);
-		} finally {
-			try {
-				await clearDbPrincipalFromConnection(client, principalApplyOptions);
-			} finally {
-				client.release();
-			}
+			result = await query(...args);
+		} catch (err) {
+			queryError = err;
 		}
+
+		let cleanupError: unknown;
+		try {
+			await clearDbPrincipalFromConnection(client, principalApplyOptions);
+		} catch (err) {
+			cleanupError = err;
+		}
+		releasePoolClient(client, cleanupError);
+		if (queryError !== undefined) {
+			throw queryError;
+		}
+		if (cleanupError !== undefined) {
+			throw cleanupError;
+		}
+		return result as Awaited<ReturnType<Pool['query']>>;
 	};
 
 	pool.query = ((...args: Parameters<Pool['query']>) => {

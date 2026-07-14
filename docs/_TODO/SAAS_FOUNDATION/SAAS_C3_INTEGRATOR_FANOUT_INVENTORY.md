@@ -1,6 +1,6 @@
 # C3 integrator fanout inventory and missing-principal gate
 
-Status: Phase C3 repo-side inventory/fail-closed package. No live delivery proof.
+Status: Phase C3 repo-side audit-fix package. No live delivery proof and no runtime credential flip.
 
 ## Scope
 
@@ -8,11 +8,52 @@ This stage builds on the existing
 [`T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md`](T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md) source audit and tightens the
 default integrator DB chokepoint:
 
-- Telegram/MAX/BersonCare M2M/scheduler/worker entrypoints remain mapped through the T0.4 checklist.
-- Locked-mode integrator DB access now rejects a missing principal before `pool.connect()`.
-- Legacy mode remains compatible for current dormant deployments.
-- Technical queue/outbox paths that intentionally do not carry a business organization principal remain a
-  later C3/C4 operational-pool decision; this stage does not silently treat them as staff or patient.
+- every HTTP registrar mounted from `apps/integrator/src/app/routes.ts` is inventoried below;
+- locked-mode integrator DB access now rejects a missing principal before `pool.connect()`;
+- locked-mode bootstrap/infra request-pool access is explicitly source-allowlisted, not ambiently allowed;
+- cleanup failure in integrator client release destroys/poisons the connection via `release(error)`;
+- legacy mode remains compatible for current dormant deployments.
+
+This is not the final C3 acceptance from `SAAS_ENFORCE_ROADMAP.md`: controlled queued fixtures, strict roles,
+cross-org denial, and no-outbound-delivery proof remain future TEST/disposable-runtime gates.
+
+## Registered API Entry Points From `routes.ts`
+
+The inventory checker derives the mounted registrar list from `apps/integrator/src/app/routes.ts`. Adding a new
+`register*Route(s)` call or direct `app.get/post` in that file without updating this table fails
+`pnpm run check:saas-c3-integrator-fanout-inventory`. It also parses conditional Telegram/MAX webhook registrar
+source files; adding `app.get/post` there without updating this table fails the same gate.
+
+| ID | Entrypoint | Registered by | Principal class / source | DB surfaces | Locked-mode behavior | Send-safe status |
+|---|---|---|---|---|---|---|
+| `health` | `GET /health` | direct `routes.ts` | `infra`, source `integrator-health-check` | `SELECT 1` through provider query | Explicitly allowlisted infra source; missing/unknown source fails before checkout. | No outbound send. |
+| `projection-health` | `GET /health/projection` | direct `routes.ts` | Technical projection health via `deps.getProjectionHealth`; C3 has no separate operational-pool proof yet. | `integrator.projection_outbox` aggregate reads through `getProjectionHealth`. | Future operational-pool classification remains required if locked runtime exercises this route. | No outbound send. |
+| `send-sms` | `POST /api/bersoncare/send-sms` | `registerBersoncareSendSmsRoute` | Signed webapp M2M delivery request; no org principal currently resolved in the route. | No route-local DB read; `dispatchPort` may persist delivery attempts/queue state. | Missing principal would fail on scoped DB checkout if downstream writes need the request pool in locked mode; final delivery worker fanout proof remains future C3. | Delivery intent only; safe only under existing dev/test redirect or future no-real-delivery proof. |
+| `send-email` | `POST /api/bersoncare/send-email` | `registerBersoncareSendEmailRoute` | Signed webapp M2M delivery request; no org principal currently resolved in the route. | SMTP config pre-check via `system_settings`; dispatch persistence downstream. | Requires future bootstrap/operational classification for config pre-check and delivery writes under locked runtime. | Delivery intent only; no live send proof in this stage. |
+| `relay-outbound` | `POST /api/bersoncare/relay-outbound` | `registerBersoncareRelayOutboundRoute` | Signed webapp M2M delivery relay; payload recipient/channel, no org principal currently resolved in the route. | In-memory dedup; downstream `dispatchPort` persistence. | Missing principal would fail on scoped DB checkout if downstream writes need the request pool in locked mode; final fanout is future C3. | Delivery intent only; no live send proof in this stage. |
+| `request-contact` | `POST /api/bersoncare/request-contact` | `registerBersoncareRequestContactRoute` | Signed webapp M2M; org from recipient messenger identity, then deployment fallback. | `createDbWritePort` writes contact/request transport state. | Runs under `organization` principal when resolvable; unresolved fallback path remains a locked-mode denial/future operational decision if it reaches scoped DB. | Delivery intent; no real send proof in this stage. |
+| `send-otp` | `POST /api/bersoncare/send-otp` | `registerBersoncareSendOtpRoute` | Signed webapp M2M OTP delivery; no org principal currently resolved in the route. | No route-local DB read; downstream dispatch persistence. | Missing principal would fail on scoped DB checkout if downstream writes need the request pool in locked mode; final OTP send-safe proof remains future C3. | OTP delivery intent only; no live send proof in this stage. |
+| `reminder-rules` | `POST /api/integrator/reminders/rules` | `registerBersoncareReminderRulesRoute` | Signed webapp M2M; org from `integratorUserId`. | `integrator.user_reminder_rules`, content grants/reminder writes through `DbWritePort`. | Runs under `organization` principal when resolvable; unresolved write path is visible and remains future locked denial/fixture scope. | No direct outbound send. |
+| `settings-sync` | `POST /api/integrator/settings/sync` | `registerBersoncareSettingsSyncRoute` | Signed webapp M2M settings mirror/cache invalidation. | `integrator.system_settings` upsert; cache invalidation for app URL/timezone/GCal/SMTP/staff IDs. | Currently not tenant-principal wrapped. Global and org-specific settings require future bootstrap/platform/operational contract under locked runtime. | No outbound send. |
+| `users-canonical-pair` | `POST /api/integrator/users/canonical-pair` | `registerBersoncareUserMergeM2mRoutes` | Signed webapp M2M identity read. | Canonical integrator user lookup. | Read path is not org wrapped; future locked proof must classify it as bootstrap/identity or deny it. | No outbound send. |
+| `users-merge` | `POST /api/integrator/users/merge` | `registerBersoncareUserMergeM2mRoutes` | Signed webapp M2M; org from winner integrator user, then deployment fallback. | Integrator user merge and SCOPED child reparent writes. | Runs under `organization` principal when resolvable; unresolved dry/run write paths remain future fixture/denial scope. | No outbound send. |
+| `operator-health-probe` | `POST /internal/operator-health-probe` | `registerOperatorHealthProbeRoute` | Signed internal health probe. | Probe runner reads config/status indirectly; may enqueue synthetic probe delivery through `dispatchPort`. | Needs future explicit operational-pool proof for probe DB surfaces; unknown infra/bootstrap remains denied by request-pool guard. | Synthetic delivery only; no real send proof in this stage. |
+| `booking-lifecycle` | `POST /api/bersoncare/booking/lifecycle-event` | `registerBersoncareBookingLifecycleRoute` | Signed webapp M2M booking lifecycle event; payload has booking/appointment identity, no org principal wrapper yet. | Idempotency, job queue cancellation/enqueue, settings/timezone, delivery-target lookup, GCal sync state, webapp push notify. | Not proven under locked mode; future C3 must materialize org from booking/appointment and deny blank/cross-org fixtures. | Delivery intents and GCal sync possible; no real send/S3 proof in this stage. |
+| `telegram-webhook` | `POST /webhook/telegram` when `deps.registerTelegramWebhookRoutes` is enabled and long-polling is off | `deps.registerTelegramWebhookRoutes` | Telegram secret + pre-routing `bootstrap` source `telegram-webhook:pre-routing`; event handling under `integrator` or `organization` principal; unresolved path source `telegram-webhook:unresolved-org`. | Webapp-entry token facts, staff IDs, app URL, channel/user state, conversation/reminder/support writes through event gateway. | Listed bootstrap sources are allowlisted; organization/integrator principal is applied when resolved; unresolved path is explicit, not silent. | Incoming only plus possible replies through dispatch; send-safe proof remains future C3. |
+| `telegram-long-polling` | `telegram getUpdates` background runner when `telegramConfig.mode === 'long_polling'` | `startTelegramLongPolling` | Same `processTelegramUpdate` principal flow as `telegram-webhook`. | Same event gateway surfaces as Telegram webhook. | Same locked-mode source posture as Telegram webhook. | Pulls Telegram updates; no send-safe proof in this stage. |
+| `max-webhook` | `POST /webhook/max` when `deps.registerMaxWebhookRoutes` is enabled | `deps.registerMaxWebhookRoutes` | MAX secret + pre-routing `bootstrap` sources `max-webhook:verbose-config` and `max-webhook:pre-routing`; event handling under `integrator` or `organization` principal; unresolved path source `max-webhook:unresolved-org`. | Operational verbose config, webapp-entry facts, staff IDs, app URL, channel/user state, conversation/reminder/support writes through event gateway. | Listed bootstrap/infra sources are allowlisted; organization/integrator principal is applied when resolved; unresolved path is explicit, not silent. | Incoming only plus possible replies through dispatch; send-safe proof remains future C3. |
+
+## Worker / Scheduler Sources Carried From T0.4
+
+These are not mounted HTTP routes from `routes.ts`, but C3 still tracks them because the roadmap calls out API and
+delivery worker fanout together:
+
+| Entrypoint | Principal class / source | C3 disposition |
+|---|---|---|
+| Outgoing delivery worker tick | `infra`, source `worker:outgoing-delivery-tick`; per-row `organization` wrappers exist for known reminder/broadcast write paths. | Source allowlisted only for the technical tick. Strict queued-fixture consumption, cross-org denial and no-outbound proof remain future C3. |
+| Projection outbox worker tick | `infra`, source `worker:projection-outbox-tick`. | Technical outbox state only per T0.4; future operational-pool contract remains C3/C4. |
+| Generic retry job drain | `infra`, source `worker:job-queue-drain`; delivery handler source `delivery-handler`. | Technical drain allowed; job business execution proof remains future C3. |
+| Scheduler lock/tick | `infra`, sources `scheduler:acquire-lock`, `scheduler:claim-due-jobs`, `scheduler:handle-tick-event`. | C4 owns final scheduler fanout; allowlist is bounded so unknown scheduler sources fail closed. |
 
 ## Implemented Artifacts
 
@@ -25,7 +66,9 @@ default integrator DB chokepoint:
 
 Not closed by this repo-only stage:
 
-- real staff/nonstaff integrator pool split where both role families are needed;
+- real staff/nonstaff or operational integrator pool split where both role families are needed;
 - Telegram/MAX/webhook/public-booking send-safe process-family proof;
 - no-real-delivery/no-real-S3 runtime proof;
-- explicit operational-pool contract for technical queue/outbox state.
+- controlled queued fixtures consumed once under strict roles with expected DB effects in the correct org;
+- cross-org and blank-context fixture denial;
+- explicit operational-pool grants/metrics for technical queue/outbox/probe state.
