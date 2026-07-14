@@ -889,8 +889,8 @@ mappings and the owner-approved single-specialist export context.
 - [x] public slots use canonical catalog ids. *(Primary contract is `branchId+serviceId`; legacy `branchServiceId` is compatibility input.)*
 - [x] public create uses canonical catalog ids. *(Primary contract is `branchId+serviceId`; legacy `branchServiceId` is compatibility input.)*
 - [x] legacy branch/service ids are removed from primary public API contract. *(Deprecated `branchServiceId` remains only compatibility.)*
-- [ ] no patient/public runtime read remains on public `booking_*`.
-- [ ] compatibility adapters have a bounded removal date.
+- [x] no patient/public runtime read remains on public `booking_*`. *(Create path now builds snapshots from canonical `resolveInPersonContext` + `be_branches` + `be_clinic_services`; deprecated `branchServiceId` is mapping-only through `be_external_entity_mappings`, not a `booking_*` read.)*
+- [x] compatibility adapters have a bounded removal date. *(Deadline recorded in `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`: 2026-07-21 or before R7 archive/drop, whichever comes first.)*
 
 ### R4 — provider-neutral canonical downstream events
 
@@ -979,7 +979,7 @@ Rubitime is retired only when all items below are checked.
 - [x] R2 doctor canonical read-source complete.
 - [x] R3 patient/public canonical slots/create complete.
 - [x] R3-TENANT exact tenant complete.
-- [ ] R3-CATALOG catalog migration complete.
+- [x] R3-CATALOG catalog migration complete.
 - [ ] R4 provider-neutral lifecycle complete.
 - [ ] R5 legacy v1 resolve disabled in production.
 - [ ] R6 runtime routes/code removed.
@@ -987,7 +987,7 @@ Rubitime is retired only when all items below are checked.
 - [ ] No runtime code calls Rubitime API.
 - [ ] No runtime route accepts Rubitime webhook/provider traffic.
 - [ ] No doctor/client path reads `appointment_records`.
-- [ ] No patient/public path reads public legacy `booking_*`.
+- [x] No patient/public path reads public legacy `booking_*`.
 - [ ] No canonical booking path uses `booking_default_organization_id` as fallback.
 - [ ] GCal works from canonical lifecycle.
 - [ ] reminders work from canonical lifecycle.

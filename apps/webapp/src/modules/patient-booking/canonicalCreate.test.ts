@@ -24,6 +24,12 @@ const syncPort = {
 
 const bookingEngine = {
   organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+  catalog: {
+    getBranch: vi.fn(),
+  },
+  services: {
+    getService: vi.fn(),
+  },
   createAppointment: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
   getAppointment: vi.fn(),
@@ -132,6 +138,34 @@ describe("createBookingOnCanonicalEngine", () => {
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",
     }));
+    bookingEngine.catalog.getBranch.mockResolvedValue({
+      id: "br-1",
+      organizationId: "org-1",
+      title: "Филиал",
+      shortTitle: null,
+      color: null,
+      cityCode: "msk",
+      address: null,
+      timezone: "Europe/Moscow",
+      isActive: true,
+      sortOrder: 0,
+    });
+    bookingEngine.services.getService.mockResolvedValue({
+      id: "sv-1",
+      organizationId: "org-1",
+      title: "Приём",
+      description: null,
+      durationMinutes: 60,
+      bufferAfterMinutes: 0,
+      priceMinor: 0,
+      isActive: true,
+      prepaymentApplicable: false,
+      usableInPackages: true,
+      onlinePaymentApplicable: false,
+      publicWidgetVisible: true,
+      adminManualOnly: false,
+      sortOrder: 0,
+    });
   });
 
   it("rejects self-service booking when client is booking-blocked", async () => {
@@ -310,6 +344,7 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ durationMinutes: 60 }),
     );
+    expect(bookingCatalog.resolveBranchService).not.toHaveBeenCalled();
   });
 
   it("retired rubitime slot mode still uses native be: doctor projection", async () => {

@@ -1,6 +1,6 @@
 # Rubitime retirement R3-CATALOG — public booking catalog migration proof
 
-Status: partial implementation proof, 2026-07-14.
+Status: patient/public runtime legacy catalog read proof closed, 2026-07-14.
 
 ## Canon
 
@@ -26,11 +26,21 @@ Status: partial implementation proof, 2026-07-14.
 - Public `/api/booking/public/catalog/cities` and `/api/booking/public/catalog/services` fail closed with `organization_selection_required` because no host/link org resolver exists yet.
 - Public `/app/book/new` no longer reads legacy `bookingCatalog`; branch-service deep links resolve through canonical scheduling context and canonical branch/service rows.
 
+## Closed in follow-up
+
+- `modules/patient-booking/canonicalCreate.ts` no longer calls `bookingCatalog.resolveBranchService(...)` in the
+  patient/public create path.
+- In-person create snapshots now come from canonical `resolveInPersonContext` + `be_branches` + `be_clinic_services`.
+- Deprecated `branchServiceId` input remains accepted only as a compatibility key into
+  `be_external_entity_mappings.metadata->>'legacy_branch_service_id'`; resolving it no longer joins public
+  `booking_*`.
+
 ## Remaining compatibility
 
-- `modules/patient-booking/canonicalCreate.ts` still accepts deprecated `branchServiceId` and calls `bookingCatalog.resolveBranchService(...)` for legacy snapshot compatibility.
 - `pgBookingCatalog` remains the admin/legacy CRUD repository for `booking_*` rows.
 - `patient_bookings.branchServiceId` and old URLs can still carry legacy IDs through the bounded release window.
+- Compatibility removal deadline: 2026-07-21 or before R7 archive/drop, whichever comes first. The removal task is to
+  reject public/patient `branchServiceId` input after old URLs are drained and require primary `branchId+serviceId`.
 
 R3-CATALOG is not a table-drop approval. Drop/archive planning remains blocked until legacy `branchServiceId` compatibility is removed or replaced by a canonical compatibility view and old runtime URLs are drained.
 
@@ -44,10 +54,15 @@ Result after this batch:
 
 - app routes/RSC: no legacy `bookingCatalog.list*` reads remain.
 - `app/book/new`: no legacy catalog read remains; generic public city list fails closed without org.
-- remaining matches are `pgBookingCatalog`, `modules/booking-catalog` types/admin legacy module, and `canonicalCreate` deprecated `branchServiceId` compatibility.
+- patient/public create: no `bookingCatalog.resolveBranchService` call remains; deprecated `branchServiceId`
+  compatibility resolves through canonical mapping only.
+- remaining matches are `pgBookingCatalog`, `modules/booking-catalog` types/admin legacy module, admin/manual routes,
+  tests, and Rubitime mapping/admin compatibility.
 
 ## Validation
 
-- `pnpm -C apps/webapp run typecheck` — pass.
+- `pnpm -C apps/webapp run typecheck` — pass after follow-up removal of patient/public legacy catalog read.
+- `pnpm -C apps/webapp exec vitest run src/modules/patient-booking/canonicalCreate.test.ts src/modules/patient-booking/inPersonBookingResolve.test.ts` — pass, 19 tests.
+- `rg -n "bookingCatalog\\.resolveBranchService|resolveBranchService\\(createInput\\.branchServiceId\\)|FROM booking_branch_services|JOIN booking_branches|JOIN booking_cities|JOIN booking_services|JOIN booking_specialists" apps/webapp/src/modules/patient-booking apps/webapp/src/app/api/booking apps/webapp/src/app/api/booking/public --glob '!**/*.test.ts' --glob '!**/*.test.tsx'` — no matches.
 - `pnpm -C apps/webapp exec vitest run src/app/api/booking/catalog/cities/route.test.ts src/app/api/booking/catalog/services/route.test.ts src/app/app/patient/booking/new/city/CityStepClient.test.tsx src/app/app/patient/booking/new/service/ServiceStepClient.test.tsx src/app/app/patient/booking/new/slot/SlotStepClient.test.tsx src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx src/modules/patient-booking/inPersonBookingResolve.test.ts src/modules/patient-booking/canonicalCreate.test.ts` — pass, 36 tests.
 - `pnpm -C apps/webapp exec vitest run src/app/api/booking src/modules/products/service.test.ts src/modules/memberships/service.test.ts` — pass, 95 tests.

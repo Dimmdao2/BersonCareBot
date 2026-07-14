@@ -1,10 +1,11 @@
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { AppointmentStatus, BeAppointment } from "@/modules/booking-engine/types";
+import type { AppointmentStatus, BeAppointment, BeBranch, BeClinicService } from "@/modules/booking-engine/types";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 import type { createBookingFormService } from "@/modules/booking-form/service";
 import type { createBookingSchedulingService } from "@/modules/booking-scheduling/service";
+import type { CanonicalBookingContext } from "@/modules/booking-scheduling/ports";
 
 type BookingFormService = ReturnType<typeof createBookingFormService>;
 type BookingSchedulingService = ReturnType<typeof createBookingSchedulingService>;
@@ -25,7 +26,6 @@ import type {
 } from "./ports";
 import type { CreatePatientBookingInput, PatientBookingRecord } from "./types";
 import type { BookingSlotsReadSource } from "./slotsReadSource";
-import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
 import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 import { projectCanonicalAppointmentForDoctor } from "./projectCanonicalAppointment";
 import { resolveLegacyBranchIdForProjection } from "./resolveLegacyBranchIdForProjection";
@@ -105,38 +105,48 @@ function toPendingRowOnline(
 
 function toPendingRowInPerson(
   input: CreatePatientBookingInput & { type: "in_person" },
-  resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>>,
+  resolved: {
+    context: CanonicalBookingContext;
+    branch: BeBranch;
+    service: BeClinicService;
+  },
 ): CreatePendingPatientBookingInput {
-  const { branch, service, branchService, specialist, city } = resolved!;
+  const { context, branch, service } = resolved;
   return {
     userId: input.userId,
     bookingType: "in_person",
-    city: city.code,
+    city: branch.cityCode,
     category: "general",
     slotStart: input.slotStart,
     slotEnd: input.slotEnd,
     contactName: input.contactName,
     contactPhone: input.contactPhone,
     contactEmail: input.contactEmail ?? null,
-    branchId: branch.id,
-    serviceId: service.id,
-    branchServiceId: branchService.id,
-    cityCodeSnapshot: city.code,
+    branchId: context.branchId,
+    serviceId: context.serviceId,
+    branchServiceId: context.branchServiceId,
+    cityCodeSnapshot: branch.cityCode,
     branchTitleSnapshot: branch.title,
     serviceTitleSnapshot: service.title,
-    durationMinutesSnapshot: service.durationMinutes,
+    durationMinutesSnapshot: context.durationMinutes,
     priceMinorSnapshot: service.priceMinor,
-    rubitimeBranchIdSnapshot: branch.rubitimeBranchId,
-    rubitimeCooperatorIdSnapshot: specialist.rubitimeCooperatorId,
-    rubitimeServiceIdSnapshot: branchService.rubitimeServiceId,
+    rubitimeBranchIdSnapshot: null,
+    rubitimeCooperatorIdSnapshot: null,
+    rubitimeServiceIdSnapshot: null,
   };
 }
+
+type LegacyRubitimeCreateContext = {
+  branch: { rubitimeBranchId: string };
+  specialist: { rubitimeCooperatorId: string };
+  branchService: { rubitimeServiceId: string };
+};
 
 async function createRubitimeRecord(
   deps: CanonicalBookingDeps,
   createInput: CreatePatientBookingInput,
   pendingId: string,
-  resolved: ResolvedBranchService | undefined,
+  resolved: LegacyRubitimeCreateContext | undefined,
 ): Promise<{ rubitimeId: string; raw: Record<string, unknown> }> {
   let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
   if (createInput.type === "online") {
@@ -233,7 +243,6 @@ export async function createBookingOnCanonicalEngine(
 
   let pendingRow: CreatePendingPatientBookingInput;
   let durationMinutes = 60;
-  let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
   let canonicalBranchId: string | null = null;
   let canonicalSpecialistId: string | null = null;
   let canonicalServiceId: string | null = null;
@@ -255,17 +264,28 @@ export async function createBookingOnCanonicalEngine(
       });
     }
   } else {
-    if (!deps.bookingCatalog) throw new Error("catalog_unavailable");
-    resolved = await deps.bookingCatalog.resolveBranchService(createInput.branchServiceId);
-    if (!resolved) throw new Error("branch_service_not_found");
     inPersonCtx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
     if (!inPersonCtx) throw new Error("branch_service_not_found");
+    const [branch, service] = await Promise.all([
+      deps.bookingEngine.catalog.getBranch(inPersonCtx.branchId),
+      deps.bookingEngine.services.getService(inPersonCtx.serviceId),
+    ]);
+    if (
+      !branch ||
+      !service ||
+      !branch.isActive ||
+      !service.isActive ||
+      branch.organizationId !== inPersonCtx.organizationId ||
+      service.organizationId !== inPersonCtx.organizationId
+    ) {
+      throw new Error("branch_service_not_found");
+    }
     if (orgId && orgId !== inPersonCtx.organizationId) throw new Error("ambiguous_booking_tenant");
     orgId = inPersonCtx.organizationId;
-    const expectedCity = resolved.city.code.trim().toLowerCase();
+    const expectedCity = branch.cityCode.trim().toLowerCase();
     if (createInput.cityCode.trim().toLowerCase() !== expectedCity) throw new Error("city_mismatch");
-    pendingRow = toPendingRowInPerson(createInput, resolved);
-    durationMinutes = resolved.service.durationMinutes;
+    pendingRow = toPendingRowInPerson(createInput, { context: inPersonCtx, branch, service });
+    durationMinutes = inPersonCtx.durationMinutes;
     if (!rubitimeFirst) {
       await deps.bookingScheduling.assertSlotAvailable({
         branchServiceId: createInput.branchServiceId,
@@ -388,7 +408,7 @@ export async function createBookingOnCanonicalEngine(
 
   if (rubitimeFirst) {
     try {
-      const sync = await createRubitimeRecord(deps, createInput, pending.id, resolved);
+      const sync = await createRubitimeRecord(deps, createInput, pending.id, undefined);
       rubitimeId = sync.rubitimeId;
       rubitimeManageUrl = extractRubitimeManageUrlFromIntegratorCreateRaw(sync.raw);
     } catch (err) {
@@ -461,7 +481,7 @@ export async function createBookingOnCanonicalEngine(
 
   if (bridgeEnabled) {
     try {
-      const sync = await createRubitimeRecord(deps, createInput, pending.id, resolved);
+      const sync = await createRubitimeRecord(deps, createInput, pending.id, undefined);
       rubitimeId = sync.rubitimeId;
       rubitimeManageUrl = extractRubitimeManageUrlFromIntegratorCreateRaw(sync.raw);
       await deps.bookingEngine.upsertRubitimeAppointmentMapping({
