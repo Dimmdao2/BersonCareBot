@@ -1478,7 +1478,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ${sqlMessengerBotBlocked("pu.id", "max")} AS max_bot_blocked,
            (pu.email_verified_at IS NOT NULL) AS has_verified_email,
            (pu.phone_normalized IS NOT NULL AND btrim(pu.phone_normalized) <> '') AS has_phone,
-           EXISTS(SELECT 1 FROM appointment_records ar WHERE ar.platform_user_id = pu.id) AS has_appointment
+           EXISTS(
+             SELECT 1
+             FROM be_appointments bea
+             WHERE bea.platform_user_id = pu.id
+               AND bea.deleted_at IS NULL
+               ${organizationId ? `AND bea.organization_id = ${sqlLiteralUuid(organizationId)}` : ""}
+           ) AS has_appointment
          FROM platform_users pu
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL

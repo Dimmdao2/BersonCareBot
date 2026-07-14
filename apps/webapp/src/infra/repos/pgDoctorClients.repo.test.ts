@@ -55,6 +55,41 @@ describe("pgDoctorClients repo", () => {
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["org-1"]);
   });
 
+  it("getClientContactBreakdown classifies patients from canonical appointments", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({
+      rows: [
+        {
+          has_telegram: true,
+          has_max: false,
+          telegram_bot_blocked: false,
+          max_bot_blocked: false,
+          has_verified_email: true,
+          has_phone: true,
+          has_appointment: true,
+        },
+        {
+          has_telegram: false,
+          has_max: false,
+          telegram_bot_blocked: false,
+          max_bot_blocked: false,
+          has_verified_email: false,
+          has_phone: true,
+          has_appointment: false,
+        },
+      ],
+    });
+    const port = createPgDoctorClientsPort();
+
+    const result = await port.getClientContactBreakdown({ organizationId: "org-1" });
+
+    expect(result.patientsCount).toBe(1);
+    expect(result.subscribersOnlyCount).toBe(1);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("FROM be_appointments bea");
+    expect(sql).toContain("bea.organization_id = 'org-1'::uuid");
+    expect(sql).not.toContain("FROM appointment_records ar WHERE ar.platform_user_id = pu.id");
+  });
+
   it("listClients filters hasUpcomingAppointment in memory", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({
