@@ -19,6 +19,7 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-
 
 The default check verifies that every current blocker has an explicit expected proof and gate. The
 `--require-complete` mode is the final retirement gate and must fail until all final proof artifacts exist.
+The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 
 ## Required Missing Final Proofs
 
@@ -51,7 +52,7 @@ The default check verifies that every current blocker has an explicit expected p
 ## How To Use
 
 1. Keep `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15 unchecked for every item listed above until the expected
-   proof exists.
+   proof exists. The checker fails if a gated section-15 item is marked `[x]`.
 2. Run `pnpm run check:rubitime-final-gate` before any handoff. It should pass while the blockers are explicitly
    documented.
 3. Run `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete` only when claiming

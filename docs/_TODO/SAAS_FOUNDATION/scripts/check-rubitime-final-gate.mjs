@@ -13,6 +13,7 @@ has an explicit expected proof and owner/ops gate. --require-complete fails
 until all blocker statuses are converted to pass and proof files exist.`;
 
 const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md';
+const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
 
 const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md',
@@ -24,48 +25,56 @@ const blockingItems = [
   {
     id: 'R5-PROD-DISABLE',
     status: 'gated',
+    checklistText: 'R5 legacy v1 resolve disabled in production.',
     expectedProof: expectedProofs[0],
     gate: 'owner-approved production flag change and monitoring window',
   },
   {
     id: 'R6-RUNTIME-REMOVAL',
     status: 'gated',
+    checklistText: 'R6 runtime routes/code removed.',
     expectedProof: expectedProofs[1],
     gate: 'owner-approved provider cutoff/drain and fresh post-cutoff CSV reconciliation',
   },
   {
     id: 'R7-ARCHIVE-DROP',
     status: 'gated',
+    checklistText: 'R7 archive/drop complete or explicitly deferred with no runtime references.',
     expectedProof: expectedProofs[2],
     gate: 'owner archive/drop decision, archive export and restore/migrate proof',
   },
   {
     id: 'NO-RUNTIME-RUBITIME-API',
     status: 'gated',
+    checklistText: 'No runtime code calls Rubitime API.',
     expectedProof: expectedProofs[1],
     gate: 'post-R6 static inventory and runtime route/code removal proof',
   },
   {
     id: 'NO-RUBITIME-PROVIDER-ROUTE',
     status: 'gated',
+    checklistText: 'No runtime route accepts Rubitime webhook/provider traffic.',
     expectedProof: expectedProofs[1],
     gate: 'post-R6 route unmount proof',
   },
   {
     id: 'ONLY-PROVIDER-NEUTRAL-LIFECYCLE-ROUTE',
     status: 'gated',
+    checklistText: 'provider-neutral booking lifecycle route is the only live lifecycle integration route.',
     expectedProof: expectedProofs[1],
     gate: 'Rubitime lifecycle compatibility alias removed after cutoff/drain',
   },
   {
     id: 'ALL-RR-PROOFS-SAVED',
     status: 'gated',
+    checklistText: 'all `RR-PROOF-*` artifacts are saved.',
     expectedProof: expectedProofs[2],
     gate: 'RR-PROOF-09 and RR-PROOF-10 completed',
   },
   {
     id: 'PRODUCTION-ROLLBACK-BOUNDARY-ACCEPTED',
     status: 'gated',
+    checklistText: 'production rollback boundary is accepted by owner.',
     expectedProof: expectedProofs[2],
     gate: 'owner accepts rollback horizon in R5/R6/R7 proof files',
   },
@@ -84,9 +93,14 @@ function readRel(rel) {
 function validate({ requireComplete }) {
   const errors = [];
   const manifestSrc = readRel(manifest);
+  const executionPlanSrc = readRel(executionPlan);
 
   if (!manifestSrc) {
     errors.push(`missing ${manifest}`);
+    return errors;
+  }
+  if (!executionPlanSrc) {
+    errors.push(`missing ${executionPlan}`);
     return errors;
   }
 
@@ -113,8 +127,16 @@ function validate({ requireComplete }) {
     if (!item.expectedProof || !item.gate) {
       errors.push(`${item.id}: missing expectedProof or gate`);
     }
+    if (!item.checklistText) {
+      errors.push(`${item.id}: missing checklistText`);
+    }
     if (!manifestSrc.includes(item.id)) {
       errors.push(`${manifest}: missing blocker ${item.id}`);
+    }
+    const uncheckedLine = `- [ ] ${item.checklistText}`;
+    const checkedLine = `- [x] ${item.checklistText}`;
+    if (!executionPlanSrc.includes(uncheckedLine) && !executionPlanSrc.includes(checkedLine)) {
+      errors.push(`${executionPlan}: missing final checklist line ${item.checklistText}`);
     }
     if (requireComplete) {
       if (item.status !== 'pass') {
@@ -123,10 +145,15 @@ function validate({ requireComplete }) {
       if (!relExists(item.expectedProof)) {
         errors.push(`${item.id}: missing final proof ${item.expectedProof}`);
       }
+      if (item.status === 'pass' && !executionPlanSrc.includes(checkedLine)) {
+        errors.push(`${item.id}: final checklist is not checked`);
+      }
     } else if (item.status === 'pass' && !relExists(item.expectedProof)) {
       errors.push(`${item.id}: status pass but proof is missing ${item.expectedProof}`);
     } else if (item.status !== 'gated' && item.status !== 'pass') {
       errors.push(`${item.id}: unsupported status ${item.status}`);
+    } else if (item.status === 'gated' && executionPlanSrc.includes(checkedLine)) {
+      errors.push(`${item.id}: final checklist is checked while gate is still open`);
     }
   }
 
@@ -141,7 +168,7 @@ if (process.argv.includes('--help')) {
 const requireComplete = process.argv.includes('--require-complete');
 const errors = validate({ requireComplete });
 
-console.log(JSON.stringify({ manifest, expectedProofs, blockingItems, requireComplete }, null, 2));
+console.log(JSON.stringify({ manifest, executionPlan, expectedProofs, blockingItems, requireComplete }, null, 2));
 
 if (errors.length > 0) {
   console.error('check-rubitime-final-gate: FAILED');
