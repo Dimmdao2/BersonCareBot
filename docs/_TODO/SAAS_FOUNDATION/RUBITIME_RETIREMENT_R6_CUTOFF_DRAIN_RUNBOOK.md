@@ -157,6 +157,12 @@ Do not remove code before Sections 1-3 pass after provider traffic is disabled.
 
 Only after Sections 1-4 pass:
 
+- run the static inventory in pre-removal mode and save the output:
+
+```bash
+pnpm run check:rubitime-retirement-inventory
+```
+
 - remove/unmount Rubitime webhook route;
 - remove/unmount Rubitime `/slots`, `/create-record`, `/update-record`, `/remove-record`;
 - keep `/api/bersoncare/booking/lifecycle-event`;
@@ -171,6 +177,7 @@ pnpm --dir apps/integrator test
 pnpm --dir apps/integrator typecheck
 pnpm -C apps/webapp run typecheck
 pnpm -C apps/webapp run lint
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6
 pnpm run check:rubitime-retirement-r0
 git diff --check
 ```
@@ -188,5 +195,5 @@ Save the completed cutoff proof as `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md
 - fresh CSV filename, size, date span, and reconciliation output;
 - owner waivers, if any;
 - commit hash for R6 route/code removal;
+- pre-removal and post-removal `rubitime-r6-r7-static-inventory.mjs` outputs;
 - validation commands and results.
-

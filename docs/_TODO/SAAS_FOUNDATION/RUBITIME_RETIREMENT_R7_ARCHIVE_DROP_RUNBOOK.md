@@ -53,6 +53,7 @@ Save JSON output into the R7 proof.
 Run in repo checkout after R6 removal branch is applied:
 
 ```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6
 node /home/dev/brain/tools/code-search.mjs "rubitime_records rubitime_events rubitime_api_throttle rubitime_booking_profiles appointment_records booking_calendar_map" --repo bcb -k 100
 rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_create_retry_jobs|rubitime_booking_profiles|rubitime_branches|rubitime_services|rubitime_cooperators|appointment_records|booking_calendar_map" \
   apps packages docs \
@@ -119,10 +120,10 @@ Save completed proof as `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` with:
 - R6 proof link and commit hash;
 - owner archive/drop decision;
 - schema audit JSON;
+- `rubitime-r6-r7-static-inventory.mjs --expect-post-r6` output;
 - static reference audit output;
 - archive directory and SHA256SUMS;
 - migration file name;
 - fresh restore + migrate output;
 - typecheck/lint/test output;
 - explicit rollback horizon.
-

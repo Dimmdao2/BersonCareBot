@@ -998,6 +998,9 @@ and ignores unknown provider events instead of processing them under `booking_de
 
 Prepared runbook: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. It is not proof of completed cutoff; it defines
 the required read-only drain snapshots, fresh CSV reconciliation and owner-approved disable steps for `RR-PROOF-09`.
+Prepared static inventory: `RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md` +
+`docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs`. The inventory is pre-cutoff evidence
+only; post-R6 it must pass with `--expect-post-r6`.
 
 - [ ] provider cutoff time is announced.
 - [ ] outbound Rubitime bridge is disabled.
