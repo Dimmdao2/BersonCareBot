@@ -2,9 +2,11 @@
 
 Статус: R1 blocked after clean-dump rehearsal, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки этим документом не меняются.
 
+**Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix, placeholder bookings Дмитрия Берсона, specialist consolidation и R1 aggregate audits. Этот execution plan не заменяет runbook.
+
 Sol audit `bcb-rubitime-retirement-plan-sol-audit-2026-07-14` вернул исходному черновику `BLOCKED`. Этот документ обновлён с учётом обязательных P0/P1 правок: dual-source history, provider-neutral lifecycle, tenant-safe public booking, table-by-table catalog disposition, cutoff/drain и запрет удаления живых canonical maps.
 
-Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул R1 `FAIL`: локально нет одновременно current-schema и correctly seeded clean dump, а полный replay не является self-contained. Следующий R1 путь: fresh current unified dump + exact cutoff CSV + preflight PASS, затем предпочтительно transfer-final-state из audited final R1 state вместо полного replay. Канон: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул R1 `FAIL`, но этот fail не является разрешением изобретать новый путь: следующий валидный R1 rehearsal — fresh current dump по `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` с pre-migration owner doctor/admin data-fix, approved migration chain, placeholder bookings cleanup, specialist consolidation, exact cutoff CSV и aggregate preflight/audits. `transfer-final-state` допустим только как отдельное audit/owner-approved решение после этого proof, не как замена runbook sequence. Детали прошлого fail: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
 
 ## 1. Verdict
 

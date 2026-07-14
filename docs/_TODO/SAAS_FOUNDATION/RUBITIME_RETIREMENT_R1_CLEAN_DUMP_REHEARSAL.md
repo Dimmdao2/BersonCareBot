@@ -6,6 +6,11 @@ Verdict: **FAIL**. The best local prod-like dump contains the expected Rubitime 
 cannot be migrated to the current HEAD and the current R1 scripts cannot run against its pre-migration
 schema. No current-schema, correctly seeded clean dump exists in the locally readable files.
 
+Next agent entrypoint: `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Do not repeat this
+rehearsal as restore + plain migrate; the valid next proof must use the existing owner doctor/admin
+data-fix, approved migration chain, placeholder booking cleanup, specialist consolidation and R1
+aggregate audits from that runbook.
+
 All evidence below is aggregate-only. No production DB or `/opt/env` path was accessed, no current dev DB
 was modified, and no row identifiers, names, phones, emails, payloads, or message bodies are recorded.
 

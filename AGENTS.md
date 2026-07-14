@@ -19,6 +19,7 @@
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
 - `docs/AGENT_AUTORUN_SCHEME.md` — **СХЕМА АВТО-ПРОХОДА АГЕНТАМИ** (канон оркестрации: фазы планирования/исполнения, роли, цикл аудитов, параллельность, governance) — для любой оркестрованной/автономной работы
+- `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` — **если задача касается Rubitime retirement, fresh prod dump, canonical appointment backfill, Дмитрия Берсона / placeholder bookings, doctor/admin split или clean-copy rehearsal**. Это стартовый runbook: сначала читать его, потом исполнять существующие scripts.
 
 ---
 
