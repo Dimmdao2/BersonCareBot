@@ -270,6 +270,10 @@ It must then restart TEST units and run:
 - `awg-quick@awg0` active check, because the production Telegram relay on the TEST host must remain untouched.
 
 Do not claim a TEST deploy passed unless the wrapper has actually run and these gates have passed.
+If `SAAS_PRODUCT_SMOKE_FIXTURE` is unset, the wrapper's product smoke line is **SKIPPED/BLOCKED** for product parity:
+the migration/restart/health/A2 gates may be reported, but D3/R1/R2 product-smoke evidence remains open. The fixture
+must be an owner/operator-managed secret file path outside the repo, for example
+`/run/bersoncarebot/saas-smoke.fixture`; do not document, print, commit, or infer fixture values.
 
 ### 11. D2 FB#1 and future strict/FORCE gates
 

@@ -88,7 +88,10 @@ pnpm run check:saas-a2-nginx-forwarded-host
 
 `deploy/host/deploy-test-saas.sh` runs the same check against `nginx -T` after TEST unit restart, and runs this
 product smoke only when `SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture` is supplied by the
-operator. Without that fixture it skips the product smoke instead of inventing proof.
+operator. Without that fixture it records the product smoke as **SKIPPED/BLOCKED**, not PASS; D3, R1, R2, and any
+future flip gate must remain open until an owner/operator-managed fixture file path is supplied and the smoke exits
+0. The fixture path is a secret-file pointer outside the repo; fixture values, cookies, headers, and opaque IDs must
+not be written into repository docs, logs, or shell history.
 
 For B1 calibration, the same runner can narrow to the doctor/admin subset:
 
@@ -102,3 +105,13 @@ pnpm run smoke:saas-product -- \
 
 The TEST deploy wrapper accepts the same filter via `SAAS_PRODUCT_SMOKE_CATEGORIES` or
 `SAAS_PRODUCT_SMOKE_SCENARIO_IDS`.
+
+## D3.0 Fixture Gate Contract
+
+- `SAAS_PRODUCT_SMOKE_FIXTURE` unset means **SKIPPED/BLOCKED**, never PASS.
+- The allowed next command shape is the committed runner with a supplied path:
+  `pnpm run smoke:saas-product -- --mode=locked --base-url=https://test.bersoncare.ru --fixture-file=/run/bersoncarebot/saas-smoke.fixture`.
+- The path is owner/operator-managed and may point to a root-managed secret file; the repository must not contain
+  real fixture values or fallback defaults.
+- Static checks may validate wording and wrapper behavior only. They must not read `/opt/env`, TEST/prod databases,
+  TEST/prod secret files, SSH, services, or live delivery channels.

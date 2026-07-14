@@ -12,13 +12,15 @@
 **R1 — DORMANT product parity.** On a fresh production copy deployed by the repository scripts, all five units run
 with `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc`. A browser/API smoke logs in as real seeded doctor, admin, and patient
 identities and drives the critical screens and reads/writes. It detects 401/403/5xx, empty-result regressions,
-Server Action errors, and new application errors. A health endpoint alone is not evidence.
+Server Action errors, and new application errors. A health endpoint alone is not evidence. If the operator-managed
+`SAAS_PRODUCT_SMOKE_FIXTURE` / `--fixture-file` path is absent, this gate is **SKIPPED/BLOCKED**, not PASS.
 
 **R2 — ENFORCED product parity plus isolation.** On the same data after one flip command, the same product smoke is
 green under locked principal context and strict/FORCE RLS. A second clinic and a shared/multi-clinic patient prove
 the canonical staff-org and patient-own-data matrix. Legitimate webapp, integrator API, worker, scheduler,
 media-worker, cron/internal-job, public booking, OTP, and registration paths work; attempts without or with forged
-context fail closed. The canonical wall is documented at
+context fail closed. Missing `SAAS_PRODUCT_SMOKE_FIXTURE` remains a **SKIPPED/BLOCKED** product gate and cannot be
+used as R2 evidence. The canonical wall is documented at
 `TENANT_WALLS_AND_ACCESS_MODEL.md:21-75,92-110`.
 
 **R3 — one command each way, transactional operational contract.** One owner command performs preflight, quiesces
@@ -294,12 +296,17 @@ Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FOR
 
 ### Phase D3 — webapp enforce read coverage · tier: daily · audit: deep
 
+- [ ] Confirm an owner/operator-managed product smoke fixture file path is supplied. The fixture value is never
+  stored in the repo or logs; only the path and command shape may be documented. If the fixture is absent, record
+  **SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence.
 - [ ] Run all A1 read scenarios under locked+FORCE for doctor/admin/patient/public surfaces.
 - [ ] For every denied/empty path, trace the real principal, selected pool/role, helper context, policy, and parent
   ownership; fix one bounded feature slice per pass if failures exceed a single-pass budget.
 - [ ] Preserve the canonical shared-patient behavior across two clinics.
 
-Exit: full read matrix exits 0 with expected non-empty facts; explicit S1/S2/P2/P_SHARED negative reads remain zero.
+Exit: full read matrix exits 0 with expected non-empty facts, using the supplied operator-managed fixture file;
+explicit S1/S2/P2/P_SHARED negative reads remain zero. `SAAS_PRODUCT_SMOKE_FIXTURE` unset is a documented blocker,
+not a successful D3 exit.
 
 ### Phase D4 — webapp enforce write coverage · tier: daily · audit: deep
 
