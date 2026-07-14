@@ -61,7 +61,6 @@ const categories = [
       /withRubitimeApiThrottle/g,
       /api2\/(?:get-schedule|get-record|create-record|update-record|remove-record)/g,
       /runPostCreateProjection/g,
-      /rubitime_create_retry_jobs/g,
     ],
   },
   {
@@ -86,6 +85,7 @@ const categories = [
       /rubitimeEvents/g,
       /rubitime_api_throttle/g,
       /rubitimeApiThrottle/g,
+      /rubitime_create_retry_jobs/g,
       /rubitime_booking_profiles/g,
       /rubitimeBookingProfiles/g,
       /rubitime_branches/g,
@@ -108,6 +108,18 @@ const categories = [
       /externalEntityMappings/g,
       /patient_bookings/g,
       /patientBookings/g,
+    ],
+  },
+  {
+    key: 'rubitimeOpsToolingRefs',
+    description: 'Ops/audit scripts with Rubitime references; reported but not a post-R6 runtime blocker.',
+    phase: 'R6/R7 ops',
+    postR6MustBeZero: false,
+    fileFilter: (rel) => isOpsToolingFile(rel),
+    patterns: [
+      /rubitime/gi,
+      /appointment_records/g,
+      /appointmentRecords/g,
     ],
   },
 ];
@@ -148,6 +160,10 @@ function isRuntimeFile(rel) {
   );
 }
 
+function isOpsToolingFile(rel) {
+  return rel.startsWith('apps/webapp/scripts/') || rel.includes('/infra/scripts/');
+}
+
 function countMatches(src, patterns) {
   let count = 0;
   for (const pattern of patterns) {
@@ -174,7 +190,12 @@ function collect() {
   const categoryResults = categories.map((category) => {
     const filesWithHits = [];
     let totalHits = 0;
-    for (const file of sourceFiles) {
+    const filesForCategory = sourceFiles.filter((file) => {
+      if (category.fileFilter) return category.fileFilter(file.rel);
+      if (category.postR6MustBeZero && isOpsToolingFile(file.rel)) return false;
+      return true;
+    });
+    for (const file of filesForCategory) {
       const hits = countMatches(file.src, category.patterns);
       if (hits === 0) continue;
       totalHits += hits;
