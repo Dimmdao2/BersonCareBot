@@ -29,6 +29,7 @@ DECLARE
   v_canonical_doctor uuid;
   v_doctor_live int;
   v_admins int;
+  v_archived_empty_admins int;
 BEGIN
   -- 0. Exactly ONE live (non-merged) row must carry the doctor phone. If prod ever grows un-merged
   --    duplicates on this phone, STOP: they must be merged via the platform-user merge port first.
@@ -76,7 +77,25 @@ BEGIN
     WHERE role = 'admin' AND email_normalized = c_admin_email AND merged_into_id IS NULL
   );
 
-  -- 5. Post-conditions — fail loudly if the target shape was not reached.
+  -- 5. Archive identifier-less admin stubs before staff membership seeding. These rows have no login/channel
+  --    credential anchors and must not become active organization admins in 0143.
+  UPDATE platform_users pu
+  SET is_archived = TRUE,
+      updated_at = now()
+  WHERE pu.role = 'admin'
+    AND pu.merged_into_id IS NULL
+    AND pu.is_archived IS FALSE
+    AND pu.email_normalized IS NULL
+    AND pu.phone_normalized IS NULL
+    AND pu.integrator_user_id IS NULL
+    AND NOT EXISTS (SELECT 1 FROM user_channel_bindings b WHERE b.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM user_oauth_bindings b WHERE b.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM user_password_credentials c WHERE c.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM user_pins p WHERE p.user_id = pu.id)
+    AND NOT EXISTS (SELECT 1 FROM login_tokens t WHERE t.user_id = pu.id);
+  GET DIAGNOSTICS v_archived_empty_admins = ROW_COUNT;
+
+  -- 6. Post-conditions — fail loudly if the target shape was not reached.
   IF NOT EXISTS (
     SELECT 1 FROM platform_users
     WHERE id = v_canonical_doctor AND role = 'doctor' AND email_normalized = c_doctor_email
@@ -92,8 +111,15 @@ BEGIN
     RAISE EXCEPTION 'doctor-admin data-fix: no live gmail admin after fix';
   END IF;
 
-  RAISE NOTICE 'doctor-admin data-fix OK: canonical doctor % = doctor/% ; live gmail admins = %',
-    v_canonical_doctor, c_doctor_email, v_admins;
+  SELECT count(*) INTO v_admins
+  FROM platform_users
+  WHERE role = 'admin' AND merged_into_id IS NULL AND is_archived IS FALSE;
+  IF v_admins <> 1 THEN
+    RAISE EXCEPTION 'doctor-admin data-fix: expected exactly 1 active admin after fix, found %', v_admins;
+  END IF;
+
+  RAISE NOTICE 'doctor-admin data-fix OK: canonical doctor % = doctor/% ; active admins = % ; archived empty admin stubs = %',
+    v_canonical_doctor, c_doctor_email, v_admins, v_archived_empty_admins;
 END $$;
 
 COMMIT;

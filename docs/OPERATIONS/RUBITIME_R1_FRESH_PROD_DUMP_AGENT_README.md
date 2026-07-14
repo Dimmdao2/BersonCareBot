@@ -6,6 +6,11 @@
 Rubitime R1 retirement / canonical booking proof. Не начинать с нового SQL и не придумывать новые
 backfill/data-fix скрипты: в рабочей ветке уже есть выверенные scripts, deploy-wrappers и R1 audit docs.
 
+Последний green proof: dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`
+→ disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` → `scripts/deploy-saas-667.sh`
+PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подробный агрегатный отчет:
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+
 ## 0. Абсолютные правила
 
 - Работать в той ветке, которую явно назвал владелец. Для этой инструкции это `feat/doctor-ui-rebuild`.
@@ -108,6 +113,11 @@ owner-only DDL. Но integrator backfill под включенным/FORCE RLS �
 `scripts/deploy-saas-667.sh` временно эскалирует runtime-owner через `SUPERUSER_URL`, а затем снимает
 `BYPASSRLS` и `app_owner` membership через `EXIT` trap.
 
+`p0-data-fix-doctor-admin-split.sql` также до миграций архивирует identifier-less active admin stubs
+без login/channel/oauth/password/pin/token anchors. Это нужно, чтобы `0143_seed_staff_organization_members.sql`
+не создавал активные organization admin memberships для пустых stub-строк. Скрипт fail-loud: после фикса
+должен остаться ровно один active admin.
+
 ### 3.3. Какие DB можно использовать
 
 | DB/copy | Можно? | Для чего |
@@ -145,6 +155,8 @@ pg_restore --list /opt/backups/postgres/hourly/unified_bcb_webapp_prod_YYYYMMDD_
 
 1. Dump TOC check: `pg_restore --list` видит unified prod DB и нужные schemas/tables.
 2. Pre-migration identity data-fix: `deploy/postgres/p0-data-fix-doctor-admin-split.sql` прошел до Drizzle migrations.
+   В notice ожидается `active admins = 1`; если есть `archived empty admin stubs`, это допустимая нормализация
+   пустых stub-строк, не удаление аккаунтов.
 3. Migration chain: `migrate-all.sh` прошел в порядке integrator predeclare -> webapp all -> integrator SaaS.
 4. Post-state assertions из wrapper:
    - Drizzle migration count достаточный;

@@ -264,6 +264,85 @@ Post-cleanup read-only classifier:
 
 Residual blockers after this pass: legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
 
+## Fresh current dump replay
+
+Run id: `R1-FRESH-DUMP-REPLAY-codex-2026-07-14-0415`
+
+Scope: replay of the same owner-approved cleanup/import sequence on a disposable current prod dump after
+`scripts/deploy-saas-667.sh` passed. No production DB, `bcb_webapp_dev`, TEST DB, live services or real
+delivery channels were touched.
+
+Input:
+
+| Field | Value |
+| --- | --- |
+| Dump | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
+| Rehearsal DB | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` |
+| Owner CSV | `records-2.csv`, 392 ids, 2026-01-16...2026-08-29 |
+| Migration wrapper | `scripts/deploy-saas-667.sh` |
+
+Exact R1 commit sequence:
+
+```bash
+pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only --csv=<owner-csv>
+
+pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-non-confirmed --summary-only --csv=<owner-csv>
+
+pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
+  --commit --historical-owner-doctor-phone=<owner-provided-phone> --summary-only --csv=<owner-csv>
+
+pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-non-confirmed --summary-only --csv=<owner-csv>
+
+pnpm --dir apps/webapp run backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --drop-stale-from-csv --summary-only --csv=<owner-csv>
+```
+
+Fresh-copy final summary:
+
+| Check | Count |
+| --- | ---: |
+| Legacy live rows | 268 |
+| Canonical `rubitime_projection` live rows | 266 |
+| Unmapped legacy total | 0 |
+| Unmapped real active | 0 |
+| Duplicate clusters | 0 |
+| Stale vs owner CSV | 0 |
+| Non-confirmed cleanup candidates | 0 |
+| Historical fallback rows inserted | 98 |
+| Test/block legacy rows soft-deleted | 34 |
+| Non-confirmed legacy rows soft-deleted | 65 |
+| Stale legacy rows soft-deleted | 9 |
+
+Post-replay read-only classifier:
+
+| Check | Count |
+| --- | ---: |
+| stale-vs-owner-CSV rows | 0 |
+| unmapped real active rows | 0 |
+| duplicate clusters | 0 |
+| status mismatches | 4 |
+| `record_at` mismatches | 2 |
+| legacy-only rows | 290 |
+
+Post-replay dual-source audit:
+
+| Check | Count |
+| --- | ---: |
+| raw-only records | 0 |
+| legacy-only records | 290 |
+| raw mapping coverage | 91 / 91 |
+| legacy mapping coverage | 351 / 381 |
+| legacy unmapped mappings | 30 |
+| legacy mappings to soft-deleted canonical appointments | 74 |
+| unexpected canonical source mappings | 6 |
+| missing expected mapping metadata | 6 |
+
+Interpretation: the cleanup/import sequence is now replay-proven on a fresh current prod dump. Remaining
+R1 blockers are policy/smoke blockers, not stale/unmapped/duplicate cleanup blockers.
+
 ## Non-confirmed cleanup pass
 
 Run id: `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`

@@ -17,6 +17,17 @@
 - [x] **Слияние специалистов** `consolidate-specialist-identity.ts --canonical=518ea988` — скрипт готов/тестовый,
       dry-run на копии подтвердил primary=518ea988, dup=c9515025 (218 приёмов вливаются). Запускается ПОСЛЕ migrate.
 
+## Свежая проверка на dump 2026-07-14 04:15
+
+- [x] `scripts/deploy-saas-667.sh` прошел полностью на disposable DB
+      `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`, восстановленной из
+      `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`.
+- [x] `p0-data-fix-doctor-admin-split.sql` теперь до миграций архивирует только identifier-less active admin stubs:
+      `role='admin'`, live, без `email_normalized`, `phone_normalized`, `integrator_user_id` и без login/channel/oauth/password/pin/token
+      anchors. На свежем dump archived stubs = 2; итоговый active admin = 1.
+- [x] Post-state assertions: doctor=1, admin=1, active specialist=1, Drizzle=181, required memberships=2,
+      `contacts_null_org=0`, runtime-owner после trap = `NOSUPERUSER NOBYPASSRLS`.
+
 ## Порядок деплоя (option D — owner-мigration + временная эскалация)
 1. Свежий прод-дамп → (на проде: сначала бэкап).
 2. **Создать роли** `app_staff`/`app_patient` (`deploy/postgres/p0-5b-role-split-staff-patient.sql`) и

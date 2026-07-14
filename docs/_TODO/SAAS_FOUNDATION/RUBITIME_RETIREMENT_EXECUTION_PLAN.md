@@ -791,6 +791,8 @@ Execution note 2026-07-14: owner-approved fallback import, strict canceled clean
 
 Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` restored the best locally readable prod-like dump into an isolated user-owned PG16 on `127.0.0.1:55432`; rehearsal result was `FAIL`. The dump has canonical Rubitime seed, but `pnpm run migrate` fails at `0143_seed_staff_organization_members.sql`, required current columns/tables are missing before migration, and the exact cutoff CSV is not locally present. No current `bcb_webapp_dev`, production DB, `/opt/env`, or live channels were touched. `RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` defines the required transfer-final-state contract and next rehearsal commands.
 
+Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415` superseded the failed old-dump attempt. Fresh dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` was restored into disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2`. `scripts/deploy-saas-667.sh` passed after `p0-data-fix-doctor-admin-split.sql` archived 2 identifier-less active admin stubs before membership seeding. The R1 cleanup/import sequence from `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md` replayed successfully on that clean copy: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`, preflight PASS. Remaining R1 blockers are legacy-only classification/waiver, 4 status mismatches, 2 record-time mismatches, mapping anomaly policy, and doctor calendar/list/KPI smoke. R2 remains blocked until those are accepted or explicitly waived.
+
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
@@ -805,8 +807,8 @@ Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` restored the
 - [x] post-run cleanup diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, and `STALE 0` in dev.
 - [ ] `CONFLICTS` / mismatch / mapping anomaly policy is owner-reviewed or explicitly waived.
 - [x] clean-dump rehearsal was attempted on the best locally readable prod-like dump.
-- [ ] clean-dump rehearsal passes on a fresh current unified dump with exact cutoff CSV.
-- [ ] transfer-final-state bundle/runbook is implemented and rehearsed, if replay remains non-self-contained.
+- [x] clean-dump rehearsal passes on a fresh current unified dump with exact cutoff CSV.
+- [x] transfer-final-state bundle/runbook is implemented and rehearsed, if replay remains non-self-contained. *(Replay is now self-contained for the owner-approved cleanup/import sequence; no transfer bundle required for this proof.)*
 - [ ] doctor calendar/list/KPI smoke confirms expected historical records.
 
 ### R1-HISTORY-CONTRACT — canonical state history vs raw provider archive

@@ -2,19 +2,73 @@
 
 Run id: `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14`
 
-Verdict: **FAIL**. The best local prod-like dump contains the expected Rubitime canonical seed, but it
-cannot be migrated to the current HEAD and the current R1 scripts cannot run against its pre-migration
-schema. No current-schema, correctly seeded clean dump exists in the locally readable files.
+Verdict: **PASS on fresh current prod dump** after the 2026-07-14 replay below.
 
 Next agent entrypoint: `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Do not repeat this
-rehearsal as restore + plain migrate; the valid next proof must use the existing owner doctor/admin
-data-fix, approved migration chain, placeholder booking cleanup, specialist consolidation and R1
-aggregate audits from that runbook.
+rehearsal as restore + plain migrate; the valid proof uses the existing owner doctor/admin data-fix,
+`scripts/deploy-saas-667.sh`, placeholder booking cleanup, specialist consolidation and R1 aggregate
+audits from that runbook.
 
 All evidence below is aggregate-only. No production DB or `/opt/env` path was accessed, no current dev DB
-was modified, and no row identifiers, names, phones, emails, payloads, or message bodies are recorded.
+was modified, and no patient row identifiers, names, phones, emails, payloads, or message bodies are
+recorded.
 
-## Isolated rehearsal target
+## Fresh current prod dump replay — PASS
+
+Run id: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`
+
+| Field | Value |
+| --- | --- |
+| Source dump | `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump` |
+| Dump archive timestamp | 2026-07-14 04:15:01 MSK |
+| Dump source DB name in archive header | `bcb_webapp_prod` |
+| Rehearsal DB | `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` |
+| Runtime owner | disposable local role `bcb_rubitime_rehearsal_owner` |
+| Superuser/operator | disposable local role `bcb_rubitime_rehearsal_super` |
+| Owner CSV | `records-2.csv`, 392 parsed ids, 2026-01-16...2026-08-29 |
+
+Sequence:
+
+1. Restored the dump into a disposable loopback DB owned by the rehearsal runtime-owner.
+2. Ran `scripts/deploy-saas-667.sh` with disposable `DATABASE_URL` and `SUPERUSER_URL`.
+3. `deploy/postgres/p0-data-fix-doctor-admin-split.sql` normalized the owner doctor/admin split and
+   archived 2 identifier-less active admin stubs before staff membership seeding.
+4. `#667` post-state assertions passed: doctor=1, admin=1, active specialist=1, required memberships=2,
+   Drizzle migrations=181, integrator org NULL checks passed, runtime-owner is `NOSUPERUSER NOBYPASSRLS`.
+5. Ran the existing R1 cleanup/import sequence from `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`:
+   `--delete-test --collapse-canceled-dups`, `--delete-non-confirmed`, historical owner fallback import,
+   repeat `--delete-non-confirmed`, then `--drop-stale-from-csv`, all with `--summary-only` and the owner CSV.
+6. Re-ran `rubitime-r1-clean-dump-preflight.mjs`, `rubitime-r1-classify-blockers.mjs`, and
+   `rubitime-r1-dual-source-audit.mjs --threshold-minutes=5 --sample-size=0`.
+
+Final aggregate result:
+
+| Check | Count / result |
+| --- | ---: |
+| R1 clean-dump preflight | PASS |
+| Legacy live rows | 268 |
+| Canonical `rubitime_projection` live rows | 266 |
+| Stale vs owner CSV | 0 |
+| Unmapped real active | 0 |
+| Duplicate clusters | 0 |
+| Non-confirmed cleanup candidates | 0 |
+| Raw-only records | 0 |
+| Legacy-only records | 290 |
+| Status mismatches | 4 |
+| `record_at` mismatches over 5 minutes | 2 |
+| Raw mapping coverage | 91 / 91 |
+| Legacy mapping coverage | 351 / 381 |
+| Legacy unmapped mappings | 30 |
+| Legacy mappings to soft-deleted canonical appointments | 74 |
+| Unexpected canonical source mappings | 6 |
+| Missing expected mapping metadata | 6 |
+
+Interpretation: the fresh-copy R1 cleanup proof is now self-contained for the owner-approved cleanup/import
+sequence. The stale/unmapped/duplicate buckets are closed on a clean current prod dump. R1 is still not
+accepted for R2 until the remaining legacy-only/mismatch/mapping-anomaly policy and doctor UI smoke are
+recorded or explicitly waived.
+
+## Previous isolated rehearsal target — superseded FAIL
 
 | Field | Value |
 | --- | --- |
