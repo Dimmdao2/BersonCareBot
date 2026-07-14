@@ -46,6 +46,5 @@ export type RubitimeBridgePort = {
     input: RubitimeCanonicalProjectionInput,
   ): Promise<RubitimeCanonicalProjectionResult>;
   projectAppointmentRecords(organizationId: string): Promise<BridgeProjectionStats>;
-  projectRubitimeRecords(organizationId: string): Promise<BridgeProjectionStats>;
   getMappingSummary(organizationId: string): Promise<BridgeMappingSummary>;
 };

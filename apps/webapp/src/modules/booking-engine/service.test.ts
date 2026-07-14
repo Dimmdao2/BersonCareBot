@@ -67,12 +67,6 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
       skippedExisting: 0,
       recoveredMappings: 0,
     }),
-    projectRubitimeRecords: vi.fn().mockResolvedValue({
-      projectedAppointments: 0,
-      updatedAppointments: 0,
-      skippedExisting: 0,
-      recoveredMappings: 0,
-    }),
     getMappingSummary: vi.fn().mockResolvedValue({
       branches: 0,
       specialists: 0,

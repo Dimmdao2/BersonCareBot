@@ -19,6 +19,8 @@ and any raw archive are audit/rollback material only.
 If a row exists only in integrator raw state and is absent from the fresh owner-approved Rubitime CSV, it must not be
 imported, resurrected into canonical, or treated as an R1/R2 blocker. Raw archive export in R7 is for traceability and
 rollback only; it does not expand the preservation set beyond the CSV.
+Integrator-led reconciliation is forbidden when the fresh CSV exists: raw integrator state cannot create a new import
+backlog or block final gates for rows absent from the CSV.
 
 The current owner-approved export context is the one-specialist Rubitime export for phone `89643805480` / tail
 `9643805480`, matched through existing city/branch mappings.
@@ -46,7 +48,7 @@ Command:
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6
 ```
 
-Result from 2026-07-14 11:30 MSK:
+Result from 2026-07-14 11:51 MSK:
 
 | Category | Result | Meaning |
 | --- | ---: | --- |
@@ -54,7 +56,7 @@ Result from 2026-07-14 11:30 MSK:
 | `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
 | `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
-| `rubitimeRawTableRuntimeRefs` | 70 hits / 19 files | Raw-table references remain for schema declarations, compatibility/audit paths and R7 tooling. |
+| `rubitimeRawTableRuntimeRefs` | 64 hits / 17 files | Raw-table references remain for schema declarations, compatibility/audit paths and R7 tooling. |
 | `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
 | `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
 
@@ -69,15 +71,15 @@ rg -n "rubitime_records|rubitime_events|rubitime_api_throttle|rubitime_create_re
   --glob '!docs/_ARCHIVE/**'
 ```
 
-Result: `3004` lines. Classification:
+Result: `3022` lines. Classification:
 
 - Drizzle snapshots, legacy SQL migrations and DB dump docs dominate the count. These are not runtime call sites.
 - `apps/integrator/src/integrations/rubitime/db/migrations/**` remains as historical migration chain only.
 - `apps/integrator/src/infra/db/schema/*` and `apps/integrator/src/infra/db/integratorDrizzleSchema.ts` still declare
   existing tables until a migration-backed R7 drop.
-- `apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts` and booking-engine projection methods still contain
-  compatibility/audit references to `rubitimeRecords`; these are R7 follow-up blockers for destructive table drop, not
-  evidence that integrator raw rows are canonical.
+- `apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts` no longer reads `integrator.rubitime_records`; the admin
+  bridge projection path only projects legacy `appointment_records` and does not resurrect integrator-only rows absent
+  from the fresh CSV.
 - `apps/webapp/src/infra/repos/pgDoctorAppointments.ts` and `pgAppointmentProjection.ts` still mention
   `appointment_records` for admin/projection/backfill compatibility. Doctor/client no-legacy-read gates remain
   separate and already cover visible runtime paths.
@@ -114,3 +116,16 @@ R7 remains pending until all of these exist:
 - final `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md`.
 
 Until then, `pnpm run check:rubitime-retirement-complete` must stay red.
+
+## 2026-07-14 11:51 MSK Raw Projection Cleanup
+
+`R7-WEBAPP-RAW-PROJECTION-RETIRE-codex-2026-07-14` removed the `projectRubitimeRecords` port/service/repository path.
+The admin booking bridge no longer scans `integrator.rubitime_records` during projection. This reduced
+`rubitimeRawTableRuntimeRefs` from 70 hits / 19 files to 64 hits / 17 files.
+
+Validation:
+
+- `pnpm --dir apps/webapp exec vitest --run src/modules/booking-engine/service.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts`
+  PASS.
+- `pnpm --dir apps/webapp typecheck` PASS.
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6` PASS.

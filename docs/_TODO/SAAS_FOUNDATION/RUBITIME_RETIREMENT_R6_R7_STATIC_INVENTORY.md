@@ -38,7 +38,7 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after legacy integrator source cleanup and raw event writer removal: 2026-07-14 11:30 MSK.
+Latest run time after webapp raw projection cleanup: 2026-07-14 11:51 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
@@ -46,7 +46,7 @@ Latest run time after legacy integrator source cleanup and raw event writer remo
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 147 hits / 29 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 70 hits / 19 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
+| `rubitimeRawTableRuntimeRefs` | R7 | 64 hits / 17 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 158 hits / 38 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 551 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
@@ -134,3 +134,14 @@ After this cleanup, the post-R6 inventory still passes with the three hard R6 ca
 `rubitimeRawTableRuntimeRefs` reduced to 70 hits / 19 files. Remaining raw-table references are R7
 archive/drop/defer scope, not a live Rubitime endpoint and not a reason to treat `integrator.rubitime_records` as the
 preservation canon over the fresh Rubitime CSV.
+
+## 2026-07-14 R7 Webapp Raw Projection Cleanup
+
+`R7-WEBAPP-RAW-PROJECTION-RETIRE-codex-2026-07-14` removed the `projectRubitimeRecords` service/port/repository path
+from the admin booking bridge. The bridge projection remains available for legacy `appointment_records` rehearsal
+work, but no longer reads `integrator.rubitime_records` or uses integrator-only raw rows as a projection source.
+
+After this cleanup, the post-R6 inventory still passes with the three hard R6 categories at zero and
+`rubitimeRawTableRuntimeRefs` reduced to 64 hits / 17 files. Remaining raw-table references are R7 archive/drop/defer
+scope, not a live Rubitime endpoint and not a reason to treat `integrator.rubitime_records` as the preservation canon
+over the fresh Rubitime CSV.

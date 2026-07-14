@@ -157,18 +157,23 @@ function createServiceAvailabilityFacade(port: ServiceAvailabilityPort) {
 }
 
 function createBridgeFacade(port: RubitimeBridgePort) {
+  const emptyProjection = {
+    projectedAppointments: 0,
+    updatedAppointments: 0,
+    skippedExisting: 0,
+    recoveredMappings: 0,
+  };
+
   return {
     isBridgeEnabled: () => port.isBridgeEnabled(),
     projectAll: async (organizationId: string) => {
       assertUuid(organizationId);
       const enabled = await port.isBridgeEnabled();
       if (!enabled) {
-        const empty = { projectedAppointments: 0, updatedAppointments: 0, skippedExisting: 0, recoveredMappings: 0 };
-        return { appointmentRecords: empty, rubitimeRecords: empty };
+        return { appointmentRecords: emptyProjection };
       }
       const appointmentRecords = await port.projectAppointmentRecords(organizationId);
-      const rubitimeRecords = await port.projectRubitimeRecords(organizationId);
-      return { appointmentRecords, rubitimeRecords };
+      return { appointmentRecords };
     },
     getMappingSummary: (organizationId: string) => {
       assertUuid(organizationId);

@@ -33,7 +33,7 @@ import {
   beExternalEntityMappings,
   beSpecialists,
 } from "../../../db/schema/bookingEngine";
-import { appointmentRecords, rubitimeRecords } from "../../../db/schema/schema";
+import { appointmentRecords } from "../../../db/schema/schema";
 
 /**
  * Solo-specialist fallback: если кооператор Rubitime не смаплен на канонического специалиста
@@ -618,26 +618,6 @@ export function createPgBookingRubitimeBridgePort(): RubitimeBridgePort {
         rows.map((row) => ({
           externalId: row.integratorRecordId,
           platformUserId: row.platformUserId ?? null,
-          phoneNormalized: row.phoneNormalized ?? null,
-          recordAt: row.recordAt!,
-          status: row.status,
-          lastEvent: row.lastEvent,
-          payloadJson: row.payloadJson,
-        })),
-      );
-    },
-
-    async projectRubitimeRecords(organizationId) {
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(rubitimeRecords)
-        .where(sql`${rubitimeRecords.recordAt} IS NOT NULL`);
-      return projectRows(
-        organizationId,
-        rows.map((row) => ({
-          externalId: row.rubitimeRecordId,
-          platformUserId: null,
           phoneNormalized: row.phoneNormalized ?? null,
           recordAt: row.recordAt!,
           status: row.status,
