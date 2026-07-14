@@ -196,10 +196,7 @@ describe('Rubitime record M2M routes', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ ok: true, data: {} });
-    expect(mockSyncAppointmentToCalendar).toHaveBeenCalledWith(
-      { action: 'canceled', rubRecordId: '99' },
-      expect.objectContaining({ dispatchPort: expect.anything() }),
-    );
+    expect(mockSyncAppointmentToCalendar).not.toHaveBeenCalled();
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recordId: '99' }));
   });
 
@@ -470,7 +467,7 @@ describe('POST booking lifecycle event routes', () => {
     expect(idempotencyPort.release).not.toHaveBeenCalled();
   });
 
-  it('booking.created skips canonical GCal sync when rubitimeId is set (post-create already synced)', async () => {
+  it('booking.created syncs canonical GCal even when rubitimeId is set', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);
     const raw = JSON.stringify(
@@ -486,7 +483,14 @@ describe('POST booking lifecycle event routes', () => {
       body: raw,
     });
     expect(res.statusCode).toBe(200);
-    expect(mockSyncCanonicalAppointmentToCalendar).not.toHaveBeenCalled();
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'created',
+        appointmentId: '9f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        rubitimeRecordId: 'rt-gcal-1',
+      }),
+      expect.objectContaining({ dispatchPort: expect.any(Object) }),
+    );
   });
 
   it('booking.package_linked syncs GCal without patient notifications', async () => {

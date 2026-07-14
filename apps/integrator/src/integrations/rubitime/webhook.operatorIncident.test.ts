@@ -1,11 +1,9 @@
-/* eslint-disable no-secrets/no-secrets -- test titles reference connector export names, not secrets */
 import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { registerRubitimeWebhookRoutes } from './webhook.js';
 
 const mockPrepare = vi.hoisted(() => vi.fn());
 const mockSyncGcal = vi.hoisted(() => vi.fn());
-const mockReportOperatorFailure = vi.hoisted(() => vi.fn());
 
 vi.mock('./client.js', () => ({
   fetchRubitimeRecordById: vi.fn(async () => ({ id: '42', phone: '+79990001122', email: 'u@example.com' })),
@@ -17,6 +15,10 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
 
 vi.mock('../../infra/db/repos/integrationDataQualityIncidents.js', () => ({
   upsertIntegrationDataQualityIncident: vi.fn(async () => ({ occurrences: 2 })),
+}));
+
+vi.mock('../../infra/db/repos/operationalVerboseLog.js', () => ({
+  getOperationalVerboseLogEnabled: vi.fn(async () => false),
 }));
 
 vi.mock('./ingestNormalization.js', () => ({
@@ -33,18 +35,14 @@ vi.mock('./connector.js', () => ({
   syncRubitimeWebhookBodyToGoogleCalendar: mockSyncGcal,
 }));
 
-vi.mock('../../infra/operatorIncident/reportOperatorFailure.js', () => ({
-  reportOperatorFailure: mockReportOperatorFailure,
-}));
-
 vi.mock('./runtimeConfig.js', () => ({
   getRubitimeWebhookToken: vi.fn(async () => 'test-rubitime-webhook-token'),
   getRubitimeApiKey: vi.fn(async () => 'test-rubitime-api-key'),
   resetRubitimeRuntimeConfigCache: vi.fn(),
 }));
 
-describe('rubitime webhook — Google Calendar failure → operator incident', () => {
-  it('calls reportOperatorFailure when syncRubitimeWebhookBodyToGoogleCalendar rejects', async () => {
+describe('rubitime webhook — raw GCal side effects disabled', () => {
+  it('does not call raw Google Calendar sync and still emits gateway event', async () => {
     mockPrepare.mockResolvedValue({
       recordId: 'rec-1',
       phone: '+79990001122',
@@ -57,7 +55,6 @@ describe('rubitime webhook — Google Calendar failure → operator incident', (
       timeNormalizationStatus: 'ok' as const,
     });
     mockSyncGcal.mockRejectedValue(new Error('GOOGLE_CALENDAR_HTTP_503'));
-    mockReportOperatorFailure.mockResolvedValue(undefined);
 
     const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });
     const app = Fastify();
@@ -82,13 +79,7 @@ describe('rubitime webhook — Google Calendar failure → operator incident', (
     });
 
     expect(res.statusCode).toBe(200);
-    expect(mockReportOperatorFailure).toHaveBeenCalledTimes(1);
-    expect(mockReportOperatorFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        direction: 'outbound',
-        integration: 'google_calendar',
-      }),
-    );
+    expect(mockSyncGcal).not.toHaveBeenCalled();
     expect(handleIncomingEvent).toHaveBeenCalledTimes(1);
   });
 });

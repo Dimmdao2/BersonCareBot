@@ -1,7 +1,7 @@
 /**
  * Post-create projection: after a successful M2M create-record,
- * fetch the full record from Rubitime, normalize it, sync to Google Calendar,
- * and write booking.upsert so that appointment_records projection is populated
+ * fetch the full record from Rubitime, normalize it, and write booking.upsert
+ * so that appointment_records projection is populated
  * without waiting for a Rubitime webhook.
  *
  * Rubitime API2 enforces a minimum gap (~5s) between consecutive requests per key.
@@ -20,13 +20,8 @@ import { createDbPort } from '../../infra/db/client.js';
 import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { fetchRubitimeRecordById } from './client.js';
 import { prepareRubitimeWebhookIngress } from './ingestNormalization.js';
-import {
-  buildUserEmailAutobindWebappEvent,
-  syncRubitimeWebhookBodyToGoogleCalendar,
-} from './connector.js';
+import { buildUserEmailAutobindWebappEvent } from './connector.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
-import { mapGoogleCalendarSyncErrorToClass } from '../../infra/operatorIncident/googleCalendarErrorClass.js';
-import { reportOperatorFailure } from '../../infra/operatorIncident/reportOperatorFailure.js';
 
 /** Margin over Rubitime's ~5s consecutive-request window before retrying `get-record` after a failure. */
 export const RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS = 5200;
@@ -81,35 +76,7 @@ export async function runPostCreateProjection(
     getBranchTimezone: createGetBranchTimezoneWithDataQuality({ db, dispatchPort: deps.dispatchPort }),
   });
 
-  let gcalEventId: string | null = null;
-  try {
-    gcalEventId = await syncRubitimeWebhookBodyToGoogleCalendar(incoming, {
-      db,
-      dispatchPort: deps.dispatchPort,
-    });
-    if (gcalEventId) {
-      logger.info({ recordId, gcalEventId }, '[postCreateProjection] gcal sync ok');
-    }
-  } catch (err) {
-    logger.warn({ err, recordId }, '[postCreateProjection] gcal sync failed');
-    const msg = err instanceof Error ? err.message : String(err);
-    try {
-      await reportOperatorFailure({
-        dispatchPort: deps.dispatchPort,
-        direction: 'outbound',
-        integration: 'google_calendar',
-        errorClass: mapGoogleCalendarSyncErrorToClass(msg),
-        errorDetail: msg,
-        alertLines: [
-          'Google Calendar sync failed (post-create projection)',
-          `recordId: ${recordId}`,
-          msg,
-        ],
-      });
-    } catch (reportErr) {
-      logger.warn({ reportErr, recordId }, '[postCreateProjection] reportOperatorFailure failed');
-    }
-  }
+  const gcalEventId: string | null = null;
 
   try {
     await deps.dbWritePort.writeDb({

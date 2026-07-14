@@ -57,10 +57,7 @@ import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 import { runPostCreateProjection } from './postCreateProjection.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
-import {
-  syncAppointmentToCalendar,
-  syncCanonicalAppointmentToCalendar,
-} from '../google-calendar/sync.js';
+import { syncCanonicalAppointmentToCalendar } from '../google-calendar/sync.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
@@ -464,22 +461,11 @@ async function trySyncCanonicalBookingToGoogleCalendar(
       return;
     }
     if (!rubitimeRecordId) return;
-    try {
-      await syncAppointmentToCalendar(
-        { action: 'canceled', rubRecordId: rubitimeRecordId },
-        { dispatchPort, db: createDbPort() },
-      );
-    } catch (err) {
-      logger.warn({ err, rubitimeRecordId, eventType }, 'canonical GCal delete failed');
-    }
+    logger.warn({ rubitimeRecordId, eventType }, 'skip GCal delete without canonical appointment id');
     return;
   }
 
   if (!appointmentId) return;
-  // Rubitime-first create: GCal already synced in runPostCreateProjection (map key = rubitime id).
-  if (eventType === 'booking.created' && rubitimeRecordId) {
-    return;
-  }
   const action =
     eventType === 'booking.rescheduled' ||
     eventType === 'booking.payment_captured' ||
@@ -762,14 +748,6 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(400).send({ ok: false, error: 'recordId required' });
     }
     try {
-      try {
-        await syncAppointmentToCalendar(
-          { action: 'canceled', rubRecordId: recordId },
-          { dispatchPort: deps.dispatchPort, db: createDbPort() },
-        );
-      } catch (gcalErr) {
-        logger.warn({ err: gcalErr, recordId }, 'rubitime remove-record GCal cleanup failed');
-      }
       const result = await removeRubitimeRecord({ recordId });
       return reply.code(200).send({ ok: true, data: result });
     } catch (err) {

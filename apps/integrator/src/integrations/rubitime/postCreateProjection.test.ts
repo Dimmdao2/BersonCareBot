@@ -73,21 +73,21 @@ describe('runPostCreateProjection', () => {
     mockReportOperatorFailure.mockResolvedValue(undefined);
   });
 
-  it('happy path: fetch + normalize + gcal + upsert all succeed', async () => {
+  it('happy path: fetch + normalize + upsert succeeds without raw GCal sync', async () => {
     const deps = makeDeps();
     const result = await runPostCreateProjection(RECORD_ID, deps);
 
     expect(result.projectionOk).toBe(true);
-    expect(result.gcalEventId).toBe('gcal-123');
+    expect(result.gcalEventId).toBeNull();
     expect(mockFetchRubitimeRecordById).toHaveBeenCalledWith({ recordId: RECORD_ID });
     expect(mockPrepareRubitimeWebhookIngress).toHaveBeenCalledTimes(1);
-    expect(mockSyncRubitimeWebhookBodyToGoogleCalendar).toHaveBeenCalledTimes(1);
+    expect(mockSyncRubitimeWebhookBodyToGoogleCalendar).not.toHaveBeenCalled();
     expect(deps.dbWritePort.writeDb).toHaveBeenCalledTimes(1);
     const upsertCall = deps.dbWritePort.writeDb.mock.calls[0]![0];
     expect(upsertCall.type).toBe('booking.upsert');
     expect(upsertCall.params.externalRecordId).toBe(RECORD_ID);
     expect(upsertCall.params.status).toBe('created');
-    expect(upsertCall.params.gcalEventId).toBe('gcal-123');
+    expect(upsertCall.params.gcalEventId).toBeUndefined();
   });
 
   it('fetch failure after retry returns projectionOk=false', async () => {
@@ -109,7 +109,7 @@ describe('runPostCreateProjection', () => {
     }
   });
 
-  it('gcal failure is non-fatal: writeDb still called', async () => {
+  it('does not report raw GCal failures because post-create no longer syncs GCal', async () => {
     mockSyncRubitimeWebhookBodyToGoogleCalendar.mockRejectedValue(new Error('gcal_unavailable'));
     const deps = makeDeps();
     const result = await runPostCreateProjection(RECORD_ID, deps);
@@ -117,13 +117,8 @@ describe('runPostCreateProjection', () => {
     expect(result.projectionOk).toBe(true);
     expect(result.gcalEventId).toBeNull();
     expect(deps.dbWritePort.writeDb).toHaveBeenCalledTimes(1);
-    expect(mockReportOperatorFailure).toHaveBeenCalledTimes(1);
-    expect(mockReportOperatorFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        direction: 'outbound',
-        integration: 'google_calendar',
-      }),
-    );
+    expect(mockSyncRubitimeWebhookBodyToGoogleCalendar).not.toHaveBeenCalled();
+    expect(mockReportOperatorFailure).not.toHaveBeenCalled();
     const upsertCall = deps.dbWritePort.writeDb.mock.calls[0]![0];
     expect(upsertCall.params.gcalEventId).toBeUndefined();
   });
@@ -135,7 +130,7 @@ describe('runPostCreateProjection', () => {
 
     expect(result.projectionOk).toBe(false);
     expect(result.error).toBe('upsert_failed');
-    expect(result.gcalEventId).toBe('gcal-123');
+    expect(result.gcalEventId).toBeNull();
   });
 
   it('booking.upsert params match expected shape from incoming', async () => {

@@ -5,9 +5,11 @@ Branch: `feat/doctor-ui-rebuild`.
 
 ## Scope
 
-This proof covers the first R4 cut: the canonical booking lifecycle M2M endpoint is no longer primarily named as a Rubitime endpoint.
+This proof covers R4 provider-neutral lifecycle side effects: the canonical booking lifecycle M2M endpoint is no
+longer primarily named as a Rubitime endpoint, and Google Calendar writes are driven by canonical lifecycle events.
 
-It does not claim Rubitime runtime deletion is complete. Raw webhook shutdown, `booking_calendar_map` rekey/migration, final durable event-version idempotency proof, and route removal remain R5/R6/R7 gated work.
+It does not claim Rubitime runtime deletion is complete. Raw webhook shutdown, final provider cutoff/drain, and route
+removal remain R6/R7 gated work.
 
 ## Owner source-of-truth rule
 
@@ -24,7 +26,10 @@ The CSV is matched against canonical/public history by the approved city/special
 - Switched webapp booking lifecycle emission to the provider-neutral route.
 - Added tests proving:
   - the provider-neutral route reaches canonical GCal lifecycle side effects;
+  - `booking.created` uses canonical GCal sync even when a Rubitime id is present, with the Rubitime id only as
+    fallback/adoption input;
   - webapp sends lifecycle events to the neutral route, not the Rubitime-named route;
+  - raw Rubitime webhook, post-create projection and remove-record no longer call raw GCal sync;
   - existing Rubitime-named route tests continue to cover compatibility behavior and current side-effect parity.
 
 ## Current side-effect inventory
@@ -68,20 +73,23 @@ Raw Rubitime webhook/post-create paths still exist and must not be removed until
 - `apps/integrator/src/integrations/rubitime/webhook.ts`
   - `POST /webhook/rubitime/:token` validates Rubitime payloads.
   - `GET /api/rubitime?record_success=...` fetches the Rubitime record by id and re-enters the same raw webhook processing path.
-  - Both paths call `prepareRubitimeWebhookIngress`, then `syncRubitimeWebhookBodyToGoogleCalendar`, then `rubitimeIncomingToEvent`, then `eventGateway.handleIncomingEvent`.
+  - Both paths call `prepareRubitimeWebhookIngress`, then `rubitimeIncomingToEvent`, then `eventGateway.handleIncomingEvent`.
+  - They no longer call `syncRubitimeWebhookBodyToGoogleCalendar`; raw Rubitime ingress is not a GCal writer.
   - Both paths may emit `user.email.autobind` for `event-create-record`.
 
 - `apps/integrator/src/integrations/rubitime/postCreateProjection.ts`
   - After Rubitime `create-record`, `runPostCreateProjection(recordId)` fetches the full Rubitime record.
-  - It builds synthetic `event-create-record` input, normalizes ingress, runs `syncRubitimeWebhookBodyToGoogleCalendar`, then writes `booking.upsert` into the legacy projection path.
+  - It builds synthetic `event-create-record` input, normalizes ingress, then writes `booking.upsert` into the legacy projection path with no GCal event id.
   - This is still Rubitime API-dependent and cannot survive provider removal as-is.
 
 - `apps/integrator/src/integrations/rubitime/connector.ts`
   - `syncRubitimeWebhookBodyToGoogleCalendar` maps raw Rubitime incoming actions to `syncAppointmentToCalendar` keyed by Rubitime record id.
   - `event-delete-record` / `event-remove-record` map to GCal cancellation/deletion behavior.
+  - This helper is retained only as legacy dead code until R6 removal; runtime raw webhook/post-create/remove no longer call it.
 
 - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
-  - Rubitime `remove-record` still attempts GCal cleanup through `syncAppointmentToCalendar` before calling Rubitime remove.
+  - Rubitime `remove-record` no longer attempts GCal cleanup. Canonical `booking.deleted` with `canonicalAppointmentId`
+    is the GCal delete path.
   - Rubitime `create-record` still runs `runPostCreateProjection` after successful Rubitime create in both v2 and legacy v1 paths.
 
 Reminder inventory:
@@ -102,6 +110,8 @@ Reminder inventory:
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 50 tests.
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/app/routes.projectionHealth.test.ts` - passed, 54 tests.
 - `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/sync.test.ts src/infra/db/repos/bookingCalendarMap.test.ts src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 69 tests.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/integrations/rubitime/webhook.test.ts src/integrations/rubitime/webhook.operatorIncident.test.ts src/integrations/rubitime/postCreateProjection.test.ts src/integrations/rubitime/connector.test.ts` - passed, 88 tests.
+- `rg -n "syncRubitimeWebhookBodyToGoogleCalendar\\(|syncAppointmentToCalendar\\(" apps/integrator/src/integrations/rubitime apps/webapp/src --glob '!**/*.test.ts'` - only the retained legacy helper definition in `connector.ts` remains; no raw runtime call sites.
 - `pnpm -C apps/webapp exec vitest run src/modules/integrator/bookingM2mApi.test.ts` - passed, 17 tests.
 - `pnpm --dir apps/integrator typecheck` - passed.
 - `pnpm -C apps/webapp run typecheck` - passed.

@@ -900,7 +900,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] provider-neutral lifecycle endpoint is implemented or assigned. *(`/api/bersoncare/booking/lifecycle-event`; Rubitime-named route remains alias only.)*
 - [x] webapp calls provider-neutral lifecycle endpoint.
 - [x] Rubitime-named lifecycle route is only a bounded compatibility alias.
-- [ ] GCal create/update/delete is canonical lifecycle driven.
+- [x] GCal create/update/delete is canonical lifecycle driven. *(Raw Rubitime webhook/post-create/remove no longer call raw GCal sync; canonical lifecycle always syncs by `be:<appointmentId>` with Rubitime id only as fallback adoption input.)*
 - [x] reminders are canonical lifecycle driven. *(Raw webhook has no direct reminder trigger; lifecycle tests cover create/reschedule/payment reminder scheduling.)*
 - [x] patient/staff Telegram/MAX notifications are preserved. *(Lifecycle tests cover create/cancel/reschedule/payment channel behavior and doctor notification path.)*
 - [x] Web Push behavior is preserved. *(Lifecycle tests cover created no-push, cancelled suppress/no-suppress, and rescheduled push behavior.)*
@@ -980,7 +980,7 @@ Rubitime is retired only when all items below are checked.
 - [x] R3 patient/public canonical slots/create complete.
 - [x] R3-TENANT exact tenant complete.
 - [x] R3-CATALOG catalog migration complete.
-- [ ] R4 provider-neutral lifecycle complete.
+- [x] R4 provider-neutral lifecycle complete.
 - [ ] R5 legacy v1 resolve disabled in production.
 - [ ] R6 runtime routes/code removed.
 - [ ] R7 archive/drop complete or explicitly deferred with no runtime references.
@@ -989,9 +989,9 @@ Rubitime is retired only when all items below are checked.
 - [ ] No doctor/client path reads `appointment_records`.
 - [x] No patient/public path reads public legacy `booking_*`.
 - [ ] No canonical booking path uses `booking_default_organization_id` as fallback.
-- [ ] GCal works from canonical lifecycle.
-- [ ] reminders work from canonical lifecycle.
-- [ ] notifications/Web Push/payment/package side effects work from canonical lifecycle.
+- [x] GCal works from canonical lifecycle.
+- [x] reminders work from canonical lifecycle.
+- [x] notifications/Web Push/payment/package side effects work from canonical lifecycle.
 - [ ] provider-neutral booking lifecycle route is the only live lifecycle integration route.
 - [ ] all `RR-PROOF-*` artifacts are saved.
 - [ ] production rollback boundary is accepted by owner.
