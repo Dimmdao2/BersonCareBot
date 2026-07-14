@@ -12,6 +12,8 @@ Canonical inputs:
 - `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`.
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` as pre-Tenant input only.
 - `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` for the fresh-copy/Rubitime boundary.
+- `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` for the owner/operator fixture
+  preparation workflow.
 
 ## Commands
 
@@ -140,3 +142,10 @@ The TEST deploy wrapper accepts the same filter via `SAAS_PRODUCT_SMOKE_CATEGORI
   bodies, or credential-bearing URLs.
 - Offline preflight is a readiness check for the secret fixture file only. D3/R1/R2 remain blocked until the owner
   supplies the readable fixture path and authorizes the real deployed-environment smoke against TEST.
+
+## D3.2 Fixture Operator Packet
+
+`SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` is the handoff packet for the owner/operator-managed fixture file.
+It pins `/run/bersoncarebot/saas-smoke.fixture`, the REDACTED non-runnable JSON shape, the offline preflight order,
+the owner-authorized live TEST smoke order, prohibited actions, and the evidence boundary. It is a fixture readiness
+packet only, not D3/R1/R2 PASS evidence.

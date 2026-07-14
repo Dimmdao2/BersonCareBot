@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 
 const files = {
   a1Doc: "docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md",
+  fixtureOperatorPacket: "docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md",
   roadmap: "docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md",
   hardProtocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   tenantLog: "docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md",
@@ -27,6 +28,7 @@ function requireFragments(label, text, fragments) {
 
 function runFixtureGateDocChecks() {
   const a1Doc = read(files.a1Doc);
+  const fixtureOperatorPacket = read(files.fixtureOperatorPacket);
   const roadmap = read(files.roadmap);
   const hardProtocol = read(files.hardProtocol);
   const tenantLog = read(files.tenantLog);
@@ -38,6 +40,25 @@ function runFixtureGateDocChecks() {
     "owner/operator-managed",
     "--fixture-file=/run/bersoncarebot/saas-smoke.fixture",
     "must not read `/opt/env`, TEST/prod databases",
+    "SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md",
+    "not D3/R1/R2 PASS evidence",
+  ]);
+
+  requireFragments(files.fixtureOperatorPacket, fixtureOperatorPacket, [
+    "# SaaS Product Smoke Fixture Operator Packet",
+    "not D3, R1, or R2\nPASS evidence",
+    "/run/bersoncarebot/saas-smoke.fixture",
+    "REDACTED_PLACEHOLDER_NON_RUNNABLE",
+    "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
+    "--check-fixture",
+    "--mode=locked",
+    "--base-url=https://test.bersoncare.ru",
+    "Do not use dev auth bypass on TEST.",
+    "Do not read `/opt/env`",
+    "Do not manually clean up DB rows",
+    "Do not trigger real delivery beyond owner-approved TEST send-safety.",
+    "Successful offline preflight means only",
+    "D3/R1/R2 product-smoke PASS requires actual live smoke command output with exit 0.",
   ]);
 
   requireFragments(files.roadmap, roadmap, [
@@ -62,6 +83,9 @@ function runFixtureGateDocChecks() {
   ]);
 
   requireFragments(files.tenantLog, tenantLog, [
+    "D3.2 product-smoke fixture operator packet",
+    "REDACTED non-runnable placeholders",
+    "D3 real execution remains blocked until owner/operator supplies a readable fixture path and authorizes live TEST smoke.",
     "D3.0 product-smoke fixture gate contract",
     "missing `SAAS_PRODUCT_SMOKE_FIXTURE` is `SKIPPED/BLOCKED`, not PASS",
     "Remaining blocker for D3 real execution",
