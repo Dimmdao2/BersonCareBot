@@ -1,5 +1,10 @@
 # SaaS enforce roadmap — from current state to “one-command walls” (v0.2, hardened)
 
+> **R0 canonical-plan marker (owner decision, 2026-07-15).** This document is the canonical execution plan for
+> the dormant⇄enforced flip (R1-R5). `TENANT_HARD_MODE_EXECUTION_PLAN.md` is retained as the next-stage
+> isolation-depth plan; it is not the active execution plan and its O1-O13 do not gate the current roadmap phases.
+> The reconciliation register near the end of this file preserves the draft-only scope so it is not lost.
+
 > Owner target, 2026-07-13: the application must work with the walls both DORMANT and ENFORCED, and the transition
 > in either direction must be one owner command. This roadmap is an execution plan, not evidence that the flip is
 > ready. Every database exercise below is limited to a disposable production copy until the owner authorizes TEST;
@@ -62,8 +67,8 @@ Every command must exit 0 only after its assertions pass; any non-zero result is
 
 - The canonical two-wall model exists: staff is org-scoped; patient is own-data-only; protected labels live in
   `app.principal_context` (`TENANT_WALLS_AND_ACCESS_MODEL.md:21-77,92-110`).
-- Strict policy generation/artifact and the synthetic/live disposable-copy isolation rehearsal exist. The handoff
-  reports 161 policies and the S1/S2/S3/P2/P_SHARED matrix passing, but explicitly says this was not deployed to
+- Strict policy generation/artifact and the synthetic/live disposable-copy isolation rehearsal exist. The renderer
+  asserts 163 policies and the S1/S2/S3/P2/P_SHARED matrix passing, but explicitly says this was not deployed to
   TEST/PROD (`HANDOFF_2026-07-12.md:9-25`). Treat that as DB/rehearsal evidence, not application acceptance.
 - The central runtime carrier is already implemented. `packages/db-principal/src/index.ts:361-419` applies/clears
   principal context; locked mode does `RESET ROLE` then `SET ROLE` at `:510-549`; missing context throws in locked
@@ -509,7 +514,7 @@ writes pass); only implement if re-verification finds a real gap. Do NOT re-deri
 - **Finding 1 & 2 ("policies read GUC channel; locked runtime writes signed-helper channel; never meet; blocks R2")
   = REFUTED.** The FLIP replaces the policy set. `deploy/postgres/phase4-locked-helper-rls-policies.sql` contains
   **322 `app.current_org_id()/current_patient_user_id()` calls and 0 `current_setting('app.org')`**, and DROPs all
-  161 policies **by the same names the migrations created** (e.g. `saas_org_dormant_p0_8_3` on `org_enrollments` in
+  163 policies **by the same names the migrations created** (e.g. `saas_org_dormant_p0_8_3` on `org_enrollments` in
   both 0167 and the artifact), re-creating them helper-based. The full prod-copy rehearsal applied this artifact +
   FORCE and the S1/S2/S3/P2/P_SHARED isolation matrix PASSED. So under enforce the policies read exactly the signed
   channel locked mode populates. **No "re-point every policy to the helper channel" phase is needed** — the reviewer
@@ -537,3 +542,54 @@ writes pass); only implement if re-verification finds a real gap. Do NOT re-deri
 ### Execution start
 Orchestrator begins at **Phase A1** and proceeds in order; C0 is the first deep-tier architectural phase and gates
 all of C–G. Nothing touches TEST/PROD DBs or real deliveries during implementation; owner authorizes TEST, then PROD.
+
+---
+
+## R0 plan reconciliation register (2026-07-15)
+
+`TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. The areas below are retained for the next-stage
+isolation-depth plan because they are covered there more explicitly than in this roadmap:
+
+| Draft-only area | Draft pointer | Current roadmap relationship |
+|---|---|---|
+| DB role granularity beyond the built `app_staff`/`app_patient` pair | O1 | Open owner-facing question; current roadmap phases continue on the built/live-proven topology until a later decision changes it. |
+| Broadcasts queue ownership / claim model | `TENANT_HARD_MODE_EXECUTION_PLAN.md` §7, H1-A | Roadmap C3/C4/D4 require worker/background proof, but do not carry the full queue separation-of-duties design. |
+| Media NULL-row ownership policy | O5, H1-B | Roadmap C4/D3/D4 cover media behavior, but the NULL legacy/platform-media ownership decision remains next-stage scope. |
+| Platform admin / `super-org`, `platform_support`, break-glass | §5, O2/O3/O12/O13 | Roadmap keeps owner/lead decisions around platform scope, but does not implement the full support/break-glass taxonomy. |
+| References and catalog ownership | O4, H7 | Roadmap D/G gates do not resolve global-vs-per-org reference/catalog ownership. |
+| Analytics org attribution / unknown bucket / platform-vs-clinic split | H7 | Roadmap E/G need observability, but not the full analytics attribution model. |
+| Rubitime legacy quarantine timing | O10, H6 | Roadmap treats Rubitime as legacy/cutover-sensitive; quarantine timing remains for the next-stage isolation plan. |
+| Multi-org patient enrollment org-derivation rule | O8, H5 | Roadmap R2/D3 require shared-patient proof; draft H5 carries the deeper UX/source rule. |
+| H0 census -> descriptor -> entrypoint-matrix pipeline and 8-class RLS taxonomy | §6.1, H0 | Roadmap uses phased gates; the draft retains the deeper descriptor/taxonomy workstream for a future stage. |
+
+The draft objection that a single global FORCE flip would be a forbidden big bang is answered inside this roadmap
+by E2 (shadow run across all units) and F1 (flip state machine with automatic OFF on failed postcheck). Those gates
+must not be weakened.
+
+## R0 roadmap phase status table (reality-derived, 2026-07-15)
+
+States are deliberately conservative. `TENANT_HARD_MODE_LOG.md` is treated as a claim source only; evidence below
+comes from committed/repo artifacts and checker results, and live TEST/PROD/dev DB proof is not claimed by this R0
+stage.
+
+| Phase | State | Evidence used | Missing for roadmap exit |
+|---|---|---|---|
+| A1 | repo-artifact-only | `SAAS_PRODUCT_SMOKE_A1.md`; `pnpm run check:saas-product-smoke-contract` | Owner-managed live fixture/base URL and deployed smoke proving non-empty product facts. |
+| A2 | repo-artifact-only | `deploy/nginx/test-webapp.conf`; `pnpm run check:saas-a2-nginx-forwarded-host` | Effective `nginx -T`/Server Action proof on authorized deployed environment. |
+| B1 | repo-artifact-only | `pnpm run check:saas-b1-doctor-admin-identity`; guard regression tests exist in webapp | Disposable fresh-copy diagnosis plus A1 doctor/admin subset green. |
+| B2 | not-started | No B2-specific product-parity artifact found in this R0 pass | Full A1 dormant matrix green twice from fresh copy and restart. |
+| C0 | repo-artifact-only | `pnpm run check:saas-c0-locked-topology`; `pnpm run smoke:saas-c0-locked-topology` | Disposable DB executable proof in the actual target topology. |
+| C1 | repo-artifact-only | `pnpm run check:saas-c1-webapp-dual-pool-fanout` | App-level shadow/locked smoke proving role/helper cleanup and concurrency. |
+| C2 | repo-artifact-only | `pnpm run check:saas-c2-secrets-deployment-plumbing` | Real secret installation/fingerprint/redaction audit in disposable environment. |
+| C3 | repo-artifact-only | `pnpm run check:saas-c3-integrator-fanout-inventory` | Controlled queued fixtures under strict roles with send-safe/no-delivery proof. |
+| C4 | repo-artifact-only | `pnpm run check:saas-c4-scheduler-media-cron-fanout` after the R0 checker repair | Strict+FORCE scheduler/media/internal cron fixtures, fake/local object storage proof, and infra pool/grants decision. |
+| D1 | repo-artifact-only | `pnpm run check:saas-d1-664-with-check-reverify` | Owner-authorized strict+FORCE/live re-verification if required by the phase gate. |
+| D2 | repo-artifact-only | `pnpm run check:saas-d2-fb1-bootstrap-phone-write` | Production-topology strict+FORCE application smoke for FB#1 and isolation negatives. |
+| D3 | blocked | D3 fixture/preflight artifacts exist; current repo log says final 17/17 live smoke was not run | Owner/operator fixture path plus authorized locked+FORCE read matrix with expected non-empty facts. |
+| D4 | not-started | No D4 write-matrix artifact found in this R0 pass | Controlled create/update/delete write matrix and cross-tenant mutation negatives. |
+| E1 | not-started | Roadmap still describes future structured observability work | Structured counters/report command and redaction/fault-injection tests. |
+| E2 | not-started | Roadmap still describes future all-unit shadow run | Full A1/background shadow workload with zero unexplained events. |
+| F1 | not-started | Roadmap still describes future flip state machine | State manifest, automatic OFF, fault-injected rollback proof. |
+| F2 | not-started | `deploy/host/deploy-test-saas.sh` exists, but no `flip-saas.sh --target test on|off` implementation was verified | Idempotent one-command ON/OFF rehearsal twice from fresh copy. |
+| G1 | not-started | No owner-facing TEST acceptance artifact found in this R0 pass | Automated gates green plus owner acceptance evidence. |
+| G2 | not-started | No PROD mapping/rollback drill artifact found in this R0 pass | Disposable PROD-mapped rehearsal, holistic audit, SHIP/NO-SHIP checklist. |

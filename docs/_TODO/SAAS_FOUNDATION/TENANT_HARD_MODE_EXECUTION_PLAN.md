@@ -1,5 +1,14 @@
 # Tenant Hard Mode — execution plan
 
+> **R0 status marker (owner decision, 2026-07-15).** This document is **not** the active execution plan for the
+> current dormant⇄enforced flip. It is retained as the next-stage isolation-depth plan. Current work is gated by
+> `SAAS_ENFORCE_ROADMAP.md`; this draft's O1-O13 do not gate that work. O1 (DB role granularity) remains an open
+> owner-facing question as of 2026-07-15. The owner's 2026-07-13 decision covers app-layer authorization:
+> clinic-management is authorized by clinic-membership capability at a single backend chokepoint, not by the global
+> `admin` role. That decision does **not** settle whether the DB topology should remain the built/live-proven
+> `app_staff`/`app_patient` pair or move toward the draft's more granular role set. Draft-only scope is preserved in
+> `SAAS_ENFORCE_ROADMAP.md` R0 reconciliation register.
+
 Статус: draft for owner decisions, 2026-07-14. Это план исполнения; код, миграции и runtime-конфигурация этим документом не меняются.
 
 ## 1. Решение и границы

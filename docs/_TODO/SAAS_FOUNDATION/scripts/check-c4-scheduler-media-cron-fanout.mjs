@@ -15,6 +15,7 @@ const files = {
   mediaWithClient: "apps/media-worker/src/withClient.ts",
   mediaPoolProvider: "apps/media-worker/src/poolProvider.ts",
   mediaProcess: "apps/media-worker/src/processTranscodeJob.ts",
+  mediaSql: "apps/media-worker/src/runMediaWorkerSql.ts",
   mediaPrincipalTest: "apps/media-worker/src/processTranscodeJob.principal.test.ts",
   mediaWithClientTest: "apps/media-worker/src/withClient.test.ts",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
@@ -279,11 +280,41 @@ function assertMediaWorker(loaded) {
     "const client = await pool.connect();",
   );
   requireFragments(files.mediaProcess, loaded.mediaProcess, [
-    "createDbOrganizationPrincipal",
-    "source: \"media-worker:process-transcode-job\"",
+    "runWithOptionalMediaWorkerOrganizationPrincipal",
+    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "processTranscodeJobInner(ctx, job)",
+    "\"media-worker:process-transcode-job\"",
     "media-worker transcode job is missing organization_id in locked mode",
-    "media-worker:process-transcode-job:legacy-missing-org",
   ]);
+  requireFragmentBefore(
+    files.mediaProcess,
+    loaded.mediaProcess,
+    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "processTranscodeJobInner(ctx, job)",
+  );
+  requireFragments(files.mediaSql, loaded.mediaSql, [
+    "createDbOrganizationPrincipal",
+    "runWithDbPrincipal",
+    "runWithDbOrganizationPrincipal",
+    "export function runWithOptionalMediaWorkerOrganizationPrincipal",
+    "if (!organizationId?.trim())",
+    "runWithMediaWorkerInfraPrincipal(\"media-worker:optional-organization-principal:missing-org\", fn)",
+    "if (source?.trim())",
+    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
+    "return runWithDbOrganizationPrincipal(organizationId, fn);",
+  ]);
+  requireFragmentBefore(
+    files.mediaSql,
+    loaded.mediaSql,
+    "if (!organizationId?.trim())",
+    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
+  );
+  requireFragmentBefore(
+    files.mediaSql,
+    loaded.mediaSql,
+    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
+    "return runWithDbOrganizationPrincipal(organizationId, fn);",
+  );
   requireFragments(files.mediaPrincipalTest, loaded.mediaPrincipalTest, [
     "runs DB access under the claimed job organization principal",
     "media-worker:process-transcode-job",
@@ -388,8 +419,16 @@ function runChecks(overrides = {}) {
 
 if (process.argv.includes("--self-test")) {
   const mediaProcess = read(files.mediaProcess).replace(
-    "source: \"media-worker:process-transcode-job\"",
-    "source: \"media-worker:process-transcode-job-missing\"",
+    "\"media-worker:process-transcode-job\"",
+    "\"media-worker:process-transcode-job-missing\"",
+  );
+  const mediaProcessNoDelegation = read(files.mediaProcess).replace(
+    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "runWithOptionalMediaWorkerInfraOnly(job.organizationId",
+  );
+  const mediaSqlNoOrgPrincipal = read(files.mediaSql).replace(
+    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
+    "return fn();",
   );
   const mediaWithClient = read(files.mediaWithClient).replace(
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
@@ -402,6 +441,8 @@ if (process.argv.includes("--self-test")) {
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
   const cases = [
     { mediaProcess },
+    { mediaProcess: mediaProcessNoDelegation },
+    { mediaSql: mediaSqlNoOrgPrincipal },
     { mediaWithClient },
     { "apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts": webpushRoute },
     { doc },
