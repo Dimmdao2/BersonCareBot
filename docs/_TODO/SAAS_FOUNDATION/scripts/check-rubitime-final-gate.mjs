@@ -14,6 +14,7 @@ until all blocker statuses are converted to pass and proof files exist.`;
 
 const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md';
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
+const ownerGatePacket = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md';
 
 const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md',
@@ -94,6 +95,7 @@ function validate({ requireComplete }) {
   const errors = [];
   const manifestSrc = readRel(manifest);
   const executionPlanSrc = readRel(executionPlan);
+  const ownerGatePacketSrc = readRel(ownerGatePacket);
 
   if (!manifestSrc) {
     errors.push(`missing ${manifest}`);
@@ -103,10 +105,17 @@ function validate({ requireComplete }) {
     errors.push(`missing ${executionPlan}`);
     return errors;
   }
+  if (!ownerGatePacketSrc) {
+    errors.push(`missing ${ownerGatePacket}`);
+    return errors;
+  }
 
   for (const proof of expectedProofs) {
     if (!manifestSrc.includes(proof)) {
       errors.push(`${manifest}: missing expected proof ${proof}`);
+    }
+    if (!ownerGatePacketSrc.includes(proof)) {
+      errors.push(`${ownerGatePacket}: missing expected proof ${proof}`);
     }
   }
 
@@ -120,6 +129,9 @@ function validate({ requireComplete }) {
   for (const fragment of requiredCanonFragments) {
     if (!manifestSrc.includes(fragment)) {
       errors.push(`${manifest}: missing data-canon fragment ${fragment}`);
+    }
+    if (!ownerGatePacketSrc.includes(fragment)) {
+      errors.push(`${ownerGatePacket}: missing data-canon fragment ${fragment}`);
     }
   }
 
@@ -168,7 +180,9 @@ if (process.argv.includes('--help')) {
 const requireComplete = process.argv.includes('--require-complete');
 const errors = validate({ requireComplete });
 
-console.log(JSON.stringify({ manifest, executionPlan, expectedProofs, blockingItems, requireComplete }, null, 2));
+console.log(
+  JSON.stringify({ manifest, executionPlan, ownerGatePacket, expectedProofs, blockingItems, requireComplete }, null, 2),
+);
 
 if (errors.length > 0) {
   console.error('check-rubitime-final-gate: FAILED');

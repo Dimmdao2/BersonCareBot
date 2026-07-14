@@ -26,9 +26,11 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 6. Для clean dump уже есть валидный путь: owner doctor/admin pre-fix → `scripts/deploy-saas-667.sh` или
    `deploy/host/deploy-test-saas.sh` → placeholder booking purge → specialist consolidation → canonical backfill
    → R1 aggregate audits → doctor UI smoke.
-7. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
+7. Остаточные R5/R6/R7 owner/prod решения собраны в
+   `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
+8. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`.
-8. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
+9. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
 
 ## Что сказал Sol / что из этого следует
 

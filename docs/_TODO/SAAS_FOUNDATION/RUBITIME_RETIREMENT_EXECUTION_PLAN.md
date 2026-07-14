@@ -1096,6 +1096,7 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-
 
 Default mode verifies the current blockers are explicit. `--require-complete` is the final acceptance command and
 must stay red until R5/R6/R7 final proof files exist.
+Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 
 - [x] R0 freeze complete.
 - [x] R1 dual-source history complete.
