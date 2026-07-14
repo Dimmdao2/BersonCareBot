@@ -3,6 +3,7 @@
 import type { Pool, PoolClient, PoolConfig } from "pg";
 import {
   runWithDbBootstrapPrincipal,
+  runWithDbInfraPrincipal,
   runWithDbPatientPrincipal,
   runWithDbStaffPrincipal,
 } from "@bersoncare/db-principal";
@@ -140,6 +141,33 @@ describe("webapp pool provider", () => {
       missingPrincipalSelections: 1,
       bootstrapSelections: 1,
       poolRoleMismatches: 0,
+    });
+  });
+
+  it("rejects missing and infra principals before dual-pool checkout in locked mode", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await expect(pool.query("SELECT missing_marker")).rejects.toThrow(
+      "DB principal context is required before scoped DB access in locked mode",
+    );
+    await expect(
+      runWithDbInfraPrincipal({ source: "unit-test" }, () => pool.query("SELECT infra_marker")),
+    ).rejects.toThrow("DB infra principal is not allowed to use the webapp request DB pool in locked mode");
+
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+      missingPrincipalSelections: 1,
+      infraSelections: 1,
+      staffSelections: 0,
+      nonstaffSelections: 0,
     });
   });
 

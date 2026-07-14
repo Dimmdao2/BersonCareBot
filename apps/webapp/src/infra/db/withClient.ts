@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import {
   applyCurrentDbPrincipalToConnection,
   applyCurrentDbPrincipalToTransaction,
+  assertDbPrincipalRequestPoolCheckoutAllowed,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   type DbPrincipalApplyOptions,
@@ -67,6 +68,7 @@ export async function withPoolClient<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
+  assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
   const client = await pool.connect();
   try {
     await prepareClientForRequest(client, principalApplyOptions);
@@ -89,6 +91,7 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
+  assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
   const client = await pool.connect();
   let transactionStarted = false;
   try {

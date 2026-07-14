@@ -374,6 +374,20 @@ export function buildDbPrincipalApplyOptionsFromEnv(
   });
 }
 
+export function assertDbPrincipalRequestPoolCheckoutAllowed(options: DbPrincipalApplyOptions = {}): void {
+  if (options.mode !== "locked") {
+    return;
+  }
+
+  const principal = getCurrentDbPrincipal();
+  if (!principal) {
+    throw new Error("DB principal context is required before scoped DB access in locked mode");
+  }
+  if (principal.kind === "infra") {
+    throw new Error("DB infra principal is not allowed to use the webapp request DB pool in locked mode");
+  }
+}
+
 export async function applyCurrentDbPrincipalToTransaction(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},

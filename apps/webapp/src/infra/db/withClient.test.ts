@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { runWithDbInfraPrincipal, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
 
@@ -134,7 +134,7 @@ describe("withClient helpers", () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed in locked mode when no DB principal is active", async () => {
+  it("fails closed in locked mode before checkout when no DB principal is active", async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
     process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
     const release = vi.fn();
@@ -146,13 +146,21 @@ describe("withClient helpers", () => {
       "DB principal context is required before scoped DB access in locked mode",
     );
 
-    expect(query.mock.calls).toEqual([
-      ["SELECT app.release_principal_context()"],
-      ["RESET ROLE"],
-      ["SELECT app.release_principal_context()"],
-      ["RESET ROLE"],
-    ]);
-    expect(release).toHaveBeenCalledTimes(1);
+    expect(pool.connect).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in locked mode before checkout for infra principal", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const pool = { connect: vi.fn() };
+
+    await expect(
+      runWithDbInfraPrincipal({ source: "unit-test" }, () => withPoolClient(pool as never, async () => "unused")),
+    ).rejects.toThrow("DB infra principal is not allowed to use the webapp request DB pool in locked mode");
+
+    expect(pool.connect).not.toHaveBeenCalled();
   });
 
   it("rejects invalid locked DB principal env before checking out a client", async () => {

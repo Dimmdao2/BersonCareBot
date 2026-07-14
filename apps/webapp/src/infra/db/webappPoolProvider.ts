@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import type { PoolClient, PoolConfig } from "pg";
 import {
   applyCurrentDbPrincipalToConnection,
+  assertDbPrincipalRequestPoolCheckoutAllowed,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   getCurrentDbPrincipal,
@@ -59,6 +60,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
+    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
     const client = await pool.connect();
     try {
       await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
@@ -117,18 +119,35 @@ function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): W
   return poolKind;
 }
 
+function assertRoutedWebappPoolCheckoutAllowed(metrics: WebappPoolRoutingMetrics): void {
+  const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
+  try {
+    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+  } catch (error) {
+    const principal = getCurrentDbPrincipal();
+    if (!principal) {
+      metrics.missingPrincipalSelections += 1;
+    } else if (principal.kind === "infra") {
+      metrics.infraSelections += 1;
+    }
+    throw error;
+  }
+}
+
 function createRoutedWebappPool(input: {
   staffPool: Pool;
   nonstaffPool: Pool;
   metrics: WebappPoolRoutingMetrics;
 }): Pool {
   let routedPool: Pool;
-  const selectPool = (): Pool => (
-    choosePoolKindForCurrentPrincipal(input.metrics) === "staff" ? input.staffPool : input.nonstaffPool
-  );
+  const selectPool = (): Pool => {
+    assertRoutedWebappPoolCheckoutAllowed(input.metrics);
+    return choosePoolKindForCurrentPrincipal(input.metrics) === "staff" ? input.staffPool : input.nonstaffPool;
+  };
 
   const routedConnect = (): Promise<PoolClient> => selectPool().connect();
-  const routedQuery = (...args: Parameters<Pool["query"]>): ReturnType<Pool["query"]> => selectPool().query(...args);
+  const routedQuery = async (...args: Parameters<Pool["query"]>): Promise<Awaited<ReturnType<Pool["query"]>>> =>
+    selectPool().query(...args);
   const routedEnd = async (): Promise<void> => {
     await Promise.all([input.staffPool.end(), input.nonstaffPool.end()]);
   };

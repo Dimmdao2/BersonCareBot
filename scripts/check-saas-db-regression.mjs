@@ -139,6 +139,10 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-b4-locked-runtime-wiring.mjs"],
   },
   {
+    label: "SAAS C1 webapp dual-pool fanout",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-c1-webapp-dual-pool-fanout.mjs"],
+  },
+  {
     label: "SAAS Phase 4 FORCE RLS cutover guard",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-force-cutover-sql.mjs"],
   },
