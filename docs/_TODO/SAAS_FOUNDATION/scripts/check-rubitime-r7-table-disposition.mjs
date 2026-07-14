@@ -8,13 +8,16 @@ const repoRoot = fileURLToPath(new URL('../../../..', import.meta.url));
 const HELP = `Usage:
   node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs [--require-drop-ready]
 
-Checks the documented R7 keep/archive/drop table disposition. It is static only:
-no DB, env, SSH, pg_dump, or migration is executed.
+Checks the documented R7 keep/archive/drop table disposition and final proof
+contract. It is static only: no DB, env, SSH, pg_dump, or migration is executed.
 
---require-drop-ready fails until owner-approved archive/drop proof can begin.`;
+--require-drop-ready fails until the required R6 and R7 proof files exist and
+the R7 proof contains the required archive/drop/restore evidence sections.`;
 
 const runbook = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md';
 const dispositionDoc = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md';
+const r6Proof = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md';
+const r7Proof = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md';
 
 const keep = [
   {
@@ -56,6 +59,18 @@ const dropCandidates = [
   'integrator.rubitime_cooperators',
 ];
 
+const r7ProofRequiredFragments = [
+  'R6 proof link and commit hash',
+  'owner archive/drop decision',
+  'schema audit JSON',
+  'post-R6 static reference audit',
+  'archive directory and SHA256SUMS',
+  'migration file name or explicit defer record',
+  'fresh restore + migrate output',
+  'typecheck/lint/test output',
+  'explicit rollback horizon',
+];
+
 function readRel(rel) {
   const abs = join(repoRoot, rel);
   if (!existsSync(abs)) return null;
@@ -64,6 +79,27 @@ function readRel(rel) {
 
 function requireMention(errors, src, rel, value) {
   if (!src?.includes(value)) errors.push(`${rel}: missing ${value}`);
+}
+
+function requireFinalProof(errors) {
+  const r6ProofSrc = readRel(r6Proof);
+  const r7ProofSrc = readRel(r7Proof);
+
+  if (!r6ProofSrc) {
+    errors.push(`missing ${r6Proof}`);
+  }
+  if (!r7ProofSrc) {
+    errors.push(`missing ${r7Proof}`);
+    return;
+  }
+
+  for (const fragment of r7ProofRequiredFragments) {
+    requireMention(errors, r7ProofSrc, r7Proof, fragment);
+  }
+  if (r7ProofSrc.includes('TODO:')) {
+    errors.push(`${r7Proof}: contains TODO placeholders`);
+  }
+  requireMention(errors, r7ProofSrc, r7Proof, 'RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md');
 }
 
 if (process.argv.includes('--help')) {
@@ -94,15 +130,18 @@ for (const table of dropCandidates) {
 }
 
 if (process.argv.includes('--require-drop-ready')) {
-  errors.push('R7 drop is not ready: R6 cutoff/drain proof, owner archive/drop decision, archive export, and fresh restore/migrate proof are still required.');
+  requireFinalProof(errors);
 }
 
 const result = {
   runbook,
   dispositionDoc,
+  r6Proof,
+  r7Proof,
   keep,
   archiveBeforeDrop,
   dropCandidates,
+  r7ProofRequiredFragments,
   requireDropReady: process.argv.includes('--require-drop-ready'),
 };
 
