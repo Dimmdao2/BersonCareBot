@@ -36,10 +36,6 @@ const allowedUncovered: Record<string, string> = {
     "staff account identity self-service, global platform user lifecycle",
   "src/app/api/doctor/account/timezone/route.ts":
     "staff account preference self-service, global platform user lifecycle",
-  "src/app/api/doctor/appointments/rubitime/cancel/route.ts":
-    "legacy Rubitime M2M proxy",
-  "src/app/api/doctor/appointments/rubitime/update/route.ts":
-    "legacy Rubitime M2M proxy",
   "src/app/api/doctor/clients/route.ts":
     "platform identity patient creation; org enrollment is later product/roadmap work, not silent T0.3 rewrite",
   "src/app/api/doctor/messages/conversations/unread-by-patient/route.ts":
@@ -60,6 +56,7 @@ const coveredMarkers = [
   "requireAdminBookingEngine",
   "withAdminBookingCatalogPrincipal",
   "requireAdminBookingCatalogContext",
+  "requireClinicManagementApiContext",
   "requireAdminModeSession",
 ];
 

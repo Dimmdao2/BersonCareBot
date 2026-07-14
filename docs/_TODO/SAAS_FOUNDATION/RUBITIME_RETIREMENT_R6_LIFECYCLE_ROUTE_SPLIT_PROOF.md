@@ -5,7 +5,7 @@ Branch: `feat/doctor-ui-rebuild`.
 
 ## Scope
 
-This proof covers the first R6 code split before destructive Rubitime route removal:
+This proof covers the first R6 code split before destructive integrator Rubitime route removal:
 
 - `/api/bersoncare/booking/lifecycle-event` is registered through
   `apps/integrator/src/integrations/bersoncare/bookingLifecycleRoute.ts`.
@@ -13,6 +13,9 @@ This proof covers the first R6 code split before destructive Rubitime route remo
   `registerRubitimeRecordM2mRoutes`.
 - The legacy compatibility alias `/api/bersoncare/rubitime/booking-event` remains mounted in the Rubitime registrar
   until the R6 cutoff/drain gates allow removal.
+- The old doctor webapp proxy routes `POST /api/doctor/appointments/rubitime/update` and
+  `POST /api/doctor/appointments/rubitime/cancel` were removed. `rg` found no UI callers; canonical booking-engine
+  doctor/admin routes remain the supported runtime surface.
 
 No production DB, env, service, webhook, or Rubitime endpoint was changed.
 
@@ -26,4 +29,9 @@ the lifecycle handler body out of `integrations/rubitime` or delete the Rubitime
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 54 tests.
 - `pnpm --dir apps/integrator typecheck` - passed.
-
+- `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/t03FinalTailPrincipal.audit.test.ts` - passed, 1 test.
+- `pnpm --dir apps/webapp exec eslint src/app/api/doctor/t03FinalTailPrincipal.audit.test.ts` - passed.
+- `pnpm --dir apps/webapp typecheck` - passed after deleting stale generated Next validator dirs
+  `apps/webapp/.next/types` and `apps/webapp/.next/dev/types`; running Next servers were checked first and
+  `.next/cache` / standalone output were not touched.
+- `rg -n "api/doctor/appointments/rubitime|appointments/rubitime/(update|cancel)" apps/webapp/src apps/webapp/INTEGRATOR_CONTRACT.md apps/webapp/src/app/api/api.md -g '*.ts' -g '*.tsx' -g '*.md'` - no runtime code hits; only retired-doc note remains.

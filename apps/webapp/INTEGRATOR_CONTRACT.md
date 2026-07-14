@@ -469,10 +469,12 @@ Canonical linking rules:
 
 **Idempotency (2026-06-06):** если Rubitime отвечает «record not found» — integrator возвращает **`200`** `{ ok: true, data: {} }` (запись уже удалена). Для **`update-record`** с повторной отменой (status 4) или «record not found» / «already cancelled» — тоже **`200`** `{ ok: true, data: {} }`. GCal cleanup при remove webhook: HTTP **404** и **410** на DELETE события — не ошибка.
 
-**Webapp proxy (doctor):**
+**Retired webapp proxy (doctor):**
 
-- `POST /api/doctor/appointments/rubitime/update` → integrator `update-record` (patch слота/статуса).
-- `POST /api/doctor/appointments/rubitime/cancel` → integrator **`update-record`** с **`status: 4`** (как patient/staff `cancelRecord` M2M), **не** `remove-record`. Hard delete (`remove-record`) — create-rollback, ops cleanup, и **staff delete** уже отменённой записи (`POST …/booking-engine/appointments/[id]/delete` после `manual-cancel`; не для active статусов).
+- `POST /api/doctor/appointments/rubitime/update` and
+  `POST /api/doctor/appointments/rubitime/cancel` were removed during Rubitime retirement R6 preparation.
+  Doctor/admin manual booking flows use canonical booking-engine routes and, until cutoff, their bounded mirror code.
+  Do not reintroduce direct doctor webapp proxies to Rubitime M2M endpoints.
 
 Те же подписи к integrator формируются на стороне webapp через общий webhook secret.
 
