@@ -32,7 +32,7 @@ not contain template placeholders such as `TODO:` or template warning text; the 
 
 | Proof | Required before | Gate |
 | --- | --- | --- |
-| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved production flag change plus monitoring window showing no v1 requests. |
+| `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved production flag change plus monitoring window showing no v1 requests and no user-facing need for v1 profile resolution. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` | R6 route/code removal final acceptance | Owner-approved provider cutoff, disabled webhook/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation with CSV as canon and integrator-only rows audit-only. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | R7 archive/drop final acceptance | R1-R6 complete, owner archive/drop decision, archive-only export, migration-backed drop/defer proof, fresh restore/migrate proof. |
 

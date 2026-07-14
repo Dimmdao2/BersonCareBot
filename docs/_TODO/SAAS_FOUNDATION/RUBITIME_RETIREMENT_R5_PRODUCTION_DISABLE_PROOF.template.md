@@ -26,6 +26,10 @@ Final proof filename:
 
 `TODO: command/log source used for counts; mask secrets and avoid patient identifiers`.
 
+## confirmation that no user-facing booking path required v1 profile resolution
+
+`TODO: confirm production patient/public booking paths stayed canonical and no user-facing incident required legacy v1 profile resolution during the monitoring window`.
+
 ## owner approval note
 
 `TODO: owner decision approving production disable and accepting monitoring result`.

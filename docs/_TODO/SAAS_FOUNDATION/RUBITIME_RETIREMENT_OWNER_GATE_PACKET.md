@@ -57,6 +57,7 @@ Proof must include:
 - aggregate v1 `/api/bersoncare/rubitime/slots` request count;
 - aggregate v1 `/api/bersoncare/rubitime/create-record` request count;
 - source of aggregate counts without secrets or PII;
+- confirmation that no user-facing booking path required v1 profile resolution;
 - owner approval note;
 - rollback notes if rollback was tested or needed.
 
