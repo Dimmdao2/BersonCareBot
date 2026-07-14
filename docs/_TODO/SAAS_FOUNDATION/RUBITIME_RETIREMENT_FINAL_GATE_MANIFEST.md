@@ -21,6 +21,7 @@ The default check verifies that every current blocker has an explicit expected p
 `--require-complete` mode is the final retirement gate and must fail until all final proof artifacts exist.
 The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
+If a final proof file exists, the checker validates its required content fragments against that packet.
 
 ## Required Missing Final Proofs
 
@@ -60,3 +61,5 @@ Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_
    final Rubitime retirement. It must fail until all blockers are converted to `pass` with proof files.
 4. Do not create placeholder proof files to satisfy the checker. Proof files must contain real command output,
    owner decisions and commit hashes from the relevant production/non-prod run.
+5. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
+   fails even in default mode.

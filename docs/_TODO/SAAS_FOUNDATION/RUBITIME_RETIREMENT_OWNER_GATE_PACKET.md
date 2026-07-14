@@ -9,6 +9,8 @@ This is the single owner/ops packet for the remaining Rubitime retirement gates.
 
 It does not approve production changes and does not replace the phase runbooks. It lists the exact owner decisions
 and proof artifacts required before the final checklist may be completed.
+`check-rubitime-final-gate` treats the proof bullet text below as the required content contract for final proof
+files. If a proof file exists but omits these fragments, the check fails.
 
 Canonical entrypoints:
 

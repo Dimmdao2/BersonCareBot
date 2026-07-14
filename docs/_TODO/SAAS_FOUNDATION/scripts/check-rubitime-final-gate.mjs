@@ -22,6 +22,48 @@ const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md',
 ];
 
+const proofContracts = [
+  {
+    proof: expectedProofs[0],
+    requiredFragments: [
+      'production flag-change timestamp',
+      'monitoring window start/end',
+      'v1 `/api/bersoncare/rubitime/slots` request count',
+      'v1 `/api/bersoncare/rubitime/create-record` request count',
+      'source of aggregate counts without secrets or PII',
+      'owner approval note',
+      'rollback notes',
+    ],
+  },
+  {
+    proof: expectedProofs[1],
+    requiredFragments: [
+      'backup filename',
+      'read-only drain snapshot',
+      'runtime Rubitime traffic snapshot before/after disable',
+      'fresh CSV filename, size, date span and reconciliation output',
+      'owner waivers, if any',
+      'route/code removal commit hash',
+      'pre/post `rubitime-r6-r7-static-inventory.mjs` outputs',
+      'validation commands and results',
+    ],
+  },
+  {
+    proof: expectedProofs[2],
+    requiredFragments: [
+      'R6 proof link and commit hash',
+      'owner archive/drop decision',
+      'schema audit JSON',
+      'post-R6 static reference audit',
+      'archive directory and SHA256SUMS',
+      'migration file name or explicit defer record',
+      'fresh restore + migrate output',
+      'typecheck/lint/test output',
+      'explicit rollback horizon',
+    ],
+  },
+];
+
 const blockingItems = [
   {
     id: 'R5-PROD-DISABLE',
@@ -119,6 +161,26 @@ function validate({ requireComplete }) {
     }
   }
 
+  for (const contract of proofContracts) {
+    const proofSrc = readRel(contract.proof);
+    if (proofSrc || requireComplete) {
+      if (!proofSrc) {
+        errors.push(`${contract.proof}: missing proof file`);
+        continue;
+      }
+      for (const fragment of contract.requiredFragments) {
+        if (!proofSrc.includes(fragment)) {
+          errors.push(`${contract.proof}: missing required fragment ${fragment}`);
+        }
+      }
+    }
+    for (const fragment of contract.requiredFragments) {
+      if (!ownerGatePacketSrc.includes(fragment)) {
+        errors.push(`${ownerGatePacket}: missing proof-contract fragment ${fragment}`);
+      }
+    }
+  }
+
   const requiredCanonFragments = [
     'Fresh Rubitime CSV decides the preservation set',
     '89643805480',
@@ -181,7 +243,11 @@ const requireComplete = process.argv.includes('--require-complete');
 const errors = validate({ requireComplete });
 
 console.log(
-  JSON.stringify({ manifest, executionPlan, ownerGatePacket, expectedProofs, blockingItems, requireComplete }, null, 2),
+  JSON.stringify(
+    { manifest, executionPlan, ownerGatePacket, expectedProofs, proofContracts, blockingItems, requireComplete },
+    null,
+    2,
+  ),
 );
 
 if (errors.length > 0) {
