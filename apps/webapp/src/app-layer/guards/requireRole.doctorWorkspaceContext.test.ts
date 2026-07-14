@@ -118,6 +118,36 @@ describe("requireDoctorWorkspaceApiContext", () => {
     });
   });
 
+  it("allows an admin platform session to enter doctor workspace through a doctor membership", async () => {
+    const admin = { ...session("admin"), adminMode: false };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-doctor",
+        organizationId: ORG_1,
+        platformUserId: admin.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.ctx.session.user.role).toBe("admin");
+    expect(gate.ctx.membershipRole).toBe("doctor");
+    expect(gate.ctx.specialistId).toBe("specialist-1");
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: admin.user.userId,
+    });
+  });
+
   it("maps missing membership to forbidden response", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
     resolveOrganizationForUserMock.mockResolvedValueOnce({ ok: false, reason: "no_active_membership" });
@@ -227,6 +257,18 @@ describe("requireAdminWorkspaceApiContext", () => {
       organizationId: ORG_1,
       platformUserId: admin.user.userId,
     });
+  });
+
+  it("does not grant admin API access from membership role alone", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+
+    const gate = await requireAdminWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
 });
 
