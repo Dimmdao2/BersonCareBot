@@ -1,6 +1,7 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 export async function GET(request: Request) {
@@ -12,15 +13,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.products || !deps.bookingEngine) {
+  if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const organizationId = await deps.products.resolvePurchaseOrganizationId(purchaseId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "purchase_not_found" }, { status: 404 });
+  }
   const phoneNorm = normalizeRuPhoneE164(contactPhone);
   if (!phoneNorm) {
     return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
   }
-  const detail = await deps.products.getPurchaseDetail(purchaseId, organizationId);
+  const detail = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/public/products/payment-status:GET" },
+    () => deps.products!.getPurchaseDetail(purchaseId, organizationId),
+  );
   if (!detail) {
     return NextResponse.json({ ok: false, error: "purchase_not_found" }, { status: 404 });
   }

@@ -43,9 +43,11 @@ export type CreateManualPatientPackageInput = {
 
 export type MembershipsPort = {
   listCatalogPackages(organizationId: string, activeOnly?: boolean): Promise<SubscriptionPackageRecord[]>;
+  resolveCatalogPackageOrganizationId(id: string): Promise<string | null>;
   getCatalogPackage(id: string, organizationId: string): Promise<SubscriptionPackageRecord | null>;
   upsertCatalogPackage(input: UpsertSubscriptionPackageInput): Promise<SubscriptionPackageRecord>;
 
+  resolvePatientPackageOrganizationId(id: string): Promise<string | null>;
   getPatientPackage(id: string, organizationId: string): Promise<PatientPackageRecord | null>;
   listPatientPackagesForUser(
     platformUserId: string,

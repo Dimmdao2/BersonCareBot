@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 
 export async function GET(
@@ -11,14 +12,21 @@ export async function GET(
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const deps = buildAppDeps();
-  if (!deps.products || !deps.bookingEngine) {
+  if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
-  const detail = await deps.products.getPurchaseDetail(
-    id,
-    organizationId,
-    gate.session.user.userId,
+  const organizationId = await deps.products.resolvePurchaseOrganizationId(id);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const detail = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/products/[id]:GET" },
+    () =>
+      deps.products!.getPurchaseDetail(
+        id,
+        organizationId,
+        gate.session.user.userId,
+      ),
   );
   if (!detail) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });

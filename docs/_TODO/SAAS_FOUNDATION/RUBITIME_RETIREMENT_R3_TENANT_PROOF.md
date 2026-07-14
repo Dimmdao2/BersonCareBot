@@ -1,6 +1,6 @@
 # Rubitime retirement R3-TENANT — exact-org booking proof
 
-Status: partial implementation proof, 2026-07-14.
+Status: implementation proof, 2026-07-14.
 
 ## Canon
 
@@ -20,25 +20,29 @@ Status: partial implementation proof, 2026-07-14.
 - Product/package availability for a selected branch/service derives organization from that branch-service context.
 - Patient/public booking form fields derive organization from the selected branch-service context.
 - Patient in-person service catalog derives organization from the selected branch.
+- Patient booking history derives organization from the patient's active enrollment before reading timeline/payments/visits.
+- Patient product and membership catalog/list endpoints derive organization from the patient's active enrollment.
+- Patient/public product purchase/payment-status/mock-complete endpoints derive organization from the product or purchase resource.
+- Patient/public membership purchase/payment-status/mock-complete endpoints derive organization from the catalog package, patient package, or payment intent.
+- Patient/public booking payment-status endpoints derive organization from the canonical appointment resource.
+- Booking payment mock-complete endpoints derive organization from the payment intent before capture.
 
-## Residual default-org consumers
+## Default-org inventory
 
 Current inventory from:
 
 ```bash
-rg -n "getDefaultOrganizationId\\(" apps/webapp/src/app/api/booking apps/webapp/src/app/api/booking/public apps/webapp/src/modules/patient-booking apps/webapp/src/infra/repos/pgBookingScheduling.ts
+rg -n "getDefaultOrganizationId\\(" apps/webapp/src/app/api/booking apps/webapp/src/app/api/booking/public apps/webapp/src/modules/patient-booking apps/webapp/src/modules/products apps/webapp/src/modules/memberships apps/webapp/src/modules/payments
 ```
 
-Remaining consumers are outside the fixed slots/create core and need a tenant source before R3-TENANT can close:
+Result: no matches.
 
-- `apps/webapp/src/app/api/booking/history/route.ts`
-- patient/public product catalog, purchase, payment-status and mock-complete routes
-- membership catalog, purchase, payment-status and mock-complete routes
-- booking payment mock-complete routes that receive only `intentId`
-
-These must not be patched by reading integrator data or by silently choosing the default organization. Required follow-up: introduce/route an explicit tenant source for public host/link/profile and authenticated patient enrollment/resource selection, then wrap reads/writes in the principal helper.
+R3-TENANT runtime booking endpoints no longer select a hardcoded default organization. Remaining `booking_default_organization_id` uses, if any outside this inventory, are compatibility/migration scope and must not be used as a runtime tenant resolver for patient/public booking.
 
 ## Validation
 
-- `pnpm -C apps/webapp exec vitest run src/modules/patient-booking/inPersonBookingResolve.test.ts src/modules/patient-booking/service.test.ts src/modules/patient-booking/canonicalCreate.test.ts src/app/api/booking/public/create/route.test.ts src/app/api/booking/products-available-route.test.ts src/app/api/booking/membership-routes.test.ts` — pass, 56 tests.
+- `pnpm -C apps/webapp exec vitest run src/app/api/booking src/modules/products/service.test.ts src/modules/memberships/service.test.ts` — pass, 95 tests.
 - `pnpm -C apps/webapp run typecheck` — pass.
+- `pnpm -C apps/webapp run lint` — pass.
+- `pnpm run check:rubitime-retirement-r0` — pass.
+- `git diff --check` — pass.

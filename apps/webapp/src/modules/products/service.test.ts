@@ -5,12 +5,14 @@ import type { ProductsPort } from "./ports";
 function makePort(overrides: Partial<ProductsPort> = {}): ProductsPort {
   return {
     listProducts: vi.fn(),
+    resolveProductOrganizationId: vi.fn(),
     getProduct: vi.fn(),
     upsertProduct: vi.fn(),
     createPayLink: vi.fn(),
     getPayLinkByToken: vi.fn(),
     incrementPayLinkUse: vi.fn(),
     createPurchase: vi.fn(),
+    resolvePurchaseOrganizationId: vi.fn(),
     getPurchase: vi.fn(),
     listPurchasesForUser: vi.fn(),
     listPurchasesByPhone: vi.fn(),

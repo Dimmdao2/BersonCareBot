@@ -53,8 +53,10 @@ function makeSerializingLock(): MembershipsPort['runWithPackageLock'] {
 function makePort(overrides: Partial<MembershipsPort> = {}): MembershipsPort {
   return {
     listCatalogPackages: vi.fn(),
+    resolveCatalogPackageOrganizationId: vi.fn(),
     getCatalogPackage: vi.fn(),
     upsertCatalogPackage: vi.fn(),
+    resolvePatientPackageOrganizationId: vi.fn(),
     getPatientPackage: vi.fn().mockResolvedValue(basePkg),
     listPatientPackagesForUser: vi.fn(),
     listPatientPackagesForPatientIds: vi.fn(),

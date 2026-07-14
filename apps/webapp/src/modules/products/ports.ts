@@ -7,6 +7,7 @@ import type {
 
 export type ProductsPort = {
   listProducts(organizationId: string, activeOnly?: boolean): Promise<ProductRecord[]>;
+  resolveProductOrganizationId(id: string): Promise<string | null>;
   getProduct(id: string, organizationId: string): Promise<ProductRecord | null>;
   upsertProduct(input: UpsertProductInput): Promise<ProductRecord>;
   createPayLink(input: {
@@ -35,6 +36,7 @@ export type ProductsPort = {
     fulfillmentJson?: Record<string, unknown>;
   }): Promise<ProductPurchaseRecord>;
 
+  resolvePurchaseOrganizationId(id: string): Promise<string | null>;
   getPurchase(id: string, organizationId: string): Promise<ProductPurchaseRecord | null>;
   listPurchasesForUser(platformUserId: string, organizationId: string): Promise<ProductPurchaseRecord[]>;
   listPurchasesByPhone(phoneNormalized: string, organizationId: string): Promise<ProductPurchaseRecord[]>;

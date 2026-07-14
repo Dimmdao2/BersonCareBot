@@ -1,6 +1,7 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export async function GET(request: Request) {
   stampBootstrapPrincipal("api/booking/public/payment-status:GET");
@@ -12,7 +13,14 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const result = await deps.patientBooking.getBookingPaymentStatusForContact(bookingId, phone);
+  const organizationId = await deps.patientBooking.resolveBookingOrganizationId(bookingId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const result = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/public/payment-status:GET" },
+    () => deps.patientBooking.getBookingPaymentStatusForContact(bookingId, phone),
+  );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: result.error === "forbidden" ? 403 : 404 });
   }

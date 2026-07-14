@@ -3,6 +3,9 @@ const listActivePackagesForBookingMock = vi.hoisted(() => vi.fn());
 const listPatientPackagesForUserMock = vi.hoisted(() => vi.fn());
 const listCatalogPackagesForPatientMock = vi.hoisted(() => vi.fn());
 const getPatientPackageDetailMock = vi.hoisted(() => vi.fn());
+const resolveCatalogPackageOrganizationIdMock = vi.hoisted(() => vi.fn());
+const resolvePatientPackageOrganizationIdMock = vi.hoisted(() => vi.fn());
+const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
 const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -22,6 +25,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listPatientPackagesForUser: listPatientPackagesForUserMock,
       listCatalogPackagesForPatient: listCatalogPackagesForPatientMock,
       getPatientPackageDetail: getPatientPackageDetailMock,
+      resolveCatalogPackageOrganizationId: resolveCatalogPackageOrganizationIdMock,
+      resolvePatientPackageOrganizationId: resolvePatientPackageOrganizationIdMock,
+    },
+    patientOrganization: {
+      resolveActiveOrganizationForPatient: resolveActiveOrganizationForPatientMock,
     },
     bookingEngine: {
       organization: { getDefaultOrganizationId: async () => ORG_ID },
@@ -48,6 +56,9 @@ requirePatientApiBusinessAccessMock.mockResolvedValue({
   ok: true,
   session: { user: { userId: "u1", role: "client" as const } },
 });
+resolveActiveOrganizationForPatientMock.mockResolvedValue({ ok: true, organizationId: ORG_ID });
+resolveCatalogPackageOrganizationIdMock.mockResolvedValue(ORG_ID);
+resolvePatientPackageOrganizationIdMock.mockResolvedValue(ORG_ID);
 
 describe("booking membership routes", () => {
   it("GET available resolves branchServiceId", async () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const bodySchema = z.object({
@@ -16,16 +17,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.memberships || !deps.bookingEngine) {
+  if (!deps.memberships) {
     return NextResponse.json({ ok: false, error: "memberships_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const organizationId = await deps.memberships.resolveCatalogPackageOrganizationId(parsed.data.subscriptionPackageId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "catalog_package_not_found" }, { status: 404 });
+  }
   try {
-    const pkg = await deps.memberships.purchaseCatalogPackageForPatient({
-      organizationId,
-      platformUserId: gate.session.user.userId,
-      subscriptionPackageId: parsed.data.subscriptionPackageId,
-    });
+    const pkg = await withExplicitOrganizationPrincipal(
+      { organizationId, source: "api/booking/memberships/purchase:POST" },
+      () =>
+        deps.memberships!.purchaseCatalogPackageForPatient({
+          organizationId,
+          platformUserId: gate.session.user.userId,
+          subscriptionPackageId: parsed.data.subscriptionPackageId,
+        }),
+    );
     return NextResponse.json({ ok: true, package: pkg });
   } catch (error) {
     const message = error instanceof Error ? error.message : "purchase_failed";

@@ -98,6 +98,16 @@ export function createPgProductsPort(): ProductsPort {
       return row ? mapProduct(row) : null;
     },
 
+    async resolveProductOrganizationId(id) {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ organizationId: beProducts.organizationId })
+        .from(beProducts)
+        .where(eq(beProducts.id, id))
+        .limit(1);
+      return row?.organizationId ?? null;
+    },
+
     async upsertProduct(input) {
       const db = getDrizzle();
       return db.transaction(async (tx) => {
@@ -213,6 +223,16 @@ export function createPgProductsPort(): ProductsPort {
         .where(and(eq(beProductPurchases.id, id), eq(beProductPurchases.organizationId, organizationId)))
         .limit(1);
       return row ? mapPurchase(row) : null;
+    },
+
+    async resolvePurchaseOrganizationId(id) {
+      const db = getDrizzle();
+      const [row] = await db
+        .select({ organizationId: beProductPurchases.organizationId })
+        .from(beProductPurchases)
+        .where(eq(beProductPurchases.id, id))
+        .limit(1);
+      return row?.organizationId ?? null;
     },
 
     async listPurchasesForUser(platformUserId, organizationId) {

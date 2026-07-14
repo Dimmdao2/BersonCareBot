@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 const bodySchema = z.object({
   productId: z.string().uuid(),
@@ -18,19 +19,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.products || !deps.bookingEngine) {
+  if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const organizationId = await deps.products.resolveProductOrganizationId(parsed.data.productId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "product_not_found" }, { status: 404 });
+  }
   try {
-    const result = await deps.products.startPurchase({
-      organizationId,
-      productId: parsed.data.productId,
-      platformUserId: parsed.data.platformUserId ?? null,
-      buyerPhone: parsed.data.buyerPhone,
-      buyerName: parsed.data.buyerName ?? parsed.data.buyerPhone,
-      payLinkToken: parsed.data.payLinkToken,
-    });
+    const result = await withExplicitOrganizationPrincipal(
+      { organizationId, source: "api/booking/public/products/purchase:POST" },
+      () =>
+        deps.products!.startPurchase({
+          organizationId,
+          productId: parsed.data.productId,
+          platformUserId: parsed.data.platformUserId ?? null,
+          buyerPhone: parsed.data.buyerPhone,
+          buyerName: parsed.data.buyerName ?? parsed.data.buyerPhone,
+          payLinkToken: parsed.data.payLinkToken,
+        }),
+    );
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "purchase_failed";

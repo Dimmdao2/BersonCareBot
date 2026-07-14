@@ -228,6 +228,7 @@ export type PatientBookingsPort = {
 export type PatientBookingService = {
   getSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
   createBooking(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
+  resolveBookingOrganizationId(bookingId: string): Promise<string | null>;
   getBookingPaymentStatus(
     bookingId: string,
     userId: string,

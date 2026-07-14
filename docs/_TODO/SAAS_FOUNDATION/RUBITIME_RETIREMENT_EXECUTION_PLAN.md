@@ -1,6 +1,6 @@
 # Rubitime retirement — execution plan
 
-Статус: R3 patient/public slots/create canonical-only closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
+Статус: R3 patient/public slots/create canonical-only and R3-TENANT exact runtime tenant closed in working branch, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только отдельными phase-коммитами с proof-документами ниже.
 
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix, placeholder bookings Дмитрия Берсона, specialist consolidation и R1 aggregate audits. Этот execution plan не заменяет runbook.
 
@@ -48,7 +48,7 @@ Current known facts:
 
 - `be_appointments` is canonical booking data.
 - `appointment_records` is deprecated but live until doctor read-source cutover.
-- Existing script `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` imports Rubitime history from `appointment_records` into `be_appointments`, but this is not sufficient by itself: direct reconciliation against `integrator.rubitime_records` is mandatory before retirement.
+- Existing script `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` imports Rubitime history from `appointment_records` into `be_appointments`. Fresh Rubitime export CSV is the owner-approved canon for what must exist: records present in the export are needed; records absent from the export are not needed. `integrator.rubitime_records` is audit-only when the fresh export exists and must not override the export.
 - `integrator.rubitime_records/events` are live raw provider/projection state until retirement.
 - `integrator.rubitime_booking_profiles/branches/services/cooperators` are deprecated v1 profile catalog and can be frozen before full Rubitime deletion.
 - Google Calendar currently has Rubitime raw webhook path and a canonical booking-event path under a Rubitime-named route.
@@ -150,7 +150,7 @@ rg -n "booking_doctor_appointments_read_source|booking_slots_read_source|booking
 
 ### Phase R1 — dual-source history reconciliation and canonical backfill
 
-Goal: preserve appointment history in canonical before any Rubitime removal, using both `public.appointment_records` and `integrator.rubitime_records` as independent evidence.
+Goal: preserve appointment history in canonical before any Rubitime removal, using the fresh Rubitime CSV export as canon and checking `public.appointment_records`/canonical mappings against it. `integrator.rubitime_records` is audit-only when the fresh export exists.
 
 Step 1: run dual-source audit before any commit.
 
@@ -158,12 +158,12 @@ Required comparisons:
 
 - `appointment_records.integrator_record_id` vs `integrator.rubitime_records.rubitime_record_id` / equivalent external id.
 - live appointment count and max `record_at` in both sources.
-- raw-only records not present in `appointment_records`.
+- raw-only records not present in `appointment_records` as audit evidence only; if they are absent from the fresh Rubitime CSV, they are not canonical import targets.
 - legacy-only records not present in raw.
 - status/freshness mismatches for the same external id.
 - canonical mapping coverage in `be_external_entity_mappings`.
 
-If raw-only rows exist, add or run an explicit delta-import path. Do not treat this as optional owner preference: it is required for full Rubitime retirement. Existing `projectRubitimeRecords(organizationId)` must be verified to read the intended source; if it reads a public shadow table rather than `integrator.rubitime_records`, write a dedicated cross-schema importer/auditor.
+If raw-only rows exist, first compare them to the fresh Rubitime CSV. Import only CSV-present records that are missing from canonical; do not import integrator-only rows that are absent from the owner-approved export.
 
 Step 2: use the existing script for `appointment_records` history:
 
@@ -207,7 +207,7 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \
 Acceptance:
 
 - `UNMAPPED legacy = 0`.
-- raw-only delta from `integrator.rubitime_records` = 0, or imported/waived by owner with ids and reason.
+- CSV-present missing delta = 0, or imported/waived by owner with ids and reason. Integrator-only rows absent from the fresh CSV are audit-only and not blockers.
 - `DUPLICATE clusters = 0`.
 - `STALE vs Rubitime CSV = 0`.
 - `CONFLICTS = 0` or owner-approved list is explicitly documented.
@@ -536,7 +536,7 @@ Acceptance:
 ### Data parity
 
 - `appointment_records` live rows all mapped or intentionally dropped.
-- `integrator.rubitime_records` has no raw-only delta, or every delta is imported/waived with owner-approved ids.
+- Fresh Rubitime CSV has no record missing from canonical, or every CSV-present missing record is imported/waived with owner-approved ids. `integrator.rubitime_records` remains audit-only when it disagrees with the export.
 - `be_external_entity_mappings` has expected Rubitime appointment mappings until table drop.
 - `be_appointments` has no duplicate active rows by specialist/slot.
 - Deleted/test/stale rows do not appear in UI.
@@ -807,7 +807,7 @@ owner-provided doctor phone tail `9643805480`.
 
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
-- [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
+- [x] CSV-present missing records are imported to canonical or owner-waived with ids and reason. *(Missing delta is zero in the current audit; integrator-only rows absent from CSV are not canonical import targets.)*
 - [x] legacy-only records are classified. *(Not a cleanup blocker: live rows are mapped to canonical; unmapped rows are already soft-deleted; fresh Rubitime export is canon, not integrator raw.)*
 - [x] status/freshness mismatches are classified. *(Resolved by owner source-of-truth policy: fresh Rubitime export / canonical projection wins over raw integrator disagreement.)*
 - [x] canonical mapping coverage is recorded.
@@ -867,16 +867,16 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R3-TENANT — exact tenant for public/patient booking
 
-- [x] all `booking_default_organization_id` consumers are inventoried. *(See `RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`; residual consumers remain and block full closure.)*
-- [ ] public booking derives org from trusted host/link/resource.
-- [ ] authenticated patient booking derives org from enrollment/context.
+- [x] all `booking_default_organization_id` consumers are inventoried. *(See `RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`; scoped runtime inventory has no booking route matches.)*
+- [x] public booking derives org from trusted host/link/resource. *(Current public runtime derives org from branch-service, product/purchase, package, or payment intent resources; missing/ambiguous online tenant fails closed.)*
+- [x] authenticated patient booking derives org from enrollment/context. *(Catalog/history list endpoints use active patient enrollment; detail/payment paths use owned resource or payment intent.)*
 - [x] branch/service based org derivation is validated where used. *(In-person slots/create and product/package availability derive org from canonical branch-service context.)*
 - [x] conflicting org contexts deny before DB query. *(Branch/service org mismatch and explicit org mismatch fail as `ambiguous_booking_tenant`.)*
-- [x] missing org denies before DB query. *(Online slots/create without trusted org fail as `ambiguous_booking_tenant`; remaining catalog/payment endpoints are listed as blockers.)*
+- [x] missing org denies before DB query. *(Online slots/create without trusted org fail as `ambiguous_booking_tenant`; enrollment/resource/intent misses fail before business query.)*
 - [x] ambiguous org denies before DB query. *(Duplicate branch-service mapping and unscoped online booking fail closed.)*
-- [x] DB principal is set before canonical booking reads/writes. *(Implemented for in-person public/patient slots/create and selected product/package availability.)*
-- [ ] no runtime booking path depends on hardcoded default org.
-- [x] Tenant Hard Mode H6 exact-org proof is saved for booking. *(Partial proof: `RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`; full H6 remains blocked by residual consumers above.)*
+- [x] DB principal is set before canonical booking reads/writes. *(Implemented for in-person slots/create, product/membership catalogs and purchases, history, payment status, and mock-complete captures.)*
+- [x] no runtime booking path depends on hardcoded default org.
+- [x] Tenant Hard Mode H6 exact-org proof is saved for booking. *(`RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`.)*
 
 ### R3-CATALOG — public booking catalog migration
 
@@ -932,7 +932,7 @@ owner-provided doctor phone tail `9643805480`.
 - [ ] `rubitime_create_retry_jobs` is drained or archived.
 - [ ] no pending/dead Rubitime projection jobs remain.
 - [ ] final dual-source reconciliation after cutoff is run.
-- [ ] final raw-only delta is zero or owner-waived.
+- [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only.
 - [ ] Rubitime webhook route is unmounted.
 - [ ] Rubitime `/slots` route is unmounted.
 - [ ] Rubitime `/create-record` route is unmounted.

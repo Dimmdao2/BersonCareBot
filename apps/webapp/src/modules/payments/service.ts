@@ -110,6 +110,11 @@ export function createPaymentsService(deps: {
       return deps.port.listHistoryForUser(platformUserId, organizationId);
     },
 
+    async resolveIntentOrganizationId(intentId: string) {
+      const intent = await deps.port.findIntentById(intentId);
+      return intent?.organizationId ?? null;
+    },
+
     async createAppointmentPaymentIntent(input: {
       organizationId: string;
       appointmentId: string;

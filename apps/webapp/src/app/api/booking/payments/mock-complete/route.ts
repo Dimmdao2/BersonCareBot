@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const bodySchema = z.object({
@@ -18,16 +19,23 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  if (!deps.payments || !deps.bookingEngine) {
+  if (!deps.payments) {
     return NextResponse.json({ ok: false, error: "payments_unavailable" }, { status: 503 });
   }
 
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const organizationId = await deps.payments.resolveIntentOrganizationId(parsed.data.intentId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "intent_not_found" }, { status: 404 });
+  }
   try {
-    await deps.payments.captureIntentForPatient(
-      parsed.data.intentId,
-      organizationId,
-      gate.session.user.userId,
+    await withExplicitOrganizationPrincipal(
+      { organizationId, source: "api/booking/payments/mock-complete:POST" },
+      () =>
+        deps.payments!.captureIntentForPatient(
+          parsed.data.intentId,
+          organizationId,
+          gate.session.user.userId,
+        ),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

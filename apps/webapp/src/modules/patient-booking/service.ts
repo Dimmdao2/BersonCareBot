@@ -244,6 +244,13 @@ export function createPatientBookingService(input: {
       }
     },
 
+    async resolveBookingOrganizationId(bookingId: string) {
+      const row = await input.bookingsPort.getById(bookingId);
+      if (!row?.canonicalAppointmentId) return null;
+      return resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+        .catch(() => null);
+    },
+
     async getBookingPaymentStatus(bookingId: string, userId: string) {
       const row = await input.bookingsPort.getByIdForUser(bookingId, userId);
       return loadBookingPaymentStatus(row, {

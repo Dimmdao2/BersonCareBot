@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 
 export async function GET(request: Request) {
@@ -13,7 +14,14 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const result = await deps.patientBooking.getBookingPaymentStatus(bookingId, gate.session.user.userId);
+  const organizationId = await deps.patientBooking.resolveBookingOrganizationId(bookingId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  const result = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/payment-status:GET" },
+    () => deps.patientBooking.getBookingPaymentStatus(bookingId, gate.session.user.userId),
+  );
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
   }

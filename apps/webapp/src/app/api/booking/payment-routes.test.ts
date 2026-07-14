@@ -4,9 +4,12 @@ import { routePaths } from "@/app-layer/routes/paths";
 
 const getBookingPaymentStatusMock = vi.hoisted(() => vi.fn());
 const getBookingPaymentStatusForContactMock = vi.hoisted(() => vi.fn());
+const resolveBookingOrganizationIdMock = vi.hoisted(() => vi.fn());
 const listPaymentHistoryMock = vi.hoisted(() => vi.fn());
 const captureIntentForBookingMock = vi.hoisted(() => vi.fn());
+const resolveIntentOrganizationIdMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
+const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/guards/requireRole")>();
@@ -21,9 +24,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientBooking: {
       getBookingPaymentStatus: getBookingPaymentStatusMock,
       getBookingPaymentStatusForContact: getBookingPaymentStatusForContactMock,
+      resolveBookingOrganizationId: resolveBookingOrganizationIdMock,
       listPaymentHistory: listPaymentHistoryMock,
     },
-    payments: { captureIntentForBooking: captureIntentForBookingMock },
+    payments: {
+      captureIntentForBooking: captureIntentForBookingMock,
+      resolveIntentOrganizationId: resolveIntentOrganizationIdMock,
+    },
     bookingEngine: { organization: { getDefaultOrganizationId: async () => "org-1" } },
   }),
 }));
@@ -37,6 +44,8 @@ requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({
   ok: true,
   session: { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } },
 });
+resolveIntentOrganizationIdMock.mockResolvedValue(ORG_ID);
+resolveBookingOrganizationIdMock.mockResolvedValue(ORG_ID);
 
 describe("booking payment routes", () => {
   it("GET /api/booking/payment-status requires bookingId", async () => {

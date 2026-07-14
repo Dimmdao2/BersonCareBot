@@ -105,6 +105,14 @@ export function createProductsService(deps: {
       return deps.port.listProducts(organizationId, true);
     },
 
+    async resolveProductOrganizationId(productId: string) {
+      return deps.port.resolveProductOrganizationId(productId);
+    },
+
+    async resolvePurchaseOrganizationId(purchaseId: string) {
+      return deps.port.resolvePurchaseOrganizationId(purchaseId);
+    },
+
     async listStaffProducts(organizationId: string) {
       return deps.port.listProducts(organizationId, false);
     },

@@ -6,6 +6,9 @@ const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const createBookingMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
+const resolveInPersonContextMock = vi.hoisted(() => vi.fn());
+const getBranchMock = vi.hoisted(() => vi.fn());
+const getServiceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
@@ -24,9 +27,14 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientBooking: { createBooking: createBookingMock },
     bookingEngine: {
       organization: { getDefaultOrganizationId: async () => "org-1" },
-      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+      catalog: {
+        getBranch: getBranchMock,
+        listSpecialists: async () => [{ id: "sp-1", isActive: true }],
+      },
+      services: { getService: getServiceMock },
     },
     bookingScheduling: {
+      resolveInPersonContext: resolveInPersonContextMock,
       resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
     },
   }),
@@ -36,6 +44,14 @@ import { POST } from "./route";
 
 /** Без `DATABASE_URL` в тестах gate опирается на телефон в сессии (`patientClientBusinessGate`). */
 const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+const BRANCH_SERVICE_ID = "11111111-1111-4111-8111-111111111111";
+const BRANCH_ID = "550e8400-e29b-41d4-a716-446655440001";
+const SERVICE_ID = "550e8400-e29b-41d4-a716-446655440002";
+const ORG_ID = "22222222-2222-4222-8222-222222222222";
+
+resolveInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, branchId: BRANCH_ID, serviceId: SERVICE_ID });
+getBranchMock.mockResolvedValue({ id: BRANCH_ID, organizationId: ORG_ID, cityCode: "moscow" });
+getServiceMock.mockResolvedValue({ id: SERVICE_ID, organizationId: ORG_ID });
 
 requirePatientBookingTrustedPhoneAccessMock.mockImplementation(async (options?: { returnPath?: string }) => {
   const session = await getCurrentSessionMock();
@@ -95,8 +111,8 @@ describe("POST /api/booking/create", () => {
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
       body: JSON.stringify({
-        type: "online",
-        category: "general",
+        type: "in_person",
+        branchServiceId: BRANCH_SERVICE_ID,
         slotStart: "2026-04-01T07:00:00.000Z",
         slotEnd: "2026-04-01T08:00:00.000Z",
         contactName: "Ivan",
@@ -116,7 +132,7 @@ describe("POST /api/booking/create", () => {
       method: "POST",
       body: JSON.stringify({
         type: "in_person",
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
+        branchServiceId: BRANCH_SERVICE_ID,
         cityCode: "moscow",
         slotStart: "2026-04-01T07:00:00.000Z",
         slotEnd: "2026-04-01T08:00:00.000Z",
@@ -129,7 +145,7 @@ describe("POST /api/booking/create", () => {
     expect(createBookingMock).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "in_person",
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
+        branchServiceId: BRANCH_SERVICE_ID,
         cityCode: "moscow",
       }),
     );
@@ -144,8 +160,8 @@ describe("POST /api/booking/create", () => {
         method: "POST",
         body: JSON.stringify({
           type: "in_person",
-          branchId: "550e8400-e29b-41d4-a716-446655440001",
-          serviceId: "550e8400-e29b-41d4-a716-446655440002",
+          branchId: BRANCH_ID,
+          serviceId: SERVICE_ID,
           cityCode: "moscow",
           slotStart: "2026-04-01T07:00:00.000Z",
           slotEnd: "2026-04-01T08:00:00.000Z",
@@ -189,7 +205,7 @@ describe("POST /api/booking/create", () => {
       method: "POST",
       body: JSON.stringify({
         type: "in_person",
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
+        branchServiceId: BRANCH_SERVICE_ID,
         cityCode: "spb",
         slotStart: "2026-04-01T07:00:00.000Z",
         slotEnd: "2026-04-01T08:00:00.000Z",
@@ -210,7 +226,7 @@ describe("POST /api/booking/create", () => {
       method: "POST",
       body: JSON.stringify({
         type: "in_person",
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
+        branchServiceId: BRANCH_SERVICE_ID,
         cityCode: "moscow",
         slotStart: "2026-04-01T07:00:00.000Z",
         slotEnd: "2026-04-01T08:00:00.000Z",
@@ -230,8 +246,8 @@ describe("POST /api/booking/create", () => {
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
       body: JSON.stringify({
-        type: "online",
-        category: "general",
+        type: "in_person",
+        branchServiceId: BRANCH_SERVICE_ID,
         slotStart: "2026-04-01T07:00:00.000Z",
         slotEnd: "2026-04-01T08:00:00.000Z",
         contactName: "Ivan",

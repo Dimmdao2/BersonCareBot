@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
@@ -18,15 +19,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
   const deps = buildAppDeps();
-  if (!deps.products || !deps.bookingEngine) {
+  if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const organizationId = await deps.products.resolvePurchaseOrganizationId(parsed.data.purchaseId);
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "purchase_not_found" }, { status: 404 });
+  }
   const phoneNorm = normalizeRuPhoneE164(parsed.data.contactPhone);
   if (!phoneNorm) {
     return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
   }
-  const detail = await deps.products.getPurchaseDetail(parsed.data.purchaseId, organizationId);
+  const detail = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/public/products/payments/mock-complete:read" },
+    () => deps.products!.getPurchaseDetail(parsed.data.purchaseId, organizationId),
+  );
   if (!detail?.purchase.paymentIntentId || detail.purchase.paymentIntentId !== parsed.data.intentId) {
     return NextResponse.json({ ok: false, error: "purchase_not_found" }, { status: 404 });
   }
@@ -38,10 +45,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: resolved.error }, { status: 400 });
   }
   try {
-    await deps.products.captureProductPayment(
-      parsed.data.intentId,
-      organizationId,
-      resolved.userId,
+    await withExplicitOrganizationPrincipal(
+      { organizationId, source: "api/booking/public/products/payments/mock-complete:capture" },
+      () =>
+        deps.products!.captureProductPayment(
+          parsed.data.intentId,
+          organizationId,
+          resolved.userId,
+        ),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
