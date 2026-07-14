@@ -15,6 +15,7 @@ until all blocker statuses are converted to pass and proof files exist.`;
 const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md';
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
 const ownerGatePacket = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md';
+const agentReadme = 'docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md';
 
 const expectedProofs = [
   'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md',
@@ -141,6 +142,7 @@ function validate({ requireComplete }) {
   const manifestSrc = readRel(manifest);
   const executionPlanSrc = readRel(executionPlan);
   const ownerGatePacketSrc = readRel(ownerGatePacket);
+  const agentReadmeSrc = readRel(agentReadme);
 
   if (!manifestSrc) {
     errors.push(`missing ${manifest}`);
@@ -152,6 +154,10 @@ function validate({ requireComplete }) {
   }
   if (!ownerGatePacketSrc) {
     errors.push(`missing ${ownerGatePacket}`);
+    return errors;
+  }
+  if (!agentReadmeSrc) {
+    errors.push(`missing ${agentReadme}`);
     return errors;
   }
 
@@ -194,19 +200,67 @@ function validate({ requireComplete }) {
     }
   }
 
-  const requiredCanonFragments = [
-    'Fresh Rubitime CSV decides the preservation set',
-    '89643805480',
-    'matched through existing city/branch mappings',
-    'integrator.rubitime_records` is audit-only',
-    'Integrator-only rows absent from the fresh CSV must not be imported',
+  const requiredCanonFragmentsByDoc = [
+    [
+      manifest,
+      manifestSrc,
+      [
+        'Fresh Rubitime CSV decides the preservation set',
+        '89643805480',
+        '9643805480',
+        'matched through existing city/branch mappings',
+        'integrator.rubitime_records` is audit-only',
+        'Integrator-only rows absent from the fresh CSV must not be imported',
+        'Extra rows present only in `integrator.rubitime_records` do not expand the preservation set',
+        'new backfill',
+      ],
+    ],
+    [
+      ownerGatePacket,
+      ownerGatePacketSrc,
+      [
+        'Fresh Rubitime CSV decides the preservation set',
+        '89643805480',
+        '9643805480',
+        'matched through existing city/branch mappings',
+        'integrator.rubitime_records` is audit-only',
+        'Integrator-only rows absent from the fresh CSV must not be imported',
+        'Extra rows present only in `integrator.rubitime_records` do not expand the preservation set',
+        'new backfill',
+      ],
+    ],
+    [
+      executionPlan,
+      executionPlanSrc,
+      [
+        'fresh Rubitime CSV decides record preservation',
+        '89643805480',
+        '9643805480',
+        'matched through existing city/branch mappings',
+        'integrator.rubitime_records` is audit-only',
+        'Integrator-only rows absent from the fresh CSV must not be imported',
+        'Extra rows present only in `integrator.rubitime_records` do not expand',
+        'new backfill',
+      ],
+    ],
+    [
+      agentReadme,
+      agentReadmeSrc,
+      [
+        'канон состава записей — свежая выгрузка Rubitime CSV',
+        '89643805480',
+        '9643805480',
+        '`integrator.rubitime_records` — только audit/diagnostic material',
+        'они не расширяют preservation set',
+        'не повод для нового backfill',
+      ],
+    ],
   ];
-  for (const fragment of requiredCanonFragments) {
-    if (!manifestSrc.includes(fragment)) {
-      errors.push(`${manifest}: missing data-canon fragment ${fragment}`);
-    }
-    if (!ownerGatePacketSrc.includes(fragment)) {
-      errors.push(`${ownerGatePacket}: missing data-canon fragment ${fragment}`);
+  for (const [doc, src, fragments] of requiredCanonFragmentsByDoc) {
+    for (const fragment of fragments) {
+      if (!src.includes(fragment)) {
+        errors.push(`${doc}: missing data-canon fragment ${fragment}`);
+      }
     }
   }
 
@@ -257,7 +311,7 @@ const errors = validate({ requireComplete });
 
 console.log(
   JSON.stringify(
-    { manifest, executionPlan, ownerGatePacket, expectedProofs, proofContracts, blockingItems, requireComplete },
+    { manifest, executionPlan, ownerGatePacket, agentReadme, expectedProofs, proofContracts, blockingItems, requireComplete },
     null,
     2,
   ),
