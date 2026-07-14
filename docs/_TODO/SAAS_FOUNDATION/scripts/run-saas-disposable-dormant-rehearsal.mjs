@@ -1,0 +1,832 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { existsSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const scriptPath = "docs/_TODO/SAAS_FOUNDATION/scripts/run-saas-disposable-dormant-rehearsal.mjs";
+const deploySaas667Path = "scripts/deploy-saas-667.sh";
+const phase4RehearsalRunnerPath = "docs/_TODO/SAAS_FOUNDATION/scripts/run-phase4-prod-copy-rehearsal.mjs";
+const phase4UrlEnv = "PHASE4_REHEARSAL_DATABASE_URL";
+const superuserUrlEnv = "SAAS_DISPOSABLE_SUPERUSER_URL";
+const superuserSudoEnv = "SAAS_DISPOSABLE_SUPERUSER_SUDO_POSTGRES";
+const deploySuperuserSudoEnv = "SUPERUSER_SUDO_POSTGRES";
+const allowedHostsEnv = "SAAS_DISPOSABLE_ALLOWED_HOSTS";
+const safeDbNamePattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
+const unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
+const unsafeHostTokenPattern = /(^|[.-])(prod|production)([.-]|$)/;
+const forbiddenDbNames = new Set([
+  "bcb_webapp_prod",
+  "bcb_webapp_test",
+  "bcb_webapp_dev",
+  "bersoncarebot",
+  "bersoncarebot_prod",
+  "bersoncarebot_test",
+  "bersoncarebot_dev",
+  "production",
+  "prod",
+  "test",
+  "dev",
+]);
+const forbiddenHostnames = new Set([
+  "135.106.162.170",
+  "bersoncare.ru",
+  "www.bersoncare.ru",
+  "tgcarebot.bersonservices.ru",
+  "bcb-prod",
+  "prod",
+  "production",
+  "bersoncarebot-prod",
+]);
+const forbiddenConnectionOverrideParams = new Set([
+  "database",
+  "dbname",
+  "host",
+  "hostaddr",
+  "options",
+  "passfile",
+  "service",
+  "sslcert",
+  "sslkey",
+]);
+
+function usage() {
+  return [
+    "Usage:",
+    `  node ${scriptPath} --dry-run [--dump=/path/fresh.dump] [--db=bcb_saas_dormant_rehearsal_<stamp>]`,
+    `  ${superuserUrlEnv}=postgres://... node ${scriptPath} --execute --dump=/path/fresh.dump --db=bcb_saas_dormant_rehearsal_<stamp> [--replace-existing] [--drop-on-success]`,
+    `  node ${scriptPath} --execute --superuser-sudo-postgres --dump=/path/fresh.dump --db=bcb_saas_dormant_rehearsal_<stamp> [--replace-existing] [--drop-on-success]`,
+    `  node ${scriptPath} --self-test`,
+    "",
+    "Purpose:",
+    "  Restore an owner-provided fresh custom-format dump into a guarded disposable",
+    "  bcb_saas_*_rehearsal_* database, run the canonical scripts/deploy-saas-667.sh",
+    "  dormant migration chain, assert temporary elevation cleanup, and preserve the DB",
+    "  for audit unless --drop-on-success is explicit.",
+    "",
+    "Safety:",
+    "  --dry-run is the default and never connects to PostgreSQL.",
+    "  --execute requires an explicit dump and exactly one explicit superuser transport:",
+    `  ${superuserUrlEnv}/--superuser-url or ${superuserSudoEnv}=1/--superuser-sudo-postgres.`,
+    "  Database names must match bcb_saas_*_scratch_* or bcb_saas_*_rehearsal_*",
+    "  and must not contain prod/test/dev tokens.",
+    "  Ambient DATABASE_URL/PGDATABASE/PGHOST are refused if they look unsafe and",
+    "  are stripped from all child command environments.",
+  ].join("\n");
+}
+
+function parseArgs(argv) {
+  const options = {
+    dbName: defaultDbName(),
+    dropOnSuccess: false,
+    dryRun: true,
+    dumpPath: null,
+    execute: false,
+    replaceExisting: false,
+    selfTest: false,
+    superuserSudoPostgres: envFlag(superuserSudoEnv),
+    superuserUrl: process.env[superuserUrlEnv] ?? null,
+  };
+  let sawDryRun = false;
+  let sawExecute = false;
+
+  for (const arg of argv) {
+    if (arg === "--help" || arg === "-h") {
+      console.log(usage());
+      process.exit(0);
+    }
+    if (arg === "--self-test") {
+      options.selfTest = true;
+      continue;
+    }
+    if (arg === "--dry-run") {
+      sawDryRun = true;
+      options.dryRun = true;
+      continue;
+    }
+    if (arg === "--execute") {
+      sawExecute = true;
+      options.execute = true;
+      options.dryRun = false;
+      continue;
+    }
+    if (arg === "--drop-on-success") {
+      options.dropOnSuccess = true;
+      continue;
+    }
+    if (arg === "--replace-existing") {
+      options.replaceExisting = true;
+      continue;
+    }
+    if (arg.startsWith("--dump=")) {
+      options.dumpPath = path.resolve(arg.slice("--dump=".length));
+      continue;
+    }
+    if (arg.startsWith("--db=")) {
+      options.dbName = arg.slice("--db=".length);
+      continue;
+    }
+    if (arg.startsWith("--superuser-url=")) {
+      options.superuserUrl = arg.slice("--superuser-url=".length);
+      continue;
+    }
+    if (arg === "--superuser-sudo-postgres") {
+      options.superuserSudoPostgres = true;
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}\n\n${usage()}`);
+  }
+
+  if (options.selfTest && argv.length > 1) {
+    throw new Error("--self-test must be run by itself");
+  }
+  if (sawExecute && sawDryRun) {
+    throw new Error("--execute and --dry-run cannot both be active");
+  }
+  if (options.superuserSudoPostgres && options.superuserUrl) {
+    throw new Error(`Choose only one superuser transport: ${superuserUrlEnv}/--superuser-url or ${superuserSudoEnv}=1/--superuser-sudo-postgres`);
+  }
+  return options;
+}
+
+function envFlag(name) {
+  const value = process.env[name];
+  if (value === undefined || value === "") return false;
+  if (value === "1") return true;
+  throw new Error(`${name} must be exactly 1 when set`);
+}
+
+function defaultDbName(now = new Date()) {
+  const stamp = now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+  return `bcb_saas_dormant_rehearsal_${stamp}_${randomBytes(3).toString("hex")}`;
+}
+
+function quoteIdent(value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(`unsafe PostgreSQL identifier: ${value}`);
+  }
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function quoteLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function databaseNameFromUrl(value) {
+  try {
+    const parsed = new URL(value);
+    const pathname = parsed.pathname.replace(/^\/+/, "");
+    return pathname ? decodeURIComponent(pathname) : null;
+  } catch {
+    return null;
+  }
+}
+
+function assertSafeDbName(source, value) {
+  if (!value) throw new Error(`${source}: database name is required`);
+  const normalized = value.toLowerCase();
+  if (normalized !== value) throw new Error(`${source}: database name must be lowercase`);
+  if (!/^[a-z_][a-z0-9_]*$/.test(value)) {
+    throw new Error(`${source}: database name must be a simple PostgreSQL identifier`);
+  }
+  if (value.length > 63) throw new Error(`${source}: database name exceeds PostgreSQL identifier length`);
+  if (forbiddenDbNames.has(normalized) || unsafeNameTokenPattern.test(normalized)) {
+    throw new Error(`${source}: refusing prod/test/dev-shaped database name ${value}`);
+  }
+  if (!safeDbNamePattern.test(normalized)) {
+    throw new Error(`${source}: database name must match bcb_saas_*_scratch_* or bcb_saas_*_rehearsal_*`);
+  }
+}
+
+function assertSafeHostname(source, hostname) {
+  if (!hostname) throw new Error(`${source}: hostname is required`);
+  const normalized = hostname.toLowerCase();
+  if (forbiddenHostnames.has(normalized) || unsafeHostTokenPattern.test(normalized)) {
+    throw new Error(`${source}: refusing production-shaped host`);
+  }
+  const allowed = new Set([
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    ...String(process.env[allowedHostsEnv] ?? "")
+      .split(",")
+      .map((host) => host.trim().toLowerCase())
+      .filter(Boolean),
+  ]);
+  if (!allowed.has(normalized)) {
+    throw new Error(`${source}: host must be loopback or listed in ${allowedHostsEnv}`);
+  }
+}
+
+function parsePostgresUrl(source, value) {
+  if (!value) throw new Error(`${source}: URL is required`);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${source}: invalid PostgreSQL URL`);
+  }
+  if (!new Set(["postgres:", "postgresql:"]).has(parsed.protocol)) {
+    throw new Error(`${source}: URL must use postgres:// or postgresql://`);
+  }
+  assertSafeHostname(source, parsed.hostname);
+  for (const key of parsed.searchParams.keys()) {
+    if (forbiddenConnectionOverrideParams.has(key.toLowerCase())) {
+      throw new Error(`${source}: query parameter ${key} is not allowed`);
+    }
+  }
+  return parsed;
+}
+
+function assertSafeEnvironment() {
+  if (process.env.PGHOST) assertSafeHostname("PGHOST", process.env.PGHOST);
+  if (process.env.PGDATABASE) assertSafeDbName("PGDATABASE", process.env.PGDATABASE);
+  if (process.env.DATABASE_URL) {
+    parsePostgresUrl("DATABASE_URL", process.env.DATABASE_URL);
+    assertSafeDbName("DATABASE_URL", databaseNameFromUrl(process.env.DATABASE_URL));
+  }
+}
+
+function urlForDatabase(baseUrl, databaseName, { applicationName }) {
+  const url = new URL(baseUrl.toString());
+  url.pathname = `/${encodeURIComponent(databaseName)}`;
+  url.searchParams.set("application_name", applicationName);
+  return url.toString();
+}
+
+function rolePgOptions(roleName) {
+  quoteIdent(roleName);
+  return `-c role=${roleName}`;
+}
+
+function redactedUrl(value) {
+  const url = new URL(value);
+  if (url.password) url.password = "REDACTED";
+  if (url.username) url.username = "REDACTED";
+  return url.toString();
+}
+
+function validateDumpIfPresent(dumpPath, { execute }) {
+  if (!dumpPath) {
+    if (execute) throw new Error("--dump is required in --execute mode");
+    return { checked: false, label: "<not provided in dry-run>" };
+  }
+  if (!existsSync(dumpPath)) throw new Error(`dump path does not exist: ${dumpPath}`);
+  const stat = statSync(dumpPath);
+  if (!stat.isFile()) throw new Error(`dump path is not a regular file: ${dumpPath}`);
+  if (stat.size <= 0) throw new Error(`dump path is empty: ${dumpPath}`);
+
+  const result = spawnSync("pg_restore", ["--list", dumpPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (result.error) throw new Error(`pg_restore --list failed to start: ${result.error.message}`);
+  if (result.status !== 0) {
+    throw new Error("dump is not a readable PostgreSQL custom-format archive");
+  }
+  return { checked: true, label: `${path.basename(dumpPath)} (${stat.size} bytes)` };
+}
+
+function sanitizedChildEnv(extra = {}) {
+  const env = { ...process.env };
+  for (const key of [
+    "DATABASE_URL",
+    "PGDATABASE",
+    "PGHOST",
+    "PGPASSWORD",
+    "PGPASSFILE",
+    "PGOPTIONS",
+    "PGPORT",
+    "PGSERVICE",
+    "PGSERVICEFILE",
+    "PGUSER",
+    "SUPERUSER_URL",
+    deploySuperuserSudoEnv,
+    superuserUrlEnv,
+    superuserSudoEnv,
+  ]) {
+    delete env[key];
+  }
+  return { ...env, ...extra };
+}
+
+function run(command, args, { env = sanitizedChildEnv(), input = null, label, redact = false } = {}) {
+  if (label) console.log(`\n[saas-disposable] ${label}`);
+  if (redact) console.log(`[saas-disposable] $ ${command} ${args.map(redactArg).join(" ")}`);
+  const result = spawnSync(command, args, {
+    cwd: repoRoot,
+    env,
+    input,
+    stdio: input === null ? "inherit" : ["pipe", "inherit", "inherit"],
+  });
+  if (result.error) throw new Error(`${label ?? command} failed to start: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`${label ?? command} failed with status ${result.status ?? "unknown"}`);
+}
+
+function runCaptured(command, args, { env = sanitizedChildEnv(), input = null, label, tolerateFailure = false } = {}) {
+  const result = spawnSync(command, args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env,
+    input,
+    maxBuffer: 1024 * 1024 * 10,
+  });
+  if (result.error) throw new Error(`${label ?? command} failed to start: ${result.error.message}`);
+  if (!tolerateFailure && result.status !== 0) {
+    throw new Error(`${label ?? command} failed with status ${result.status ?? "unknown"}: ${result.stderr.trim()}`);
+  }
+  return result;
+}
+
+function redactArg(value) {
+  if (String(value).startsWith("postgres://") || String(value).startsWith("postgresql://")) {
+    return redactedUrl(value);
+  }
+  return value;
+}
+
+function psqlArgs({ databaseName, url }, { tuplesOnly = false } = {}) {
+  const args = ["-X", "-v", "ON_ERROR_STOP=1"];
+  if (tuplesOnly) args.push("-Atq");
+  args.push("-d", url ?? databaseName);
+  return args;
+}
+
+function superuserPsql(plan, databaseName, sql, { label = "psql", tuplesOnly = false } = {}) {
+  const url = databaseName === "postgres" ? plan.adminUrl : plan.targetSuperuserUrl;
+  const args = psqlArgs({ databaseName, url }, { tuplesOnly });
+  if (plan.transport === "sudo-postgres") {
+    return runCaptured("sudo", ["-n", "-u", "postgres", "psql", ...args], { input: sql, label });
+  }
+  return runCaptured("psql", args, { input: sql, label });
+}
+
+function superuserPsqlExec(plan, databaseName, sql, label) {
+  superuserPsql(plan, databaseName, sql, { label });
+}
+
+function superuserPsqlScalar(plan, databaseName, sql, label) {
+  return superuserPsql(plan, databaseName, sql, { label, tuplesOnly: true }).stdout.trim();
+}
+
+function localOwnerUrlForDatabase(databaseName, ownerRole, password, { applicationName }) {
+  const url = new URL("postgres://localhost");
+  url.username = ownerRole;
+  url.password = password;
+  url.pathname = `/${encodeURIComponent(databaseName)}`;
+  url.searchParams.set("application_name", applicationName);
+  return url.toString();
+}
+
+function buildPlan(options) {
+  assertSafeDbName("--db", options.dbName);
+  assertSafeEnvironment();
+
+  const superuserUrl = options.superuserUrl ? parsePostgresUrl(superuserUrlEnv, options.superuserUrl) : null;
+  const ownerPassword = options.superuserSudoPostgres ? randomBytes(24).toString("hex") : null;
+  const adminUrl = superuserUrl
+    ? urlForDatabase(superuserUrl, "postgres", { applicationName: "saas_disposable_rehearsal_admin" })
+    : null;
+  const targetSuperuserUrl = superuserUrl
+    ? urlForDatabase(superuserUrl, options.dbName, { applicationName: "saas_disposable_rehearsal_superuser" })
+    : null;
+  const targetOwnerUrl = superuserUrl
+    ? urlForDatabase(superuserUrl, options.dbName, { applicationName: "saas_disposable_rehearsal_owner" })
+    : options.superuserSudoPostgres
+      ? localOwnerUrlForDatabase(options.dbName, options.dbName, ownerPassword, {
+          applicationName: "saas_disposable_rehearsal_owner",
+        })
+    : null;
+  return {
+    adminUrl,
+    appOwnerRole: "app_owner",
+    dbName: options.dbName,
+    ownerPassword,
+    ownerRole: options.dbName,
+    targetOwnerUrl,
+    targetSuperuserUrl,
+    transport: options.superuserSudoPostgres ? "sudo-postgres" : superuserUrl ? "url" : "none",
+  };
+}
+
+function printDryRun(plan, dumpInfo, options) {
+  console.log("[saas-disposable] dry-run OK");
+  console.log(`[saas-disposable] target DB: ${plan.dbName}`);
+  console.log(`[saas-disposable] owner/migrator role: ${plan.ownerRole}`);
+  console.log(`[saas-disposable] dump: ${dumpInfo.label}`);
+  console.log(`[saas-disposable] replace existing DB: ${options.replaceExisting ? "yes" : "no"}`);
+  console.log(`[saas-disposable] drop on success: ${options.dropOnSuccess ? "yes" : "no"}`);
+  console.log(`[saas-disposable] superuser transport: ${plan.transport}`);
+  console.log("[saas-disposable] planned sequence:");
+  console.log("  1. create guarded disposable owner role and database");
+  console.log("  2. restore dump with pg_restore --no-owner --no-acl --no-comments --role=<owner>");
+  console.log("  3. assert DB owner and public.platform_users owner");
+  console.log(`  4. run ${deploySaas667Path} with sanitized DATABASE_URL and explicit superuser transport`);
+  console.log("  5. assert migrator NOBYPASSRLS and no app_owner membership");
+  console.log(`  6. run ${phase4RehearsalRunnerPath} --mode=db-state on the disposable DB`);
+  console.log("  7. preserve DB for audit unless --drop-on-success is set");
+  if (plan.targetSuperuserUrl) {
+    console.log(`[saas-disposable] target superuser URL: ${redactedUrl(plan.targetSuperuserUrl)}`);
+    console.log(`[saas-disposable] target owner URL: ${redactedUrl(plan.targetOwnerUrl)}`);
+  } else if (plan.transport === "sudo-postgres") {
+    console.log("[saas-disposable] superuser command: sudo -n -u postgres psql/pg_restore");
+    console.log("[saas-disposable] target owner URL: generated local disposable credential (not printed)");
+  } else {
+    console.log(`[saas-disposable] ${superuserUrlEnv}: not required for dry-run and not provided`);
+  }
+}
+
+function createDisposableDatabase(plan, options) {
+  superuserPsqlExec(
+    plan,
+    "postgres",
+    `
+SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS', ${quoteLiteral(plan.ownerRole)})
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${quoteLiteral(plan.ownerRole)})
+\\gexec
+ALTER ROLE ${quoteIdent(plan.ownerRole)} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+${plan.transport === "sudo-postgres" ? `ALTER ROLE ${quoteIdent(plan.ownerRole)} PASSWORD ${quoteLiteral(plan.ownerPassword)};` : ""}
+`,
+    "create/normalize disposable owner role",
+  );
+
+  const exists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = ${quoteLiteral(plan.dbName)})::int;`,
+    "check disposable DB existence",
+  );
+  if (exists === "1" && !options.replaceExisting) {
+    throw new Error(`disposable DB ${plan.dbName} already exists; pass --replace-existing to recreate it`);
+  }
+  if (exists === "1") {
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ${quoteLiteral(plan.dbName)} AND pid <> pg_backend_pid();`,
+      "terminate existing disposable DB sessions",
+    );
+    superuserPsqlExec(plan, "postgres", `DROP DATABASE ${quoteIdent(plan.dbName)};`, "drop existing disposable DB");
+  }
+  superuserPsqlExec(
+    plan,
+    "postgres",
+    `CREATE DATABASE ${quoteIdent(plan.dbName)} OWNER ${quoteIdent(plan.ownerRole)};`,
+    "create disposable DB",
+  );
+  superuserPsqlExec(
+    plan,
+    plan.dbName,
+    "CREATE EXTENSION IF NOT EXISTS btree_gist;",
+    "pre-create btree_gist extension",
+  );
+}
+
+function restoreDump(plan, dumpPath) {
+  const command = plan.transport === "sudo-postgres" ? "sudo" : "pg_restore";
+  const prefixArgs = plan.transport === "sudo-postgres" ? ["-n", "-u", "postgres", "pg_restore"] : [];
+  const databaseTarget = plan.transport === "sudo-postgres" ? plan.dbName : plan.targetSuperuserUrl;
+  const result = runCaptured(
+    command,
+    [
+      ...prefixArgs,
+      "--no-owner",
+      `--role=${plan.ownerRole}`,
+      "--no-acl",
+      "--no-comments",
+      "-d",
+      databaseTarget,
+      dumpPath,
+    ],
+    { label: "pg_restore disposable DB" },
+  );
+  if (result.stderr) process.stderr.write(result.stderr);
+
+  const platformUsers = Number(
+    superuserPsqlScalar(plan, plan.dbName, "SELECT count(*) FROM public.platform_users;", "verify platform_users restored"),
+  );
+  if (!Number.isFinite(platformUsers) || platformUsers <= 0) {
+    throw new Error(`restore verification failed: public.platform_users rows=${platformUsers || 0}`);
+  }
+  const integratorIdentities = Number(
+    superuserPsqlScalar(
+      plan,
+      plan.dbName,
+      "SELECT count(*) FROM integrator.identities;",
+      "verify integrator identities restored",
+    ),
+  );
+  if (!Number.isFinite(integratorIdentities) || integratorIdentities <= 0) {
+    throw new Error(`restore verification failed: integrator.identities rows=${integratorIdentities || 0}`);
+  }
+
+}
+
+function assertOwnerState(plan) {
+  const dbOwner = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = ${quoteLiteral(plan.dbName)};`,
+    "assert DB owner",
+  );
+  if (dbOwner !== plan.ownerRole) throw new Error(`DB owner is ${dbOwner}, expected ${plan.ownerRole}`);
+
+  const platformUsersOwner = superuserPsqlScalar(
+    plan,
+    plan.dbName,
+    "SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'platform_users';",
+    "assert platform_users owner",
+  );
+  if (platformUsersOwner !== plan.ownerRole) {
+    throw new Error(`public.platform_users owner is ${platformUsersOwner}, expected ${plan.ownerRole}`);
+  }
+}
+
+function runDeploy667(plan) {
+  const env = deploy667ChildEnv(plan);
+  run("bash", [deploySaas667Path], {
+    env,
+    label: "run canonical #667 dormant migration chain",
+    redact: true,
+  });
+}
+
+function deploy667ChildEnv(plan) {
+  const env = {
+    API_ENV_FILE: "/nonexistent",
+    BOOKING_URL: "http://localhost:3000",
+    DATABASE_URL: plan.targetOwnerUrl,
+    PGOPTIONS: rolePgOptions(plan.ownerRole),
+    WEBAPP_ENV_FILE: "/nonexistent",
+  };
+  if (plan.transport === "sudo-postgres") {
+    env[deploySuperuserSudoEnv] = "1";
+  } else {
+    env.SUPERUSER_URL = plan.targetSuperuserUrl;
+  }
+  return sanitizedChildEnv(env);
+}
+
+function assertCleanup(plan) {
+  const bypass = superuserPsqlScalar(
+    plan,
+    plan.dbName,
+    `SELECT rolbypassrls::text FROM pg_roles WHERE rolname = ${quoteLiteral(plan.ownerRole)};`,
+    "assert owner role NOBYPASSRLS",
+  );
+  if (bypass !== "false") {
+    throw new Error(`cleanup assertion failed: ${plan.ownerRole} rolbypassrls=${bypass}`);
+  }
+  const membership = superuserPsqlScalar(
+    plan,
+    plan.dbName,
+    `SELECT pg_has_role(${quoteLiteral(plan.ownerRole)}, ${quoteLiteral(plan.appOwnerRole)}, 'member')::text;`,
+    "assert no temporary app_owner membership",
+  );
+  if (membership !== "false") {
+    throw new Error(`cleanup assertion failed: ${plan.ownerRole} is still a member of ${plan.appOwnerRole}`);
+  }
+}
+
+function runDbStateCheck(plan) {
+  const env = sanitizedChildEnv({
+    [phase4UrlEnv]: plan.targetOwnerUrl,
+  });
+  run("node", [phase4RehearsalRunnerPath, "--mode=db-state"], {
+    env,
+    label: "run disposable DB-state checks",
+    redact: true,
+  });
+}
+
+function dropOnSuccess(plan) {
+  superuserPsqlExec(
+    plan,
+    "postgres",
+    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ${quoteLiteral(plan.dbName)} AND pid <> pg_backend_pid();`,
+    "terminate disposable DB sessions before drop",
+  );
+  superuserPsqlExec(plan, "postgres", `DROP DATABASE ${quoteIdent(plan.dbName)};`, "drop disposable DB");
+  superuserPsqlExec(plan, "postgres", `DROP ROLE ${quoteIdent(plan.ownerRole)};`, "drop disposable owner role");
+}
+
+function runExecute(plan, options) {
+  if (plan.transport === "none") {
+    throw new Error(
+      `${superuserUrlEnv}/--superuser-url or ${superuserSudoEnv}=1/--superuser-sudo-postgres is required in --execute mode`,
+    );
+  }
+  if (!options.dumpPath) throw new Error("--dump is required in --execute mode");
+  console.log(`[saas-disposable] executing guarded dormant rehearsal for ${plan.dbName}`);
+  createDisposableDatabase(plan, options);
+  restoreDump(plan, options.dumpPath);
+  assertOwnerState(plan);
+  runDeploy667(plan);
+  assertCleanup(plan);
+  runDbStateCheck(plan);
+  if (options.dropOnSuccess) {
+    dropOnSuccess(plan);
+  } else {
+    console.log(`[saas-disposable] preserved disposable DB for audit: ${plan.dbName}`);
+  }
+}
+
+function assertThrows(label, fn) {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+  throw new Error(`self-test expected rejection: ${label}`);
+}
+
+function runSelfTest() {
+  for (const name of [
+    "bcb_webapp_prod",
+    "bcb_webapp_test",
+    "bcb_webapp_dev",
+    "bersoncarebot",
+    "bcb_saas_prod_rehearsal_x",
+    "bcb_saas_dormant_test_x",
+    "bcb_saas_dormant_dev_x",
+    "unmarked_copy",
+  ]) {
+    assertThrows(name, () => assertSafeDbName("self-test", name));
+  }
+  assertSafeDbName("self-test", "bcb_saas_dormant_rehearsal_selftest");
+  assertSafeDbName("self-test", defaultDbName(new Date("2026-07-14T00:00:00.000Z")));
+
+  const defaultOptions = parseArgs([]);
+  if (defaultOptions.dryRun !== true || defaultOptions.execute !== false) {
+    throw new Error("self-test expected default options to be dry-run only");
+  }
+  const explicitDryRunOptions = parseArgs(["--dry-run"]);
+  if (explicitDryRunOptions.dryRun !== true || explicitDryRunOptions.execute !== false) {
+    throw new Error("self-test expected --dry-run to preserve dry-run only mode");
+  }
+  const executeOptions = parseArgs(["--execute"]);
+  if (executeOptions.dryRun !== false || executeOptions.execute !== true) {
+    throw new Error("self-test expected --execute to disable dry-run and enable execute");
+  }
+  const sudoTransportOptions = parseArgs(["--dry-run", "--superuser-sudo-postgres"]);
+  if (sudoTransportOptions.superuserSudoPostgres !== true || sudoTransportOptions.dryRun !== true) {
+    throw new Error("self-test expected --superuser-sudo-postgres to be explicit and preserve dry-run");
+  }
+  assertThrows("conflicting execute/dry-run flags", () => parseArgs(["--execute", "--dry-run"]));
+  assertThrows("conflicting dry-run/execute flags", () => parseArgs(["--dry-run", "--execute"]));
+  assertThrows("conflicting superuser transports", () =>
+    parseArgs(["--superuser-sudo-postgres", "--superuser-url=postgres://u:p@localhost/postgres"]),
+  );
+  assertThrows("self-test with extra flag", () => parseArgs(["--self-test", "--dry-run"]));
+
+  assertThrows("prod host", () => parsePostgresUrl("self-test", "postgres://u:p@135.106.162.170/postgres"));
+  assertThrows("host override", () =>
+    parsePostgresUrl("self-test", "postgres://u:p@localhost/postgres?host=135.106.162.170"),
+  );
+  assertThrows("options override", () => parsePostgresUrl("self-test", "postgres://u:p@localhost/postgres?options=bad"));
+  parsePostgresUrl("self-test", "postgres://u:p@localhost/postgres");
+
+  const plan = buildPlan({
+    dbName: "bcb_saas_dormant_rehearsal_selftest",
+    superuserSudoPostgres: false,
+    superuserUrl: "postgres://u:p@localhost/postgres",
+  });
+  const sudoPlan = buildPlan({
+    dbName: "bcb_saas_dormant_rehearsal_selftest",
+    superuserSudoPostgres: true,
+    superuserUrl: null,
+  });
+  if (sudoPlan.transport !== "sudo-postgres") {
+    throw new Error("self-test expected sudo-postgres plan transport");
+  }
+  if (sudoPlan.targetSuperuserUrl !== null) {
+    throw new Error("self-test expected sudo-postgres plan to avoid superuser URL");
+  }
+  if (!sudoPlan.targetOwnerUrl.startsWith("postgres://")) {
+    throw new Error("self-test expected sudo-postgres plan to generate a local owner DATABASE_URL");
+  }
+  const plusEncodedRoleToken = ["+", "role"].join("");
+  if (plan.targetOwnerUrl.includes("options=") || plan.targetOwnerUrl.includes("role=")) {
+    throw new Error("self-test expected target owner URL to keep role handoff out of URL options");
+  }
+  if (plan.targetOwnerUrl.includes(plusEncodedRoleToken)) {
+    throw new Error("self-test expected target owner URL to avoid plus-encoded role handoff");
+  }
+  const cleanupSql = [
+    `SELECT rolbypassrls::text FROM pg_roles WHERE rolname = ${quoteLiteral(plan.ownerRole)};`,
+    `SELECT pg_has_role(${quoteLiteral(plan.ownerRole)}, ${quoteLiteral(plan.appOwnerRole)}, 'member')::text;`,
+  ].join("\n");
+  if (!cleanupSql.includes("rolbypassrls") || !cleanupSql.includes("pg_has_role")) {
+    throw new Error("self-test expected cleanup assertions to include BYPASSRLS and membership checks");
+  }
+  const restoreSource = restoreDump.toString();
+  if (restoreSource.includes("tolerateFailure")) {
+    throw new Error("self-test expected pg_restore to fail closed without tolerateFailure");
+  }
+  const nonZeroWarningToken = ["pg_restore returned", "non-zero"].join(" ");
+  const rowCountWarningToken = ["representative restored row counts", "passed"].join(" ");
+  if (
+    restoreSource.includes(nonZeroWarningToken) ||
+    restoreSource.includes(rowCountWarningToken)
+  ) {
+    throw new Error("self-test expected pg_restore non-zero to be fatal, not warning-only");
+  }
+
+  const originalEnv = {
+    DATABASE_URL: process.env.DATABASE_URL,
+    PGDATABASE: process.env.PGDATABASE,
+    PGOPTIONS: process.env.PGOPTIONS,
+    SUPERUSER_URL: process.env.SUPERUSER_URL,
+    [deploySuperuserSudoEnv]: process.env[deploySuperuserSudoEnv],
+    [superuserUrlEnv]: process.env[superuserUrlEnv],
+    [superuserSudoEnv]: process.env[superuserSudoEnv],
+  };
+  try {
+    process.env.DATABASE_URL = "postgres://ambient:secret@localhost/bcb_saas_dormant_rehearsal_ambient";
+    process.env.PGDATABASE = "bcb_saas_dormant_rehearsal_ambient";
+    process.env.PGOPTIONS = "-c role=ambient";
+    process.env.SUPERUSER_URL = "postgres://ambient:secret@localhost/postgres";
+    process.env[deploySuperuserSudoEnv] = "1";
+    process.env[superuserUrlEnv] = "postgres://ambient:secret@localhost/postgres";
+    process.env[superuserSudoEnv] = "1";
+    const sanitized = sanitizedChildEnv();
+    for (const key of [
+      "DATABASE_URL",
+      "PGDATABASE",
+      "PGOPTIONS",
+      "SUPERUSER_URL",
+      deploySuperuserSudoEnv,
+      superuserUrlEnv,
+      superuserSudoEnv,
+    ]) {
+      if (Object.hasOwn(sanitized, key)) {
+        throw new Error(`self-test expected sanitized child env to strip ambient ${key}`);
+      }
+    }
+
+    const explicitDeployEnv = deploy667ChildEnv(plan);
+    if (explicitDeployEnv.DATABASE_URL !== plan.targetOwnerUrl) {
+      throw new Error("self-test expected deploy #667 child env to preserve explicit DATABASE_URL");
+    }
+    if (explicitDeployEnv.SUPERUSER_URL !== plan.targetSuperuserUrl) {
+      throw new Error("self-test expected deploy #667 child env to preserve explicit SUPERUSER_URL");
+    }
+    if (explicitDeployEnv.PGOPTIONS !== "-c role=bcb_saas_dormant_rehearsal_selftest") {
+      throw new Error("self-test expected deploy #667 child env to pass explicit role PGOPTIONS");
+    }
+    if (
+      explicitDeployEnv.DATABASE_URL.includes(plusEncodedRoleToken) ||
+      explicitDeployEnv.PGOPTIONS.includes(plusEncodedRoleToken)
+    ) {
+      throw new Error("self-test expected deploy #667 child env to avoid plus-encoded role handoff");
+    }
+    if (Object.hasOwn(explicitDeployEnv, superuserUrlEnv)) {
+      throw new Error(`self-test expected deploy #667 child env to strip ambient ${superuserUrlEnv}`);
+    }
+
+    const sudoDeployEnv = deploy667ChildEnv(sudoPlan);
+    if (sudoDeployEnv[deploySuperuserSudoEnv] !== "1") {
+      throw new Error(`self-test expected deploy #667 child env to pass explicit ${deploySuperuserSudoEnv}=1`);
+    }
+    if (Object.hasOwn(sudoDeployEnv, "SUPERUSER_URL")) {
+      throw new Error("self-test expected sudo deploy #667 child env not to pass SUPERUSER_URL");
+    }
+    if (Object.hasOwn(sudoDeployEnv, superuserUrlEnv) || Object.hasOwn(sudoDeployEnv, superuserSudoEnv)) {
+      throw new Error("self-test expected sudo deploy #667 child env to strip wrapper superuser env vars");
+    }
+  } finally {
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+  console.log("run-saas-disposable-dormant-rehearsal self-test: OK");
+}
+
+try {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.selfTest) {
+    runSelfTest();
+    process.exit(0);
+  }
+
+  const plan = buildPlan(options);
+  const dumpInfo = validateDumpIfPresent(options.dumpPath, { execute: options.execute });
+  if (options.dryRun) {
+    printDryRun(plan, dumpInfo, options);
+  } else {
+    runExecute(plan, options);
+  }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[saas-disposable] FAILED: ${message}`);
+  process.exit(1);
+}

@@ -95,6 +95,7 @@ CREATE SCHEMA IF NOT EXISTS app_ext;
 DO $$
 DECLARE
   v_pgcrypto_schema text;
+  v_conflicting_functions text[];
 BEGIN
   SELECT n.nspname
   INTO v_pgcrypto_schema
@@ -105,6 +106,36 @@ BEGIN
   IF v_pgcrypto_schema IS NULL THEN
     CREATE EXTENSION pgcrypto WITH SCHEMA app_ext;
   ELSIF v_pgcrypto_schema <> 'app_ext' THEN
+    SELECT array_agg(
+      format('%I.%I(%s)', source_namespace.nspname, source_proc.proname, pg_get_function_identity_arguments(source_proc.oid))
+      ORDER BY source_namespace.nspname, source_proc.proname, source_proc.oid
+    )
+    INTO v_conflicting_functions
+    FROM pg_depend dependency
+    JOIN pg_extension ext ON ext.oid = dependency.refobjid
+    JOIN pg_proc source_proc ON source_proc.oid = dependency.objid
+    JOIN pg_namespace source_namespace ON source_namespace.oid = source_proc.pronamespace
+    JOIN pg_proc target_proc ON target_proc.pronamespace = 'app_ext'::regnamespace
+      AND target_proc.proname = source_proc.proname
+      AND target_proc.proargtypes = source_proc.proargtypes
+    WHERE ext.extname = 'pgcrypto'
+      AND dependency.classid = 'pg_proc'::regclass
+      AND dependency.deptype = 'e';
+
+    IF coalesce(array_length(v_conflicting_functions, 1), 0) > 0 THEN
+      RAISE EXCEPTION 'pgcrypto_app_ext_conflicting_functions: %', array_to_string(v_conflicting_functions, ', ');
+    END IF;
+
+    ALTER EXTENSION pgcrypto SET SCHEMA app_ext;
+  END IF;
+
+  SELECT n.nspname
+  INTO v_pgcrypto_schema
+  FROM pg_extension e
+  JOIN pg_namespace n ON n.oid = e.extnamespace
+  WHERE e.extname = 'pgcrypto';
+
+  IF v_pgcrypto_schema <> 'app_ext' THEN
     RAISE EXCEPTION 'pgcrypto_must_be_installed_in_app_ext';
   END IF;
 END;
@@ -112,7 +143,6 @@ $$;
 CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION :"p2_b_owner_role";
 ALTER SCHEMA app OWNER TO :"p2_b_owner_role";
 
-GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role";
 GRANT USAGE ON SCHEMA app TO :"p2_b_staff_role", :"p2_b_patient_role";
 
 SET ROLE :"p2_b_owner_role";

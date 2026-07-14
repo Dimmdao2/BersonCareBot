@@ -13,9 +13,9 @@ const paths = {
 
 const expectedTierCounts = Object.freeze({
   BOOTSTRAP: 27,
-  INFRA: 22,
+  INFRA: 23,
   LEGACY: 16,
-  SCOPED: 157,
+  SCOPED: 159,
   TELEMETRY: 2,
 });
 
@@ -192,16 +192,16 @@ function runP0101Invariant({
     fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
   }
 
-  if (scopedTables.length !== 157) {
-    fail(`Expected 157 SCOPED tables, got ${scopedTables.length}`);
+  if (scopedTables.length !== 159) {
+    fail(`Expected 159 SCOPED tables, got ${scopedTables.length}`);
   }
 
   if (scopedBeTables.length !== 44) {
     fail(`Expected 44 already-org-scoped public.be_* tables, got ${scopedBeTables.length}`);
   }
 
-  if (scopedNeedingOrgMaterialization.length !== 113) {
-    fail(`Expected 113 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`);
+  if (scopedNeedingOrgMaterialization.length !== 115) {
+    fail(`Expected 115 SCOPED non-be tables needing organization_id materialization, got ${scopedNeedingOrgMaterialization.length}`);
   }
 
   assertSameSet({
@@ -354,7 +354,7 @@ if (process.argv.includes("--self-test")) {
     [
       "P0.10.1 tier completeness invariant OK:",
       "tiers-218.tsv tier rows match the actual schema (code + migrations) exactly once;",
-      "needs-orgid-FINAL=113 SCOPED non-be tables;",
+      "needs-orgid-FINAL=115 SCOPED non-be tables;",
       "P0.4 batches cover needs-org exactly;",
       "P0.4.BE FK-path tables stay outside needs-org.",
     ].join(" "),

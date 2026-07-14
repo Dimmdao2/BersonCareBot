@@ -60,6 +60,7 @@ public.online_intake_attachments
 public.online_intake_requests
 public.online_intake_status_history
 public.operator_health_failure_archive
+public.organization_member_invites
 public.org_enrollments
 public.patient_comorbidity
 public.patient_content_rating_feedback
@@ -87,6 +88,7 @@ public.reminder_delivery_events
 public.reminder_journal
 public.reminder_occurrence_history
 public.reminder_rules
+public.saas_org_entitlement_overrides
 public.specialist_tasks
 public.support_conversation_messages
 public.support_conversations

@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const opsSqlPath = "deploy/postgres/p2-b-protected-principal-context.sql";
 const opsSql = readFileSync(opsSqlPath, "utf8");
+const deploySaas667Path = "scripts/deploy-saas-667.sh";
+const deploySaas667 = readFileSync(deploySaas667Path, "utf8");
 
 function fail(message) {
   throw new Error(message);
@@ -36,13 +38,15 @@ requireFragments("P2-B ops SQL", opsSql, [
   "p2_b_patient_role",
   "p2_b_signing_secret",
   "pgcrypto_must_be_installed_in_app_ext",
+  "pgcrypto_app_ext_conflicting_functions",
+  "ALTER EXTENSION pgcrypto SET SCHEMA app_ext",
+  "CREATE EXTENSION pgcrypto WITH SCHEMA app_ext",
   "CREATE TABLE IF NOT EXISTS app.context_signing_secrets",
   "CREATE TABLE IF NOT EXISTS app.principal_context",
   "CREATE TABLE IF NOT EXISTS app.context_nonce_ledger",
   "CREATE OR REPLACE FUNCTION app.install_signed_context(",
   "SECURITY DEFINER",
   "SET search_path = app, app_ext, pg_catalog",
-  "GRANT USAGE ON SCHEMA app_ext TO :\"p2_b_owner_role\";",
   "p_signature_hex IS NULL OR p_signature_hex !~ '^[0-9a-fA-F]{64}$'",
   "lower(p_signature_hex) IS DISTINCT FROM v_expected",
   "CREATE OR REPLACE FUNCTION app.current_org_id() RETURNS uuid",
@@ -123,8 +127,19 @@ forbidFragments("P2-B ops SQL", opsSql, [
   "webapp.prod",
   "bcb_webapp_prod",
   "bcb_webapp_dev",
+  "GRANT USAGE ON SCHEMA app_ext TO :\"p2_b_owner_role\";",
   "REASSIGN OWNED",
   "DROP OWNED",
+]);
+
+requireFragments("deploy-saas-667 P2-B superuser grant", deploySaas667, [
+  "header \"Step 4/6: normalize app schema ownership after migrations\"",
+  "ALTER SCHEMA app OWNER TO %I",
+  "ALTER FUNCTION app.is_staff() OWNER TO %I",
+  "header \"Step 5/6: install protected DB principal context\"",
+  "GRANT USAGE ON SCHEMA app_ext TO :\"p2_b_owner_role\";",
+  "pgcrypto_app_ext_conflicting_functions",
+  "ALTER EXTENSION pgcrypto SET SCHEMA app_ext",
 ]);
 
 forbidFragments("P2-B executable SQL", executableSql, [

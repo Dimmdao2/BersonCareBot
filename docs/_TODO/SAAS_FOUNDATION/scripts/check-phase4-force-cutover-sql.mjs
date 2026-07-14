@@ -3,6 +3,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { getPhase4LockedPolicyTargets } from "./phase4-locked-policy-artifact.mjs";
+
 const migrationsDir = "apps/webapp/db/drizzle-migrations";
 const cutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
 const noForceCompatMigrationPath = "apps/webapp/db/drizzle-migrations/0177_phase4_no_force_rls_compat.sql";
@@ -30,6 +32,11 @@ function fail(message) {
 
 function unique(values) {
   return [...new Set(values)];
+}
+
+function quotedTable(table) {
+  const [schema, name] = table.split(".");
+  return `"${schema}"."${name}"`;
 }
 
 function assertIncludes(source, fragment, label) {
@@ -73,6 +80,9 @@ for (const file of migrationFiles) {
 }
 
 const expectedTargets = unique(enableTargets);
+const generatedLockedTargets = getPhase4LockedPolicyTargets()
+  .map(({ descriptor }) => quotedTable(descriptor.table))
+  .sort();
 
 if (expectedTargets.length === 0) {
   fail("Expected at least one ENABLE ROW LEVEL SECURITY target in migrations 0160-0176");
@@ -111,6 +121,46 @@ assertIncludes(
 );
 assertIncludes(
   cutoverSql,
+  "phase4_bootstrap_base_role_user_phone_history_dml",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'SELECT')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'INSERT')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'UPDATE')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "phase4_bootstrap_base_role_platform_user_contacts_dml",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'SELECT')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'INSERT')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
+  "has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'UPDATE')",
+  cutoverSqlPath,
+);
+assertIncludes(
+  cutoverSql,
   "SELECT 1 / (SELECT rolbypassrls::int FROM pg_roles WHERE rolname = :'phase4_owner_role')",
   cutoverSqlPath,
 );
@@ -129,6 +179,18 @@ assertOrdered(
 assertOrdered(
   cutoverSql,
   "phase4_bootstrap_base_role_can_close_phone_history",
+  "BEGIN;",
+  cutoverSqlPath,
+);
+assertOrdered(
+  cutoverSql,
+  "phase4_bootstrap_base_role_user_phone_history_dml",
+  "BEGIN;",
+  cutoverSqlPath,
+);
+assertOrdered(
+  cutoverSql,
+  "phase4_bootstrap_base_role_platform_user_contacts_dml",
   "BEGIN;",
   cutoverSqlPath,
 );
@@ -185,15 +247,15 @@ if (duplicateCutoverTargets.length > 0) {
   fail(`${cutoverSqlPath} has duplicate targets: ${unique(duplicateCutoverTargets).join(", ")}`);
 }
 
-const missingInCutover = expectedTargets.filter((target) => !cutoverTargets.includes(target));
-const extraInCutover = cutoverTargets.filter((target) => !expectedTargets.includes(target));
+const missingInCutover = generatedLockedTargets.filter((target) => !cutoverTargets.includes(target));
+const extraInCutover = cutoverTargets.filter((target) => !generatedLockedTargets.includes(target));
 
 if (missingInCutover.length > 0 || extraInCutover.length > 0) {
   const details = [
     missingInCutover.length > 0 ? `missing: ${missingInCutover.join(", ")}` : "",
     extraInCutover.length > 0 ? `extra: ${extraInCutover.join(", ")}` : "",
   ].filter(Boolean).join("; ");
-  fail(`${cutoverSqlPath} target list must match unique ENABLE RLS targets from 0160-0176 (${details})`);
+  fail(`${cutoverSqlPath} target list must match generated Phase 4 locked policy targets (${details})`);
 }
 
 const noForceCompatTargets = [];
@@ -235,4 +297,4 @@ assertIncludes(rehearsalSql, "\"phase4_staff_role=app_staff\"", rehearsalPath);
 assertIncludes(rehearsalSql, "`phase4_owner_role=${appOwnerRole}`", rehearsalPath);
 assertIncludes(rehearsalSql, "CREATE ROLE ${quoteIdent(appOwnerRole)} NOLOGIN BYPASSRLS;", rehearsalPath);
 
-console.log(`check-phase4-force-cutover-sql: OK (${expectedTargets.length} targets)`);
+console.log(`check-phase4-force-cutover-sql: OK (${generatedLockedTargets.length} targets)`);

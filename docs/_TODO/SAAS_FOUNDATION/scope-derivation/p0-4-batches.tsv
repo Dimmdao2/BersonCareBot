@@ -61,6 +61,7 @@ P0.4.P5	public.online_intake_attachments	parent_denorm_copy	copy organization_id
 P0.4.P5	public.online_intake_requests	patient_org	add nullable organization_id; backfill from request patient/platform user membership/enrollment where linked, otherwise current single org with count check
 P0.4.P5	public.online_intake_status_history	parent_denorm_copy	copy organization_id from public.online_intake_requests; quarantine orphan child rows
 P0.4.P7	public.operator_health_failure_archive	user_org	add nullable organization_id; backfill from user key where present
+P0.4.P8	public.organization_member_invites	already_direct_org	already has organization_id NOT NULL from creation (0179); validate org-owned invite lifecycle before enforcement
 P0.4.EN	public.org_enrollments	already_direct_org	already has organization_id NOT NULL from creation (0144) and single-org seed backfill (0145); P0.4.EN supplemental migration validates the no-NULL invariant instead of adding another column
 P0.4.P1	public.patient_comorbidity	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P7	public.patient_content_rating_feedback	user_or_content_org	add nullable organization_id; backfill from patient/user membership/enrollment and validate content org
@@ -88,6 +89,7 @@ P0.4.P7	public.reminder_delivery_events	parent_denorm_copy	copy organization_id 
 P0.4.P7	public.reminder_journal	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P7	public.reminder_occurrence_history	parent_denorm_copy	copy organization_id from reminder occurrence/rule parent; quarantine orphan history rows
 P0.4.P7	public.reminder_rules	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
+P0.4.P8	public.saas_org_entitlement_overrides	already_direct_org	already has organization_id NOT NULL from creation (0180); validate org-owned entitlement override lifecycle before enforcement
 P0.4.P6	public.specialist_tasks	assignee_or_patient_org	add nullable organization_id; backfill from specialist/member org and validate patient org where present
 P0.4.P6	public.support_conversation_messages	parent_denorm_copy	copy organization_id from public.support_conversations; quarantine orphan messages
 P0.4.P6	public.support_conversations	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment

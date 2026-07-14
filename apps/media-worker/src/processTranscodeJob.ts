@@ -5,8 +5,6 @@ import { join, posix } from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
 import {
   buildDbPrincipalApplyOptionsFromEnv,
-  createDbOrganizationPrincipal,
-  runWithDbPrincipal,
 } from "@bersoncare/db-principal";
 import type { Pool } from "pg";
 import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from "./ffmpeg/hlsArgs.js";
@@ -25,7 +23,7 @@ import {
 } from "./hlsStorageLayout.js";
 import {
   runMediaWorkerPgText,
-  runWithMediaWorkerInfraPrincipal,
+  runWithOptionalMediaWorkerOrganizationPrincipal,
 } from "./runMediaWorkerSql.js";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
@@ -235,20 +233,12 @@ async function uploadDirRecursive(
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
   const organizationId = job.organizationId?.trim() || null;
-  if (organizationId) {
-    return runWithDbPrincipal(
-      createDbOrganizationPrincipal({
-        organizationId,
-        source: "media-worker:process-transcode-job",
-      }),
-      () => processTranscodeJobInner(ctx, job),
-    );
-  }
-  if (buildDbPrincipalApplyOptionsFromEnv(process.env).mode === "locked") {
+  if (!organizationId && buildDbPrincipalApplyOptionsFromEnv(process.env).mode === "locked") {
     throw new Error("media-worker transcode job is missing organization_id in locked mode");
   }
-  return runWithMediaWorkerInfraPrincipal("media-worker:process-transcode-job:legacy-missing-org", () =>
+  return runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () =>
     processTranscodeJobInner(ctx, job),
+    "media-worker:process-transcode-job",
   );
 }
 

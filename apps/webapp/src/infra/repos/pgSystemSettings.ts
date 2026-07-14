@@ -118,6 +118,14 @@ export async function readAdminSystemSettingBoolean(
   return defaultValue;
 }
 
+export async function readPublicConfigBoolean(key: string): Promise<boolean | null> {
+  const result = await runWebappPgText<{ value: boolean | null }>(
+    "SELECT app.get_public_config_bool($1) AS value",
+    [key],
+  );
+  return result.rows[0]?.value ?? null;
+}
+
 /**
  * Single chokepoint for all system_settings writes.
  * Reads the current value, performs the upsert, and records an audit row —

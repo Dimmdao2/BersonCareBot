@@ -1,5 +1,10 @@
 # SaaS deploy sequence — TEST and PROD (RECORDED, proven 2026-07-12)
 
+> Superseded hard protocol: for the current fresh-dump hard migration sequence, use
+> [`HARD_MIGRATION_PROTOCOL.md`](HARD_MIGRATION_PROTOCOL.md) and the executable wrapper
+> `deploy/host/deploy-test-saas.sh`. The old commands below are historical context and must not override
+> the wrapper's current fresh live `pg_dump` + owner/cleanup assertions.
+
 > The plain `deploy-test.sh` / `pnpm migrate` is **INSUFFICIENT** for the SaaS branch on a real prod DB.
 > It fails because (a) a migration asserts the doctor/admin membership seed that a **data-fix** must run FIRST,
 > and (b) some migrations backfill under already-installed FORCE RLS, needing a **temp BYPASSRLS** migrator.

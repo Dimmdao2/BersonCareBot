@@ -64,6 +64,18 @@ SELECT 1 / (
 SELECT 1 / has_function_privilege(:'phase4_bootstrap_base_role', 'app.close_active_user_phone_history(uuid)', 'EXECUTE')::int
   AS phase4_bootstrap_base_role_can_close_phone_history;
 
+SELECT 1 / (
+  has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'SELECT')
+  AND has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'INSERT')
+  AND has_table_privilege(:'phase4_bootstrap_base_role', 'public.user_phone_history', 'UPDATE')
+)::int AS phase4_bootstrap_base_role_user_phone_history_dml;
+
+SELECT 1 / (
+  has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'SELECT')
+  AND has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'INSERT')
+  AND has_table_privilege(:'phase4_bootstrap_base_role', 'public.platform_user_contacts', 'UPDATE')
+)::int AS phase4_bootstrap_base_role_platform_user_contacts_dml;
+
 SELECT 1 / (SELECT rolbypassrls::int FROM pg_roles WHERE rolname = :'phase4_owner_role')
   AS phase4_owner_role_bypassrls;
 
@@ -154,6 +166,7 @@ VALUES
   ('"public"."motivational_quotes"'),
   ('"public"."online_intake_requests"'),
   ('"public"."operator_health_failure_archive"'),
+  ('"public"."organization_member_invites"'),
   ('"public"."patient_comorbidity"'),
   ('"public"."patient_content_rating_feedback"'),
   ('"public"."patient_daily_warmup_presentations"'),
@@ -172,6 +185,7 @@ VALUES
   ('"public"."reference_categories"'),
   ('"public"."reminder_journal"'),
   ('"public"."reminder_rules"'),
+  ('"public"."saas_org_entitlement_overrides"'),
   ('"public"."specialist_tasks"'),
   ('"public"."support_conversations"'),
   ('"public"."support_questions"'),

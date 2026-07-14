@@ -38,5 +38,11 @@ CREATE INDEX IF NOT EXISTS idx_organization_member_invites_org_status
 CREATE INDEX IF NOT EXISTS idx_organization_member_invites_expires_at
   ON organization_member_invites USING btree (expires_at);
 
+-- Dormant baseline wall for fresh-dump SaaS rehearsals. The future strict/FORCE
+-- cutover replaces this with the locked-helper policy artifact.
+ALTER TABLE "public"."organization_member_invites" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites";
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites" FOR ALL USING ((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)) WITH CHECK ((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid));
+
 -- Rollback, if this migration has not been used by application code yet:
 --   DROP TABLE IF EXISTS organization_member_invites;

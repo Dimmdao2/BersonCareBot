@@ -11,7 +11,7 @@ import {
 
 const migrationsDir = "apps/webapp/db/drizzle-migrations";
 const forceCutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
-const migrationFilePattern = /^(016\d|017[0-5])_.*\.sql$/;
+const migrationFilePattern = /^(016\d|017[0-5]|0179|0180)_.*\.sql$/;
 const createPolicyPattern = /CREATE POLICY "([^"]+)" ON "([^"]+)"\."([^"]+)"/g;
 const dropPolicyPattern = /DROP POLICY IF EXISTS "([^"]+)" ON "([^"]+)"\."([^"]+)"/g;
 const rawContextPattern = /current_setting\('app\.(?:org|patient_user_id|integrator_user_id|actor)'/;
@@ -80,8 +80,8 @@ const generatedPolicySet = new Set(generatedTargets.map(({ descriptor, policyNam
 })));
 const dormantPolicySet = readFinalDormantPolicySet();
 
-if (dormantPolicySet.size !== 161 || generatedPolicySet.size !== 161) {
-  fail(`Expected 161 final dormant/generated wall policies, got dormant=${dormantPolicySet.size}, generated=${generatedPolicySet.size}`);
+if (dormantPolicySet.size !== 163 || generatedPolicySet.size !== 163) {
+  fail(`Expected 163 final dormant/generated wall policies, got dormant=${dormantPolicySet.size}, generated=${generatedPolicySet.size}`);
 }
 
 const missingFromArtifact = [...dormantPolicySet.keys()].filter((key) => !generatedPolicySet.has(key)).sort();
@@ -114,12 +114,12 @@ if (JSON.stringify(cutoverSorted) !== JSON.stringify(generatedQuotedTargets)) {
 const createStatements = [...artifact.matchAll(/^CREATE POLICY [\s\S]*?;$/gm)].map((match) => match[0]);
 const dropStatements = [...artifact.matchAll(/^DROP POLICY IF EXISTS /gm)];
 
-if (createStatements.length !== 322) {
-  fail(`${phase4LockedPolicyArtifactPath} must contain 322 CREATE POLICY statements (strict + dormant branches), got ${createStatements.length}`);
+if (createStatements.length !== 326) {
+  fail(`${phase4LockedPolicyArtifactPath} must contain 326 CREATE POLICY statements (strict + dormant branches), got ${createStatements.length}`);
 }
 
-if (dropStatements.length !== 161) {
-  fail(`${phase4LockedPolicyArtifactPath} must contain 161 DROP POLICY statements, got ${dropStatements.length}`);
+if (dropStatements.length !== 163) {
+  fail(`${phase4LockedPolicyArtifactPath} must contain 163 DROP POLICY statements, got ${dropStatements.length}`);
 }
 
 for (const statement of createStatements) {
@@ -128,4 +128,4 @@ for (const statement of createStatements) {
   }
 }
 
-console.log("check-phase4-locked-policy-artifact: OK (161 policies, helper-based, no raw GUC context)");
+console.log("check-phase4-locked-policy-artifact: OK (163 policies, helper-based, no raw GUC context)");

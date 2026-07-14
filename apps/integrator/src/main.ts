@@ -6,15 +6,15 @@ import './config/loadEnv.js';
 
 /**
  * Запускает Fastify-приложение и пишет лог старта.
- * Перед стартом применяет миграции БД (dev и prod).
+ * Перед стартом применяет legacy startup-миграции или выполняет locked-runtime preflight.
  */
 async function start() {
-  const { runMigrations } = await import('./infra/db/migrate.js');
+  const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
   const { logger } = await import('./infra/observability/logger.js');
 
-  await runMigrations();
+  await runStartupMigrationGate();
 
   const app = await buildApp();
   try {

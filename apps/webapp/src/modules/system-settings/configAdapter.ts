@@ -7,6 +7,7 @@
 
 import {
   readAdminSystemSettingString,
+  readPublicConfigBoolean,
   readSystemSettingInnerValueByScopes,
   systemSettingInnerValueToString,
 } from "@/infra/repos/pgSystemSettings";
@@ -40,12 +41,7 @@ async function fetchFromDb(key: string): Promise<string | null> {
 
 async function fetchPublicConfigBoolFromDb(key: string): Promise<boolean | null> {
   try {
-    const { runWebappPgText } = await import("@/infra/db/runWebappSql");
-    const result = await runWebappPgText<{ value: boolean | null }>(
-      "SELECT app.get_public_config_bool($1) AS value",
-      [key],
-    );
-    return result.rows[0]?.value ?? null;
+    return await readPublicConfigBoolean(key);
   } catch {
     return null;
   }

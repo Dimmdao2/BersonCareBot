@@ -1,6 +1,7 @@
 -- Store P0 — entitlement foundation (dormant). Schema record for a fresh DB.
--- RLS/policies/grants are NOT declared here — they live under the enforce-walls overlay
--- deploy/postgres/store-p0-entitlements-rls.sql (already applied to the enforced test DB).
+-- The per-org overrides table carries a NO-FORCE dormant baseline wall here so the
+-- fresh-dump migration chain agrees with the Phase 4 target generator. Strict/FORCE
+-- RLS and grants live under deploy/postgres/store-p0-entitlements-rls.sql.
 -- See docs/_TODO/SAAS_FOUNDATION/STORE_P0_ENTITLEMENTS_PLAN.md.
 
 CREATE TABLE IF NOT EXISTS saas_tariffs (
@@ -32,6 +33,10 @@ CREATE TABLE IF NOT EXISTS saas_org_entitlement_overrides (
 
 CREATE INDEX IF NOT EXISTS idx_saas_org_entitlement_overrides_org
   ON saas_org_entitlement_overrides USING btree (organization_id);
+
+ALTER TABLE "public"."saas_org_entitlement_overrides" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides";
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides" FOR ALL USING ((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid)) WITH CHECK ((NULLIF(current_setting('app.org', true), '') IS NULL OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid));
 
 -- Rollback, if this migration has not been used by application code yet:
 --   ALTER TABLE IF EXISTS be_organizations DROP COLUMN IF EXISTS tariff_id;

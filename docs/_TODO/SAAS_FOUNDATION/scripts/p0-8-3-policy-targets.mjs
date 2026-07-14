@@ -83,6 +83,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   "public.online_intake_requests",
   "public.operator_health_failure_archive",
   "public.org_enrollments",
+  "public.organization_member_invites",
   "public.patient_comorbidity",
   "public.patient_content_rating_feedback",
   "public.patient_daily_warmup_presentations",
@@ -101,6 +102,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   "public.reference_categories",
   "public.reminder_journal",
   "public.reminder_rules",
+  "public.saas_org_entitlement_overrides",
   "public.specialist_tasks",
   "public.support_conversations",
   "public.support_questions",
@@ -138,8 +140,8 @@ export function assertP083PublicDirectOrgTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 105) {
-    throw new Error(`Expected 105 P0.8.3 public direct-org targets, got ${actualTables.length}`);
+  if (actualTables.length !== 107) {
+    throw new Error(`Expected 107 P0.8.3 public direct-org targets, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {

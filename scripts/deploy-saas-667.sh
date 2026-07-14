@@ -5,7 +5,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-: "${SUPERUSER_URL:?FATAL: SUPERUSER_URL is required (superuser connection used only to create dormant LOGIN roles).}"
 : "${DATABASE_URL:?FATAL: DATABASE_URL is required and must identify the runtime owner/migrator role.}"
 
 export DATABASE_URL
@@ -15,7 +14,21 @@ export WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/nonexistent}"
 P2_B_OWNER_ROLE="${P2_B_OWNER_ROLE:-app_owner}"
 P2_B_STAFF_ROLE="app_staff"
 P2_B_PATIENT_ROLE="app_patient"
+SUPERUSER_SUDO_POSTGRES="${SUPERUSER_SUDO_POSTGRES:-0}"
 p2_b_psql_file=""
+
+if [[ "${SUPERUSER_SUDO_POSTGRES}" != "0" && "${SUPERUSER_SUDO_POSTGRES}" != "1" ]]; then
+  printf 'FATAL: SUPERUSER_SUDO_POSTGRES must be 0 or 1, got %q\n' "${SUPERUSER_SUDO_POSTGRES}" >&2
+  exit 1
+fi
+if [[ "${SUPERUSER_SUDO_POSTGRES}" == "1" && -n "${SUPERUSER_URL:-}" ]]; then
+  printf 'FATAL: SUPERUSER_URL and SUPERUSER_SUDO_POSTGRES=1 are mutually exclusive.\n' >&2
+  exit 1
+fi
+if [[ "${SUPERUSER_SUDO_POSTGRES}" == "0" && -z "${SUPERUSER_URL:-}" ]]; then
+  printf 'FATAL: SUPERUSER_URL is required unless SUPERUSER_SUDO_POSTGRES=1 is explicit.\n' >&2
+  exit 1
+fi
 
 header() {
   printf '\n===== %s =====\n' "$1"
@@ -30,8 +43,30 @@ validate_role_name() {
   fi
 }
 
+superuser_psql_target() {
+  if [[ "${SUPERUSER_SUDO_POSTGRES}" == "1" ]]; then
+    sudo -n -u postgres env -i PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}" psql -d "${migrator_database}" "$@"
+  else
+    psql "${SUPERUSER_URL}" "$@"
+  fi
+}
+
+run_superuser_psql() {
+  superuser_psql_target "$@"
+}
+
+run_superuser_psql_file() {
+  local sql_path="$1"
+  shift
+  if [[ ! -r "${sql_path}" ]]; then
+    printf 'FATAL: SQL file is not readable by current shell user: %s\n' "${sql_path}" >&2
+    exit 1
+  fi
+  run_superuser_psql "$@" < "${sql_path}"
+}
+
 revoke_migrator_elevation() {
-  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+  superuser_psql_target -X -v ON_ERROR_STOP=1 \
     -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
     -v p2_b_migrator_role="${migrator_role}" <<'SQL'
 SELECT format('ALTER ROLE %I NOBYPASSRLS', :'p2_b_migrator_role')
@@ -60,7 +95,7 @@ cleanup_on_exit() {
   fi
   if [[ -n "${migrator_role:-}" ]]; then
     if ! revoke_migrator_elevation >/dev/null 2>&1; then
-      printf '\n🔴 FATAL: could not revoke temporary elevation from migrator role %q (is SUPERUSER_URL reachable?).\n' "${migrator_role}" >&2
+      printf '\n🔴 FATAL: superuser cleanup failed for migrator role %q (is the selected superuser transport reachable?).\n' "${migrator_role}" >&2
       printf 'The runtime owner role may STILL hold BYPASSRLS and %q membership. Revoke MANUALLY via a superuser:\n' "${P2_B_OWNER_ROLE}" >&2
       printf '  ALTER ROLE %q NOBYPASSRLS; REVOKE %q FROM %q;\n' "${migrator_role}" "${P2_B_OWNER_ROLE}" "${migrator_role}" >&2
       if [[ "${exit_code}" -eq 0 ]]; then exit_code=1; fi
@@ -79,11 +114,11 @@ migrator_database="$(
     "SELECT current_database()"
 )"
 superuser_database="$(
-  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+  superuser_psql_target -X -v ON_ERROR_STOP=1 -Atqc \
     "SELECT current_database()"
 )"
 superuser_is_superuser="$(
-  psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 -Atqc \
+  superuser_psql_target -X -v ON_ERROR_STOP=1 -Atqc \
     "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
 )"
 migrator_table_owner="$(
@@ -120,9 +155,9 @@ EOF
 fi
 
 header "Step 1/6: prepare dormant roles, pgcrypto schema, and temporary migrator elevation"
-psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
-  -f deploy/postgres/p0-5b-role-split-staff-patient.sql
-psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+run_superuser_psql_file deploy/postgres/p0-5b-role-split-staff-patient.sql \
+  -X -v ON_ERROR_STOP=1
+superuser_psql_target -X -v ON_ERROR_STOP=1 \
   -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
   -v p2_b_migrator_role="${migrator_role}" <<'SQL'
 SELECT format('CREATE ROLE %I NOLOGIN BYPASSRLS', :'p2_b_owner_role')
@@ -136,11 +171,11 @@ WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'p2_b_migrator_role')
 \gexec
 
 CREATE SCHEMA IF NOT EXISTS app_ext;
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app_ext;
 
 DO $pgcrypto_schema$
 DECLARE
   v_pgcrypto_schema text;
+  v_conflicting_functions text[];
 BEGIN
   SELECT n.nspname
   INTO v_pgcrypto_schema
@@ -148,7 +183,39 @@ BEGIN
   JOIN pg_namespace n ON n.oid = e.extnamespace
   WHERE e.extname = 'pgcrypto';
 
-  IF v_pgcrypto_schema IS DISTINCT FROM 'app_ext' THEN
+  IF v_pgcrypto_schema IS NULL THEN
+    CREATE EXTENSION pgcrypto WITH SCHEMA app_ext;
+  ELSIF v_pgcrypto_schema <> 'app_ext' THEN
+    SELECT array_agg(
+      format('%I.%I(%s)', source_namespace.nspname, source_proc.proname, pg_get_function_identity_arguments(source_proc.oid))
+      ORDER BY source_namespace.nspname, source_proc.proname, source_proc.oid
+    )
+    INTO v_conflicting_functions
+    FROM pg_depend dependency
+    JOIN pg_extension ext ON ext.oid = dependency.refobjid
+    JOIN pg_proc source_proc ON source_proc.oid = dependency.objid
+    JOIN pg_namespace source_namespace ON source_namespace.oid = source_proc.pronamespace
+    JOIN pg_proc target_proc ON target_proc.pronamespace = 'app_ext'::regnamespace
+      AND target_proc.proname = source_proc.proname
+      AND target_proc.proargtypes = source_proc.proargtypes
+    WHERE ext.extname = 'pgcrypto'
+      AND dependency.classid = 'pg_proc'::regclass
+      AND dependency.deptype = 'e';
+
+    IF coalesce(array_length(v_conflicting_functions, 1), 0) > 0 THEN
+      RAISE EXCEPTION 'pgcrypto_app_ext_conflicting_functions: %', array_to_string(v_conflicting_functions, ', ');
+    END IF;
+
+    ALTER EXTENSION pgcrypto SET SCHEMA app_ext;
+  END IF;
+
+  SELECT n.nspname
+  INTO v_pgcrypto_schema
+  FROM pg_extension e
+  JOIN pg_namespace n ON n.oid = e.extnamespace
+  WHERE e.extname = 'pgcrypto';
+
+  IF v_pgcrypto_schema <> 'app_ext' THEN
     RAISE EXCEPTION 'pgcrypto_must_be_installed_in_app_ext';
   END IF;
 END
@@ -169,7 +236,7 @@ header "Step 3/6: run the three-phase migration chain"
 bash scripts/migrate-all.sh
 
 header "Step 4/6: normalize app schema ownership after migrations"
-psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+superuser_psql_target -X -v ON_ERROR_STOP=1 \
   -v p2_b_owner_role="${P2_B_OWNER_ROLE}" <<'SQL'
 SELECT format('ALTER SCHEMA app OWNER TO %I', :'p2_b_owner_role')
 WHERE EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app')
@@ -293,7 +360,7 @@ process.stdout.write(required.map(({ tag }) => {
 NODE
 )"
 revoke_migrator_elevation
-psql "${SUPERUSER_URL}" -X -v ON_ERROR_STOP=1 \
+superuser_psql_target -X -v ON_ERROR_STOP=1 \
   -v required_drizzle_hash_groups="${required_drizzle_hash_groups}" \
   -v p2_b_owner_role="${P2_B_OWNER_ROLE}" \
   -v p2_b_migrator_role="${migrator_role}" <<'SQL'

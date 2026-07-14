@@ -129,6 +129,7 @@ function collectScopedDbTouchingRoutesMissingPrincipalSource() {
     "requirePatientApiBusinessAccess",
     "requirePatientApiSessionWithPhone",
     "requirePatientBookingTrustedPhoneAccess",
+    "requireClinicManagementApiContext",
     "requireAdminModeSession",
     "getCurrentSession",
     "stampBootstrapPrincipal",

@@ -68,6 +68,13 @@ LEGACY Rubitime-era tables (still read by legacy sync paths), and TELEMETRY roll
 (doctor/admin/system/worker) authenticates as, so it needs the same DML breadth the current single
 shared app connection already has, just narrowed away from owner/migrator DDL privileges.
 
+`integrator.schema_migrations` remains deliberately excluded here as migration bookkeeping. Locked
+integrator startup still needs to read that ledger, but the canonical grant for the TEST hard rehearsal is
+separate and narrower: `deploy/host/deploy-test-saas.sh` discovers the actual `api.test` runtime login,
+grants only `USAGE` on schema `integrator` plus `SELECT` on `integrator.schema_migrations`, and verifies
+that same runtime login can select the ledger before restart. Do not broaden this P0.5b app DML grant set
+to include migration ledgers.
+
 ## app_patient — curated patient-only surface (110 tables)
 
 **Not** mechanically derived. Candidate tables = the patient-owned SCOPED tables (union of

@@ -3,7 +3,6 @@ import '../../config/loadEnv.js';
 import { readdir, readFile, stat } from 'fs/promises'; // Работа с файловой системой
 import { join } from 'path'; // Склейка путей
 import { fileURLToPath } from 'url';
-import type { Pool } from 'pg'; // Работа с PostgreSQL
 import { getAppRoot } from '../../config/appRoot.js';
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
@@ -20,10 +19,27 @@ export type MigrationFile = {
   version: string;
 };
 
+type DbQueryResult<T extends object = Record<string, unknown>> = {
+  rows: T[];
+};
+
+export type MigrationDbClient = {
+  query<T extends object = Record<string, unknown>>(text: string, values?: unknown[]): Promise<DbQueryResult<T>>;
+  end(): Promise<void>;
+};
+
 type MigrationLedgerShape = {
   readColumn: 'version' | 'filename';
   writeColumn: 'version' | 'filename';
 };
+
+export type StartupMigrationMode = 'run-ddl-migrations' | 'verify-ledger-only';
+
+export function resolveStartupMigrationMode(dbPrincipalContextMode: string | undefined): StartupMigrationMode {
+  const normalized = dbPrincipalContextMode?.trim();
+  if (normalized === 'locked' || normalized === 'shadow') return 'verify-ledger-only';
+  return 'run-ddl-migrations';
+}
 
 function isUndefinedColumnError(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
@@ -48,7 +64,7 @@ function isMissingFilenameColumnProbeError(err: unknown): boolean {
 }
 
 // Создаёт схему integrator и таблицу учёта миграций, если их нет
-async function ensureMigrationsTable(db: Pool): Promise<void> {
+async function ensureMigrationsTable(db: MigrationDbClient): Promise<void> {
   await db.query('CREATE SCHEMA IF NOT EXISTS integrator');
   await db.query(`
     CREATE TABLE IF NOT EXISTS ${INTEGRATOR_MIGRATIONS_TABLE} (
@@ -58,7 +74,18 @@ async function ensureMigrationsTable(db: Pool): Promise<void> {
   `);
 }
 
-async function resolveMigrationLedgerShape(db: Pool): Promise<MigrationLedgerShape> {
+async function verifyMigrationLedgerExists(db: MigrationDbClient): Promise<void> {
+  const res = await db.query<{ ledger_regclass: string | null }>('SELECT to_regclass($1) AS ledger_regclass', [
+    INTEGRATOR_MIGRATIONS_TABLE,
+  ]);
+  if (!res.rows[0]?.ledger_regclass) {
+    throw new Error(
+      `${INTEGRATOR_MIGRATIONS_TABLE} is missing; run integrator migrations before starting shadow/locked runtime`,
+    );
+  }
+}
+
+async function resolveMigrationLedgerShape(db: MigrationDbClient): Promise<MigrationLedgerShape> {
   // Prefer probing real column resolution (same as migrations use at runtime).
   // information_schema can be misleading for some roles/views; SELECT ... LIMIT 0 fails fast on missing columns.
   try {
@@ -99,7 +126,7 @@ function normalizeAppliedVersion(rawValue: string, migrations: MigrationFile[]):
 
 // Получает список уже применённых миграций из integrator.schema_migrations
 async function getAppliedVersions(
-  db: Pool,
+  db: MigrationDbClient,
   ledgerShape: MigrationLedgerShape,
   migrations: MigrationFile[],
 ): Promise<Set<string>> {
@@ -284,7 +311,7 @@ export function applyBeforeDateBound(migrations: MigrationFile[], boundRaw: stri
 // 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
 
 async function applyMigration(
-  db: Pool,
+  db: MigrationDbClient,
   migration: MigrationFile,
   sql: string,
   ledgerShape: MigrationLedgerShape,
@@ -358,7 +385,35 @@ async function applyMigration(
   }
 }
 
-/** Применяет все неприменённые миграции. Вызывается при старте API и при запуске скрипта. */
+export async function verifyStartupMigrationState(
+  db: MigrationDbClient,
+  migrations: MigrationFile[],
+): Promise<void> {
+  await verifyMigrationLedgerExists(db);
+  const ledgerShape = await resolveMigrationLedgerShape(db);
+  const applied = await getAppliedVersions(db, ledgerShape, migrations);
+  const missing = migrations.filter((migration) => !applied.has(migration.version));
+
+  if (missing.length > 0) {
+    const listed = missing.slice(0, 20).map((migration) => migration.version);
+    const suffix = missing.length > listed.length ? `; plus ${missing.length - listed.length} more` : '';
+    throw new Error(
+      `Integrator startup migration gate failed: ${missing.length} discovered migration(s) are not applied in ${INTEGRATOR_MIGRATIONS_TABLE}: ${listed.join(', ')}${suffix}. Run deploy migrations before starting shadow/locked runtime.`,
+    );
+  }
+
+  logger.info(
+    {
+      migrationLedger: INTEGRATOR_MIGRATIONS_TABLE,
+      migrationLedgerReadColumn: ledgerShape.readColumn,
+      migrationsDiscoveredCount: migrations.length,
+      appliedVersionsCount: applied.size,
+    },
+    'Integrator startup verified all discovered migrations are applied',
+  );
+}
+
+/** Применяет все неприменённые миграции. Вызывается из deploy/script paths и legacy startup. */
 export async function runMigrations(): Promise<void> {
   if (!env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set');
@@ -427,6 +482,58 @@ export async function runMigrations(): Promise<void> {
   } finally {
     await db.end(); // Закрываем соединение
   }
+}
+
+/**
+ * API startup contract:
+ * - legacy-guc/default keeps the historical behavior and applies pending SQL migrations;
+ * - shadow/locked runtime must not run DDL as the runtime login and must prove all repo migrations
+ *   are present in the integrator ledger before the API starts.
+ */
+export type StartupMigrationGateDeps = {
+  dbPrincipalContextMode?: string;
+  databaseUrl?: string;
+  runMigrationsFn?: () => Promise<void>;
+  createDb?: (connectionString: string) => MigrationDbClient;
+  discoverMigrationsFn?: () => Promise<MigrationFile[]>;
+};
+
+export async function runStartupMigrationGateWithDeps(deps: StartupMigrationGateDeps = {}): Promise<void> {
+  const startupMode = resolveStartupMigrationMode(deps.dbPrincipalContextMode);
+
+  if (startupMode === 'run-ddl-migrations') {
+    await (deps.runMigrationsFn ?? runMigrations)();
+    return;
+  }
+
+  if (!deps.databaseUrl) {
+    throw new Error('DATABASE_URL is not set');
+  }
+
+  const createDb =
+    deps.createDb ??
+    ((connectionString: string): MigrationDbClient => createIntegratorMigrationPoolProvider({ connectionString }));
+  const db = createDb(deps.databaseUrl);
+  try {
+    const migrations = await (deps.discoverMigrationsFn ?? discoverMigrations)();
+    await verifyStartupMigrationState(db, migrations);
+    logger.info(
+      {
+        dbPrincipalContextMode: deps.dbPrincipalContextMode,
+        migrationLedger: INTEGRATOR_MIGRATIONS_TABLE,
+      },
+      'Integrator startup skipped DDL migrations in locked runtime topology; migration state is verified',
+    );
+  } finally {
+    await db.end();
+  }
+}
+
+export async function runStartupMigrationGate(): Promise<void> {
+  await runStartupMigrationGateWithDeps({
+    dbPrincipalContextMode: env.DB_PRINCIPAL_CONTEXT_MODE,
+    databaseUrl: env.DATABASE_URL,
+  });
 }
 
 // Запуск миграций при прямом вызове скрипта (node dist/infra/db/migrate.js)

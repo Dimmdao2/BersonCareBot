@@ -10,8 +10,8 @@ function usage() {
     `  node ${scriptPath}`,
     `  node ${scriptPath} --self-test`,
     `  node ${scriptPath} --print-sql`,
-    `  node ${scriptPath} --execute --database-url='<disposable-fresh-copy-runtime-url>'`,
-    `  node ${scriptPath} --execute --allow-test-target --database-url='<owner-authorized-test-url>'`,
+    `  node ${scriptPath} --execute --database-url='<disposable-fresh-copy-runtime-url>' [--required-current-user='<owner-role>']`,
+    `  node ${scriptPath} --execute --allow-test-target --database-url='<owner-authorized-test-url>' --required-current-user='bersoncarebot_test'`,
     "",
     "Safety: execution refuses prod/test/dev-shaped DB names and requires scratch/rehearsal/copy in the DB name.",
   ].join("\n");
@@ -24,9 +24,11 @@ function parseArgs(argv) {
     execute: false,
     allowTestTarget: false,
     databaseUrl: null,
+    requiredCurrentUser: null,
   };
 
-  for (const arg of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
     if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
@@ -51,6 +53,24 @@ function parseArgs(argv) {
       options.databaseUrl = arg.slice("--database-url=".length);
       continue;
     }
+    if (arg === "--database-url") {
+      const value = argv[index + 1];
+      assert(value && !value.startsWith("--"), "--database-url requires a value");
+      options.databaseUrl = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--required-current-user=")) {
+      options.requiredCurrentUser = arg.slice("--required-current-user=".length);
+      continue;
+    }
+    if (arg === "--required-current-user") {
+      const value = argv[index + 1];
+      assert(value && !value.startsWith("--"), "--required-current-user requires a value");
+      options.requiredCurrentUser = value;
+      index += 1;
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}\n\n${usage()}`);
   }
 
@@ -59,6 +79,20 @@ function parseArgs(argv) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function assertThrows(fn, message) {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+  throw new Error(message);
+}
+
+function assertPgIdentifier(value, label) {
+  assert(value, `${label} is required`);
+  assert(/^[A-Za-z_][A-Za-z0-9_]*$/.test(value), `${label} must be a simple PostgreSQL identifier`);
 }
 
 function databaseNameFromUrl(value) {
@@ -107,6 +141,18 @@ function assertSafeDatabaseUrl(databaseUrl, options = {}) {
   assert(dbName, "could not parse database name from URL");
   const reason = unsafeDbNameReason(dbName, options);
   assert(!reason, reason);
+}
+
+function assertExecutionOwnerContextContract(options) {
+  if (options.allowTestTarget) {
+    assert(
+      options.requiredCurrentUser,
+      "TEST target execution requires --required-current-user to pin the owner-role context",
+    );
+  }
+  if (options.requiredCurrentUser) {
+    assertPgIdentifier(options.requiredCurrentUser, "--required-current-user");
+  }
 }
 
 function buildSql() {
@@ -207,6 +253,40 @@ function parsePsqlJson(stdout) {
   return JSON.parse(lines.at(-1));
 }
 
+function parsePsqlText(stdout) {
+  const lines = stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  assert(lines.length > 0, "psql returned no rows");
+  return lines.at(-1);
+}
+
+function runPsqlText(databaseUrl, sql) {
+  const result = spawnSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "--no-align", "--tuples-only"], {
+    input: sql,
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  if (result.error) {
+    throw new Error(`failed to start psql: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`psql failed with status ${result.status ?? "unknown"}: ${result.stderr.trim()}`);
+  }
+  return parsePsqlText(result.stdout);
+}
+
+function assertCurrentUser(databaseUrl, requiredCurrentUser) {
+  if (!requiredCurrentUser) return;
+  const currentUser = runPsqlText(databaseUrl, "SELECT current_user;");
+  assert(
+    currentUser === requiredCurrentUser,
+    `owner context mismatch: current_user=${currentUser}, expected ${requiredCurrentUser}`,
+  );
+}
+
 function runPsql(databaseUrl) {
   const result = spawnSync("psql", [databaseUrl, "-X", "-v", "ON_ERROR_STOP=1", "--no-align", "--tuples-only"], {
     input: buildSql(),
@@ -241,6 +321,46 @@ function validateContract() {
 
 function runSelfTest() {
   validateContract();
+
+  const disposableUrl = "postgres://user:pass@localhost/bcb_saas_rehearsal_20260714";
+  assert(
+    parseArgs(["--execute", `--database-url=${disposableUrl}`]).databaseUrl === disposableUrl,
+    "self-test expected --database-url=<url> parsing",
+  );
+  assert(
+    parseArgs(["--execute", "--database-url", disposableUrl]).databaseUrl === disposableUrl,
+    "self-test expected --database-url <url> parsing",
+  );
+  const testTargetOptions = parseArgs([
+    "--execute",
+    "--allow-test-target",
+    "--database-url",
+    "postgres://user:pass@localhost/bersoncarebot_test",
+    "--required-current-user",
+    "bersoncarebot_test",
+  ]);
+  assert(testTargetOptions.allowTestTarget, "self-test expected wrapper-style test target flag parsing");
+  assert(
+    testTargetOptions.requiredCurrentUser === "bersoncarebot_test",
+    "self-test expected --required-current-user parsing",
+  );
+  assertExecutionOwnerContextContract(testTargetOptions);
+  assertThrows(
+    () =>
+      assertExecutionOwnerContextContract({
+        allowTestTarget: true,
+        requiredCurrentUser: null,
+      }),
+    "self-test expected TEST target execution without owner context to fail",
+  );
+  assertThrows(
+    () =>
+      assertExecutionOwnerContextContract({
+        allowTestTarget: true,
+        requiredCurrentUser: "bersoncarebot-test",
+      }),
+    "self-test expected invalid owner role identifier to fail",
+  );
 
   assert(unsafeDbNameReason("bcb_webapp_prod"), "self-test expected prod DB refusal");
   assert(unsafeDbNameReason("bersoncarebot_test"), "self-test expected test DB refusal");
@@ -283,6 +403,8 @@ try {
   } else if (options.execute) {
     const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
     assertSafeDatabaseUrl(databaseUrl, { allowTestTarget: options.allowTestTarget });
+    assertExecutionOwnerContextContract(options);
+    assertCurrentUser(databaseUrl, options.requiredCurrentUser);
     const facts = runPsql(databaseUrl);
     const classification = classifyFacts(facts);
     console.log(

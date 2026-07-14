@@ -25,6 +25,7 @@ const dbPrincipalRuntimePath = path.join(repoRoot, "packages/db-principal/dist/i
 const p2bSqlPath = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
 const phase4PolicySqlPath = path.join(repoRoot, "deploy/postgres/phase4-locked-helper-rls-policies.sql");
 const phase4ForceSqlPath = path.join(repoRoot, "deploy/postgres/phase4-force-rls-cutover.sql");
+const d2Fb1BootstrapGrantSqlPath = path.join(repoRoot, "deploy/postgres/d2-fb1-bootstrap-phone-write-grants.sql");
 const p0_5bGrantsSqlPath = path.join(repoRoot, "deploy/postgres/p0-5b-grants.sql");
 const deploySaas667Path = path.join(repoRoot, "scripts/deploy-saas-667.sh");
 const pgBinDir = "/usr/lib/postgresql/16/bin";
@@ -113,16 +114,11 @@ async function main() {
       // (deploy-saas-667 creates the roles WITHOUT grants; grants are a separate cutover step).
       console.log("--- full: applying p0-5b runtime table grants to app_staff/app_patient ---");
       psqlUrlFile(fullOwnerUrl, p0_5bGrantsSqlPath);
-      // Faithful to prod: bootstrap/pre-auth sessions RESET ROLE to the base DATABASE_URL login role,
-      // which in prod carries the p0_5_app_role DML surface (non-owner, NOBYPASSRLS, direct table DML) —
-      // measured to already cover all bootstrap-written tables, so 0 new prod grants. The rehearsal
-      // otherwise modeled the base role as a grant-less NOINHERIT role; grant it the DML this proof
-      // exercises so it reflects the real privilege topology, not a test artifact.
-      console.log("--- full: granting bootstrap base role the p0_5_app_role-style DML on user_phone_history ---");
-      psqlUrl(
-        fullOwnerUrl,
-        `GRANT SELECT, INSERT, UPDATE ON public.user_phone_history TO ${quoteIdent(patientLoginRole)};`,
-      );
+      console.log("--- full: applying D2 FB#1 bootstrap phone-write direct grants to the nonstaff base login ---");
+      psqlUrlFile(fullOwnerUrl, d2Fb1BootstrapGrantSqlPath, [
+        "-v",
+        `d2_fb1_bootstrap_base_role=${patientLoginRole}`,
+      ]);
       proveLegacyDormantCompatibility();
       applyStrictLockedForceCutover();
       provePhoneHistoryTransitionUnderForce();
@@ -682,6 +678,7 @@ function provePhoneHistoryTransitionUnderForce() {
   const orgNewHistoryId = randomUUID();
   const bootstrapOldHistoryId = randomUUID();
   const bootstrapNewHistoryId = randomUUID();
+  const bootstrapForbiddenHistoryId = randomUUID();
   psqlUrl(fullSuperuserUrl, String.raw`
 \set ON_ERROR_STOP on
 
@@ -693,7 +690,7 @@ VALUES
 INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
 VALUES
   (${quoteLiteral(orgOldHistoryId)}::uuid, ${quoteLiteral(orgUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:org:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid),
-  (${quoteLiteral(bootstrapOldHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid);
+  (${quoteLiteral(bootstrapOldHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:old`)}, now(), NULL, 'otp', NULL);
 
 ${installPsqlSignedContextSql({
   role: "app_staff",
@@ -728,6 +725,16 @@ WHERE id = ${quoteLiteral(orgOldHistoryId)}::uuid
 SELECT 1/0;
 \endif
 
+SELECT (count(*) = 0)::int AS fb1_staff_bootstrap_null_hidden_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(bootstrapOldHistoryId)}::uuid
+\gset
+\if :fb1_staff_bootstrap_null_hidden_ok
+\else
+\echo 'FATAL: FB#1 staff/org context must not see bootstrap NULL phone-history PII.'
+SELECT 1/0;
+\endif
+
 SELECT app.release_principal_context();
 RESET ROLE;
 
@@ -743,6 +750,27 @@ SELECT (
 \if :fb1_bootstrap_context_empty_ok
 \else
 \echo 'FATAL: FB#1 bootstrap base-role assertion started with a signed context.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 0)::int AS fb1_bootstrap_org_pii_hidden_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(orgOldHistoryId)}::uuid
+\gset
+\if :fb1_bootstrap_org_pii_hidden_ok
+\else
+\echo 'FATAL: FB#1 bootstrap base role must not read org-stamped phone-history PII.'
+SELECT 1/0;
+\endif
+
+\set ON_ERROR_STOP off
+INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+VALUES (${quoteLiteral(bootstrapForbiddenHistoryId)}::uuid, ${quoteLiteral(bootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:bootstrap:forbidden-org`)}, now(), now(), 'otp', ${quoteLiteral(defaultOrgId)}::uuid);
+\set ON_ERROR_STOP on
+\if :ERROR
+\echo 'CONFIRMED: FB#1 bootstrap base role cannot write org-stamped phone-history PII.'
+\else
+\echo 'FATAL: FB#1 bootstrap base role unexpectedly inserted org-stamped phone-history PII.'
 SELECT 1/0;
 \endif
 
@@ -780,7 +808,201 @@ SELECT 1/0;
 
 RESET ROLE;
 `);
-  console.log("CONFIRMED: FB#1 phone-history close+insert path works for org signed context and bootstrap base role.");
+  console.log("CONFIRMED: FB#1 SQL phone-history close+insert path works for org signed context and bootstrap base role.");
+
+  console.log("--- full: proving FB#1 through the webapp phone-history repository path ---");
+  const appOrgStampedUserId = randomUUID();
+  const appNullToOrgUserId = randomUUID();
+  const appBootstrapUserId = randomUUID();
+  const appOrgOldHistoryId = randomUUID();
+  const appNullToOrgOldHistoryId = randomUUID();
+  const appBootstrapOldHistoryId = randomUUID();
+  psqlUrl(fullSuperuserUrl, String.raw`
+\set ON_ERROR_STOP on
+
+INSERT INTO public.platform_users (id, display_name, role, created_at, updated_at)
+VALUES
+  (${quoteLiteral(appOrgStampedUserId)}::uuid, 'FB1 App Repo Org User', 'client', now(), now()),
+  (${quoteLiteral(appNullToOrgUserId)}::uuid, 'FB1 App Repo Null To Org User', 'client', now(), now()),
+  (${quoteLiteral(appBootstrapUserId)}::uuid, 'FB1 App Repo Bootstrap User', 'client', now(), now());
+
+INSERT INTO public.user_phone_history (id, platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id)
+VALUES
+  (${quoteLiteral(appOrgOldHistoryId)}::uuid, ${quoteLiteral(appOrgStampedUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:org:old`)}, now(), NULL, 'otp', ${quoteLiteral(defaultOrgId)}::uuid),
+  (${quoteLiteral(appNullToOrgOldHistoryId)}::uuid, ${quoteLiteral(appNullToOrgUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:null-to-org:old`)}, now(), NULL, 'otp', NULL),
+  (${quoteLiteral(appBootstrapOldHistoryId)}::uuid, ${quoteLiteral(appBootstrapUserId)}::uuid, ${quoteLiteral(`${marker}:fb1:app:bootstrap:old`)}, now(), NULL, 'otp', NULL);
+`);
+
+  const appRepoSmoke = String.raw`
+import { runWithDbBootstrapPrincipal, runWithDbStaffPrincipal } from "@bersoncare/db-principal";
+import { withTransaction } from "./src/infra/db/withClient";
+import { applyPlatformUserPhoneHistoryTransition } from "./src/infra/repos/pgPhoneHistory";
+
+const required = (name) => {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error("missing env " + name);
+  return value;
+};
+
+const orgId = required("D2_FB1_ORG_ID");
+const staffUserId = required("D2_FB1_STAFF_USER_ID");
+const appOrgStampedUserId = required("D2_FB1_APP_ORG_STAMPED_USER_ID");
+const appNullToOrgUserId = required("D2_FB1_APP_NULL_TO_ORG_USER_ID");
+const appBootstrapUserId = required("D2_FB1_APP_BOOTSTRAP_USER_ID");
+const marker = required("D2_FB1_MARKER");
+
+await runWithDbStaffPrincipal({ organizationId: orgId, platformUserId: staffUserId, source: "d2-fb1-app-repo-smoke" }, () =>
+  withTransaction(async (client) => {
+    await applyPlatformUserPhoneHistoryTransition(client, {
+      platformUserId: appOrgStampedUserId,
+      newPhoneNormalized: marker + ":fb1:app:org:new",
+      source: "otp",
+    });
+    await applyPlatformUserPhoneHistoryTransition(client, {
+      platformUserId: appNullToOrgUserId,
+      newPhoneNormalized: marker + ":fb1:app:null-to-org:new",
+      source: "otp",
+    });
+  }),
+);
+
+await runWithDbBootstrapPrincipal({ source: "d2-fb1-app-repo-smoke" }, () =>
+  withTransaction(async (client) => {
+    await applyPlatformUserPhoneHistoryTransition(client, {
+      platformUserId: appBootstrapUserId,
+      newPhoneNormalized: marker + ":fb1:app:bootstrap:new",
+      source: "otp",
+    });
+  }),
+);
+`;
+
+  run("pnpm", ["--dir", "apps/webapp", "exec", "tsx", "--tsconfig", "tsconfig.json", "-e", appRepoSmoke], {
+    env: sanitizedChildEnv({
+      DATABASE_URL: fullScratchPatientUrl,
+      DATABASE_URL_STAFF: fullScratchStaffUrl,
+      DATABASE_URL_NONSTAFF: fullScratchPatientUrl,
+      DB_PRINCIPAL_CONTEXT_MODE: "locked",
+      DB_PRINCIPAL_SIGNING_SECRET: signingSecret,
+      D2_FB1_ORG_ID: defaultOrgId,
+      D2_FB1_STAFF_USER_ID: appOrgStampedUserId,
+      D2_FB1_APP_ORG_STAMPED_USER_ID: appOrgStampedUserId,
+      D2_FB1_APP_NULL_TO_ORG_USER_ID: appNullToOrgUserId,
+      D2_FB1_APP_BOOTSTRAP_USER_ID: appBootstrapUserId,
+      D2_FB1_MARKER: marker,
+    }),
+    label: "D2 FB#1 webapp repository phone-history smoke",
+  });
+
+  psqlUrl(fullSuperuserUrl, String.raw`
+\set ON_ERROR_STOP on
+
+SELECT (count(*) = 1)::int AS fb1_app_org_old_closed_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(appOrgOldHistoryId)}::uuid
+  AND valid_to IS NOT NULL
+\gset
+\if :fb1_app_org_old_closed_ok
+\else
+\echo 'FATAL: FB#1 app repo org-stamped transition did not close the pre-existing org row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_null_to_org_old_closed_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(appNullToOrgOldHistoryId)}::uuid
+  AND valid_to IS NOT NULL
+\gset
+\if :fb1_app_null_to_org_old_closed_ok
+\else
+\echo 'FATAL: FB#1 app repo org-context transition did not close the pre-existing NULL row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_bootstrap_old_closed_ok
+FROM public.user_phone_history
+WHERE id = ${quoteLiteral(appBootstrapOldHistoryId)}::uuid
+  AND valid_to IS NOT NULL
+\gset
+\if :fb1_app_bootstrap_old_closed_ok
+\else
+\echo 'FATAL: FB#1 app repo bootstrap transition did not close the pre-existing NULL row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_org_new_stamp_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appOrgStampedUserId)}::uuid
+  AND phone_normalized = ${quoteLiteral(`${marker}:fb1:app:org:new`)}
+  AND organization_id = ${quoteLiteral(defaultOrgId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_org_new_stamp_ok
+\else
+\echo 'FATAL: FB#1 app repo org-stamped transition did not insert an org-stamped active row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_null_to_org_new_stamp_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appNullToOrgUserId)}::uuid
+  AND phone_normalized = ${quoteLiteral(`${marker}:fb1:app:null-to-org:new`)}
+  AND organization_id = ${quoteLiteral(defaultOrgId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_null_to_org_new_stamp_ok
+\else
+\echo 'FATAL: FB#1 app repo NULL-to-org transition did not insert an org-stamped active row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_bootstrap_new_null_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appBootstrapUserId)}::uuid
+  AND phone_normalized = ${quoteLiteral(`${marker}:fb1:app:bootstrap:new`)}
+  AND organization_id IS NULL
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_bootstrap_new_null_ok
+\else
+\echo 'FATAL: FB#1 app repo bootstrap transition did not insert a NULL-org active row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_org_active_count_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appOrgStampedUserId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_org_active_count_ok
+\else
+\echo 'FATAL: FB#1 app repo org-stamped user must have exactly one active row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_null_to_org_active_count_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appNullToOrgUserId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_null_to_org_active_count_ok
+\else
+\echo 'FATAL: FB#1 app repo NULL-to-org user must have exactly one active row.'
+SELECT 1/0;
+\endif
+
+SELECT (count(*) = 1)::int AS fb1_app_bootstrap_active_count_ok
+FROM public.user_phone_history
+WHERE platform_user_id = ${quoteLiteral(appBootstrapUserId)}::uuid
+  AND valid_to IS NULL
+\gset
+\if :fb1_app_bootstrap_active_count_ok
+\else
+\echo 'FATAL: FB#1 app repo bootstrap user must have exactly one active row.'
+SELECT 1/0;
+\endif
+`);
+  console.log("CONFIRMED: FB#1 webapp repository phone-history close+insert path works for org-stamped, NULL-to-org, and bootstrap NULL rows.");
 }
 
 async function seedRehearsalData() {

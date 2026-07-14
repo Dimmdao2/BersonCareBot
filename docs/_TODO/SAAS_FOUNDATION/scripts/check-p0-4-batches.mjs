@@ -43,12 +43,12 @@ const needs = readFileSync(needsPath, "utf8")
 
 const assigned = Array.from(assignments.keys()).sort();
 
-if (needs.length !== 113) {
-  throw new Error(`Expected 113 need-org tables, got ${needs.length}`);
+if (needs.length !== 115) {
+  throw new Error(`Expected 115 need-org tables, got ${needs.length}`);
 }
 
-if (assigned.length !== 113) {
-  throw new Error(`Expected 113 assigned tables, got ${assigned.length}`);
+if (assigned.length !== 115) {
+  throw new Error(`Expected 115 assigned tables, got ${assigned.length}`);
 }
 
 const missing = needs.filter((table) => !assignments.has(table));

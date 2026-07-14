@@ -989,6 +989,15 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."org_enrollments" FOR ALL US
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."org_enrollments" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))));
 \endif
 
+-- public.organization_member_invites (saas_org_dormant_p0_8_3)
+ALTER TABLE "public"."organization_member_invites" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites";
+\if :phase4_enforce_locked_context
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
+\else
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
+\endif
+
 -- public.patient_comorbidity (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."patient_comorbidity" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."patient_comorbidity";
@@ -1230,6 +1239,15 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."reminder_rules";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."reminder_rules" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())));
 \else
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."reminder_rules" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_patient_user_id() IS NOT NULL AND "platform_user_id" = app.current_patient_user_id()))));
+\endif
+
+-- public.saas_org_entitlement_overrides (saas_org_dormant_p0_8_3)
+ALTER TABLE "public"."saas_org_entitlement_overrides" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides";
+\if :phase4_enforce_locked_context
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
+\else
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
 -- public.specialist_tasks (saas_org_dormant_p0_8_3)

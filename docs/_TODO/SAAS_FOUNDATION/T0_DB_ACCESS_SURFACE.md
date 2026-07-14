@@ -58,7 +58,7 @@ Commands were run against non-test TypeScript files unless otherwise noted.
 | Files using `runWebappPgText` | 66 |
 | Runtime `.connect(` files | 4 |
 | Runtime `new Pool` files | 7 |
-| Runtime files using `runWithDbOrganizationPrincipal` | 6 |
+| Runtime files using `runWithDbOrganizationPrincipal` | 9 |
 | Guarded-layer raw SQL allowlist files in `check-db-chokepoint.mjs` | 12 |
 
 Guard status:

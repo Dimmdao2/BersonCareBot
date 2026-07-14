@@ -331,6 +331,7 @@ WHERE target.organization_id IS NULL
 DO $$
 DECLARE
   v_null_count bigint;
+  v_direct_org_null_count bigint;
   v_mismatch_count bigint;
 BEGIN
   SELECT sum(null_rows)
@@ -354,6 +355,22 @@ BEGIN
     UNION ALL SELECT count(*) FILTER (WHERE organization_id IS NULL) FROM test_sets
     UNION ALL SELECT count(*) FILTER (WHERE organization_id IS NULL) FROM tests
   ) checks;
+
+  IF v_null_count <> 0 THEN
+    RAISE EXCEPTION 'P0.4.P8 expected no NULL organization_id rows, found %', v_null_count;
+  END IF;
+
+  IF to_regclass('public.organization_member_invites') IS NOT NULL THEN
+    EXECUTE 'SELECT count(*) FILTER (WHERE organization_id IS NULL) FROM organization_member_invites'
+    INTO v_direct_org_null_count;
+    v_null_count := v_null_count + v_direct_org_null_count;
+  END IF;
+
+  IF to_regclass('public.saas_org_entitlement_overrides') IS NOT NULL THEN
+    EXECUTE 'SELECT count(*) FILTER (WHERE organization_id IS NULL) FROM saas_org_entitlement_overrides'
+    INTO v_direct_org_null_count;
+    v_null_count := v_null_count + v_direct_org_null_count;
+  END IF;
 
   IF v_null_count <> 0 THEN
     RAISE EXCEPTION 'P0.4.P8 expected no NULL organization_id rows, found %', v_null_count;

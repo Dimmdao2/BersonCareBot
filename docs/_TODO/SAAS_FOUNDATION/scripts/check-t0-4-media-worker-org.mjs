@@ -91,7 +91,7 @@ function runChecks(overrides = {}) {
     assertContains(files.executorTest, executorTest, needle);
   }
 
-  assertContains(files.tx, tx, "applyCurrentDbPrincipalToTransaction(client)");
+  assertContains(files.tx, tx, "applyCurrentDbPrincipalToTransaction(client,");
 }
 
 if (process.argv.includes("--self-test")) {

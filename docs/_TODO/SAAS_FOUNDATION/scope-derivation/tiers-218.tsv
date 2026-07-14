@@ -46,6 +46,7 @@ INFRA|public.operator_job_status
 INFRA|public.outgoing_delivery_queue
 INFRA|public.phone_otp_locks
 INFRA|public.schema_migrations
+INFRA|public.saas_tariffs
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.rubitime_api_throttle
 LEGACY|integrator.rubitime_booking_profiles
@@ -169,6 +170,7 @@ SCOPED|public.online_intake_attachments
 SCOPED|public.online_intake_requests
 SCOPED|public.online_intake_status_history
 SCOPED|public.operator_health_failure_archive
+SCOPED|public.organization_member_invites
 SCOPED|public.org_enrollments
 SCOPED|public.patient_comorbidity
 SCOPED|public.patient_content_rating_feedback
@@ -196,6 +198,7 @@ SCOPED|public.reminder_delivery_events
 SCOPED|public.reminder_journal
 SCOPED|public.reminder_occurrence_history
 SCOPED|public.reminder_rules
+SCOPED|public.saas_org_entitlement_overrides
 SCOPED|public.specialist_tasks
 SCOPED|public.support_conversation_messages
 SCOPED|public.support_conversations
