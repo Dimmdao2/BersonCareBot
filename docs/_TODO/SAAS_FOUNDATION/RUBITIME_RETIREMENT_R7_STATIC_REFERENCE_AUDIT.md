@@ -56,7 +56,7 @@ Result from 2026-07-14 11:51 MSK:
 | `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
 | `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
-| `rubitimeRawTableRuntimeRefs` | 64 hits / 17 files | Raw-table references remain for schema declarations, compatibility/audit paths and R7 tooling. |
+| `rubitimeRawTableRuntimeRefs` | 64 hits / 17 files | Raw-table references remained for schema declarations, compatibility/audit paths and R7 tooling at this audit point. |
 | `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
 | `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
 
@@ -128,4 +128,31 @@ Validation:
 - `pnpm --dir apps/webapp exec vitest --run src/modules/booking-engine/service.test.ts src/infra/repos/pgBookingRubitimeBridge.test.ts`
   PASS.
 - `pnpm --dir apps/webapp typecheck` PASS.
+- `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6` PASS.
+
+## 2026-07-14 12:06 MSK Generic Retry Queue Runtime Naming Cleanup
+
+`R7-INTEGRATOR-GENERIC-RETRY-QUEUE-NAMING-codex-2026-07-14` renamed the integrator runtime Drizzle symbol for the
+legacy physical queue table from `rubitimeCreateRetryJobs` to `messageRetryJobs`. The physical table
+`integrator.rubitime_create_retry_jobs` was not renamed or dropped; it remains a R7 drain/archive/drop candidate and
+is still used as storage for provider-neutral message delivery retry jobs until an owner-approved migration decision.
+
+Static inventory after this cleanup:
+
+| Category | Result | Meaning |
+| --- | ---: | --- |
+| `mountedRubitimeRouteLiterals` | 0 hits / 0 files | No Rubitime-named runtime HTTP surface remains in scanned source. |
+| `integratorRubitimeRuntimeImports` | 0 hits / 0 files | No runtime imports from `apps/integrator/src/integrations/rubitime/**` remain. |
+| `rubitimeApiClientRuntimeTokens` | 0 hits / 0 files | No live Rubitime API/client/throttle/post-create tokens remain. |
+| `legacyAppointmentRecordRuntimeRefs` | 147 hits / 29 files | Legacy compatibility/archive/backfill references remain; not a CSV preservation blocker. |
+| `rubitimeRawTableRuntimeRefs` | 63 hits / 17 files | Raw-table references remain for physical table names, schema declarations and R7 tooling. |
+| `providerNeutralKeepTableRefs` | 158 hits / 38 files | Explicit keep-list references, including `booking_calendar_map`; not a drop signal. |
+| `rubitimeOpsToolingRefs` | 551 hits / 22 files | Ops/audit/backfill scripts; not a live Rubitime endpoint by themselves. |
+
+Validation:
+
+- `pnpm --dir apps/integrator test -- src/infra/adapters/jobQueuePort.test.ts src/infra/db/repos/jobQueue.test.ts`
+  PASS.
+- `pnpm --dir apps/integrator typecheck` PASS.
+- `pnpm run check:rubitime-retirement-current` PASS.
 - `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6` PASS.

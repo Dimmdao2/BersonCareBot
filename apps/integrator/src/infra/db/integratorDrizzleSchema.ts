@@ -15,7 +15,7 @@ import {
   userReminderOccurrences,
   userReminderRules,
 } from './schema/integratorDomainRepos.js';
-import { projectionOutbox, rubitimeCreateRetryJobs } from './schema/integratorQueues.js';
+import { messageRetryJobs, projectionOutbox } from './schema/integratorQueues.js';
 
 export const integratorDrizzleSchema = {
   operatorIncidents,
@@ -26,7 +26,7 @@ export const integratorDrizzleSchema = {
   mailingLogs,
   deliveryAttemptLogs,
   projectionOutbox,
-  rubitimeCreateRetryJobs,
+  messageRetryJobs,
   userReminderRules,
   userReminderOccurrences,
   userReminderDeliveryLogs,

@@ -1,5 +1,6 @@
 /**
- * Очереди integrator: projection_outbox, rubitime_create_retry_jobs.
+ * Очереди integrator: projection_outbox, message retry jobs.
+ * `messageRetryJobs` still maps to the legacy physical table until the R7 archive/drop migration.
  * Сверено с `apps/webapp/db/schema/schema.ts` (колонки, индексы; без FK).
  */
 import { sql } from 'drizzle-orm';
@@ -41,7 +42,7 @@ export const projectionOutbox = pgTable(
   ],
 );
 
-export const rubitimeCreateRetryJobs = pgTable(
+export const messageRetryJobs = pgTable(
   'rubitime_create_retry_jobs',
   {
     id: bigserial({ mode: 'number' }).primaryKey().notNull(),

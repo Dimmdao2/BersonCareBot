@@ -46,7 +46,7 @@ describe('createPostgresJobQueue', () => {
           meta: {
             eventId: 'evt-1',
             occurredAt: '2026-03-10T10:00:00.000Z',
-            source: 'rubitime',
+            source: 'domain',
           },
           payload: {
             message: { text: 'hello telegram' },
@@ -92,7 +92,7 @@ describe('createPostgresJobQueue', () => {
             meta: {
               eventId: 'evt-42',
               occurredAt: '2026-03-10T10:00:00.000Z',
-              source: 'rubitime',
+              source: 'domain',
             },
             payload: {
               message: { text: 'hello telegram' },

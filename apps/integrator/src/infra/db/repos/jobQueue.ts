@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { rubitimeCreateRetryJobs } from '../schema/integratorQueues.js';
+import { messageRetryJobs } from '../schema/integratorQueues.js';
 
 export type MessageRetryJobRow = {
   id: number;
@@ -24,7 +24,7 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
 }): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   const delaySec = Math.max(0, Math.trunc(input.firstTryDelaySeconds));
-  await d.insert(rubitimeCreateRetryJobs).values({
+  await d.insert(messageRetryJobs).values({
     phoneNormalized: input.phoneNormalized,
     messageText: input.messageText,
     nextTryAt: sql`now() + (${String(delaySec)}::text || ' seconds')::interval`,
@@ -80,7 +80,7 @@ export async function rescheduleMessageRetryJob(db: DbPort, input: {
   const delay = Math.max(1, Math.trunc(input.retryDelaySeconds));
   const attempts = Math.max(0, Math.trunc(input.attemptsDone));
   await d
-    .update(rubitimeCreateRetryJobs)
+    .update(messageRetryJobs)
     .set({
       status: 'pending',
       attemptsDone: attempts,
@@ -88,27 +88,27 @@ export async function rescheduleMessageRetryJob(db: DbPort, input: {
       lastError: input.lastError ?? null,
       updatedAt: sql`now()`,
     })
-    .where(eq(rubitimeCreateRetryJobs.id, input.id));
+    .where(eq(messageRetryJobs.id, input.id));
 }
 
 export async function completeMessageRetryJob(db: DbPort, id: number): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .update(rubitimeCreateRetryJobs)
+    .update(messageRetryJobs)
     .set({ status: 'done', updatedAt: sql`now()` })
-    .where(eq(rubitimeCreateRetryJobs.id, id));
+    .where(eq(messageRetryJobs.id, id));
 }
 
 export async function failMessageRetryJob(db: DbPort, input: { id: number; lastError?: string }): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .update(rubitimeCreateRetryJobs)
+    .update(messageRetryJobs)
     .set({
       status: 'dead',
       lastError: input.lastError ?? null,
       updatedAt: sql`now()`,
     })
-    .where(eq(rubitimeCreateRetryJobs.id, input.id));
+    .where(eq(messageRetryJobs.id, input.id));
 }
 
 /**
@@ -117,7 +117,7 @@ export async function failMessageRetryJob(db: DbPort, input: { id: number; lastE
 export async function cancelPendingBookingReminderJobsByBookingId(db: DbPort, bookingId: string): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .update(rubitimeCreateRetryJobs)
+    .update(messageRetryJobs)
     .set({
       status: 'dead',
       lastError: 'booking_cancelled',
@@ -125,9 +125,9 @@ export async function cancelPendingBookingReminderJobsByBookingId(db: DbPort, bo
     })
     .where(
       and(
-        inArray(rubitimeCreateRetryJobs.status, ['pending', 'processing']),
-        eq(rubitimeCreateRetryJobs.kind, 'message.deliver'),
-        sql`${rubitimeCreateRetryJobs.payloadJson}->'booking'->>'bookingId' = ${bookingId}`,
+        inArray(messageRetryJobs.status, ['pending', 'processing']),
+        eq(messageRetryJobs.kind, 'message.deliver'),
+        sql`${messageRetryJobs.payloadJson}->'booking'->>'bookingId' = ${bookingId}`,
       ),
     );
 }

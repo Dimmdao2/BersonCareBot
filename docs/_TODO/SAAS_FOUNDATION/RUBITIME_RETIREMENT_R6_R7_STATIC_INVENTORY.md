@@ -38,7 +38,7 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after webapp raw projection cleanup: 2026-07-14 11:51 MSK.
+Latest run time after generic retry queue runtime naming cleanup: 2026-07-14 12:06 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
@@ -46,7 +46,7 @@ Latest run time after webapp raw projection cleanup: 2026-07-14 11:51 MSK.
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 147 hits / 29 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 64 hits / 17 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
+| `rubitimeRawTableRuntimeRefs` | R7 | 63 hits / 17 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 158 hits / 38 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 551 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
@@ -145,3 +145,15 @@ After this cleanup, the post-R6 inventory still passes with the three hard R6 ca
 `rubitimeRawTableRuntimeRefs` reduced to 64 hits / 17 files. Remaining raw-table references are R7 archive/drop/defer
 scope, not a live Rubitime endpoint and not a reason to treat `integrator.rubitime_records` as the preservation canon
 over the fresh Rubitime CSV.
+
+## 2026-07-14 R7 Generic Retry Queue Runtime Naming Cleanup
+
+`R7-INTEGRATOR-GENERIC-RETRY-QUEUE-NAMING-codex-2026-07-14` renamed the integrator runtime Drizzle symbol for the
+legacy physical table `integrator.rubitime_create_retry_jobs` from `rubitimeCreateRetryJobs` to `messageRetryJobs`.
+The table remains physically unchanged until a migration-backed R7 archive/drop/defer decision. The queue runtime is
+provider-neutral message delivery retry infrastructure and still maps to the legacy table only as storage.
+
+After this cleanup, `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6`
+still passes with the three hard R6 categories at zero and `rubitimeRawTableRuntimeRefs` reduced to
+63 hits / 17 files. Remaining references to `rubitime_create_retry_jobs` are the physical SQL table name, historical
+migration/schema evidence and R6/R7 drain/archive/drop tooling.
