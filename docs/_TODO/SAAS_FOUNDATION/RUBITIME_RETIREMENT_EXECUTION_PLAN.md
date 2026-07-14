@@ -901,12 +901,12 @@ mappings and the owner-approved single-specialist export context.
 - [x] webapp calls provider-neutral lifecycle endpoint.
 - [x] Rubitime-named lifecycle route is only a bounded compatibility alias.
 - [ ] GCal create/update/delete is canonical lifecycle driven.
-- [ ] reminders are canonical lifecycle driven.
-- [ ] patient/staff Telegram/MAX notifications are preserved.
+- [x] reminders are canonical lifecycle driven. *(Raw webhook has no direct reminder trigger; lifecycle tests cover create/reschedule/payment reminder scheduling.)*
+- [x] patient/staff Telegram/MAX notifications are preserved. *(Lifecycle tests cover create/cancel/reschedule/payment channel behavior and doctor notification path.)*
 - [ ] Web Push behavior is preserved.
-- [ ] payment capture side effects are preserved.
-- [ ] package link/unlink side effects are preserved.
-- [ ] booking delete side effects are preserved.
+- [x] payment capture side effects are preserved. *(Lifecycle parity test covers notifications, reminders and GCal update.)*
+- [x] package link/unlink side effects are preserved. *(Lifecycle parity tests cover GCal update without patient notifications.)*
+- [x] booking delete side effects are preserved. *(Lifecycle parity test covers GCal cleanup by current map key.)*
 - [ ] durable idempotency is based on canonical appointment/event version. *(Storage is now DB-backed via `idempotency_keys`; canonical event/version key contract remains open.)*
 - [ ] `booking_calendar_map` is migrated/kept as provider-neutral canonical map.
 - [ ] existing GCal events update/delete without duplicates after rekey/migration.

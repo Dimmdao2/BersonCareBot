@@ -510,6 +510,125 @@ describe('POST booking lifecycle event routes', () => {
     );
   });
 
+  it('booking.package_unlinked syncs GCal without patient notifications', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.package_unlinked' as const,
+      idempotencyKey: `pkg-unlinked-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        canonicalAppointmentId: 'df24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: 'df24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      }),
+      expect.any(Object),
+    );
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('booking.payment_captured sends notifications, schedules reminders, and syncs GCal', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-immediate', maxId: null } })
+      .mockResolvedValueOnce({ channelBindings: { telegramId: 'tg-reminders', maxId: null } });
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.payment_captured' as const,
+      idempotencyKey: `payment-captured-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        bookingId: '2f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+        canonicalAppointmentId: '3f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(dispatchOutgoing).toHaveBeenCalled();
+    expect(getTargetsByPhone).toHaveBeenNthCalledWith(2, '+79990001122', {
+      topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
+    });
+    expect(enqueueMessageRetryJob).toHaveBeenCalled();
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: '3f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('booking.reschedule_requested marks canonical GCal as pending without notifications', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.reschedule_requested' as const,
+      idempotencyKey: `reschedule-requested-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        canonicalAppointmentId: '4f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: '4f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+        titleMarker: 'reschedule_pending',
+      }),
+      expect.any(Object),
+    );
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('booking.deleted removes GCal by current map key', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.deleted' as const,
+      idempotencyKey: `booking-deleted-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        rubitimeId: 'rt-delete-gcal',
+        canonicalAppointmentId: '5f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncAppointmentToCalendar).toHaveBeenCalledWith(
+      { action: 'canceled', rubRecordId: 'rt-delete-gcal' },
+      expect.any(Object),
+    );
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
   it('booking.cancelled updates GCal title with cancel marker instead of deleting', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);
