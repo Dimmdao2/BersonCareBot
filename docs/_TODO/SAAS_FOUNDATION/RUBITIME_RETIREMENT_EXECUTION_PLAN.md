@@ -14,7 +14,7 @@ Rubitime должен быть полностью удалён из целево
 
 Минимальный безопасный путь:
 
-1. `appointment_records` и `integrator.rubitime_records` сверены как два независимых источника Rubitime history; все подтверждённые записи перенесены в `be_appointments`.
+1. Fresh Rubitime CSV сверена с `appointment_records` и canonical mappings; все CSV-present записи перенесены/смэпплены в `be_appointments`, а `integrator.rubitime_records` используется только как audit signal.
 2. `booking_doctor_appointments_read_source` permanently `canonical`.
 3. `booking_slots_read_source` permanently `canonical`.
 4. Google Calendar, reminders, notifications, payment/package lifecycle и booking events больше не читают raw Rubitime webhook/records.
@@ -49,7 +49,7 @@ Current known facts:
 - `be_appointments` is canonical booking data.
 - `appointment_records` is deprecated but live until doctor read-source cutover.
 - Existing script `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` imports Rubitime history from `appointment_records` into `be_appointments`. Fresh Rubitime export CSV is the owner-approved canon for what must exist: records present in the export are needed; records absent from the export are not needed. `integrator.rubitime_records` is audit-only when the fresh export exists and must not override the export.
-- `integrator.rubitime_records/events` are live raw provider/projection state until retirement.
+- `integrator.rubitime_records/events` are live raw provider/projection state until retirement, but they are not the preservation canon when a fresh Rubitime CSV exists.
 - `integrator.rubitime_booking_profiles/branches/services/cooperators` are deprecated v1 profile catalog and can be frozen before full Rubitime deletion.
 - Google Calendar currently has Rubitime raw webhook path and a canonical booking-event path under a Rubitime-named route.
 - Reminders, notifications, payment/package lifecycle and booking lifecycle may still depend on integrator/Rubitime projection/route naming and must be proven provider-neutral canonical-only before deletion.
@@ -718,7 +718,7 @@ Scope:
 
 Ask Sol to verify:
 
-1. Is `appointment_records` sufficient as history source, or must direct `integrator.rubitime_records` import be included?
+1. Does the plan consistently enforce the owner decision that fresh Rubitime CSV is the preservation canon and `integrator.rubitime_records` is audit-only when CSV exists?
 2. Are GCal, reminders, notifications, payment/package lifecycle and provider-neutral booking-event routing fully covered before Rubitime runtime removal?
 3. Are any public/patient booking paths still forced through Rubitime v1/v2 after `booking_slots_read_source=canonical`?
 4. Is it safe to remove `booking_rubitime_bridge_enabled`, or does it also gate non-Rubitime mirror behavior?
@@ -974,11 +974,11 @@ defines the required audit, archive/export, migration and fresh restore proof fo
 Rubitime is retired only when all items below are checked.
 
 - [x] R0 freeze complete.
-- [ ] R1 dual-source history complete.
-- [ ] R1-HISTORY-CONTRACT complete.
-- [ ] R2 doctor canonical read-source complete.
-- [ ] R3 patient/public canonical slots/create complete.
-- [ ] R3-TENANT exact tenant complete.
+- [x] R1 dual-source history complete.
+- [x] R1-HISTORY-CONTRACT complete.
+- [x] R2 doctor canonical read-source complete.
+- [x] R3 patient/public canonical slots/create complete.
+- [x] R3-TENANT exact tenant complete.
 - [ ] R3-CATALOG catalog migration complete.
 - [ ] R4 provider-neutral lifecycle complete.
 - [ ] R5 legacy v1 resolve disabled in production.

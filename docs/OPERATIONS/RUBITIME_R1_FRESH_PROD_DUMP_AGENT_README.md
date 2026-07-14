@@ -1,15 +1,31 @@
-# Rubitime R1 fresh prod-dump agent README
+# Rubitime retirement fresh prod-dump agent README
 
 Статус: операционный старт для агентов, рабочая ветка `feat/doctor-ui-rebuild`, 2026-07-14.
 
 Цель: один понятный порядок действий для агента, которому нужно подготовить свежий prod dump к
-Rubitime R1 retirement / canonical booking proof. Не начинать с нового SQL и не придумывать новые
-backfill/data-fix скрипты: в рабочей ветке уже есть выверенные scripts, deploy-wrappers и R1 audit docs.
+Rubitime retirement / canonical booking proof. Не начинать с нового SQL и не придумывать новые
+backfill/data-fix скрипты: в рабочей ветке уже есть выверенные scripts, deploy-wrappers и audit docs.
 
 Последний green proof: dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`
 → disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` → `scripts/deploy-saas-667.sh`
 PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подробный агрегатный отчет:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+
+## Главный инвариант данных
+
+Для R1/R2/Rubitime retirement канон состава записей — свежая выгрузка Rubitime CSV.
+
+- Есть в свежем CSV — запись нужна: она должна быть сохранена, импортирована, смэпплена в canonical или явно
+  owner-waived.
+- Нет в свежем CSV — запись не нужна для preservation gate и не должна воскресать в canonical только потому, что
+  она нашлась в старом integrator raw/projection state.
+- `integrator.rubitime_records` — только audit/diagnostic material, когда свежий CSV есть. Он не источник истины
+  для импорта, удаления или блокировки R1/R2.
+- Текущий owner-approved экспорт сопоставляется через существующие city/branch mappings и относится к одному
+  специалисту владельца, идентифицированному по телефону `89643805480` / tail `9643805480`.
+- Счетчики вида `legacy-only=290` означают разницу архивов `public.appointment_records` vs
+  `integrator.rubitime_records`, а не список грязных видимых записей. Live rows уже должны быть представлены в
+  canonical; unmapped residue должен быть soft-deleted или owner-waived. Решение принимает CSV, не integrator.
 
 ## 0. Абсолютные правила
 
@@ -20,10 +36,8 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 - Не писать ad hoc SQL, пока не доказано, что существующие скрипты ниже не покрывают задачу.
 - Любой R1 отчет должен быть aggregate-only: без пациентских ФИО, телефонов, email, raw payloads и внешних ids.
 - R2/R3/R4 Rubitime retirement запрещены, пока R1 clean-copy proof не закрыт и не принят владельцем.
-- R1/R2 source of truth: свежая выгрузка Rubitime CSV. Есть в CSV — надо сохранить/импортировать/маппить;
-  нет в CSV — не надо. `integrator.rubitime_records` не является каноном, если есть свежий CSV. Для текущего
-  R1/R2 proof выгрузка сопоставляется через города/филиалы и относится к одному специалисту владельца,
-  идентифицированному по phone tail `9643805480`.
+- Не превращать `integrator.rubitime_records` anti-join в blocker, если свежий CSV и canonical proof уже закрывают
+  состав данных.
 
 ## 1. Что читать на старте
 
