@@ -13,12 +13,14 @@ items are still blocked by owner-approved production cutoff/drain, production fl
 Machine checks:
 
 ```bash
+pnpm run check:rubitime-retirement-current
 pnpm run check:rubitime-final-gate
-node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete
+pnpm run check:rubitime-retirement-complete
 ```
 
 The default check verifies that every current blocker has an explicit expected proof and gate. The
-`--require-complete` mode is the final retirement gate and must fail until all final proof artifacts exist.
+`check:rubitime-retirement-complete` mode is the final retirement gate and must fail until all final proof artifacts
+exist.
 The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 If a final proof file exists, the checker validates its required content fragments against that packet.
@@ -57,9 +59,11 @@ If a final proof file exists, the checker validates its required content fragmen
    proof exists. The checker fails if a gated section-15 item is marked `[x]`.
 2. Run `pnpm run check:rubitime-final-gate` before any handoff. It should pass while the blockers are explicitly
    documented.
-3. Run `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete` only when claiming
-   final Rubitime retirement. It must fail until all blockers are converted to `pass` with proof files.
-4. Do not create placeholder proof files to satisfy the checker. Proof files must contain real command output,
+3. Run `pnpm run check:rubitime-retirement-current` before any handoff to cover all current non-destructive Rubitime
+   retirement checks in one command.
+4. Run `pnpm run check:rubitime-retirement-complete` only when claiming final Rubitime retirement. It must fail until
+   all blockers are converted to `pass` with proof files.
+5. Do not create placeholder proof files to satisfy the checker. Proof files must contain real command output,
    owner decisions and commit hashes from the relevant production/non-prod run.
-5. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
+6. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
    fails even in default mode.

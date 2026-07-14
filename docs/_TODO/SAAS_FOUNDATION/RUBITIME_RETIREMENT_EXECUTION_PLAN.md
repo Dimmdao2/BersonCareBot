@@ -1090,12 +1090,13 @@ Rubitime is retired only when all items below are checked.
 Machine gate:
 
 ```bash
+pnpm run check:rubitime-retirement-current
 pnpm run check:rubitime-final-gate
-node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete
+pnpm run check:rubitime-retirement-complete
 ```
 
-Default mode verifies the current blockers are explicit. `--require-complete` is the final acceptance command and
-must stay red until R5/R6/R7 final proof files exist.
+Current mode verifies the active non-destructive Rubitime retirement gates. `check:rubitime-retirement-complete` is
+the final acceptance command and must stay red until R5/R6/R7 final proof files exist.
 Owner/ops packet for the remaining decisions: `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 
 - [x] R0 freeze complete.
