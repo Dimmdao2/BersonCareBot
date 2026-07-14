@@ -93,20 +93,22 @@ export async function POST(request: Request) {
   }
 
   let syncContext: StaffRubitimeSyncContext | null = null;
-  try {
-    syncContext = await resolveRubitimeSyncContext({
-      deps,
-      organizationId: orgId,
-      branchId: parsed.data.branchId ?? null,
-      serviceId: parsed.data.serviceId ?? null,
-      specialistId: resolvedSpecialistId,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "rubitime_mapping_missing";
-    if (message === "rubitime_mapping_missing" || message === "rubitime_sync_context_missing") {
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  if (bridgeEnabled) {
+    try {
+      syncContext = await resolveRubitimeSyncContext({
+        deps,
+        organizationId: orgId,
+        branchId: parsed.data.branchId ?? null,
+        serviceId: parsed.data.serviceId ?? null,
+        specialistId: resolvedSpecialistId,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "rubitime_mapping_missing";
+      if (message === "rubitime_mapping_missing" || message === "rubitime_sync_context_missing") {
+        return NextResponse.json({ ok: false, error: message }, { status: 400 });
+      }
+      return NextResponse.json({ ok: false, error: message }, { status: 502 });
     }
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
   }
 
   try {

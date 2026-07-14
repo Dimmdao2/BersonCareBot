@@ -24,6 +24,7 @@ const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
+const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
@@ -56,7 +57,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       resolveBranchService: resolveBranchServiceMock,
     },
     rubitimeCanonicalProjection: {
-      isBridgeEnabled: async () => true,
+      isBridgeEnabled: async () => bridgeEnabledState.value,
     },
     memberships: null,
     patientBooking: null,
@@ -69,6 +70,58 @@ describe("POST manual appointment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
+    bridgeEnabledState.value = true;
+  });
+
+  it("creates canonical appointment without resolving Rubitime mapping when bridge is disabled", async () => {
+    bridgeEnabledState.value = false;
+    requireDoctorBookingEngineMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "org-1",
+        session: { user: { userId: "u1", role: "doctor" } },
+        service: {
+          createAppointment: createAppointmentMock,
+          transitionAppointmentStatus: transitionAppointmentStatusMock,
+          deleteAppointmentHard: deleteAppointmentHardMock,
+          upsertRubitimeAppointmentMapping: vi.fn(),
+        },
+      },
+    });
+    createAppointmentMock.mockResolvedValue({
+      id: "appt-1",
+      startAt: "2026-06-01T10:00:00.000Z",
+      endAt: "2026-06-01T11:00:00.000Z",
+      platformUserId: null,
+      phoneNormalized: null,
+      attributionJson: {},
+      organizationId: "org-1",
+      status: "confirmed",
+      source: "admin_manual",
+    });
+    assertSlotAvailableMock.mockResolvedValue(undefined);
+    emitBookingEventMock.mockResolvedValue(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          branchId: "11111111-1111-4111-8111-111111111111",
+          serviceId: "22222222-2222-4222-8222-222222222222",
+          specialistId: "33333333-3333-4333-8333-333333333333",
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: "2026-06-01T11:00:00.000Z",
+          durationMinutes: 60,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(resolveLegacyBranchServiceIdMock).not.toHaveBeenCalled();
+    expect(resolveBranchServiceMock).not.toHaveBeenCalled();
+    expect(createRecordMock).not.toHaveBeenCalled();
+    expect(emitBookingEventMock).toHaveBeenCalled();
   });
 
   it("returns external_slot_taken and rolls back appointment on Rubitime conflict", async () => {

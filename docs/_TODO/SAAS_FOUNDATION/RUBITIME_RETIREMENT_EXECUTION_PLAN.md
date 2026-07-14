@@ -937,6 +937,7 @@ the required read-only drain snapshots, fresh CSV reconciliation and owner-appro
 - [ ] final dual-source reconciliation after cutoff is run.
 - [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only.
 - [x] old webapp doctor Rubitime proxy routes are removed. *(Removed `/api/doctor/appointments/rubitime/update` and `/api/doctor/appointments/rubitime/cancel`; no UI callers found.)*
+- [x] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled.
 - [ ] Rubitime webhook route is unmounted.
 - [ ] Rubitime `/slots` route is unmounted.
 - [ ] Rubitime `/create-record` route is unmounted.

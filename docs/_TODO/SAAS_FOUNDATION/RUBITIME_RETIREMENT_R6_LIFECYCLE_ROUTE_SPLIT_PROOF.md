@@ -16,6 +16,9 @@ This proof covers the first R6 code split before destructive integrator Rubitime
 - The old doctor webapp proxy routes `POST /api/doctor/appointments/rubitime/update` and
   `POST /api/doctor/appointments/rubitime/cancel` were removed. `rg` found no UI callers; canonical booking-engine
   doctor/admin routes remain the supported runtime surface.
+- Doctor/admin manual create no longer resolves legacy Rubitime branch-service mapping when
+  `booking_rubitime_bridge_enabled=false`. Canonical manual create remains available; Rubitime `create-record` remains
+  gated for cutoff-dependent bridge-enabled flows.
 
 No production DB, env, service, webhook, or Rubitime endpoint was changed.
 
@@ -34,4 +37,6 @@ the lifecycle handler body out of `integrations/rubitime` or delete the Rubitime
 - `pnpm --dir apps/webapp typecheck` - passed after deleting stale generated Next validator dirs
   `apps/webapp/.next/types` and `apps/webapp/.next/dev/types`; running Next servers were checked first and
   `.next/cache` / standalone output were not touched.
+- `pnpm --dir apps/webapp exec vitest run src/app/api/doctor/booking-engine/appointments/manual/route.test.ts src/app/api/admin/booking-engine/appointments/manual/route.test.ts` - passed, 10 tests.
+- `pnpm --dir apps/webapp exec eslint src/app/api/doctor/booking-engine/appointments/manual/route.ts src/app/api/admin/booking-engine/appointments/manual/route.ts src/app/api/doctor/booking-engine/appointments/manual/route.test.ts src/app/api/admin/booking-engine/appointments/manual/route.test.ts` - passed.
 - `rg -n "api/doctor/appointments/rubitime|appointments/rubitime/(update|cancel)" apps/webapp/src apps/webapp/INTEGRATOR_CONTRACT.md apps/webapp/src/app/api/api.md -g '*.ts' -g '*.tsx' -g '*.md'` - no runtime code hits; only retired-doc note remains.
