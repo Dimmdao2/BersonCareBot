@@ -1,8 +1,10 @@
 # Rubitime retirement — execution plan
 
-Статус: draft after Sol audit, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки этим документом не меняются.
+Статус: R1 blocked after clean-dump rehearsal, 2026-07-14. Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки этим документом не меняются.
 
 Sol audit `bcb-rubitime-retirement-plan-sol-audit-2026-07-14` вернул исходному черновику `BLOCKED`. Этот документ обновлён с учётом обязательных P0/P1 правок: dual-source history, provider-neutral lifecycle, tenant-safe public booking, table-by-table catalog disposition, cutoff/drain и запрет удаления живых canonical maps.
+
+Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул R1 `FAIL`: локально нет одновременно current-schema и correctly seeded clean dump, а полный replay не является self-contained. Следующий R1 путь: fresh current unified dump + exact cutoff CSV + preflight PASS, затем предпочтительно transfer-final-state из audited final R1 state вместо полного replay. Канон: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
 
 ## 1. Verdict
 
@@ -190,6 +192,15 @@ Rules:
 - Do not use ad hoc SQL for import or cleanup.
 - Do not delete `admin_manual` conflicts via this script; use the proper UI/flow.
 - Do not enter R2 until dual-source raw-vs-legacy delta is zero or explicitly imported/waived in the execution log.
+- Do not enter R2 until a current-schema clean-copy rehearsal passes. The rehearsal copy must pass:
+
+```bash
+DATABASE_URL='<loopback-rehearsal-url>' \
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \
+  --csv=<fresh-rubitime-csv>
+```
+
+- Full replay is not self-contained on arbitrary clean DBs. If replay cannot be proven on a fully seeded current dump, use the transfer-final-state contract from `RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`: transfer `appointment_records.deleted_at`, `be_appointments` rows with `source='rubitime_projection'`, Rubitime appointment mappings, and related canonical event/history rows through a secured transactional bundle with FK/tenant/deletion invariants.
 
 Acceptance:
 
@@ -198,6 +209,7 @@ Acceptance:
 - `DUPLICATE clusters = 0`.
 - `STALE vs Rubitime CSV = 0`.
 - `CONFLICTS = 0` or owner-approved list is explicitly documented.
+- clean-copy rehearsal passes on a fresh current unified dump with the exact cutoff CSV, or owner records an explicit transfer-final-state exception/runbook before R2.
 - Doctor calendar/list/KPI still show expected records.
 
 ### Phase R1-HISTORY-CONTRACT — state history vs raw provider archive
@@ -773,6 +785,10 @@ It soft-deleted 47 legacy rows and 34 mapped canonical `rubitime_projection` row
 is now 28. No `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, Rubitime runtime/table removal, or R2
 work was used. R1 remains blocked.
 
+Execution note 2026-07-14: owner-approved fallback import, strict canceled cleanup, and stale-vs-owner-CSV cleanup were completed in dev DB only and are recorded in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`, `RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`, and `RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md`. Current dev aggregate blockers for stale/unmapped/duplicates are closed: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. Remaining R1 blockers are legacy-only classification/waiver, 4 status mismatches, 2 record-time mismatches, mapping anomaly policy, doctor calendar/list/KPI smoke, and clean-copy transfer/rehearsal proof.
+
+Execution note 2026-07-14: `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` restored the best locally readable prod-like dump into an isolated user-owned PG16 on `127.0.0.1:55432`; rehearsal result was `FAIL`. The dump has canonical Rubitime seed, but `pnpm run migrate` fails at `0143_seed_staff_organization_members.sql`, required current columns/tables are missing before migration, and the exact cutoff CSV is not locally present. No current `bcb_webapp_dev`, production DB, `/opt/env`, or live channels were touched. `RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md` defines the required transfer-final-state contract and next rehearsal commands.
+
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*
@@ -780,11 +796,15 @@ work was used. R1 remains blocked.
 - [ ] status/freshness mismatches are classified.
 - [x] canonical mapping coverage is recorded.
 - [x] `backfill-canonical-from-legacy-appointments` dry-run output is saved.
-- [x] owner-provided CSV stale dry-run proof is saved. *(stale result is 29; cleanup remains unauthorized.)*
+- [x] owner-provided CSV stale dry-run proof is saved and owner-approved stale cleanup completed in dev. *(current stale-vs-owner-CSV is 0.)*
 - [ ] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`.
 - [x] commit run is approved before any `--commit`. *(approved only for the narrow cleanup flags in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; other commit modes remain gated.)*
 - [x] commit run completes, if approved. *(narrow cleanup only; R1 proof still blocked.)*
-- [ ] post-run diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, `STALE 0`, and `CONFLICTS 0` or approved exceptions.
+- [x] post-run cleanup diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, and `STALE 0` in dev.
+- [ ] `CONFLICTS` / mismatch / mapping anomaly policy is owner-reviewed or explicitly waived.
+- [x] clean-dump rehearsal was attempted on the best locally readable prod-like dump.
+- [ ] clean-dump rehearsal passes on a fresh current unified dump with exact cutoff CSV.
+- [ ] transfer-final-state bundle/runbook is implemented and rehearsed, if replay remains non-self-contained.
 - [ ] doctor calendar/list/KPI smoke confirms expected historical records.
 
 ### R1-HISTORY-CONTRACT — canonical state history vs raw provider archive
