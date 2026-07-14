@@ -14,7 +14,7 @@ Rubitime должен быть полностью удалён из целево
 
 Минимальный безопасный путь:
 
-1. Fresh Rubitime CSV сверена с `appointment_records` и canonical mappings; все CSV-present записи перенесены/смэпплены в `be_appointments`, а `integrator.rubitime_records` используется только как audit signal.
+1. Fresh Rubitime CSV сверена с `appointment_records` и canonical mappings; все CSV-present записи перенесены/смэпплены в `be_appointments`, а `integrator.rubitime_records` используется только как audit signal. Integrator-only строки, отсутствующие в CSV, не являются import/drop blockers.
 2. `booking_doctor_appointments_read_source` permanently `canonical`.
 3. `booking_slots_read_source` permanently `canonical`.
 4. Google Calendar, reminders, notifications, payment/package lifecycle и booking events больше не читают raw Rubitime webhook/records.
@@ -49,7 +49,7 @@ Current known facts:
 - `be_appointments` is canonical booking data.
 - `appointment_records` is deprecated but live until doctor read-source cutover.
 - Existing script `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` imports Rubitime history from `appointment_records` into `be_appointments`. Fresh Rubitime export CSV is the owner-approved canon for what must exist: records present in the export are needed; records absent from the export are not needed. `integrator.rubitime_records` is audit-only when the fresh export exists and must not override the export.
-- `integrator.rubitime_records/events` are live raw provider/projection state until retirement, but they are not the preservation canon when a fresh Rubitime CSV exists.
+- `integrator.rubitime_records/events` are legacy raw provider/projection tables that may remain until R6/R7 for drain/archive proof, but they are not the preservation canon when a fresh Rubitime CSV exists.
 - `integrator.rubitime_booking_profiles/branches/services/cooperators` are deprecated v1 profile catalog and can be frozen before full Rubitime deletion.
 - Google Calendar currently has Rubitime raw webhook path and a canonical booking-event path under a Rubitime-named route.
 - Reminders, notifications, payment/package lifecycle and booking lifecycle may still depend on integrator/Rubitime projection/route naming and must be proven provider-neutral canonical-only before deletion.
@@ -114,7 +114,7 @@ Drop must be migration-backed and preceded by archive/export decision. No ad hoc
 
 Required before implementation:
 
-1. **History source.** Owner decision recorded 2026-07-14: fresh Rubitime export is the R1 canon. `public.appointment_records` plus canonical mappings are checked against the export; `integrator.rubitime_records` is audit-only and non-authoritative when the fresh export exists.
+1. **History source.** Owner decision recorded 2026-07-14: fresh Rubitime export is the R1 canon. The export is the one-specialist owner context (`89643805480` / tail `9643805480`) and is matched through existing city/branch mappings. `public.appointment_records` plus canonical mappings are checked against the export; `integrator.rubitime_records` is audit-only and non-authoritative when the fresh export exists.
 2. **Archive window.** Decide whether legacy Rubitime raw tables are archived to SQL/CSV before drop, and how long archives are retained.
 3. **Google Calendar ownership.** Confirm provider-neutral canonical lifecycle becomes the only source of GCal writes and `booking_calendar_map` is migrated/kept as canonical infrastructure.
 4. **Downstream ownership.** Confirm canonical booking lifecycle becomes the only source for booking reminders, patient/staff notifications, Web Push, payment capture, package link/unlink and booking delete side effects.
@@ -156,10 +156,10 @@ Step 1: run dual-source audit before any commit.
 
 Required comparisons:
 
-- `appointment_records.integrator_record_id` vs `integrator.rubitime_records.rubitime_record_id` / equivalent external id.
+- `appointment_records.integrator_record_id` vs `integrator.rubitime_records.rubitime_record_id` / equivalent external id, only as diagnostic input for CSV reconciliation.
 - live appointment count and max `record_at` in both sources.
 - raw-only records not present in `appointment_records` as audit evidence only; if they are absent from the fresh Rubitime CSV, they are not canonical import targets.
-- legacy-only records not present in raw.
+- legacy-only records not present in raw, only as diagnostic/archive classification when CSV coverage is closed.
 - status/freshness mismatches for the same external id.
 - canonical mapping coverage in `be_external_entity_mappings`.
 
@@ -193,7 +193,7 @@ Rules:
 - Use a fresh Rubitime CSV if `--drop-stale-from-csv` is used.
 - Do not use ad hoc SQL for import or cleanup.
 - Do not delete `admin_manual` conflicts via this script; use the proper UI/flow.
-- Do not enter R2 until dual-source raw-vs-legacy delta is zero or explicitly imported/waived in the execution log.
+- Do not enter R2 until the CSV-present missing delta is zero or explicitly imported/waived in the execution log. Raw-vs-legacy deltas absent from the fresh CSV are audit-only and do not block R2.
 - Do not enter R2 until a current-schema clean-copy rehearsal passes. The rehearsal copy must pass:
 
 ```bash

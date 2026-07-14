@@ -21,6 +21,8 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
   она нашлась в старом integrator raw/projection state.
 - `integrator.rubitime_records` — только audit/diagnostic material, когда свежий CSV есть. Он не источник истины
   для импорта, удаления или блокировки R1/R2.
+- Любое расхождение `integrator.rubitime_records` с CSV решается в пользу CSV. Integrator-only строки, которых нет
+  в CSV, не импортировать, не восстанавливать и не считать cleanup blocker.
 - Текущий owner-approved экспорт сопоставляется через существующие city/branch mappings и относится к одному
   специалисту владельца, идентифицированному по телефону `89643805480` / tail `9643805480`.
 - Счетчики вида `legacy-only=290` означают разницу архивов `public.appointment_records` vs
@@ -38,6 +40,8 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 - R2/R3/R4 Rubitime retirement запрещены, пока R1 clean-copy proof не закрыт и не принят владельцем.
 - Не превращать `integrator.rubitime_records` anti-join в blocker, если свежий CSV и canonical proof уже закрывают
   состав данных.
+- Не требовать `appointment_records` vs `integrator.rubitime_records` delta = 0. Требовать только, чтобы каждая
+  CSV-present запись была imported/mapped/owner-waived.
 
 ## 1. Что читать на старте
 
