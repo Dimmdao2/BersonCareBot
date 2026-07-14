@@ -894,8 +894,8 @@ mappings and the owner-approved single-specialist export context.
 
 ### R4 — provider-neutral canonical downstream events
 
-- [ ] current Rubitime raw webhook GCal writes are inventoried.
-- [ ] current Rubitime raw webhook reminder triggers are inventoried.
+- [x] current Rubitime raw webhook GCal writes are inventoried. *(See `RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md`: raw webhook/post-create still call Rubitime-keyed GCal sync.)*
+- [x] current Rubitime raw webhook reminder triggers are inventoried. *(No direct raw webhook reminder trigger found; reminders are lifecycle-driven.)*
 - [x] current Rubitime-named `booking-event` side effects are inventoried. *(See `RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md`.)*
 - [x] provider-neutral lifecycle endpoint is implemented or assigned. *(`/api/bersoncare/booking/lifecycle-event`; Rubitime-named route remains alias only.)*
 - [x] webapp calls provider-neutral lifecycle endpoint.

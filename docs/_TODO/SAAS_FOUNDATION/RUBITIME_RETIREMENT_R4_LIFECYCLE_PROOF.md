@@ -41,6 +41,35 @@ Existing tests around the lifecycle handler cover:
 - reschedule reminder cancellation/re-scheduling;
 - doctor Telegram notification path when configured.
 
+## Raw Rubitime Runtime Inventory
+
+Raw Rubitime webhook/post-create paths still exist and must not be removed until R6 gates are satisfied:
+
+- `apps/integrator/src/integrations/rubitime/webhook.ts`
+  - `POST /webhook/rubitime/:token` validates Rubitime payloads.
+  - `GET /api/rubitime?record_success=...` fetches the Rubitime record by id and re-enters the same raw webhook processing path.
+  - Both paths call `prepareRubitimeWebhookIngress`, then `syncRubitimeWebhookBodyToGoogleCalendar`, then `rubitimeIncomingToEvent`, then `eventGateway.handleIncomingEvent`.
+  - Both paths may emit `user.email.autobind` for `event-create-record`.
+
+- `apps/integrator/src/integrations/rubitime/postCreateProjection.ts`
+  - After Rubitime `create-record`, `runPostCreateProjection(recordId)` fetches the full Rubitime record.
+  - It builds synthetic `event-create-record` input, normalizes ingress, runs `syncRubitimeWebhookBodyToGoogleCalendar`, then writes `booking.upsert` into the legacy projection path.
+  - This is still Rubitime API-dependent and cannot survive provider removal as-is.
+
+- `apps/integrator/src/integrations/rubitime/connector.ts`
+  - `syncRubitimeWebhookBodyToGoogleCalendar` maps raw Rubitime incoming actions to `syncAppointmentToCalendar` keyed by Rubitime record id.
+  - `event-delete-record` / `event-remove-record` map to GCal cancellation/deletion behavior.
+
+- `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
+  - Rubitime `remove-record` still attempts GCal cleanup through `syncAppointmentToCalendar` before calling Rubitime remove.
+  - Rubitime `create-record` still runs `runPostCreateProjection` after successful Rubitime create in both v2 and legacy v1 paths.
+
+Reminder inventory:
+
+- No direct reminder scheduling was found in `webhook.ts`, `postCreateProjection.ts`, or `connector.ts`.
+- Booking reminders are currently scheduled/cancelled from canonical booking lifecycle handling in `recordM2mRoute.ts` via `scheduleBookingReminders` and `cancelPendingBookingReminders`.
+- Therefore R4 reminder replacement is primarily a proof/removal task: keep lifecycle route, then remove raw Rubitime runtime without reintroducing reminder behavior there.
+
 ## Still Open
 
 - Raw Rubitime webhook and post-create projection are still present and must be drained/disabled before runtime route removal.
