@@ -801,9 +801,9 @@ Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/publi
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
 fresh Rubitime CSV is needed; anything absent from it is not needed. `integrator.rubitime_records` is
-non-authoritative when it disagrees with the fresh export / `appointment_records` history. The export is
-matched through existing city/branch mappings and the R1 history belongs to one specialist resolved through
-owner-provided doctor phone tail `9643805480`.
+non-authoritative when it disagrees with the fresh export / `appointment_records` history, and integrator-only
+rows absent from the CSV must not be resurrected into canonical. The export is matched through existing city/branch
+mappings and the owner-approved single-specialist export context.
 
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
@@ -896,10 +896,10 @@ owner-provided doctor phone tail `9643805480`.
 
 - [ ] current Rubitime raw webhook GCal writes are inventoried.
 - [ ] current Rubitime raw webhook reminder triggers are inventoried.
-- [ ] current Rubitime-named `booking-event` side effects are inventoried.
-- [ ] provider-neutral lifecycle endpoint is implemented or assigned.
-- [ ] webapp calls provider-neutral lifecycle endpoint.
-- [ ] Rubitime-named lifecycle route is only a bounded compatibility alias.
+- [x] current Rubitime-named `booking-event` side effects are inventoried. *(See `RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md`.)*
+- [x] provider-neutral lifecycle endpoint is implemented or assigned. *(`/api/bersoncare/booking/lifecycle-event`; Rubitime-named route remains alias only.)*
+- [x] webapp calls provider-neutral lifecycle endpoint.
+- [x] Rubitime-named lifecycle route is only a bounded compatibility alias.
 - [ ] GCal create/update/delete is canonical lifecycle driven.
 - [ ] reminders are canonical lifecycle driven.
 - [ ] patient/staff Telegram/MAX notifications are preserved.

@@ -3,7 +3,7 @@
  * Подпись как у send-sms / send-email.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { getAppBaseUrl } from '../../config/appBaseUrl.js';
 import { createDbPort } from '../../infra/db/client.js';
@@ -845,14 +845,18 @@ export async function registerRubitimeRecordM2mRoutes(
     }
   });
 
-  app.post('/api/bersoncare/rubitime/booking-event', async (request, reply) => {
+  const handleBookingEventRequest = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    routeLabel: 'booking lifecycle-event' | 'rubitime booking-event',
+  ) => {
     const g = guard(request);
     if (!g.ok) {
       return reply.code(g.code).send({ ok: false, error: g.err });
     }
     const parsed = parseBookingLifecycleEvent(request.body);
     if (!parsed.success) {
-      logger.warn({ err: parsed.error.flatten() }, 'rubitime booking-event validation failed');
+      logger.warn({ err: parsed.error.flatten() }, `${routeLabel} validation failed`);
       return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
     }
     try {
@@ -860,8 +864,16 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(200).send({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn({ err }, 'rubitime booking-event failed');
+      logger.warn({ err }, `${routeLabel} failed`);
       return reply.code(502).send({ ok: false, error: msg });
     }
-  });
+  };
+
+  app.post('/api/bersoncare/booking/lifecycle-event', async (request, reply) =>
+    handleBookingEventRequest(request, reply, 'booking lifecycle-event'),
+  );
+
+  app.post('/api/bersoncare/rubitime/booking-event', async (request, reply) =>
+    handleBookingEventRequest(request, reply, 'rubitime booking-event'),
+  );
 }

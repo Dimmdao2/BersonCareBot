@@ -294,7 +294,7 @@ export function createBookingSyncPort(): BookingSyncPort {
     },
 
     async emitBookingEvent(input): Promise<void> {
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/booking-event", {
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/booking/lifecycle-event", {
         eventType: input.eventType,
         idempotencyKey: input.idempotencyKey,
         payload: input.payload,

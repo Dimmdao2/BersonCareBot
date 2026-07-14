@@ -299,13 +299,40 @@ describe('Rubitime record M2M routes', () => {
   });
 });
 
-describe('POST /api/bersoncare/rubitime/booking-event', () => {
+describe('POST booking lifecycle event routes', () => {
   beforeEach(() => {
     enqueueMessageRetryJob.mockClear();
     cancelPendingBookingReminderJobsByBookingId.mockClear();
     dbQuery.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
     mockSyncCanonicalAppointmentToCalendar.mockClear();
+  });
+
+  it('provider-neutral route handles lifecycle events with canonical GCal side effects', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify({
+      eventType: 'booking.package_linked' as const,
+      idempotencyKey: `neutral-pkg-linked-${Date.now()}`,
+      payload: {
+        ...bookingEventBody().payload,
+        canonicalAppointmentId: 'df14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/booking/lifecycle-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'updated',
+        appointmentId: 'df14566f-a4de-4ab4-9336-5ddf806cd6ce',
+      }),
+      expect.any(Object),
+    );
   });
 
   it('returns 400 when payload is invalid (missing slotEnd)', async () => {

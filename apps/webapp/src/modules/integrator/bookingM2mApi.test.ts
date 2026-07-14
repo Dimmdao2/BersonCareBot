@@ -236,6 +236,37 @@ describe("createBookingSyncPort.cancelRecord", () => {
   });
 });
 
+describe("createBookingSyncPort.emitBookingEvent", () => {
+  it("posts provider-neutral lifecycle events instead of Rubitime-named booking-event", async () => {
+    let capturedUrl: string | undefined;
+    let capturedBody: Record<string, unknown> | undefined;
+    globalFetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+      capturedUrl = url;
+      capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      return { status: 200, json: () => Promise.resolve({ ok: true }) };
+    });
+    const port = createBookingSyncPort();
+    await port.emitBookingEvent({
+      eventType: "booking.created",
+      idempotencyKey: "booking-created-test",
+      payload: {
+        bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+        userId: "3f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+        bookingType: "online",
+        category: "general",
+        slotStart: "2026-04-10T10:00:00.000Z",
+        slotEnd: "2026-04-10T11:00:00.000Z",
+        contactName: "Ivan",
+        contactPhone: "+79990001122",
+      },
+    });
+    expect(capturedUrl).toContain("/api/bersoncare/booking/lifecycle-event");
+    expect(capturedUrl).not.toContain("/api/bersoncare/rubitime/booking-event");
+    expect(capturedBody?.eventType).toBe("booking.created");
+    expect(capturedBody?.idempotencyKey).toBe("booking-created-test");
+  });
+});
+
 describe("createBookingSyncPort postSigned retry", () => {
   afterEach(() => {
     vi.useRealTimers();
