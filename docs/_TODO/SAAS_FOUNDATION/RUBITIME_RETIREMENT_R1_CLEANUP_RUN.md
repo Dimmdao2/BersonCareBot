@@ -170,3 +170,49 @@ Interpretation: the expanded approved categories were idempotent against the cur
 | missing expected mapping metadata | 6 |
 
 Residual blockers remain, with stale proof now recorded separately in `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`; R1 remains blocked and R2 remains forbidden.
+
+## Non-confirmed cleanup pass
+
+Run id: `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`
+
+Scope: owner-approved cleanup for legacy Rubitime rows whose statuses are not confirmed/active/valid appointments. Detailed aggregate artifact: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md`.
+
+Exact flags:
+
+```bash
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --cleanup-only --delete-non-confirmed --summary-only \
+  --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-non-confirmed --summary-only \
+  --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
+```
+
+Not used: `--drop-stale-from-csv`, `--drop-legacy`, `--collapse-dups`, R2, production env, `/opt`.
+
+### Non-confirmed before and after
+
+| Check | Before | After |
+| --- | ---: | ---: |
+| Legacy live rows | 364 | 317 |
+| Canonical `rubitime_projection` live rows | 241 | 207 |
+| Unmapped legacy total | 112 | 99 |
+| Unmapped canceled | 13 | 0 |
+| Unmapped real active | 99 | 99 |
+| Duplicate clusters | 3 | 3 |
+| Stale vs owner CSV `records-2.csv` | 29 | 28 |
+| Non-confirmed cleanup candidates | 47 | 0 |
+
+Commit effects:
+
+| Action | Count |
+| --- | ---: |
+| Non-confirmed legacy rows soft-deleted | 47 |
+| Mapped canonical `rubitime_projection` rows soft-deleted | 34 |
+| `canceled` status rows in this cleanup | 45 |
+| `moved_awaiting` status rows in this cleanup | 2 |
+
+Post-pass dual-source audit: raw-only `0`, legacy-only `312`, status mismatches `4`, record-time mismatches `2`, legacy unmapped `129`, legacy mappings to soft-deleted canonical appointments `56`.
+
+Residual blockers remain: unmapped real active `99`, duplicate clusters `3`, stale-vs-owner-CSV `28`, legacy-only `312`, mismatch/mapping classifications, and doctor calendar/list/KPI smoke. R1 remains blocked and R2 remains forbidden.

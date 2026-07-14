@@ -766,6 +766,13 @@ summary-only dry-run mode and saved aggregate-only proof to
 `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`. The CSV proof reports 29 stale-vs-owner-CSV rows. No `--commit`,
 `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, or R2 work was used.
 
+Execution note 2026-07-14: `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14` implemented and ran the owner-approved
+non-confirmed status cleanup with `--commit --cleanup-only --delete-non-confirmed --summary-only` against dev DB only.
+It soft-deleted 47 legacy rows and 34 mapped canonical `rubitime_projection` rows; affected normalized statuses were
+`canceled` and `moved_awaiting` only. The post-run summary has non-confirmed cleanup candidates `0`; stale-vs-owner-CSV
+is now 28. No `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, Rubitime runtime/table removal, or R2
+work was used. R1 remains blocked.
+
 - [x] `appointment_records` vs `integrator.rubitime_records` anti-join is run.
 - [x] max `record_at` / freshness comparison is recorded for both sources.
 - [x] raw-only records are imported to canonical or owner-waived with ids and reason. *(raw-only delta is zero; no import/waiver needed from this audit.)*

@@ -116,3 +116,23 @@ Interpretation: the owner CSV completed the previously missing stale-vs-CSV dry-
 - Do not drop Rubitime runtime/schema.
 - Do not run stale cleanup with `--commit`, `--drop-stale-from-csv`, or `--drop-legacy`.
 - Do not treat the 29 stale-vs-CSV rows as removable without owner/reviewer classification.
+
+## Post non-confirmed cleanup rerun
+
+Run id: `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`
+
+After the separate owner-approved non-confirmed status cleanup, the same owner CSV proof command was rerun with `records-2.csv` in summary-only dry-run mode. No `--commit`, `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, or R2 work was used.
+
+| Check | Count |
+| --- | ---: |
+| Legacy live rows | 317 |
+| Canonical `rubitime_projection` live rows | 207 |
+| Unmapped legacy total | 99 |
+| Unmapped cancelled | 0 |
+| Unmapped real active | 99 |
+| Duplicate clusters | 3 |
+| Duplicate clusters with multiple canonical rows | 0 |
+| Stale vs owner CSV | 28 |
+| Non-confirmed cleanup candidates | 0 |
+
+The previous stale count dropped from 29 to 28 because one stale-vs-CSV row was also in the now-approved non-confirmed cleanup category. The remaining 28 stale-vs-CSV rows still require owner/reviewer classification before any broad stale cleanup.

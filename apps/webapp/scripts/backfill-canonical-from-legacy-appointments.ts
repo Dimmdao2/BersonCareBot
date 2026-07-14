@@ -31,6 +31,7 @@
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --delete-test    # + soft-delete test/block first
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --collapse-dups  # + collapse duplicate clusters
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --cleanup-only --delete-test --collapse-canceled-dups  # approved narrow cleanup only, no projection
+ *   pnpm backfill-canonical-from-legacy-appointments -- --commit --cleanup-only --delete-non-confirmed  # + soft-delete canceled/moved/non-confirmed statuses
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-legacy=8361933,8448355  # soft-delete stale ext-ids (audited, no ad-hoc SQL)
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-stale-from-csv          # AUTO: soft-delete legacy absent from the Rubitime CSV (within its date range)
  *   pnpm backfill-canonical-from-legacy-appointments -- --csv=../../.tmp/rubitime-import/records.csv  # CSV path (default)
@@ -46,7 +47,12 @@
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 import { sql, type SQL } from "drizzle-orm";
+import {
+  resolveRubitimeStatusFromPayload,
+  type RubitimeNormalizedStatus,
+} from "@bersoncare/booking-rubitime-sync";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import { createPgBookingRubitimeBridgePort } from "@/infra/repos/pgBookingRubitimeBridge";
@@ -64,6 +70,12 @@ const TEST_BLOCK_PHONES = [
 ];
 const TEST_BLOCK_NAME_MARKERS = ["тест", "test", "дмитрий берсон", "берсон", "блок окна"];
 const DEFAULT_CSV = "../../.tmp/rubitime-import/records.csv";
+const NON_CONFIRMED_CLEANUP_STATUSES = new Set<RubitimeNormalizedStatus>([
+  "canceled",
+  "awaiting_confirmation",
+  "in_cart",
+  "moved_awaiting",
+]);
 
 type Cli = {
   commit: boolean;
@@ -71,6 +83,7 @@ type Cli = {
   deleteTest: boolean;
   collapseDups: boolean;
   collapseCanceledDups: boolean;
+  deleteNonConfirmed: boolean;
   cleanupOnly: boolean;
   dropLegacy: string[];
   csvPath: string;
@@ -97,6 +110,7 @@ function parseCli(): Cli {
     deleteTest: argv.includes("--delete-test"),
     collapseDups: argv.includes("--collapse-dups"),
     collapseCanceledDups: argv.includes("--collapse-canceled-dups"),
+    deleteNonConfirmed: argv.includes("--delete-non-confirmed"),
     cleanupOnly: argv.includes("--cleanup-only"),
     dropLegacy,
     csvPath,
@@ -189,6 +203,64 @@ type DuplicateClusterRow = {
   distinct_canonical: number;
 };
 
+type LegacyStatusInput = {
+  status: string | null;
+  lastEvent?: string | null;
+  payloadJson?: unknown;
+};
+
+export function resolveNonConfirmedCleanupStatus(input: LegacyStatusInput): RubitimeNormalizedStatus | null {
+  return resolveRubitimeStatusFromPayload(input.payloadJson, input.status ?? input.lastEvent ?? undefined);
+}
+
+export function isNonConfirmedLegacyAppointment(input: LegacyStatusInput): boolean {
+  const normalized = resolveNonConfirmedCleanupStatus(input);
+  return normalized != null && NON_CONFIRMED_CLEANUP_STATUSES.has(normalized);
+}
+
+function summarizeStatuses(statuses: readonly RubitimeNormalizedStatus[]): string {
+  const tally = new Map<RubitimeNormalizedStatus, number>();
+  for (const status of statuses) tally.set(status, (tally.get(status) ?? 0) + 1);
+  return [...tally.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([status, count]) => `${status}: ${count}`)
+    .join(", ");
+}
+
+async function findNonConfirmedCleanupCandidates(): Promise<
+  { id: string; integratorRecordId: string; normalizedStatus: RubitimeNormalizedStatus }[]
+> {
+  const db = getDrizzle();
+  const live = rows<{
+    id: string;
+    integrator_record_id: string;
+    status: string | null;
+    last_event: string | null;
+    payload_json: unknown;
+  }>(
+    await db.execute(sql`
+      SELECT id::text, integrator_record_id, status, last_event, payload_json
+      FROM appointment_records
+      WHERE deleted_at IS NULL AND record_at IS NOT NULL`),
+  );
+  const candidates: { id: string; integratorRecordId: string; normalizedStatus: RubitimeNormalizedStatus }[] = [];
+  for (const r of live) {
+    const normalizedStatus = resolveNonConfirmedCleanupStatus({
+      status: r.status,
+      lastEvent: r.last_event,
+      payloadJson: r.payload_json,
+    });
+    if (normalizedStatus && NON_CONFIRMED_CLEANUP_STATUSES.has(normalizedStatus)) {
+      candidates.push({
+        id: r.id,
+        integratorRecordId: r.integrator_record_id,
+        normalizedStatus,
+      });
+    }
+  }
+  return candidates;
+}
+
 async function diagnose(csv: CsvIndex | null, opts: { summaryOnly: boolean }): Promise<void> {
   const db = getDrizzle();
   const counts = rows<CountRow>(
@@ -274,6 +346,12 @@ async function diagnose(csv: CsvIndex | null, opts: { summaryOnly: boolean }): P
   } else {
     console.log(`\nSTALE vs CSV: skipped (no CSV at given path; pass --csv=<path>)`);
   }
+
+  const nonConfirmed = await findNonConfirmedCleanupCandidates();
+  console.log(`\nNON-CONFIRMED legacy cleanup candidates: ${nonConfirmed.length}`);
+  if (nonConfirmed.length > 0) {
+    console.log(`  • by normalized status: ${summarizeStatuses(nonConfirmed.map((r) => r.normalizedStatus))}`);
+  }
 }
 
 /**
@@ -332,6 +410,37 @@ async function softDeleteCanonicalByExternalIds(ids: readonly string[]): Promise
     )
     RETURNING id`);
   return rows(res).length;
+}
+
+async function softDeleteCanonicalRubitimeProjectionByExternalIds(ids: readonly string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const res = await getDrizzle().execute(sql`
+    UPDATE be_appointments SET deleted_at = now(), updated_at = now()
+    WHERE deleted_at IS NULL
+      AND source = 'rubitime_projection'
+      AND id IN (
+        SELECT canonical_id FROM be_external_entity_mappings
+        WHERE external_system='rubitime' AND entity_type='appointment' AND external_id IN ${list(ids as string[])}
+      )
+    RETURNING id`);
+  return rows(res).length;
+}
+
+async function deleteNonConfirmedLegacyAppointments(): Promise<{
+  legacy: number;
+  canonical: number;
+  statuses: RubitimeNormalizedStatus[];
+}> {
+  const candidates = await findNonConfirmedCleanupCandidates();
+  const ids = candidates.map((r) => r.id);
+  const externalIds = candidates.map((r) => r.integratorRecordId);
+  if (ids.length > 0) {
+    await getDrizzle().execute(sql`
+      UPDATE appointment_records SET deleted_at = now()
+      WHERE deleted_at IS NULL AND id::text IN ${list(ids)}`);
+  }
+  const canonical = await softDeleteCanonicalRubitimeProjectionByExternalIds(externalIds);
+  return { legacy: ids.length, canonical, statuses: candidates.map((r) => r.normalizedStatus) };
 }
 
 /**
@@ -535,7 +644,7 @@ async function main() {
   await diagnose(csv, { summaryOnly: cli.summaryOnly });
 
   if (!cli.commit) {
-    console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--collapse-dups] [--collapse-canceled-dups] [--cleanup-only] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
+    console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--delete-non-confirmed] [--collapse-dups] [--collapse-canceled-dups] [--cleanup-only] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
     process.exit(0);
   }
   if (!cli.cleanupOnly && !enabled) {
@@ -547,6 +656,11 @@ async function main() {
     const ids = await deleteTestBlock();
     const canon = await softDeleteCanonicalByExternalIds(ids);
     console.log(`\n✓ Soft-deleted test/block: legacy ${ids.length} + canonical ${canon}`);
+  }
+  if (cli.deleteNonConfirmed) {
+    const { legacy, canonical, statuses } = await deleteNonConfirmedLegacyAppointments();
+    const byStatus = statuses.length > 0 ? ` (${summarizeStatuses(statuses)})` : "";
+    console.log(`\n✓ Soft-deleted non-confirmed legacy statuses: legacy ${legacy} + canonical ${canonical}${byStatus}`);
   }
   if (cli.dropLegacy.length > 0) {
     const res = await getDrizzle().execute(sql`
@@ -592,7 +706,13 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("\n✗ Reconciliation failed:", err);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1]
+  ? import.meta.url === pathToFileURL(process.argv[1]).href
+  : false;
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("\n✗ Reconciliation failed:", err);
+    process.exit(1);
+  });
+}
