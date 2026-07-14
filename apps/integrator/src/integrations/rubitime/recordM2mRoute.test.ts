@@ -1423,4 +1423,50 @@ describe('legacy profile resolve disabled', () => {
     });
     expect(res.statusCode).toBe(200);
   });
+
+  it('returns 400 legacy_resolve_disabled for v1 create-record when env is false', async () => {
+    resolveBookingProfile.mockClear();
+    process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED = 'false';
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'general',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Ivan',
+      contactPhone: '+79990001122',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('legacy_resolve_disabled');
+    expect(resolveBookingProfile).not.toHaveBeenCalled();
+  });
+
+  it('v2 create-record still works when legacy resolve is disabled', async () => {
+    process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED = 'false';
+    resolveBookingProfile.mockClear();
+    vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 199 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      patient: { name: 'Ivan', phone: '+79990001122' },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(resolveBookingProfile).not.toHaveBeenCalled();
+  });
 });

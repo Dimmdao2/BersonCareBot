@@ -916,9 +916,9 @@ mappings and the owner-approved single-specialist export context.
 - [ ] no webapp path still sends Rubitime v1 slots requests.
 - [ ] no webapp path still sends Rubitime v1 create requests.
 - [ ] online LFK/nutrition legacy path is retired or proven unrelated.
-- [ ] non-prod `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested.
-- [ ] v1 requests return `legacy_resolve_disabled`.
-- [ ] canonical/current booking paths are unaffected.
+- [x] non-prod `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
+- [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
+- [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
 - [ ] production monitoring window shows no v1 requests.
 - [ ] production flag change is approved.
 - [ ] production flag change has rollback instruction.
