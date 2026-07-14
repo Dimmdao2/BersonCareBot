@@ -19,6 +19,9 @@ No production or host env was changed in this proof.
 - Existing cutover switch lives in `apps/integrator/src/integrations/rubitime/legacyResolveFlag.ts`.
 - When disabled, v1 requests that rely on `rubitime_booking_profiles` must fail fast with `legacy_resolve_disabled`.
 - v2 M2M bodies with explicit Rubitime ids ignore the legacy profile flag.
+- Patient/public slots runtime no longer calls `syncPort.fetchSlots`; `createPatientBookingService.getSlots` uses canonical `bookingScheduling`.
+- Patient/public create runtime keeps legacy Rubitime-first/mirror functions in `canonicalCreate.ts`, but both switches currently return `false`; normal create writes canonical first and emits provider-neutral lifecycle events.
+- Online `rehab_lfk` / `nutrition` categories are enum/UI inputs into the same canonical online booking path; no separate webapp Rubitime profile path was found.
 
 ## Test Coverage
 
@@ -26,6 +29,11 @@ No production or host env was changed in this proof.
 - v1 create-record returns `400 legacy_resolve_disabled` and does not call `resolveBookingProfile`.
 - v2 slots still work with the flag disabled.
 - v2 create-record still works with the flag disabled and does not call `resolveBookingProfile`.
+
+## Runtime Inventory Commands
+
+- `rg -n "fetchSlots\\(|createRecord\\(|version: \"v2\"|type: .*online|category:" apps/webapp/src/modules/patient-booking apps/webapp/src/app/api/booking apps/webapp/src/app/api/booking/public apps/webapp/src/app/app/patient/booking apps/webapp/src/app/book -g '*.ts' -g '*.tsx'`
+- `rg -n "rehab_lfk|nutrition" apps/webapp/src/modules/patient-booking apps/webapp/src/app/api/booking apps/webapp/src/app/api/booking/public apps/webapp/src/app/app/patient/booking apps/webapp/src/app/book -g '*.ts' -g '*.tsx'`
 
 ## Still Open
 
@@ -37,4 +45,3 @@ No production or host env was changed in this proof.
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 54 tests.
 - `pnpm --dir apps/integrator exec eslint src/integrations/rubitime/recordM2mRoute.test.ts` - passed.
-

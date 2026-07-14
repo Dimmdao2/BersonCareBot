@@ -913,9 +913,9 @@ mappings and the owner-approved single-specialist export context.
 
 ### R5 — disable legacy v1 profile resolve
 
-- [ ] no webapp path still sends Rubitime v1 slots requests.
-- [ ] no webapp path still sends Rubitime v1 create requests.
-- [ ] online LFK/nutrition legacy path is retired or proven unrelated.
+- [x] no webapp path still sends Rubitime v1 slots requests. *(Runtime inventory: patient/public slots use canonical scheduling, not `syncPort.fetchSlots`.)*
+- [x] no webapp path still sends Rubitime v1 create requests. *(Runtime inventory: Rubitime-first/mirror switches are hardcoded false; normal create is canonical.)*
+- [x] online LFK/nutrition legacy path is retired or proven unrelated. *(Categories feed the same canonical online booking path; no separate Rubitime profile path found.)*
 - [x] non-prod `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
 - [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
