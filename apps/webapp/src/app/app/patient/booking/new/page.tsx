@@ -8,7 +8,6 @@ import { patientHomePlanCardClass } from "@/app/app/patient/home/patientHomeCard
 import { LegalFooterLinks } from "@/shared/ui/patient/LegalFooterLinks";
 import { cn } from "@/lib/utils";
 import { patientInnerPageStackClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
-import { mergePastBookingHistory } from "../../cabinet/cabinetPastBookingsMerge";
 import { loadBookingCitiesForPatientRsc } from "../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../constants";
 import { BookingPastHistorySection } from "./BookingPastHistorySection";
@@ -58,8 +57,6 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
     cityCodeFromQuery,
     records.upcoming.map((b) => b.cityCodeSnapshot),
   );
-  const projectionPast = await deps.patientCabinet.getPastAppointments(session.user.userId);
-  const pastItems = mergePastBookingHistory(records.history, projectionPast);
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   const helpArticles = await listHelpArticlesForPatient(deps.contentPages);
@@ -112,7 +109,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
             Задать вопрос в чате
           </Link>
         </div>
-        <BookingPastHistorySection items={pastItems} appDisplayTimeZone={appDisplayTimeZone} />
+        <BookingPastHistorySection items={records.history} appDisplayTimeZone={appDisplayTimeZone} />
         <LegalFooterLinks className="mt-6 pb-8" />
       </div>
     </BookingWizardShell>

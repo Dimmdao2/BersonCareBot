@@ -13,7 +13,6 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("menu");
     expect(deps).toHaveProperty("lessons");
     expect(deps).toHaveProperty("emergency");
-    expect(deps).toHaveProperty("patientCabinet");
     expect(deps).toHaveProperty("doctorCabinet");
     expect(deps).toHaveProperty("purchases");
     expect(deps).toHaveProperty("products");
@@ -89,16 +88,6 @@ describe("buildAppDeps", () => {
     expect(typeof deps.media.upload).toBe("function");
     expect(typeof deps.media.getUrl).toBe("function");
     expect(typeof deps.media.getById).toBe("function");
-  });
-
-  it("patientCabinet has getPatientCabinetState, getUpcomingAppointments, getPastAppointments", async () => {
-    const deps = buildAppDeps();
-    expect(typeof deps.patientCabinet.getPatientCabinetState).toBe("function");
-    expect(typeof deps.patientCabinet.getUpcomingAppointments).toBe("function");
-    expect(typeof deps.patientCabinet.getPastAppointments).toBe("function");
-    const state = await deps.patientCabinet.getPatientCabinetState("user-1");
-    expect(state).toHaveProperty("enabled");
-    expect(state).toHaveProperty("reason");
   });
 
   it("doctorCabinet has getDoctorWorkspaceState and getOverviewState", () => {

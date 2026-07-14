@@ -44,7 +44,6 @@ import { getCurrentUser } from "@/modules/users/service";
 import { getMenuForRole as getMenuForRoleImpl } from "@/modules/menu/service";
 import { listLessons } from "@/modules/lessons/service";
 import { listEmergencyTopics } from "@/modules/emergency/service";
-import { createPatientCabinetService } from "@/modules/patient-cabinet/service";
 import { getDoctorWorkspaceState, getOverviewState } from "@/modules/doctor-cabinet/service";
 import { createDoctorClientsService } from "@/modules/doctor-clients/service";
 import { parseDoctorSupportDefaultEnabled } from "@/modules/doctor-clients/supportPolicy";
@@ -105,7 +104,6 @@ import {
   getUpcomingAppointments as getUpcomingAppointmentsMock,
   type AppointmentRecordStatus,
   type AppointmentSummary,
-  type PastAppointmentSummary,
 } from "@/modules/appointments/service";
 import { appointmentRowLabel } from "@/modules/appointments/appointmentLabels";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -1179,46 +1177,6 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
       }
     : async (userId: string) => getUpcomingAppointmentsMock(userId);
 
-function isStillUpcomingSlot(row: { recordAt: string | null; status: string }): boolean {
-  const st = row.status.toLowerCase();
-  if (st !== "created" && st !== "updated") return false;
-  const nowMs = Date.now();
-  if (row.recordAt == null) return true;
-  return new Date(row.recordAt).getTime() >= nowMs;
-}
-
-const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]> =
-  !inMemoryRepos && appointmentProjectionPort
-    ? async (userId: string) => {
-        try {
-          const phone = await userByPhonePort.getPhoneByUserId(userId);
-          if (!phone) return [];
-          const tz = await getAppDisplayTimeZone();
-          const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
-          return rows
-            .filter((row) => !isStillUpcomingSlot(row))
-            .filter((row) => !row.status.toLowerCase().includes("cancel"))
-            .map((row) => {
-              const dateLabel = formatAppointmentDateNumericRu(row.recordAt, tz);
-              const timeLabel = formatAppointmentTimeShortRu(row.recordAt, tz);
-              return {
-                id: row.integratorRecordId,
-                dateLabel,
-                timeLabel,
-                label: appointmentRowLabel(dateLabel, timeLabel),
-                /** Прошлые записи не ведём на внешнее «редактирование» в расписании — сценарий изменения в боте. */
-                link: null,
-                status: mapRecordStatus(row.status),
-                recordAtIso: row.recordAt ? new Date(row.recordAt).toISOString() : null,
-                scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
-              };
-            });
-        } catch {
-          return [];
-        }
-      }
-    : async () => [];
-
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const patientMoodService = createPatientMoodService({
   diaries: symptomDiaryService,
@@ -1356,10 +1314,6 @@ function _buildAppDeps() {
     emergency: {
       listEmergencyTopics: () => listEmergencyTopics(contentPagesPort),
     },
-    patientCabinet: createPatientCabinetService({
-      getUpcomingAppointments,
-      getPastAppointments,
-    }),
     patientBooking: patientBookingService,
     doctorCabinet: {
       getDoctorWorkspaceState,

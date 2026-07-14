@@ -9,11 +9,10 @@ import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { patientCardClass, patientListItemClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
-import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
-  items: CabinetPastRow[];
+  items: PatientBookingRecord[];
   /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
   appDisplayTimeZone: string;
 };
@@ -32,16 +31,6 @@ function nativePastStatusRight(status: PatientBookingRecord["status"]): ReactNod
   if (status === "cancelling") return <Badge variant="secondary">Отмена…</Badge>;
   if (status === "creating") return <Badge variant="secondary">Создается</Badge>;
   return null;
-}
-
-function projectionPastStatusRight(status: string): ReactNode {
-  const s = status.toLowerCase();
-  if (s === "cancelled") {
-    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
-  }
-  if (s === "confirmed" || s === "created") return null;
-  if (s === "rescheduled") return <Badge variant="outline">Перенесена</Badge>;
-  return <Badge variant="outline">{status}</Badge>;
 }
 
 export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
@@ -64,36 +53,23 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
             {items.length === 0 ? (
               <p className={patientMutedTextClass}>Пока пусто.</p>
             ) : (
-              items.map((row) =>
-                row.kind === "native" ? (
-                  <div
-                    key={`native-${row.booking.id}`}
-                    className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
-                      </p>
-                      <p className={cn(patientMutedTextClass, "truncate text-xs")}>
-                        {bookingProvenancePrefix(row.booking)}
-                        {nativeBookingSubtitle(row.booking)}
-                      </p>
-                    </div>
-                    {nativePastStatusRight(row.booking.status)}
+              items.map((booking) => (
+                <div
+                  key={booking.id}
+                  className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {formatBookingDateTimeMediumRu(booking.slotStart, appDisplayTimeZone)}
+                    </p>
+                    <p className={cn(patientMutedTextClass, "truncate text-xs")}>
+                      {bookingProvenancePrefix(booking)}
+                      {nativeBookingSubtitle(booking)}
+                    </p>
                   </div>
-                ) : (
-                  <div
-                    key={`proj-${row.past.id}`}
-                    className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{row.past.label}</p>
-                      <p className={cn(patientMutedTextClass, "truncate text-xs")}>Запись из расписания</p>
-                    </div>
-                    {projectionPastStatusRight(row.past.status)}
-                  </div>
-                ),
-              )
+                  {nativePastStatusRight(booking.status)}
+                </div>
+              ))
             )}
           </CardContent>
         </CollapsibleContent>

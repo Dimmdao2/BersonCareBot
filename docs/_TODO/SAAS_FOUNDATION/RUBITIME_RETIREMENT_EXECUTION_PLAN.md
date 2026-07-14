@@ -797,6 +797,12 @@ Execution note 2026-07-14: `R1-DOCTOR-UI-SMOKE-codex-2026-07-14` closed the doct
 
 Execution note 2026-07-14: `R2-DOCTOR-READ-SOURCE-codex-2026-07-14` made doctor-facing appointment reads canonical-only in the working branch. `booking_doctor_appointments_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime legacy for doctor appointment reads; the settings API rejects `rubitime_legacy`; doctor analytics ignores the retired resolver and uses canonical SQL. Remaining `appointment_records` consumers are inventoried and assigned to later table-drop/canonicalization phases. Details: `RUBITIME_RETIREMENT_R2_DOCTOR_READ_SOURCE_PROOF.md`.
 
+Execution note 2026-07-14: `R2-PATIENT-HISTORY-codex-2026-07-14` removed the patient booking history dependency on
+`appointment_records`. `/app/patient/booking/new` now renders past visits from `patientBooking.listMyBookings`
+(`patient_bookings` / canonical-native history) and no longer calls `patientCabinet.getPastAppointments`; the
+dead `patientCabinet` DI surface and `cabinetPastBookingsMerge` projection merge helper were removed. Doctor client
+fallbacks and clinical visit legacy links remain assigned to R7 table-drop preparation.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the
@@ -843,7 +849,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] schedule/calendar surfaces read canonical.
 - [x] analytics surfaces using appointment data are checked.
 - [x] all non-switch `appointment_records` consumers are inventoried.
-- [x] client history reads are migrated or explicitly assigned. *(Assigned to later canonicalization/table-drop preparation; not an active doctor read-source blocker.)*
+- [x] client history reads are migrated or explicitly assigned. *(Patient booking history UI is migrated off `appointment_records`; doctor client card fallbacks / clinical links remain assigned to R7 table-drop preparation.)*
 - [x] membership/package appointment status reads are migrated or explicitly assigned. *(Assigned to package lifecycle canonicalization before table drop.)*
 - [x] runtime `rubitime_legacy` branch is removed or frozen behind rollback horizon.
 - [x] tests expecting legacy switch are updated.
@@ -992,6 +998,7 @@ Rubitime is retired only when all items below are checked.
 - [ ] No runtime code calls Rubitime API.
 - [ ] No runtime route accepts Rubitime webhook/provider traffic.
 - [ ] No doctor/client path reads `appointment_records`.
+- [x] Patient booking history UI no longer reads `appointment_records`.
 - [x] No patient/public path reads public legacy `booking_*`.
 - [ ] No canonical booking path uses `booking_default_organization_id` as fallback.
 - [x] GCal works from canonical lifecycle.

@@ -15,11 +15,10 @@ import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { patientListItemClass, patientMutedTextClass, patientSectionSurfaceClass, patientSectionTitleClass } from "@/shared/ui/patient/patientVisual";
-import type { CabinetPastRow } from "@/app/app/patient/cabinet/cabinetPastBookingsMerge";
 import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 
 type Props = {
-  items: CabinetPastRow[];
+  items: PatientBookingRecord[];
   appDisplayTimeZone: string;
 };
 
@@ -38,52 +37,29 @@ function nativePastStatusRight(status: PatientBookingRecord["status"]): ReactNod
   return null;
 }
 
-function projectionPastStatusRight(status: string): ReactNode {
-  const s = status.toLowerCase();
-  if (s === "cancelled") {
-    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
-  }
-  if (s === "confirmed" || s === "created") return null;
-  if (s === "rescheduled") return <Badge variant="outline">Перенесена</Badge>;
-  return <Badge variant="outline">{status}</Badge>;
-}
-
 function PastList({ items, appDisplayTimeZone }: Props) {
   if (items.length === 0) {
     return <p className={patientMutedTextClass}>Пока пусто.</p>;
   }
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
-      {items.map((row) =>
-        row.kind === "native" ? (
-          <li
-            key={`native-${row.booking.id}`}
-            className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">
-                {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
-              </p>
-              <p className={cn(patientMutedTextClass, "truncate text-xs")}>
-                {bookingProvenancePrefix(row.booking)}
-                {nativeBookingSubtitle(row.booking)}
-              </p>
-            </div>
-            {nativePastStatusRight(row.booking.status)}
-          </li>
-        ) : (
-          <li
-            key={`proj-${row.past.id}`}
-            className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{row.past.label}</p>
-              <p className={cn(patientMutedTextClass, "truncate text-xs")}>Запись из расписания</p>
-            </div>
-            {projectionPastStatusRight(row.past.status)}
-          </li>
-        )
-      )}
+      {items.map((booking) => (
+        <li
+          key={booking.id}
+          className={cn(patientListItemClass, "flex items-center justify-between gap-2 !px-3 !py-2")}
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {formatBookingDateTimeMediumRu(booking.slotStart, appDisplayTimeZone)}
+            </p>
+            <p className={cn(patientMutedTextClass, "truncate text-xs")}>
+              {bookingProvenancePrefix(booking)}
+              {nativeBookingSubtitle(booking)}
+            </p>
+          </div>
+          {nativePastStatusRight(booking.status)}
+        </li>
+      ))}
     </ul>
   );
 }

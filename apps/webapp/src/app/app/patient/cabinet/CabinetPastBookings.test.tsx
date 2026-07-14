@@ -5,7 +5,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CabinetPastBookings } from "./CabinetPastBookings";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
 
 function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
@@ -51,7 +50,7 @@ function makeBooking(over: Partial<PatientBookingRecord> = {}): PatientBookingRe
 
 describe("CabinetPastBookings", () => {
   it("opens by default when there are items and shows row status", () => {
-    const items: CabinetPastRow[] = [{ kind: "native", booking: makeBooking({ status: "completed" }) }];
+    const items: PatientBookingRecord[] = [makeBooking({ status: "completed" })];
     render(<CabinetPastBookings items={items} appDisplayTimeZone="Europe/Moscow" />);
     expect(screen.getByRole("button", { name: /Журнал прошедших приёмов/i })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Завершена")).toBeInTheDocument();
@@ -69,7 +68,7 @@ describe("CabinetPastBookings", () => {
 
   it("toggles panel closed when trigger is clicked", async () => {
     const user = userEvent.setup();
-    const items: CabinetPastRow[] = [{ kind: "native", booking: makeBooking() }];
+    const items: PatientBookingRecord[] = [makeBooking()];
     render(<CabinetPastBookings items={items} appDisplayTimeZone="Europe/Moscow" />);
     expect(screen.getByText("Завершена")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Журнал прошедших приёмов/i }));
