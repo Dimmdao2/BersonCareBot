@@ -38,11 +38,11 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after integrator wiring cleanup: 2026-07-14 11:03 MSK.
+Latest run time after webapp M2M client cleanup: 2026-07-14 11:10 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
-| `mountedRubitimeRouteLiterals` | R6 | 51 hits / 5 files | Rubitime-named HTTP surfaces still exist before cutoff. |
+| `mountedRubitimeRouteLiterals` | R6 | 38 hits / 3 files | Legacy Rubitime route source files remain before source deletion. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 15 hits / 5 files | Rubitime client/throttle/post-create/API code still exists before cutoff. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 148 hits / 30 files | Legacy appointment table references remain for archive/backfill/compat paths. |
@@ -54,7 +54,7 @@ The expected post-R6 gate currently fails:
 
 ```text
 rubitime-r6-r7-static-inventory: post-R6 blockers remain:
-mountedRubitimeRouteLiterals=51,
+mountedRubitimeRouteLiterals=38,
 rubitimeApiClientRuntimeTokens=15
 ```
 
@@ -68,8 +68,6 @@ Mounted Rubitime route literals:
 - `apps/integrator/src/integrations/rubitime/adminM2mRoute.ts`
 - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
 - `apps/integrator/src/integrations/rubitime/webhook.ts`
-- `apps/webapp/src/modules/integrator/bookingM2mApi.ts`
-- `apps/webapp/src/modules/integrator/rubitimeAdminApi.ts`
 
 Integrator Rubitime runtime imports:
 
@@ -107,3 +105,13 @@ operator-health outbound Rubitime schedule probe. The provider-neutral
 
 This does not close R6. Remaining post-R6 blockers are legacy source modules with Rubitime route literals and API
 client/throttle/post-create tokens, plus the webapp Rubitime M2M/admin client cleanup.
+
+## 2026-07-14 R6 Webapp M2M Client Cleanup
+
+`R6-WEBAPP-M2M-CLIENT-RETIRE-codex-2026-07-14` retired webapp Rubitime M2M/admin clients without removing the
+provider-neutral lifecycle emitter. `createBookingSyncPort().emitBookingEvent` remains the signed webapp to integrator
+lifecycle-event path. Legacy slots/create/update/cancel/delete methods fail closed without HTTP, and the Rubitime admin
+M2M facade fails closed without calling integrator.
+
+After this cleanup, the post-R6 inventory no longer reports webapp files under `mountedRubitimeRouteLiterals`.
+Remaining route literal blockers are the legacy integrator Rubitime source modules listed above.

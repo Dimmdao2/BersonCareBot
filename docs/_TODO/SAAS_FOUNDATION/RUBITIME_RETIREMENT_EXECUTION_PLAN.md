@@ -1074,6 +1074,14 @@ passed; `rubitime-r6-r7-static-inventory.mjs` now reports `integratorRubitimeRun
 `RR-PROOF-09`: R6 cutoff/drain owner gates, legacy Rubitime source module deletion, webapp Rubitime M2M client cleanup,
 and final post-R6 inventory are still open.
 
+Execution note 2026-07-14: `R6-WEBAPP-M2M-CLIENT-RETIRE-codex-2026-07-14` retired the webapp Rubitime M2M/admin
+clients without removing the provider-neutral lifecycle emitter. `createBookingSyncPort().emitBookingEvent` still posts
+signed events to `/api/bersoncare/booking/lifecycle-event`; legacy slots/create/update/cancel/delete methods now fail
+closed without HTTP. The admin Rubitime M2M facade now fails closed without calling integrator. Validation:
+`bookingM2mApi.test.ts`, targeted eslint and webapp typecheck passed; `rubitime-r6-r7-static-inventory.mjs` no longer
+reports webapp files under `mountedRubitimeRouteLiterals`. Remaining post-R6 blockers are legacy integrator Rubitime
+source modules and API client/throttle/post-create tokens, plus the real owner-gated R6 cutoff/drain proof.
+
 ### R7 — archive and drop legacy tables
 
 Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it

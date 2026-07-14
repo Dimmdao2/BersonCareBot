@@ -1,28 +1,11 @@
 import { createHmac } from "node:crypto";
-import { DateTime } from "luxon";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import type { BookingSlot, BookingSlotsByDate } from "@/modules/patient-booking/types";
-import type { BookingSlotsIntegratorQuery, BookingSyncPort, CreateBookingSyncInput } from "@/modules/patient-booking/ports";
-
-function isValidIanaTimeZone(tz: string): boolean {
-  const t = tz.trim();
-  if (!t) return false;
-  try {
-    Intl.DateTimeFormat(undefined, { timeZone: t });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Rubitime `times[]` wall clock in branch IANA zone → UTC ISO (aligned with integrator `normalizeToUtcInstant` naive path). */
-function rubitimeWallSlotToUtcIso(date: string, hh: string, mm: string, branchTimezone: string): string | null {
-  const normalized = `${date}T${hh}:${mm}:00`;
-  const dt = DateTime.fromISO(normalized, { zone: branchTimezone.trim() });
-  if (!dt.isValid) return null;
-  return dt.toUTC().toJSDate().toISOString();
-}
+import type { BookingSlotsByDate } from "@/modules/patient-booking/types";
+import type {
+  BookingSlotsIntegratorQuery,
+  BookingSyncPort,
+  CreateBookingSyncInput,
+} from "@/modules/patient-booking/ports";
 
 async function normalizeBaseUrl(): Promise<string | null> {
   const base = (await getIntegratorApiUrl()).trim();
@@ -53,6 +36,7 @@ async function postSigned(path: string, body: Record<string, unknown>): Promise<
 }
 
 const POST_SIGNED_RETRY_BACKOFF_MS = [1000, 2000, 4000] as const;
+const BOOKING_PROVIDER_RETIRED_ERROR = "booking_provider_retired";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,200 +81,38 @@ function integratorErrorCode(json: Record<string, unknown>): string {
   if (err && typeof err === "object" && "code" in err && typeof (err as { code: unknown }).code === "string") {
     return (err as { code: string }).code.trim();
   }
-  return "rubitime_slots_failed";
+  return "booking_lifecycle_event_failed";
 }
 
-/**
- * Проверяет, что integrator вернул корректный контракт слотов (v1: массив дней с `slots[]` ISO).
- */
-function validateV1SlotsContract(json: Record<string, unknown>): BookingSlotsByDate[] {
-  const raw = json.slots;
-  if (!Array.isArray(raw)) {
-    throw new Error("rubitime_slots_contract_broken: slots is not an array in integrator response");
-  }
-  return raw as BookingSlotsByDate[];
-}
-
-/**
- * v2 contract: `slots: { date, times: string[] }[]` → BookingSlotsByDate с длительностью услуги.
- * Wall times интерпретируются в IANA `branchTimezone` (каталог филиала); fallback — app display TZ.
- */
-function normalizeV2SlotsPayload(raw: unknown, durationMinutes: number, branchTimezone: string): BookingSlotsByDate[] {
-  if (!Array.isArray(raw)) {
-    throw new Error("rubitime_slots_contract_broken: v2 slots is not an array");
-  }
-  return raw.map((day, idx) => {
-    if (!day || typeof day !== "object") {
-      throw new Error(`rubitime_slots_contract_broken: v2 slots[${idx}] is not an object`);
-    }
-    const d = (day as { date?: unknown }).date;
-    const times = (day as { times?: unknown }).times;
-    if (typeof d !== "string" || !Array.isArray(times)) {
-      throw new Error(`rubitime_slots_contract_broken: v2 slots[${idx}] missing date/times`);
-    }
-    const slots: BookingSlot[] = [];
-    for (const t of times) {
-      if (typeof t !== "string") continue;
-      const parts = t.trim().split(":");
-      const hh = (parts[0] ?? "0").padStart(2, "0");
-      const mm = (parts[1] ?? "00").padStart(2, "0");
-      const startAt = rubitimeWallSlotToUtcIso(d, hh, mm, branchTimezone);
-      if (!startAt) {
-        throw new Error(
-          `rubitime_slots_contract_broken: invalid slot time ${d}T${hh}:${mm}:00 in ${branchTimezone}`,
-        );
-      }
-      const startMs = Date.parse(startAt);
-      if (!Number.isFinite(startMs)) {
-        throw new Error("rubitime_slots_contract_broken: invalid slot instant");
-      }
-      const endAt = new Date(startMs + durationMinutes * 60_000).toISOString();
-      slots.push({ startAt, endAt });
-    }
-    return { date: d, slots };
-  });
-}
-
-function isV2TimesShape(json: Record<string, unknown>): boolean {
-  const raw = json.slots;
-  if (!Array.isArray(raw) || raw.length === 0) return false;
-  const first = raw[0];
-  return Boolean(first && typeof first === "object" && "times" in first && Array.isArray((first as { times: unknown }).times));
+async function failRetiredProvider<T>(_input?: unknown): Promise<T> {
+  throw new Error(BOOKING_PROVIDER_RETIRED_ERROR);
 }
 
 export function createBookingSyncPort(): BookingSyncPort {
   return {
-    async fetchSlots(query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]> {
-      let body: Record<string, unknown>;
-      if (query.version === "v2") {
-        const payload: Record<string, unknown> = {
-          version: "v2",
-          rubitimeBranchId: query.rubitimeBranchId,
-          rubitimeCooperatorId: query.rubitimeCooperatorId,
-          rubitimeServiceId: query.rubitimeServiceId,
-          slotDurationMinutes: query.slotDurationMinutes,
-        };
-        if (query.date) {
-          payload.dateFrom = query.date;
-          payload.dateTo = query.date;
-        }
-        body = payload;
-      } else {
-        body = {
-          type: query.type,
-          city: query.city,
-          category: query.category,
-          date: query.date,
-        };
-      }
-
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/slots", body);
-      if (status >= 400 || json.ok !== true) {
-        throw new Error(integratorErrorCode(json));
-      }
-
-      if (query.version === "v2") {
-        const branchTz =
-          typeof query.branchTimezone === "string" &&
-          query.branchTimezone.trim() &&
-          isValidIanaTimeZone(query.branchTimezone)
-            ? query.branchTimezone.trim()
-            : await getAppDisplayTimeZone();
-        if (isV2TimesShape(json)) {
-          return normalizeV2SlotsPayload(json.slots, query.slotDurationMinutes, branchTz);
-        }
-        return validateV1SlotsContract(json);
-      }
-      if (isV2TimesShape(json)) {
-        const fallbackTz = await getAppDisplayTimeZone();
-        return normalizeV2SlotsPayload(json.slots, 60, fallbackTz);
-      }
-      return validateV1SlotsContract(json);
+    fetchSlots(_query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]> {
+      return failRetiredProvider();
     },
 
-    async createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }> {
-      let body: Record<string, unknown>;
-      if (input.version === "v2") {
-        body = {
-          version: "v2",
-          rubitimeBranchId: input.rubitimeBranchId,
-          rubitimeCooperatorId: input.rubitimeCooperatorId,
-          rubitimeServiceId: input.rubitimeServiceId,
-          slotStart: input.slotStart,
-          patient: {
-            name: input.contactName,
-            phone: input.contactPhone,
-            ...(input.contactEmail ? { email: input.contactEmail } : {}),
-          },
-          localBookingId: input.localBookingId,
-        };
-      } else {
-        body = {
-          type: input.type,
-          city: input.city,
-          category: input.category,
-          slotStart: input.slotStart,
-          slotEnd: input.slotEnd,
-          contactName: input.contactName,
-          contactPhone: input.contactPhone,
-          contactEmail: input.contactEmail,
-        };
-      }
-
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/create-record", body);
-      if (status >= 400 || json.ok !== true) {
-        throw new Error(integratorErrorCode(json));
-      }
-      const rubitimeIdValue = json.rubitimeRecordId ?? json.recordId;
-      const rubitimeId = typeof rubitimeIdValue === "string" && rubitimeIdValue.trim()
-        ? rubitimeIdValue.trim()
-        : null;
-      const projectionWarning =
-        typeof json.projectionWarning === "string" && json.projectionWarning.trim()
-          ? json.projectionWarning.trim()
-          : undefined;
-      return { rubitimeId, raw: { ...json, ...(projectionWarning ? { projectionWarning } : {}) } };
+    createRecord(_input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }> {
+      return failRetiredProvider();
     },
 
-    async cancelRecord(rubitimeId: string): Promise<void> {
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/update-record", {
-        recordId: rubitimeId,
-        patch: { status: 4 },
-      });
-      if (status >= 400 || json.ok !== true) {
-        throw new Error("rubitime_cancel_failed");
-      }
+    cancelRecord(_externalRecordId: string): Promise<void> {
+      return failRetiredProvider();
     },
 
-    async deleteRecord(rubitimeId: string): Promise<void> {
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/remove-record", {
-        recordId: rubitimeId,
-      });
-      if (status >= 400 || json.ok !== true) {
-        throw new Error("rubitime_delete_failed");
-      }
+    deleteRecord(_externalRecordId: string): Promise<void> {
+      return failRetiredProvider();
     },
 
-    async updateRecord(input: {
+    updateRecord(_input: {
       rubitimeId: string;
       slotStart: string;
       slotEnd?: string;
       rubitimePatch?: Record<string, unknown>;
     }): Promise<void> {
-      const patch: Record<string, unknown> = {
-        ...(input.rubitimePatch ?? {}),
-        slotStart: input.slotStart,
-      };
-      if (input.slotEnd) patch.slotEnd = input.slotEnd;
-      if (!input.rubitimePatch?.record) patch.record = input.slotStart;
-      if (input.slotEnd && !input.rubitimePatch?.datetime_end) patch.datetime_end = input.slotEnd;
-      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/update-record", {
-        recordId: input.rubitimeId,
-        patch,
-      });
-      if (status >= 400 || json.ok !== true) {
-        throw new Error(integratorErrorCode(json));
-      }
+      return failRetiredProvider();
     },
 
     async emitBookingEvent(input): Promise<void> {

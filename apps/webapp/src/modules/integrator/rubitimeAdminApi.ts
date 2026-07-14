@@ -1,12 +1,8 @@
 /**
- * Webapp-клиент для admin Rubitime M2M API.
- *
- * Эти функции вызываются только в server-side webapp API routes (Next.js Route Handlers).
- * Подписывают запросы тем же HMAC, что booking M2M.
+ * Retired admin Rubitime M2M API facade.
+ * The server-side admin routes still import this module during the cleanup window, but no function here
+ * calls the integrator or the old provider-specific admin surface.
  */
-import { createHmac } from "node:crypto";
-import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
-
 export type RubitimeBranch = {
   id: number;
   rubitimeBranchId: number;
@@ -50,39 +46,14 @@ export type RubitimeBookingProfile = {
   cooperatorTitle: string;
 };
 
-async function adminRequest(
-  method: "GET" | "POST" | "DELETE",
-  path: string,
-  body?: Record<string, unknown>,
-): Promise<{ status: number; json: Record<string, unknown> }> {
-  const base = ((await getIntegratorApiUrl()) ?? "").trim().replace(/\/$/, "");
-  const secret = ((await getIntegratorWebhookSecret()) ?? "").trim();
-  if (!base || !secret) throw new Error("integrator_not_configured");
-
-  const rawBody = body !== undefined ? JSON.stringify(body) : "{}";
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
-
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Bersoncare-Timestamp": timestamp,
-      "X-Bersoncare-Signature": signature,
-    },
-    body: rawBody,
-  });
-
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { status: res.status, json };
+function adminRetiredError(): Error {
+  return new Error("rubitime_admin_retired");
 }
 
 // ---- Branches ----
 
 export async function adminListBranches(): Promise<RubitimeBranch[]> {
-  const { status, json } = await adminRequest("GET", "/api/bersoncare/rubitime/admin/branches");
-  if (status !== 200 || !Array.isArray(json.branches)) throw new Error("rubitime_admin_branches_failed");
-  return json.branches as RubitimeBranch[];
+  throw adminRetiredError();
 }
 
 export async function adminUpsertBranch(input: {
@@ -91,22 +62,19 @@ export async function adminUpsertBranch(input: {
   title: string;
   address?: string;
 }): Promise<RubitimeBranch> {
-  const { status, json } = await adminRequest("POST", "/api/bersoncare/rubitime/admin/branches", input);
-  if (status !== 200 || !json.branch) throw new Error("rubitime_admin_upsert_branch_failed");
-  return json.branch as RubitimeBranch;
+  void input;
+  throw adminRetiredError();
 }
 
 export async function adminDeactivateBranch(id: number): Promise<void> {
-  const { status } = await adminRequest("DELETE", `/api/bersoncare/rubitime/admin/branches/${id}`);
-  if (status !== 200) throw new Error("rubitime_admin_deactivate_branch_failed");
+  void id;
+  throw adminRetiredError();
 }
 
 // ---- Services ----
 
 export async function adminListServices(): Promise<RubitimeService[]> {
-  const { status, json } = await adminRequest("GET", "/api/bersoncare/rubitime/admin/services");
-  if (status !== 200 || !Array.isArray(json.services)) throw new Error("rubitime_admin_services_failed");
-  return json.services as RubitimeService[];
+  throw adminRetiredError();
 }
 
 export async function adminUpsertService(input: {
@@ -115,44 +83,38 @@ export async function adminUpsertService(input: {
   categoryCode: string;
   durationMinutes: number;
 }): Promise<RubitimeService> {
-  const { status, json } = await adminRequest("POST", "/api/bersoncare/rubitime/admin/services", input);
-  if (status !== 200 || !json.service) throw new Error("rubitime_admin_upsert_service_failed");
-  return json.service as RubitimeService;
+  void input;
+  throw adminRetiredError();
 }
 
 export async function adminDeactivateService(id: number): Promise<void> {
-  const { status } = await adminRequest("DELETE", `/api/bersoncare/rubitime/admin/services/${id}`);
-  if (status !== 200) throw new Error("rubitime_admin_deactivate_service_failed");
+  void id;
+  throw adminRetiredError();
 }
 
 // ---- Cooperators ----
 
 export async function adminListCooperators(): Promise<RubitimeCooperator[]> {
-  const { status, json } = await adminRequest("GET", "/api/bersoncare/rubitime/admin/cooperators");
-  if (status !== 200 || !Array.isArray(json.cooperators)) throw new Error("rubitime_admin_cooperators_failed");
-  return json.cooperators as RubitimeCooperator[];
+  throw adminRetiredError();
 }
 
 export async function adminUpsertCooperator(input: {
   rubitimeCooperatorId: number;
   title: string;
 }): Promise<RubitimeCooperator> {
-  const { status, json } = await adminRequest("POST", "/api/bersoncare/rubitime/admin/cooperators", input);
-  if (status !== 200 || !json.cooperator) throw new Error("rubitime_admin_upsert_cooperator_failed");
-  return json.cooperator as RubitimeCooperator;
+  void input;
+  throw adminRetiredError();
 }
 
 export async function adminDeactivateCooperator(id: number): Promise<void> {
-  const { status } = await adminRequest("DELETE", `/api/bersoncare/rubitime/admin/cooperators/${id}`);
-  if (status !== 200) throw new Error("rubitime_admin_deactivate_cooperator_failed");
+  void id;
+  throw adminRetiredError();
 }
 
 // ---- Booking Profiles ----
 
 export async function adminListBookingProfiles(): Promise<RubitimeBookingProfile[]> {
-  const { status, json } = await adminRequest("GET", "/api/bersoncare/rubitime/admin/booking-profiles");
-  if (status !== 200 || !Array.isArray(json.profiles)) throw new Error("rubitime_admin_profiles_failed");
-  return json.profiles as RubitimeBookingProfile[];
+  throw adminRetiredError();
 }
 
 export async function adminUpsertBookingProfile(input: {
@@ -163,15 +125,11 @@ export async function adminUpsertBookingProfile(input: {
   serviceId: number;
   cooperatorId: number;
 }): Promise<{ id: number }> {
-  const { status, json } = await adminRequest("POST", "/api/bersoncare/rubitime/admin/booking-profiles", {
-    ...input,
-    cityCode: input.cityCode ?? null,
-  });
-  if (status !== 200 || typeof json.id !== "number") throw new Error("rubitime_admin_upsert_profile_failed");
-  return { id: json.id as number };
+  void input;
+  throw adminRetiredError();
 }
 
 export async function adminDeactivateBookingProfile(id: number): Promise<void> {
-  const { status } = await adminRequest("DELETE", `/api/bersoncare/rubitime/admin/booking-profiles/${id}`);
-  if (status !== 200) throw new Error("rubitime_admin_deactivate_profile_failed");
+  void id;
+  throw adminRetiredError();
 }

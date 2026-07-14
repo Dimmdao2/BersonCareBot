@@ -1,13 +1,4 @@
-/**
- * Contract tests for bookingM2mApi.fetchSlots.
- *
- * Covers:
- * - happy path: integrator returns ok:true + correct slots array
- * - integrator returns ok:true but slots is not an array → throws (contract broken)
- * - integrator returns ok:false → throws with error code from integrator
- * - integrator returns HTTP 4xx/5xx → throws
- */
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getIntegratorApiUrl: async () => "http://integrator.test",
@@ -22,8 +13,6 @@ vi.mock("node:crypto", () => ({
   }),
 }));
 
-// We need to intercept the actual postSigned, which is an internal function.
-// Simplest approach: mock global fetch used by bookingM2mApi.
 const globalFetchMock = vi.fn();
 
 afterEach(() => {
@@ -31,258 +20,88 @@ afterEach(() => {
   globalFetchMock.mockReset();
 });
 
-function mockFetch(body: Record<string, unknown>, status = 200) {
-  globalFetchMock.mockResolvedValue({
-    status,
-    json: () => Promise.resolve(body),
-  });
-}
-
-// We patch global fetch before importing the module
 vi.stubGlobal("fetch", globalFetchMock);
 
 import { createBookingSyncPort } from "./bookingM2mApi";
 
-describe("createBookingSyncPort.fetchSlots", () => {
-  it("returns BookingSlotsByDate[] when integrator returns valid slots array", async () => {
-    const slots = [
-      { date: "2026-04-10", slots: [{ startAt: "2026-04-10T10:00:00", endAt: "2026-04-10T11:00:00" }] },
-    ];
-    mockFetch({ ok: true, slots });
-    const port = createBookingSyncPort();
-    const result = await port.fetchSlots({ type: "online", category: "general", date: "2026-04-10" });
-    expect(result).toEqual(slots);
-  });
-
-  it("throws rubitime_slots_contract_broken when integrator returns ok:true but slots is not an array", async () => {
-    mockFetch({ ok: true, slots: null });
-    const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
-      "rubitime_slots_contract_broken",
-    );
-  });
-
-  it("throws with integrator error code when ok:false", async () => {
-    mockFetch({ ok: false, error: "slots_mapping_not_configured" });
-    const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
-      "slots_mapping_not_configured",
-    );
-  });
-
-  it("throws rubitime_slots_failed when ok:false with no error field", async () => {
-    mockFetch({ ok: false }, 502);
-    const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
-      "rubitime_slots_failed",
-    );
-  });
-
-  it("throws rubitime_slots_failed when integrator returns HTTP 400", async () => {
-    mockFetch({ ok: false, error: "invalid_slots_query" }, 400);
-    const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
-      "invalid_slots_query",
-    );
-  });
-
-  it("does NOT silently return empty array when integrator returns malformed slots", async () => {
-    mockFetch({ ok: true, slots: "not-an-array" });
-    const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow();
-  });
-
-  it("fetchSlots v2 posts explicit Rubitime IDs and normalizes times[] with duration", async () => {
-    globalFetchMock.mockImplementationOnce(async (_url: string, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-      expect(body.version).toBe("v2");
-      expect(body.rubitimeBranchId).toBe("b1");
-      expect(body.rubitimeCooperatorId).toBe("c1");
-      expect(body.rubitimeServiceId).toBe("s1");
-      expect(body.slotDurationMinutes).toBe(30);
-      return {
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            ok: true,
-            slots: [{ date: "2026-04-10", times: ["10:00"] }],
-          }),
-      };
-    });
-    const port = createBookingSyncPort();
-    const result = await port.fetchSlots({
-      version: "v2",
-      rubitimeBranchId: "b1",
-      rubitimeCooperatorId: "c1",
-      rubitimeServiceId: "s1",
-      slotDurationMinutes: 30,
-      branchTimezone: "Europe/Moscow",
-      date: "2026-04-10",
-    });
-    expect(result).toHaveLength(1);
-    expect(result[0]!.slots).toHaveLength(1);
-    expect(result[0]!.slots[0]!.startAt).toBe("2026-04-10T07:00:00.000Z");
-    expect(result[0]!.slots[0]!.endAt).toBe("2026-04-10T07:30:00.000Z");
-  });
-
-  it("fetchSlots v2: Europe/Samara vs Europe/Moscow for same wall 11:00", async () => {
-    async function slotsForTz(tz: string) {
-      globalFetchMock.mockImplementationOnce(async () => ({
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            ok: true,
-            slots: [{ date: "2026-04-07", times: ["11:00"] }],
-          }),
-      }));
-      const port = createBookingSyncPort();
-      return port.fetchSlots({
-        version: "v2",
-        rubitimeBranchId: "b1",
-        rubitimeCooperatorId: "c1",
-        rubitimeServiceId: "s1",
-        slotDurationMinutes: 60,
-        branchTimezone: tz,
-        date: "2026-04-07",
-      });
-    }
-    const samara = await slotsForTz("Europe/Samara");
-    expect(samara[0]!.slots[0]!.startAt).toBe("2026-04-07T07:00:00.000Z");
-    const moscow = await slotsForTz("Europe/Moscow");
-    expect(moscow[0]!.slots[0]!.startAt).toBe("2026-04-07T08:00:00.000Z");
-  });
-
-  it("fetchSlots v2 accepts integrator normalized slots (v1-shaped array) without times[]", async () => {
-    const slots = [
-      { date: "2026-04-10", slots: [{ startAt: "2026-04-10T10:00:00", endAt: "2026-04-10T11:00:00" }] },
-    ];
-    mockFetch({ ok: true, slots });
-    const port = createBookingSyncPort();
-    const result = await port.fetchSlots({
-      version: "v2",
-      rubitimeBranchId: "b1",
-      rubitimeCooperatorId: "c1",
-      rubitimeServiceId: "s1",
-      slotDurationMinutes: 60,
-      branchTimezone: "Europe/Moscow",
-      date: "2026-04-10",
-    });
-    expect(result).toEqual(slots);
-  });
-
-  it("createRecord v2 posts patient + localBookingId and reads rubitimeRecordId", async () => {
-    globalFetchMock.mockImplementationOnce(async (_url: string, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-      expect(body.version).toBe("v2");
-      expect(body.localBookingId).toBe("local-uuid");
-      expect(body).not.toHaveProperty("category");
-      return {
-        status: 200,
-        json: () => Promise.resolve({ ok: true, rubitimeRecordId: "rec-v2" }),
-      };
-    });
-    const port = createBookingSyncPort();
-    const out = await port.createRecord({
-      version: "v2",
-      rubitimeBranchId: "b1",
-      rubitimeCooperatorId: "c1",
-      rubitimeServiceId: "s1",
-      slotStart: "2026-04-10T10:00:00+03:00",
-      contactName: "Ann",
+function bookingEventInput() {
+  return {
+    eventType: "booking.created" as const,
+    idempotencyKey: "booking-created-test",
+    payload: {
+      bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+      userId: "3f14566f-a4de-4ab4-9336-5ddf806cd6ce",
+      bookingType: "online" as const,
+      category: "general" as const,
+      slotStart: "2026-04-10T10:00:00.000Z",
+      slotEnd: "2026-04-10T11:00:00.000Z",
+      contactName: "Ivan",
       contactPhone: "+79990001122",
-      localBookingId: "local-uuid",
-    });
-    expect(out.rubitimeId).toBe("rec-v2");
-  });
+    },
+  };
+}
 
-  it("propagates structured integrator error code from JSON error.code", async () => {
-    mockFetch({ ok: false, error: { code: "rubitime_timeout", message: "slow" } }, 504);
+describe("createBookingSyncPort retired provider methods", () => {
+  it("fails closed for legacy slots/create/update/cancel/delete operations", async () => {
     const port = createBookingSyncPort();
+
+    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow(
+      "booking_provider_retired",
+    );
     await expect(
-      port.fetchSlots({
-        version: "v2",
-        rubitimeBranchId: "b",
-        rubitimeCooperatorId: "c",
-        rubitimeServiceId: "s",
-        slotDurationMinutes: 60,
-        branchTimezone: "Europe/Moscow",
-      }),
-    ).rejects.toThrow("rubitime_timeout");
-  });
-});
-
-// X1: cancelRecord posts to update-record with {status:4}, NOT to remove-record
-describe("createBookingSyncPort.cancelRecord", () => {
-  it("X1: cancelRecord posts to /update-record with {status:4} (not /remove-record)", async () => {
-    let capturedUrl: string | undefined;
-    let capturedBody: Record<string, unknown> | undefined;
-    globalFetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
-      capturedUrl = url;
-      capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-      return { status: 200, json: () => Promise.resolve({ ok: true }) };
-    });
-    const port = createBookingSyncPort();
-    await port.cancelRecord("rt-record-123");
-    expect(capturedUrl).toContain("/update-record");
-    expect(capturedUrl).not.toContain("/remove-record");
-    expect(capturedBody?.recordId).toBe("rt-record-123");
-    expect((capturedBody?.patch as Record<string, unknown> | undefined)?.status).toBe(4);
-  });
-
-  it("X1: cancelRecord throws when update-record returns ok:false", async () => {
-    mockFetch({ ok: false }, 502);
-    const port = createBookingSyncPort();
-    await expect(port.cancelRecord("rt-fail-1")).rejects.toThrow("rubitime_cancel_failed");
-  });
-});
-
-describe("createBookingSyncPort.emitBookingEvent", () => {
-  it("posts provider-neutral lifecycle events instead of Rubitime-named booking-event", async () => {
-    let capturedUrl: string | undefined;
-    let capturedBody: Record<string, unknown> | undefined;
-    globalFetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
-      capturedUrl = url;
-      capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-      return { status: 200, json: () => Promise.resolve({ ok: true }) };
-    });
-    const port = createBookingSyncPort();
-    await port.emitBookingEvent({
-      eventType: "booking.created",
-      idempotencyKey: "booking-created-test",
-      payload: {
-        bookingId: "2f14566f-a4de-4ab4-9336-5ddf806cd6ce",
-        userId: "3f14566f-a4de-4ab4-9336-5ddf806cd6ce",
-        bookingType: "online",
+      port.createRecord({
+        type: "online",
         category: "general",
         slotStart: "2026-04-10T10:00:00.000Z",
         slotEnd: "2026-04-10T11:00:00.000Z",
         contactName: "Ivan",
         contactPhone: "+79990001122",
-      },
-    });
-    expect(capturedUrl).toContain("/api/bersoncare/booking/lifecycle-event");
-    expect(capturedUrl).not.toContain("/api/bersoncare/rubitime/booking-event");
-    expect(capturedBody?.eventType).toBe("booking.created");
-    expect(capturedBody?.idempotencyKey).toBe("booking-created-test");
+      }),
+    ).rejects.toThrow("booking_provider_retired");
+    await expect(port.cancelRecord("external-1")).rejects.toThrow("booking_provider_retired");
+    await expect(port.deleteRecord("external-1")).rejects.toThrow("booking_provider_retired");
+    await expect(
+      port.updateRecord?.({ rubitimeId: "external-1", slotStart: "2026-04-10T10:00:00.000Z" }),
+    ).rejects.toThrow("booking_provider_retired");
+
+    expect(globalFetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe("createBookingSyncPort postSigned retry", () => {
-  afterEach(() => {
-    vi.useRealTimers();
+describe("createBookingSyncPort.emitBookingEvent", () => {
+  it("posts provider-neutral lifecycle events", async () => {
+    let capturedUrl: string | undefined;
+    let capturedBody: Record<string, unknown> | undefined;
+    globalFetchMock.mockImplementationOnce(async (url: string, init?: RequestInit) => {
+      capturedUrl = url;
+      capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      return { status: 200, json: () => Promise.resolve({ ok: true }) };
+    });
+
+    const port = createBookingSyncPort();
+    await port.emitBookingEvent(bookingEventInput());
+
+    expect(capturedUrl).toBe("http://integrator.test/api/bersoncare/booking/lifecycle-event");
+    expect(capturedBody?.eventType).toBe("booking.created");
+    expect(capturedBody?.idempotencyKey).toBe("booking-created-test");
   });
 
   it("retries on HTTP 502 then succeeds", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    globalFetchMock
-      .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
-      .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
-      .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true, slots: [] }) });
-    const port = createBookingSyncPort();
-    const p = port.fetchSlots({ type: "online", category: "general" });
-    await vi.advanceTimersByTimeAsync(5000);
-    await expect(p).resolves.toEqual([]);
-    expect(globalFetchMock).toHaveBeenCalledTimes(3);
+    try {
+      globalFetchMock
+        .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
+        .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
+        .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true }) });
+
+      const port = createBookingSyncPort();
+      const p = port.emitBookingEvent(bookingEventInput());
+      await vi.advanceTimersByTimeAsync(5000);
+      await expect(p).resolves.toBeUndefined();
+      expect(globalFetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not retry on HTTP 400", async () => {
@@ -290,20 +109,26 @@ describe("createBookingSyncPort postSigned retry", () => {
       status: 400,
       json: () => Promise.resolve({ ok: false, error: "bad_request" }),
     });
+
     const port = createBookingSyncPort();
-    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow("bad_request");
+    await expect(port.emitBookingEvent(bookingEventInput())).rejects.toThrow("bad_request");
     expect(globalFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("retries once on fetch TypeError", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    globalFetchMock
-      .mockRejectedValueOnce(new TypeError("network down"))
-      .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true, slots: [] }) });
-    const port = createBookingSyncPort();
-    const p = port.fetchSlots({ type: "online", category: "general" });
-    await vi.advanceTimersByTimeAsync(5000);
-    await expect(p).resolves.toEqual([]);
-    expect(globalFetchMock).toHaveBeenCalledTimes(2);
+    try {
+      globalFetchMock
+        .mockRejectedValueOnce(new TypeError("network down"))
+        .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true }) });
+
+      const port = createBookingSyncPort();
+      const p = port.emitBookingEvent(bookingEventInput());
+      await vi.advanceTimersByTimeAsync(5000);
+      await expect(p).resolves.toBeUndefined();
+      expect(globalFetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
