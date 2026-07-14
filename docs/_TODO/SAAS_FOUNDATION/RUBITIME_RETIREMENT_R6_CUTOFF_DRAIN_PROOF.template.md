@@ -22,6 +22,10 @@ Final proof filename:
 
 `TODO: filename, byte size, date span and read-only reconciliation output`.
 
+## fresh CSV is canon; integrator-only rows absent from CSV are audit-only
+
+`TODO: state the CSV-canon decision and confirm integrator-only rows absent from CSV were not imported, resurrected, or treated as blockers`.
+
 ## owner waivers, if any
 
 `TODO: list ids/reasons for waivers, or state none`.

@@ -193,6 +193,7 @@ Save the completed cutoff proof as `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md
 - Section 1 SQL output;
 - Section 2 SQL output before and after provider disable;
 - fresh CSV filename, size, date span, and reconciliation output;
+- explicit statement that fresh CSV is canon and integrator-only rows absent from CSV are audit-only;
 - owner waivers, if any;
 - commit hash for R6 route/code removal;
 - pre-removal and post-removal `rubitime-r6-r7-static-inventory.mjs` outputs;

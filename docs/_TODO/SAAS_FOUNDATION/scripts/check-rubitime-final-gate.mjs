@@ -45,6 +45,7 @@ const proofContracts = [
       'read-only drain snapshot',
       'runtime Rubitime traffic snapshot before/after disable',
       'fresh CSV filename, size, date span and reconciliation output',
+      'fresh CSV is canon; integrator-only rows absent from CSV are audit-only',
       'owner waivers, if any',
       'route/code removal commit hash',
       'pre/post `rubitime-r6-r7-static-inventory.mjs` outputs',
