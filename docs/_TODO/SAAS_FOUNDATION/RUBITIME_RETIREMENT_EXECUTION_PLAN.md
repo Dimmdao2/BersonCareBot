@@ -6,7 +6,7 @@
 
 Sol audit `bcb-rubitime-retirement-plan-sol-audit-2026-07-14` вернул исходному черновику `BLOCKED`. Этот документ обновлён с учётом обязательных P0/P1 правок: dual-source history, provider-neutral lifecycle, tenant-safe public booking, table-by-table catalog disposition, cutoff/drain и запрет удаления живых canonical maps.
 
-Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул R1 `FAIL`, но этот fail не является разрешением изобретать новый путь: следующий валидный R1 rehearsal — fresh current dump по `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` с pre-migration owner doctor/admin data-fix, approved migration chain, placeholder bookings cleanup, specialist consolidation, exact cutoff CSV и aggregate preflight/audits. `transfer-final-state` допустим только как отдельное audit/owner-approved решение после этого proof, не как замена runbook sequence. Детали прошлого fail: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
+Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул `FAIL` только для старого локального dump: он не проходил текущую migration chain и не имел точного cutoff CSV. Этот fail superseded более поздним `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`: свежий current prod dump прошел approved sequence по `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` с pre-migration owner doctor/admin data-fix, `scripts/deploy-saas-667.sh`, placeholder cleanup, specialist consolidation, exact cutoff CSV и aggregate preflight/audits. Детали: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
 
 ## 1. Verdict
 
@@ -206,8 +206,10 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \
 
 Acceptance:
 
-- `UNMAPPED legacy = 0`.
-- CSV-present missing delta = 0, or imported/waived by owner with ids and reason. Integrator-only rows absent from the fresh CSV are audit-only and not blockers.
+- CSV-present missing delta = 0, or imported/waived by owner with ids and reason.
+- CSV-present live legacy rows are mapped to canonical or owner-waived; `unmapped_real_active = 0`.
+- `appointment_records` vs `integrator.rubitime_records` deltas such as `legacy-only` are source-archive diagnostics only. They are not R1/R2 blockers when the rows are absent from the fresh CSV and live rows are already canonical-mapped or soft-deleted.
+- Integrator-only rows absent from the fresh CSV are audit-only and must not be imported/resurrected into canonical.
 - `DUPLICATE clusters = 0`.
 - `STALE vs Rubitime CSV = 0`.
 - `CONFLICTS = 0` or owner-approved list is explicitly documented.
@@ -785,7 +787,8 @@ non-confirmed status cleanup with `--commit --cleanup-only --delete-non-confirme
 It soft-deleted 47 legacy rows and 34 mapped canonical `rubitime_projection` rows; affected normalized statuses were
 `canceled` and `moved_awaiting` only. The post-run summary has non-confirmed cleanup candidates `0`; stale-vs-owner-CSV
 is now 28. No `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, Rubitime runtime/table removal, or R2
-work was used. R1 remains blocked.
+work was used. This early blocked state is superseded by the later owner-approved cleanup/import replay on a fresh
+current dump.
 
 Execution note 2026-07-14: owner-approved fallback import, strict canceled cleanup, and stale-vs-owner-CSV cleanup were completed in dev DB only and are recorded in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`, `RUBITIME_RETIREMENT_R1_OWNER_REVIEW_PACKET.md`, and `RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md`. Current dev aggregate blockers for stale/unmapped/duplicates are closed: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. This older dev-only note is superseded by the fresh-dump replay and owner source-of-truth decision below.
 
@@ -857,7 +860,7 @@ mappings and the owner-approved single-specialist export context.
 - [x] owner-provided CSV stale dry-run proof is saved and owner-approved stale cleanup completed in dev. *(current stale-vs-owner-CSV is 0.)*
 - [x] owner reviews `UNMAPPED`, `DUPLICATE`, `STALE`, `CONFLICTS`. *(Owner decision: fresh Rubitime export is canon; cleanup buckets are closed after replay.)*
 - [x] commit run is approved before any `--commit`. *(approved only for the narrow cleanup flags in `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`; other commit modes remain gated.)*
-- [x] commit run completes, if approved. *(narrow cleanup only; R1 proof still blocked.)*
+- [x] commit run completes, if approved. *(Initial narrow cleanup was later superseded by the owner-approved fresh-dump replay; R1 proof is no longer blocked by stale/unmapped/duplicate cleanup buckets.)*
 - [x] post-run cleanup diagnosis shows `UNMAPPED 0`, `DUPLICATE 0`, and `STALE 0` in dev.
 - [x] `CONFLICTS` / mismatch / mapping anomaly policy is owner-reviewed or explicitly waived. *(Owner decision: fresh Rubitime export is canon; remaining live native mappings are not cleanup targets unless UI smoke exposes a visible issue.)*
 - [x] clean-dump rehearsal was attempted on the best locally readable prod-like dump.
@@ -977,7 +980,7 @@ the required read-only drain snapshots, fresh CSV reconciliation and owner-appro
 - [ ] `rubitime_create_retry_jobs` is drained or archived.
 - [ ] no pending/dead Rubitime projection jobs remain.
 - [ ] final dual-source reconciliation after cutoff is run.
-- [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only.
+- [ ] final CSV-present missing delta is zero or owner-waived; integrator-only rows absent from the fresh export are audit-only and must not be imported/resurrected.
 - [x] old webapp doctor Rubitime proxy routes are removed. *(Removed `/api/doctor/appointments/rubitime/update` and `/api/doctor/appointments/rubitime/cancel`; no UI callers found.)*
 - [x] staff/admin manual create skips legacy Rubitime mapping resolution when bridge is disabled.
 - [x] patient/public create has no hard-disabled Rubitime-first/create-mirror branch.
