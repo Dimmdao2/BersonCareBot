@@ -75,9 +75,10 @@ const categories = [
   },
   {
     key: 'rubitimeRawTableRuntimeRefs',
-    description: 'Runtime references to raw Rubitime tables scheduled for archive/drop.',
+    description: 'Runtime references to raw Rubitime tables scheduled for archive/drop; ops tooling is reported separately.',
     phase: 'R7',
     postR6MustBeZero: false,
+    fileFilter: (rel) => !isOpsToolingFile(rel),
     patterns: [
       /rubitime_records/g,
       /rubitimeRecords/g,

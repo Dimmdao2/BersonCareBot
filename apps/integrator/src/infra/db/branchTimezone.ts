@@ -69,7 +69,7 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
     /**
      * Unified Postgres: canonical timezone for slots/ingest comes from webapp admin
      * «Каталог записи» — `public.booking_branches`, with `public.branches` as secondary
-     * (synced on PATCH). Do not read `integrator.rubitime_branches.timezone` (duplicate).
+     * (synced on PATCH). Do not read the retired integrator provider branch timezone copy.
      */
     const db = createDbPort();
     const res = await runIntegratorSql<{ timezone: string | null }>(

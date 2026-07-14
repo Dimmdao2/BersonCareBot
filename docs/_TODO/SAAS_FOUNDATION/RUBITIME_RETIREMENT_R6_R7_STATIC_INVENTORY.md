@@ -38,7 +38,7 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after generic retry queue runtime naming cleanup: 2026-07-14 12:06 MSK.
+Latest run time after ops-tooling/runtime classification cleanup: 2026-07-14 12:11 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
@@ -46,7 +46,7 @@ Latest run time after generic retry queue runtime naming cleanup: 2026-07-14 12:
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
 | `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 147 hits / 29 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 63 hits / 17 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
+| `rubitimeRawTableRuntimeRefs` | R7 | 20 hits / 5 files | Raw Rubitime table/queue references remain in runtime/schema/active purge storage until R7 archive/drop/defer decision. Ops tooling is reported separately. |
 | `providerNeutralKeepTableRefs` | R7 keep-list | 158 hits / 38 files | Explicit keep-list references, not a drop signal. |
 | `rubitimeOpsToolingRefs` | R6/R7 ops | 551 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
@@ -157,3 +157,25 @@ After this cleanup, `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-stat
 still passes with the three hard R6 categories at zero and `rubitimeRawTableRuntimeRefs` reduced to
 63 hits / 17 files. Remaining references to `rubitime_create_retry_jobs` are the physical SQL table name, historical
 migration/schema evidence and R6/R7 drain/archive/drop tooling.
+
+## 2026-07-14 R7 Ops Tooling Classification Cleanup
+
+`R7-STATIC-INVENTORY-OPS-CLASSIFY-codex-2026-07-14` stopped double-counting ops/audit scripts inside
+`rubitimeRawTableRuntimeRefs`. The same script files remain visible in `rubitimeOpsToolingRefs`; this is a
+classification cleanup only, not a runtime proof and not a table-drop approval.
+
+One stale comment in `branchTimezone.ts` was also made provider-neutral. The function already reads
+`public.booking_branches` / `public.branches`; it does not read the retired provider branch table.
+
+After this cleanup, `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6`
+still passes with the three hard R6 categories at zero and `rubitimeRawTableRuntimeRefs` reduced to
+20 hits / 5 files. Remaining runtime/schema refs are:
+
+- `apps/integrator/src/infra/db/integratorDrizzleSchema.ts` — exported Drizzle schema while legacy tables still exist.
+- `apps/integrator/src/infra/db/schema/integratorDomainRepos.ts` — physical raw table declarations until R7 archive/drop.
+- `apps/integrator/src/infra/db/schema/integratorQueues.ts` — provider-neutral message retry queue mapped to legacy physical storage.
+- `apps/integrator/src/infra/db/repos/jobQueue.ts` — active provider-neutral retry queue SQL against that legacy physical storage.
+- `apps/webapp/src/infra/platformUserFullPurge.ts` — active strict-purge cleanup for raw-table remnants keyed by phone.
+
+These five are not safe repo-only deletes before owner R6 cutoff/drain proof, archive/export decision and a
+migration-backed R7 drop/defer.
