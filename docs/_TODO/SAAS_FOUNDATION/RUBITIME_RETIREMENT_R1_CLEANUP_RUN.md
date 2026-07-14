@@ -34,16 +34,44 @@ Not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`.
 
 ## Reusable cutover rule
 
-This cleanup is now a scripted R1 cleanup path, not a manual SQL recipe.
+This cleanup is now a scripted R1 cleanup path, not a manual SQL recipe. The row decisions made during this dev run must be encoded as script flags and owner-approved allowlists/fallback inputs; production cutover rehearsal must not manually reselect rows by hand.
 
-Before production cutover, run the same script and flags on a fresh copy of the live database:
+Before production cutover, run the same script sequence on a fresh copy of the live database:
 
 1. restore/sync the live DB copy into the approved non-prod environment;
-2. run the PII-safe dry-run with `--cleanup-only --delete-test --collapse-canceled-dups --summary-only`;
-3. save and audit the aggregate output;
-4. run the commit mode only after owner approval for that exact DB copy;
-5. rerun the PII-safe dry-run and dual-source audit after commit;
-6. carry only the audited script + flags to the production runbook.
+2. run PII-safe dry-runs for the scripted cleanup/import sequence and save aggregate output;
+3. run commit mode only after owner approval for that exact DB copy;
+4. rerun the PII-safe classifier and dual-source audit after each meaningful step or at minimum after the sequence;
+5. carry only the audited script + flags to the production runbook.
+
+Current dev sequence to rehearse on the live DB copy:
+
+```bash
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-non-confirmed --summary-only \
+  --csv=<fresh-rubitime-csv>
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --historical-owner-doctor-phone=<owner-provided-phone> \
+  --summary-only --csv=<fresh-rubitime-csv>
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --delete-non-confirmed --summary-only \
+  --csv=<fresh-rubitime-csv>
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --drop-stale-from-csv --summary-only \
+  --csv=<fresh-rubitime-csv>
+
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs \
+  --csv=<fresh-rubitime-csv>
+
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs \
+  --threshold-minutes=5 --sample-size=0
+```
 
 Do not re-create this cleanup manually with ad hoc `UPDATE` statements. If another test marker is approved later, add it to the script allowlist, rerun the copy-DB rehearsal, and audit the new aggregate result before any production cutover.
 
@@ -170,6 +198,58 @@ Interpretation: the expanded approved categories were idempotent against the cur
 | missing expected mapping metadata | 6 |
 
 Residual blockers remain, with stale proof now recorded separately in `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`; R1 remains blocked and R2 remains forbidden.
+
+## Stale-vs-owner-CSV cleanup pass
+
+Run id: `R1-STALE-CSV-CLEANUP-codex-2026-07-14`
+
+Scope: owner-approved cleanup for all remaining legacy rows absent from the fresh owner Rubitime CSV while inside the CSV date range. No R2 work was started.
+
+Important implementation note: before the commit run, `--drop-stale-from-csv` was made duplicate-safe for canonical rows. It soft-deletes every stale legacy row, but it does not soft-delete a canonical appointment if that same canonical row is still referenced by another live Rubitime mapping outside the stale id set. This avoids deleting the surviving canonical appointment for duplicate clusters.
+
+Exact flags:
+
+```bash
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --cleanup-only --drop-stale-from-csv --summary-only \
+  --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
+
+pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
+  --commit --cleanup-only --drop-stale-from-csv --summary-only \
+  --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
+```
+
+Commit effects:
+
+| Action | Count |
+| --- | ---: |
+| stale legacy rows soft-deleted | 10 |
+| canonical appointments soft-deleted | 0 |
+
+Post-cleanup summary:
+
+| Check | Count |
+| --- | ---: |
+| Legacy live rows | 289 |
+| Canonical `rubitime_projection` live rows | 287 |
+| Unmapped legacy total | 0 |
+| Unmapped real active | 0 |
+| Duplicate clusters | 0 |
+| Stale vs owner CSV | 0 |
+| Non-confirmed cleanup candidates | 0 |
+
+Post-cleanup read-only classifier:
+
+| Check | Count |
+| --- | ---: |
+| stale-vs-owner-CSV rows | 0 |
+| unmapped real active rows | 0 |
+| duplicate clusters | 0 |
+| status mismatches | 4 |
+| `record_at` mismatches | 2 |
+| legacy-only rows | 312 |
+
+Residual blockers after this pass: legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
 
 ## Non-confirmed cleanup pass
 

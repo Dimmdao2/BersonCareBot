@@ -558,6 +558,33 @@ async function softDeleteCanonicalRubitimeProjectionByExternalIds(ids: readonly 
   return rows(res).length;
 }
 
+async function softDeleteCanonicalStaleByExternalIds(ids: readonly string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const res = await getDrizzle().execute(sql`
+    UPDATE be_appointments ba SET deleted_at = now(), updated_at = now()
+    WHERE ba.deleted_at IS NULL
+      AND ba.id IN (
+        SELECT stale_map.canonical_id
+        FROM be_external_entity_mappings stale_map
+        WHERE stale_map.external_system='rubitime'
+          AND stale_map.entity_type='appointment'
+          AND stale_map.external_id IN ${list(ids as string[])}
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM be_external_entity_mappings live_map
+        JOIN appointment_records live_ar
+          ON live_ar.deleted_at IS NULL
+         AND live_ar.integrator_record_id = live_map.external_id
+        WHERE live_map.external_system='rubitime'
+          AND live_map.entity_type='appointment'
+          AND live_map.canonical_id = ba.id
+          AND live_map.external_id NOT IN ${list(ids as string[])}
+      )
+    RETURNING ba.id`);
+  return rows(res).length;
+}
+
 async function deleteNonConfirmedLegacyAppointments(): Promise<{
   legacy: number;
   canonical: number;
@@ -882,7 +909,7 @@ async function main() {
         UPDATE appointment_records SET deleted_at = now()
         WHERE deleted_at IS NULL AND integrator_record_id IN ${list(ids)}`);
     }
-    const canon = await softDeleteCanonicalByExternalIds(ids);
+    const canon = await softDeleteCanonicalStaleByExternalIds(ids);
     console.log(`\n✓ --drop-stale-from-csv: legacy ${ids.length} + canonical ${canon}`);
   }
   if (cli.collapseDups) {

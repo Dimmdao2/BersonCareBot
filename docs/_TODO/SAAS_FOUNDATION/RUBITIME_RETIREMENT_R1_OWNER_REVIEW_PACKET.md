@@ -12,6 +12,8 @@ Owner-approved cleanup for non-confirmed legacy Rubitime appointment statuses: *
 
 Owner-approved historical fallback import for pre-webapp active rows: **COMPLETED** in dev DB.
 
+Owner-approved stale-vs-owner-CSV cleanup: **COMPLETED** in dev DB.
+
 The approved cleanup path is scripted in `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts`.
 It must be rehearsed on a fresh copy of the live database before production cutover; do not reproduce the cleanup with manual SQL.
 
@@ -132,6 +134,24 @@ Owner-approved historical fallback import and strict canceled cleanup, summary-o
 Additional commit flags used: `--commit --historical-owner-doctor-phone=<owner-provided-phone> --summary-only --csv=<owner-csv>` and `--commit --cleanup-only --delete-non-confirmed --summary-only --csv=<owner-csv>`.
 
 Still not used after fallback import: `--drop-stale-from-csv`, `--drop-legacy`, broad `--collapse-dups`, production env, `/opt`, R2.
+
+Owner-approved stale-vs-owner-CSV cleanup, summary-only, after commit:
+
+| Fact | Count |
+| --- | ---: |
+| legacy live rows | 289 |
+| canonical `rubitime_projection` live rows | 287 |
+| stale legacy rows soft-deleted | 10 |
+| canonical appointments soft-deleted | 0 |
+| unmapped legacy total | 0 |
+| unmapped real active bucket | 0 |
+| duplicate clusters | 0 |
+| stale vs owner CSV after this pass | 0 |
+| non-confirmed cleanup candidates | 0 |
+
+Additional commit flags used: `--commit --cleanup-only --drop-stale-from-csv --summary-only --csv=<owner-csv>`.
+
+R1 cleanup/import gates now closed in dev DB for stale/unmapped/duplicate blockers: `stale=0`, `unmapped_real_active=0`, `duplicate_clusters=0`. Remaining R1 decisions are legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
 
 ## Owner Decisions
 

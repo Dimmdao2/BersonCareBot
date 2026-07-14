@@ -94,7 +94,7 @@ Sanitized dry-run summary:
 
 Later R1 cleanup note: owner approved a narrow cleanup for test/block rows and canceled duplicate losers. The cleanup used `--commit --cleanup-only --delete-test --collapse-canceled-dups --summary-only`; it did not use `--collapse-dups`, `--drop-stale-from-csv`, or `--drop-legacy`. Post-cleanup summary: unmapped legacy `112`, test/block `0`, canceled `13`, real active `99`, duplicate clusters `3`.
 
-Stale CSV proof note: `R1-STALE-CSV-PROOF-codex-2026-07-14` used owner-provided `records-2.csv` (`394` physical lines, `127600` bytes, `392` parsed Rubitime ids, CSV date span `2026-01-16...2026-08-29`) in `--summary-only` dry-run mode. Result: `29` live legacy rows are stale vs owner CSV. No cleanup commit was run or authorized. See `RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`.
+Stale CSV proof note: `R1-STALE-CSV-PROOF-codex-2026-07-14` used owner-provided `records-2.csv` (`394` physical lines, `127600` bytes, `392` parsed Rubitime ids, CSV date span `2026-01-16...2026-08-29`) in `--summary-only` dry-run mode. The later owner-approved cleanup pass soft-deleted the remaining `10` stale legacy rows after fallback import and non-confirmed cleanup. Post-cleanup stale/unmapped/duplicate counts are all zero. See `RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`.
 
 ## Commands run
 

@@ -14,25 +14,25 @@ Current remaining blockers:
 
 | Blocker | Current count |
 | --- | ---: |
-| stale-vs-owner-CSV rows | 10 |
+| stale-vs-owner-CSV rows | 0 |
 | stale rows with status `canceled` | 0 |
-| stale active non-test rows | 10 |
-| stale rows mapped to existing canonical | 9 |
-| stale rows also inside duplicate clusters | 9 |
-| unmapped real active rows | 1 |
+| stale active non-test rows | 0 |
+| stale rows mapped to existing canonical | 0 |
+| stale rows also inside duplicate clusters | 0 |
+| unmapped real active rows | 0 |
 | unmapped real active rows present in owner CSV | 0 |
-| duplicate clusters | 3 |
-| rows inside duplicate clusters | 11 |
+| duplicate clusters | 0 |
+| rows inside duplicate clusters | 0 |
 | status mismatches | 4 |
 | `record_at` mismatches | 2 |
 | legacy-only rows | 312 |
 
-Interpretation after fallback import:
+Interpretation after fallback import and owner-approved stale cleanup:
 
-- The old `99` active import blocker is reduced to `1`, and that remaining row is stale-vs-owner-CSV.
-- All cleanup-eligible canceled/non-confirmed rows from the current script policy are exhausted.
-- The remaining stale set is active-only: `10` rows are absent from the owner CSV, `9` are already mapped to canonical rows, and `9` overlap the remaining duplicate clusters.
-- The next decision is stale/duplicate policy, not specialist mapping.
+- The old `99` active import blocker is closed.
+- The remaining stale-vs-owner-CSV rows were owner-approved for cleanup and are now zero.
+- Duplicate clusters are now zero because the duplicate overlap was stale-only legacy residue.
+- The next decisions are dual-source policy items: legacy-only classification/waiver, status mismatch policy, record-time mismatch policy, mapping anomaly classification, and doctor calendar/list/KPI smoke.
 
 ## Historical rerun after non-confirmed cleanup
 
