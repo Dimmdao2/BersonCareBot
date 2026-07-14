@@ -16,7 +16,7 @@ function usage() {
     "Usage:",
     "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --check-contract",
     "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --self-test",
-    "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --mode=dormant --base-url=https://test.bersoncare.ru --fixture-file=/run/bersoncarebot/saas-smoke.fixture [--json-output=out.json] [--junit-output=out.xml] [--include-mutations]",
+    "  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs --mode=dormant --base-url=https://test.bersoncare.ru --fixture-file=/run/bersoncarebot/saas-smoke.fixture [--json-output=out.json] [--junit-output=out.xml] [--include-mutations] [--categories=doctor,bookings] [--scenario-ids=doctor.workspace.home]",
     "",
     "Safety:",
     "  This runner never reads repo env files and never connects to a database.",
@@ -34,6 +34,8 @@ function parseArgs(argv) {
     includeMutations: false,
     checkContract: false,
     selfTest: false,
+    scenarioIds: new Set(),
+    categories: new Set(),
   };
 
   for (const arg of argv) {
@@ -73,6 +75,26 @@ function parseArgs(argv) {
       options.junitOutput = arg.slice("--junit-output=".length);
       continue;
     }
+    if (arg.startsWith("--scenario-id=")) {
+      options.scenarioIds.add(arg.slice("--scenario-id=".length));
+      continue;
+    }
+    if (arg.startsWith("--scenario-ids=")) {
+      for (const id of arg.slice("--scenario-ids=".length).split(",")) {
+        if (id.trim()) options.scenarioIds.add(id.trim());
+      }
+      continue;
+    }
+    if (arg.startsWith("--category=")) {
+      options.categories.add(arg.slice("--category=".length));
+      continue;
+    }
+    if (arg.startsWith("--categories=")) {
+      for (const category of arg.slice("--categories=".length).split(",")) {
+        if (category.trim()) options.categories.add(category.trim());
+      }
+      continue;
+    }
     throw new Error(`Unknown argument: ${arg}\n\n${usage()}`);
   }
 
@@ -99,6 +121,18 @@ function scenarioGroups(contract, includeMutations) {
     scenarios.push(...contract.mutationScenarios);
   }
   return scenarios;
+}
+
+function filterScenarios(scenarios, options) {
+  const filtered = scenarios.filter((scenario) => {
+    const matchesScenarioId = options.scenarioIds.size === 0 || options.scenarioIds.has(scenario.id);
+    const matchesCategory = options.categories.size === 0 || options.categories.has(scenario.category);
+    return matchesScenarioId && matchesCategory;
+  });
+  if (filtered.length === 0) {
+    throw new Error("scenario filters selected zero scenarios");
+  }
+  return filtered;
 }
 
 function validateContract(contract) {
@@ -320,7 +354,7 @@ async function runScenario({ baseUrl, fixture, scenario }) {
   }
 }
 
-function summarize({ mode, baseUrl, results }) {
+function summarize({ mode, baseUrl, results, filters }) {
   const failures = results.filter((result) => result.outcome !== "pass");
   return {
     schemaVersion: 1,
@@ -331,6 +365,7 @@ function summarize({ mode, baseUrl, results }) {
     total: results.length,
     passed: results.length - failures.length,
     failed: failures.length,
+    filters,
     failureCodes: failures.reduce((acc, result) => {
       const key = result.failureCode ?? "unknown";
       acc[key] = (acc[key] ?? 0) + 1;
@@ -453,6 +488,11 @@ function runSelfTest(contract) {
     renderPath("/x/{doctorClientUserId}", fixture.refs) === "/x/fixture-doctorClientUserId",
     "fixture path interpolation failed",
   );
+  const filtered = filterScenarios(contract.readOnlyScenarios, {
+    scenarioIds: new Set(),
+    categories: new Set(["doctor"]),
+  });
+  assert(filtered.length > 0 && filtered.every((scenario) => scenario.category === "doctor"), "category filter failed");
 
   console.log("smoke-saas-product self-test: OK");
 }
@@ -479,14 +519,22 @@ async function main() {
 
   const fixture = readJson(options.fixtureFile);
   validateFixture(contract, fixture);
-  const scenarios = scenarioGroups(contract, options.includeMutations);
+  const scenarios = filterScenarios(scenarioGroups(contract, options.includeMutations), options);
   const results = [];
 
   for (const scenario of scenarios) {
     results.push(await runScenario({ baseUrl: options.baseUrl, fixture, scenario }));
   }
 
-  const summary = summarize({ mode: options.mode, baseUrl: options.baseUrl, results });
+  const summary = summarize({
+    mode: options.mode,
+    baseUrl: options.baseUrl,
+    results,
+    filters: {
+      scenarioIds: [...options.scenarioIds],
+      categories: [...options.categories],
+    },
+  });
 
   if (options.jsonOutput) {
     writeJson(options.jsonOutput, summary);

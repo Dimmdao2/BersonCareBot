@@ -25,6 +25,17 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs \
 The database name must contain `scratch`, `rehearsal`, or `copy` and must not be prod/test/dev-shaped. The script
 prints only counts/booleans and failure reason enums.
 
+Owner-authorized TEST from-zero deploy integration:
+
+```bash
+SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture \
+SAAS_PRODUCT_SMOKE_CATEGORIES=doctor,schedule,working_hours,bookings,client_card,admin_settings,system_health \
+bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+```
+
+`deploy-test-saas.sh` runs this B1 assertion against the freshly recreated TEST DB with an explicit
+`--allow-test-target` flag, then runs the filtered product smoke if the operator-managed fixture exists.
+
 ## Checklist
 
 - [x] Refuses obvious live-like DB names.
@@ -35,6 +46,8 @@ prints only counts/booleans and failure reason enums.
 - [x] Checks `admin_phones` TEST override shape when present.
 - [x] Classifies likely failure reasons without guessing a code fix.
 - [x] No patient samples, raw payloads, env reads, SSH, service calls, or DB writes.
+- [x] `deploy-test-saas.sh` invokes the assertion after from-zero data-fix/migrate/override/consolidation.
+- [x] A1 product smoke can be filtered to the doctor/admin subset needed for B1 exit evidence.
 
 ## B1 Boundary
 

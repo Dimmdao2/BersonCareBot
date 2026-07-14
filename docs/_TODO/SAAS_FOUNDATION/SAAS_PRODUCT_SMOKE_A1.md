@@ -89,3 +89,16 @@ pnpm run check:saas-a2-nginx-forwarded-host
 `deploy/host/deploy-test-saas.sh` runs the same check against `nginx -T` after TEST unit restart, and runs this
 product smoke only when `SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture` is supplied by the
 operator. Without that fixture it skips the product smoke instead of inventing proof.
+
+For B1 calibration, the same runner can narrow to the doctor/admin subset:
+
+```bash
+pnpm run smoke:saas-product -- \
+  --mode=dormant \
+  --base-url=https://test.bersoncare.ru \
+  --fixture-file=/run/bersoncarebot/saas-smoke.fixture \
+  --categories=doctor,schedule,working_hours,bookings,client_card,admin_settings,system_health
+```
+
+The TEST deploy wrapper accepts the same filter via `SAAS_PRODUCT_SMOKE_CATEGORIES` or
+`SAAS_PRODUCT_SMOKE_SCENARIO_IDS`.

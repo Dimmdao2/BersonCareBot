@@ -60,12 +60,33 @@ run_a2_product_smoke_if_configured(){
   local smoke_dir
   smoke_dir="${SAAS_PRODUCT_SMOKE_OUTPUT_DIR:-/tmp/bcb-saas-product-smoke}"
   mkdir -p "$smoke_dir"
+  local smoke_args=()
+  if [ -n "${SAAS_PRODUCT_SMOKE_CATEGORIES:-}" ]; then
+    smoke_args+=("--categories=$SAAS_PRODUCT_SMOKE_CATEGORIES")
+  fi
+  if [ -n "${SAAS_PRODUCT_SMOKE_SCENARIO_IDS:-}" ]; then
+    smoke_args+=("--scenario-ids=$SAAS_PRODUCT_SMOKE_SCENARIO_IDS")
+  fi
   node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs \
     --mode="${SAAS_PRODUCT_SMOKE_MODE:-dormant}" \
     --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
     --fixture-file="$SAAS_PRODUCT_SMOKE_FIXTURE" \
     --json-output="$smoke_dir/saas-product-smoke.json" \
-    --junit-output="$smoke_dir/saas-product-smoke.junit.xml"
+    --junit-output="$smoke_dir/saas-product-smoke.junit.xml" \
+    "${smoke_args[@]}"
+}
+
+run_b1_doctor_admin_identity_assertion(){
+  if [ "${SAAS_B1_IDENTITY_ASSERTION_SKIP:-0}" = "1" ]; then
+    echo "   B1 doctor/admin identity assertion: skipped (SAAS_B1_IDENTITY_ASSERTION_SKIP=1)"
+    return 0
+  fi
+
+  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
+    node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs \
+      --execute \
+      --allow-test-target \
+      --database-url \"\$DATABASE_URL\""
 }
 
 # 0. preflight (env files are deploy-owned → check as deploy, not as dev)
@@ -152,6 +173,8 @@ APPTS="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointmen
 FUT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM be_appointments WHERE specialist_id='$CANONICAL_SPECIALIST' AND start_at>=now();")"
 echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT future) · doctor role held · admin_phones=[]"
 [ "${FUT:-0}" -gt 0 ] || echo "   ⚠ WARNING: 0 future appointments — dump may be stale (live prod should have upcoming bookings)"
+log "B1 doctor/admin identity assertion"
+run_b1_doctor_admin_identity_assertion
 
 # 8. restart test units + verify (and that the prod WireGuard relay is untouched)
 log "restart test units"

@@ -11,6 +11,7 @@ function usage() {
     `  node ${scriptPath} --self-test`,
     `  node ${scriptPath} --print-sql`,
     `  node ${scriptPath} --execute --database-url='<disposable-fresh-copy-runtime-url>'`,
+    `  node ${scriptPath} --execute --allow-test-target --database-url='<owner-authorized-test-url>'`,
     "",
     "Safety: execution refuses prod/test/dev-shaped DB names and requires scratch/rehearsal/copy in the DB name.",
   ].join("\n");
@@ -21,6 +22,7 @@ function parseArgs(argv) {
     selfTest: false,
     printSql: false,
     execute: false,
+    allowTestTarget: false,
     databaseUrl: null,
   };
 
@@ -39,6 +41,10 @@ function parseArgs(argv) {
     }
     if (arg === "--execute") {
       options.execute = true;
+      continue;
+    }
+    if (arg === "--allow-test-target") {
+      options.allowTestTarget = true;
       continue;
     }
     if (arg.startsWith("--database-url=")) {
@@ -64,8 +70,12 @@ function databaseNameFromUrl(value) {
   }
 }
 
-function unsafeDbNameReason(name) {
+function unsafeDbNameReason(name, options = {}) {
   const normalized = name.toLowerCase();
+  const allowTestTarget = options.allowTestTarget === true;
+  if (allowTestTarget && (normalized === "bersoncarebot_test" || normalized === "bcb_webapp_test")) {
+    return null;
+  }
   const forbiddenExact = new Set([
     "bcb_webapp_prod",
     "bcb_webapp_test",
@@ -91,11 +101,11 @@ function unsafeDbNameReason(name) {
   return null;
 }
 
-function assertSafeDatabaseUrl(databaseUrl) {
+function assertSafeDatabaseUrl(databaseUrl, options = {}) {
   assert(databaseUrl, "execution requires --database-url");
   const dbName = databaseNameFromUrl(databaseUrl);
   assert(dbName, "could not parse database name from URL");
-  const reason = unsafeDbNameReason(dbName);
+  const reason = unsafeDbNameReason(dbName, options);
   assert(!reason, reason);
 }
 
@@ -234,6 +244,7 @@ function runSelfTest() {
 
   assert(unsafeDbNameReason("bcb_webapp_prod"), "self-test expected prod DB refusal");
   assert(unsafeDbNameReason("bersoncarebot_test"), "self-test expected test DB refusal");
+  assert(!unsafeDbNameReason("bersoncarebot_test", { allowTestTarget: true }), "self-test expected explicit test allow");
   assert(unsafeDbNameReason("bcb_webapp_dev"), "self-test expected dev DB refusal");
   assert(!unsafeDbNameReason("bcb_saas_rehearsal_20260714"), "self-test expected rehearsal DB allow");
   assert(!unsafeDbNameReason("bcb_saas_scratch_b1"), "self-test expected scratch DB allow");
@@ -271,7 +282,7 @@ try {
     console.log(buildSql());
   } else if (options.execute) {
     const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
-    assertSafeDatabaseUrl(databaseUrl);
+    assertSafeDatabaseUrl(databaseUrl, { allowTestTarget: options.allowTestTarget });
     const facts = runPsql(databaseUrl);
     const classification = classifyFacts(facts);
     console.log(
