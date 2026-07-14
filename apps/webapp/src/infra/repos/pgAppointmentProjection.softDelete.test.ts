@@ -73,6 +73,7 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
       .mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
     const port = createPgAppointmentProjectionPort();
@@ -83,13 +84,17 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     });
 
     expect(ok).toBe(true);
-    const deleteSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    const canonicalDeleteSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(canonicalDeleteSql).toContain("UPDATE be_appointments");
+    expect(canonicalDeleteSql).toContain("deleted_at = now()");
+    const deleteSql = String(runWebappPgTextMock.mock.calls[3]?.[0] ?? "");
     expect(deleteSql).toContain("DELETE FROM patient_bookings");
   });
 
   it("is idempotent when appointment_records already soft-deleted", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: new Date("2026-01-01") }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
       .mockResolvedValueOnce({ rowCount: 0, rows: [] })
       .mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
@@ -103,6 +108,7 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     expect(ok).toBe(true);
     const updateSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(updateSql).not.toContain("UPDATE appointment_records");
+    expect(updateSql).toContain("UPDATE be_appointments");
     expect(String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "")).toContain("DELETE FROM patient_bookings");
   });
 
@@ -130,7 +136,11 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
     it("proceeds when the resolved canonical organization matches the caller", async () => {
       runWebappPgTextMock
         .mockResolvedValueOnce({ rowCount: 1, rows: [{ deleted_at: null }] })
-        .mockResolvedValueOnce({ rowCount: 1, rows: [{ organization_id: "org-mine" }] })
+        .mockResolvedValueOnce({
+          rowCount: 1,
+          rows: [{ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", organization_id: "org-mine" }],
+        })
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] })
         .mockResolvedValueOnce({ rowCount: 1, rows: [] })
         .mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
@@ -141,7 +151,8 @@ describe("pgAppointmentProjection softDeleteByIntegratorId", () => {
 
       expect(ok).toBe(true);
       expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
-      expect(runWebappPgTextMock).toHaveBeenCalledTimes(4);
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(5);
+      expect(String(runWebappPgTextMock.mock.calls[3]?.[0] ?? "")).toContain("UPDATE be_appointments");
     });
 
     it("proceeds (dormant/unscoped-legacy compatible) when the record has no canonical org mapping", async () => {

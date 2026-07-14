@@ -44,17 +44,17 @@ class AppointmentProjectionOrganizationMismatchError extends Error {
  * `pgDoctorAppointments.legacyAppointmentOrganizationClause`; used here only to guard destructive
  * writes, never to stamp organization onto the legacy tables themselves.
  */
-async function resolveLegacyAppointmentOrganizationId(
+async function resolveLegacyAppointmentCanonicalTarget(
   integratorRecordId: string,
   tx: ReturnType<typeof getWebappSqlFromPgClient>,
-): Promise<string | null> {
-  const result = await runWebappPgText<{ organization_id: string }>(
-    `SELECT bea.organization_id AS organization_id
+): Promise<{ id: string; organizationId: string } | null> {
+  const result = await runWebappPgText<{ id: string; organization_id: string }>(
+    `SELECT bea.id::text AS id, bea.organization_id AS organization_id
        FROM be_appointments bea
       WHERE $1 ~ '^be:[0-9a-fA-F-]{36}$'
         AND bea.id = (SUBSTRING($1 FROM 4))::uuid
      UNION ALL
-     SELECT bea2.organization_id AS organization_id
+     SELECT bea2.id::text AS id, bea2.organization_id AS organization_id
        FROM be_external_entity_mappings m
        JOIN be_appointments bea2 ON bea2.id = m.canonical_id
       WHERE m.external_id = $1
@@ -64,7 +64,24 @@ async function resolveLegacyAppointmentOrganizationId(
     [integratorRecordId],
     tx,
   );
-  return result.rows[0]?.organization_id ?? null;
+  const row = result.rows[0];
+  return row ? { id: row.id, organizationId: row.organization_id } : null;
+}
+
+async function resolveCanonicalAppointmentTargetById(
+  appointmentId: string,
+  tx: ReturnType<typeof getWebappSqlFromPgClient>,
+): Promise<{ id: string; organizationId: string } | null> {
+  const result = await runWebappPgText<{ id: string; organization_id: string }>(
+    `SELECT id::text AS id, organization_id
+       FROM be_appointments
+      WHERE id = $1::uuid
+      LIMIT 1`,
+    [appointmentId],
+    tx,
+  );
+  const row = result.rows[0];
+  return row ? { id: row.id, organizationId: row.organization_id } : null;
 }
 
 export type AppointmentRecordRow = {
@@ -166,6 +183,14 @@ async function purgeCanonicalStaffDeleteTombstone(
         deleted_at = COALESCE(appointment_records.deleted_at, now()),
         updated_at = now()`,
       [tombstoneId],
+      tx,
+    );
+    await runWebappPgText(
+      `UPDATE be_appointments
+          SET deleted_at = now(), updated_at = now()
+        WHERE id = $1::uuid
+          AND deleted_at IS NULL`,
+      [appointmentId],
       tx,
     );
     if (rubitimeId) {
@@ -335,13 +360,18 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
             throw new AppointmentProjectionRecordNotFoundError();
           }
 
+          let canonicalAppointmentId = opts?.canonicalAppointmentId?.trim() || null;
           if (organizationId) {
-            const resolvedOrganizationId = await resolveLegacyAppointmentOrganizationId(
-              integratorRecordId,
-              tx,
-            );
-            if (resolvedOrganizationId && resolvedOrganizationId !== organizationId) {
+            const target =
+              (await resolveLegacyAppointmentCanonicalTarget(integratorRecordId, tx)) ??
+              (canonicalAppointmentId
+                ? await resolveCanonicalAppointmentTargetById(canonicalAppointmentId, tx)
+                : null);
+            if (target?.organizationId && target.organizationId !== organizationId) {
               throw new AppointmentProjectionOrganizationMismatchError();
+            }
+            if (!canonicalAppointmentId && target?.id) {
+              canonicalAppointmentId = target.id;
             }
           }
 
@@ -354,16 +384,27 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
             );
           }
 
+          if (canonicalAppointmentId) {
+            await runWebappPgText(
+              `UPDATE be_appointments
+                  SET deleted_at = now(), updated_at = now()
+                WHERE id = $1::uuid
+                  AND deleted_at IS NULL`,
+              [canonicalAppointmentId],
+              tx,
+            );
+          }
+
           if (purgePatientBookings) {
             await runWebappPgText(
               `DELETE FROM patient_bookings WHERE rubitime_id = $1`,
               [integratorRecordId],
               tx,
             );
-            if (opts?.canonicalAppointmentId) {
+            if (canonicalAppointmentId) {
               await runWebappPgText(
                 `DELETE FROM patient_bookings WHERE canonical_appointment_id = $1::uuid`,
-                [opts.canonicalAppointmentId],
+                [canonicalAppointmentId],
                 tx,
               );
             }

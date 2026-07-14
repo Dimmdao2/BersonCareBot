@@ -8,8 +8,6 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 import {
   filterCanonicalRowsNotPurged,
-  integratorKeysForCanonicalAppointment,
-  isAppointmentIntegratorPurged,
   loadPurgedCanonicalAppointmentIds,
   PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL,
   PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL,
@@ -24,27 +22,16 @@ describe("doctorAppointmentPurgeFilter", () => {
     runWebappPgTextMock.mockReset();
   });
 
-  it("integratorKeysForCanonicalAppointment includes be: id and rubitime id", () => {
-    expect(integratorKeysForCanonicalAppointment(APPT_A, "rt-1")).toEqual([`be:${APPT_A}`, "rt-1"]);
-    expect(integratorKeysForCanonicalAppointment(APPT_A, null)).toEqual([`be:${APPT_A}`]);
-  });
-
-  it("isAppointmentIntegratorPurged matches purged integrator keys", () => {
-    const purged = new Set([`be:${APPT_A}`, "rt-other"]);
-    expect(isAppointmentIntegratorPurged(APPT_A, "rt-1", purged)).toBe(true);
-    expect(isAppointmentIntegratorPurged(APPT_B, "rt-9", purged)).toBe(false);
-  });
-
-  it("loadPurgedCanonicalAppointmentIds queries appointment_records tombstones", async () => {
+  it("loadPurgedCanonicalAppointmentIds queries canonical deleted_at", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ id: APPT_A }] });
 
     const purged = await loadPurgedCanonicalAppointmentIds(ORG_ID, [APPT_A, APPT_B]);
 
     expect(purged).toEqual(new Set([APPT_A]));
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("appointment_records");
+    expect(sql).toContain("be_appointments");
     expect(sql).toContain("deleted_at IS NOT NULL");
-    expect(sql).toContain("be_external_entity_mappings");
+    expect(sql).not.toContain("appointment_records");
   });
 
   it("filterCanonicalRowsNotPurged removes purged appointment ids", async () => {
@@ -69,12 +56,12 @@ describe("doctorAppointmentPurgeFilter", () => {
   });
 
   it("PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL references be_appointments alias a", () => {
-    expect(PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL).toContain("be:' || a.id::text");
-    expect(PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL).toContain("a.organization_id");
+    expect(PURGED_CANONICAL_APPOINTMENT_NOT_EXISTS_SQL).toBe("a.deleted_at IS NULL");
   });
 
   it("PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL uses bare be_appointments table", () => {
-    expect(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL).toContain("be_appointments.id::text");
-    expect(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL).toContain("be_appointments.organization_id");
+    expect(PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL).toBe(
+      "be_appointments.deleted_at IS NULL",
+    );
   });
 });

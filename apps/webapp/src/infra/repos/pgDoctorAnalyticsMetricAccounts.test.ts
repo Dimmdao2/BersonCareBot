@@ -153,8 +153,8 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     expect(sql).toContain("be_appointment_cancellations");
-    expect(sql).toContain("appointment_records");
-    expect(sql).toContain("deleted_at IS NOT NULL");
+    expect(sql).toContain("a.deleted_at IS NULL");
+    expect(sql).not.toContain("appointment_records");
   });
 
   it("appointments_cancelled_visits excludes staff-purged canonical rows", async () => {
@@ -172,8 +172,8 @@ describe("pgDoctorAnalyticsMetricAccounts", () => {
     expect(firstCall).toBeDefined();
     const sql = String(firstCall![0]);
     expect(sql).toContain("be_appointments");
-    expect(sql).toContain("appointment_records");
-    expect(sql).toContain("deleted_at IS NOT NULL");
+    expect(sql).toContain("a.deleted_at IS NULL");
+    expect(sql).not.toContain("appointment_records");
   });
 
   it("notif_push_opened queries product_analytics_events_recent with windowHours", async () => {
