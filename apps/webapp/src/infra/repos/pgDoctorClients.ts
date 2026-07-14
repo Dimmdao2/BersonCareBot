@@ -241,147 +241,42 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           }>(
             `SELECT
                pu.id::text AS user_id,
-              COUNT(ar.id) FILTER (
-                 WHERE ar.deleted_at IS NULL
-                   AND ar.status IN ('created', 'updated')
-                   AND (
-                     $2::uuid IS NULL
-                     OR (
-                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                       AND EXISTS (
-                         SELECT 1
-                         FROM be_appointments bea_scope
-                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                           AND bea_scope.organization_id = $2::uuid
-                       )
-                     )
-                     OR EXISTS (
-                       SELECT 1
-                       FROM be_external_entity_mappings m_scope
-                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-                       WHERE m_scope.external_id = ar.integrator_record_id
-                         AND m_scope.entity_type = 'appointment'
-                         AND m_scope.external_system = 'rubitime'
-                         AND m_scope.organization_id = $2::uuid
-                         AND bea_scope.organization_id = $2::uuid
-                     )
-                   )
+              COUNT(DISTINCT bea.id) FILTER (
+                 WHERE bea.deleted_at IS NULL
+                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS history_count,
-               COUNT(*) FILTER (
-                 WHERE ar.deleted_at IS NULL
-                   AND ar.status IN ('created', 'updated')
-                   AND ar.record_at IS NOT NULL
-                   AND ar.record_at >= NOW()
-                   AND (
-                     $2::uuid IS NULL
-                     OR (
-                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                       AND EXISTS (
-                         SELECT 1
-                         FROM be_appointments bea_scope
-                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                           AND bea_scope.organization_id = $2::uuid
-                       )
-                     )
-                     OR EXISTS (
-                       SELECT 1
-                       FROM be_external_entity_mappings m_scope
-                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-                       WHERE m_scope.external_id = ar.integrator_record_id
-                         AND m_scope.entity_type = 'appointment'
-                         AND m_scope.external_system = 'rubitime'
-                         AND m_scope.organization_id = $2::uuid
-                         AND bea_scope.organization_id = $2::uuid
-                     )
-                   )
+               COUNT(DISTINCT bea.id) FILTER (
+                 WHERE bea.deleted_at IS NULL
+                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND bea.start_at IS NOT NULL
+                   AND bea.start_at >= NOW()
+                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS active_count,
-               COUNT(*) FILTER (
-                 WHERE ar.deleted_at IS NULL
-                   AND ar.status = 'canceled'
-                   AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
-                   AND ar.updated_at >= NOW() - INTERVAL '30 days'
-                   AND (
-                     $2::uuid IS NULL
-                     OR (
-                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                       AND EXISTS (
-                         SELECT 1
-                         FROM be_appointments bea_scope
-                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                           AND bea_scope.organization_id = $2::uuid
-                       )
-                     )
-                     OR EXISTS (
-                       SELECT 1
-                       FROM be_external_entity_mappings m_scope
-                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-                       WHERE m_scope.external_id = ar.integrator_record_id
-                         AND m_scope.entity_type = 'appointment'
-                         AND m_scope.external_system = 'rubitime'
-                         AND m_scope.organization_id = $2::uuid
-                         AND bea_scope.organization_id = $2::uuid
-                     )
-                   )
+               COUNT(DISTINCT bea.id) FILTER (
+                 WHERE bea.deleted_at IS NULL
+                   AND bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND bea.updated_at >= NOW() - INTERVAL '30 days'
+                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS cancellation_count_30d,
-               COUNT(*) FILTER (
-                 WHERE ar.deleted_at IS NULL
-                   AND ar.status = 'updated'
-                   AND ar.updated_at >= NOW() - INTERVAL '30 days'
-                   AND (
-                     $2::uuid IS NULL
-                     OR (
-                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                       AND EXISTS (
-                         SELECT 1
-                         FROM be_appointments bea_scope
-                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                           AND bea_scope.organization_id = $2::uuid
-                       )
-                     )
-                     OR EXISTS (
-                       SELECT 1
-                       FROM be_external_entity_mappings m_scope
-                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-                       WHERE m_scope.external_id = ar.integrator_record_id
-                         AND m_scope.entity_type = 'appointment'
-                         AND m_scope.external_system = 'rubitime'
-                         AND m_scope.organization_id = $2::uuid
-                         AND bea_scope.organization_id = $2::uuid
-                     )
-                   )
+               COUNT(DISTINCT r.id) FILTER (
+                 WHERE r.created_at >= NOW() - INTERVAL '30 days'
+                   AND ($2::uuid IS NULL OR r.organization_id = $2::uuid)
                )::int AS reschedule_count_30d,
-               COUNT(*) FILTER (
-                 WHERE ar.deleted_at IS NULL
-                   AND ar.record_at IS NOT NULL
-                   AND ar.record_at >= date_trunc('month', NOW())
-                   AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
-                   AND ar.record_at < NOW()
-                   AND ar.status IN ('created', 'updated')
-                   AND (
-                     $2::uuid IS NULL
-                     OR (
-                       ar.integrator_record_id ~ '^be:[0-9a-fA-F-]{36}$'
-                       AND EXISTS (
-                         SELECT 1
-                         FROM be_appointments bea_scope
-                         WHERE bea_scope.id = (SUBSTRING(ar.integrator_record_id FROM 4))::uuid
-                           AND bea_scope.organization_id = $2::uuid
-                       )
-                     )
-                     OR EXISTS (
-                       SELECT 1
-                       FROM be_external_entity_mappings m_scope
-                       JOIN be_appointments bea_scope ON bea_scope.id = m_scope.canonical_id
-                       WHERE m_scope.external_id = ar.integrator_record_id
-                         AND m_scope.entity_type = 'appointment'
-                         AND m_scope.external_system = 'rubitime'
-                         AND m_scope.organization_id = $2::uuid
-                         AND bea_scope.organization_id = $2::uuid
-                     )
-                   )
+               COUNT(DISTINCT bea.id) FILTER (
+                 WHERE bea.deleted_at IS NULL
+                   AND bea.start_at IS NOT NULL
+                   AND bea.start_at >= date_trunc('month', NOW())
+                   AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
+                   AND bea.start_at < NOW()
+                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS visited_month_count
              FROM platform_users pu
-             LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+             LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
+             LEFT JOIN be_appointment_reschedules r
+               ON r.appointment_id = bea.id
+              AND ($2::uuid IS NULL OR r.organization_id = $2::uuid)
              WHERE pu.id = ANY($1::uuid[])
              GROUP BY pu.id`,
             [userIds, organizationId],

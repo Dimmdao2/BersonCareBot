@@ -53,6 +53,7 @@ Current non-R2 consumers are assigned as follows:
 | Patient booking history UI (`/app/patient/booking/new`) | Migrated to `patientBooking.listMyBookings` / `patient_bookings`; no longer calls `patientCabinet.getPastAppointments` or `appointment_records` projection. |
 | Doctor analytics contact breakdown (`pgDoctorClients.getClientContactBreakdown`) | Migrated to canonical `be_appointments` for patients-vs-subscribers classification. |
 | Doctor dashboard patient metrics (`pgDoctorClients.getDashboardPatientMetrics`) | Migrated visited/new/former/subscriber/cancellation buckets to canonical `be_appointments`. |
+| Doctor client list badges and filters (`pgDoctorClients.listClients`) | Migrated history/upcoming/visited/cancellation badges to canonical `be_appointments`; reschedule badge uses `be_appointment_reschedules` as the existing canonical lifecycle source of truth. |
 | Doctor client card fallbacks and clinical linking (`pgDoctorClients`, `pgPatientClinical`) | Assigned to R7 table-drop preparation; not an active doctor appointment read-source switch. |
 | Membership/package appointment status/session accounting (`pgMemberships`) | Assigned to package lifecycle canonicalization before table drop. |
 | Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Keep until canonical deletion/tombstone replacement is designed. |
@@ -91,6 +92,7 @@ Commands:
 | Command | Result |
 | --- | --- |
 | `pnpm -C apps/webapp exec vitest run src/infra/repos/doctorAppointmentsReadSwitch.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.test.ts src/infra/repos/pgDoctorAnalyticsMetricAccounts.parity.test.ts src/app/api/admin/booking-engine/overview/route.test.ts src/app/api/admin/settings/route.test.ts` | PASS, 5 files / 142 tests |
+| `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgDoctorClients.repo.test.ts` | PASS, 1 file / 14 tests |
 | `pnpm -C apps/webapp run typecheck` | PASS |
 | `pnpm -C apps/webapp run lint` | PASS |
 | `pnpm run check:rubitime-retirement-r0` | PASS |

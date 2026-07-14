@@ -174,8 +174,11 @@ describe("pgDoctorClients repo", () => {
     const list = await port.listClients({});
 
     const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-    expect(appointmentAggSql).toContain("COUNT(ar.id) FILTER");
-    expect(appointmentAggSql).toContain("ar.status IN ('created', 'updated')");
+    expect(appointmentAggSql).toContain("LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id");
+    expect(appointmentAggSql).toContain("LEFT JOIN be_appointment_reschedules r");
+    expect(appointmentAggSql).toContain("COUNT(DISTINCT bea.id) FILTER");
+    expect(appointmentAggSql).toContain("bea.status NOT IN");
+    expect(appointmentAggSql).not.toContain("LEFT JOIN appointment_records");
     expect(list.find((item) => item.userId === "u1")?.hasAppointmentHistory).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasAppointmentHistory).toBe(true);
   });
