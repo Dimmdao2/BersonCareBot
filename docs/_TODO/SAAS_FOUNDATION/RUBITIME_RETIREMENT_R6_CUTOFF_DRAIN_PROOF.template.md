@@ -26,6 +26,10 @@ Final proof filename:
 
 `TODO: state the CSV-canon decision and confirm integrator-only rows absent from CSV were not imported, resurrected, or treated as blockers`.
 
+## integrator-led reconciliation is forbidden when the fresh CSV exists
+
+`TODO: confirm raw integrator state did not create a new import backlog or block the gate for rows absent from the fresh CSV`.
+
 ## one-specialist context: `89643805480` / tail `9643805480`
 
 `TODO: confirm the approved Rubitime export is the one-specialist context for this phone/tail`.

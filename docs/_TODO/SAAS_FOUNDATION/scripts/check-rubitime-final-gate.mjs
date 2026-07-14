@@ -48,6 +48,7 @@ const proofContracts = [
       'runtime Rubitime traffic snapshot before/after disable',
       'fresh CSV filename, size, date span and reconciliation output',
       'fresh CSV is canon; integrator-only rows absent from CSV are audit-only',
+      'integrator-led reconciliation is forbidden when the fresh CSV exists',
       'one-specialist context: `89643805480` / tail `9643805480`',
       'matched through existing city/branch mappings',
       'owner waivers, if any',
@@ -66,6 +67,7 @@ const proofContracts = [
       'post-R6 static reference audit',
       'archive directory and SHA256SUMS',
       'raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV',
+      'integrator-led reconciliation is forbidden when the fresh CSV exists',
       'migration file name or explicit defer record',
       'fresh restore + migrate output',
       'typecheck/lint/test output',
@@ -258,6 +260,7 @@ function validate({ requireComplete }) {
         'Integrator-only rows absent from the fresh CSV must not be imported',
         'Extra rows present only in `integrator.rubitime_records` do not expand the preservation set',
         'new backfill',
+        'Integrator-led reconciliation is forbidden when the fresh CSV exists',
       ],
     ],
     [
@@ -272,6 +275,7 @@ function validate({ requireComplete }) {
         'Integrator-only rows absent from the fresh CSV must not be imported',
         'Extra rows present only in `integrator.rubitime_records` do not expand the preservation set',
         'new backfill',
+        'Integrator-led reconciliation is forbidden when the fresh CSV exists',
       ],
     ],
     [
@@ -286,6 +290,7 @@ function validate({ requireComplete }) {
         'Integrator-only rows absent from the fresh CSV must not be imported',
         'Extra rows present only in `integrator.rubitime_records` do not expand',
         'new backfill',
+        'integrator-led reconciliation is forbidden',
       ],
     ],
     [
@@ -298,6 +303,7 @@ function validate({ requireComplete }) {
         '`integrator.rubitime_records` — только audit/diagnostic material',
         'они не расширяют preservation set',
         'не повод для нового backfill',
+        'integrator-led reconciliation запрещен',
       ],
     ],
   ];

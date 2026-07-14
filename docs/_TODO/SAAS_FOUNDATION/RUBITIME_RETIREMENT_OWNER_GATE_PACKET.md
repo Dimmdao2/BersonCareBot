@@ -36,6 +36,8 @@ pnpm run check:rubitime-final-gate
 - Integrator-only rows absent from the fresh CSV must not be imported, resurrected, or used as final-gate blockers.
 - Extra rows present only in `integrator.rubitime_records` do not expand the preservation set and do not justify a
   new backfill.
+- Integrator-led reconciliation is forbidden when the fresh CSV exists: raw integrator state cannot create a new
+  import backlog or block final gates for rows absent from the CSV.
 
 ## Remaining Owner Gates
 
@@ -83,6 +85,7 @@ Proof must include the sections required by `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN
 - runtime Rubitime traffic snapshot before/after disable;
 - fresh CSV filename, size, date span and reconciliation output;
 - fresh CSV is canon; integrator-only rows absent from CSV are audit-only;
+- integrator-led reconciliation is forbidden when the fresh CSV exists;
 - one-specialist context: `89643805480` / tail `9643805480`;
 - matched through existing city/branch mappings;
 - owner waivers, if any;
@@ -111,6 +114,7 @@ Proof must include the sections required by `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP
 - post-R6 static reference audit;
 - archive directory and SHA256SUMS if archive is required;
 - raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV;
+- integrator-led reconciliation is forbidden when the fresh CSV exists;
 - migration file name or explicit defer record;
 - fresh restore + migrate output;
 - typecheck/lint/test output;

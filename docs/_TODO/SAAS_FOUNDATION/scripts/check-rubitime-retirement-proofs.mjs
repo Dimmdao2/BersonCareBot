@@ -161,6 +161,7 @@ function validate(materializedProofs) {
   const requiredIndexFragments = [
     'CSV-present missing delta zero',
     'integrator-only rows absent from CSV are audit-only',
+    'integrator-led reconciliation is forbidden when the fresh CSV exists',
     'raw archive is archive-only',
     'must not resurrect integrator-only rows absent from CSV',
   ];
@@ -173,6 +174,7 @@ function validate(materializedProofs) {
   const requiredPlanFragments = [
     'CSV-present missing delta zero',
     'integrator-only rows absent from CSV are audit-only',
+    'integrator-led reconciliation is forbidden',
     'raw archive is archive-only',
   ];
   for (const fragment of requiredPlanFragments) {

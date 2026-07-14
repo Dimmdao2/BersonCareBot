@@ -66,6 +66,7 @@ const r7ProofRequiredFragments = [
   'post-R6 static reference audit',
   'archive directory and SHA256SUMS',
   'raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV',
+  'integrator-led reconciliation is forbidden when the fresh CSV exists',
   'migration file name or explicit defer record',
   'fresh restore + migrate output',
   'typecheck/lint/test output',

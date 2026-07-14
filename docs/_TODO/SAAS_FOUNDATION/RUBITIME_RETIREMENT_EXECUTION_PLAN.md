@@ -21,6 +21,9 @@ R1/R2. Counts like `legacy-only=290/312` are archive deltas between `appointment
 context (`89643805480` / tail `9643805480`) matched through existing city/branch mappings; do not invent an
 integrator-led second reconciliation path. Extra rows present only in `integrator.rubitime_records` do not expand the
 preservation set and are not a reason to run a new backfill.
+If the fresh CSV exists, integrator-led reconciliation is forbidden: integrator raw state may explain archive deltas,
+but it cannot add preservation requirements, create a new backfill backlog, or block R1/R2/R6/R7 for rows absent from
+the CSV.
 
 ## 1. Verdict
 
@@ -29,6 +32,8 @@ Rubitime должен быть полностью удалён из целево
 Минимальный безопасный путь:
 
 1. Fresh Rubitime CSV сверена с `appointment_records` и canonical mappings; все CSV-present записи перенесены/смэпплены в `be_appointments`, а `integrator.rubitime_records` используется только как audit signal. Integrator-only строки, отсутствующие в CSV, не являются import/drop blockers.
+   Integrator-led reconciliation is forbidden when the fresh CSV exists: raw integrator state cannot expand the
+   preservation set or create a new backfill backlog.
 2. `booking_doctor_appointments_read_source` permanently `canonical`.
 3. `booking_slots_read_source` permanently `canonical`.
 4. Google Calendar, reminders, notifications, payment/package lifecycle и booking events больше не читают raw Rubitime webhook/records.

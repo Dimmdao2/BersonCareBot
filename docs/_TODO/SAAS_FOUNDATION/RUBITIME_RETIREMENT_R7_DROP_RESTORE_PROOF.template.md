@@ -30,6 +30,10 @@ Final proof filename:
 
 `TODO: confirm archived Rubitime raw tables are retained only for audit/rollback and were not used to import, resurrect, or block on integrator-only rows absent from the fresh CSV`.
 
+## integrator-led reconciliation is forbidden when the fresh CSV exists
+
+`TODO: confirm raw integrator state did not create a new import backlog or block the gate for rows absent from the fresh CSV`.
+
 ## migration file name or explicit defer record
 
 `TODO: migration file that performs approved drops, or explicit defer record`.

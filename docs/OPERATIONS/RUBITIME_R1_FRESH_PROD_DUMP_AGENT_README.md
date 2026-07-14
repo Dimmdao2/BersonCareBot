@@ -21,18 +21,20 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 2. Сначала прочитай этот README, потом execution plan и перечисленные ниже runbook/script-файлы.
 3. Для состава Rubitime-записей канон — свежая выгрузка Rubitime CSV, а не `integrator.rubitime_records`.
 4. Записи, которых нет в свежем CSV, не импортировать и не воскресать в canonical только из-за integrator raw state.
-5. Числа `legacy-only=290/312` означают расхождение архивов `appointment_records` и `integrator.rubitime_records`.
+5. Если свежий CSV есть, integrator-led reconciliation запрещен: `integrator.rubitime_records` не может расширить
+   preservation set, создать новый backfill backlog или заблокировать R1/R2/R6/R7 по строкам, которых нет в CSV.
+6. Числа `legacy-only=290/312` означают расхождение архивов `appointment_records` и `integrator.rubitime_records`.
    Это не список видимых грязных записей и не самостоятельный blocker, если CSV-present rows закрыты.
-6. Для clean dump уже есть валидный путь: owner doctor/admin pre-fix → `scripts/deploy-saas-667.sh` или
+7. Для clean dump уже есть валидный путь: owner doctor/admin pre-fix → `scripts/deploy-saas-667.sh` или
    `deploy/host/deploy-test-saas.sh` → placeholder booking purge → specialist consolidation → canonical backfill
    → R1 aggregate audits → doctor UI smoke.
-7. Остаточные R5/R6/R7 owner/prod решения собраны в
+8. Остаточные R5/R6/R7 owner/prod решения собраны в
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
-8. Перед handoff запускай `pnpm run check:rubitime-retirement-current`; финальный
+9. Перед handoff запускай `pnpm run check:rubitime-retirement-current`; финальный
    `pnpm run check:rubitime-retirement-complete` обязан оставаться красным до R5/R6/R7 proof-файлов.
-9. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
+10. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`.
-10. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
+11. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
 
 ## Что сказал Sol / что из этого следует
 
@@ -65,6 +67,8 @@ Sol-проверка старого локального dump была поле�
   специалисту владельца, идентифицированному по телефону `89643805480` / tail `9643805480`.
 - Не заводить отдельный reconciliation against integrator: если CSV есть, integrator raw нужен только для audit
   deltas и не может расширять состав записей сверх CSV.
+- Не делать новый cleanup/backfill только потому, что integrator raw отличается от CSV. Отличие integrator от CSV
+  описывается как архивная дельта, а не как рабочий список для импорта.
 - Счетчики вида `legacy-only=290` означают разницу архивов `public.appointment_records` vs
   `integrator.rubitime_records`, а не список грязных видимых записей. Live rows уже должны быть представлены в
   canonical; unmapped residue должен быть soft-deleted или owner-waived. Решение принимает CSV, не integrator.
@@ -381,6 +385,7 @@ PII в чат и отчеты не печатать.
 - Агент удалил account вместо bookings/projections/mappings.
 - Агент запустил migration rehearsal без pre-migration owner doctor/admin data-fix.
 - Агент сослался на R1 scripts как на отсутствующие, не проверив `feat/doctor-ui-rebuild`.
+- Агент начал новый reconciliation/backfill от `integrator.rubitime_records`, хотя свежий Rubitime CSV уже есть.
 - Агент запустил R2 до закрытого R1 proof.
 
 ## 6. Минимальный отчет после прогона

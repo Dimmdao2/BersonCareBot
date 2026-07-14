@@ -38,6 +38,8 @@ Archive before any destructive migration:
 
 The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
 canonical preservation set beyond the fresh Rubitime export.
+Integrator-led reconciliation is forbidden when the fresh CSV exists: archived/raw integrator state cannot create a
+new import backlog or block final gates for rows absent from the CSV.
 Fresh Rubitime CSV remains the preservation canon even during R7. Raw integrator archives are for traceability and
 rollback; they do not create new import targets and do not turn integrator-only rows into blockers.
 
@@ -138,6 +140,7 @@ Save completed proof as `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` with:
 - static reference audit output;
 - archive directory and SHA256SUMS;
 - statement that raw archive is archive-only and must not resurrect integrator-only rows absent from CSV;
+- statement that integrator-led reconciliation is forbidden when the fresh CSV exists;
 - migration file name;
 - fresh restore + migrate output;
 - typecheck/lint/test output;

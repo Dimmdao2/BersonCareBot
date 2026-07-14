@@ -69,6 +69,8 @@ Runbooks:
 - Integrator-only rows absent from the fresh CSV must not be imported, resurrected, or used as final-gate blockers.
 - Extra rows present only in `integrator.rubitime_records` do not expand the preservation set and do not justify a
   new backfill.
+- Integrator-led reconciliation is forbidden when the fresh CSV exists: raw integrator state cannot create a new
+  import backlog or block final gates for rows absent from the CSV.
 
 ## How To Use
 

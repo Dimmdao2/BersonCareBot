@@ -46,6 +46,8 @@ The raw archive is archive-only; it must not resurrect integrator-only rows abse
 canonical preservation set beyond the fresh Rubitime export.
 Fresh Rubitime CSV remains the preservation canon. Integrator-only rows absent from the CSV are audit/rollback deltas,
 not import targets and not standalone R1/R2/R7 blockers.
+Integrator-led reconciliation is forbidden when the fresh CSV exists: raw integrator state cannot create a new import
+backlog or block final gates for rows absent from the CSV.
 
 ## Drop Candidates
 
