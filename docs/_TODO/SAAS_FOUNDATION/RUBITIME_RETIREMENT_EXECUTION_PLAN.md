@@ -925,6 +925,9 @@ mappings and the owner-approved single-specialist export context.
 
 ### R6 — remove Rubitime runtime routes and code
 
+Prepared runbook: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`. It is not proof of completed cutoff; it defines
+the required read-only drain snapshots, fresh CSV reconciliation and owner-approved disable steps for `RR-PROOF-09`.
+
 - [ ] provider cutoff time is announced.
 - [ ] outbound Rubitime bridge is disabled.
 - [ ] external Rubitime webhook ingress is disabled.
