@@ -52,6 +52,7 @@ Current non-R2 consumers are assigned as follows:
 | Projection writes and cleanup (`pgAppointmentProjection`, Rubitime bridge/backfill scripts) | Keep until R6/R7 cutoff, archive, and drop proof. |
 | Patient booking history UI (`/app/patient/booking/new`) | Migrated to `patientBooking.listMyBookings` / `patient_bookings`; no longer calls `patientCabinet.getPastAppointments` or `appointment_records` projection. |
 | Doctor analytics contact breakdown (`pgDoctorClients.getClientContactBreakdown`) | Migrated to canonical `be_appointments` for patients-vs-subscribers classification. |
+| Doctor dashboard patient metrics (`pgDoctorClients.getDashboardPatientMetrics`) | Migrated visited/new/former/subscriber/cancellation buckets to canonical `be_appointments`. |
 | Doctor client card fallbacks and clinical linking (`pgDoctorClients`, `pgPatientClinical`) | Assigned to R7 table-drop preparation; not an active doctor appointment read-source switch. |
 | Membership/package appointment status/session accounting (`pgMemberships`) | Assigned to package lifecycle canonicalization before table drop. |
 | Staff delete/purge tombstone filter (`doctorAppointmentPurgeFilter`) | Keep until canonical deletion/tombstone replacement is designed. |

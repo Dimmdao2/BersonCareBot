@@ -808,6 +808,11 @@ patients-vs-subscribers contact breakdown from `appointment_records` to canonica
 close all doctor/client `appointment_records` reads; patient card fallbacks, appointment tab legacy rows, clinical
 links, memberships and table-drop preparation remain separate R7 work.
 
+Execution note 2026-07-14: `R2-DOCTOR-DASHBOARD-PATIENT-METRICS-codex-2026-07-14` moved doctor dashboard patient
+metrics buckets for visited-this-month, new/former/subscriber and cancellations from `appointment_records` to canonical
+`be_appointments`. This does not close patient card fallbacks, appointment tab legacy rows, clinical links or
+memberships.
+
 Execution note 2026-07-14: `R3-SLOTS-CREATE-codex-2026-07-14` made patient/public slots and create canonical-only in the working branch. `booking_slots_read_source` no longer changes runtime behavior; the admin UI no longer offers Rubitime slots source; the settings API rejects `rubitime`; slots fail closed without canonical scheduling/booking engine deps; create fails closed without canonical deps; normal create no longer calls Rubitime-first/create mirror; reschedule always performs canonical overlap checks. Cancel/reschedule Rubitime mirror and downstream lifecycle/GCal/reminders remain R4/R6 scope. Details: `RUBITIME_RETIREMENT_R3_SLOTS_CREATE_PROOF.md`.
 
 Owner source-of-truth decision 2026-07-14: fresh Rubitime export is the R1/R2 canon. Anything present in the

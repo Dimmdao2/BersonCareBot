@@ -115,6 +115,14 @@ function sqlLiteralUuid(value: string): string {
   return `'${value.replaceAll("'", "''")}'::uuid`;
 }
 
+const CANONICAL_CANCELLED_STATUS_SQL =
+  "'cancelled_by_patient', 'cancelled_by_specialist', 'late_cancellation', 'no_show'";
+
+function canonicalAppointmentOrgPredicate(alias: string, organizationId?: string): string {
+  if (!organizationId) return "TRUE";
+  return `${alias}.organization_id = ${sqlLiteralUuid(organizationId)}`;
+}
+
 /** Exported for join semantics tests; keep in sync with `appointment_records` ↔ `platform_users` attribution rules. */
 export function appointmentRecordsJoinPu(puAlias: string, arAlias: string): string {
   const arAt = `COALESCE(${arAlias}.record_at, ${arAlias}.created_at)`;
@@ -1089,17 +1097,17 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
-           INNER JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+           INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
-             AND ar.record_at IS NOT NULL
-             AND ar.record_at >= date_trunc('month', NOW())
-             AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
-             AND ar.record_at < NOW()
-             AND ar.status IN ('created', 'updated')
-             AND ar.deleted_at IS NULL
-             AND ${legacyAppointmentOrgPredicate("ar", organizationId)}`;
+             AND bea.start_at IS NOT NULL
+             AND bea.start_at >= date_trunc('month', NOW())
+             AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
+             AND bea.start_at < NOW()
+             AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+             AND bea.deleted_at IS NULL
+             AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}`;
       const visitedQ = appendSqlOrganizationEnrollment(
         appendSqlExcludeUserIds(visitedBase, "pu.id", excluded, []),
         "pu.id",
@@ -1147,29 +1155,28 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       // Один агрегирующий запрос на платформных клиентов
       const aggBase = `SELECT
            pu.id,
-           COUNT(ar.id) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created', 'updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at < NOW()
-               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
+           COUNT(bea.id) FILTER (
+             WHERE bea.deleted_at IS NULL
+               AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at < NOW()
+               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
            )::int AS past_count,
-           COUNT(ar.id) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status IN ('created', 'updated')
-               AND ar.record_at IS NOT NULL
-               AND ar.record_at >= NOW()
-               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
+           COUNT(bea.id) FILTER (
+             WHERE bea.deleted_at IS NULL
+               AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.start_at IS NOT NULL
+               AND bea.start_at >= NOW()
+               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
            )::int AS future_count,
-           COUNT(ar.id) FILTER (
-             WHERE ar.deleted_at IS NULL
-               AND ar.status = 'canceled'
-               AND ar.last_event NOT IN ('event-remove-record', 'event-delete-record')
-               AND ar.updated_at >= NOW() - INTERVAL '30 days'
-               AND ${legacyAppointmentOrgPredicate("ar", organizationId)}
+           COUNT(bea.id) FILTER (
+             WHERE bea.deleted_at IS NULL
+               AND bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
+               AND bea.updated_at >= NOW() - INTERVAL '30 days'
+               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
            )::int AS cancellations_30d
          FROM platform_users pu
-         LEFT JOIN appointment_records ar ON ${appointmentRecordsJoinPu("pu", "ar")}
+         LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;

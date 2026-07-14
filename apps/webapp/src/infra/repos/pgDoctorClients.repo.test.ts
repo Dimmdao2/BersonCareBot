@@ -322,6 +322,12 @@ describe("pgDoctorClients repo", () => {
       cancellationsCount: 0,
     });
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(6);
+    const visitedSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    const aggregateSql = String(runWebappPgTextMock.mock.calls[5]?.[0] ?? "");
+    expect(visitedSql).toContain("INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id");
+    expect(aggregateSql).toContain("LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id");
+    expect(visitedSql).not.toContain("appointment_records");
+    expect(aggregateSql).not.toContain("appointment_records");
   });
 
   it("getClientIdentity resolves canonical id and maps bindings", async () => {
