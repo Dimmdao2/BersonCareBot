@@ -6,6 +6,42 @@ Nickname: `blocker-classification`
 
 Scope: owner-facing technical classification after fresh owner CSV proof. Aggregate-only, no row list, no PII, no `--commit`, no `--drop-stale-from-csv`, no `--drop-legacy`, no R2, no cleanup.
 
+## Post non-confirmed cleanup rerun
+
+After `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`, the classifier was rerun read-only on the current dev DB snapshot.
+
+Command:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs \
+  --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
+```
+
+Current remaining blockers:
+
+| Blocker | Current count |
+| --- | ---: |
+| stale-vs-owner-CSV rows | 28 |
+| stale rows with status `canceled` | 18 |
+| stale active non-test rows | 10 |
+| stale rows mapped to existing canonical | 27 |
+| stale rows also inside duplicate clusters | 9 |
+| unmapped real active rows | 99 |
+| unmapped real active rows present in owner CSV | 98 |
+| unmapped real active rows absent from integrator raw | 99 |
+| duplicate clusters | 3 |
+| rows inside duplicate clusters | 11 |
+| status mismatches | 4 |
+| `record_at` mismatches | 2 |
+| legacy-only rows | 312 |
+
+Interpretation after cleanup:
+
+- The approved non-confirmed cleanup removed the easy status bucket; there are no remaining non-confirmed cleanup candidates from that flag.
+- The remaining stale set is still mixed: `18` canceled rows and `10` active non-test rows. It must not be deleted as one blind bucket without owner/reviewer policy.
+- The main import blocker is still the `99` active rows: `98` are present in the owner CSV, all `99` are absent from integrator raw, and all `99` miss specialist mapping/fallback.
+- The remaining duplicate clusters are all non-canceled, mapped, and overlap stale rows; broad collapse is still unsafe.
+
 ## Environment
 
 | Field | Value |
@@ -219,4 +255,3 @@ Classification: `legacy-only=312` is a raw-vs-public source discrepancy, not a r
 - Do not run `--commit`, `--drop-stale-from-csv`, `--drop-legacy`, or broad `--collapse-dups` from this classification.
 - Do not treat legacy-only rows as removable because they are absent from integrator raw.
 - Do not start R2 or any runtime/table cleanup from this artifact.
-
