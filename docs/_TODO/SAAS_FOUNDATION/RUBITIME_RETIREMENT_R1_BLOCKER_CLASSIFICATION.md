@@ -6,7 +6,35 @@ Nickname: `blocker-classification`
 
 Scope: owner-facing technical classification after fresh owner CSV proof. Aggregate-only, no row list, no PII, no `--commit`, no `--drop-stale-from-csv`, no `--drop-legacy`, no R2, no cleanup.
 
-## Post non-confirmed cleanup rerun
+## Current rerun after fallback import
+
+After the owner-confirmed historical specialist fallback import and the strict legacy-canceled cleanup rerun, the classifier was rerun read-only on the current dev DB snapshot.
+
+Current remaining blockers:
+
+| Blocker | Current count |
+| --- | ---: |
+| stale-vs-owner-CSV rows | 10 |
+| stale rows with status `canceled` | 0 |
+| stale active non-test rows | 10 |
+| stale rows mapped to existing canonical | 9 |
+| stale rows also inside duplicate clusters | 9 |
+| unmapped real active rows | 1 |
+| unmapped real active rows present in owner CSV | 0 |
+| duplicate clusters | 3 |
+| rows inside duplicate clusters | 11 |
+| status mismatches | 4 |
+| `record_at` mismatches | 2 |
+| legacy-only rows | 312 |
+
+Interpretation after fallback import:
+
+- The old `99` active import blocker is reduced to `1`, and that remaining row is stale-vs-owner-CSV.
+- All cleanup-eligible canceled/non-confirmed rows from the current script policy are exhausted.
+- The remaining stale set is active-only: `10` rows are absent from the owner CSV, `9` are already mapped to canonical rows, and `9` overlap the remaining duplicate clusters.
+- The next decision is stale/duplicate policy, not specialist mapping.
+
+## Historical rerun after non-confirmed cleanup
 
 After `R1-NON-CONFIRMED-CLEANUP-codex-2026-07-14`, the classifier was rerun read-only on the current dev DB snapshot.
 
@@ -53,14 +81,14 @@ Interpretation after cleanup:
 | Env source | `.env` + `apps/webapp/.env.dev` |
 | Script | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs` |
 
-## Commands
+## Historical original commands
 
 ```bash
 node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs \
   --csv=/home/dev/.codex/attachments/93a21b5a-de4f-4138-9bac-7ff81cf31aaa/records-2.csv
 ```
 
-Result: PASS, read-only aggregate JSON. Control counts match the stale CSV proof: `stale=29`, `unmapped_real_active=99`, `duplicate_clusters=3`, `status_mismatches=4`, `record_at_mismatches=2`.
+Result: PASS, read-only aggregate JSON. This was the original classification before later owner-approved cleanup/import passes. Original control counts matched the stale CSV proof at that time: `stale=29`, `unmapped_real_active=99`, `duplicate_clusters=3`, `status_mismatches=4`, `record_at_mismatches=2`.
 
 ## CSV shape
 
@@ -72,7 +100,7 @@ Result: PASS, read-only aggregate JSON. Control counts match the stale CSV proof
 | Parsed Rubitime ids | 392 |
 | Date span | `2026-01-16...2026-08-29` |
 
-## 29 stale-vs-owner-CSV rows
+## Historical original: 29 stale-vs-owner-CSV rows
 
 These are live legacy rows inside the CSV date span and absent from the owner CSV.
 

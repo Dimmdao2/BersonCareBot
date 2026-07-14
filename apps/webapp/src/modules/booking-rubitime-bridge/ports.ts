@@ -17,6 +17,12 @@ export type RubitimeCanonicalProjectionInput = {
   legacyStatus: string;
   lastEvent: string;
   payloadJson: unknown;
+  scopeOverride?: {
+    branchId?: string | null;
+    specialistId?: string | null;
+    serviceId?: string | null;
+    reason: string;
+  };
 };
 
 export type RubitimeCanonicalProjectionAction =

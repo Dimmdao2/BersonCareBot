@@ -213,6 +213,7 @@ async function updateMappedRubitimeProjection(
     legacyStatus: string;
     lastEvent: string;
     lookup: ExternalMappingLookup;
+    scopeOverride?: RubitimeCanonicalProjectionInput["scopeOverride"];
   },
 ): Promise<"updated" | "skipped_echo_guard" | "stale_mapping_missing_canonical"> {
   const existingRows = await db
@@ -267,7 +268,11 @@ async function updateMappedRubitimeProjection(
       serviceId: existing.serviceId,
     },
   });
-  const refs = built.mergedRefs;
+  const refs = {
+    branchId: params.scopeOverride?.branchId ?? built.mergedRefs.branchId,
+    specialistId: params.scopeOverride?.specialistId ?? built.mergedRefs.specialistId,
+    serviceId: params.scopeOverride?.serviceId ?? built.mergedRefs.serviceId,
+  };
   // Solo-specialist fallback: смапленный/существующий специалист в приоритете, иначе единственный активный.
   const resolvedSpecialistId =
     refs.specialistId ?? (await resolveSoloSpecialistId(params.organizationId));
@@ -280,6 +285,7 @@ async function updateMappedRubitimeProjection(
     lastEvent: params.lastEvent,
     ...refs,
     specialistId: resolvedSpecialistId,
+    scopeOverrideReason: params.scopeOverride?.reason,
   };
 
   await db.transaction(async (tx) => {
@@ -327,6 +333,7 @@ async function insertRubitimeProjection(
     payloadJson: unknown;
     legacyStatus: string;
     lastEvent: string;
+    scopeOverride?: RubitimeCanonicalProjectionInput["scopeOverride"];
   },
 ): Promise<"inserted" | "recovered"> {
   const payloadRecord =
@@ -344,7 +351,11 @@ async function insertRubitimeProjection(
     payloadJson: payloadRecord,
     lookup,
   });
-  const refs = built.mergedRefs;
+  const refs = {
+    branchId: params.scopeOverride?.branchId ?? built.mergedRefs.branchId,
+    specialistId: params.scopeOverride?.specialistId ?? built.mergedRefs.specialistId,
+    serviceId: params.scopeOverride?.serviceId ?? built.mergedRefs.serviceId,
+  };
   // Solo-specialist fallback (см. resolveSoloSpecialistId): смапленный специалист в приоритете,
   // иначе единственный активный — чтобы не плодить rubitime_projection с NULL specialist_id.
   const resolvedSpecialistId =
@@ -358,6 +369,7 @@ async function insertRubitimeProjection(
     lastEvent: params.lastEvent,
     ...refs,
     specialistId: resolvedSpecialistId,
+    scopeOverrideReason: params.scopeOverride?.reason,
   };
 
   const recoverableId = await findRecoverableRubitimeProjectionId(db, {
@@ -461,6 +473,7 @@ async function upsertCanonicalFromRubitimeRecordImpl(
       legacyStatus: input.legacyStatus,
       lastEvent: input.lastEvent,
       lookup,
+      scopeOverride: input.scopeOverride,
     });
     if (updateResult === "skipped_echo_guard") {
       return { action: "skipped_echo_guard", appointmentId: mapped[0].canonicalId };
@@ -484,6 +497,7 @@ async function upsertCanonicalFromRubitimeRecordImpl(
     payloadJson: input.payloadJson,
     legacyStatus: input.legacyStatus,
     lastEvent: input.lastEvent,
+    scopeOverride: input.scopeOverride,
   });
   if (insertResult === "recovered") {
     const recovered = await db
@@ -510,6 +524,7 @@ async function upsertCanonicalFromRubitimeRecordImpl(
         legacyStatus: input.legacyStatus,
         lastEvent: input.lastEvent,
         lookup,
+        scopeOverride: input.scopeOverride,
       });
       if (updateResult === "updated") {
         return { action: "updated", appointmentId };
@@ -548,6 +563,7 @@ async function projectRows(
     status: string;
     lastEvent: string;
     payloadJson: unknown;
+    scopeOverride?: RubitimeCanonicalProjectionInput["scopeOverride"];
   }[],
 ): Promise<BridgeProjectionStats> {
   let projectedAppointments = 0;
@@ -564,6 +580,7 @@ async function projectRows(
       payloadJson: row.payloadJson,
       legacyStatus: row.status,
       lastEvent: row.lastEvent,
+      scopeOverride: row.scopeOverride,
     });
     if (result.action === "inserted") projectedAppointments += 1;
     else if (result.action === "updated") updatedAppointments += 1;

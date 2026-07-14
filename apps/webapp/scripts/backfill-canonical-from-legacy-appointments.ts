@@ -32,6 +32,7 @@
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --collapse-dups  # + collapse duplicate clusters
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --cleanup-only --delete-test --collapse-canceled-dups  # approved narrow cleanup only, no projection
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --cleanup-only --delete-non-confirmed  # + soft-delete canceled/moved/non-confirmed statuses
+ *   pnpm backfill-canonical-from-legacy-appointments -- --commit --historical-owner-doctor-phone=<phone> --csv=records.csv  # owner-approved pre-webapp history import
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-legacy=8361933,8448355  # soft-delete stale ext-ids (audited, no ad-hoc SQL)
  *   pnpm backfill-canonical-from-legacy-appointments -- --commit --drop-stale-from-csv          # AUTO: soft-delete legacy absent from the Rubitime CSV (within its date range)
  *   pnpm backfill-canonical-from-legacy-appointments -- --csv=../../.tmp/rubitime-import/records.csv  # CSV path (default)
@@ -89,6 +90,7 @@ type Cli = {
   csvPath: string;
   dropStaleFromCsv: boolean;
   summaryOnly: boolean;
+  historicalOwnerDoctorPhone: string | null;
 };
 
 function parseCli(): Cli {
@@ -116,6 +118,9 @@ function parseCli(): Cli {
     csvPath,
     dropStaleFromCsv: argv.includes("--drop-stale-from-csv"),
     summaryOnly: argv.includes("--summary-only") || argv.includes("--pii-safe"),
+    historicalOwnerDoctorPhone:
+      argv.find((a) => a.startsWith("--historical-owner-doctor-phone="))?.slice("--historical-owner-doctor-phone=".length).trim()
+      || null,
   };
 }
 
@@ -209,7 +214,35 @@ type LegacyStatusInput = {
   payloadJson?: unknown;
 };
 
+type HistoricalOwnerFallback = {
+  organizationId: string;
+  specialistId: string;
+  reason: string;
+};
+
+export function phoneTail10(phone: string): string {
+  return phone.replace(/\D/g, "").slice(-10);
+}
+
+function payloadRecord(payload: unknown): Record<string, unknown> {
+  return payload && typeof payload === "object" && !Array.isArray(payload)
+    ? { ...(payload as Record<string, unknown>) }
+    : {};
+}
+
+export function buildHistoricalFallbackPayload(
+  payload: unknown,
+  rubitimeBranchId: string | null,
+): Record<string, unknown> {
+  const patchedPayload = payloadRecord(payload);
+  if (rubitimeBranchId && patchedPayload.branch_id == null) {
+    patchedPayload.branch_id = rubitimeBranchId;
+  }
+  return patchedPayload;
+}
+
 export function resolveNonConfirmedCleanupStatus(input: LegacyStatusInput): RubitimeNormalizedStatus | null {
+  if (input.status === "canceled") return "canceled";
   return resolveRubitimeStatusFromPayload(input.payloadJson, input.status ?? input.lastEvent ?? undefined);
 }
 
@@ -225,6 +258,105 @@ function summarizeStatuses(statuses: readonly RubitimeNormalizedStatus[]): strin
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([status, count]) => `${status}: ${count}`)
     .join(", ");
+}
+
+async function resolveHistoricalOwnerFallback(phone: string): Promise<HistoricalOwnerFallback> {
+  const tail10 = phoneTail10(phone);
+  if (tail10.length !== 10) {
+    throw new Error("--historical-owner-doctor-phone must contain at least 10 digits");
+  }
+  const db = getDrizzle();
+  const result = rows<{
+    matched_users: number;
+    organizations: number;
+    organization_id: string | null;
+    active_specialists: number;
+    top_specialist_id: string | null;
+    top_live_rubitime_projection: number;
+    second_live_rubitime_projection: number;
+  }>(
+    await db.execute(sql`
+      WITH candidate_users AS (
+        SELECT id
+        FROM platform_users
+        WHERE right(regexp_replace(coalesce(phone_normalized, ''), '\\D', '', 'g'), 10) = ${tail10}
+        UNION
+        SELECT platform_user_id
+        FROM platform_user_contacts
+        WHERE right(regexp_replace(coalesce(value_normalized, value, ''), '\\D', '', 'g'), 10) = ${tail10}
+      ),
+      orgs AS (
+        SELECT DISTINCT organization_id
+        FROM be_organization_members
+        WHERE platform_user_id IN (SELECT id FROM candidate_users)
+          AND status = 'active'
+      ),
+      specialists AS (
+        SELECT s.id, s.organization_id
+        FROM be_specialists s
+        JOIN orgs o ON o.organization_id = s.organization_id
+        WHERE s.is_active = true
+      ),
+      ranked AS (
+        SELECT
+          s.id,
+          s.organization_id,
+          count(a.*) FILTER (
+            WHERE a.deleted_at IS NULL AND a.source = 'rubitime_projection'
+          )::int AS live_rubitime_projection,
+          row_number() OVER (
+            ORDER BY count(a.*) FILTER (
+              WHERE a.deleted_at IS NULL AND a.source = 'rubitime_projection'
+            ) DESC, s.id::text
+          ) AS rn
+        FROM specialists s
+        LEFT JOIN be_appointments a ON a.specialist_id = s.id
+        GROUP BY s.id, s.organization_id
+      )
+      SELECT
+        (SELECT count(*)::int FROM candidate_users) AS matched_users,
+        (SELECT count(*)::int FROM orgs) AS organizations,
+        (SELECT organization_id::text FROM orgs LIMIT 1) AS organization_id,
+        (SELECT count(*)::int FROM specialists) AS active_specialists,
+        (SELECT id::text FROM ranked WHERE rn = 1) AS top_specialist_id,
+        coalesce((SELECT live_rubitime_projection FROM ranked WHERE rn = 1), 0)::int AS top_live_rubitime_projection,
+        coalesce((SELECT live_rubitime_projection FROM ranked WHERE rn = 2), -1)::int AS second_live_rubitime_projection`),
+  )[0];
+  if (!result || result.matched_users !== 1 || result.organizations !== 1 || !result.organization_id) {
+    throw new Error("Historical fallback phone must resolve to exactly one active platform user organization");
+  }
+  if (!result.top_specialist_id || result.active_specialists < 1) {
+    throw new Error("Historical fallback organization has no active specialist");
+  }
+  if (result.active_specialists > 1 && result.top_live_rubitime_projection <= result.second_live_rubitime_projection) {
+    throw new Error("Historical fallback specialist is ambiguous; no unique dominant Rubitime-history specialist");
+  }
+  return {
+    organizationId: result.organization_id,
+    specialistId: result.top_specialist_id,
+    reason: "owner_pre_webapp_history_phone_dominant_rubitime_specialist",
+  };
+}
+
+async function countHistoricalOwnerFallbackCandidates(csv: CsvIndex): Promise<number> {
+  const csvIds = [...csv.ids];
+  const result = rows<{ count: number }>(
+    await getDrizzle().execute(sql`
+      WITH mapped AS (
+        SELECT external_id
+        FROM be_external_entity_mappings
+        WHERE external_system = 'rubitime' AND entity_type = 'appointment'
+      )
+      SELECT count(*)::int AS count
+      FROM appointment_records ar
+      JOIN branches b ON b.id = ar.branch_id
+      WHERE ar.deleted_at IS NULL
+        AND ar.record_at IS NOT NULL
+        AND ar.status <> 'canceled'
+        AND ar.integrator_record_id IN ${list(csvIds)}
+        AND NOT EXISTS (SELECT 1 FROM mapped m WHERE m.external_id = ar.integrator_record_id)`),
+  )[0];
+  return result?.count ?? 0;
 }
 
 async function findNonConfirmedCleanupCandidates(): Promise<
@@ -552,7 +684,11 @@ async function collapseCanceledDuplicates(): Promise<{ clusters: number; softDel
 async function projectTolerant(
   orgId: string,
   bridge: ReturnType<typeof createPgBookingRubitimeBridgePort>,
-  opts: { summaryOnly: boolean },
+  opts: {
+    summaryOnly: boolean;
+    csv: CsvIndex | null;
+    historicalOwnerFallback: HistoricalOwnerFallback | null;
+  },
 ) {
   const db = getDrizzle();
   type ProjectionLegacyRow = {
@@ -564,19 +700,59 @@ async function projectTolerant(
     last_event: string | null;
     payload_json: RubitimeCanonicalProjectionInput["payloadJson"];
     nm: string | null;
+    rubitime_branch_id: string | null;
   };
-  const legacy = rows<ProjectionLegacyRow>(
-    await db.execute(sql`
-      SELECT integrator_record_id, platform_user_id, phone_normalized, record_at, status, last_event, payload_json,
-             coalesce(payload_json->>'name', payload_json->>'contact_name') AS nm
-      FROM appointment_records
-      WHERE deleted_at IS NULL AND record_at IS NOT NULL
-      ORDER BY record_at`),
-  );
+  let legacy: ProjectionLegacyRow[];
+  if (opts.historicalOwnerFallback) {
+    if (!opts.csv) {
+      throw new Error("--historical-owner-doctor-phone requires --csv so stale rows are not imported");
+    }
+    const csvIds = [...opts.csv.ids];
+    legacy = rows<ProjectionLegacyRow>(
+      await db.execute(sql`
+        WITH mapped AS (
+          SELECT external_id
+          FROM be_external_entity_mappings
+          WHERE external_system = 'rubitime' AND entity_type = 'appointment'
+        )
+        SELECT
+          ar.integrator_record_id,
+          ar.platform_user_id,
+          ar.phone_normalized,
+          ar.record_at,
+          ar.status,
+          ar.last_event,
+          ar.payload_json,
+          coalesce(ar.payload_json->>'name', ar.payload_json->>'contact_name') AS nm,
+          b.integrator_branch_id::text AS rubitime_branch_id
+        FROM appointment_records ar
+        JOIN branches b ON b.id = ar.branch_id
+        WHERE ar.deleted_at IS NULL
+          AND ar.record_at IS NOT NULL
+          AND ar.status <> 'canceled'
+          AND ar.integrator_record_id IN ${list(csvIds)}
+          AND NOT EXISTS (SELECT 1 FROM mapped m WHERE m.external_id = ar.integrator_record_id)
+        ORDER BY ar.record_at`),
+    );
+    console.log(`\nHistorical owner fallback projection candidates: ${legacy.length}`);
+  } else {
+    legacy = rows<ProjectionLegacyRow>(
+      await db.execute(sql`
+        SELECT integrator_record_id, platform_user_id, phone_normalized, record_at, status, last_event, payload_json,
+               coalesce(payload_json->>'name', payload_json->>'contact_name') AS nm,
+               null::text AS rubitime_branch_id
+        FROM appointment_records
+        WHERE deleted_at IS NULL AND record_at IS NOT NULL
+        ORDER BY record_at`),
+    );
+  }
   const tally: Partial<Record<RubitimeCanonicalProjectionAction | "conflict", number>> = {};
   const conflicts: Array<{ slot: string; phone: string; name: string; ext: string; error: string }> = [];
   for (const r of legacy) {
     try {
+      const patchedPayload = opts.historicalOwnerFallback
+        ? buildHistoricalFallbackPayload(r.payload_json, r.rubitime_branch_id)
+        : payloadRecord(r.payload_json);
       const res = await bridge.upsertCanonicalFromRubitimeRecord({
         organizationId: orgId,
         externalId: r.integrator_record_id,
@@ -585,7 +761,13 @@ async function projectTolerant(
         recordAt: r.record_at ? new Date(r.record_at).toISOString() : null,
         legacyStatus: r.status,
         lastEvent: r.last_event ?? "",
-        payloadJson: r.payload_json,
+        payloadJson: patchedPayload,
+        scopeOverride: opts.historicalOwnerFallback
+          ? {
+              specialistId: opts.historicalOwnerFallback.specialistId,
+              reason: opts.historicalOwnerFallback.reason,
+            }
+          : undefined,
       });
       tally[res.action] = (tally[res.action] ?? 0) + 1;
     } catch (e) {
@@ -639,15 +821,33 @@ async function main() {
       : `Rubitime CSV: not found at ${cli.csvPath} (stale-by-CSV detection disabled)`,
   );
   if (cli.summaryOnly) console.log(`Output mode: summary-only (PII-safe; detail rows suppressed)`);
+  const historicalOwnerFallback = cli.historicalOwnerDoctorPhone
+    ? await resolveHistoricalOwnerFallback(cli.historicalOwnerDoctorPhone)
+    : null;
+  if (historicalOwnerFallback) {
+    if (historicalOwnerFallback.organizationId !== orgId) {
+      console.error(`\n✗ Historical owner fallback resolved a different organization than --org/default.`);
+      process.exit(1);
+    }
+    console.log(`Historical owner fallback: enabled (owner-provided doctor phone; PII suppressed)`);
+  }
 
   console.log(`\n----- DIAGNOSIS (before) -----`);
   await diagnose(csv, { summaryOnly: cli.summaryOnly });
+  if (historicalOwnerFallback) {
+    if (!csv) {
+      console.error(`\n✗ Historical owner fallback requires a CSV to avoid importing stale rows.`);
+      process.exit(1);
+    }
+    const candidates = await countHistoricalOwnerFallbackCandidates(csv);
+    console.log(`\nHISTORICAL OWNER FALLBACK import candidates (CSV-present active unmapped): ${candidates}`);
+  }
 
   if (!cli.commit) {
     console.log(`\nDRY-RUN: no writes. Commit flags: [--delete-test] [--delete-non-confirmed] [--collapse-dups] [--collapse-canceled-dups] [--cleanup-only] [--drop-stale-from-csv] [--drop-legacy=ids]. Default commit = tolerant projection.`);
     process.exit(0);
   }
-  if (!cli.cleanupOnly && !enabled) {
+  if (!cli.cleanupOnly && !enabled && !historicalOwnerFallback) {
     console.error(`\n✗ Bridge disabled — projection would no-op. Aborting.`);
     process.exit(1);
   }
@@ -697,7 +897,11 @@ async function main() {
   if (cli.cleanupOnly) {
     console.log(`\nCleanup-only mode: skipped tolerant projection.`);
   } else {
-    await projectTolerant(orgId, bridge, { summaryOnly: cli.summaryOnly });
+    await projectTolerant(orgId, bridge, {
+      summaryOnly: cli.summaryOnly,
+      csv,
+      historicalOwnerFallback,
+    });
   }
 
   console.log(`\n----- DIAGNOSIS (after) -----`);

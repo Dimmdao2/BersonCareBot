@@ -10,6 +10,8 @@ Narrow owner-approved cleanup for test/block rows and canceled duplicate losers:
 
 Owner-approved cleanup for non-confirmed legacy Rubitime appointment statuses: **COMPLETED** in dev DB.
 
+Owner-approved historical fallback import for pre-webapp active rows: **COMPLETED** in dev DB.
+
 The approved cleanup path is scripted in `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts`.
 It must be rehearsed on a fresh copy of the live database before production cutover; do not reproduce the cleanup with manual SQL.
 
@@ -24,6 +26,7 @@ R2 must not start while this packet has unresolved decisions.
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BACKFILL_DRY_RUN_SUMMARY.txt`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEANUP_RUN.md`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_NON_CONFIRMED_CLEANUP.md`
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_FALLBACK_SPECIALIST_IMPORT.md`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_STALE_CSV_PROOF.md`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_BLOCKER_CLASSIFICATION.md`
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`
@@ -111,15 +114,34 @@ Additional commit flags used: `--commit --cleanup-only --delete-non-confirmed --
 
 Still not used: `--collapse-dups`, `--drop-stale-from-csv`, `--drop-legacy`, production env, `/opt`, R2.
 
+Owner-approved historical fallback import and strict canceled cleanup, summary-only, after commit:
+
+| Fact | Count |
+| --- | ---: |
+| legacy live rows | 299 |
+| canonical `rubitime_projection` live rows | 287 |
+| unmapped legacy total | 1 |
+| unmapped real active bucket | 1 |
+| historical fallback rows inserted | 98 |
+| strict canceled cleanup legacy rows soft-deleted | 18 |
+| strict canceled cleanup canonical rows soft-deleted | 18 |
+| stale vs owner CSV after this pass | 10 |
+| duplicate clusters | 3 |
+| non-confirmed cleanup candidates | 0 |
+
+Additional commit flags used: `--commit --historical-owner-doctor-phone=<owner-provided-phone> --summary-only --csv=<owner-csv>` and `--commit --cleanup-only --delete-non-confirmed --summary-only --csv=<owner-csv>`.
+
+Still not used after fallback import: `--drop-stale-from-csv`, `--drop-legacy`, broad `--collapse-dups`, production env, `/opt`, R2.
+
 ## Owner Decisions
 
 | Decision | Options | Impact |
 | --- | --- | --- |
 | Classify legacy-only 312 | A: import or map as valid history. B: waive as legacy-only archive with reason. C: split by bucket after reviewer analysis. | Until classified, R1 cannot prove complete canonical history and R2 remains blocked. |
 | Classify 4 status mismatches and 2 record_at mismatches | A: canonical is correct. B: legacy projection is correct and needs repair. C: accept documented historical divergence. | Determines whether follow-up import or manual repair is required before acceptance. |
-| Handle unmapped legacy and backfill unmapped buckets | B partial completed: approved test/block rows and non-confirmed rows were soft-deleted. Remaining: A map/import valid records or C leave approved exceptions with owner reason. | Acceptance requires unmapped zero or explicit owner-approved exceptions. |
+| Handle unmapped legacy and backfill unmapped buckets | B partial completed: approved test/block rows and non-confirmed rows were soft-deleted. Historical owner fallback imported 98 CSV-present active rows. Remaining: 1 stale active unmapped row requires stale policy or explicit exception. | Acceptance requires unmapped zero or explicit owner-approved exceptions. |
 | Resolve duplicate clusters 7 | C partial completed: canceled duplicate losers were soft-deleted only. Remaining 3 clusters require a separate owner decision. | Prevents double counting in calendar, list, KPI, and future migration proof. |
-| Classify stale-vs-CSV 28 | A: authorize scripted stale cleanup after reviewer confirmation. B: waive as approved historical exceptions with reason. C: require a newer CSV and rerun before any commit. | Stale proof source was provided and dry-run rerun after non-confirmed cleanup; broad stale cleanup remains unauthorized and R1 remains blocked until classification/approval is recorded. |
+| Classify stale-vs-CSV 10 | A: authorize scripted stale cleanup after reviewer confirmation. B: waive as approved historical exceptions with reason. C: require a newer CSV and rerun before any commit. | Stale proof source was provided and rerun after fallback import/canceled cleanup; active stale cleanup remains unauthorized and R1 remains blocked until classification/approval is recorded. |
 | Authorize backfill commit | Narrow cleanup commit completed with `--cleanup-only --delete-test --collapse-canceled-dups`; non-confirmed cleanup completed with `--cleanup-only --delete-non-confirmed`. Other commit modes remain unauthorized. | This resolved only the approved cleanup categories; broad projection/collapse/stale/drop-legacy remain gated. |
 | Doctor calendar/list/KPI smoke acceptance | A: owner accepts targeted smoke after commit. B: require pre-commit visual/read-only smoke too. C: require broader doctor analytics smoke. | R1 acceptance cannot close without the agreed smoke surface passing or being waived. |
 
