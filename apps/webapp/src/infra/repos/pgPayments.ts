@@ -218,6 +218,22 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
+    async findIntentByProviderRefAnyOrg(providerId, providerIntentRef) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(bePaymentIntents)
+        .where(
+          and(
+            eq(bePaymentIntents.providerId, providerId),
+            eq(bePaymentIntents.providerIntentRef, providerIntentRef),
+          ),
+        )
+        .orderBy(desc(bePaymentIntents.createdAt))
+        .limit(1);
+      return rows[0] ? mapIntent(rows[0]) : null;
+    },
+
     async findLatestIntentByAppointment(appointmentId) {
       const db = getDrizzle();
       const rows = await db

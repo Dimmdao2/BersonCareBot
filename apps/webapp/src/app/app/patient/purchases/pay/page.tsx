@@ -18,8 +18,9 @@ export default async function PatientProductPayPage({
   if (!purchaseId?.trim()) redirect(routePaths.purchases);
 
   const deps = buildAppDeps();
-  if (!deps.products || !deps.bookingEngine) redirect(routePaths.purchases);
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  if (!deps.products) redirect(routePaths.purchases);
+  const organizationId = await deps.products.resolvePurchaseOrganizationId(purchaseId.trim());
+  if (!organizationId) redirect(routePaths.purchases);
   const detail = await deps.products.getPurchaseDetail(
     purchaseId.trim(),
     organizationId,

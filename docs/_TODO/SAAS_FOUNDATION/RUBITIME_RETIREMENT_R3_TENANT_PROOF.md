@@ -26,6 +26,8 @@ Status: implementation proof, 2026-07-14.
 - Patient/public membership purchase/payment-status/mock-complete endpoints derive organization from the catalog package, patient package, or payment intent.
 - Patient/public booking payment-status endpoints derive organization from the canonical appointment resource.
 - Booking payment mock-complete endpoints derive organization from the payment intent before capture.
+- Patient product payment page derives organization from the product purchase row before reading purchase detail.
+- Booking payment provider webhook verifies the provider payload, resolves organization from the payment intent id or provider intent reference, and ignores unknown events instead of falling back to `booking_default_organization_id`.
 
 ## Default-org inventory
 
@@ -36,6 +38,13 @@ rg -n "getDefaultOrganizationId\\(" apps/webapp/src/app/api/booking apps/webapp/
 ```
 
 Result: no matches.
+
+Additional runtime entry checks:
+
+- `apps/webapp/src/app/app/patient/purchases/pay/page.tsx` does not call `getDefaultOrganizationId`; it calls
+  `products.resolvePurchaseOrganizationId(purchaseId)` first.
+- `apps/webapp/src/app/api/payments/webhook/[provider]/route.ts` does not call `getDefaultOrganizationId`; it calls
+  `payments.resolveProviderWebhookOrganizationId(...)` after signature verification.
 
 R3-TENANT runtime booking endpoints no longer select a hardcoded default organization. Remaining `booking_default_organization_id` uses, if any outside this inventory, are compatibility/migration scope and must not be used as a runtime tenant resolver for patient/public booking.
 

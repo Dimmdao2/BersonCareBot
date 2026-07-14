@@ -115,6 +115,24 @@ export function createPaymentsService(deps: {
       return intent?.organizationId ?? null;
     },
 
+    async resolveProviderWebhookOrganizationId(input: {
+      providerId: string;
+      intentId?: string | null;
+      providerIntentRef?: string | null;
+    }) {
+      const intentId = input.intentId?.trim() || null;
+      if (intentId) {
+        const intent = await deps.port.findIntentById(intentId);
+        if (intent?.organizationId) return intent.organizationId;
+      }
+      const providerIntentRef = input.providerIntentRef?.trim() || null;
+      if (!providerIntentRef) return null;
+      const providerId = input.providerId.trim();
+      if (!providerId) return null;
+      const intent = await deps.port.findIntentByProviderRefAnyOrg(providerId, providerIntentRef);
+      return intent?.organizationId ?? null;
+    },
+
     async createAppointmentPaymentIntent(input: {
       organizationId: string;
       appointmentId: string;

@@ -933,6 +933,11 @@ mappings and the owner-approved single-specialist export context.
 - [x] no runtime booking path depends on hardcoded default org.
 - [x] Tenant Hard Mode H6 exact-org proof is saved for booking. *(`RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`.)*
 
+Execution note 2026-07-14: `R3-TENANT-PAYMENT-ENTRYPOINTS-codex-2026-07-14` removed default-org fallback from two
+runtime payment entrypoints outside the original R3-TENANT grep scope. Patient product payment page now resolves org
+from the product purchase row; booking payment provider webhook resolves org from verified payment intent/provider ref
+and ignores unknown provider events instead of processing them under `booking_default_organization_id`.
+
 ### R3-CATALOG — public booking catalog migration
 
 - [x] table-by-table disposition exists for `booking_cities`. *(See `RUBITIME_RETIREMENT_R3_CATALOG_PROOF.md`.)*
@@ -1049,7 +1054,7 @@ Rubitime is retired only when all items below are checked.
 - [ ] No doctor/client path reads `appointment_records`.
 - [x] Patient booking history UI no longer reads `appointment_records`.
 - [x] No patient/public path reads public legacy `booking_*`.
-- [ ] No canonical booking path uses `booking_default_organization_id` as fallback.
+- [x] No canonical booking path uses `booking_default_organization_id` as fallback. *(Patient/public booking, product payment page, booking payment mock-complete/status and provider webhook resolve organization from resource/payment intent; remaining default-org uses are admin/doctor/integrator compatibility scope.)*
 - [x] GCal works from canonical lifecycle.
 - [x] reminders work from canonical lifecycle.
 - [x] notifications/Web Push/payment/package side effects work from canonical lifecycle.
@@ -1066,7 +1071,7 @@ Tenant Hard Mode can remove Rubitime quarantine only when this gate is complete.
 - [ ] Booking domain has exact `organization_id` principal before DB reads/writes.
 - [ ] Public booking derives org from trusted host/link/resource and denies ambiguity.
 - [ ] Patient booking is scoped by org and patient user/enrollment.
-- [ ] No booking path uses default-org compatibility.
+- [x] No booking path uses default-org compatibility.
 - [ ] No active RLS descriptor requires Rubitime-specific exception.
 - [ ] No active DB role grants broad access to Rubitime legacy tables for doctor/client/clinic roles.
 - [ ] Any remaining Rubitime archive tables are platform/admin-only and not product runtime.

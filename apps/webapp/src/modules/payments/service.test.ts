@@ -24,6 +24,7 @@ describe("createPaymentsService", () => {
         providerIntentRef: "mock_intent_k1",
       }),
       findIntentByProviderRef: vi.fn(),
+      findIntentByProviderRefAnyOrg: vi.fn(),
       findLatestIntentByAppointment: vi.fn(),
       createPaymentIntent: vi.fn(),
       updateIntentStatus: vi.fn().mockResolvedValue({ id: "intent-1", status: "succeeded" }),
@@ -92,5 +93,47 @@ describe("createPaymentsService", () => {
     expect(port.updateIntentStatus).toHaveBeenCalledWith("intent-1", "succeeded", "org-1");
     expect(port.setAppointmentPaymentRef).toHaveBeenCalledWith("appt-1", "pay-1", "org-1");
     expect(port.markProviderEventProcessed).toHaveBeenCalledWith("ev-1", "org-1");
+  });
+
+  it("resolves webhook organization from intent id or provider ref", async () => {
+    const port = {
+      findIntentById: vi.fn().mockResolvedValueOnce({
+        id: "intent-1",
+        organizationId: "org-from-id",
+      }),
+      findIntentByProviderRefAnyOrg: vi.fn().mockResolvedValueOnce({
+        id: "intent-2",
+        organizationId: "org-from-provider-ref",
+      }),
+    };
+    const svc = createPaymentsService({
+      port: port as never,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: "mock",
+          providers: [],
+        }),
+      },
+      bookingEngine: null,
+    });
+
+    await expect(
+      svc.resolveProviderWebhookOrganizationId({
+        providerId: "mock",
+        intentId: "intent-1",
+        providerIntentRef: "ref-1",
+      }),
+    ).resolves.toBe("org-from-id");
+    expect(port.findIntentByProviderRefAnyOrg).not.toHaveBeenCalled();
+
+    await expect(
+      svc.resolveProviderWebhookOrganizationId({
+        providerId: "mock",
+        intentId: null,
+        providerIntentRef: "ref-2",
+      }),
+    ).resolves.toBe("org-from-provider-ref");
+    expect(port.findIntentByProviderRefAnyOrg).toHaveBeenCalledWith("mock", "ref-2");
   });
 });

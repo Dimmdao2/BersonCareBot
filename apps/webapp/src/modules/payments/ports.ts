@@ -46,6 +46,10 @@ export type PaymentsPort = {
   findLatestIntentByAppointment(appointmentId: string): Promise<PaymentIntentRecord | null>;
   findIntentById(id: string): Promise<PaymentIntentRecord | null>;
   findIntentByProviderRef(organizationId: string, providerIntentRef: string): Promise<PaymentIntentRecord | null>;
+  findIntentByProviderRefAnyOrg(
+    providerId: string,
+    providerIntentRef: string,
+  ): Promise<PaymentIntentRecord | null>;
   createPaymentIntent(input: CreatePaymentIntentInput): Promise<PaymentIntentRecord>;
   updateIntentStatus(intentId: string, status: string, organizationId: string): Promise<PaymentIntentRecord | null>;
 
