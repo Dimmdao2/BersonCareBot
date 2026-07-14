@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import nock from 'nock';
 import { formatPhoneHashtag } from './calendarDescription.js';
-import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar } from './sync.js';
+import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar, syncCanonicalAppointmentToCalendar } from './sync.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import {
+  deleteBookingCalendarMapRowOnly,
+  getGoogleEventIdByRubitimeRecordId,
+  upsertBookingCalendarMap,
+} from '../../infra/db/repos/bookingCalendarMap.js';
 
 vi.mock('../../infra/db/repos/bookingCalendarMap.js', () => ({
   getGoogleEventIdByRubitimeRecordId: vi.fn().mockResolvedValue('gcal-existing'),
   deleteBookingCalendarMap: vi.fn().mockResolvedValue(undefined),
+  deleteBookingCalendarMapRowOnly: vi.fn().mockResolvedValue(undefined),
   upsertBookingCalendarMap: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -154,5 +161,49 @@ describe('syncCanonicalAppointmentToCalendar', () => {
   it('uses be: map key helper', async () => {
     const { canonicalCalendarMapKey } = await import('./sync.js');
     expect(canonicalCalendarMapKey('appt-1')).toBe('be:appt-1');
+  });
+
+  it('adopts existing Rubitime map row into canonical be: map key without duplicate GCal event', async () => {
+    vi.mocked(getGoogleEventIdByRubitimeRecordId).mockImplementation(async (_db, key) => {
+      if (key === 'be:appt-1') return null;
+      if (key === 'rt-1') return 'gcal-legacy';
+      return null;
+    });
+    const client = {
+      upsertEvent: vi.fn().mockResolvedValue('gcal-legacy'),
+      deleteEvent: vi.fn(),
+    };
+    const db = {} as DbPort;
+
+    await syncCanonicalAppointmentToCalendar(
+      {
+        action: 'updated',
+        appointmentId: 'appt-1',
+        rubitimeRecordId: 'rt-1',
+        startAt: '2026-04-01T10:00:00.000Z',
+        endAt: '2026-04-01T11:00:00.000Z',
+        clientName: 'Иванов Иван',
+        phoneNormalized: '+79991234567',
+      },
+      {
+        db,
+        client,
+        config: {
+          enabled: true,
+          clientId: 'id',
+          clientSecret: 'secret',
+          redirectUri: 'http://localhost/oauth',
+          calendarId: 'cal',
+          refreshToken: 'rt',
+        },
+      },
+    );
+
+    expect(client.upsertEvent).toHaveBeenCalledWith('gcal-legacy', expect.any(Object));
+    expect(upsertBookingCalendarMap).toHaveBeenCalledWith(db, {
+      rubitimeRecordId: 'be:appt-1',
+      gcalEventId: 'gcal-legacy',
+    });
+    expect(deleteBookingCalendarMapRowOnly).toHaveBeenCalledWith(db, 'rt-1');
   });
 });

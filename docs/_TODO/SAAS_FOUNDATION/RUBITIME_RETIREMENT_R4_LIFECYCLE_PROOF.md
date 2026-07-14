@@ -46,6 +46,13 @@ Existing tests around the lifecycle handler cover:
 - package link/unlink GCal update without patient notifications;
 - doctor Telegram notification path when configured.
 
+Provider-neutral calendar map:
+
+- `booking_calendar_map` is kept for active Google Calendar sync, but canonical lifecycle now uses `be:<canonicalAppointmentId>` as the primary map key.
+- When a legacy Rubitime map row already exists, canonical sync adopts the old Google event id as fallback, upserts the `be:*` row, and removes only the stale Rubitime map row.
+- This preserves existing GCal events without duplicate recreation while moving lifecycle updates/deletes to canonical appointment keys.
+- The table/column names still contain legacy wording; destructive schema rename/drop is deferred to R7 because GCal remains active.
+
 Durable lifecycle idempotency:
 
 - Lifecycle route now uses the existing integrator `IdempotencyPort` / `idempotency_keys` table when registered through app DI.
@@ -94,6 +101,7 @@ Reminder inventory:
 
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 50 tests.
 - `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/recordM2mRoute.test.ts src/app/routes.projectionHealth.test.ts` - passed, 54 tests.
+- `pnpm --dir apps/integrator exec vitest run src/integrations/google-calendar/sync.test.ts src/infra/db/repos/bookingCalendarMap.test.ts src/integrations/rubitime/recordM2mRoute.test.ts` - passed, 69 tests.
 - `pnpm -C apps/webapp exec vitest run src/modules/integrator/bookingM2mApi.test.ts` - passed, 17 tests.
 - `pnpm --dir apps/integrator typecheck` - passed.
 - `pnpm -C apps/webapp run typecheck` - passed.
@@ -101,4 +109,5 @@ Reminder inventory:
 - `pnpm run check:rubitime-retirement-r0` - passed.
 - `git diff --check` - passed.
 - `pnpm --dir apps/integrator exec eslint src/integrations/rubitime/recordM2mRoute.ts src/integrations/rubitime/recordM2mRoute.test.ts src/app/di.ts src/app/routes.ts src/app/routes.projectionHealth.test.ts` - passed.
+- `pnpm --dir apps/integrator exec eslint src/integrations/google-calendar/sync.ts src/integrations/google-calendar/sync.test.ts src/infra/db/repos/bookingCalendarMap.ts src/infra/db/repos/bookingCalendarMap.test.ts src/integrations/rubitime/recordM2mRoute.ts src/integrations/rubitime/recordM2mRoute.test.ts` - passed.
 - `pnpm --dir apps/integrator lint` - failed on pre-existing `no-secrets/no-secrets` findings in `src/infra/runtime/scheduler/main.ts`, `src/infra/runtime/worker/main.ts`, and `src/infra/runtime/worker/outgoingDeliveryWorker.ts`; not introduced by this R4 lifecycle change.

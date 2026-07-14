@@ -7,6 +7,7 @@ import { getGoogleCalendarConfig } from './runtimeConfig.js';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import {
   deleteBookingCalendarMap,
+  deleteBookingCalendarMapRowOnly,
   getGoogleEventIdByRubitimeRecordId,
   upsertBookingCalendarMap,
 } from '../../infra/db/repos/bookingCalendarMap.js';
@@ -62,6 +63,7 @@ function extractServiceTitle(record: Record<string, unknown> | undefined): strin
 export type RubitimeCalendarSyncEvent = {
   action: 'created' | 'updated' | 'canceled';
   rubRecordId: string;
+  fallbackRubRecordId?: string | null;
   recordAt?: string;
   record?: Record<string, unknown>;
   clientName?: string;
@@ -127,11 +129,19 @@ export async function syncAppointmentToCalendar(
   }
   const db = deps.db ?? createDbPort();
   const client = deps.client ?? createGoogleCalendarClient();
-  const existingGoogleEventId = await getGoogleEventIdByRubitimeRecordId(db, input.rubRecordId);
+  const fallbackRubRecordId = input.fallbackRubRecordId?.trim();
+  const existingGoogleEventId =
+    (await getGoogleEventIdByRubitimeRecordId(db, input.rubRecordId))
+    ?? (fallbackRubRecordId && fallbackRubRecordId !== input.rubRecordId
+      ? await getGoogleEventIdByRubitimeRecordId(db, fallbackRubRecordId)
+      : null);
   if (input.action === 'canceled') {
     if (!existingGoogleEventId) return null;
     await client.deleteEvent(existingGoogleEventId);
     await deleteBookingCalendarMap(db, input.rubRecordId);
+    if (fallbackRubRecordId && fallbackRubRecordId !== input.rubRecordId) {
+      await deleteBookingCalendarMap(db, fallbackRubRecordId);
+    }
     return null;
   }
   const event = await mapRubitimeEventToGoogleEvent(input, {
@@ -141,6 +151,9 @@ export async function syncAppointmentToCalendar(
   if (!event) return existingGoogleEventId;
   const upsertedId = await client.upsertEvent(existingGoogleEventId, event);
   await upsertBookingCalendarMap(db, { rubitimeRecordId: input.rubRecordId, gcalEventId: upsertedId });
+  if (fallbackRubRecordId && fallbackRubRecordId !== input.rubRecordId) {
+    await deleteBookingCalendarMapRowOnly(db, fallbackRubRecordId);
+  }
   return upsertedId;
 }
 
@@ -167,11 +180,12 @@ export async function syncCanonicalAppointmentToCalendar(
   deps: SyncDeps = {},
 ): Promise<string | null> {
   const rt = input.rubitimeRecordId?.trim();
-  const mapKey = rt ? rt : canonicalCalendarMapKey(input.appointmentId);
+  const mapKey = canonicalCalendarMapKey(input.appointmentId);
   return syncAppointmentToCalendar(
     {
       action: input.action === 'created' ? 'created' : input.action === 'canceled' ? 'canceled' : 'updated',
       rubRecordId: mapKey,
+      ...(rt ? { fallbackRubRecordId: rt } : {}),
       recordAt: input.startAt,
       record: {
         duration_minutes: Math.max(

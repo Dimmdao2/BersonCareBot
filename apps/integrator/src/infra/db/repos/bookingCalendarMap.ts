@@ -60,3 +60,8 @@ export async function deleteBookingCalendarMap(db: DbPort, rubitimeRecordId: str
              AND canonical_appointment_id::text = substring(${rubitimeRecordId} from 4))`,
   );
 }
+
+export async function deleteBookingCalendarMapRowOnly(db: DbPort, rubitimeRecordId: string): Promise<void> {
+  const d = getIntegratorDrizzleSession(db);
+  await d.delete(bookingCalendarMap).where(eq(bookingCalendarMap.rubitimeRecordId, rubitimeRecordId));
+}

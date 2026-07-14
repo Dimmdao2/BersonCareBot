@@ -5,6 +5,7 @@ import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   deleteBookingCalendarMap,
+  deleteBookingCalendarMapRowOnly,
   getGoogleEventIdByRubitimeRecordId,
   upsertBookingCalendarMap,
 } from './bookingCalendarMap.js';
@@ -87,5 +88,19 @@ describe('bookingCalendarMap (Drizzle + public.patient_bookings sync)', () => {
     const flat = drizzleSqlFragmentToApproximateSql(frag);
     expect(flat).toContain('public.patient_bookings');
     expect(flat).toMatch(/gcal_event_id\s*=\s*NULL/i);
+  });
+
+  it('removes stale map key without touching patient_bookings', async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    const del = vi.fn().mockReturnValue({ where });
+    vi.mocked(getIntegratorDrizzleSession).mockReturnValue({
+      delete: del,
+      execute: vi.fn(),
+    } as never);
+
+    await deleteBookingCalendarMapRowOnly({} as DbPort, 'r-old');
+
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(runIntegratorSql).not.toHaveBeenCalled();
   });
 });

@@ -309,6 +309,7 @@ describe('POST booking lifecycle event routes', () => {
     getTargetsByPhone.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
     mockSyncCanonicalAppointmentToCalendar.mockClear();
+    mockSyncAppointmentToCalendar.mockClear();
   });
 
   it('provider-neutral route handles lifecycle events with canonical GCal side effects', async () => {
@@ -604,7 +605,7 @@ describe('POST booking lifecycle event routes', () => {
     expect(dispatchOutgoing).not.toHaveBeenCalled();
   });
 
-  it('booking.deleted removes GCal by current map key', async () => {
+  it('booking.deleted removes GCal by canonical appointment key with Rubitime fallback', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);
     const raw = JSON.stringify({
@@ -623,8 +624,12 @@ describe('POST booking lifecycle event routes', () => {
       body: raw,
     });
     expect(res.statusCode).toBe(200);
-    expect(mockSyncAppointmentToCalendar).toHaveBeenCalledWith(
-      { action: 'canceled', rubRecordId: 'rt-delete-gcal' },
+    expect(mockSyncCanonicalAppointmentToCalendar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'canceled',
+        appointmentId: '5f24566f-a4de-4ab4-9336-5ddf806cd6ce',
+        rubitimeRecordId: 'rt-delete-gcal',
+      }),
       expect.any(Object),
     );
     expect(dispatchOutgoing).not.toHaveBeenCalled();
@@ -720,7 +725,7 @@ describe('POST booking lifecycle event routes', () => {
     expect(body.openUrl).toContain('/app/patient/messages');
   });
 
-  it('booking.rescheduled uses rubitime map key for GCal when rubitimeId is set', async () => {
+  it('booking.rescheduled keeps Rubitime id only as canonical GCal fallback', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     const app = await buildApp(dispatchOutgoing);
     const raw = JSON.stringify({

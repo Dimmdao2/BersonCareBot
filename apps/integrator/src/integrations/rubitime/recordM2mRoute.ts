@@ -433,15 +433,34 @@ async function trySyncCanonicalBookingToGoogleCalendar(
   const rubitimeRecordId = asNonEmptyString(payload.rubitimeId);
 
   if (eventType === 'booking.deleted') {
-    const mapKey = rubitimeRecordId ?? (appointmentId ? `be:${appointmentId}` : null);
-    if (!mapKey) return;
+    if (appointmentId) {
+      try {
+        await syncCanonicalAppointmentToCalendar(
+          {
+            action: 'canceled',
+            appointmentId,
+            rubitimeRecordId,
+            startAt: payload.slotStart,
+            endAt: payload.slotEnd,
+            clientName: payload.contactName,
+            serviceTitle: payload.serviceTitleSnapshot ?? null,
+            phoneNormalized: normalizeRuPhoneE164(payload.contactPhone),
+          },
+          { dispatchPort, db: createDbPort() },
+        );
+      } catch (err) {
+        logger.warn({ err, appointmentId, eventType }, 'canonical GCal delete failed');
+      }
+      return;
+    }
+    if (!rubitimeRecordId) return;
     try {
       await syncAppointmentToCalendar(
-        { action: 'canceled', rubRecordId: mapKey },
+        { action: 'canceled', rubRecordId: rubitimeRecordId },
         { dispatchPort, db: createDbPort() },
       );
     } catch (err) {
-      logger.warn({ err, mapKey, eventType }, 'canonical GCal delete failed');
+      logger.warn({ err, rubitimeRecordId, eventType }, 'canonical GCal delete failed');
     }
     return;
   }
