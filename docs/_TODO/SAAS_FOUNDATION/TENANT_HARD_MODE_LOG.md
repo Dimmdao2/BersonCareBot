@@ -1,0 +1,5 @@
+# Tenant Hard Mode Log
+
+| Date | Stage | Done | Checks | Decisions / skipped |
+|---|---|---|---|---|
+| 2026-07-14 | A1 product-smoke contract and fixtures | Started from STOP-GATE docs and taskdb `#758`. Added the A1 smoke matrix, fixture contract, runner, self-test/check wrapper, docs checklist, and package scripts. The runner supports `dormant`/`shadow`/`locked`, JSON/JUnit output, request-id capture, fail-closed classifiers, and G1 doctor/admin identity symptom classification. | PASS: `pnpm run check:saas-product-smoke-contract`; PASS: `pnpm exec eslint docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs`; PASS: `pnpm run check:rubitime-retirement-current`; PASS: `git diff --check`. | No prod/test/dev DB, env, SSH, live services, real delivery, S3, Rubitime cleanup, or final proof placeholders. A1 is an executable oracle contract, not R1/R2 parity proof until owner-authorized fixture/base URL is supplied. |

@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "phase": "A1",
+  "description": "Tenant Hard Mode product smoke matrix. Fixture values are supplied outside the repo.",
+  "modes": ["dormant", "shadow", "locked"],
+  "failureClassifiers": [
+    "auth_denied",
+    "known_g1_doctor_admin_identity",
+    "server_error",
+    "next_render_digest",
+    "permission_or_rls_error",
+    "unexpected_empty_fixture",
+    "forbidden_body_text"
+  ],
+  "requiredFixtureRefs": [
+    "doctorClientUserId",
+    "patientProgramInstanceId",
+    "patientProgramItemId",
+    "mediaFileId",
+    "publicBookingServiceId"
+  ],
+  "readOnlyScenarios": [
+    {
+      "id": "doctor.workspace.home",
+      "actor": "doctor",
+      "category": "doctor",
+      "method": "GET",
+      "path": "/app/doctor",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.schedule.calendar",
+      "actor": "doctor",
+      "category": "schedule",
+      "method": "GET",
+      "path": "/app/doctor/schedule",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.working-hours.api",
+      "actor": "doctor",
+      "category": "working_hours",
+      "method": "GET",
+      "path": "/api/doctor/booking-engine/working-hours",
+      "expectStatus": 200,
+      "jsonExpectation": "object",
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.appointments.list",
+      "actor": "doctor",
+      "category": "bookings",
+      "method": "GET",
+      "path": "/api/doctor/appointments/list",
+      "expectStatus": 200,
+      "jsonExpectation": "non_empty",
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.clients.list",
+      "actor": "doctor",
+      "category": "client_card",
+      "method": "GET",
+      "path": "/api/doctor/clients",
+      "expectStatus": 200,
+      "jsonExpectation": "non_empty",
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.client.card",
+      "actor": "doctor",
+      "category": "client_card",
+      "method": "GET",
+      "path": "/app/doctor/clients/{doctorClientUserId}",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.analytics.notifications",
+      "actor": "doctor",
+      "category": "analytics",
+      "method": "GET",
+      "path": "/app/doctor/analytics/notifications",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.content.cms",
+      "actor": "doctor",
+      "category": "content",
+      "method": "GET",
+      "path": "/app/doctor/content",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "doctor.broadcasts.surface",
+      "actor": "doctor",
+      "category": "broadcasts",
+      "method": "GET",
+      "path": "/app/doctor/broadcasts",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "admin.settings.surface",
+      "actor": "clinic_admin",
+      "category": "admin_settings",
+      "method": "GET",
+      "path": "/app/settings",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "admin.system-health.api",
+      "actor": "clinic_admin",
+      "category": "system_health",
+      "method": "GET",
+      "path": "/api/admin/system-health",
+      "expectStatus": 200,
+      "jsonExpectation": "object",
+      "knownFailureHint": "G1"
+    },
+    {
+      "id": "patient.appointments.surface",
+      "actor": "patient",
+      "category": "patient_appointments",
+      "method": "GET",
+      "path": "/app/patient/cabinet",
+      "expectStatus": 200,
+      "minBodyBytes": 800
+    },
+    {
+      "id": "patient.program.surface",
+      "actor": "patient",
+      "category": "patient_program",
+      "method": "GET",
+      "path": "/app/patient/treatment/{patientProgramInstanceId}",
+      "expectStatus": 200,
+      "minBodyBytes": 800
+    },
+    {
+      "id": "patient.program.item.discussion-media",
+      "actor": "patient",
+      "category": "patient_program_media",
+      "method": "GET",
+      "path": "/api/patient/treatment-program-instances/{patientProgramInstanceId}/items/{patientProgramItemId}/discussion/media",
+      "expectStatus": 200,
+      "jsonExpectation": "object"
+    },
+    {
+      "id": "patient.media.playback",
+      "actor": "patient",
+      "category": "patient_media",
+      "method": "GET",
+      "path": "/api/media/{mediaFileId}/playback",
+      "expectStatus": 200,
+      "jsonExpectation": "object"
+    },
+    {
+      "id": "public.booking.entry",
+      "actor": "public",
+      "category": "public_booking",
+      "method": "GET",
+      "path": "/book",
+      "expectStatus": 200,
+      "minBodyBytes": 800
+    },
+    {
+      "id": "public.booking.slots",
+      "actor": "public",
+      "category": "public_booking",
+      "method": "GET",
+      "path": "/api/booking/public/slots?serviceId={publicBookingServiceId}",
+      "expectStatus": 200,
+      "jsonExpectation": "object"
+    }
+  ],
+  "mutationScenarios": [
+    {
+      "id": "server-action.forwarded-host.sentinel",
+      "actor": "public",
+      "category": "server_actions",
+      "method": "POST",
+      "path": "/api/booking/actions",
+      "expectStatus": 400,
+      "disabledByDefault": true,
+      "note": "A2 wires a controlled Server Action/proxy regression request; A1 records the slot only."
+    }
+  ]
+}
