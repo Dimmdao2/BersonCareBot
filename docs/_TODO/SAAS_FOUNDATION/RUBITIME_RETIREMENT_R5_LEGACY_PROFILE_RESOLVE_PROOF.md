@@ -16,7 +16,8 @@ No production or host env was changed in this proof.
 
 ## Findings
 
-- Existing cutover switch lives in `apps/integrator/src/integrations/rubitime/legacyResolveFlag.ts`.
+- Historical cutover switch lived in `apps/integrator/src/integrations/rubitime/legacyResolveFlag.ts`; the file was
+  removed in the 2026-07-14 R6 source-layer cleanup after the legacy profile path was retired.
 - When disabled, v1 requests that rely on `rubitime_booking_profiles` must fail fast with `legacy_resolve_disabled`.
 - v2 M2M bodies with explicit Rubitime ids ignore the legacy profile flag.
 - Patient/public slots runtime no longer calls `syncPort.fetchSlots`; `createPatientBookingService.getSlots` uses canonical `bookingScheduling`.

@@ -34,7 +34,6 @@ export const LEGACY_CLEANUP_MATRIX: LegacyCleanupEntry[] = [
   { domain: 'communication', fileOrSymbol: 'readPort conversation.*', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
   { domain: 'reminders', fileOrSymbol: 'repos/reminders.ts', category: 'runtime', stage13Action: 'keep' },
   { domain: 'reminders', fileOrSymbol: 'readPort reminders.rules.forUser', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
-  { domain: 'appointments', fileOrSymbol: 'repos/bookingRecords.ts', category: 'raw', stage13Action: 'keep' },
   { domain: 'appointments', fileOrSymbol: 'readPort booking.*', category: 'legacy_product_read', stage13Action: 'remove_after_tests' },
   { domain: 'subscription_mailing', fileOrSymbol: 'repos/topics.ts', category: 'legacy_product_write', stage13Action: 'freeze' },
   { domain: 'subscription_mailing', fileOrSymbol: 'repos/subscriptions.ts', category: 'legacy_product_write', stage13Action: 'freeze' },

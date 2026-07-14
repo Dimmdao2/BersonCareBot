@@ -10,6 +10,7 @@ This is the prepared `RR-PROOF-10-DROP-RESTORE` runbook. It does not approve or 
 R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`.
 
 Table disposition manifest: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`.
+Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
 
 Static disposition check:
 
@@ -37,6 +38,8 @@ Archive before any destructive migration:
 
 The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
 canonical preservation set beyond the fresh Rubitime export.
+Fresh Rubitime CSV remains the preservation canon even during R7. Raw integrator archives are for traceability and
+rollback; they do not create new import targets and do not turn integrator-only rows into blockers.
 
 Drop candidates after archive, R6 removal, static no-reference proof, and owner approval:
 

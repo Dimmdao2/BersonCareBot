@@ -3,6 +3,14 @@
 **Статус:** ИССЛЕДОВАНИЕ ЗАВЕРШЕНО · **Дата:** 2026-06-13 · **Ветка:** `feat/doctor-ui-rebuild`
 **Спека:** [`ROADMAP.md` §S0 + §0 D1](./ROADMAP.md) · **Режим:** read-only (код + dev-БД `SELECT`); данные/схема/sync-правила **не менялись**.
 
+> ## ADDENDUM-4 (2026-07-14) — Rubitime runtime source retired
+> This S0 document is historical parity research. Current Rubitime retirement canon is
+> `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` and
+> `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
+> Fresh Rubitime CSV is the record-preservation canon; integrator raw tables are archive/audit only.
+> The former integrator raw writer `apps/integrator/src/infra/db/repos/bookingRecords.ts` and
+> `apps/integrator/src/integrations/rubitime/**` runtime source were removed during R6 cleanup.
+
 > ## ⚠️ ADDENDUM (2026-06-13, orchestrator) — dev-обкатка бэкфилла выявила конфликт
 > Написан скрипт `apps/webapp/scripts/backfill-canonical-from-legacy-appointments.ts` (dry-run по умолчанию, `--commit`), обёртка над боевой `RubitimeBridgePort.projectAppointmentRecords`. Dry-run на dev: legacy live 375 / canonical projection 231. **`--commit` на dev спроецировал +6 (231→237), затем УПАЛ** на `be_appointments_specialist_no_overlap` (специалист `518ea988…`, слот 2026-06-17 15:00–16:00). На этом слоте **уже есть** canonical-ряд `source='rubitime_projection'` с тем же телефоном → значит **несколько legacy-записей соответствуют одной реальной записи** (дубли в Rubitime / перенос+оригинал), а дедуп их не схлопывает. Две проблемы проекции: (1) `projectRows` (pgBookingRubitimeBridge.ts:523-563) крутит записи без try/catch — первый конфликт валит весь батч (предыдущие уже закоммичены, т.к. транзакция на запись); (2) дедуп `recoverExistingProjection` не покрывает кейс «дублирующиеся legacy на один слот». **Вывод: унификация — не one-shot скрипт; нужна реконкиляция + харднинг проекции (зона моста/`BOOKING_REWORK`).** Следующий шаг (рекомендация): толерантный режим скрипта (catch+skip+собрать список всех конфликтов) → классификация (истинные дубли vs реальные двойные брони) → расширить дедуп / линковать mapping → чистый прогон. dev эфемерный, частичные +6 безвредны.
 >
@@ -35,7 +43,7 @@
 |------|---------|-----------|-------------|
 | **legacy** | `public.appointment_records` (зеркало Rubitime в webapp) | doctor KPI/список/статистика (по умолчанию) | `createPgDoctorAppointmentsPort` — [`pgDoctorAppointments.ts:145`](../../apps/webapp/src/infra/repos/pgDoctorAppointments.ts) (`FROM appointment_records ar`) |
 | **canonical** | `public.be_appointments` | календарь врача; booking-модуль | `createPgDoctorCanonicalAppointmentsPort` — [`pgDoctorCanonicalAppointments.ts:8,124`](../../apps/webapp/src/infra/repos/pgDoctorCanonicalAppointments.ts) + `createPgBookingCalendarPort` — [`pgBookingCalendar.ts:195`](../../apps/webapp/src/infra/repos/pgBookingCalendar.ts) (`from(beAppointments)`) |
-| **raw (integrator)** | `integrator.rubitime_records` | сырой приёмник вебхуков Rubitime (ops/аудит/проекция) | `upsertRecord` — [`apps/integrator/src/infra/db/repos/bookingRecords.ts:47`](../../apps/integrator/src/infra/db/repos/bookingRecords.ts) |
+| **raw (integrator)** | `integrator.rubitime_records` | historical raw archive/audit table after R6 cleanup | Runtime writer retired; see `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`. |
 
 ### Read-switch (legacy ↔ canonical)
 
@@ -63,13 +71,11 @@ appointment_records.integrator_record_id (= Rubitime record id, text, UNIQUE)
 ### Пайплайн (полный)
 
 ```
-Rubitime (внешний источник)
-  │  webhook  /webhook/rubitime/:token
+Rubitime (внешний источник, retired after R6 cleanup)
+  │  former webhook  /webhook/rubitime/:token
   ▼
-INTEGRATOR  apps/integrator/src/integrations/rubitime/webhook.ts
-  ├─ upsertRecord → integrator.rubitime_records              (raw, repos/bookingRecords.ts:47)
-  ├─ syncRubitimeWebhookBodyToGoogleCalendar(...)            (GCal ИЗ raw, webhook.ts:65)  ← downstream здесь
-  └─ eventGateway → webapp event  appointment.record.upserted
+INTEGRATOR  former apps/integrator/src/integrations/rubitime/** runtime source
+  └─ former eventGateway → webapp event  appointment.record.upserted
         │  buildAppointmentRecordUpsertedFanout.ts
         ▼
 WEBAPP  /api/integrator/events  →  modules/integrator/events.ts
@@ -241,6 +247,6 @@ WHERE NOT EXISTS (SELECT 1 FROM appointment_records ar
 | Bridge gate (enabled) | [`pgBookingRubitimeBridge.ts:567-569`](../../apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts) |
 | Inbound mirror sync (canonical-first) | [`booking-appointment-sync/service.ts:10-40`](../../apps/webapp/src/modules/booking-appointment-sync/service.ts) |
 | Integrator events: inbound branch | [`integrator/events.ts:993-1056`](../../apps/webapp/src/modules/integrator/events.ts) |
-| Integrator raw rubitime_records upsert | [`bookingRecords.ts:47`](../../apps/integrator/src/infra/db/repos/bookingRecords.ts) |
-| Integrator GCal из raw webhook | [`rubitime/webhook.ts:65`](../../apps/integrator/src/integrations/rubitime/webhook.ts) |
+| Integrator raw rubitime_records upsert | retired in R6 cleanup; raw table is archive/audit scope |
+| Integrator GCal из raw webhook | retired; provider-neutral lifecycle is the current GCal path |
 | CSV-бэкфилл (только legacy) | [`RUBITIME_CSV_BACKFILL.md`](../OPERATIONS/RUBITIME_CSV_BACKFILL.md) |

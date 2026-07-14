@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../kernel/contracts/index.js';
-import { formatBookingRuDateTime } from '../integrations/rubitime/bookingNotificationFormat.js';
+import { formatBookingRuDateTime } from '../integrations/bersoncare/bookingNotificationFormat.js';
 import { logger } from '../infra/observability/logger.js';
 import {
   formatIsoInstantAsRubitimeRecordLocal,

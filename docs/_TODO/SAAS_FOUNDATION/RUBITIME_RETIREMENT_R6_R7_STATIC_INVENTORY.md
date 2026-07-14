@@ -38,17 +38,17 @@ blockers unless they are wired into live runtime code.
 
 ## Current pre-cutoff output summary
 
-Latest run time after legacy integrator source cleanup: 2026-07-14 11:16 MSK.
+Latest run time after legacy integrator source cleanup and raw event writer removal: 2026-07-14 11:30 MSK.
 
 | Category | Phase | Current result | Meaning |
 | --- | --- | ---: | --- |
 | `mountedRubitimeRouteLiterals` | R6 | 0 hits / 0 files | No Rubitime-named runtime route surfaces remain in scanned runtime source. |
 | `integratorRubitimeRuntimeImports` | R6 | 0 hits / 0 files | Integrator app wiring no longer imports/mounts Rubitime runtime registrars. |
 | `rubitimeApiClientRuntimeTokens` | R6 | 0 hits / 0 files | No Rubitime API client/throttle/post-create runtime tokens remain. |
-| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 148 hits / 30 files | Legacy appointment table references remain for archive/backfill/compat paths. |
-| `rubitimeRawTableRuntimeRefs` | R7 | 131 hits / 26 files | Raw Rubitime table/queue references remain until R6 removal and R7 archive/drop decision. |
-| `providerNeutralKeepTableRefs` | R7 keep-list | 159 hits / 38 files | Explicit keep-list references, not a drop signal. |
-| `rubitimeOpsToolingRefs` | R6/R7 ops | 552 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
+| `legacyAppointmentRecordRuntimeRefs` | R6/R7 | 147 hits / 29 files | Legacy appointment table references remain for archive/backfill/compat paths. |
+| `rubitimeRawTableRuntimeRefs` | R7 | 70 hits / 19 files | Raw Rubitime table/queue references remain until R7 archive/drop/defer decision. |
+| `providerNeutralKeepTableRefs` | R7 keep-list | 158 hits / 38 files | Explicit keep-list references, not a drop signal. |
+| `rubitimeOpsToolingRefs` | R6/R7 ops | 551 hits / 22 files | Ops/audit/backfill scripts with Rubitime references; reported, not a post-R6 runtime blocker. |
 
 The post-R6 static inventory gate now passes for runtime Rubitime route/API blockers:
 
@@ -120,3 +120,17 @@ compare/resync ops scripts no longer import the live Rubitime client and fail cl
 After this cleanup, `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs --expect-post-r6`
 passes for the R6 runtime route/API blocker categories. R6 still needs the owner-approved cutoff/drain proof before
 the final checklist may be checked.
+
+## 2026-07-14 R6 Source Layer And Raw Event Writer Cleanup
+
+`R6-INTEGRATOR-RUBITIME-SOURCE-LAYER-DELETE-codex-2026-07-14` removed the remaining unused
+`apps/integrator/src/integrations/rubitime` runtime/test/config/schema source layer, the Rubitime-specific e2e webhook
+scenario, the autoloaded `apps/integrator/src/content/rubitime` orchestrator bundle, and the stale `writePort`
+special-case writer from `event.log(eventStore='booking')` into `integrator.rubitime_events`. Historical SQL migrations
+under `apps/integrator/src/integrations/rubitime/db/migrations` remain because the integrator migrator still discovers
+integration migrations from that path.
+
+After this cleanup, the post-R6 inventory still passes with the three hard R6 categories at zero and
+`rubitimeRawTableRuntimeRefs` reduced to 70 hits / 19 files. Remaining raw-table references are R7
+archive/drop/defer scope, not a live Rubitime endpoint and not a reason to treat `integrator.rubitime_records` as the
+preservation canon over the fresh Rubitime CSV.

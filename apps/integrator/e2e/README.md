@@ -5,7 +5,7 @@
 ## 1) Подготовка
 
 - Убедиться, что развернуты `webapp` и `integrator` со свежими миграциями.
-- Проверить env: webhook secrets, Telegram/Max credentials, Rubitime API key, Google Calendar flag/credentials.
+- Проверить env: webhook secrets, Telegram/Max credentials, Google Calendar flag/credentials.
 - Проверить, что `pnpm run ci` зелёный перед ручным smoke.
 
 ## 2) Telegram webhook
@@ -26,24 +26,18 @@
   - событие в gateway (`source=max`),
   - привязка канала max в webapp через complete route.
 
-## 4) Rubitime webhook + Google Calendar projection
+## 4) Booking lifecycle + Google Calendar projection
 
-- В Rubitime создать/обновить/удалить запись.
+- В webapp создать/обновить/удалить canonical booking через provider-neutral lifecycle flow.
 - Ожидание:
-  - `POST /webhook/rubitime/:token` -> 200,
-  - событие дошло до gateway,
+  - webapp отправил signed `POST /api/bersoncare/booking/lifecycle-event`,
   - при `GOOGLE_CALENDAR_ENABLED=true` событие синхронизировано в Google Calendar (create/update/delete),
   - при `GOOGLE_CALENDAR_ENABLED=false` внешних вызовов в Google нет.
 
-## 5) Rubitime reverse API (doctor)
+## 5) Retired Rubitime reverse API
 
-- В webapp вызвать:
-  - `POST /api/doctor/appointments/rubitime/update`,
-  - `POST /api/doctor/appointments/rubitime/cancel`.
-- Ожидание:
-  - интегратор принял `POST /api/bersoncare/rubitime/update-record|remove-record`,
-  - Rubitime вернул `status=ok`,
-  - webapp получил `ok: true`.
+- Не проверять `/api/doctor/appointments/rubitime/*` и `/api/bersoncare/rubitime/*`: эти runtime routes retired by
+  Rubitime retirement R6. Исторический raw archive остается только audit/rollback scope до R7.
 
 ## 6) Email OTP via integrator
 
@@ -53,12 +47,7 @@
   - integrator возвращает 200,
   - письмо с OTP отправлено провайдером.
 
-## 7) Autobind email из Rubitime
+## 7) Retired Rubitime autobind
 
-- Создать Rubitime `event-create-record` с `phone` + `email`.
-- Ожидание:
-  - integrator эмитит `user.email.autobind` в webapp,
-  - invalid email -> skip,
-  - verified email уже есть -> skip,
-  - conflict email -> warning в лог,
-  - иначе email сохранён как unverified.
+- Не проверять Rubitime `event-create-record`: Rubitime webhook ingress retired by R6. Email/user identity checks
+  должны идти через canonical webapp flows, не через raw provider webhook.

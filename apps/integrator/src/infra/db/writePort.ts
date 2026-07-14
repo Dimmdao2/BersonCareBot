@@ -10,7 +10,6 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
-import { insertEvent } from './repos/bookingRecords.js';
 import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
@@ -453,22 +452,6 @@ export function createDbWritePort(input: {
           return;
         }
         case 'event.log': {
-          const eventStore = asNonEmptyString(mutation.params.eventStore);
-          const body = mutation.params.body;
-          const bodyObj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null;
-          const data = bodyObj?.data;
-          const dataObj = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
-          if (eventStore === 'booking') {
-            await insertEvent(db, {
-              externalRecordId: asNullableString(bodyObj?.recordId) ?? asNullableString(dataObj?.id),
-              event: asNonEmptyString(bodyObj?.event)
-                ?? asNonEmptyString(bodyObj?.action)
-                ?? asNonEmptyString(bodyObj?.eventType)
-                ?? 'unknown',
-              payloadJson: bodyObj ?? {},
-            });
-            return;
-          }
           await appendMessageLog(db, mutation);
           return;
         }

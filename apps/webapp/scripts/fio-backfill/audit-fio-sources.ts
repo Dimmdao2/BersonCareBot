@@ -130,11 +130,11 @@ const CODE_PATH_INVENTORY = [
     area: "Rubitime / booking projections",
     paths: [
       "apps/webapp/src/modules/integrator/events.ts",
-      "apps/integrator/src/integrations/rubitime/connector.ts",
       "apps/integrator/src/infra/db/writePort.ts",
       "packages/booking-rubitime-sync/src/upsertPatientBookingFromRubitime.ts",
     ],
-    notes: "Rubitime full names arrive as payload.name/contactName and are projected into patient_bookings.contact_name and platform user ensure paths.",
+    notes:
+      "Rubitime runtime connector source is retired. Historical full names arrived as payload.name/contactName and are projected through the remaining audit/backfill compatibility paths.",
   },
   {
     area: "Merge and dedupe",

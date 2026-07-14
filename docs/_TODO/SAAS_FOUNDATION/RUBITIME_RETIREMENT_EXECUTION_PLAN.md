@@ -1090,12 +1090,21 @@ typecheck passed and `rubitime-r6-r7-static-inventory.mjs --expect-post-r6` repo
 still not `RR-PROOF-09`: owner-approved provider cutoff/drain, fresh post-cutoff CSV reconciliation and final R6 proof
 file are still required.
 
+Execution note 2026-07-14: `R6-INTEGRATOR-RUBITIME-SOURCE-LAYER-DELETE-codex-2026-07-14` removed the remaining unused
+Rubitime integration source layer, Rubitime webhook e2e scenario, autoloaded Rubitime orchestrator content bundle and
+stale raw booking event journal writer to `integrator.rubitime_events`. Historical SQL migrations under
+`apps/integrator/src/integrations/rubitime/db/migrations` remain for fresh migration chain compatibility until R7
+drop/defer. Validation: integrator typecheck and test suite passed; post-R6 static inventory still reports zero
+Rubitime route/import/API blockers and raw-table references are reduced to R7 archive/drop/defer scope. CSV remains
+the only preservation canon; integrator-only rows absent from the CSV are not resurrected.
+
 ### R7 — archive and drop legacy tables
 
 Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it
 defines the required audit, archive/export, migration and fresh restore proof for `RR-PROOF-10`.
 Prepared table disposition: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` +
 `pnpm run check:rubitime-r7-table-disposition`.
+Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
 
 - [ ] R1-R6 are complete.
 - [ ] fresh metadata inventory finds no runtime references to drop candidates.

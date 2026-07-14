@@ -68,6 +68,9 @@ Durable lifecycle idempotency:
 
 ## Raw Rubitime Runtime Inventory
 
+Historical note: this proof was written before R6 source cleanup. As of 2026-07-14, the Rubitime runtime source files
+listed below were removed or unmounted; keep this section as pre-R6 evidence, not current runtime inventory.
+
 Raw Rubitime webhook/post-create paths still exist and must not be removed until R6 gates are satisfied:
 
 - `apps/integrator/src/integrations/rubitime/webhook.ts`

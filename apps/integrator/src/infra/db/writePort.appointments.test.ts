@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
-import { appointmentRecords, rubitimeEvents } from './schema/integratorDomainRepos.js';
+import { appointmentRecords } from './schema/integratorDomainRepos.js';
 import { stubIntegratorDrizzleForTests, type ProjectionOutboxInsertCapture } from './stubIntegratorDrizzleForTests.js';
 import { APPOINTMENT_RECORD_UPSERTED } from '../../kernel/contracts/index.js';
 
@@ -257,27 +257,9 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
     expect(appointmentInsert(capture)?.values.recordAt).toBeNull();
   });
 
-  it('event.log booking writes action field as event (not "unknown")', async () => {
-    const eventInserts: Record<string, unknown>[] = [];
-    const query = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort['query']>>));
-    const inner = stubIntegratorDrizzleForTests() as {
-      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
-      execute: () => Promise<{ rows: unknown[] }>;
-      select: () => unknown;
-      update: () => unknown;
-      delete: () => unknown;
-    };
-    const integratorDrizzle = {
-      ...inner,
-      insert: (table: unknown) => ({
-        values: (vals: Record<string, unknown>) => {
-          if (table === rubitimeEvents) eventInserts.push(vals);
-          return inner.insert(table).values(vals);
-        },
-      }),
-    };
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
-    const db = { query, tx, integratorDrizzle } as DbPort;
+  it('event.log booking no longer writes raw Rubitime event rows', async () => {
+    const capture: Capture = { sqlCalls: [], drizzleInserts: [], projectionInserts: [] };
+    const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
@@ -294,45 +276,7 @@ describe('writePort booking.upsert → public schema (unified DB)', () => {
         },
       },
     });
-    expect(eventInserts.length).toBe(1);
-    expect(eventInserts[0]!.event).toBe('created');
-    expect(eventInserts[0]!.rubitimeRecordId).toBe('8077942');
-  });
-
-  it('event.log booking falls back to eventType then unknown', async () => {
-    const eventInserts: { event: string }[] = [];
-    const query = vi.fn(async () => ({ rows: [] } as Awaited<ReturnType<DbPort['query']>>));
-    const inner = stubIntegratorDrizzleForTests() as {
-      insert: (t: unknown) => { values: (v: Record<string, unknown>) => unknown };
-      execute: () => Promise<{ rows: unknown[] }>;
-      select: () => unknown;
-      update: () => unknown;
-      delete: () => unknown;
-    };
-    const integratorDrizzle = {
-      ...inner,
-      insert: (table: unknown) => ({
-        values: (vals: Record<string, unknown>) => {
-          if (table === rubitimeEvents) eventInserts.push({ event: String(vals.event) });
-          return inner.insert(table).values(vals);
-        },
-      }),
-    };
-    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx, integratorDrizzle } as DbPort));
-    const db = { query, tx, integratorDrizzle } as DbPort;
-    const writePort = createDbWritePort({ db });
-
-    await writePort.writeDb({
-      type: 'event.log',
-      params: { eventStore: 'booking', body: { eventType: 'webhook.received', recordId: 'x' } },
-    });
-    expect(eventInserts[0]!.event).toBe('webhook.received');
-
-    eventInserts.length = 0;
-    await writePort.writeDb({
-      type: 'event.log',
-      params: { eventStore: 'booking', body: { recordId: 'y' } },
-    });
-    expect(eventInserts[0]!.event).toBe('unknown');
+    expect(capture.drizzleInserts).toHaveLength(0);
+    expect(capture.projectionInserts).toHaveLength(0);
   });
 });

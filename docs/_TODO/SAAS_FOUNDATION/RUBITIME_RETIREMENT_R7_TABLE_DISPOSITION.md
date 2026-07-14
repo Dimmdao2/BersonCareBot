@@ -44,6 +44,8 @@ Archive/export decision is required before destructive migration:
 
 The raw archive is archive-only; it must not resurrect integrator-only rows absent from CSV or expand the
 canonical preservation set beyond the fresh Rubitime export.
+Fresh Rubitime CSV remains the preservation canon. Integrator-only rows absent from the CSV are audit/rollback deltas,
+not import targets and not standalone R1/R2/R7 blockers.
 
 ## Drop Candidates
 
@@ -59,6 +61,7 @@ Drop candidates only after archive/export, R6 runtime removal, static no-referen
 ## Current Status
 
 - Keep/defer decisions above are explicit and checked.
+- Non-final post-R6 static reference audit is prepared in `RUBITIME_RETIREMENT_R7_STATIC_REFERENCE_AUDIT.md`.
 - Archive/export is not complete.
 - Drop migration is not generated.
 - Non-prod restore/migrate proof is not complete.
