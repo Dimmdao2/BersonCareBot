@@ -36,6 +36,7 @@
     "check:rubitime-doctor-client-no-legacy-reads": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-doctor-client-no-appointment-records.mjs",
     "check:rubitime-retirement-proofs": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs",
     "check:rubitime-r7-table-disposition": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs",
+    "check:rubitime-section10-docs": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-section10-docs.mjs",
     "ci": "pnpm lint && pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-lint": "pnpm typecheck && pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-typecheck": "pnpm run check:hls-helpers-sync && pnpm test && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",

@@ -57,6 +57,8 @@ Sol-проверка старого локального dump была поле�
   в CSV, не импортировать, не восстанавливать и не считать cleanup blocker.
 - Текущий owner-approved экспорт сопоставляется через существующие city/branch mappings и относится к одному
   специалисту владельца, идентифицированному по телефону `89643805480` / tail `9643805480`.
+- Не заводить отдельный reconciliation against integrator: если CSV есть, integrator raw нужен только для audit
+  deltas и не может расширять состав записей сверх CSV.
 - Счетчики вида `legacy-only=290` означают разницу архивов `public.appointment_records` vs
   `integrator.rubitime_records`, а не список грязных видимых записей. Live rows уже должны быть представлены в
   canonical; unmapped residue должен быть soft-deleted или owner-waived. Решение принимает CSV, не integrator.

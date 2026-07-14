@@ -17,7 +17,9 @@ Clean-dump rehearsal `R1-CLEAN-DUMP-REHEARSAL-sol-2026-07-14` вернул `FAIL
 **Current canon:** fresh Rubitime CSV decides record preservation. `integrator.rubitime_records` is audit-only when
 the CSV exists. Integrator-only rows absent from the fresh CSV must not be imported/resurrected and must not block
 R1/R2. Counts like `legacy-only=290/312` are archive deltas between `appointment_records` and
-`integrator.rubitime_records`, not a list of dirty visible records.
+`integrator.rubitime_records`, not a list of dirty visible records. The owner-approved export is one-specialist
+context (`89643805480` / tail `9643805480`) matched through existing city/branch mappings; do not invent an
+integrator-led second reconciliation path.
 
 ## 1. Verdict
 
@@ -663,6 +665,15 @@ Update these docs as retirement proceeds:
 - `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` — record actual production run.
 - `docs/ARCHITECTURE/DB_STRUCTURE.md` — update table inventory after drops.
 
+Section-10 manifest / follow-up assignment:
+
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md`
+- `pnpm run check:rubitime-section10-docs`
+
+Current status: all six docs above either have current Rubitime retirement context or an explicit post-R6/R7 follow-up
+assignment. Docs that depend on actual route removal, archive/export or drop/restore proof must not be rewritten as
+completed before those proofs exist.
+
 ## 11. Suggested implementation batches
 
 ### R1-DUAL-SOURCE-HISTORY
@@ -1093,7 +1104,7 @@ Rubitime is retired only when all items below are checked.
 - [ ] provider-neutral booking lifecycle route is the only live lifecycle integration route.
 - [ ] all `RR-PROOF-*` artifacts are saved. *(`RR-PROOF-01`..`08` saved; `RR-PROOF-09`/`10` remain gated. See `RUBITIME_RETIREMENT_RR_PROOF_INDEX.md` and `pnpm run check:rubitime-retirement-proofs`.)*
 - [ ] production rollback boundary is accepted by owner.
-- [ ] docs listed in section 10 are updated or have assigned follow-up tasks.
+- [x] docs listed in section 10 are updated or have assigned follow-up tasks. *(See `RUBITIME_RETIREMENT_SECTION10_DOCS_MANIFEST.md`; `pnpm run check:rubitime-section10-docs` passes.)*
 
 ## 16. Tenant Hard Mode unblock checklist
 
