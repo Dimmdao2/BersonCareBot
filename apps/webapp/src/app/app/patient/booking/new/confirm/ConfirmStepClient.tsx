@@ -136,13 +136,25 @@ export function ConfirmStepClient({
   const isReschedule = Boolean(rescheduleBookingId);
   const submitting = isReschedule ? rescheduleState.submitting : createState.submitting;
   const error = isReschedule ? rescheduleState.error : createState.error;
+  const resolvedFormFieldsApiPath = useMemo(() => {
+    if (type !== "in_person") return formFieldsApiPath;
+    const params = new URLSearchParams();
+    if (branchId && serviceId) {
+      params.set("branchId", branchId);
+      params.set("serviceId", serviceId);
+    } else if (branchServiceId) {
+      params.set("branchServiceId", branchServiceId);
+    }
+    const qs = params.toString();
+    return qs ? `${formFieldsApiPath}?${qs}` : formFieldsApiPath;
+  }, [type, formFieldsApiPath, branchId, serviceId, branchServiceId]);
 
   useEffect(() => {
     let cancelled = false;
     startFieldsLoad(() => {
       void (async () => {
         try {
-          const res = await fetch(formFieldsApiPath);
+          const res = await fetch(resolvedFormFieldsApiPath);
           const json = (await res.json()) as { ok?: boolean; fields?: FormField[] };
           if (!cancelled && json.ok && json.fields) {
             setExtraFields(json.fields.filter(isExtraFormField));
@@ -155,7 +167,7 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [formFieldsApiPath]);
+  }, [resolvedFormFieldsApiPath]);
 
   useEffect(() => {
     const hasCanonical = Boolean(branchId && serviceId);

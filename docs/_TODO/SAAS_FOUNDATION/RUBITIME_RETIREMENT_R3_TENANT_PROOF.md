@@ -18,6 +18,8 @@ Status: partial implementation proof, 2026-07-14.
 - Patient online slots without trusted org fail with `ambiguous_booking_tenant`.
 - Patient cancel/reschedule/payment-status derive organization from the canonical appointment resource.
 - Product/package availability for a selected branch/service derives organization from that branch-service context.
+- Patient/public booking form fields derive organization from the selected branch-service context.
+- Patient in-person service catalog derives organization from the selected branch.
 
 ## Residual default-org consumers
 
@@ -29,10 +31,7 @@ rg -n "getDefaultOrganizationId\\(" apps/webapp/src/app/api/booking apps/webapp/
 
 Remaining consumers are outside the fixed slots/create core and need a tenant source before R3-TENANT can close:
 
-- `apps/webapp/src/app/api/booking/form-fields/route.ts`
-- `apps/webapp/src/app/api/booking/public/form-fields/route.ts`
 - `apps/webapp/src/app/api/booking/history/route.ts`
-- `apps/webapp/src/app/api/booking/in-person-services/route.ts`
 - patient/public product catalog, purchase, payment-status and mock-complete routes
 - membership catalog, purchase, payment-status and mock-complete routes
 - booking payment mock-complete routes that receive only `intentId`
@@ -43,4 +42,3 @@ These must not be patched by reading integrator data or by silently choosing the
 
 - `pnpm -C apps/webapp exec vitest run src/modules/patient-booking/inPersonBookingResolve.test.ts src/modules/patient-booking/service.test.ts src/modules/patient-booking/canonicalCreate.test.ts src/app/api/booking/public/create/route.test.ts src/app/api/booking/products-available-route.test.ts src/app/api/booking/membership-routes.test.ts` — pass, 56 tests.
 - `pnpm -C apps/webapp run typecheck` — pass.
-
