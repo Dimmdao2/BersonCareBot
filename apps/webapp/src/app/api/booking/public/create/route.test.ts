@@ -5,6 +5,7 @@ const resolveUserMock = vi.hoisted(() => vi.fn());
 const createBookingMock = vi.hoisted(() => vi.fn());
 const recordMergeMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
+const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/modules/public-booking/publicBookingRateLimit", () => ({
   resolvePublicBookingRateLimitClientKey: () => ({ ok: true, key: "127.0.0.1" }),
@@ -24,11 +25,17 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientBooking: { createBooking: createBookingMock },
     bookingEngine: {
-      organization: { getDefaultOrganizationId: async () => "org-1" },
-      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+      organization: { getDefaultOrganizationId: async () => ORG_ID },
+      catalog: {
+        getBranch: async () => ({ cityCode: "moscow", organizationId: ORG_ID }),
+        listSpecialists: async () => [{ id: "sp-1", isActive: true }],
+      },
+      services: { getService: async () => ({ organizationId: ORG_ID }) },
     },
     bookingScheduling: {
       resolveLegacyBranchServiceId: resolveLegacyBranchServiceIdMock,
+      resolveInPersonContext: async (id: string) =>
+        id ? { organizationId: ORG_ID, serviceId: "svc-1", branchId: "branch-1" } : null,
     },
   }),
 }));

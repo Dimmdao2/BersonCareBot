@@ -228,7 +228,64 @@ export async function createBookingOnCanonicalEngine(
     throw new Error("canonical_booking_unavailable");
   }
 
-  const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  void deps.resolveSlotsReadSource;
+  const rubitimeFirst = isRubitimeFirstCreateEnabled();
+
+  let pendingRow: CreatePendingPatientBookingInput;
+  let durationMinutes = 60;
+  let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
+  let canonicalBranchId: string | null = null;
+  let canonicalSpecialistId: string | null = null;
+  let canonicalServiceId: string | null = null;
+  let canonicalRoomId: string | null = null;
+  let orgId = createInput.organizationId?.trim() ?? "";
+  let inPersonCtx: Awaited<ReturnType<BookingSchedulingService["resolveInPersonContext"]>> | null = null;
+
+  if (createInput.type === "online") {
+    if (!orgId) throw new Error("ambiguous_booking_tenant");
+    pendingRow = toPendingRowOnline(createInput);
+    if (!rubitimeFirst) {
+      await deps.bookingScheduling.assertSlotAvailable({
+        organizationId: orgId,
+        specialistId: null,
+        roomId: null,
+        slotStart: createInput.slotStart,
+        slotEnd: createInput.slotEnd,
+        durationMinutes: 60,
+      });
+    }
+  } else {
+    if (!deps.bookingCatalog) throw new Error("catalog_unavailable");
+    resolved = await deps.bookingCatalog.resolveBranchService(createInput.branchServiceId);
+    if (!resolved) throw new Error("branch_service_not_found");
+    inPersonCtx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
+    if (!inPersonCtx) throw new Error("branch_service_not_found");
+    if (orgId && orgId !== inPersonCtx.organizationId) throw new Error("ambiguous_booking_tenant");
+    orgId = inPersonCtx.organizationId;
+    const expectedCity = resolved.city.code.trim().toLowerCase();
+    if (createInput.cityCode.trim().toLowerCase() !== expectedCity) throw new Error("city_mismatch");
+    pendingRow = toPendingRowInPerson(createInput, resolved);
+    durationMinutes = resolved.service.durationMinutes;
+    if (!rubitimeFirst) {
+      await deps.bookingScheduling.assertSlotAvailable({
+        branchServiceId: createInput.branchServiceId,
+        slotStart: createInput.slotStart,
+        slotEnd: createInput.slotEnd,
+        durationMinutes,
+      });
+    }
+    // In-person bookings MUST resolve a concrete specialist: a NULL specialist_id
+    // bypasses the be_appointments_specialist_no_overlap exclusion constraint
+    // (it only covers non-null rows), allowing an overlapping booking. Only ONLINE
+    // consults legitimately keep canonicalSpecialistId = null. (F2 guard.)
+    if (!inPersonCtx.specialistId) throw new Error("specialist_required");
+    canonicalBranchId = inPersonCtx.branchId;
+    canonicalSpecialistId = inPersonCtx.specialistId;
+    canonicalServiceId = inPersonCtx.serviceId;
+    canonicalRoomId = inPersonCtx.roomId;
+  }
+
+  if (!orgId) throw new Error("ambiguous_booking_tenant");
   if (deps.clientHistory) {
     await deps.clientHistory.assertSelfServiceBookingAllowed(orgId, createInput.userId);
   }
@@ -245,58 +302,6 @@ export async function createBookingOnCanonicalEngine(
   if (deps.bookingForm) {
     const validation = await deps.bookingForm.validateAnswers(orgId, "patient", formAnswers, profilePrefill);
     if (!validation.ok) throw new Error(validation.error);
-  }
-
-  void deps.resolveSlotsReadSource;
-  const rubitimeFirst = isRubitimeFirstCreateEnabled();
-
-  let pendingRow: CreatePendingPatientBookingInput;
-  let durationMinutes = 60;
-  let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
-  let canonicalBranchId: string | null = null;
-  let canonicalSpecialistId: string | null = null;
-  let canonicalServiceId: string | null = null;
-  let canonicalRoomId: string | null = null;
-
-  if (createInput.type === "online") {
-    pendingRow = toPendingRowOnline(createInput);
-    if (!rubitimeFirst) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        organizationId: orgId,
-        specialistId: null,
-        roomId: null,
-        slotStart: createInput.slotStart,
-        slotEnd: createInput.slotEnd,
-        durationMinutes: 60,
-      });
-    }
-  } else {
-    if (!deps.bookingCatalog) throw new Error("catalog_unavailable");
-    resolved = await deps.bookingCatalog.resolveBranchService(createInput.branchServiceId);
-    if (!resolved) throw new Error("branch_service_not_found");
-    const expectedCity = resolved.city.code.trim().toLowerCase();
-    if (createInput.cityCode.trim().toLowerCase() !== expectedCity) throw new Error("city_mismatch");
-    pendingRow = toPendingRowInPerson(createInput, resolved);
-    durationMinutes = resolved.service.durationMinutes;
-    if (!rubitimeFirst) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        branchServiceId: createInput.branchServiceId,
-        slotStart: createInput.slotStart,
-        slotEnd: createInput.slotEnd,
-        durationMinutes,
-      });
-    }
-    const ctx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
-    if (!ctx) throw new Error("branch_service_not_found");
-    // In-person bookings MUST resolve a concrete specialist: a NULL specialist_id
-    // bypasses the be_appointments_specialist_no_overlap exclusion constraint
-    // (it only covers non-null rows), allowing an overlapping booking. Only ONLINE
-    // consults legitimately keep canonicalSpecialistId = null. (F2 guard.)
-    if (!ctx.specialistId) throw new Error("specialist_required");
-    canonicalBranchId = ctx.branchId;
-    canonicalSpecialistId = ctx.specialistId;
-    canonicalServiceId = ctx.serviceId;
-    canonicalRoomId = ctx.roomId;
   }
 
   const slotDurationMinutes = Math.max(

@@ -3,13 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 const listActivePurchasesForBookingMock = vi.hoisted(() => vi.fn());
 const resolveInPersonContextMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
+const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     products: { listActivePurchasesForBooking: listActivePurchasesForBookingMock },
     bookingEngine: {
-      organization: { getDefaultOrganizationId: async () => "org-1" },
-      catalog: { listSpecialists: async () => [{ id: "sp-1", isActive: true }] },
+      organization: { getDefaultOrganizationId: async () => ORG_ID },
+      catalog: {
+        getBranch: async () => ({ organizationId: ORG_ID }),
+        listSpecialists: async () => [{ id: "sp-1", isActive: true }],
+      },
+      services: { getService: async () => ({ organizationId: ORG_ID }) },
     },
     bookingScheduling: {
       resolveInPersonContext: resolveInPersonContextMock,
@@ -29,14 +34,14 @@ import { GET } from "./products/available/route";
 
 describe("GET /api/booking/products/available", () => {
   it("resolves serviceId from branchServiceId", async () => {
-    resolveInPersonContextMock.mockResolvedValue({ serviceId: "svc-1" });
+    resolveInPersonContextMock.mockResolvedValue({ organizationId: ORG_ID, serviceId: "svc-1" });
     listActivePurchasesForBookingMock.mockResolvedValue([{ id: "pur-1", title: "T", visitsRemaining: 1 }]);
     const res = await GET(
       new Request("http://localhost/api/booking/products/available?branchServiceId=bs-1"),
     );
     const json = (await res.json()) as { ok?: boolean; purchases?: unknown[] };
     expect(json.ok).toBe(true);
-    expect(listActivePurchasesForBookingMock).toHaveBeenCalledWith("u1", "org-1", "svc-1");
+    expect(listActivePurchasesForBookingMock).toHaveBeenCalledWith("u1", ORG_ID, "svc-1");
   });
 
   it("returns 404 when canonical pair is unmapped", async () => {

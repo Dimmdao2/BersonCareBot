@@ -1,24 +1,25 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   InPersonBookingResolveError,
-  resolveInPersonBranchServiceId,
+  resolveInPersonBookingContext,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 async function resolveServiceIdForBooking(
   deps: ReturnType<typeof buildAppDeps>,
   input: { branchId?: string; serviceId?: string; branchServiceId?: string },
-): Promise<string | NextResponse> {
+): Promise<{ organizationId: string; serviceId: string } | NextResponse> {
   const branchId = input.branchId?.trim() ?? "";
   const serviceId = input.serviceId?.trim() ?? "";
   const branchServiceId = input.branchServiceId?.trim() ?? "";
 
   if (branchId && serviceId) {
     try {
-      await resolveInPersonBranchServiceId(deps, { branchId, serviceId });
-      return serviceId;
+      const ctx = await resolveInPersonBookingContext(deps, { branchId, serviceId });
+      return { organizationId: ctx.organizationId, serviceId };
     } catch (err) {
       if (err instanceof InPersonBookingResolveError) {
         return NextResponse.json({ ok: false, error: err.message }, { status: 404 });
@@ -33,10 +34,10 @@ async function resolveServiceIdForBooking(
     }
     const ctx = await deps.bookingScheduling.resolveInPersonContext(branchServiceId);
     const resolved = ctx?.serviceId?.trim() ?? "";
-    if (!resolved) {
+    if (!ctx || !resolved) {
       return NextResponse.json({ ok: false, error: "branch_service_mapping_missing" }, { status: 404 });
     }
-    return resolved;
+    return { organizationId: ctx.organizationId, serviceId: resolved };
   }
 
   return NextResponse.json({ ok: false, error: "service_id_required" }, { status: 400 });
@@ -50,19 +51,23 @@ export async function GET(request: Request) {
   if (!deps.products || !deps.bookingEngine) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
+  const { products } = deps;
 
-  const serviceIdOrResponse = await resolveServiceIdForBooking(deps, {
+  const resolvedOrResponse = await resolveServiceIdForBooking(deps, {
     branchId: params.get("branchId") ?? undefined,
     serviceId: params.get("serviceId") ?? undefined,
     branchServiceId: params.get("branchServiceId") ?? undefined,
   });
-  if (serviceIdOrResponse instanceof NextResponse) return serviceIdOrResponse;
+  if (resolvedOrResponse instanceof NextResponse) return resolvedOrResponse;
 
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
-  const purchases = await deps.products.listActivePurchasesForBooking(
-    gate.session.user.userId,
-    organizationId,
-    serviceIdOrResponse,
+  const purchases = await withExplicitOrganizationPrincipal(
+    { organizationId: resolvedOrResponse.organizationId, source: "api/booking/products/available:GET" },
+    () =>
+      products.listActivePurchasesForBooking(
+        gate.session.user.userId,
+        resolvedOrResponse.organizationId,
+        resolvedOrResponse.serviceId,
+      ),
   );
   return NextResponse.json({ ok: true, purchases });
 }

@@ -48,6 +48,16 @@ function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
 }
 
+async function resolveCanonicalAppointmentOrganizationId(
+  bookingEngine: BookingEngineService | null | undefined,
+  appointmentId: string,
+): Promise<string> {
+  if (!bookingEngine) throw new Error("canonical_booking_unavailable");
+  const appointment = await bookingEngine.getAppointment(appointmentId);
+  if (!appointment) throw new Error("canonical_appointment_not_found");
+  return appointment.organizationId;
+}
+
 async function loadBookingPaymentStatus(
   row: PatientBookingRecord | null,
   input: {
@@ -58,7 +68,9 @@ async function loadBookingPaymentStatus(
   if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.payments) {
     return { ok: false as const, error: "not_found" as const };
   }
-  const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+  const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+    .catch(() => null);
+  if (!orgId) return { ok: false as const, error: "not_found" as const };
   const summary = await input.payments.getAppointmentPaymentSummary(
     row.canonicalAppointmentId,
     orgId,
@@ -186,7 +198,8 @@ export function createPatientBookingService(input: {
       }
       let value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>>;
       if (query.type === "online") {
-        const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+        const orgId = query.organizationId?.trim();
+        if (!orgId) throw new Error("ambiguous_booking_tenant");
         value = await input.bookingScheduling.getOnlineSlots({
           organizationId: orgId,
           category: query.category,
@@ -253,8 +266,8 @@ export function createPatientBookingService(input: {
 
     async listPaymentHistory(userId: string) {
       if (!input.bookingEngine || !input.payments) return [];
-      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
-      return input.payments.listPaymentHistoryForUser(userId, orgId);
+      void userId;
+      return [];
     },
 
     async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
@@ -284,7 +297,9 @@ export function createPatientBookingService(input: {
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
         return { ok: false, error: "no_canonical" };
       }
-      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+        .catch(() => null);
+      if (!orgId) return { ok: false, error: "not_found" };
       const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
       if (!preview.ok) return { ok: false, error: "not_found" };
       return {
@@ -300,7 +315,9 @@ export function createPatientBookingService(input: {
       if (!row?.canonicalAppointmentId || !input.bookingEngine || !input.appointmentLifecycle) {
         return { ok: false, error: "no_canonical" };
       }
-      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+        .catch(() => null);
+      if (!orgId) return { ok: false, error: "not_found" };
       const preview = await input.appointmentLifecycle.previewPatientReschedule(
         row.canonicalAppointmentId,
         orgId,
@@ -322,6 +339,9 @@ export function createPatientBookingService(input: {
       if (row.status === "cancelled" || row.status === "cancelling") {
         return { ok: false, error: "not_found" };
       }
+      const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+        .catch(() => null);
+      if (!orgId) return { ok: false, error: "not_found" };
 
       const durationMinutes = Math.max(
         1,
@@ -341,7 +361,6 @@ export function createPatientBookingService(input: {
             excludeAppointmentId: row.canonicalAppointmentId,
           });
         } else {
-          const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
           await input.bookingScheduling.assertSlotAvailable({
             organizationId: orgId,
             specialistId: null,
@@ -359,7 +378,6 @@ export function createPatientBookingService(input: {
         throw err;
       }
 
-      const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
       const result = await input.appointmentLifecycle.patientReschedule({
         appointmentId: row.canonicalAppointmentId,
         organizationId: orgId,
@@ -552,7 +570,9 @@ export function createPatientBookingService(input: {
       }
 
       if (row.canonicalAppointmentId && input.bookingEngine && input.appointmentLifecycle) {
-        const orgId = await input.bookingEngine.organization.getDefaultOrganizationId();
+        const orgId = await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+          .catch(() => null);
+        if (!orgId) return { ok: false, error: "not_found" };
         const preview = await input.appointmentLifecycle.previewPatientCancel(row.canonicalAppointmentId, orgId);
         if (!preview.ok) return { ok: false, error: "not_found" };
         if (!preview.allowed) return { ok: false, error: "not_allowed" };

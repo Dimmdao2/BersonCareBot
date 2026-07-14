@@ -867,16 +867,16 @@ owner-provided doctor phone tail `9643805480`.
 
 ### R3-TENANT — exact tenant for public/patient booking
 
-- [ ] all `booking_default_organization_id` consumers are inventoried.
+- [x] all `booking_default_organization_id` consumers are inventoried. *(See `RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`; residual consumers remain and block full closure.)*
 - [ ] public booking derives org from trusted host/link/resource.
 - [ ] authenticated patient booking derives org from enrollment/context.
-- [ ] branch/service based org derivation is validated where used.
-- [ ] conflicting org contexts deny before DB query.
-- [ ] missing org denies before DB query.
-- [ ] ambiguous org denies before DB query.
-- [ ] DB principal is set before canonical booking reads/writes.
+- [x] branch/service based org derivation is validated where used. *(In-person slots/create and product/package availability derive org from canonical branch-service context.)*
+- [x] conflicting org contexts deny before DB query. *(Branch/service org mismatch and explicit org mismatch fail as `ambiguous_booking_tenant`.)*
+- [x] missing org denies before DB query. *(Online slots/create without trusted org fail as `ambiguous_booking_tenant`; remaining catalog/payment endpoints are listed as blockers.)*
+- [x] ambiguous org denies before DB query. *(Duplicate branch-service mapping and unscoped online booking fail closed.)*
+- [x] DB principal is set before canonical booking reads/writes. *(Implemented for in-person public/patient slots/create and selected product/package availability.)*
 - [ ] no runtime booking path depends on hardcoded default org.
-- [ ] Tenant Hard Mode H6 exact-org proof is saved for booking.
+- [x] Tenant Hard Mode H6 exact-org proof is saved for booking. *(Partial proof: `RUBITIME_RETIREMENT_R3_TENANT_PROOF.md`; full H6 remains blocked by residual consumers above.)*
 
 ### R3-CATALOG — public booking catalog migration
 

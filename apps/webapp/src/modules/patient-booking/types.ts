@@ -87,6 +87,8 @@ export type BookingContactFioInput = {
 
 type CreatePatientBookingCommon = {
   userId: string;
+  /** Trusted server-side tenant context; never accepted directly from public client JSON. */
+  organizationId?: string;
   bookingChannel?: PatientBookingChannel;
   attribution?: BookingAttribution;
 };

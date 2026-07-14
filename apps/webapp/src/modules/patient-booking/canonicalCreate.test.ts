@@ -143,8 +143,9 @@ describe("createBookingOnCanonicalEngine", () => {
         { ...deps(false), clientHistory: clientHistory as never },
         {
           userId: "user-1",
+          organizationId: "org-1",
           type: "online",
-          category: "general",
+                    category: "general",
           slotStart: "2026-06-01T10:00:00.000Z",
           slotEnd: "2026-06-01T11:00:00.000Z",
           contactName: "Иван",
@@ -160,8 +161,9 @@ describe("createBookingOnCanonicalEngine", () => {
       { ...deps(false), platformUserContacts: { upsert } as never },
       {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -200,8 +202,9 @@ describe("createBookingOnCanonicalEngine", () => {
       },
       {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -218,8 +221,9 @@ describe("createBookingOnCanonicalEngine", () => {
 
     await createBookingOnCanonicalEngine(deps(true), {
       userId: "user-1",
+      organizationId: "org-1",
       type: "online",
-      category: "general",
+            category: "general",
       slotStart: "2026-06-01T10:00:00.000Z",
       slotEnd: "2026-06-01T11:00:00.000Z",
       contactName: "Иван",
@@ -316,8 +320,9 @@ describe("createBookingOnCanonicalEngine", () => {
       { ...deps(false, "rubitime"), appointmentProjection: appointmentProjection as never },
       {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -336,8 +341,9 @@ describe("createBookingOnCanonicalEngine", () => {
       { ...deps(false), appointmentProjection: appointmentProjection as never },
       {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -356,8 +362,9 @@ describe("createBookingOnCanonicalEngine", () => {
     await expect(
       createBookingOnCanonicalEngine(deps(false, "rubitime"), {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -387,8 +394,9 @@ describe("createBookingOnCanonicalEngine", () => {
       { ...deps(false, "rubitime"), payments: payments as never },
       {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -695,8 +703,9 @@ describe("createBookingOnCanonicalEngine", () => {
     await expect(
       createBookingOnCanonicalEngine(deps(false, "rubitime"), {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",
@@ -718,8 +727,9 @@ describe("createBookingOnCanonicalEngine", () => {
   it("F2 regression: online create keeps null specialist and still succeeds", async () => {
     const result = await createBookingOnCanonicalEngine(deps(false), {
       userId: "user-1",
+      organizationId: "org-1",
       type: "online",
-      category: "general",
+            category: "general",
       slotStart: "2026-06-01T10:00:00.000Z",
       slotEnd: "2026-06-01T11:00:00.000Z",
       contactName: "Иван",
@@ -814,8 +824,9 @@ describe("createBookingOnCanonicalEngine", () => {
     await expect(
       createBookingOnCanonicalEngine(deps(false), {
         userId: "user-1",
+        organizationId: "org-1",
         type: "online",
-        category: "general",
+                category: "general",
         slotStart: "2026-06-01T10:00:00.000Z",
         slotEnd: "2026-06-01T11:00:00.000Z",
         contactName: "Иван",

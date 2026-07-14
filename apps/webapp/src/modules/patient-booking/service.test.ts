@@ -186,6 +186,7 @@ describe("createPatientBookingService", () => {
     await expect(svc.createBooking({
       userId: "u1111111-1111-4111-8111-111111111111",
       type: "online",
+      organizationId: "org-1",
       category: "general",
       slotStart: "2026-05-01T10:00:00.000Z",
       slotEnd: "2026-05-01T11:00:00.000Z",
@@ -226,6 +227,7 @@ describe("createPatientBookingService", () => {
     const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -236,14 +238,14 @@ describe("createPatientBookingService", () => {
       bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
     });
-    await svc.getSlots({ type: "online", category: "general" });
-    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(1);
 
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
 
-    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(2);
   });
 
@@ -281,6 +283,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const appointmentProjection = {
       upsertRecordFromProjection: vi.fn().mockRejectedValue(
@@ -342,6 +345,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const appointmentProjection = {
       upsertRecordFromProjection: vi.fn().mockRejectedValue(
@@ -405,6 +409,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const appointmentProjection = {
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
@@ -474,6 +479,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const appointmentProjection = {
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
@@ -535,6 +541,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const payments = {
       applyCancelPaymentOutcome: vi.fn().mockRejectedValue(new Error("payment_db")),
@@ -586,6 +593,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -629,6 +637,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const memberships = {
       applyCancelPackageOutcome: vi.fn().mockRejectedValue(new Error("package_db")),
@@ -677,6 +686,8 @@ describe("createPatientBookingService", () => {
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
       getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-1",
+        organizationId: "org-1",
         attributionJson: { productPurchaseId: "prod-purchase-1" },
       }),
     };
@@ -735,6 +746,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -790,6 +802,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const payments = {
       recordReschedulePaymentCarryOver: vi.fn().mockRejectedValue(new Error("payment_carry")),
@@ -849,6 +862,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -896,6 +910,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -950,6 +965,7 @@ describe("createPatientBookingService", () => {
     };
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -1005,6 +1021,7 @@ describe("createPatientBookingService", () => {
     const getInPersonSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
 
     const svc = createPatientBookingService({
@@ -1070,6 +1087,7 @@ describe("createPatientBookingService", () => {
     resolveBranchServiceMock.mockRejectedValue(new Error("branch_service_not_found"));
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
@@ -1102,10 +1120,17 @@ describe("createPatientBookingService", () => {
     resolveBranchServiceMock.mockResolvedValue(r);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const bookingScheduling = {
       assertSlotAvailable: vi.fn(),
-      resolveInPersonContext: vi.fn(),
+      resolveInPersonContext: vi.fn().mockResolvedValue({
+        organizationId: "org-1",
+        branchId: r.branch.id,
+        specialistId: r.specialist.id,
+        serviceId: r.service.id,
+        roomId: null,
+      }),
     };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
@@ -1134,6 +1159,7 @@ describe("createPatientBookingService", () => {
     const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
     };
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
@@ -1143,8 +1169,8 @@ describe("createPatientBookingService", () => {
       bookingScheduling: { getOnlineSlots } as never,
       slotsTtlMs: 60_000,
     });
-    await svc.getSlots({ type: "online", category: "general" });
-    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(1);
   });
 
@@ -1157,6 +1183,7 @@ describe("createPatientBookingService", () => {
     const getOnlineSlots = vi.fn().mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
       createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
       upsertRubitimeAppointmentMapping: vi.fn(),
     };
@@ -1176,13 +1203,14 @@ describe("createPatientBookingService", () => {
       isRubitimeBridgeEnabled: async () => false,
       slotsTtlMs: 60_000,
     });
-    await svc.getSlots({ type: "online", category: "general" });
-    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(1);
 
     await svc.createBooking({
       userId: pending.userId!,
       type: "online",
+      organizationId: "org-1",
       category: "general",
       slotStart: pending.slotStart,
       slotEnd: pending.slotEnd,
@@ -1190,7 +1218,7 @@ describe("createPatientBookingService", () => {
       contactPhone: pending.contactPhone,
     });
 
-    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(2);
   });
 
@@ -1203,6 +1231,7 @@ describe("createPatientBookingService", () => {
 
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
       createAppointment: vi.fn().mockResolvedValue({ id: "appt-1" }),
       upsertRubitimeAppointmentMapping: vi.fn(),
     };
@@ -1230,6 +1259,7 @@ describe("createPatientBookingService", () => {
     const result = await svc.createBooking({
       userId: pending.userId!,
       type: "online",
+      organizationId: "org-1",
       category: "general",
       slotStart: pending.slotStart,
       slotEnd: pending.slotEnd,
@@ -1248,6 +1278,7 @@ describe("createPatientBookingService", () => {
     let release!: () => void;
     const bookingEngine = {
       organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
+      getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", organizationId: "org-1" }),
       createAppointment: vi.fn(
         () =>
           new Promise<{ id: string }>((resolve) => {
@@ -1276,6 +1307,7 @@ describe("createPatientBookingService", () => {
     const payload = {
       userId: pending.userId!,
       type: "online" as const,
+      organizationId: "org-1",
       category: "general" as const,
       slotStart: pending.slotStart,
       slotEnd: pending.slotEnd,

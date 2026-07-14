@@ -52,40 +52,51 @@ const ACTIVE_APPOINTMENT_STATUSES = [
   "manual_review_required",
 ];
 
-export function createPgBookingSchedulingPort(getDefaultOrgId: () => Promise<string>): BookingSchedulingPort {
+export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<string>): BookingSchedulingPort {
   return {
     async resolveCanonicalFromBranchService(branchServiceId) {
       const db = getDrizzle();
-      const orgId = await getDefaultOrgId();
       const mapRows = await db
-        .select({ canonicalId: beExternalEntityMappings.canonicalId })
+        .select({
+          organizationId: beExternalEntityMappings.organizationId,
+          canonicalId: beExternalEntityMappings.canonicalId,
+        })
         .from(beExternalEntityMappings)
         .where(
           and(
-            eq(beExternalEntityMappings.organizationId, orgId),
             eq(beExternalEntityMappings.entityType, "availability"),
             sql`${beExternalEntityMappings.metadata}->>'legacy_branch_service_id' = ${branchServiceId}`,
           ),
-        )
-        .limit(1);
-      const ssaId = mapRows[0]?.canonicalId;
-      if (!ssaId) return null;
+        );
+      const uniqueMappings = new Map(mapRows.map((r) => [`${r.organizationId}:${r.canonicalId}`, r]));
+      if (uniqueMappings.size > 1) throw new Error("ambiguous_booking_tenant");
+      const mapping = uniqueMappings.values().next().value as
+        | { organizationId: string; canonicalId: string }
+        | undefined;
+      const orgId = mapping?.organizationId;
+      const ssaId = mapping?.canonicalId;
+      if (!orgId || !ssaId) return null;
 
       const ssaRows = await db
         .select()
         .from(beSpecialistServiceAvailability)
-        .where(eq(beSpecialistServiceAvailability.id, ssaId))
+        .where(
+          and(
+            eq(beSpecialistServiceAvailability.id, ssaId),
+            eq(beSpecialistServiceAvailability.organizationId, orgId),
+          ),
+        )
         .limit(1);
       const ssa = ssaRows[0];
       if (!ssa?.branchId) return null;
 
       const branchRows = await db.select().from(beBranches).where(eq(beBranches.id, ssa.branchId)).limit(1);
       const branch = branchRows[0];
-      if (!branch) return null;
+      if (!branch || branch.organizationId !== orgId) return null;
 
       const serviceRows = await db.select().from(beClinicServices).where(eq(beClinicServices.id, ssa.serviceId)).limit(1);
       const service = serviceRows[0];
-      if (!service) return null;
+      if (!service || service.organizationId !== orgId) return null;
 
       const durationMinutes = ssa.durationMinutesOverride ?? service.durationMinutes;
       const bufferAfterMinutes = service.bufferAfterMinutes;

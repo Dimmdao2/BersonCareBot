@@ -13,12 +13,16 @@ import type {
 export type BookingSlotsQuery =
   | {
       type: "online";
+      /** Trusted server-side tenant context; never accepted directly from public client query. */
+      organizationId?: string;
       category: BookingCategory;
       date?: string;
       slotCount?: number;
     }
   | {
       type: "in_person";
+      /** Trusted server-side tenant context derived from branch-service mapping. */
+      organizationId?: string;
       branchServiceId: string;
       date?: string;
       slotCount?: number;

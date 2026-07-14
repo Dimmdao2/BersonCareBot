@@ -1,11 +1,14 @@
-import type { OrganizationCatalogPort, OrganizationPort } from "@/modules/booking-engine/ports";
+import type {
+  OrganizationCatalogPort,
+  ServiceAvailabilityPort,
+} from "@/modules/booking-engine/ports";
 import type { BookingSchedulingService } from "@/modules/booking-scheduling/ports";
 import { logger } from "@/app-layer/logging/logger";
 
 export type InPersonBookingResolveDeps = {
   bookingEngine: {
-    organization: Pick<OrganizationPort, "getDefaultOrganizationId">;
     catalog: Pick<OrganizationCatalogPort, "listSpecialists" | "getBranch">;
+    services: Pick<ServiceAvailabilityPort, "getService">;
   } | null;
   bookingScheduling: Pick<
     BookingSchedulingService,
@@ -20,10 +23,15 @@ export class InPersonBookingResolveError extends Error {
   }
 }
 
-export async function resolveInPersonBranchServiceId(
+export type ResolvedInPersonBookingContext = {
+  branchServiceId: string;
+  organizationId: string;
+};
+
+export async function resolveInPersonBookingContext(
   deps: InPersonBookingResolveDeps,
   input: { branchServiceId?: string | null; branchId?: string | null; serviceId?: string | null },
-): Promise<string> {
+): Promise<ResolvedInPersonBookingContext> {
   const trimmed = input.branchServiceId?.trim();
   if (trimmed) {
     if (input.branchId?.trim() || input.serviceId?.trim()) {
@@ -34,7 +42,12 @@ export async function resolveInPersonBranchServiceId(
     } else {
       logger.info({ branchServiceId: trimmed }, "[patient-booking] in_person legacy branchServiceId input");
     }
-    return trimmed;
+    if (!deps.bookingScheduling) {
+      throw new InPersonBookingResolveError("booking_scheduling_unavailable");
+    }
+    const ctx = await deps.bookingScheduling.resolveInPersonContext(trimmed);
+    if (!ctx) throw new InPersonBookingResolveError("branch_service_not_found");
+    return { branchServiceId: trimmed, organizationId: ctx.organizationId };
   }
 
   const branchId = input.branchId?.trim();
@@ -46,7 +59,16 @@ export async function resolveInPersonBranchServiceId(
     throw new InPersonBookingResolveError("booking_scheduling_unavailable");
   }
 
-  const organizationId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+  const [branch, service] = await Promise.all([
+    deps.bookingEngine.catalog.getBranch(branchId),
+    deps.bookingEngine.services.getService(serviceId),
+  ]);
+  if (!branch || !service) throw new InPersonBookingResolveError("branch_service_not_found");
+  if (branch.organizationId !== service.organizationId) {
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+  }
+
+  const organizationId = branch.organizationId;
   const specialists = await deps.bookingEngine.catalog.listSpecialists(organizationId);
   const defaultSpecialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
 
@@ -59,7 +81,15 @@ export async function resolveInPersonBranchServiceId(
   if (!branchServiceId) {
     throw new InPersonBookingResolveError("branch_service_mapping_missing");
   }
-  return branchServiceId;
+  return { branchServiceId, organizationId };
+}
+
+export async function resolveInPersonBranchServiceId(
+  deps: InPersonBookingResolveDeps,
+  input: { branchServiceId?: string | null; branchId?: string | null; serviceId?: string | null },
+): Promise<string> {
+  const ctx = await resolveInPersonBookingContext(deps, input);
+  return ctx.branchServiceId;
 }
 
 export async function resolveInPersonCityCode(

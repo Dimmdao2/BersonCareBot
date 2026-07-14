@@ -4,18 +4,24 @@ import { InPersonBookingResolveError, resolveInPersonBranchServiceId } from "./i
 describe("resolveInPersonBranchServiceId", () => {
   const bookingScheduling = {
     resolveLegacyBranchServiceId: vi.fn().mockResolvedValue("bs-1"),
-    resolveInPersonContext: vi.fn(),
+    resolveInPersonContext: vi.fn().mockResolvedValue({ organizationId: "org-1" }),
   };
   const deps = {
     bookingEngine: {
-      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue("org-1") },
-      catalog: { listSpecialists: vi.fn().mockResolvedValue([{ id: "sp-1", isActive: true }]) },
+      catalog: {
+        getBranch: vi.fn().mockResolvedValue({ id: "branch-1", organizationId: "org-1" }),
+        listSpecialists: vi.fn().mockResolvedValue([{ id: "sp-1", isActive: true }]),
+      },
+      services: {
+        getService: vi.fn().mockResolvedValue({ id: "service-1", organizationId: "org-1" }),
+      },
     },
     bookingScheduling,
   } as never;
 
   beforeEach(() => {
     bookingScheduling.resolveLegacyBranchServiceId.mockResolvedValue("bs-1");
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({ organizationId: "org-1" });
   });
 
   it("returns branchServiceId when provided", async () => {

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
-import { InPersonBookingResolveError, resolveInPersonBranchServiceId } from "@/modules/patient-booking/inPersonBookingResolve";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { InPersonBookingResolveError, resolveInPersonBookingContext } from "@/modules/patient-booking/inPersonBookingResolve";
 import { inPersonSlotsQuerySchema } from "@/modules/patient-booking/inPersonApiSchemas";
 
 const onlineQuery = z.object({
@@ -33,15 +34,21 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const slots =
-      parsed.data.type === "online"
-        ? await deps.patientBooking.getSlots(parsed.data)
-        : await deps.patientBooking.getSlots({
+    if (parsed.data.type === "online") {
+      return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
+    }
+    const ctx = await resolveInPersonBookingContext(deps, parsed.data);
+    const slots = await withExplicitOrganizationPrincipal(
+      { organizationId: ctx.organizationId, source: "api/booking/public/slots:GET" },
+      () =>
+        deps.patientBooking.getSlots({
             type: "in_person",
-            branchServiceId: await resolveInPersonBranchServiceId(deps, parsed.data),
+            organizationId: ctx.organizationId,
+            branchServiceId: ctx.branchServiceId,
             date: parsed.data.date,
             slotCount: parsed.data.slotCount,
-          });
+        }),
+    );
     return NextResponse.json({ ok: true, slots }, { status: 200 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "slots_unavailable";

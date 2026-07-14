@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/app-layer/db/client";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { resolveOrCreateUserByPhone } from "@/app-layer/platform-user/resolveOrCreateUserByPhone";
 import { recordPublicBookingMergeCandidates } from "@/app-layer/platform-user/recordPublicBookingMergeCandidates";
 import {
@@ -13,7 +14,7 @@ import {
 import { publicBookingCreateBodySchema } from "../bookingPublicBodySchema";
 import {
   InPersonBookingResolveError,
-  resolveInPersonBranchServiceId,
+  resolveInPersonBookingContext,
   resolveInPersonCityCode,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
@@ -42,64 +43,56 @@ export async function POST(request: Request) {
   }
 
   const body = parsed.data;
-  const user = await resolveOrCreateUserByPhone(body.contactPhone, body.contactName);
-  if (!user.ok) {
-    return NextResponse.json({ ok: false, error: user.error }, { status: 400 });
-  }
-
   const deps = buildAppDeps();
   const bookingChannel = "public_widget" as const;
   const attribution = body.attribution;
 
   try {
-    const booking =
-      body.type === "online"
-        ? await deps.patientBooking.createBooking({
-            userId: user.userId,
-            bookingChannel,
-            attribution,
-            type: "online",
-            category: body.category,
-            slotStart: body.slotStart,
-            slotEnd: body.slotEnd,
-            contactName: body.contactName,
-            contactPhone: body.contactPhone,
-            contactEmail: body.contactEmail,
-            formAnswers: body.formAnswers,
-          })
-        : await (async () => {
-            const branchServiceId = await resolveInPersonBranchServiceId(deps, body);
-            const cityCode =
-              body.cityCode?.trim().toLowerCase() ??
-              (await resolveInPersonCityCode(deps, branchServiceId));
-            return deps.patientBooking.createBooking({
-              userId: user.userId,
-              bookingChannel,
-              attribution,
-              type: "in_person",
-              branchServiceId,
-              cityCode,
-              slotStart: body.slotStart,
-              slotEnd: body.slotEnd,
-              contactName: body.contactName,
-              contactPhone: body.contactPhone,
-              contactEmail: body.contactEmail,
-              formAnswers: body.formAnswers,
-            });
-          })();
+    if (body.type === "online") {
+      return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
+    }
 
-    if (booking.canonicalAppointmentId && deps.bookingEngine) {
-      const orgId = await deps.bookingEngine.organization.getDefaultOrganizationId();
+    const ctx = await resolveInPersonBookingContext(deps, body);
+    const result = await withExplicitOrganizationPrincipal(
+      { organizationId: ctx.organizationId, source: "api/booking/public/create:POST" },
+      async () => {
+        const user = await resolveOrCreateUserByPhone(body.contactPhone, body.contactName);
+        if (!user.ok) {
+          throw new Error(user.error);
+        }
+        const cityCode =
+          body.cityCode?.trim().toLowerCase() ??
+          (await resolveInPersonCityCode(deps, ctx.branchServiceId));
+        const booking = await deps.patientBooking.createBooking({
+          userId: user.userId,
+          organizationId: ctx.organizationId,
+          bookingChannel,
+          attribution,
+          type: "in_person",
+          branchServiceId: ctx.branchServiceId,
+          cityCode,
+          slotStart: body.slotStart,
+          slotEnd: body.slotEnd,
+          contactName: body.contactName,
+          contactPhone: body.contactPhone,
+          contactEmail: body.contactEmail,
+          formAnswers: body.formAnswers,
+        });
+        return { booking, userId: user.userId };
+      },
+    );
+
+    if (result.booking.canonicalAppointmentId && deps.bookingEngine) {
       await recordPublicBookingMergeCandidates({
         pool: getPool(),
-        organizationId: orgId,
-        anchorUserId: user.userId,
+        organizationId: ctx.organizationId,
+        anchorUserId: result.userId,
         contactName: body.contactName,
-        triggerAppointmentId: booking.canonicalAppointmentId,
+        triggerAppointmentId: result.booking.canonicalAppointmentId,
       });
     }
 
-    return NextResponse.json({ ok: true, booking, userId: user.userId }, { status: 200 });
+    return NextResponse.json({ ok: true, booking: result.booking, userId: result.userId }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "create_failed";
     if (error instanceof InPersonBookingResolveError) {
