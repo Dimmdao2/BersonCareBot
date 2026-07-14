@@ -57,6 +57,8 @@ Sol-проверка старого локального dump была поле�
   она нашлась в старом integrator raw/projection state.
 - `integrator.rubitime_records` — только audit/diagnostic material, когда свежий CSV есть. Он не источник истины
   для импорта, удаления или блокировки R1/R2.
+- Даже если в `integrator.rubitime_records` лежат дополнительные строки, они не расширяют preservation set:
+  без подтверждения свежим Rubitime CSV это не нужные записи и не повод для нового backfill.
 - Любое расхождение `integrator.rubitime_records` с CSV решается в пользу CSV. Integrator-only строки, которых нет
   в CSV, не импортировать, не восстанавливать и не считать cleanup blocker.
 - Текущий owner-approved экспорт сопоставляется через существующие city/branch mappings и относится к одному

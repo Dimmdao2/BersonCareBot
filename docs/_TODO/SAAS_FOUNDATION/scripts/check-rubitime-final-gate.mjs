@@ -25,6 +25,7 @@ const expectedProofs = [
 const proofContracts = [
   {
     proof: expectedProofs[0],
+    template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md',
     requiredFragments: [
       'production flag-change timestamp',
       'monitoring window start/end',
@@ -37,6 +38,7 @@ const proofContracts = [
   },
   {
     proof: expectedProofs[1],
+    template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md',
     requiredFragments: [
       'backup filename',
       'read-only drain snapshot',
@@ -50,6 +52,7 @@ const proofContracts = [
   },
   {
     proof: expectedProofs[2],
+    template: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md',
     requiredFragments: [
       'R6 proof link and commit hash',
       'owner archive/drop decision',
@@ -162,6 +165,16 @@ function validate({ requireComplete }) {
   }
 
   for (const contract of proofContracts) {
+    const templateSrc = readRel(contract.template);
+    if (!templateSrc) {
+      errors.push(`${contract.template}: missing proof template`);
+    } else {
+      for (const fragment of contract.requiredFragments) {
+        if (!templateSrc.includes(fragment)) {
+          errors.push(`${contract.template}: missing required fragment ${fragment}`);
+        }
+      }
+    }
     const proofSrc = readRel(contract.proof);
     if (proofSrc || requireComplete) {
       if (!proofSrc) {

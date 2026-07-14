@@ -11,6 +11,7 @@ It does not approve production changes and does not replace the phase runbooks. 
 and proof artifacts required before the final checklist may be completed.
 `check-rubitime-final-gate` treats the proof bullet text below as the required content contract for final proof
 files. If a proof file exists but omits these fragments, the check fails.
+Use the sibling `.template.md` files as copy sources; they are not final proof and do not close any gate.
 
 Canonical entrypoints:
 
@@ -32,6 +33,8 @@ pnpm run check:rubitime-final-gate
 - The approved CSV is one-specialist context: `89643805480` / tail `9643805480`, matched through existing city/branch mappings.
 - `integrator.rubitime_records` is audit-only when the CSV exists.
 - Integrator-only rows absent from the fresh CSV must not be imported, resurrected, or used as final-gate blockers.
+- Extra rows present only in `integrator.rubitime_records` do not expand the preservation set and do not justify a
+  new backfill.
 
 ## Remaining Owner Gates
 

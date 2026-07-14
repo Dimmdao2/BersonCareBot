@@ -24,6 +24,8 @@ exist. It intentionally runs every final sub-gate and reports all blockers, inst
 The checker also reads `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` section 15: gated items must remain unchecked.
 Owner-facing remaining decisions are consolidated in `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
 If a final proof file exists, the checker validates its required content fragments against that packet.
+The same fragments are present in `.template.md` files next to each expected final proof; templates are not final
+proofs and must not be renamed until the corresponding owner-approved operation is executed.
 
 ## Required Missing Final Proofs
 
@@ -32,6 +34,12 @@ If a final proof file exists, the checker validates its required content fragmen
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md` | R5 final checkbox | Owner-approved production flag change plus monitoring window showing no v1 requests. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` | R6 route/code removal final acceptance | Owner-approved provider cutoff, disabled webhook/outbound bridge, drained queues, fresh post-cutoff CSV reconciliation. |
 | `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | R7 archive/drop final acceptance | R1-R6 complete, owner archive/drop decision, archive export, migration-backed drop/defer proof, fresh restore/migrate proof. |
+
+Templates:
+
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md`
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.template.md`
+- `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.template.md`
 
 ## Current Blocking Items
 
@@ -52,6 +60,8 @@ If a final proof file exists, the checker validates its required content fragmen
 - The approved CSV is one-specialist context: `89643805480` / tail `9643805480`, matched through existing city/branch mappings.
 - `integrator.rubitime_records` is audit-only when the CSV exists.
 - Integrator-only rows absent from the fresh CSV must not be imported, resurrected, or used as final-gate blockers.
+- Extra rows present only in `integrator.rubitime_records` do not expand the preservation set and do not justify a
+  new backfill.
 
 ## How To Use
 
@@ -67,3 +77,4 @@ If a final proof file exists, the checker validates its required content fragmen
    owner decisions and commit hashes from the relevant production/non-prod run.
 6. If a proof file exists but omits required fragments from `RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`, the checker
    fails even in default mode.
+7. Use the `.template.md` files as copy sources only after the corresponding operation is approved and executed.

@@ -19,7 +19,8 @@ the CSV exists. Integrator-only rows absent from the fresh CSV must not be impor
 R1/R2. Counts like `legacy-only=290/312` are archive deltas between `appointment_records` and
 `integrator.rubitime_records`, not a list of dirty visible records. The owner-approved export is one-specialist
 context (`89643805480` / tail `9643805480`) matched through existing city/branch mappings; do not invent an
-integrator-led second reconciliation path.
+integrator-led second reconciliation path. Extra rows present only in `integrator.rubitime_records` do not expand the
+preservation set and are not a reason to run a new backfill.
 
 ## 1. Verdict
 
