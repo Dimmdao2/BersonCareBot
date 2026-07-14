@@ -12,11 +12,12 @@
 
 **Канонический источник правил:** `.cursor/rules/*.mdc` и `.cursor/rules/test-execution-policy.md`. При расхождении приоритет у файлов в `.cursor/rules/` (там есть `globs` и `alwaysApply` для scoped-правил). При изменении правил обновляйте **оба** места.
 
-**STOP-GATE: сначала существующие документы и scripts, потом действия.** Для любой задачи про server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/Rubitime/clean dump агент НЕ имеет права изобретать последовательность, писать новый SQL/script или запускать команды, пока не:
-1. прочитал `AGENTS.md`, `docs/README.md`, server conventions и релевантный operations/runbook документ;
+**STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
+1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
 2. нашёл существующие scripts/docs через code-search и точечное чтение;
 3. явно зафиксировал, какие существующие источники являются каноном для текущего действия.
 
+Для server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/Rubitime/clean dump это правило абсолютное и блокирующее.
 Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
 
 **Перед существенной работой** прочитайте также:
@@ -67,10 +68,11 @@
 
 *Источник: `.cursor/rules/server-conventions-and-doc-onboarding.mdc` (alwaysApply)*
 
-- **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для любой задачи про server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/Rubitime/clean dump агент НЕ имеет права изобретать последовательность, писать новый SQL/script или запускать команды, пока не:
-  1. прочитал `AGENTS.md`, `docs/README.md`, server conventions и релевантный operations/runbook документ;
+- **STOP-GATE: сначала существующие документы и scripts, потом действия.** Для ЛЮБОЙ существенной задачи агент НЕ имеет права изобретать последовательность, писать новый SQL/script, менять код или запускать команды, пока не:
+  1. прочитал `AGENTS.md`, `README.md`, `docs/README.md` и релевантные docs/rules/runbooks по теме;
   2. нашёл существующие scripts/docs через code-search и точечное чтение;
   3. явно зафиксировал, какие существующие источники являются каноном для текущего действия.
+  Для server/deploy/prod/test/env/DB/backup/migration/backfill/reconcile/cutover/Rubitime/clean dump это правило абсолютное и блокирующее.
   Если найденный документ противоречит плану агента — документ побеждает, агент перестраивает план.
 - At the start of every new chat, first familiarize yourself with core project docs before giving substantial guidance:
   - `README.md`
