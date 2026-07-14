@@ -736,6 +736,12 @@ Scope:
 - Remove/unmount Rubitime integrator runtime.
 - Remove dead Rubitime code and tests.
 
+Final gate manifest: `RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md`.
+Current-state check: `pnpm run check:rubitime-final-gate`.
+Final completion check: `node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete`.
+The completion check must fail until R5 production disable proof, R6 cutoff/drain proof and R7 archive/drop proof
+exist with real owner decisions and command output.
+
 ### R7-SCHEMA-DROP
 
 Owner: DB/migration worker, audited by Sol.
@@ -1080,6 +1086,16 @@ Prepared table disposition: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` +
 ## 15. Final retirement checklist
 
 Rubitime is retired only when all items below are checked.
+
+Machine gate:
+
+```bash
+pnpm run check:rubitime-final-gate
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-final-gate.mjs --require-complete
+```
+
+Default mode verifies the current blockers are explicit. `--require-complete` is the final acceptance command and
+must stay red until R5/R6/R7 final proof files exist.
 
 - [x] R0 freeze complete.
 - [x] R1 dual-source history complete.

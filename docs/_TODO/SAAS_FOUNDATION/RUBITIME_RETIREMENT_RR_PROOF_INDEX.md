@@ -36,7 +36,7 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-proofs.mjs --r
 | `RR-PROOF-07-GCAL-REKEY` | PASS | `RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | `booking_calendar_map` remains live and canonical lifecycle uses/adopts `be:*` keys without duplicate GCal events. |
 | `RR-PROOF-08-IDEMPOTENCY` | PASS | `RUBITIME_RETIREMENT_R4_LIFECYCLE_PROOF.md` | Durable lifecycle idempotency is DB-backed and proven across app instances. |
 | `RR-PROOF-09-CUTOFF-DRAIN` | PENDING | Prepared: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`; `RUBITIME_RETIREMENT_R6_R7_STATIC_INVENTORY.md`. Expected final: `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md` | Needs owner-approved provider cutoff, disabled webhook/outbound bridge, drained queues and fresh post-cutoff CSV reconciliation. |
-| `RR-PROOF-10-DROP-RESTORE` | PENDING | Prepared: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. Expected final: `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | Needs R1-R6 complete, owner archive/drop decision, archive export, drop migration and fresh restore/migrate proof. |
+| `RR-PROOF-10-DROP-RESTORE` | PENDING | Prepared: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`; `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`. Expected final: `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md` | Needs R1-R6 complete, owner archive/drop decision, archive export, drop migration and fresh restore/migrate proof. |
 
 ## Current Interpretation
 

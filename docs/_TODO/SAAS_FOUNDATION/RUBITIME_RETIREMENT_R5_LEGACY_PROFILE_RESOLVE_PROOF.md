@@ -41,6 +41,26 @@ No production or host env was changed in this proof.
 - Monitoring window for v1 requests is not run here.
 - Full Rubitime route removal remains R6, not R5.
 
+## Pending Production Monitoring / Approval Proof
+
+Save the completed production proof as:
+
+`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md`
+
+Required contents:
+
+- owner-approved production flag-change timestamp;
+- monitoring window start/end;
+- aggregate count of v1 `/api/bersoncare/rubitime/slots` requests during the window;
+- aggregate count of v1 `/api/bersoncare/rubitime/create-record` requests during the window;
+- confirmation that no user-facing booking path required v1 profile resolution;
+- command/log source used for the aggregate counts, without secrets or PII;
+- owner approval note;
+- rollback boundary and service restart notes if rollback was tested or needed.
+
+Do not mark the R5 production checklist items complete until that file exists with real production evidence.
+Do not create a placeholder proof file just to satisfy `check-rubitime-final-gate --require-complete`.
+
 ## Production Rollback Instruction
 
 Use only after an owner-approved production flag change has already disabled legacy v1 profile resolve.

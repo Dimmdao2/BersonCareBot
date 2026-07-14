@@ -89,7 +89,10 @@ const proofs = [
     id: 'RR-PROOF-10-DROP-RESTORE',
     status: 'pending',
     phase: 'R7',
-    artifacts: ['docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md'],
+    artifacts: [
+      'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md',
+      'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md',
+    ],
     expectedProof: 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md',
     gate: 'R1-R6 complete, owner archive/drop decision, archive export, migration restore proof',
   },
