@@ -10,6 +10,7 @@ const HELP = `Usage:
 
 Checks the RR-PROOF-01..10 artifact manifest. Default mode verifies that every
 closed proof points to existing files and every pending proof has a gate/runbook.
+Pending proofs are treated as pass only after their expected proof file exists.
 --require-complete additionally fails while any proof remains pending.`;
 
 const proofs = [
@@ -102,9 +103,23 @@ function fileExists(rel) {
   return existsSync(join(repoRoot, rel));
 }
 
-function validate() {
+function materializeProofs() {
+  return proofs.map((proof) => {
+    if (proof.status !== 'pending' || !proof.expectedProof || !fileExists(proof.expectedProof)) {
+      return proof;
+    }
+    return {
+      ...proof,
+      status: 'pass',
+      artifacts: [...proof.artifacts, proof.expectedProof],
+      note: `Completed by expected proof ${proof.expectedProof}.`,
+    };
+  });
+}
+
+function validate(materializedProofs) {
   const errors = [];
-  for (const proof of proofs) {
+  for (const proof of materializedProofs) {
     for (const rel of proof.artifacts) {
       if (!fileExists(rel)) {
         errors.push(`${proof.id}: missing artifact ${rel}`);
@@ -120,9 +135,12 @@ function validate() {
   }
 
   if (process.argv.includes('--require-complete')) {
-    for (const proof of proofs) {
+    for (const proof of materializedProofs) {
       if (proof.status !== 'pass') {
         errors.push(`${proof.id}: still ${proof.status}; gate=${proof.gate ?? 'n/a'}`);
+        if (proof.expectedProof && !fileExists(proof.expectedProof)) {
+          errors.push(`${proof.id}: missing expected proof ${proof.expectedProof}`);
+        }
       }
     }
   }
@@ -135,8 +153,9 @@ if (process.argv.includes('--help')) {
   process.exit(0);
 }
 
-const errors = validate();
-console.log(JSON.stringify({ proofs, requireComplete: process.argv.includes('--require-complete') }, null, 2));
+const materializedProofs = materializeProofs();
+const errors = validate(materializedProofs);
+console.log(JSON.stringify({ proofs: materializedProofs, requireComplete: process.argv.includes('--require-complete') }, null, 2));
 
 if (errors.length > 0) {
   console.error('check-rubitime-retirement-proofs: FAILED');

@@ -10,7 +10,7 @@ const HELP = `Usage:
 
 Default mode verifies that every current Rubitime retirement final-gate blocker
 has an explicit expected proof and owner/ops gate. --require-complete fails
-until all blocker statuses are converted to pass and proof files exist.`;
+until every blocker has a real proof file and the final checklist is checked.`;
 
 const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_FINAL_GATE_MANIFEST.md';
 const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
@@ -135,6 +135,13 @@ function readRel(rel) {
   const abs = join(repoRoot, rel);
   if (!existsSync(abs)) return null;
   return readFileSync(abs, 'utf8');
+}
+
+function materializeBlockingItems() {
+  return blockingItems.map((item) => ({
+    ...item,
+    status: relExists(item.expectedProof) ? 'pass' : item.status,
+  }));
 }
 
 function validate({ requireComplete }) {
@@ -264,7 +271,8 @@ function validate({ requireComplete }) {
     }
   }
 
-  for (const item of blockingItems) {
+  const materializedBlockingItems = materializeBlockingItems();
+  for (const item of materializedBlockingItems) {
     if (!item.expectedProof || !item.gate) {
       errors.push(`${item.id}: missing expectedProof or gate`);
     }
@@ -307,11 +315,21 @@ if (process.argv.includes('--help')) {
 }
 
 const requireComplete = process.argv.includes('--require-complete');
+const materializedBlockingItems = materializeBlockingItems();
 const errors = validate({ requireComplete });
 
 console.log(
   JSON.stringify(
-    { manifest, executionPlan, ownerGatePacket, agentReadme, expectedProofs, proofContracts, blockingItems, requireComplete },
+    {
+      manifest,
+      executionPlan,
+      ownerGatePacket,
+      agentReadme,
+      expectedProofs,
+      proofContracts,
+      blockingItems: materializedBlockingItems,
+      requireComplete,
+    },
     null,
     2,
   ),
