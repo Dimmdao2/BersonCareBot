@@ -1046,6 +1046,8 @@ only; post-R6 it must pass with `--expect-post-r6`.
 
 Prepared runbook: `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. It is not proof of completed archive/drop; it
 defines the required audit, archive/export, migration and fresh restore proof for `RR-PROOF-10`.
+Prepared table disposition: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` +
+`pnpm run check:rubitime-r7-table-disposition`.
 
 - [ ] R1-R6 are complete.
 - [ ] fresh metadata inventory finds no runtime references to drop candidates.
@@ -1054,10 +1056,10 @@ defines the required audit, archive/export, migration and fresh restore proof fo
 - [ ] `public.appointment_records` archive decision is completed.
 - [ ] `integrator.rubitime_records` archive decision is completed.
 - [ ] `integrator.rubitime_events` archive decision is completed.
-- [ ] `integrator.booking_calendar_map` or replacement is explicitly kept/migrated.
-- [ ] `public.patient_bookings` is explicitly kept.
-- [ ] `be_external_entity_mappings` table is explicitly kept.
-- [ ] public `booking_*` tables are not dropped until R3-CATALOG is complete.
+- [x] `integrator.booking_calendar_map` or replacement is explicitly kept/migrated. *(Explicit `keep_until_replacement` in `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`; active while GCal sync is live.)*
+- [x] `public.patient_bookings` is explicitly kept. *(Explicit `keep`; canonical patient booking history/runtime table.)*
+- [x] `be_external_entity_mappings` table is explicitly kept. *(Explicit `keep`; only Rubitime rows are later traceability policy scope.)*
+- [x] public `booking_*` tables are not dropped until R3-CATALOG is complete. *(Explicit `defer_drop`; legacy catalog compatibility is outside Rubitime raw-table drop.)*
 - [ ] drop migration is generated.
 - [ ] drop migration is tested in non-prod.
 - [ ] fresh restore + migrate proof passes.

@@ -9,6 +9,14 @@ This is the prepared `RR-PROOF-10-DROP-RESTORE` runbook. It does not approve or 
 
 R7 must not start until R1-R6 are complete, including a completed `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`.
 
+Table disposition manifest: `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md`.
+
+Static disposition check:
+
+```bash
+pnpm run check:rubitime-r7-table-disposition
+```
+
 ## Non-Negotiable Keep List
 
 Do not drop these tables as part of Rubitime retirement:
@@ -16,7 +24,7 @@ Do not drop these tables as part of Rubitime retirement:
 - `public.patient_bookings`
 - `public.be_external_entity_mappings`
 - `integrator.booking_calendar_map` while Google Calendar sync is active, unless a tested replacement exists
-- public `booking_*` catalog tables until R3-CATALOG compatibility removal is separately completed
+- `public.booking_*` catalog tables until R3-CATALOG compatibility removal is separately completed
 
 ## Archive Candidates
 

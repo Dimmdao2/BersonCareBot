@@ -1,0 +1,62 @@
+# Rubitime retirement R7 table disposition
+
+Date: 2026-07-14.
+Branch: `feat/doctor-ui-rebuild`.
+
+## Scope
+
+This is the explicit R7 table disposition for Rubitime retirement. It does not approve any archive/export/drop and does
+not execute SQL. R7 remains blocked until R1-R6 are complete and the owner records the archive/drop decision.
+
+Machine check:
+
+```bash
+pnpm run check:rubitime-r7-table-disposition
+```
+
+Final destructive gate:
+
+```bash
+node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-r7-table-disposition.mjs --require-drop-ready
+```
+
+The final gate must fail until `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_PROOF.md`,
+`RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md`, archive export evidence and the owner archive/drop decision exist.
+
+## Keep / Defer
+
+| Table | Decision | Reason |
+| --- | --- | --- |
+| `public.patient_bookings` | `keep` | Canonical patient booking history/runtime table. It is not Rubitime raw history and must not be dropped by Rubitime retirement. |
+| `public.be_external_entity_mappings` | `keep` | Canonical external identity/mapping table. Rubitime rows can be handled by a later traceability policy, but the table itself remains live. |
+| `integrator.booking_calendar_map` | `keep_until_replacement` | Active provider-neutral Google Calendar map while GCal sync is live. It may only be replaced by a tested canonical map/rekey migration. |
+| `public.booking_*` | `defer_drop` | Legacy public catalog compatibility. These tables are not Rubitime raw provider history and are not dropped by the Rubitime raw-table retirement batch. |
+
+## Archive Before Drop
+
+Archive/export decision is required before destructive migration:
+
+- `public.appointment_records`
+- `integrator.rubitime_records`
+- `integrator.rubitime_events`
+- `public.rubitime_records`, if present
+- `public.rubitime_events`, if present
+
+## Drop Candidates
+
+Drop candidates only after archive/export, R6 runtime removal, static no-reference proof and owner approval:
+
+- `integrator.rubitime_api_throttle`
+- `integrator.rubitime_create_retry_jobs`
+- `integrator.rubitime_booking_profiles`
+- `integrator.rubitime_branches`
+- `integrator.rubitime_services`
+- `integrator.rubitime_cooperators`
+
+## Current Status
+
+- Keep/defer decisions above are explicit and checked.
+- Archive/export is not complete.
+- Drop migration is not generated.
+- Non-prod restore/migrate proof is not complete.
+- R7 remains pending until the R7 runbook is executed after R6 cutoff/drain.
