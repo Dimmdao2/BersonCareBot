@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +12,9 @@ Checks the RR-PROOF-01..10 artifact manifest. Default mode verifies that every
 closed proof points to existing files and every pending proof has a gate/runbook.
 Pending proofs are treated as pass only after their expected proof file exists.
 --require-complete additionally fails while any proof remains pending.`;
+
+const proofIndex = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_RR_PROOF_INDEX.md';
+const executionPlan = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md';
 
 const proofs = [
   {
@@ -103,6 +106,12 @@ function fileExists(rel) {
   return existsSync(join(repoRoot, rel));
 }
 
+function readRel(rel) {
+  const abs = join(repoRoot, rel);
+  if (!existsSync(abs)) return null;
+  return readFileSync(abs, 'utf8');
+}
+
 function materializeProofs() {
   return proofs.map((proof) => {
     if (proof.status !== 'pending' || !proof.expectedProof || !fileExists(proof.expectedProof)) {
@@ -119,7 +128,22 @@ function materializeProofs() {
 
 function validate(materializedProofs) {
   const errors = [];
+  const proofIndexSrc = readRel(proofIndex);
+  const executionPlanSrc = readRel(executionPlan);
+
+  if (!proofIndexSrc) errors.push(`missing ${proofIndex}`);
+  if (!executionPlanSrc) errors.push(`missing ${executionPlan}`);
+
   for (const proof of materializedProofs) {
+    if (proofIndexSrc && !proofIndexSrc.includes(proof.id)) {
+      errors.push(`${proofIndex}: missing proof id ${proof.id}`);
+    }
+    if (executionPlanSrc && !executionPlanSrc.includes(proof.id)) {
+      errors.push(`${executionPlan}: missing proof id ${proof.id}`);
+    }
+    if (proof.expectedProof && proofIndexSrc && !proofIndexSrc.includes(proof.expectedProof)) {
+      errors.push(`${proofIndex}: missing expected proof ${proof.expectedProof}`);
+    }
     for (const rel of proof.artifacts) {
       if (!fileExists(rel)) {
         errors.push(`${proof.id}: missing artifact ${rel}`);
@@ -131,6 +155,29 @@ function validate(materializedProofs) {
       }
     } else if (proof.status !== 'pass') {
       errors.push(`${proof.id}: unsupported status ${proof.status}`);
+    }
+  }
+
+  const requiredIndexFragments = [
+    'CSV-present missing delta zero',
+    'integrator-only rows absent from CSV are audit-only',
+    'raw archive is archive-only',
+    'must not resurrect integrator-only rows absent from CSV',
+  ];
+  for (const fragment of requiredIndexFragments) {
+    if (proofIndexSrc && !proofIndexSrc.includes(fragment)) {
+      errors.push(`${proofIndex}: missing gate fragment ${fragment}`);
+    }
+  }
+
+  const requiredPlanFragments = [
+    'CSV-present missing delta zero',
+    'integrator-only rows absent from CSV are audit-only',
+    'raw archive is archive-only',
+  ];
+  for (const fragment of requiredPlanFragments) {
+    if (executionPlanSrc && !executionPlanSrc.includes(fragment)) {
+      errors.push(`${executionPlan}: missing proof matrix fragment ${fragment}`);
     }
   }
 

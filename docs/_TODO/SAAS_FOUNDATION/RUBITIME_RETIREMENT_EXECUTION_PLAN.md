@@ -588,8 +588,8 @@ These are not optional acceptance notes; each proof must produce a saved artifac
 | `RR-PROOF-06-LIFECYCLE-PARITY` | before R6 | lifecycle/integrator worker | parity test suite output | provider-neutral lifecycle endpoint preserves notifications, Web Push, reminders, payment capture, package link/unlink, delete, reschedule request semantics. |
 | `RR-PROOF-07-GCAL-REKEY` | before R6 | GCal worker | migration/rekey report + tests | existing GCal events update/delete without duplicates; `booking_calendar_map` or replacement is canonical/provider-neutral and remains live. |
 | `RR-PROOF-08-IDEMPOTENCY` | before R6 | lifecycle/integrator worker | restart/idempotency test output | repeated lifecycle events and process restarts do not duplicate GCal/reminders/notifications/payments/package effects. |
-| `RR-PROOF-09-CUTOFF-DRAIN` | before R6 | ops worker | cutoff/drain report | provider cutoff timestamp, webhook/outbound bridge disabled, `projection_outbox` drained, `rubitime_create_retry_jobs` drained/archived, final dual-source delta zero. |
-| `RR-PROOF-10-DROP-RESTORE` | before R7 | DB worker + Sol audit | migration restore proof | archive/export completed; migrations drop only approved tables; fresh restore + migrate + typecheck/static checks pass; no runtime references to dropped tables. |
+| `RR-PROOF-09-CUTOFF-DRAIN` | before R6 | ops worker | cutoff/drain report | provider cutoff timestamp, webhook/outbound bridge disabled, `projection_outbox` drained, `rubitime_create_retry_jobs` drained/archived, CSV-present missing delta zero or owner-waived; integrator-only rows absent from CSV are audit-only. |
+| `RR-PROOF-10-DROP-RESTORE` | before R7 | DB worker + Sol audit | migration restore proof | archive/export completed as raw archive is archive-only; migrations drop only approved tables; fresh restore + migrate + typecheck/static checks pass; no runtime references to dropped tables. |
 
 Minimum command families:
 
