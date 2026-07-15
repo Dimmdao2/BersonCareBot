@@ -591,6 +591,14 @@ function runChecks(overrides = {}) {
     'const PACKET_PATH_ENV = "SAAS_TEST_FIXTURE_ENV_FILE"',
     "readSaasTestFixturePacket",
     "resolveDeployGroupId",
+    'import { Pool } from "pg"',
+    'import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres"',
+    'const databaseUrl = env.DATABASE_URL?.trim() ?? ""',
+    'if (!databaseUrl) throw new Error("fixture_database_url_required")',
+    "const pool = new Pool({",
+    "await assertExactTestDatabase(db)",
+    "await reconcileFixtures(db, config)",
+    "await pool.end()",
     "SAAS_TEST_FIXTURE_CLINIC_A_EMAIL",
     "SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD",
     "SAAS_TEST_FIXTURE_CLINIC_B_EMAIL",
@@ -625,6 +633,7 @@ function runChecks(overrides = {}) {
     "console.log(process.env",
     "error.message",
     "String(error)",
+    "getDrizzle",
   ]);
 
   requireFragments(files.fixturePacket, loaded.fixturePacket, [

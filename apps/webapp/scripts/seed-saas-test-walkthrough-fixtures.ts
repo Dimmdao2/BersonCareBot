@@ -9,11 +9,13 @@
 import { pathToFileURL } from "node:url";
 import argon2 from "argon2";
 import { and, count, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import {
   readSaasTestFixturePacket,
   resolveDeployGroupId,
 } from "../../../deploy/host/saas-test-fixture-packet.mjs";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import * as schema from "../db/schema";
 import {
   beAppointments,
   beOrganizationMembers,
@@ -64,6 +66,7 @@ export const SAAS_TEST_FIXTURE_IDS = Object.freeze({
 });
 
 type FixtureOwnerCredentials = Readonly<{ emailNormalized: string; password: string }>;
+type FixtureDb = NodePgDatabase<typeof schema>;
 
 export type SaasTestFixtureConfig = Readonly<{
   ownerA: FixtureOwnerCredentials;
@@ -200,8 +203,7 @@ export function buildSaasTestFixturePlan(now: Date) {
   });
 }
 
-async function assertExactTestDatabase(): Promise<void> {
-  const db = getDrizzle();
+async function assertExactTestDatabase(db: FixtureDb): Promise<void> {
   const result = await db.execute<{ database_name: string }>(
     sql`SELECT current_database()::text AS database_name`,
   );
@@ -226,8 +228,7 @@ function assertCount(label: string, actual: number, expected: number): void {
   if (actual !== expected) throw new Error(`fixture_shape_mismatch:${label}:${actual}:${expected}`);
 }
 
-async function reconcileFixtures(config: SaasTestFixtureConfig): Promise<void> {
-  const db = getDrizzle();
+async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): Promise<void> {
   const now = new Date();
   const nowIso = now.toISOString();
   const plan = buildSaasTestFixturePlan(now);
@@ -534,8 +535,20 @@ export async function runSaasTestFixtureSeeder(env: NodeJS.ProcessEnv): Promise<
     expectedGroupId: resolveDeployGroupId(),
   });
   const config = readSaasTestFixtureConfig(packet);
-  await assertExactTestDatabase();
-  await reconcileFixtures(config);
+  const databaseUrl = env.DATABASE_URL?.trim() ?? "";
+  if (!databaseUrl) throw new Error("fixture_database_url_required");
+  const pgOptions = env.PGOPTIONS?.trim();
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    ...(pgOptions ? { options: pgOptions } : {}),
+  });
+  const db = drizzle(pool, { schema });
+  try {
+    await assertExactTestDatabase(db);
+    await reconcileFixtures(db, config);
+  } finally {
+    await pool.end();
+  }
   console.log(
     "[saas-test-fixture] OK: 2 active owner clinics, Clinic A has 5 synthetic patients with past/future appointments, Clinic B is empty",
   );
