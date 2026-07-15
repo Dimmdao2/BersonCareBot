@@ -38,7 +38,7 @@ beforeEach(() => {
     "fetch",
     vi.fn((input: RequestInfo | URL) => {
       const u = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
-      if (u.includes("/api/references/body_region")) {
+      if (u.includes("/api/doctor/references/body_region")) {
         return Promise.resolve(new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 }));
       }
       return Promise.resolve(new Response(JSON.stringify({ ok: false, items: [] }), { status: 404 }));

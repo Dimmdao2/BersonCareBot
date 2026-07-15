@@ -45,6 +45,8 @@ INFRA|public.operator_incidents
 INFRA|public.operator_job_status
 INFRA|public.outgoing_delivery_queue
 INFRA|public.phone_otp_locks
+INFRA|public.reference_catalog_baselines
+INFRA|public.reference_catalog_snapshot_receipts
 INFRA|public.schema_migrations
 INFRA|public.saas_tariffs
 INFRA|public.webapp_schema_migrations

@@ -281,6 +281,10 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: { title: owner.organizationTitle, isActive: true, sortOrder: 0, updatedAt: nowIso },
         });
 
+      await tx.execute(
+        sql`SELECT app.seed_reference_catalog_snapshot(${owner.organizationId}::uuid)`,
+      );
+
       await tx
         .insert(platformUsers)
         .values({

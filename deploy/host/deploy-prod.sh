@@ -6,6 +6,8 @@ ENV_FILE=/opt/env/bersoncarebot/api.prod
 WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
+SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
+REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
@@ -74,6 +76,8 @@ bash deploy/host/bootstrap-systemd-prod.sh
 require_file "${ENV_FILE}" "Production environment file"
 require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
+require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
+require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
@@ -128,6 +132,12 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm migrate
 pnpm --dir apps/webapp run migrate
+
+# Migration 0182 versions the reference baseline helper. Refresh the canonical SECURITY DEFINER
+# provisioning function in the same post-migration order as the SaaS TEST wrapper so a newly
+# created organization receives its catalog snapshot in the organization-creation transaction.
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"

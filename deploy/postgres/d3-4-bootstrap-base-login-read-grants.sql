@@ -100,6 +100,7 @@ REVOKE EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text,
 REVOKE EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.get_public_reference_baseline(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.lookup_pending_org_invite(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM :"d3_4_bootstrap_base_role";
@@ -161,6 +162,7 @@ GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, 
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.get_public_reference_baseline(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.lookup_pending_org_invite(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO :"d3_4_bootstrap_base_role";

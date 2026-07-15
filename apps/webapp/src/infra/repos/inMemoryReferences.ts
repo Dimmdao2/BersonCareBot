@@ -363,6 +363,15 @@ function ensureUniqueCode(categoryId: string, code: string): void {
 }
 
 export const inMemoryReferencesPort: ReferencesPort = {
+  async listPublicBaselineItemsByCategoryCode(categoryCode) {
+    if (categoryCode === "visit_manipulation") return [];
+    const category = categories.find((candidate) => candidate.code === categoryCode);
+    if (!category) return [];
+    return items
+      .filter((item) => item.categoryId === category.id && item.isActive && item.deletedAt === null)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+  },
+
   async listCategories() {
     return [...categories].sort((a, b) => a.title.localeCompare(b.title));
   },

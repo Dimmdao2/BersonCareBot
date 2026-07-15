@@ -1,75 +1,55 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { listMock, findCatMock, buildAppDepsMock } = vi.hoisted(() => {
-  const listMockInner = vi.fn();
-  const findCatMockInner = vi.fn();
-  return {
-    listMock: listMockInner,
-    findCatMock: findCatMockInner,
-    buildAppDepsMock: vi.fn(() => ({
-      references: {
-        findCategoryByCode: findCatMockInner,
-        listActiveItemsByCategoryCode: listMockInner,
-      },
-    })),
-  };
-});
+const { listPublicMock, stampBootstrapPrincipalMock } = vi.hoisted(() => ({
+  listPublicMock: vi.fn(),
+  stampBootstrapPrincipalMock: vi.fn(),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
-  buildAppDeps: buildAppDepsMock,
+  buildAppDeps: () => ({
+    references: { listPublicBaselineItemsByCategoryCode: listPublicMock },
+  }),
+}));
+vi.mock("@/app-layer/principal/bootstrapPrincipal", () => ({
+  stampBootstrapPrincipal: stampBootstrapPrincipalMock,
 }));
 
 import { GET } from "./route";
 
 describe("GET /api/references/[categoryCode]", () => {
   beforeEach(() => {
-    findCatMock.mockReset();
-    listMock.mockReset();
+    listPublicMock.mockReset();
+    stampBootstrapPrincipalMock.mockReset();
   });
 
-  it("returns items", async () => {
-    findCatMock.mockResolvedValue({
-      id: "c",
-      code: "symptom_type",
-      title: "T",
-      isUserExtensible: true,
-      tenantId: null,
-    });
-    listMock.mockResolvedValue([
-      { id: "1", code: "a", title: "A", sortOrder: 1, categoryId: "c", isActive: true, deletedAt: null, metaJson: {} },
+  it("returns the public baseline without selecting a tenant snapshot", async () => {
+    listPublicMock.mockResolvedValue([
+      { id: "i1", categoryId: "c1", code: "pain", title: "Боль", sortOrder: 1 },
     ]);
     const res = await GET(new Request("http://localhost/api/references/symptom_type"), {
       params: Promise.resolve({ categoryCode: "symptom_type" }),
     });
     expect(res.status).toBe(200);
-    const data = (await res.json()) as { ok: boolean; items: { id: string }[] };
-    expect(data.ok).toBe(true);
-    expect(data.items[0]?.id).toBe("1");
-  });
-
-  it("returns 400 when category empty", async () => {
-    const res = await GET(new Request("http://localhost/api/references/"), {
-      params: Promise.resolve({ categoryCode: "" }),
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      items: [{ id: "i1", code: "pain", title: "Боль", sortOrder: 1 }],
     });
-    expect(res.status).toBe(400);
+    expect(listPublicMock).toHaveBeenCalledWith("symptom_type");
+    expect(stampBootstrapPrincipalMock).toHaveBeenCalledOnce();
   });
 
-  it("returns 404 when category unknown", async () => {
-    findCatMock.mockResolvedValue(null);
-    const res = await GET(new Request("http://localhost/api/references/unknown_cat"), {
-      params: Promise.resolve({ categoryCode: "unknown_cat" }),
-    });
-    expect(res.status).toBe(404);
-    const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe("category_not_found");
-  });
-
-  it("does not expose private doctor-only categories", async () => {
+  it("never exposes the private visit manipulation catalog", async () => {
     const res = await GET(new Request("http://localhost/api/references/visit_manipulation"), {
       params: Promise.resolve({ categoryCode: "visit_manipulation" }),
     });
     expect(res.status).toBe(404);
-    expect(findCatMock).not.toHaveBeenCalled();
-    expect(listMock).not.toHaveBeenCalled();
+    expect(listPublicMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty category", async () => {
+    const res = await GET(new Request("http://localhost/api/references/"), {
+      params: Promise.resolve({ categoryCode: "" }),
+    });
+    expect(res.status).toBe(400);
   });
 });

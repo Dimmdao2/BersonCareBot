@@ -1275,6 +1275,27 @@
       "when": 1791465600000,
       "tag": "0181_clinical_visit_canonical_appointment_link",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1791552000000,
+      "tag": "0182_reference_catalog_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1791638400000,
+      "tag": "0183_reference_catalog_snapshot_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1791724800000,
+      "tag": "0184_reference_catalog_org_insert_hook",
+      "breakpoints": true
     }
   ]
 }

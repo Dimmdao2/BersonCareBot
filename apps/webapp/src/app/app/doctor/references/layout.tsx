@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { ReferencesSidebar } from "./ReferencesSidebar";
 
 export default async function DoctorReferencesLayout({ children }: { children: ReactNode }) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  const categories = await deps.references.listCategories();
+  const categories = await withDoctorWorkspacePrincipal(workspace, () => deps.references.listCategories());
 
   return (
-    <DoctorAppShell title="Справочники" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell title="Справочники" user={workspace.session.user} backHref="/app/doctor">
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         <ReferencesSidebar
           categories={categories}

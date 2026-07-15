@@ -4,12 +4,11 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 
 const PRIVATE_REFERENCE_CATEGORY_CODES = new Set(["visit_manipulation"]);
 
-/** Публичный список активных значений справочника (для селектов в UI). */
+/** Public read-only current baseline. Tenant-owned mutable snapshots are never exposed here. */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ categoryCode: string }> }
 ) {
-  // BOOTSTRAP: public references are global catalogs; private scoped categories are hidden below.
   stampBootstrapPrincipal("api/references/[categoryCode]:GET");
   const { categoryCode } = await context.params;
   if (!categoryCode || categoryCode.trim() === "") {
@@ -19,19 +18,17 @@ export async function GET(
   if (PRIVATE_REFERENCE_CATEGORY_CODES.has(code)) {
     return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
   }
-  const deps = buildAppDeps();
-  const category = await deps.references.findCategoryByCode(code);
-  if (!category) {
+  const items = await buildAppDeps().references.listPublicBaselineItemsByCategoryCode(code);
+  if (items.length === 0) {
     return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
   }
-  const items = await deps.references.listActiveItemsByCategoryCode(code);
   return NextResponse.json({
     ok: true,
-    items: items.map((i) => ({
-      id: i.id,
-      code: i.code,
-      title: i.title,
-      sortOrder: i.sortOrder,
+    items: items.map((item) => ({
+      id: item.id,
+      code: item.code,
+      title: item.title,
+      sortOrder: item.sortOrder,
     })),
   });
 }

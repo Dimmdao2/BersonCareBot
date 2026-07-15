@@ -284,7 +284,7 @@ assertNoRawContextSettingsInGeneratedPolicySql(
 console.log(
   [
     "P0.9 enforce descriptors OK:",
-    "227 descriptors,",
+    "229 descriptors,",
     "missing/unknown deny,",
     "SCOPED enforce app.org,",
     "BOOTSTRAP explicit pre-context behavior,",

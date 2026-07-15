@@ -32,5 +32,9 @@ describe("referenceCache", () => {
     const items = await loadReferenceItems("symptom_type");
     expect(items).toHaveLength(1);
     expect(items[0]?.title).toBe("A");
+    expect(fetchMock).toHaveBeenCalledWith("/api/doctor/references/symptom_type");
+    await loadReferenceItems("symptom_type");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mem).toEqual({});
   });
 });

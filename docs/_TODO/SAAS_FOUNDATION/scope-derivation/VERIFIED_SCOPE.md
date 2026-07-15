@@ -43,6 +43,17 @@ Full machine list: `needs-orgid.txt`; full per-table classification: `arbiter.ts
 List: `needs-orgid-FINAL.txt`. Decisions:
 - **Telemetry SPLIT:** delivery/usage logs (notification_delivery_attempts, support_delivery_events, reminder_journal, media_playback_*, media_transcode_jobs) → SCOPE; aggregate analytics + infra telemetry (product_analytics_events_recent, product_analytics_user_hourly, media_hls_proxy_error_events, operator_health_failure_archive) → GLOBAL (−4 from core → 62).
 - **Catalogs PER-TENANT (+22):** lfk_exercises(+_media,+_regions), lfk_complex_templates(+_exercises), treatment_program_templates(+_stage*), courses, content_pages, content_sections, tests, test_sets(+_items), recommendations(+_regions), reference_categories(+_items), motivational_quotes, clinical_diagnosis_catalog, clinical_test_regions. Each specialist/clinic owns its library. (`user_email_setup_tokens` was a created_by false-positive → stays GLOBAL.)
+
+### Reference catalog provisioning decision (owner, 2026-07-15)
+
+`reference_categories` and `reference_items` are owned by `Organization`, not by an individual specialist.
+The repo stores an explicit versioned global baseline manifest. Organization provisioning copies the current
+manifest into the new organization inside the same transaction. From that point the copied catalog is fully
+independent: clinic edits never change the baseline, and publishing a later baseline version affects only
+organizations created afterward. The initial tenant cutover may insert missing baseline rows into existing
+organizations, but must preserve all existing category/item UUIDs and values. A database `AFTER INSERT` hook is
+the canonical invariant for all organization creation paths; application provisioning calls remain redundant,
+receipt-backed idempotency checks.
 - **NEW workstream — MARKETPLACE/STORE** (owner: "магазин с покупкой библиотек упражнений"): a GLOBAL store inventory of sellable library-products + purchase records; buying = COPY into the tenant's per-tenant catalog (same copy pattern as patient-transfer). Later feature, NOT Phase-0 foundation, but the per-tenant catalog model already supports it.
 - **system_settings:** org-aware row-level (global + per-org rows) — ties to C2/D7 redesign.
 - **Legacy-8:** frozen, not scoped.

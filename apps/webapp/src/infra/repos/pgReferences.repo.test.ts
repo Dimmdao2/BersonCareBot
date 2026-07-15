@@ -41,6 +41,16 @@ describe("pgReferencesPort (repo SQL parity)", () => {
     runWebappTransactionMock.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => fn({}));
   });
 
+  it("reads the anonymous contract only through the public baseline accessor", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    await pgReferencesPort.listPublicBaselineItemsByCategoryCode("symptom_type");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
+      "app.get_public_reference_baseline($1)",
+    );
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["symptom_type"]);
+  });
+
   it("listActiveItemsByCategoryCode joins categories by code", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgReferencesPort.listActiveItemsByCategoryCode("symptom_type");
@@ -48,7 +58,18 @@ describe("pgReferencesPort (repo SQL parity)", () => {
     expect(sql).toContain("JOIN reference_categories c");
     expect(sql).toContain("c.code = $1");
     expect(sql).toContain("i.is_active = true");
-    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["symptom_type"]);
+    expect(sql).toContain("c.organization_id = $2::uuid");
+    expect(sql).toContain("i.organization_id = $2::uuid");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["symptom_type", "org-1"]);
+  });
+
+  it("read methods fail closed without an organization principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(undefined);
+    await expect(pgReferencesPort.listCategories()).rejects.toThrow("organization_principal_required");
+    await expect(pgReferencesPort.findCategoryByCode("symptom_type")).rejects.toThrow(
+      "organization_principal_required",
+    );
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
   it("saveCatalog runs transactional updates via runWebappTransaction", async () => {

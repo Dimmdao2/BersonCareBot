@@ -41,11 +41,13 @@ SELECT (
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('public.be_organizations') IS NOT NULL
   AND to_regclass('public.be_organization_members') IS NOT NULL
+  AND to_regclass('public.reference_catalog_baselines') IS NOT NULL
+  AND to_regprocedure('app.seed_reference_catalog_snapshot(uuid)') IS NOT NULL
 )::int AS specialist_owner_provisioning_preflight_ok \gset
 
 \if :specialist_owner_provisioning_preflight_ok
 \else
-\echo 'FATAL: prerequisites missing -- app_patient, schema app, signup intents/users/orgs/members tables must all exist.'
+\echo 'FATAL: prerequisites missing -- app_patient, schema app, signup/users/orgs/members and reference catalog baseline must all exist.'
 SELECT 1 / 0 AS specialist_owner_provisioning_abort;
 \endif
 
@@ -166,6 +168,10 @@ BEGIN
   )
   RETURNING id INTO v_membership_id;
 
+  -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
+  -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
+  PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
+
   UPDATE public.specialist_signup_intents AS i
   SET status = 'provisioned',
       provisioned_organization_id = v_organization_id,
@@ -182,8 +188,11 @@ COMMENT ON FUNCTION app.provision_specialist_owner(uuid, uuid) IS
   'Narrow SECURITY DEFINER specialist owner provisioning for pre-session signup. Creates organization and owner membership only; be_specialists is deferred to a real staff principal.';
 
 ALTER FUNCTION app.provision_specialist_owner(uuid, uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
+ALTER FUNCTION app.seed_reference_catalog_snapshot(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
+GRANT SELECT ON TABLE public.reference_catalog_baselines TO :specialist_owner_provisioning_owner_ident;
 
 REVOKE ALL ON FUNCTION app.provision_specialist_owner(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.seed_reference_catalog_snapshot(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) TO app_patient;
 \endif
 

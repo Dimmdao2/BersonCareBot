@@ -35,6 +35,7 @@ STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql
 PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql
 PUBLIC_BOOTSTRAP_RLS=deploy/postgres/specialist-signup-public-bootstrap-rls.sql
 SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
+REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
 PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 UNITS=(api worker scheduler webapp media-worker)
@@ -331,6 +332,7 @@ rehydrate_post_restore_runtime_overlays(){
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
+    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$REFERENCE_CATALOG_RLS"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
   fi
   echo "   post-restore runtime overlays: OK"
@@ -564,6 +566,7 @@ assert_awg_relay_active(){
 [ -r "$SRC_REPO/$PATIENT_COURSE_WALL" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_COURSE_WALL"; exit 1; }
 [ -r "$SRC_REPO/$PUBLIC_BOOTSTRAP_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOTSTRAP_RLS"; exit 1; }
 [ -r "$SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"; exit 1; }
+[ -r "$SRC_REPO/$REFERENCE_CATALOG_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$REFERENCE_CATALOG_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_VAPID_ACCESSOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VAPID_ACCESSOR"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
