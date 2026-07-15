@@ -59,7 +59,7 @@ re-audit. Цикл узких двухстрочных fix/audit допусти�
 - `keep / merge / move / split / retire / needs-decision`;
 - найденный gap, без реализации фикса.
 
-**Исполнители:** два bounded UI-auditor/explorer, Sonnet-high или `gpt-5.5`; затем один независимый audit полноты. Это механический evidence pass, не работа Planner.
+**Исполнители:** два независимых explorer-а на `gpt-5.6-terra` Medium; затем отдельный reviewer на `gpt-5.6-terra` High проверяет полноту. Повторяющуюся сборку route/screenshot index можно отдать `gpt-5.6-luna` Medium после фиксации формата. Это evidence pass, не работа главного Planner.
 
 **Выход:** `SCREEN_INVENTORY.md`, screenshot index и gap list. Никаких code changes.
 
@@ -88,7 +88,7 @@ screen capture.
 - факты отдельно от выводов для BersonCare;
 - не копировать чужой UI, извлекать operating patterns и failure states.
 
-**Исполнители:** один product researcher и один technical researcher, Sonnet-high/`gpt-5.5`; technical/domain выводы проверяет architecture reviewer `gpt-5.6-sol`.
+**Исполнители:** product researcher и technical researcher на `gpt-5.6-terra` Medium; technical/domain выводы проверяет architecture reviewer на `gpt-5.6-sol` High.
 
 **Выход:** `EXTERNAL_PATTERNS.md` с pattern comparison и применимостью.
 
@@ -117,7 +117,7 @@ the named downstream screens, not hidden defaults.
 - public/onboarding/patient границы;
 - entitlement influence на IA.
 
-**Исполнитель:** Planner (Opus) синтезирует UX-01/02. **Plan-critic:** независимый Opus проверяет полноту и не позволяет подменить owner decisions догадками. **Architecture reviewer:** `gpt-5.6-sol` проверяет согласованность с identity/tenant walls.
+**Исполнитель:** Planner на `gpt-5.6-sol` Medium синтезирует UX-01/02. **Plan-critic:** независимый `gpt-5.6-sol` High проверяет полноту и не позволяет подменить owner decisions догадками. Он же проверяет согласованность с identity/tenant walls как критической областью.
 
 **Выход:** `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, state/context diagrams.
 
@@ -146,7 +146,7 @@ correction. Open owner decisions remain conditional downstream gates.
 
 Для каждого journey: trigger, actor, channel, token trust, auth step, context source, created records, UI states, notification outcome, recovery.
 
-**Исполнители:** UX flow designer (Opus/`gpt-5.5`) и identity/security reviewer (`gpt-5.6-sol`).
+**Исполнители:** UX flow designer на `gpt-5.6-terra` High и независимый identity/security reviewer на `gpt-5.6-sol` High.
 
 **Выход:** `ENTRY_AND_INVITE_JOURNEYS.md` и screen/state list.
 
@@ -183,7 +183,7 @@ Pending owner requests BD-1…BD-6 have no owner ruling and remain gates for fin
 
 Базовый инвариант: Host/domain может подсказать scope entry, но не является authorization. Custom domain должен иметь canonical platform fallback и loop-safe redirect contract.
 
-**Исполнители:** product/brand UX planner + `gpt-5.6-sol` architecture/security reviewer. Визуальный дизайнер подключается только после contract freeze.
+**Исполнители:** product/brand UX planner на `gpt-5.6-terra` High и architecture/security reviewer на `gpt-5.6-sol` High. Визуальный дизайнер подключается только после contract freeze.
 
 **Выход:** `BRANDING_DOMAIN_CONTRACT.md` и тарифная capability matrix.
 
@@ -214,7 +214,7 @@ one integrated correction. Open OM/BD owner gates remain conditional and are not
 - navigation rules desktop/mobile;
 - empty/error/permission states.
 
-**Исполнитель:** Planner (Opus). Независимый plan-critic проверяет буквальное покрытие `REQUIREMENTS.md`; Decomposer (Sonnet-high) превращает карту в проверяемые screen specifications.
+**Исполнитель:** Planner на `gpt-5.6-sol` Medium. Независимый plan-critic на `gpt-5.6-sol` High проверяет буквальное покрытие `REQUIREMENTS.md`; Decomposer на `gpt-5.6-terra` Medium превращает карту в проверяемые screen specifications; механическую route-матрицу после design lock собирает `gpt-5.6-luna` Medium.
 
 **Выход:** `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md`.
 
@@ -252,7 +252,7 @@ source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and ev
 
 Сначала low-fidelity flow/wireframe, затем один согласованный visual direction. Не рисовать все существующие CRUD-экраны заново.
 
-**Исполнители:** UI/UX executor; два независимых visual reviewers по seal-протоколу только после появления рендера.
+**Исполнители:** UI/UX executor на `gpt-5.6-terra` Medium; повторяемые screenshot-проходы на `gpt-5.6-luna` Medium; visual reviewer на `gpt-5.6-terra` High и независимый Chief reviewer на `gpt-5.6-sol` High — только после появления рендера.
 
 **Выходы этой фазы (не создавать дополнительные contract-документы):**
 
@@ -302,7 +302,7 @@ owner rulings.
 - patient multi-org default context;
 - степень отделения organization management от clinical cabinet.
 
-**Исполнитель:** Planner; независимый critic удаляет вопросы, на которые уже есть owner ruling или индустриальный стандарт.
+**Исполнитель:** Planner на `gpt-5.6-sol` Medium; независимый critic на `gpt-5.6-terra` High удаляет вопросы, на которые уже есть owner ruling или индустриальный стандарт.
 
 **Выход:** `OWNER_DECISION_PACKET.md`, затем решения переносятся в отдельный dated rulings file.
 
@@ -336,7 +336,7 @@ correction and final provenance source-fix. Ни implementation, ни app/DB/run
 7. only then optional custom domain, sender and per-origin PWA adapters;
 8. route/visual consolidation and acceptance.
 
-Каждый epic получает scope, forbidden scope, tests, screenshots/smoke и merge dependency. Реализация идёт по worker → independent code audit → fixer → risk-tiered audit → visual seals.
+Каждый epic получает scope, forbidden scope, tests, screenshots/smoke и merge dependency. Декомпозицию ведёт `gpt-5.6-terra` Medium, повторяемые checklist/route-операции — `gpt-5.6-luna` Medium. Реализация идёт по worker (`gpt-5.6-terra` Medium/High) → independent code audit (`gpt-5.6-terra` High) → fixer (`gpt-5.6-terra` или `gpt-5.6-luna` по формализуемости) → критический audit (`gpt-5.6-sol` High при затрагивании identity/tenant/security) → visual seals.
 
 Фактический planned output: `IMPLEMENTATION_ROADMAP.md`. После integrated correction он содержит 19 meaningful
 leaf stages: отдельный J1 owner `U3S`, независимый ранний resolver `U5A`, acquisition convergence без обратной
