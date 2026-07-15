@@ -728,12 +728,14 @@ export type MediaAccessRow = {
   usage_purpose: string | null;
   uploaded_by: string;
   mime_type: string;
+  stored_path: string;
+  s3_key: string | null;
 };
 
 export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | null> {
   const res = await runWebappSql<MediaAccessRow>(
     getWebappSqlDb(),
-    sql`SELECT usage_purpose, uploaded_by::text, mime_type
+    sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
      FROM media_files
      WHERE id = ${id}::uuid AND ${mediaReadableStatusPredicate}`,
   );
@@ -782,7 +784,8 @@ export async function listMediaDeleteErrors(limit: number = 100): Promise<{ item
 export type MediaPlaybackRow = {
   id: string;
   mime_type: string;
-  s3_key: string;
+  s3_key: string | null;
+  stored_path: string;
   video_processing_status: string | null;
   hls_master_playlist_s3_key: string | null;
   poster_s3_key: string | null;
@@ -793,15 +796,21 @@ export type MediaPlaybackRow = {
   uploaded_by: string;
 };
 
-export async function getMediaRowForPlayback(id: string): Promise<MediaPlaybackRow | null> {
+export async function getMediaRowForPlayback(
+  id: string,
+  options: { allowLocalSaasTestFixture?: boolean } = {},
+): Promise<MediaPlaybackRow | null> {
+  const storagePredicate = options.allowLocalSaasTestFixture
+    ? sql`((s3_key IS NOT NULL AND length(trim(s3_key)) > 0) OR (s3_key IS NULL AND stored_path = '/test-fixtures/saas-exercise.svg'))`
+    : sql`(s3_key IS NOT NULL AND length(trim(s3_key)) > 0)`;
   const res = await runWebappSql<MediaPlaybackRow>(
     getWebappSqlDb(),
-    sql`SELECT id::text, mime_type, s3_key,
+    sql`SELECT id::text, mime_type, s3_key, stored_path,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
             video_duration_seconds, available_qualities_json, video_delivery_override,
             usage_purpose, uploaded_by::text
      FROM media_files
-     WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0 AND ${mediaReadableStatusPredicate}`,
+     WHERE id = ${id}::uuid AND ${storagePredicate} AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }

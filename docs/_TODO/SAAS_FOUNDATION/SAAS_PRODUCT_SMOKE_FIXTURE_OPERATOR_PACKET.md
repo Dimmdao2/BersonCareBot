@@ -18,6 +18,8 @@ PASS evidence, does not authorize TEST execution, and does not prove product par
 
 1. Create the fixture file outside the repo, for example `/run/bersoncarebot/saas-smoke.fixture`.
 2. Populate it with TEST-only auth headers/cookies and opaque fixture refs for existing TEST accounts and records.
+   Capture `global_admin` separately after POST `/api/admin/mode` has returned `adminMode=true`; do not reuse a
+   clinic-owner or doctor session.
 3. Keep file permissions narrow enough that only the operator-approved process/user can read it.
 4. Run the offline `--check-fixture` command before authorizing live smoke.
 5. Authorize live TEST smoke separately and capture aggregate-only evidence.
@@ -35,6 +37,10 @@ and is not proof that a fixture exists or works.
     "doctor": { "headers": { "Cookie": "REDACTED_PLACEHOLDER_NON_RUNNABLE" } },
     "clinic_admin": { "headers": { "Cookie": "REDACTED_PLACEHOLDER_NON_RUNNABLE" } },
     "patient": { "headers": { "Cookie": "REDACTED_PLACEHOLDER_NON_RUNNABLE" } },
+    "global_admin": {
+      "headers": { "Cookie": "REDACTED_PLACEHOLDER_NON_RUNNABLE" },
+      "adminMode": true
+    },
     "public": { "headers": {} }
   },
   "refs": {
@@ -42,15 +48,18 @@ and is not proof that a fixture exists or works.
     "patientProgramInstanceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "patientProgramItemId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "mediaFileId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
-    "publicBookingServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"
+    "publicBookingServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
+    "clinicAAppointmentId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"
   },
   "forbiddenBodyText": ["REDACTED_TEST_SENTINEL_NON_RUNNABLE"]
 }
 ```
 
 Allowed auth header names are `Cookie`, `Authorization`, `x-bersoncare-smoke-auth`, or explicit `x-smoke-*`
-operator headers. Doctor, clinic-admin, and patient profiles each require at least one non-empty auth header; the
-public profile must have no headers so public/bootstrap coverage cannot be satisfied by a staff session. The `refs`
+operator headers. Doctor, clinic-admin, patient, and global-admin profiles each require at least one non-empty auth
+header. `global_admin.adminMode=true` records that the operator explicitly enabled admin mode before capturing that
+separate session; reusing the clinic-admin cookie is invalid. The public profile must have no headers so
+public/bootstrap coverage cannot be satisfied by a staff session. The `refs`
 values are opaque TEST identifiers required only for rendering requests. JSON/JUnit evidence stores the contract
 path templates and never the rendered ref values.
 

@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getS3KeyMock = vi.fn();
 const getAccessRowMock = vi.fn();
 const getStoredMock = vi.fn();
+const readLocalMock = vi.fn();
 const presignGetUrlMock = vi.fn();
 const getSessionMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
-  env: { DATABASE_URL: "postgres://test/db" },
+  env: { DATABASE_URL: "postgres://test/bersoncarebot_test" },
   isS3MediaEnabled: () => true,
 }));
 
@@ -20,6 +21,10 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
 
 vi.mock("@/app-layer/media/mockMediaStorage", () => ({
   getStoredMediaBody: (...args: unknown[]) => getStoredMock(...args),
+}));
+
+vi.mock('@/app-layer/media/localSaasTestFixtureMedia', () => ({
+  readSaasTestLocalMedia: (...args: unknown[]) => readLocalMock(...args),
 }));
 
 vi.mock("@/app-layer/media/s3Client", () => ({
@@ -44,6 +49,7 @@ describe("GET /api/media/[id]", () => {
     getS3KeyMock.mockReset();
     getAccessRowMock.mockReset();
     getStoredMock.mockReset();
+    readLocalMock.mockReset();
     presignGetUrlMock.mockReset();
     getSessionMock.mockReset();
     getTtlMock.mockReset();
@@ -53,6 +59,8 @@ describe("GET /api/media/[id]", () => {
       usage_purpose: null,
       uploaded_by: "u1",
       mime_type: "image/png",
+      stored_path: 'media/uuid/file.png',
+      s3_key: 'media/uuid/file.png',
     });
   });
 
@@ -100,6 +108,8 @@ describe("GET /api/media/[id]", () => {
       usage_purpose: null,
       uploaded_by: "u1",
       mime_type: "image/png",
+      stored_path: 'media/uuid/file.png',
+      s3_key: null,
     });
     getS3KeyMock.mockResolvedValue(null);
 
@@ -108,6 +118,32 @@ describe("GET /api/media/[id]", () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('returns real local TEST bytes when the fixed DB fixture row has no S3 key', async () => {
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: 'u1',
+      mime_type: 'image/svg+xml',
+      stored_path: '/test-fixtures/saas-exercise.svg',
+      s3_key: null,
+    });
+    getS3KeyMock.mockResolvedValue(null);
+    readLocalMock.mockResolvedValue(new TextEncoder().encode('<svg>SaaS TEST</svg>').buffer);
+
+    const res = await GET(new Request('http://localhost/api/media/x'), {
+      params: Promise.resolve({ id: testUuid }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(await res.text()).toContain('SaaS TEST');
+    expect(readLocalMock).toHaveBeenCalledWith({
+      databaseUrl: 'postgres://test/bersoncarebot_test',
+      storedPath: '/test-fixtures/saas-exercise.svg',
+      s3Key: null,
+      mimeType: 'image/svg+xml',
+    });
   });
 
   it("returns 503 when presign throws", async () => {

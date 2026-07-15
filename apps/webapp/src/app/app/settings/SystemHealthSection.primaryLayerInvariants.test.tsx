@@ -27,6 +27,7 @@ function collectPrimaryLayerText(root: HTMLElement): string {
 /** Все accordion-триггеры блока карточек (кроме «Обновить» в первой карточке). */
 async function expandAllServiceAccordions(): Promise<void> {
   const patterns = [
+    /Изоляция клиник/,
     /База данных веб-приложения/,
     /Сервер интеграций/,
     /Синхронизация событий/,
@@ -73,6 +74,7 @@ const probeShell = {
   operatorBackupJobs: { status: "ok", durationMs: 19 },
   outgoingDelivery: { status: "ok", durationMs: 20 },
   integratorPushOutbox: { status: "ok", durationMs: 21 },
+  saasIsolation: { status: "okay", durationMs: 3 },
 };
 
 const videoPlaybackShell = {
@@ -171,6 +173,51 @@ function fetchHealthJson(): Record<string, unknown> {
       recent: [],
     },
     videoTranscode: videoTranscodeShell,
+    saasIsolation: {
+      schemaVersion: 3,
+      status: "okay",
+      statusReasons: [],
+      active: { unexplained: 0, explained: 0, occurrences: 0 },
+      resolved: { unexplained: 1, explained: 2, occurrences: 5 },
+      byClass: { rls_denial: 3 },
+      events: [
+        {
+          eventClass: "rls_denial",
+          sourceService: "webapp",
+          sourceOperation: "webapp_db_request",
+          explanationStatus: "explained",
+          lifecycleStatus: "resolved",
+          occurrenceCount: 3,
+          firstSeenAt: "2026-04-16T09:00:00.000Z",
+          lastSeenAt: "2026-04-16T09:30:00.000Z",
+        },
+      ],
+      lastEventAt: "2026-04-16T09:30:00.000Z",
+      lastCoverage: {
+        id: "11111111-1111-4111-8111-111111111111",
+        status: "complete",
+        startedAt: "2026-04-16T09:00:00.000Z",
+        finishedAt: "2026-04-16T10:00:00.000Z",
+        servicesChecked: ["webapp", "integrator", "worker", "scheduler", "media_worker", "cron"],
+        checksCount: 14,
+        unexpectedErrorsCount: 0,
+      },
+      coverageFresh: true,
+      coverageComplete: true,
+      missingServices: [],
+      trend: {
+        asOf: "2026-04-16T10:06:00.000Z",
+        current24Hours: 4,
+        previous24Hours: 2,
+        delta: 2,
+        daily7Days: [
+          { date: "2026-04-10", count: 0 }, { date: "2026-04-11", count: 1 },
+          { date: "2026-04-12", count: 0 }, { date: "2026-04-13", count: 2 },
+          { date: "2026-04-14", count: 0 }, { date: "2026-04-15", count: 2 },
+          { date: "2026-04-16", count: 4 },
+        ],
+      },
+    },
     operatorIncidentsOpen: [
       {
         id: "550e8400-e29b-41d4-a716-446655440000",
@@ -299,6 +346,8 @@ function fetchHealthJson(): Record<string, unknown> {
 
 describe("SystemHealthSection primary-layer invariants", () => {
   it("после раскрытия всех карточек: операторский слой без сыра кода ошибок reconcile / инцидентов и без англоязычных DDL-подписей", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -313,6 +362,7 @@ describe("SystemHealthSection primary-layer invariants", () => {
     });
 
     expect(screen.getByText("активен")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Изоляция клиник/ })).toBeInTheDocument();
     expect(screen.queryByText(/\bactive\b/i)).not.toBeInTheDocument();
 
     await expandAllServiceAccordions();
@@ -322,6 +372,19 @@ describe("SystemHealthSection primary-layer invariants", () => {
     });
 
     const primary = collectPrimaryLayerText(document.body);
+
+    for (const label of [
+      "Запрос без удостоверения", "Удостоверение не установлено", "Неверная роль подключения",
+      "Отказ стены базы", "Не очищено подключение", "Фоновая операция без владельца",
+    ]) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Фильтры диагностики изоляции")).toBeInTheDocument();
+    expect(screen.getByLabelText("Сигналы изоляции за 7 дней").children).toHaveLength(7);
+    expect(screen.getByText("Сигналы: последние 24 ч / предыдущие 24 ч")).toBeInTheDocument();
+    expect(screen.getByText("Изменение за 24 ч")).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "Скопировать" })[0]!);
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = String(writeText.mock.calls[0]?.[0]);
+    expect(copied).not.toMatch(/organization_id|patient_id|user_id|signature|rawSql|payload/i);
 
     expect(primary).not.toMatch(/Probe\s+status/i);
     expect(primary).not.toMatch(/\bjob_key\b/i);

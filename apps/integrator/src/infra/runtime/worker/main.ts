@@ -12,6 +12,11 @@ import { runWorkerTick } from './runner.js';
 import { runProjectionWorkerTick } from './projectionWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import {
+  reportWorkerOutgoingIsolationFailure,
+  reportWorkerProjectionIsolationFailure,
+  reportWorkerQueueIsolationFailure,
+} from '../../observability/saasIsolationTelemetry.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -85,6 +90,7 @@ async function startWorker(): Promise<void> {
             }
           });
         } catch (err) {
+          reportWorkerQueueIsolationFailure(err);
           logger.error({ err }, 'Runtime worker tick failed');
         }
         await sleep(pollIntervalMs);
@@ -95,6 +101,7 @@ async function startWorker(): Promise<void> {
         try {
           await runProjectionWorkerTick(projectionDb, webappEvents);
         } catch (err) {
+          reportWorkerProjectionIsolationFailure(err);
           logger.error({ err }, 'Projection worker tick failed');
         }
         await sleep(pollIntervalMs);
@@ -115,6 +122,7 @@ async function startWorker(): Promise<void> {
             },
           });
         } catch (err) {
+          reportWorkerOutgoingIsolationFailure(err);
           logger.error({ err }, 'Outgoing delivery worker tick failed');
         }
         await sleep(pollIntervalMs);
@@ -124,6 +132,7 @@ async function startWorker(): Promise<void> {
 }
 
 startWorker().catch((err) => {
+  reportWorkerQueueIsolationFailure(err);
   logger.error({ err }, 'Runtime worker crashed');
   process.exit(1);
 });

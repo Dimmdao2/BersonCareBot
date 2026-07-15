@@ -23,6 +23,9 @@ DB-free contract validation:
 pnpm run check:saas-product-smoke-contract
 ```
 
+This command includes the runner self-test, a synthetic fixture preflight and checker mutation proofs. Root `audit`
+runs it directly, so the same gate is part of full CI rather than an optional operator-only check.
+
 DB-free fixture preflight for an operator-managed fixture file:
 
 ```bash
@@ -79,6 +82,7 @@ Minimal shape:
     "doctor": { "headers": { "Cookie": "..." } },
     "clinic_admin": { "headers": { "Cookie": "..." } },
     "patient": { "headers": { "Cookie": "..." } },
+    "global_admin": { "headers": { "Cookie": "..." }, "adminMode": true },
     "public": { "headers": {} }
   },
   "refs": {
@@ -86,13 +90,18 @@ Minimal shape:
     "patientProgramInstanceId": "opaque-program-id",
     "patientProgramItemId": "opaque-item-id",
     "mediaFileId": "opaque-media-id",
-    "publicBookingServiceId": "opaque-service-id"
+    "publicBookingServiceId": "opaque-service-id",
+    "clinicAAppointmentId": "opaque-appointment-id"
   },
   "forbiddenBodyText": ["unexpected test sentinel"]
 }
 ```
 
 Fixture files may contain real TEST auth material and must live outside the repo. Do not log or commit them.
+`global_admin` is a distinct operator session captured only after admin mode was explicitly enabled; a clinic owner
+or ordinary doctor cookie cannot satisfy the System Health probe. The same gate includes negative doctor and
+clinic-admin requests, public no-cookie `/app`/login/registration/`/book` probes, and an opt-in global-admin
+clinical-write denial probe.
 
 ## Known A1 Boundary
 

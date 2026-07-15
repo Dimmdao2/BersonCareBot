@@ -69,6 +69,8 @@ const migrationOnlyTables = new Set([
 // - specialist signup uses narrow SECURITY DEFINER bootstrap/provisioning functions, not direct staff DML.
 // - reference catalog baseline/receipt metadata is immutable runtime infrastructure managed only by
 //   the receipt-backed seed helper; staff edits the per-organization category/item copies instead.
+// - SaaS isolation diagnostics are true-global tables behind their own SECURITY DEFINER writer/operator overlay;
+//   ambient app_staff must never receive direct table grants from this broad bootstrap batch.
 const overlayManagedAppStaffTables = new Set([
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
@@ -76,6 +78,9 @@ const overlayManagedAppStaffTables = new Set([
   "public.specialist_signup_intents",
   "public.reference_catalog_baselines",
   "public.reference_catalog_snapshot_receipts",
+  "public.saas_isolation_coverage_runs",
+  "public.saas_isolation_event_hourly",
+  "public.saas_isolation_events",
 ]);
 
 const appStaffGrantTiers = new Set(["SCOPED", "BOOTSTRAP", "INFRA", "LEGACY", "TELEMETRY"]);

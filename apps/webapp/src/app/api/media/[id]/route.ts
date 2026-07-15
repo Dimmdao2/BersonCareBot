@@ -8,6 +8,7 @@ import { presignGetUrl } from "@/app-layer/media/s3Client";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getCurrentSession } from "@/modules/auth/service";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
+import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,6 +61,22 @@ export async function GET(
     const s3Key = await getMediaS3KeyForRedirect(id);
     if (s3Key) {
       return redirectPresignedOr503(s3Key);
+    }
+    const localBody = await readSaasTestLocalMedia({
+      databaseUrl: dbUrl,
+      storedPath: accessRow.stored_path,
+      s3Key: accessRow.s3_key,
+      mimeType: accessRow.mime_type,
+    });
+    if (localBody) {
+      return new Response(localBody, {
+        headers: {
+          'Content-Type': accessRow.mime_type,
+          'Content-Length': String(localBody.byteLength),
+          'Cache-Control': 'private, max-age=3600',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
     }
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }

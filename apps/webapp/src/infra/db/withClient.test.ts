@@ -6,6 +6,12 @@ import { runWithDbInfraPrincipal, runWithDbOrganizationPrincipal } from "@berson
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
 
+vi.mock("@/infra/db/saasIsolationDbFailureReporting", () => ({
+  reportDbCleanupFailure: vi.fn(async () => undefined),
+  reportDbQueryFailure: vi.fn(async () => undefined),
+  reportPrincipalSetupFailure: vi.fn(async () => undefined),
+}));
+
 function restoreEnvValue(name: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[name];

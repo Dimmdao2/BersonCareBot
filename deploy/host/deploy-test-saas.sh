@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # deploy-test-saas.sh — ONE clean cycle from zero: fresh prod-copy test DB → deploy branch code →
 # apply the SaaS migration chain the CORRECT way (#667/#708) → restart test units → verify healthy.
-# Runtime mode is TEST-env selected: legacy-guc, shadow, or locked after migrations. Proven sequence;
+# Runtime mode is locked-only; strict helper policies + FORCE are mandatory after every migration chain. Proven sequence;
 # see docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md.
 #
 # Why the plain deploy-test.sh is not enough:
 #   - a migration asserts the doctor/admin membership seed → needs p0-data-fix-doctor-admin-split.sql FIRST;
 #   - some migrations backfill under already-installed FORCE RLS → need a TEMP BYPASSRLS migrator.
 #   - this wrapper owns the DDL/backfill migration window via temporary owner authority.
-#     TEST services may run DB_PRINCIPAL_CONTEXT_MODE=legacy-guc|shadow|locked after migrations:
-#     integrator API startup must not attempt DDL migrations in shadow/locked runtime mode.
+#     TEST services run DB_PRINCIPAL_CONTEXT_MODE=locked after migrations:
+#     integrator API startup must not attempt DDL migrations in locked runtime mode.
 #
 # Run as user `dev` (uses sudo for postgres/deploy/systemctl). Idempotent: recreates the test DB every run.
 # Usage:  bash deploy/host/deploy-test-saas.sh [branch]   (default: auto/code-pg-delta)
@@ -38,6 +38,11 @@ SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-
 REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
 PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
+TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
+OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
+SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
+SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
+LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
 MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
@@ -47,6 +52,10 @@ P2_B_STAFF_ROLE=app_staff
 P2_B_PATIENT_ROLE=app_patient
 P2_B_SIGNING_SECRET_VALUE=""
 P2_B_CONTEXT_INSTALLED=0
+WRITERS_STOPPED=0
+SERVICES_RELEASED=0
+FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
+LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
 #   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
@@ -97,6 +106,11 @@ cleanup_exit(){
   set +e
   cleanup_elevation
   cleanup_status=$?
+  if [ "$original_status" -ne 0 ] && [ "${WRITERS_STOPPED:-0}" = "1" ] && [ "${SERVICES_RELEASED:-0}" != "1" ]; then
+    for unit_name in "${UNITS[@]}"; do
+      sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
+    done
+  fi
   if [ "$original_status" -eq 0 ] && [ "$cleanup_status" -ne 0 ]; then
     exit "$cleanup_status"
   fi
@@ -146,26 +160,42 @@ assert_test_runtime_mode_ready(){
     env_file="${spec#*:}"
     mode="$(read_deploy_env_value "$env_file" DB_PRINCIPAL_CONTEXT_MODE)"
     mode="${mode:-legacy-guc}"
-    case "$mode" in
-      legacy-guc)
-        printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=legacy-guc (dormant)\n" "$label:"
-        ;;
-      shadow|locked)
-        printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=%s (runtime locked; startup DDL disabled)\n" "$label:" "$mode"
-        ;;
-      *)
-        echo "FATAL: $env_file has unsupported DB_PRINCIPAL_CONTEXT_MODE=$mode; expected legacy-guc, shadow, or locked" >&2
-        exit 1
-        ;;
-    esac
+    [ "$mode" = "locked" ] || {
+      echo "FATAL: $env_file must use DB_PRINCIPAL_CONTEXT_MODE=locked for strict TEST, got $mode" >&2
+      exit 1
+    }
+    printf "   %-10s DB_PRINCIPAL_CONTEXT_MODE=locked (strict TEST runtime)\n" "$label:"
   done
 }
 
 assert_saas_test_fixture_packet_ready(){
-  local validator="$SRC_REPO/deploy/host/saas-test-fixture-packet.mjs"
+  local validator="$FIXTURE_VALIDATOR_ROOT/deploy/host/saas-test-fixture-packet.mjs"
   [ -r "$validator" ] || { echo "FATAL: missing TEST fixture packet validator" >&2; exit 1; }
   sudo -u deploy env SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1 \
     node --input-type=module - "$SAAS_TEST_FIXTURE_ENV" < "$validator"
+}
+
+assert_locked_product_smoke_fixture_ready(){
+  local fixture_path="${SAAS_PRODUCT_SMOKE_FIXTURE:-/run/bersoncarebot/saas-smoke.fixture}"
+  local validator="$FIXTURE_VALIDATOR_ROOT/$LOCKED_SMOKE_FIXTURE_VALIDATOR"
+  [ -r "$validator" ] || { echo "FATAL: missing locked product-smoke fixture validator" >&2; exit 1; }
+  LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL="$(
+    bash "$validator" --validate "$fixture_path" "$SRC_REPO" "$DEPLOY_REPO"
+  )"
+  sudo -u deploy test -r "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL" || {
+    echo "FATAL: locked product-smoke fixture is not readable by deploy" >&2
+    exit 1
+  }
+}
+
+assert_test_writers_stopped(){
+  local unit_name
+  for unit_name in "${UNITS[@]}"; do
+    if systemctl is-active --quiet "bersoncarebot-$unit_name-test"; then
+      echo "FATAL: bersoncarebot-$unit_name-test is still active inside the strict closure" >&2
+      exit 1
+    fi
+  done
 }
 
 has_signed_runtime_mode(){
@@ -375,6 +405,22 @@ discover_api_runtime_role(){
   discover_database_role_from_env "api.test" "$API_ENV"
 }
 
+discover_saas_isolation_operator_role(){
+  local identity role_name database_name
+  identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && [ -n \"\${SAAS_ISOLATION_OPERATOR_DATABASE_URL:-}\" ] && psql \"\$SAAS_ISOLATION_OPERATOR_DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
+  role_name="${identity%%|*}"
+  database_name="${identity#*|}"
+  validate_pg_identifier "webapp.test SaaS isolation operator role" "$role_name"
+  [ "$database_name" = "$DB" ] || { echo "FATAL: SaaS isolation operator URL points to '$database_name', expected '$DB'"; exit 1; }
+  printf '%s\n' "$role_name"
+}
+
+provision_saas_isolation_operator_login(){
+  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && node '$DEPLOY_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER'" \
+    | sudo -u postgres psql -d "$DB" -X -q -v ON_ERROR_STOP=1
+  echo "   SaaS isolation diagnostic login: provisioned/rotated from protected TEST env"
+}
+
 grant_api_runtime_migration_ledger_read(){
   local role_name
   role_name="$(discover_api_runtime_role)"
@@ -405,6 +451,47 @@ grant_webapp_bootstrap_base_login_d3_4(){
     -v d3_4_bootstrap_base_role="$role_name" \
     -f "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS"
   echo "   D3.4 bootstrap/base-login grants: OK (webapp.test role $role_name)"
+}
+
+install_saas_isolation_telemetry_overlay(){
+  local webapp_runtime_role api_runtime_role operator_runtime_role
+  webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"
+  api_runtime_role="$(discover_api_runtime_role)"
+  operator_runtime_role="$(discover_saas_isolation_operator_role)"
+  validate_pg_identifier "webapp.test telemetry runtime role" "$webapp_runtime_role"
+  validate_pg_identifier "api.test telemetry runtime role" "$api_runtime_role"
+  validate_pg_identifier "webapp.test telemetry operator role" "$operator_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v telemetry_webapp_runtime_role="$webapp_runtime_role" \
+    -v telemetry_api_runtime_role="$api_runtime_role" \
+    -v telemetry_operator_runtime_role="$operator_runtime_role" \
+    -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY"
+  echo "   SaaS isolation telemetry closed API: OK"
+}
+
+run_saas_isolation_test_scenario_proof(){
+  local scenario_args
+  for scenario_args in \
+    "--execute" \
+    "--execute --prove-cleanup-on-injected-failure" \
+    "--execute --assert-clean-only"; do
+    sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- $scenario_args"
+  done
+  echo "   SaaS isolation TEST scenarios: normal + injected cleanup + final clean OK"
+}
+
+apply_test_strict_rls_finalizer(){
+  local bootstrap_role
+  bootstrap_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "strict TEST bootstrap role" "$bootstrap_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v test_expected_database="$DB" \
+    -v phase4_bootstrap_base_role="$bootstrap_role" \
+    -v phase4_staff_role="$P2_B_STAFF_ROLE" \
+    -v phase4_owner_role="$P2_B_OWNER_ROLE" \
+    -f "$DEPLOY_REPO/$TEST_STRICT_RLS_FINALIZER"
+  assert_cleanup_elevation
+  echo "   strict helper policies + exact 163-target FORCE assertion: OK"
 }
 
 grant_migrator_owner_membership(){
@@ -493,16 +580,13 @@ apply_test_nginx_webapp_config(){
   bash deploy/host/apply-test-nginx-webapp.sh --apply
 }
 
-run_a2_product_smoke_if_configured(){
-  if [ -z "${SAAS_PRODUCT_SMOKE_FIXTURE:-}" ]; then
-    echo "   saas product smoke: skipped (SAAS_PRODUCT_SMOKE_FIXTURE not set)"
-    return 0
-  fi
-
-  [ -r "$SAAS_PRODUCT_SMOKE_FIXTURE" ] || { echo "FATAL: SAAS_PRODUCT_SMOKE_FIXTURE is not readable: $SAAS_PRODUCT_SMOKE_FIXTURE"; exit 1; }
+run_locked_product_smoke(){
+  local fixture_path
+  assert_locked_product_smoke_fixture_ready
+  fixture_path="$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"
   local smoke_dir
   smoke_dir="${SAAS_PRODUCT_SMOKE_OUTPUT_DIR:-/tmp/bcb-saas-product-smoke}"
-  mkdir -p "$smoke_dir"
+  sudo install -d -o deploy -g deploy -m 0700 "$smoke_dir"
   local smoke_args=()
   if [ -n "${SAAS_PRODUCT_SMOKE_CATEGORIES:-}" ]; then
     smoke_args+=("--categories=$SAAS_PRODUCT_SMOKE_CATEGORIES")
@@ -510,13 +594,30 @@ run_a2_product_smoke_if_configured(){
   if [ -n "${SAAS_PRODUCT_SMOKE_SCENARIO_IDS:-}" ]; then
     smoke_args+=("--scenario-ids=$SAAS_PRODUCT_SMOKE_SCENARIO_IDS")
   fi
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs \
-    --mode="${SAAS_PRODUCT_SMOKE_MODE:-dormant}" \
+  sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
+    --mode=locked \
     --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
-    --fixture-file="$SAAS_PRODUCT_SMOKE_FIXTURE" \
+    --fixture-file="$fixture_path" \
     --json-output="$smoke_dir/saas-product-smoke.json" \
     --junit-output="$smoke_dir/saas-product-smoke.junit.xml" \
     "${smoke_args[@]}"
+
+  sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs" \
+    --mode=locked \
+    --base-url="${SAAS_PRODUCT_SMOKE_BASE_URL:-https://test.bersoncare.ru}" \
+    --fixture-file="$fixture_path" \
+    --include-mutations \
+    --scenario-ids=global-admin.clinical-write.denied \
+    --json-output="$smoke_dir/saas-product-smoke-global-admin-denial.json" \
+    --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"
+}
+
+run_owner_ready_locked_db_matrix(){
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v test_expected_database="$DB" \
+    -v matrix_staff_role="$P2_B_STAFF_ROLE" \
+    -v matrix_patient_role="$P2_B_PATIENT_ROLE" \
+    -f "$DEPLOY_REPO/$OWNER_READY_LOCKED_MATRIX"
 }
 
 run_b1_doctor_admin_identity_assertion(){
@@ -555,6 +656,99 @@ assert_awg_relay_active(){
   echo "   awg-quick@awg0: OK (active)"
 }
 
+run_strict_post_migration_closure(){
+  assert_test_writers_stopped
+  assert_cleanup_elevation
+
+  log "strict closure: roles + grants"
+  install_p0_5b_runtime_wall
+  log "strict closure: protected principal helpers"
+  install_p2_b_protected_principal_context
+  log "strict closure: reviewed runtime overlays"
+  rehydrate_post_restore_runtime_overlays
+  log "strict closure: SaaS isolation telemetry privilege overlay"
+  provision_saas_isolation_operator_login
+  install_saas_isolation_telemetry_overlay
+  log "strict closure: reversible SaaS isolation TEST scenario proof"
+  run_saas_isolation_test_scenario_proof
+  if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
+    assert_api_runtime_can_release_principal_context
+  fi
+  log "grant + verify integrator migration ledger runtime read"
+  grant_api_runtime_migration_ledger_read
+  assert_api_runtime_can_read_migration_ledger
+  grant_webapp_bootstrap_base_login_d3_4
+
+  log "strict closure: TEST settings override"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
+
+  log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
+  apply_test_strict_rls_finalizer
+
+  log "strict closure: separate privileged fixture seed + cleanup"
+  run_deploy_repo_with_test_db_owner_bypass \
+    "export SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 && export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough"
+  assert_cleanup_elevation
+
+  log "strict closure: owner-ready locked DB matrix (transactional)"
+  run_owner_ready_locked_db_matrix
+  log "strict closure: post-matrix exact strict + FORCE reassertion"
+  apply_test_strict_rls_finalizer
+
+  log "strict closure: restart locked TEST units"
+  for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+  sleep 4
+  assert_test_units_active
+  assert_test_health_ok
+  log "A2 nginx forwarded-host preflight"
+  apply_test_nginx_webapp_config
+  run_a2_nginx_preflight
+  log "A2 product smoke gate (mandatory locked)"
+  run_locked_product_smoke
+  assert_awg_relay_active
+  SERVICES_RELEASED=1
+}
+
+assert_strict_closure_deploy_checkout_ready(){
+  local required_path
+  for required_path in \
+    "$OVERRIDE" "$P0_5B_ROLES" "$P0_5B_GRANTS" "$P2_B_CONTEXT" \
+    "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
+    "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" \
+    "$PATIENT_VAPID_ACCESSOR" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
+    deploy/postgres/phase4-app-worker-narrow-rls.sql; do
+    sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
+      echo "FATAL: deploy cannot read strict closure artifact: $DEPLOY_REPO/$required_path" >&2
+      exit 1
+    }
+  done
+  for env_file in "$API_ENV" "$WEBAPP_ENV"; do
+    sudo -u deploy test -r "$env_file" || { echo "FATAL: deploy cannot read required env file: $env_file" >&2; exit 1; }
+  done
+  assert_test_runtime_mode_ready
+  assert_saas_test_fixture_packet_ready
+  assert_locked_product_smoke_fixture_ready
+}
+
+case "${1:-}" in
+  --strict-preflight)
+    FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
+    assert_strict_closure_deploy_checkout_ready
+    echo "strict TEST closure preflight: OK"
+    exit 0
+    ;;
+  --post-migration-closure)
+    FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
+    assert_strict_closure_deploy_checkout_ready
+    WRITERS_STOPPED=1
+    trap cleanup_exit EXIT
+    run_strict_post_migration_closure
+    log "DONE — shared strict TEST post-migration closure"
+    exit 0
+    ;;
+esac
+
 # 0. preflight (env files are deploy-owned → check as deploy, not as dev)
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
@@ -569,6 +763,9 @@ assert_awg_relay_active(){
 [ -r "$SRC_REPO/$REFERENCE_CATALOG_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$REFERENCE_CATALOG_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_VAPID_ACCESSOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VAPID_ACCESSOR"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
+[ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
@@ -576,7 +773,14 @@ log "TEST runtime mode preflight"
 assert_test_runtime_mode_ready
 log "SaaS TEST fixture operator packet preflight"
 assert_saas_test_fixture_packet_ready
+log "locked product-smoke fixture preflight"
+assert_locked_product_smoke_fixture_ready
 trap cleanup_exit EXIT   # NEVER leave BYPASSRLS or owner-role membership on
+
+log "stop TEST writers before restore/migration"
+for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
+WRITERS_STOPPED=1
+assert_test_writers_stopped
 
 # 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
 #    Override with DUMP=/path env to reuse a pre-pulled dump. Do NOT fall back to /opt/backups here —
@@ -627,20 +831,6 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }
 done
 echo "   drizzle migrations = $CNT (org columns present)"
-log "install P0.5b runtime wall"
-install_p0_5b_runtime_wall
-log "install + verify protected DB principal context"
-install_p2_b_protected_principal_context
-log "rehydrate post-restore runtime overlays"
-rehydrate_post_restore_runtime_overlays
-if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
-  assert_api_runtime_can_release_principal_context
-fi
-log "grant + verify integrator migration ledger runtime read"
-grant_api_runtime_migration_ledger_read
-assert_api_runtime_can_read_migration_ledger
-log "grant D3.4 webapp bootstrap/base-login direct surface"
-grant_webapp_bootstrap_base_login_d3_4
 
 # 5. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
@@ -675,23 +865,10 @@ echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT futur
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion
 
-# 8. Reconcile the repo-managed A/B walkthrough fixture after every fresh restore. Credentials live only
-#    in the protected external TEST packet. The seeder re-asserts current_database()=bersoncarebot_test,
-#    performs no external calls, and logs only aggregate fixture shape.
-log "reconcile SaaS S3 TEST walkthrough fixture"
-run_deploy_repo_with_test_db_owner_bypass \
-  "export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough"
-
-# 9. restart test units + verify (and that the prod WireGuard relay is untouched)
-log "restart test units"
-for u in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$u-test"; done
-sleep 4
-assert_test_units_active
-assert_test_health_ok
-log "A2 nginx forwarded-host preflight"
-apply_test_nginx_webapp_config
-run_a2_nginx_preflight
-log "A2 product smoke gate"
-run_a2_product_smoke_if_configured
-assert_awg_relay_active
-log "DONE — fresh-dump hard rehearsal from zero (runtime mode legacy-guc|shadow|locked verified after migrations)"
+# Both supported TEST deploy paths converge here.  This shared closure owns roles/helpers/grants,
+# strict base + safe specialized overlays, exact FORCE assertions, the separate fixture privilege
+# window, restart, fail-closed health checks, and the mandatory locked product smoke.
+FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
+assert_strict_closure_deploy_checkout_ready
+run_strict_post_migration_closure
+log "DONE — fresh-dump strict TEST rehearsal from zero (locked runtime + exact FORCE state verified)"

@@ -10,7 +10,8 @@ Status: checker grounded in the real schema (2026-07-10, W1); currently RED — 
 
 Checklist:
 
-- [ ] Every base table appears in exactly one tier in `tiers-218.tsv`. **Currently false** — see the 4 stray tables above; the checker fails closed on this today.
+- [x] Every base table appears in exactly one tier in `tiers-218.tsv`; E1 diagnostics tables, including the bounded
+      hourly trend store, are TELEMETRY and the grounded checker now covers 232 schema tables exactly.
 - [x] `tiers-218.tsv` is diffed against the actual schema (code + migrations), not a hand-maintained snapshot — see Implementation.
 - [x] `needs-orgid-FINAL.txt` equals SCOPED tables requiring direct `organization_id` (for tables that currently have a tier; the 4 untiered tables above aren't classified as SCOPED/BOOTSTRAP/etc. yet).
 - [x] P0.4 batch artifact exactly covers `needs-orgid-FINAL.txt`.

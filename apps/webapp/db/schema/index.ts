@@ -41,4 +41,5 @@ export * from "./patientClinical";
 export * from "./patientClinicalAnamnesis";
 export * from "./patientPayments";
 export * from "./saasEntitlements";
+export * from "./saasIsolationDiagnostics";
 export * from "./relations";

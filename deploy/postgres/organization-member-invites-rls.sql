@@ -63,6 +63,7 @@ END $$;
 \else
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND rolbypassrls AND NOT rolcanlogin)
   AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app')
   AND to_regclass('public.organization_member_invites') IS NOT NULL
   AND to_regclass('public.be_organizations') IS NOT NULL
@@ -75,7 +76,7 @@ SELECT (
 
 \if :organization_member_invites_accept_preflight_ok
 \else
-\echo 'FATAL: prerequisites missing -- app_patient, schema app, invites/orgs/users/members/specialists tables must all exist.'
+\echo 'FATAL: prerequisites missing -- app_patient, BYPASSRLS NOLOGIN app_owner, schema app, invites/orgs/users/members/specialists tables must all exist.'
 SELECT 1 / 0 AS organization_member_invites_accept_abort;
 \endif
 
@@ -83,15 +84,20 @@ ALTER TABLE "public"."organization_member_invites" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."organization_member_invites" FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites";
+-- Direct runtime table access is staff+organization scoped and therefore fails closed without a
+-- protected principal. Pre-session lookup/accept is exposed only through the narrow SECURITY
+-- DEFINER functions below, owned by the existing NOLOGIN/BYPASSRLS app_owner security boundary.
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."organization_member_invites"
   FOR ALL
   USING (
-    NULLIF(current_setting('app.org', true), '') IS NULL
-    OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND "organization_id" = app.current_org_id()
   )
   WITH CHECK (
-    NULLIF(current_setting('app.org', true), '') IS NULL
-    OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid
+    app.is_staff()
+    AND app.current_org_id() IS NOT NULL
+    AND "organization_id" = app.current_org_id()
   );
 
 DO $$
@@ -100,6 +106,12 @@ BEGIN
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."organization_member_invites" TO app_staff;
   END IF;
 END $$;
+
+GRANT USAGE ON SCHEMA public TO app_owner;
+GRANT SELECT, UPDATE ON TABLE public.organization_member_invites TO app_owner;
+GRANT SELECT ON TABLE public.be_organizations TO app_owner;
+GRANT SELECT, UPDATE ON TABLE public.platform_users TO app_owner;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.be_organization_members TO app_owner;
 
 CREATE OR REPLACE FUNCTION app.lookup_pending_org_invite(p_token_hash text)
 RETURNS TABLE (
@@ -283,8 +295,8 @@ $$;
 COMMENT ON FUNCTION app.accept_org_invite(text, uuid, text) IS
   'Narrow SECURITY DEFINER accept operation for organization member invites. Performs token lock, email/user check, membership/specialist provisioning, and single-use invite update without granting app_patient table writes.';
 
-ALTER FUNCTION app.lookup_pending_org_invite(text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.accept_org_invite(text, uuid, text) OWNER TO :organization_member_invites_owner_ident;
+ALTER FUNCTION app.lookup_pending_org_invite(text) OWNER TO app_owner;
+ALTER FUNCTION app.accept_org_invite(text, uuid, text) OWNER TO app_owner;
 
 REVOKE ALL ON FUNCTION app.lookup_pending_org_invite(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.accept_org_invite(text, uuid, text) FROM PUBLIC;

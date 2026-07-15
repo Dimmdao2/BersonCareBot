@@ -47,6 +47,7 @@ export default defineConfig({
     "./db/schema/patientClinical.ts",
     "./db/schema/patientClinicalAnamnesis.ts",
     "./db/schema/patientPayments.ts",
+    "./db/schema/saasIsolationDiagnostics.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {

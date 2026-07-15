@@ -13,6 +13,15 @@ import {
   createWebappPoolProvider,
   getWebappPoolRoutingMetrics,
 } from "@/infra/db/webappPoolProvider";
+import { createSaasIsolationTelemetryPoolProvider } from "@/infra/db/saasIsolationTelemetryPoolProvider";
+
+const { reportSaasIsolationEventBestEffortMock } = vi.hoisted(() => ({
+  reportSaasIsolationEventBestEffortMock: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/infra/saasIsolationReporterRuntime", () => ({
+  reportSaasIsolationEventBestEffort: reportSaasIsolationEventBestEffortMock,
+}));
 
 const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const STAFF_USER_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -85,6 +94,7 @@ describe("webapp pool provider", () => {
   const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
 
   beforeEach(() => {
+    reportSaasIsolationEventBestEffortMock.mockClear();
     process.env.DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
     delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
   });
@@ -93,6 +103,26 @@ describe("webapp pool provider", () => {
     restoreEnvValue("DB_PRINCIPAL_CONTEXT_MODE", originalDbPrincipalContextMode);
     restoreEnvValue("DB_PRINCIPAL_SIGNING_SECRET", originalDbPrincipalSigningSecret);
     vi.restoreAllMocks();
+  });
+
+  it("creates the dedicated SaaS telemetry pool with one bounded connection", () => {
+    const { factory, pools } = createFakePoolFactory();
+    createSaasIsolationTelemetryPoolProvider({
+      connectionString: "postgres://telemetry/db",
+      applicationName: "bcb_saas_isolation_operator",
+      poolFactory: factory,
+    });
+
+    expect(pools).toHaveLength(1);
+    expect(pools[0]?.config).toMatchObject({
+      connectionString: "postgres://telemetry/db",
+      application_name: "bcb_saas_isolation_operator",
+      max: 1,
+      connectionTimeoutMillis: 250,
+      query_timeout: 200,
+      statement_timeout: 200,
+      idle_in_transaction_session_timeout: 200,
+    });
   });
 
   it("routes staff and organization-scoped principals to the staff pool before checkout", async () => {
@@ -169,6 +199,11 @@ describe("webapp pool provider", () => {
       staffSelections: 0,
       nonstaffSelections: 0,
     });
+    expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
+      eventClass: "missing_principal",
+      sourceService: "webapp",
+      sourceOperation: "webapp_db_request",
+    });
   });
 
   it("uses one legacy pool for both principals when only DATABASE_URL is resolved", async () => {
@@ -238,5 +273,57 @@ describe("webapp pool provider", () => {
     await expect(pool.query("SELECT ok")).rejects.toBe(cleanupError);
 
     expect(pools[0]?.clients[0]?.release).toHaveBeenCalledWith(cleanupError);
+    expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
+      eventClass: "cleanup_failure",
+      sourceService: "webapp",
+      sourceOperation: "webapp_db_request",
+    });
+  });
+
+  it("classifies an injected PostgreSQL RLS denial without forwarding SQL or error text", async () => {
+    const rlsError = Object.assign(new Error("new row violates row-level security policy for table private"), {
+      code: "42501",
+    });
+    const { factory } = createFakePoolFactory(async (sql: string) => {
+      if (sql === "SELECT tenant_data") throw rlsError;
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+
+    await expect(pool.query("SELECT tenant_data")).rejects.toBe(rlsError);
+
+    expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
+      eventClass: "rls_denial",
+      sourceService: "webapp",
+      sourceOperation: "webapp_db_request",
+    });
+    expect(JSON.stringify(reportSaasIsolationEventBestEffortMock.mock.calls)).not.toContain("tenant_data");
+    expect(JSON.stringify(reportSaasIsolationEventBestEffortMock.mock.calls)).not.toContain("private");
+  });
+
+  it("classifies an injected signed-principal install failure", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const installError = new Error("signature rejected");
+    const { factory } = createFakePoolFactory(async (sql: string) => {
+      if (sql.includes("app.install_signed_context")) throw installError;
+      if (sql === "SELECT pg_backend_pid() AS backend_pid") {
+        return { rows: [{ backend_pid: 777 }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+
+    await expect(
+      runWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID }, () =>
+        pool.query("SELECT tenant_data"),
+      ),
+    ).rejects.toBe(installError);
+
+    expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
+      eventClass: "invalid_signature_or_install",
+      sourceService: "webapp",
+      sourceOperation: "webapp_db_request",
+    });
   });
 });

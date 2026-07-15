@@ -1,5 +1,8 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logger } from "@/app-layer/logging/logger";
+import { reportSaasIsolationEventBestEffort } from "@/infra/saasIsolationReporterRuntime";
+import { classifySaasIsolationFailure, isRecognizedSaasIsolationFailure } from "@bersoncare/db-principal";
+import type { SaasIsolationSourceOperation } from "@/modules/operator-health/saasIsolationDiagnostics";
 
 export type RecordOperatorCronJobTickInput = {
   jobFamily: string;
@@ -9,6 +12,14 @@ export type RecordOperatorCronJobTickInput = {
   success: boolean;
   error?: string;
   metaJson?: Record<string, unknown>;
+};
+
+const CRON_OPERATION_BY_FAMILY: Readonly<Record<string, SaasIsolationSourceOperation>> = {
+  health: "cron_health",
+  media: "cron_media",
+  analytics: "cron_analytics",
+  reminders: "cron_reminders",
+  specialist_tasks: "cron_specialist_tasks",
 };
 
 /**
@@ -38,6 +49,14 @@ export async function recordOperatorCronJobTickBestEffort(
       });
     }
   } catch (err) {
+    const sourceOperation = CRON_OPERATION_BY_FAMILY[input.jobFamily];
+    if (sourceOperation && isRecognizedSaasIsolationFailure(err)) {
+      void reportSaasIsolationEventBestEffort({
+        eventClass: classifySaasIsolationFailure(err),
+        sourceService: "cron",
+        sourceOperation,
+      });
+    }
     logger.warn(
       { err, jobFamily: input.jobFamily, jobKey: input.jobKey },
       "operator_job_status cron tick failed",

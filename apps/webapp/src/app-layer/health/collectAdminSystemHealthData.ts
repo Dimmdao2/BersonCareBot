@@ -62,6 +62,11 @@ import {
   loadAdminMediaPreviewGroupedCounts,
   loadAdminMediaPreviewStalePendingCount,
 } from "@/infra/repos/pgAdminMediaPreviewHealth";
+import {
+  SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
+  emptySaasIsolationTrend,
+  type SaasIsolationHealthPayload,
+} from "@/modules/operator-health/saasIsolationDiagnostics";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -286,6 +291,8 @@ export type SystemHealthResponse = {
   integrations: IntegrationsHealthSnapshot;
   /** Последняя успешная суточная сводка (`operator_health_alert_sent`, `digest:*`). */
   operatorHealthDigest: { lastSentAt: string | null };
+  /** Redacted true-global diagnostics for tenant wall enforcement. */
+  saasIsolation: SaasIsolationHealthPayload;
   meta: {
     probes: {
       webappDb: { status: string; durationMs: number; errorCode?: string };
@@ -305,6 +312,7 @@ export type SystemHealthResponse = {
       webPushOnlyReminderTick: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery: { status: string; durationMs: number; errorCode?: string };
       cronJobs: { status: string; durationMs: number; errorCode?: string };
+      saasIsolation: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -899,6 +907,24 @@ async function probeOperatorHealthData(): Promise<
   }
 }
 
+async function probeSaasIsolation(): Promise<ProbeResult<SaasIsolationHealthPayload>> {
+  const startedAt = Date.now();
+  try {
+    return {
+      ok: true,
+      value: await buildAppDeps().saasIsolationDiagnostics.readHealth(),
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "saas_isolation_read_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 function logProbe(
   probe:
     | "webapp_db"
@@ -917,7 +943,8 @@ function logProbe(
     | "web_push"
     | "web_push_only_reminder_tick"
     | "notification_delivery"
-    | "cron_jobs",
+    | "cron_jobs"
+    | "saas_isolation",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -959,6 +986,22 @@ const emptyIntegratorPushOutboxHealthPayload = (): IntegratorPushOutboxHealthPay
   lastQueueActivityAt: null,
 });
 
+const emptySaasIsolationHealthPayload = (): SaasIsolationHealthPayload => ({
+  schemaVersion: SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
+  status: "incomplete",
+  statusReasons: ["coverage_missing"],
+  active: { unexplained: 0, explained: 0, occurrences: 0 },
+  resolved: { unexplained: 0, explained: 0, occurrences: 0 },
+  byClass: {},
+  events: [],
+  lastEventAt: null,
+  lastCoverage: null,
+  coverageFresh: false,
+  coverageComplete: false,
+  missingServices: ["webapp", "integrator", "worker", "scheduler", "media_worker", "cron"],
+  trend: emptySaasIsolationTrend(),
+});
+
 export async function collectAdminSystemHealthData(): Promise<SystemHealthResponse> {
   let playbackApiEnabledFallback = false;
   try {
@@ -986,6 +1029,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     videoHlsProxy,
     videoTranscode,
     operatorHealth,
+    saasIsolation,
   ] =
     await Promise.allSettled([
       probeWebappDb(),
@@ -997,6 +1041,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       probeVideoHlsProxy(),
       probeVideoTranscode(),
       probeOperatorHealthData(),
+      probeSaasIsolation(),
     ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
@@ -1069,6 +1114,14 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     operatorHealth.status === "fulfilled"
       ? operatorHealth.value
       : { ok: false, status: "error", errorCode: "operator_health_probe_rejected", durationMs: 0 };
+
+  const saasIsolationResult: ProbeResult<SaasIsolationHealthPayload> =
+    saasIsolation.status === "fulfilled"
+      ? saasIsolation.value
+      : { ok: false, status: "error", errorCode: "saas_isolation_probe_rejected", durationMs: 0 };
+  const saasIsolationPayload = saasIsolationResult.ok
+    ? saasIsolationResult.value
+    : emptySaasIsolationHealthPayload();
 
   const operatorIncidentsOpen = operatorHealthResult.ok ? operatorHealthResult.value.incidents : [];
   const backupJobs = operatorHealthResult.ok ? operatorHealthResult.value.backupJobs : {};
@@ -1231,6 +1284,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     probeOutbound: { consecutiveFailRuns: probeOutboundConsecutiveFailRuns },
     integrations: integrationsPayload,
     operatorHealthDigest: { lastSentAt: operatorHealthDigestLastSentAt },
+    saasIsolation: saasIsolationPayload,
     meta: {
       probes: {
         webappDb: {
@@ -1321,6 +1375,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           status: cronJobsProbeStatus,
           durationMs: cronJobsDurationMs,
         },
+        saasIsolation: {
+          status: saasIsolationResult.ok ? saasIsolationPayload.status : saasIsolationResult.status,
+          durationMs: saasIsolationResult.durationMs,
+          ...(!saasIsolationResult.ok ? { errorCode: saasIsolationResult.errorCode } : {}),
+        },
       },
     },
     fetchedAt: nowIso(),
@@ -1378,6 +1437,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         },
     notificationDeliveryPayload.status,
   );
+  logProbe("saas_isolation", saasIsolationResult, saasIsolationPayload.status);
 
   return response;
 }

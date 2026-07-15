@@ -10,7 +10,7 @@ const getAccessRowMock = vi.fn();
 const presignMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
-  env: { DATABASE_URL: "postgres://x/y" },
+  env: { DATABASE_URL: "postgres://x/bersoncarebot_test" },
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -59,6 +59,7 @@ function videoRow(over: Partial<Record<string, unknown>> = {}) {
     id: mid,
     mime_type: "video/mp4",
     s3_key: `media/${mid}/v.mp4`,
+    stored_path: `media/${mid}/v.mp4`,
     video_processing_status: "ready",
     hls_master_playlist_s3_key: `media/${mid}/hls/master.m3u8`,
     poster_s3_key: `media/${mid}/poster/poster.jpg`,
@@ -106,12 +107,41 @@ describe("GET /api/media/[id]/playback", () => {
 
   it("returns 503 when video_playback_api_enabled is false", async () => {
     getConfigBoolMock.mockResolvedValue(false);
+    getRowMock.mockResolvedValue(videoRow());
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
     });
     expect(res.status).toBe(503);
     const b = (await res.json()) as { error?: string };
     expect(b.error).toBe("feature_disabled");
+  });
+
+  it('allows only the exact local TEST fixture when the global playback flag is absent', async () => {
+    getConfigBoolMock.mockResolvedValue(false);
+    getAccessRowMock.mockResolvedValue({
+      usage_purpose: null,
+      uploaded_by: 'u1',
+      mime_type: 'image/svg+xml',
+      stored_path: '/test-fixtures/saas-exercise.svg',
+      s3_key: null,
+    });
+    getRowMock.mockResolvedValue(
+      videoRow({
+        mime_type: 'image/svg+xml',
+        s3_key: null,
+        stored_path: '/test-fixtures/saas-exercise.svg',
+        video_processing_status: null,
+      }),
+    );
+
+    const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
+      params: Promise.resolve({ id: mid }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { delivery?: string; mp4?: { url?: string } };
+    expect(body.delivery).toBe('file');
+    expect(body.mp4?.url).toBe(`/api/media/${mid}`);
   });
 
   it("returns 404 when media row missing", async () => {
@@ -139,6 +169,7 @@ describe("GET /api/media/[id]/playback", () => {
     getRowMock.mockResolvedValue({
       ...videoRow(),
       mime_type: "image/png",
+      s3_key: null,
     });
     const res = await GET(new Request(`http://localhost/api/media/${mid}/playback`), {
       params: Promise.resolve({ id: mid }),
@@ -148,6 +179,7 @@ describe("GET /api/media/[id]/playback", () => {
     expect(b.delivery).toBe("file");
     expect(b.hls).toBeNull();
     expect(presignMock).not.toHaveBeenCalled();
+    expect(getRowMock).toHaveBeenCalledWith(mid, { allowLocalSaasTestFixture: true });
   });
 
   it("video HLS not ready → delivery mp4, hls null", async () => {

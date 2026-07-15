@@ -122,3 +122,6 @@
 - **menu/** — меню по роли (если используется отдельным запросом).
 
 Роуты остаются тонкими: проверка прав и параметров, вызов сервисов из `buildAppDeps()` или модулей.
+## SaaS isolation diagnostics
+
+`GET /api/admin/system-health` (только global admin + admin mode) содержит поле `saasIsolation` со `schemaVersion=2`: обезличенную true-global сводку шести классов ошибок tenant-изоляции и последний E2 coverage-run. Статусы различаются: `critical`, `incomplete`, `stale`, `okay`; `okay` возможен только после свежего полного чистого прогона всех шести обязательных process families. Журнал принимает только закрытые service + route/job-template identifiers и не принимает tenant/user/patient IDs, SQL, payload, подписи или secrets.

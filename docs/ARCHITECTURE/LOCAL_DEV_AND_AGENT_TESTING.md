@@ -158,14 +158,20 @@ NODE_ENV=development
 # Чистый public/login
 http://127.0.0.1:5200/api/auth/dev-public
 
-# Чистая форма регистрации кабинета специалиста/клиники
-http://127.0.0.1:5200/api/auth/dev-public?view=registration
+# Чистая общая форма: специалист + создаваемая им клиника
+http://127.0.0.1:5200/api/auth/dev-public?view=specialist-registration
+http://127.0.0.1:5200/api/auth/dev-public?view=clinic-registration
 ```
 
 Helper доступен только при тех же `NODE_ENV=development` + `ALLOW_DEV_AUTH_BYPASS=true`; он очищает session,
 `bersoncare_platform` и `bersoncare_messenger_surface`, чтобы старый Mini App context не влиял на public screen.
 Первый URL показывает обычный публичный вход; patient email-flow регистрирует нового пациента, если email ещё
-не существует. Второй явно раскрывает specialist signup (`Email`, пароль, имя специалиста, название организации).
+не существует. Оба registration URL ведут в один канонический flow: специалист вводит `Email`, пароль, своё
+имя и название организации; после подтверждения создаются клиника, её owner-membership и профиль специалиста. Отдельной
+«регистрации клиники без специалиста» в продукте нет.
+
+Эти helper-URL работают только в DEV. На TEST/production-like нужно открыть чистый/инкогнито-профиль на `/app`, а затем
+выбрать `Я специалист`. TEST deploy детерминированно включает `specialist_signup_enabled`; production по-прежнему default-off.
 
 **A. Прямой URL (лучший для агента / curl / чистый браузер)**
 
@@ -232,7 +238,8 @@ http://127.0.0.1:5200/api/auth/logout
 ### 4.5.1 Переключение ролей для UX-аудита
 
 - В одном браузерном профиле: откройте нужный dev-bypass URL — новая session заменит старую.
-- Вернуться к public/registration: `/api/auth/dev-public` или `/api/auth/dev-public?view=registration` — helper
+- Вернуться к public/registration: `/api/auth/dev-public?view=login` или
+  `/api/auth/dev-public?view=clinic-registration` — helper
   сначала очищает session.
 - Для одновременных сравнений используйте отдельный profile/cookie jar на роль; не пытайтесь держать две роли в
   одной cookie jar.
@@ -307,7 +314,7 @@ curl -s -b $J "$B/api/doctor/schedule-kpis?from=2026-06-13T00:00:00&to=2026-06-1
 | Срез | DEV-вход | Что фиксировать минимум |
 |---|---|---|
 | Public | `/api/auth/dev-public` | landing и clean login; session отсутствует |
-| Registration | `/api/auth/dev-public?view=registration` | форма создания кабинета специалиста/клиники; session отсутствует |
+| Registration | `/api/auth/dev-public?view=clinic-registration` | единая форма создания специалиста + его клиники; session отсутствует |
 | Patient | `dev:client` | home, appointments, treatment/program, profile/settings |
 | Doctor | `dev:doctor` | Today, patients, schedule, communications, content/LFK; отсутствие clinic/global пунктов |
 | Clinic admin | `dev:clinic-admin` | doctor-набор + `Врачи` + `Настройки клиники`; отсутствие global-admin разделов |

@@ -73,3 +73,15 @@ export function createIntegratorPoolProvider(config: IntegratorPoolProviderConfi
 	installPrincipalAwarePoolQuery(pool);
 	return pool;
 }
+
+/** Dedicated true-global telemetry transport; intentionally bypasses request-principal installation. */
+export function createIntegratorSaasIsolationTelemetryPoolProvider(connectionString: string): Pool {
+	return new Pool({
+		connectionString,
+		max: 1,
+		application_name: 'bcb_integrator_saas_telemetry',
+		connectionTimeoutMillis: 250,
+		query_timeout: 200,
+		statement_timeout: 200,
+	});
+}

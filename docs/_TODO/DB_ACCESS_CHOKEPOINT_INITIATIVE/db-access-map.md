@@ -83,9 +83,10 @@ Runtime `new Pool` / `new PgPool` files:
 
 | File | Current role | S4 disposition |
 |---|---|---|
-| `apps/webapp/src/infra/db/client.ts` | Webapp singleton pool. | KEEP as provider, add named provider/hook seam. |
-| `apps/integrator/src/infra/db/client.ts` | Integrator singleton pool. | KEEP as provider, add named provider/hook seam. |
-| `apps/media-worker/src/main.ts` | Media worker process pool. | Move behind named provider with hook seam. |
+| `apps/webapp/src/infra/db/webappPoolProvider.ts` | Principal-aware webapp staff/nonstaff pools. | KEEP as named runtime provider. |
+| `apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts` | Dedicated max-one event-writer/operator telemetry pools; no request principal reuse. | KEEP as explicit true-global telemetry provider. |
+| `apps/integrator/src/infra/db/integratorPoolProvider.ts` | Principal-aware integrator pool plus dedicated max-one telemetry pool factory. | KEEP as named runtime/telemetry provider. |
+| `apps/media-worker/src/poolProvider.ts` | Principal-aware media job pool plus dedicated max-one telemetry pool factory. | KEEP as named runtime/telemetry provider. |
 | `apps/webapp/src/infra/platformUserFullPurge.ts` | Separate integrator purge pool keyed by connection string. | Move behind named provider and document role/context. |
 | `apps/integrator/src/infra/db/migrate.ts` | Boot migration pool. | KEEP as migrator/admin provider, not app-role runtime. |
 

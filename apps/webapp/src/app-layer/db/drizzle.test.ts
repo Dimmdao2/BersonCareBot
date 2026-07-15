@@ -6,6 +6,12 @@ import { PgDialect } from "drizzle-orm/pg-core";
 const transactionMock = vi.hoisted(() => vi.fn());
 const executeMock = vi.hoisted(() => vi.fn());
 
+vi.mock("@/infra/db/saasIsolationDbFailureReporting", () => ({
+  reportDbCleanupFailure: vi.fn(async () => undefined),
+  reportDbQueryFailure: vi.fn(async () => undefined),
+  reportPrincipalSetupFailure: vi.fn(async () => undefined),
+}));
+
 vi.mock("./client", () => ({
   getPool: vi.fn(() => ({ query: vi.fn() })),
 }));

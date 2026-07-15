@@ -54,10 +54,10 @@ export function AppEntryLoginContent({
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
               <a
                 id="app-entry-dev-public-registration"
-                href="/api/auth/dev-public?view=registration"
+                href="/api/auth/dev-public?view=clinic-registration"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
-                Public / регистрация
+                Регистрация специалиста / клиники
               </a>
               <a
                 id="app-entry-dev-login-patient"

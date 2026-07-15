@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title description">
+  <title id="title">TEST illustration for a rehabilitation exercise</title>
+  <desc id="description">A synthetic figure performs a supported squat. This file contains no personal data.</desc>
+  <rect width="960" height="540" fill="#eef6ff"/>
+  <rect x="80" y="400" width="800" height="12" rx="6" fill="#9fb7cf"/>
+  <rect x="690" y="155" width="24" height="250" rx="12" fill="#2563eb"/>
+  <circle cx="470" cy="155" r="48" fill="#f6c7a5"/>
+  <path d="M470 205c-82 0-126 58-126 126h70c0-30 18-56 56-56s58 26 58 56h70c0-68-46-126-128-126Z" fill="#16a34a"/>
+  <path d="M414 320 330 407M528 320l84 87" fill="none" stroke="#18324a" stroke-width="34" stroke-linecap="round"/>
+  <path d="M545 245 700 220" fill="none" stroke="#18324a" stroke-width="28" stroke-linecap="round"/>
+  <text x="480" y="485" text-anchor="middle" font-family="sans-serif" font-size="30" fill="#18324a">SaaS TEST · упражнение с опорой</text>
+</svg>

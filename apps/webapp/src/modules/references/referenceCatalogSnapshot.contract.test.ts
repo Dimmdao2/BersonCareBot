@@ -97,7 +97,7 @@ describe("reference catalog snapshot-at-provision contract", () => {
     expect(devSeed).toBeGreaterThan(devOrgInsert);
     expect(devBypassWorkspace.indexOf("runWebappTransaction")).toBeLessThan(devOrgInsert);
 
-    const fixtureOrgInsert = testFixtureSeeder.indexOf(".insert(beOrganizations)");
+    const fixtureOrgInsert = testFixtureSeeder.indexOf(".insert(schema.beOrganizations)");
     const fixtureSeed = testFixtureSeeder.indexOf("app.seed_reference_catalog_snapshot", fixtureOrgInsert);
     expect(fixtureOrgInsert).toBeGreaterThan(-1);
     expect(fixtureSeed).toBeGreaterThan(fixtureOrgInsert);

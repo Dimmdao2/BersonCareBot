@@ -30,17 +30,37 @@ describe('GET /api/auth/dev-public', () => {
     isEnabled.mockReturnValue(true);
   });
 
-  it('clears the session and opens the explicit registration surface', async () => {
-    const response = await GET(new Request('http://127.0.0.1:5200/api/auth/dev-public?view=registration'));
+  it.each(['registration', 'specialist-registration', 'clinic-registration'])(
+    'clears the session and opens the combined specialist+clinic registration surface for %s',
+    async (view) => {
+      const response = await GET(
+        new Request(`http://127.0.0.1:5200/api/auth/dev-public?view=${view}`),
+      );
 
-    expect(clearSession).toHaveBeenCalledOnce();
-    expect(response.status).toBe(303);
-    expect(response.headers.get('location')).toBe('http://127.0.0.1:5200/app?devView=registration');
-    const setCookie = response.headers.get('set-cookie') ?? '';
-    expect(setCookie).toContain('bersoncare_platform=');
-    expect(setCookie).toContain('bersoncare_messenger_surface=');
-    expect(setCookie).toContain('Max-Age=0');
-  });
+      expect(clearSession).toHaveBeenCalledOnce();
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toBe(
+        'http://127.0.0.1:5200/app?devView=registration',
+      );
+      const setCookie = response.headers.get('set-cookie') ?? '';
+      expect(setCookie).toContain('bersoncare_platform=');
+      expect(setCookie).toContain('bersoncare_messenger_surface=');
+      expect(setCookie).toContain('Max-Age=0');
+    },
+  );
+
+  it.each(['', 'login', 'unknown'])(
+    'opens the clean public login surface for view=%s',
+    async (view) => {
+      const response = await GET(
+        new Request(`http://127.0.0.1:5200/api/auth/dev-public?view=${view}`),
+      );
+
+      expect(clearSession).toHaveBeenCalledOnce();
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toBe('http://127.0.0.1:5200/app');
+    },
+  );
 
   it('does not clear a session when dev bypass policy is disabled', async () => {
     isEnabled.mockReturnValue(false);
