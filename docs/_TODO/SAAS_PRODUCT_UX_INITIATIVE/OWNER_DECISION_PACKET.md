@@ -1,6 +1,6 @@
 # UX-08 — решения владельца по будущему интерфейсу
 
-**Статус:** integrated provenance correction complete; ожидает полного независимого re-audit.  
+**Статус:** full independent UX-09 re-audit PASS; packet decision-ready, все owner rulings остаются `pending`.
 **Дата проверки:** 2026-07-16.  
 **Назначение:** только продуктовые развилки, которые заметно меняют доступ, рабочую модель или объём будущего
 публичного SaaS-релиза. Ответ на этот пакет не разрешает deploy и не меняет TEST-only execution scope.
@@ -314,7 +314,7 @@ origins и устанавливаемые приложения вообще по
 | Additive patient+staff persona wording/support | Architecture/security invariant: no overwrite; UX copy is planner-owned recovery, `ENTRY_AND_INVITE_JOURNEYS.md` §§2, 13 | Fail closed until sanctioned additive-persona path; no owner product choice is invented |
 | Enrollment at send versus accept | Pending owner gate `UX08-11`; `ENTRY_AND_INVITE_JOURNEYS.md` §§7, 13 | Pending-intent safe subset only before ruling |
 | SMS-only activation | Planner recommendation + safe default: out of launch; `ENTRY_AND_INVITE_JOURNEYS.md` §8 | SMS remains transport-only; phone-only identity needs a separately funded trust/security contract |
-| Booking activation channel when phone+email exist | Planner recommendation + safe default: strongest already trusted channel, no silent identity merge; `ENTRY_AND_INVITE_JOURNEYS.md` §9 | U3C preserves booking and routes ambiguity to recovery; channel selection remains policy-configurable after proof |
+| Booking activation channel when phone+email exist | Planner recommendation + safe default: strongest already trusted channel, no silent identity merge; `ENTRY_AND_INVITE_JOURNEYS.md` §9 | U3B preserves booking and routes ambiguity to recovery; channel selection remains policy-configurable after proof |
 | Invite expiry/wrong-recipient/replay behavior | Engineering/security invariant: `ENTRY_AND_INVITE_JOURNEYS.md` §11 | No mutation from terminal/wrong-recipient token; support/resend creates a fresh lifecycle |
 | Public scope/directory | Pending owner gate `UX08-06`; BD-6 | Independent epics; no directory/rollout by default |
 | Brand depth/platform disclosure/staff W | Pending owner gates `UX08-07`; BD-1/4 | P/O trust anchor only |

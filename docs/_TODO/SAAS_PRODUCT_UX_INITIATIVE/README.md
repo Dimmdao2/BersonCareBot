@@ -1,6 +1,6 @@
 # SaaS Product UX Initiative
 
-**Статус:** discovery / planning.  
+**Статус:** discovery / planning complete; implementation gated by pending owner decisions.
 **Рабочая ветка:** `feat/saas-interface-work3`.  
 **Taskdb:** `#787`.
 
@@ -83,4 +83,9 @@
 - `UX07_PROTOTYPE_INDEX.md`, `UX07_USABILITY_FINDINGS.md` и `ux07-prototype/index.html` — навигируемый прототип
   ключевых сценариев и наблюдения по нему;
 - `UX07_INDEPENDENT_AUDIT.md` — полный двухревьюерный visual/usability audit; seals #1/#2 PASS;
+- `OWNER_DECISION_PACKET.md` — минимальный decision-ready пакет из 12 продуктовых решений; все rulings пока
+  `pending`;
+- `IMPLEMENTATION_ROADMAP.md` — проверенный decision-safe roadmap из 19 зависимых стадий;
+- `UX09_INDEPENDENT_AUDIT.md` — полный независимый PASS owner packet и implementation roadmap после integrated
+  correction;
 - `LOG.md` — журнал фактов, решений и проверок.

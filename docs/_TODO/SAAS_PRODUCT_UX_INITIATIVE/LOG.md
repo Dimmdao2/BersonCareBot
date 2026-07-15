@@ -26,6 +26,13 @@
 - code-search до точечного чтения кода;
 - taskdb только через `/home/dev/brain/tools/taskdb.mjs`.
 
+## 2026-07-16 — correction: model routing
+
+- Удалена устаревшая модель из roadmap и repository-specific subagent binding.
+- Все новые назначения инициативы приведены к актуальной лестнице `Sol / Terra / Luna`.
+- Базовое распределение: planning и критические tenant/identity reviews — Sol; research, UX synthesis, implementation и обычный review — Terra; формализованные повторяемые операции — Luna.
+- Исторические audit/log записи других инициатив не переписывались.
+
 ## 2026-07-15 — UX-01 started
 
 - Владелец разрешил следующий этап без дополнительных вопросов.
@@ -519,3 +526,25 @@
   аудита, интегрированной коррекции, достаточного времени агентам и честного разделения owner rulings от
   рекомендаций агентов.
 - На coordination checkpoint application, DB, runtime, TEST и PROD не изменялись.
+
+## 2026-07-16 — UX-09 full independent re-audit PASS after provenance source-fix
+
+- **Run ID:** `UX09-REAUDIT-20260716-U3B-FULL-01`.
+- Выполнен новый полный независимый re-audit всего UX-09, а не spot-check исправленной строки: повторно прочитаны
+  orchestration canon, requirements/roadmap, UX-03…08 contracts/audits, весь owner packet, implementation roadmap и
+  предыдущий UX-09 audit record.
+- F1–F4 повторно подтверждены закрытыми. Остаточный F5 закрыт механическим source-fix: booking activation
+  provenance теперь указывает на существующий stage owner `U3B`; unknown leaf-stage references `0`.
+- Механически повторены: target/composition `57/57`, missing/extra/duplicate `0`; current routes
+  `150 actual = 150 references = 150 unique`, missing/stale/duplicate `0`; `19 × 14` complete stage contracts;
+  normative DAG `19/19`, cycles/unknown dependencies `0`; `UX08-01…12 = 12/12`, по три alternatives и все
+  обязательные поля; `24` upstream provenance choices; J1…J7 и ACQ/STF/PIN/SMS/PBK/MOR/ERR coverage.
+- Полностью повторены role/capability, solo/clinic, patient card/history/handoff, multi-org, tenant/security,
+  foundation/no-dup, branding/domain/PWA/sender, migration/backfill/compat, rollback/degradation, proportional
+  validation, phase full-CI и final acceptance checks — новых findings нет.
+- **Финальный UX-09 verdict: PASS.** `IMPLEMENTATION_ROADMAP.md` принят как decision-safe execution plan. Все
+  `UX08-01…12` остаются pending owner gates; PASS не является owner ruling и не разрешает app/DB/runtime, TEST,
+  deploy, `main`/`test`, commit или push.
+- Audit record обновлён на месте: `UX09_INDEPENDENT_AUDIT.md` §8. `ROADMAP.md` синхронизирован; новый документ не
+  создавался. App tests, lint, typecheck, build и DB smoke не запускались, потому что re-audit меняет только
+  planning/audit documentation.

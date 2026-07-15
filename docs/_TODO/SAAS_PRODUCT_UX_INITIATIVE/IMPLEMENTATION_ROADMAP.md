@@ -1,6 +1,6 @@
 # UX-09 — implementation roadmap
 
-**Статус:** integrated correction complete; ожидает полного независимого re-audit.  
+**Статус:** full independent UX-09 re-audit PASS; decision-safe execution plan, implementation ещё не начиналась.
 **Тип документа:** decision-gated plan, не разрешение на implementation, deploy, DB changes или rollout.  
 **Ветка планирования:** `feat/saas-interface-work3`; основной workstream и текущий SaaS enforcement order не
 изменяются.

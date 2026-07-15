@@ -2,8 +2,7 @@
 
 **Дата:** 2026-07-16
 **Первичный вердикт:** **FAIL — требовалась одна integrated correction всего roadmap.**
-**Текущий re-audit:** **FAIL — integrated correction закрыла F1–F4, но осталась одна ошибочная stage-ссылка в
-provenance registry.**
+**Текущий re-audit:** **PASS — полный повторный проход после source-fix подтвердил F1–F5 и весь UX-09 checklist.**
 **Scope:** `IMPLEMENTATION_ROADMAP.md` целиком против `REQUIREMENTS.md`, audited UX-03…07, финального
 `OWNER_DECISION_PACKET.md`, current SaaS Foundation sequence/enforcement plans и repository orchestration/testing
 rules. Application, schema, DB, runtime, deploy, commit и push не выполнялись.
@@ -257,3 +256,72 @@ Provenance reconciliation: FAIL, 24 classified rows but unknown stage reference 
 ```
 
 App tests, lint, typecheck, build и DB smoke не запускались: изменён только existing docs-only audit artifact.
+
+## 8. Full independent re-audit after source-fix U3C → U3B — 2026-07-16
+
+**Run ID:** `UX09-REAUDIT-20260716-U3B-FULL-01`
+**Вердикт:** **PASS.**
+**Drift относительно §7:** только исправленная provenance-ссылка `U3C` → `U3B`; остальные проверенные contracts,
+registries, stage scopes и границы воспроизвели прежний результат без новой ошибки.
+
+### 8.1 Метод полного прохода
+
+Это не spot-check F5. Заново прочитаны обязательные orchestration rules, initiative requirements/roadmap, весь
+decision packet, весь implementation roadmap, текущий audit record и связанные audited UX-03…08 contracts:
+operating/capability model, invite/entry journeys, branding/domain matrix, target IA, screen composition, route map
+и prototype acceptance. Затем заново выполнены механические registry/DAG/provenance checks и смысловая сверка всех
+пунктов §7.4 с owner rulings и SaaS Foundation boundaries.
+
+### 8.2 F1–F5
+
+| Finding | Итог полного re-audit |
+|---|---|
+| F1 — J1 owner | **CLOSED:** U3S полностью владеет J1/ACQ-01…05, provisioning/binding/first-run/security и acceptance; U4/U6A потребляют его output. |
+| F2 — U3B/U4/U5A cycle | **CLOSED:** U5A независим и ранний; направление `U5A → U3B → U4`; textual, merge и normative dependencies не создают reverse edge. |
+| F3 — U9 after optional U8 | **CLOSED:** core U9 precedes/supports U8A/B/C; absent optional branch не является gate для U9/U10. |
+| F4 — missing enrollment/communication choices | **CLOSED:** UX08-11/12 присутствуют и имеют conditional safe subsets; все upstream choices классифицированы. |
+| F5 — unknown `U3C` | **CLOSED:** booking activation provenance теперь указывает на существующий owner `U3B`; unknown leaf-stage references `0`. |
+
+### 8.3 Повторные механические результаты
+
+| Проверка | Результат |
+|---|---|
+| Target registry ↔ composition | `57 rows / 57 unique` с каждой стороны; missing `0`, extra `0`, duplicate `0` |
+| Current page allocation | `150 actual = 150 references = 150 unique`; missing `0`, stale `0`, duplicate `0` |
+| Stage contracts | `19 headings = 19 unique`; `19 × 14` mandatory fields, missing `0` |
+| Normative DAG | `19/19` registry rows; cycles `0`; unknown direct dependencies `0`; topological coverage `19/19` |
+| Допустимый topological order | `U0 → U1 → U2 → U5A → U3S → U3A → U5B → U6A → U3B → U5C → U5D → U4 → U6B → U7 → U9 → U8A → U8C → U8B → U10` |
+| Все textual stage refs | unknown leaf-stage references `0`; group labels U3/U5/U8 не являются leaf dependencies |
+| Owner decision packet | `UX08-01…12 = 12/12`, unique `12`; по три alternatives и все обязательные provenance/recommendation/safe-boundary поля |
+| Upstream reconciliation | `24` substantive choices; каждый имеет ровно один явный provenance class и execution consequence |
+| Journey/flow trace | J1…J7 и `ACQ/STF/PIN/SMS/PBK/MOR/ERR` присутствуют; девять prototype scenarios входят в final acceptance |
+| Full-CI placement | P1 after U2; P2 after U4; P3 after last included U5; P4 after U6B; P5 after U9; optional P6 after last included U8; P7/final after U10; P0 docs-only |
+| Markdown/worktree hygiene | `git diff --check` PASS; application/schema/runtime/DB не менялись |
+
+### 8.4 Полный смысловой checklist
+
+| Область | Итог |
+|---|---|
+| Role/capability and direct-object parity | **PASS:** server-side permission precedes filters/entitlements; global admin, owner/admin, bound specialist, assistant-safe, patient и public имеют разные bounded surfaces. |
+| Solo/clinic UI | **PASS:** одна tenant/account/component model с capability/composition variants; team/handoff/filter chrome отсутствует у solo и условно доступен в clinic, без parallel tree. |
+| Patient card/history/handoff | **PASS:** один organization card shell и authorization-before-filter; own/assigned safe subset; shared/private/history/handoff target branches остаются за UX08-01/02. |
+| Multi-org patient context | **PASS:** zero/one/many resolver, verified target, chooser/switch, cache/deep-link isolation и no silent substitution принадлежат раннему U5A. |
+| Foundation/no-overlap | **PASS:** `SEQUENCE.md` не переопределяется; нет второго principal/settings/membership path, ad hoc RLS, premature TEST/deploy или invented schema. |
+| Tenant/security/privacy | **PASS:** staff one-org, patient enrollment context, specialist binding, persona separation, raw-token/session boundaries, two-org/two-patient negatives и fail-closed recovery сохранены. |
+| Branding/domain/PWA/senders | **PASS:** core P/O identity отделена от owner-gated W; Host не authz; base/binding lifecycle, canonical fallback, per-origin isolation и truthful sender policy согласованы. |
+| No duplication | **PASS:** solo/clinic, assistant, card, booking, account и white-label остаются sanctioned shared families; aliases не становятся screens/routes. |
+| Migration/backfill/compatibility | **PASS:** reviewed ownership contract precedes persistence; deterministic/ambiguity proof, idempotency, forward/rollback и guarded compatibility census обязательны. |
+| Rollback/degradation | **PASS:** каждый stage имеет fail-closed или canonical fallback; отключение optional branch не ломает core. |
+| Validation and CI proportionality | **PASS:** targeted checks на цельный stage, accumulated full CI на phase gates, risk-specific DB/runtime/browser/security evidence и final two-seal visual gate. |
+| Final acceptance completeness | **PASS:** 57/57, 150/150, J1…J7, decisions, role/tenant/parity, migration, fallback, no-dup, tests, screenshots/seals, docs и authorized branch/environment operations перечислены. |
+
+### 8.5 Residual risks
+
+Audit PASS подтверждает полноту и внутреннюю непротиворечивость implementation roadmap, но не утверждает, что
+будущие capabilities уже реализованы. Все `UX08-01…12` остаются `pending`; соответствующие target branches могут
+появиться только после датированного owner ruling, иначе исполняется или доказывается их безопасное отсутствие.
+Schema/data ownership уточняется на U0 и foundation handoff; TEST, deploy, `main`/`test`, реальные delivery/domain
+операции и implementation commits этим audit не разрешены.
+
+**Финальный UX-09 verdict: PASS.** Existing `IMPLEMENTATION_ROADMAP.md` является достаточным decision-safe execution
+plan для последующего поэтапного запуска по его dependencies и gates.

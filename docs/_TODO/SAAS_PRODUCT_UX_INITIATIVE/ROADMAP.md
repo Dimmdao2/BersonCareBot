@@ -289,8 +289,8 @@ owner rulings.
 
 ## UX-08 — Owner decision packet
 
-**Статус:** integrated UX-09 correction complete; ожидает полного независимого re-audit. Все двенадцать rulings
-пока `pending`; прежний UX-08 PASS остаётся историческим pre-UX09 verdict и не закрывает найденные provenance gaps.
+**Статус:** completed as a decision-ready packet; full UX-09 independent re-audit PASS after provenance correction.
+Все двенадцать rulings пока `pending`: PASS подтверждает полноту пакета, но не заменяет решения владельца.
 
 **Цель:** передать владельцу только решения, реально меняющие продукт.
 
@@ -320,8 +320,8 @@ path проверены для каждого пункта.
 
 ## UX-09 — Implementation roadmap
 
-**Статус:** integrated correction complete; awaiting full independent re-audit. Ни implementation, ни app/DB/runtime
-changes этим статусом не разрешены.
+**Статус:** completed as a decision-safe implementation roadmap; full independent re-audit PASS after integrated
+correction and final provenance source-fix. Ни implementation, ни app/DB/runtime changes этим статусом не разрешены.
 
 **Цель:** после решений разложить реализацию на независимые эпики, не вмешавшись в текущий SaaS-поток.
 
@@ -343,8 +343,10 @@ leaf stages: отдельный J1 owner `U3S`, независимый ранн�
 зависимости, отдельный communications stage `U5D`, core platform stage `U9` до optional `U8A/B/C` и normative
 acyclic dependency registry. Все `UX08-01…12` остаются явными gates с fail-closed safe defaults; каждый stage имеет
 data/API/UI, migration/compat, validation, rollback/degradation, checklist и merge dependency. Full CI привязан к
-последнему stage каждой фактически исполняемой фазы. До полного re-audit это corrected candidate, а не принятый
-execution plan.
+последнему stage каждой фактически исполняемой фазы. Полный независимый re-audit
+`UX09-REAUDIT-20260716-U3B-FULL-01` повторно подтвердил `19 × 14` stage contracts, ацикличный DAG `19/19`,
+`57/57`, `150/150`, `12/12` decision gates, `24` provenance choices и весь security/foundation/final checklist.
+Roadmap принят как decision-safe execution plan; owner-gated branches остаются условными до датированных rulings.
 
 ## Стоп-гейты
 
