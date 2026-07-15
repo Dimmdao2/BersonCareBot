@@ -3,7 +3,8 @@ const {
   gateMock,
   buildAppDepsMock,
   getPatientProgramInteractionPolicyMock,
-  getSettingMock,
+  restrictedSettingsReadMock,
+  isFlagEnabledMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
   listMessagesPageMock,
@@ -13,7 +14,8 @@ const {
   listLinkedSupportMessageIdsMock,
   getUnreadCountMock,
 } = vi.hoisted(() => {
-  const getSettingMockInner = vi.fn();
+  const isFlagEnabledMockInner = vi.fn();
+  const restrictedSettingsReadMockInner = vi.fn(() => Promise.reject(new Error("restricted settings read")));
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
   const listMessagesPageMockInner = vi.fn();
@@ -26,7 +28,8 @@ const {
   return {
     gateMock: vi.fn(),
     getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
-    getSettingMock: getSettingMockInner,
+    isFlagEnabledMock: isFlagEnabledMockInner,
+    restrictedSettingsReadMock: restrictedSettingsReadMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
     listMessagesPageMock: listMessagesPageMockInner,
@@ -36,7 +39,8 @@ const {
     listLinkedSupportMessageIdsMock: listLinkedSupportMessageIdsMockInner,
     getUnreadCountMock: getUnreadCountMockInner,
     buildAppDepsMock: vi.fn(() => ({
-      systemSettings: { getSetting: getSettingMockInner },
+      systemSettings: { getSetting: restrictedSettingsReadMockInner },
+      runtimeConfig: { isFlagEnabled: isFlagEnabledMockInner },
       doctorClients: {
         getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
       },
@@ -70,7 +74,8 @@ const itemB = "33333333-3333-4333-8333-333333333333";
 describe("GET discussion summary", () => {
   beforeEach(() => {
     gateMock.mockReset();
-    getSettingMock.mockReset();
+    isFlagEnabledMock.mockReset();
+    restrictedSettingsReadMock.mockClear();
     getInstanceForPatientMock.mockReset();
     listMessagesForStageItemMock.mockReset();
     listMessagesPageMock.mockReset();
@@ -92,7 +97,7 @@ describe("GET discussion summary", () => {
         },
       },
     });
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    isFlagEnabledMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: true,
       commentsAllowed: true,
@@ -100,6 +105,7 @@ describe("GET discussion summary", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
+      organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       assignmentSource: "doctor",
       stages: [
         {
@@ -157,5 +163,38 @@ describe("GET discussion summary", () => {
     expect(data.ok).toBe(true);
     expect(data.summaryByItemId[itemA]?.totalCount).toBe(1);
     expect(data.summaryByItemId[itemB]?.totalCount).toBe(0);
+    expect(isFlagEnabledMock).toHaveBeenCalledWith(
+      "patient_program_discussion_ui_enabled",
+      {
+        patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      },
+    );
+    expect(restrictedSettingsReadMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the safe runtime flag is disabled", async () => {
+    isFlagEnabledMock.mockResolvedValue(false);
+
+    const res = await GET(
+      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/discussion/summary`),
+      { params: Promise.resolve({ instanceId }) },
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "feature_disabled" });
+    expect(listMessagesPageMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for a foreign instance before runtime config is read", async () => {
+    getInstanceForPatientMock.mockResolvedValue(null);
+
+    const res = await GET(
+      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/discussion/summary`),
+      { params: Promise.resolve({ instanceId }) },
+    );
+
+    expect(res.status).toBe(404);
+    expect(isFlagEnabledMock).not.toHaveBeenCalled();
   });
 });

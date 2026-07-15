@@ -227,6 +227,9 @@ import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemor
 import { createPgSystemSettingsPort } from "@/infra/repos/pgSystemSettings";
 import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
 import { createSystemSettingsService } from "@/modules/system-settings/service";
+import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
+import { inMemoryAppRuntimeSettingsPort } from "@/infra/repos/inMemoryAppRuntimeSettings";
+import { createRuntimeConfigProvider } from "@/modules/system-settings/runtimeConfig";
 import { createNotifTemplatesService } from "@/modules/notif-templates/notifTemplatesService";
 import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
 import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
@@ -648,6 +651,9 @@ const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPor
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const runtimeConfig = createRuntimeConfigProvider(
+  !inMemoryRepos ? createPgAppRuntimeSettingsPort() : inMemoryAppRuntimeSettingsPort,
+);
 const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
 const resolveDoctorAppointmentsReadSource = async () => {
   if (inMemoryRepos) return "rubitime_legacy" as const;
@@ -1257,6 +1263,7 @@ function _buildAppDeps() {
     getProfileEmailFields: userProjectionPort.getProfileEmailFields,
     webPushSubscriptions: webPushSubscriptionsPort,
     systemSettings: systemSettingsService,
+    runtimeConfig,
   };
   return {
     auth: {

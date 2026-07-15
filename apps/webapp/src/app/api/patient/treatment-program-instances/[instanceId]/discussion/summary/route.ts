@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { runWithDbPatientPrincipal } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
 import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { getDiscussionSummaryForItem } from "@/modules/program-item-discussion/listDiscussionPage";
-
-function parseFeatureEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
 
 function parseRequestedItemIds(raw: string | null): string[] | null {
   if (raw == null || raw.trim() === "") return null;
@@ -38,15 +31,31 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const featureRow = await deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin");
-  if (!parseFeatureEnabled(featureRow?.valueJson ?? null)) {
-    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
-  }
-
   const detail = await deps.treatmentProgramInstance.getInstanceForPatient(gate.session.user.userId, instanceId);
   if (!detail) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  const organizationId = detail.organizationId;
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "organization_context_missing" }, { status: 500 });
+  }
+
+  const featureEnabled = await runWithDbPatientPrincipal(
+    {
+      platformUserId: gate.session.user.userId,
+      organizationId,
+      source: "patient.discussion-summary.runtime-config",
+    },
+    () =>
+      deps.runtimeConfig.isFlagEnabled("patient_program_discussion_ui_enabled", {
+        patientUserId: gate.session.user.userId,
+        organizationId,
+      }),
+  );
+  if (!featureEnabled) {
+    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
+
   if (detail.assignmentSource !== "doctor") {
     return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
   }
