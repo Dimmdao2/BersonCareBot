@@ -89,7 +89,7 @@ describe("GET /api/admin/audit-log", () => {
       }),
     });
     const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(listAdminAuditLogMock).not.toHaveBeenCalled();
     expect(countOpenAutoMergeConflictsMock).not.toHaveBeenCalled();
   });

@@ -83,7 +83,7 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 

@@ -6,9 +6,9 @@ Status: Phase C4 repo-side package. No live DB/S3/TEST/PROD execution and no run
 
 This stage covers the repo-side portion of `SAAS_ENFORCE_ROADMAP.md` Phase C4:
 
-- map scheduler, media-worker and webapp internal cron entrypoints to either an organization principal or an explicit infra operation;
+- map scheduler and webapp internal cron entrypoints to their explicit principal/infra operation, and keep the media-worker as a narrow infra dispatcher;
 - keep batch jobs from silently acquiring ambient global visibility by making infra sources named and statically checked;
-- prove, with local/fake tests only, that media-worker post-claim business updates run under the claimed job organization;
+- prove, with local/fake tests only, the media-worker owner model: enqueue is tenant-filtered, claim requires non-null equal job/media organizations, and dispatch runs as narrow infra `app_worker` (not a tenant principal and not a bypass);
 - document the fake/local proof boundary for webapp media presign/upload/playback and the remaining live gates.
 
 This is not the final C4 exit from the roadmap. The final exit still requires owner-authorized disposable/TEST
@@ -32,7 +32,7 @@ with missing-org/cross-org rows denied and counted.
 | `media-worker-main` | systemd process loop | `apps/media-worker/src/main.ts` | delegates to tick | `media_transcode_jobs`, `media_files`, S3 object operations | No direct DB call in `main.ts`; pool provider is principal-aware. | Static checker verifies main delegates to `runMediaWorkerTick`. |
 | `media-worker-tick` | pipeline flag, stale reclaim, claim | `apps/media-worker/src/workerTick.ts` | `infra`, source `media-worker:tick` | `system_settings`, stale processing reclaim, pending job claim | Explicit infra source. Media-worker pool allowlist accepts only `media-worker:tick` as infra in locked mode. | Static checker + focused media-worker tests. |
 | `media-worker-claim` | `FOR UPDATE SKIP LOCKED` claim | `apps/media-worker/src/jobs/claim.ts` | tick infra source | `media_transcode_jobs`, `media_files` | Claim requires both job/media organization IDs to be non-null and equal; violations are terminally quarantined with `organization_invariant_violation`. | Existing claim tests + C4 checker verify equality and quarantine. |
-| `media-worker-process` | transcode metadata updates and terminal state | `apps/media-worker/src/processTranscodeJob.ts` | infra/`app_worker`, nested under tick | `media_files`, `media_transcode_jobs`, fake/local S3 in tests | Tenant-filtered enqueue plus claim invariant establish ownership; processing is a tenant-agnostic dispatcher and job organization remains audit metadata. | Focused principal tests verify infra/tick context. |
+| `media-worker-process` | transcode metadata updates and terminal state | `apps/media-worker/src/processTranscodeJob.ts` | narrow infra/`app_worker`, nested under tick | `media_files`, `media_transcode_jobs`, fake/local S3 in tests | Tenant-filtered enqueue plus the claim invariant establish ownership. Processing is a tenant-agnostic dispatcher, not a tenant principal, and has no tenant bypass; job organization remains audit metadata. | Focused principal tests verify infra/tick context. |
 | `media-worker-sql` | media-worker SQL chokepoint | `apps/media-worker/src/runMediaWorkerSql.ts`, `withClient.ts`, `poolProvider.ts` | current ALS principal | all media-worker SQL | Locked mode accepts only allowlisted `infra` source `media-worker:tick` and rejects organization, missing, bootstrap, patient, staff, integrator, and unknown infra sources before checkout; cleanup uses principal release/reset. | Static checker verifies pre-checkout guard and allowlist. |
 
 Remaining gate: strict+FORCE fixture must claim and complete a real fake-S3 media job once, then prove a missing-org

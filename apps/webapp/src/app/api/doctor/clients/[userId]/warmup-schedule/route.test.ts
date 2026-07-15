@@ -114,7 +114,7 @@ describe("doctor client warmup-schedule route", () => {
       params: Promise.resolve({ userId: patientId }),
     });
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(listRulesByUserMock).not.toHaveBeenCalled();
   });
 

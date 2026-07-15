@@ -118,7 +118,7 @@ describe("doctor supplementary-contacts routes", () => {
     const { GET } = await import("./route");
     const res = await GET(new Request("http://localhost"), { params: Promise.resolve({ userId: uid }) });
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 

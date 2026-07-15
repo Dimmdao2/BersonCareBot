@@ -104,7 +104,7 @@ describe("POST /api/admin/operator-incidents/resolve-all", () => {
       }),
     });
     const res = await POST();
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(resolveAllOpenIncidentsMock).not.toHaveBeenCalled();
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });

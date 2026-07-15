@@ -78,7 +78,7 @@ describe("POST /api/doctor/clients/[userId]/symptom-trackings", () => {
     const res = await POST(post({ symptomTitle: "Боль" }), {
       params: Promise.resolve({ userId: PATIENT_ID }),
     });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
   });
 
   it("returns 404 when client identity missing", async () => {

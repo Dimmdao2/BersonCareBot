@@ -112,9 +112,8 @@ Implementation checklist:
 - [ ] Preserve strict TypeScript; no `any`.
 - [ ] Unit-test zero memberships.
 - [ ] Unit-test one active membership.
-- [ ] Unit-test multiple active memberships without selection.
-- [ ] Unit-test selected organization success.
-- [ ] Unit-test selected organization not found.
+- [ ] Unit-test that multiple active memberships throw `multiple_active_staff_memberships`.
+- [x] **Superseded — do not restore.** “Selected organization success” and “selected organization not found” were part of an invented selector model. Per the owner's one-doctor/one-clinic decision, recorded in `SAAS_R3_CUT_INVENTED_SCOPE.md` §2(3) and `SEQUENCE.md` stage 1.2, a second clinic requires a second login; duplicate active staff memberships are a loud data-integrity error, never a selection UX.
 - [ ] Unit-test permission flags for `owner`, `admin`, `doctor`, `assistant`.
 
 Local gate:
@@ -157,7 +156,7 @@ Forbidden:
 - Do not add ESLint allowlist entries.
 - Do not use default organization fallback in newly organization-aware gates once resolver wiring is available.
 - No RLS/GUC context yet.
-- No UI org switcher yet.
+- A staff UI organization switcher is forbidden, not deferred. Per the owner's one-doctor/one-clinic decision recorded in `SAAS_R3_CUT_INVENTED_SCOPE.md` §2(3) and `SEQUENCE.md` stage 1.2, a second clinic requires a second email/login; multiple active staff memberships must remain a loud data-integrity error.
 
 Implementation checklist:
 

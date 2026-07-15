@@ -153,7 +153,7 @@ describe("POST /api/admin/health-failure-archive/clear", () => {
         body: JSON.stringify({ probe: "outgoing_delivery" }),
       }),
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(clearDeadForProbeMock).not.toHaveBeenCalled();
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });

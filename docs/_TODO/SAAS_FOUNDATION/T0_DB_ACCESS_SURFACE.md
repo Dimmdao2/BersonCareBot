@@ -180,7 +180,7 @@ Known coverage:
 - Webapp booking-engine residual writes from the T0.3.32 tail audit now use workspace principal wiring from T0.3.33: admin branch/service/room/specialist/specialist-room/availability/policy/prepayment/scheduling-settings mutations, doctor/admin patient-package create/offer/notes/consume, product pay-link create, patient-product consume, and doctor booking-profile PATCH. Membership/product service write runners keep payment/provider calls, calendar refresh, system-settings sync, prechecks, and readbacks outside-principal while DB write phases run under source-specific principal callbacks and transaction-backed repo calls.
 - Webapp doctor patient clinical/EHR/media residual writes from the T0.3.32 tail audit now use organization principal wiring from T0.3.34: patient profile/FIO/physical, anamnesis, visits, complaints, diagnoses/status/catalog, comorbidities, files, cash payments, acquiring ledger record writes, doctor support-settings writes, and patient program-submission DB row/folder creation. Validation, most GET/read paths, S3 object/presign phases, acquiring provider calls, payment settings reads, and readbacks remain outside-principal while touched clinical/profile/support/file/comorbidity/payment/media/client-media-folder DB writes run through transaction-backed or principal-aware chokepoints and stamp `organization_id` from active principal where applicable.
 - Telegram/MAX integrator webhooks already resolve org and wrap event pipeline through integrator organization principal helper.
-- Media-worker transcode processing is wrapped by job organization where available.
+- Media-worker transcode processing runs as the narrow infra `app_worker`: enqueue is tenant-filtered, and claim requires non-null equal job/media organizations before dispatch. The worker does not receive a tenant principal or bypass; the job organization is audit metadata.
 
 Known gaps:
 
@@ -190,7 +190,7 @@ Known gaps:
 - Patient APIs need enrollment-derived org, not default organization.
 - Integrator `DbPort.query` and cached pool Drizzle paths are plain pool operations unless they run in `db.tx`.
 - Scheduler has no outer org; scoped writes must derive org per job/row.
-- Media-worker claim/reclaim happens before job org is known and needs an RLS-safe strategy.
+- Media-worker claim/reclaim is resolved: the narrow infra worker claims only after checking that job and media organization IDs are non-null and equal; missing or mismatched rows are quarantined with `organization_invariant_violation`.
 - Rubitime routes need explicit classification: legacy exempt, infra/global, or derived org.
 
 ## Static Guard Boundaries

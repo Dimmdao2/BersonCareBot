@@ -71,7 +71,7 @@ describe("POST /api/doctor/patients/[userId]/visits", () => {
       { params: Promise.resolve({ userId: PATIENT_ID }) },
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 

@@ -145,7 +145,7 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(patchMock).not.toHaveBeenCalled();
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });

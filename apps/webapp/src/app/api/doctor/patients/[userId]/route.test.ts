@@ -71,7 +71,7 @@ describe("doctor patient profile route", () => {
       { params: Promise.resolve({ userId: patientId }) },
     );
 
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 

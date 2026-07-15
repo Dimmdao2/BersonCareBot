@@ -115,6 +115,14 @@ function requireFragments(label, text, fragments) {
   }
 }
 
+function forbidFragments(label, text, fragments) {
+  for (const fragment of fragments) {
+    if (text.includes(fragment)) {
+      fail(`${label} contains forbidden stale fragment: ${fragment}`);
+    }
+  }
+}
+
 function requireFragmentBefore(label, text, before, after) {
   const beforeIndex = text.indexOf(before);
   const afterIndex = text.indexOf(after);
@@ -315,7 +323,11 @@ function assertMediaWorker(loaded) {
     "`media-worker-process`",
     "organization_invariant_violation",
     "tenant-agnostic dispatcher",
+    "not a tenant principal and not a bypass",
     "separate operational DB login/pool/grants contract",
+  ]);
+  forbidFragments(files.doc, loaded.doc, [
+    "media-worker post-claim business updates run under the claimed job organization",
   ]);
 }
 

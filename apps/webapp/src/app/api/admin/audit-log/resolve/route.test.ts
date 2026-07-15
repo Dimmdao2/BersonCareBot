@@ -103,7 +103,7 @@ describe("POST /api/admin/audit-log/resolve", () => {
         body: JSON.stringify({ id: "6ef47437-fbed-4d47-a3d4-de6a4ea609cb" }),
       }),
     );
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(403);
     expect(resolveAdminAuditConflictByIdMock).not.toHaveBeenCalled();
   });
 
