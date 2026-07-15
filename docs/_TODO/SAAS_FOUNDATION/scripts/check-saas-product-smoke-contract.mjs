@@ -151,6 +151,11 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   ) {
     throw new Error(`${files.contract} must probe versioned SaaS isolation health as global_admin`);
   }
+  if (scenariosById.get('doctor.analytics.notifications')?.actor !== 'global_admin') {
+    throw new Error(
+      `${files.contract} must run doctor.analytics.notifications as global_admin because the page requires admin mode`,
+    );
+  }
   for (const scenarioId of ['doctor.system-health.denied', 'clinic-admin.system-health.denied']) {
     const scenario = scenariosById.get(scenarioId);
     if (scenario?.expectStatus !== 403 || scenario.expectAuthDenial !== true) {
@@ -168,6 +173,32 @@ function runFixtureGateDocChecks(overrides = new Map()) {
     if (scenariosById.get(scenarioId)?.actor !== 'public') {
       throw new Error(`${files.contract} must run ${scenarioId} with the no-cookie public profile`);
     }
+  }
+  const publicAppEntry = scenariosById.get('public.app.entry');
+  if (
+    publicAppEntry?.path !== '/app' ||
+    !publicAppEntry.bodyIncludes?.includes('app-entry-content')
+  ) {
+    throw new Error(
+      `${files.contract} must assert a server-rendered /app marker instead of client-hydrated login copy`,
+    );
+  }
+  const specialistSignupEntry = scenariosById.get(
+    'public.specialist-clinic-registration.entry',
+  );
+  if (
+    specialistSignupEntry?.path !== '/api/auth/login/alternatives-config' ||
+    specialistSignupEntry.jsonExpectation?.requireSuccess !== true ||
+    !specialistSignupEntry.jsonExpectation.allowedValues?.some(
+      (check) =>
+        check.path === 'specialistSignupEnabled' &&
+        check.values?.length === 1 &&
+        check.values[0] === true,
+    )
+  ) {
+    throw new Error(
+      `${files.contract} must prove specialist signup through its safe public config boolean`,
+    );
   }
   for (const [scenarioId, path] of [
     ['doctor.working-hours.api', 'rows'],

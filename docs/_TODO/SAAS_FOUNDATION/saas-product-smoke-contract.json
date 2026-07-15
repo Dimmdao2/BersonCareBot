@@ -91,7 +91,7 @@
     },
     {
       "id": "doctor.analytics.notifications",
-      "actor": "clinic_admin",
+      "actor": "global_admin",
       "category": "analytics",
       "method": "GET",
       "path": "/app/doctor/analytics?tab=app",
@@ -228,7 +228,7 @@
       "path": "/app",
       "expectStatus": 200,
       "minBodyBytes": 800,
-      "bodyIncludes": ["Войти по паролю"]
+      "bodyIncludes": ["app-entry-content"]
     },
     {
       "id": "public.login.config",
@@ -247,10 +247,15 @@
       "actor": "public",
       "category": "public_auth",
       "method": "GET",
-      "path": "/app",
+      "path": "/api/auth/login/alternatives-config",
       "expectStatus": 200,
-      "minBodyBytes": 800,
-      "bodyIncludes": ["Я специалист"]
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "allowedValues": [
+          { "path": "specialistSignupEnabled", "values": [true] }
+        ]
+      }
     },
     {
       "id": "public.booking.entry",

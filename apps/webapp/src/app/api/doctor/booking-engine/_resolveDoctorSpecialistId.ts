@@ -3,11 +3,8 @@ import type { DoctorBookingEngineContext } from "./_requireDoctorBookingEngine";
 /**
  * Resolves the specialist whose schedule the logged-in doctor owns.
  *
- * Solo-model (current product): `be_specialists` has no `user_id` link — the doctor's
- * own specialist is the org's single active specialist (the owner). This mirrors the
- * resolution already used by the doctor calendar feed and the doctor manual-booking
- * route (`resolveDefaultSpecialistId`), keeping the schedule editor and the calendar
- * reading/writing the SAME specialist-scoped rows.
+ * The active organization membership carries the doctor's specialist id. Resolve that
+ * exact row instead of picking the first specialist in a multi-specialist clinic.
  *
  * SECURITY: every doctor schedule route MUST force this id onto reads and writes and
  * MUST NEVER trust a client-supplied `specialistId`. A doctor may only touch rows of
@@ -20,6 +17,8 @@ export async function resolveDoctorOwnSpecialistId(
   ctx: DoctorBookingEngineContext,
 ): Promise<string | null> {
   const specialists = await ctx.service.catalog.listSpecialists(ctx.organizationId);
-  const own = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
+  const own = ctx.specialistId
+    ? specialists.find((specialist) => specialist.id === ctx.specialistId && specialist.isActive)
+    : specialists.find((specialist) => specialist.isActive) ?? null;
   return own?.id ?? null;
 }

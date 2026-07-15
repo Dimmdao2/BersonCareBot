@@ -1,9 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const getCfg = vi.fn();
+const getSpecialistSignupEnabled = vi.fn();
 
 vi.mock("@/modules/auth/loginAlternativesConfig", () => ({
   getLoginAlternativesPublicConfig: () => getCfg(),
+}));
+
+vi.mock("@/modules/auth/specialistSignupRollout", () => ({
+  getSpecialistSignupEnabled: () => getSpecialistSignupEnabled(),
 }));
 
 import { GET } from "./route";
@@ -11,6 +16,8 @@ import { GET } from "./route";
 describe("GET /api/auth/login/alternatives-config", () => {
   beforeEach(() => {
     getCfg.mockReset();
+    getSpecialistSignupEnabled.mockReset();
+    getSpecialistSignupEnabled.mockResolvedValue(false);
   });
 
   it("returns ok and merged public fields", async () => {
@@ -29,6 +36,19 @@ describe("GET /api/auth/login/alternatives-config", () => {
     expect(data.maxBotOpenUrl).toBe("https://max.ru/botnick");
     expect(data.vkWebLoginUrl).toBe("https://id.vk.com/auth");
     expect(data.smsFallbackEnabled).toBe(true);
+    expect(data.specialistSignupEnabled).toBe(false);
+  });
+
+  it("exposes the safe specialist signup rollout flag", async () => {
+    getCfg.mockResolvedValueOnce({});
+    getSpecialistSignupEnabled.mockResolvedValueOnce(true);
+
+    const res = await GET(new Request("http://localhost/api/auth/login/alternatives-config"));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      specialistSignupEnabled: true,
+    });
   });
 
   it("returns 500 when config load throws", async () => {

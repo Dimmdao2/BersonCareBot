@@ -2,6 +2,7 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
+import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 
 const ROUTE = "auth/login/alternatives-config";
 
@@ -10,11 +11,14 @@ export async function GET(request: Request) {
   stampBootstrapPrincipal("api/auth/login/alternatives-config:GET");
   const startedAt = Date.now();
   try {
-    const cfg = await getLoginAlternativesPublicConfig();
+    const [cfg, specialistSignupEnabled] = await Promise.all([
+      getLoginAlternativesPublicConfig(),
+      getSpecialistSignupEnabled(),
+    ]);
     // Ensure Telegram Login is not exposed in the public alternatives-config response
     // even if system settings supply a bot username. Internal telegram endpoints remain unchanged.
     const safe = { ...cfg, telegramBotUsername: null };
-    const res = NextResponse.json({ ok: true as const, ...safe });
+    const res = NextResponse.json({ ok: true as const, ...safe, specialistSignupEnabled });
     logAuthRouteTiming({
       route: ROUTE,
       request,
