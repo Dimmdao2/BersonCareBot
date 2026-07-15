@@ -1,4 +1,4 @@
-# SaaS enforce roadmap — TEST-first enforced walls and fresh-product launch (v0.3)
+# SaaS enforce roadmap — TEST-first enforced walls and fresh-product launch (v0.4)
 
 > **Canonical owner path (2026-07-15).** This document is the canonical plan for product parity and enforced tenant
 > isolation on TEST, followed by a fresh new-product deployment. The old `bersoncare` production is LEGACY and
@@ -14,7 +14,9 @@
 needed; exercise every role, clinic admin capability, settings flow, and the doctor/client routes. Product smoke
 must detect 401/403/5xx, empty-result regressions, Server Action errors, and new application errors; a health
 endpoint alone is not evidence. UI, route infrastructure, the landing page, and separate specialist/client entry
-flows are part of the product work still required before launch.
+flows are part of the product work still required before launch. The investor-facing finish line also includes
+payments, a store with several exercise packages, and a configured tariff grid; walls are foundation work, not a
+substitute for those product surfaces.
 
 **R2 — TEST enforced product parity plus isolation.** TEST runs with locked principal context and strict/FORCE RLS.
 Multiple clinics and a shared/multi-clinic patient prove the staff-org and patient-own-data matrix. Legitimate
@@ -85,12 +87,13 @@ frozen and an OFF lever in a live multi-tenant product would create a cross-clin
   (`deploy/postgres/p0-data-fix-doctor-admin-split.sql:288-318`). Dormant deployment ordering—data-fix before migrate,
   temporary migrator BYPASSRLS, guaranteed revoke—is codified in `deploy/host/deploy-test-saas.sh` and
   `scripts/deploy-saas-667.sh`; `SAAS_DEPLOY_SEQUENCE.md:1-50` records a fresh-copy migration/health proof.
-- Dormant is currently safe for a narrower reason than “walls are asleep”: migrations already contain FORCE and
-  patient policies fail closed without context; current owner/BYPASSRLS runtime bypasses them. This warning is
-  explicit in `DORMANT_DEPLOY_TEST_RUNBOOK.md:15-21`. The flip must not assume FORCE is wholly absent.
-- The current FORCE cutover has useful preflight assertions: bootstrap base must be NOBYPASSRLS and not a staff
-  member, and owner privilege is checked (`phase4-force-rls-cutover.sql:23-71`). It is not a complete ON/OFF
-  orchestrator.
+- Dormant was safe for a narrower reason than “walls are asleep”: migrations already contained FORCE and patient
+  policies failed closed without context; the former owner/BYPASSRLS runtime bypassed them. This warning is
+  explicit in `DORMANT_DEPLOY_TEST_RUNBOOK.md:15-21`. Historical flip artifacts therefore could not assume FORCE
+  was wholly absent; this is evidence context, not a current flip requirement.
+- The historical FORCE cutover artifact has useful preflight assertions: bootstrap base must be NOBYPASSRLS and
+  not a staff member, and owner privilege is checked (`phase4-force-rls-cutover.sql:23-71`). It is retained as
+  technical evidence only, not as a required ON/OFF orchestrator on the current path.
 - Server Action failures were diagnosed as missing `X-Forwarded-Host` in TEST nginx, but the draft supplies no
   repository line proving the host-only edit. Until config-as-code and a regression check exist, this is an
   observed fact, not DONE.
@@ -132,10 +135,10 @@ frozen and an OFF lever in a live multi-tenant product would create a cross-clin
 - **G11 — product smoke.** Current deployment proof ends at migration count/health and manual browsing
   (`SAAS_DEPLOY_SEQUENCE.md:37-49`; `DORMANT_DEPLOY_TEST_RUNBOOK.md:40-42`). It did not expose a repeatable
   authenticated R1/R2 oracle.
-- **G12 — recovery/version symmetry.** SQL has FORCE/NO FORCE branches (`phase4-force-rls-cutover.sql:245-250`),
-  but the roadmap needs a versioned state manifest and OFF assertions covering policies, protected helpers,
-  grants, roles, runtime mode, pool credentials, and all units. Dropping shared roles/helpers on OFF is unsafe;
-  dormant should normally neutralize enforcement and restore dormant runtime while retaining compatible artifacts.
+- **Historical G12 — OFF recovery/version symmetry. NOT REQUIRED on the current path.** This former F1/F2
+  requirement covered a legacy-production cutover and dormant recovery. The fresh product deployment is born
+  enforced and must fail closed or be restored/redeployed as an enforced version; it must never recover by
+  disabling tenant walls. The FORCE/NO FORCE SQL branches remain historical artifacts, not launch acceptance.
 
 ---
 
@@ -186,7 +189,7 @@ is green with expected non-empty facts after a from-zero dormant deploy.
 - [ ] Run the entire A1 matrix; classify every failure independently rather than treating the nginx or G1 fix as a
   universal cause.
 - [ ] Fix schedule/working-hours, bookings, analytics, content, broadcasts, patient and admin regressions found.
-- [ ] Re-run from a fresh production copy, not a patched long-lived database.
+- [ ] Re-run from a fresh TEST copy of the approved source dump, not a patched long-lived database.
 
 Exit: `smoke-saas-product.sh --mode dormant` exits 0 twice: immediately after fresh-copy deploy and after service
 restart. Expected fixture facts are non-empty. This is R1, not owner acceptance alone.
@@ -290,12 +293,12 @@ staff, patient, and bootstrap writes succeed as specified.
 ### Phase D2 — FB#1 bootstrap phone-write closure · tier: deep · audit: deep
 
 - [ ] Grant `app_runtime_nonstaff_login` the minimal direct bootstrap DML/function surface chosen in C0 and add it
-  to flip preflight.
+  to the enforced-deployment preflight.
 - [ ] Exercise real OTP/contact/phone-history close+insert over pre-existing NULL and org-stamped rows through the
   application repository path, not only handcrafted SQL.
 - [ ] Prove nonstaff bootstrap cannot read/write unrelated org PII and staff cannot see bootstrap NULL PII.
 
-Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FORCE with the production topology.
+Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FORCE with the target locked topology.
 
 ### Phase D3 — webapp enforce read coverage · tier: daily · audit: deep
 
@@ -420,8 +423,9 @@ and the owner has one exact ON command and one exact OFF command. The roadmap do
   evidence as `file:line`; rerun line references after edits.
 - Every phase receives an independent adversarial audit against executable evidence. Green mocks/static checks do
   not substitute for required disposable-DB/application proofs.
-- Scratch only until owner authorization. Never touch prod/test/dev DBs during implementation, never read prod env,
-  never send real notifications, never use real object storage, and never print credentials/PII.
+- Scratch/disposable environments are the default. TEST work is allowed only in an explicitly owner-authorized
+  phase; no phase thereby gains access to legacy prod/dev DBs, prod env, real notification delivery, real object
+  storage, credentials, or PII output.
 - `accepted` is owner-only. No commit/push is implied by this roadmap-hardening pass.
 
 ## 4. Resolved architecture decision and remaining owner decisions
@@ -432,14 +436,12 @@ This is the smallest topology consistent with both `SET ROLE app_staff` and boot
 principal classes it actually needs. A third narrowly granted operational pool is permitted only after C4 documents
 an unavoidable cross-org job; owner/BYPASSRLS is forbidden for normal runtime.
 
-Lead/owner decisions still required before execution:
+Disposition of the questions recorded in the earlier roadmap pass:
 
-- exact canonical #664 task/spec and names/semantics of its two deferred patient columns;
-- permitted TEST authentication/fixture mechanism for automated browser smokes without enabling production bypass;
-- shadow acceptance window/workload threshold and operational metrics sink;
-- whether signing-key rotation must be zero-downtime (dual-key overlap) or may use the same maintenance stop as flip;
-- which genuinely global scheduler/cron operations, if any, justify a separately audited infra pool;
-- maintenance-window downtime and automatic rollback/restore time budget.
+- **resolved below:** #664 task/columns, TEST smoke authentication, shadow acceptance, and signing-key rotation;
+- **still open:** which genuinely global scheduler/cron operations, if any, justify a separately audited infra
+  pool;
+- **still open:** maintenance-window downtime and fail-closed restore/redeploy time budget for the fresh product.
 
 ---
 
@@ -463,9 +465,10 @@ Lead/owner decisions still required before execution:
 - All-unit principal/role coverage (integrator API, delivery worker, scheduler, media-worker, cron/internal jobs).
 - Media/S3 presign/upload/playback cross-org proof, #664 malicious-value proofs, and controlled real write coverage.
 - Signing-key generation/distribution/rotation/redaction and dual-login credential management.
-- Structured fail-closed/shadow observability, B7 objective report, B8 state machine, writer quiescence, automatic
-  rollback, idempotency, version manifest, and recovery symmetry.
-- Authenticated non-empty product smoke and explicit isolation/background-job smokes as R1/R2/R3 gates.
+- Structured fail-closed/shadow observability and a B7 objective report remain current. B8 state machine, writer
+  quiescence, automatic OFF rollback, and recovery symmetry were cutover-only findings and are now historical.
+- Authenticated non-empty product smoke and explicit isolation/background-job smokes remain R1/R2 gates; their
+  former R3 cutover use is historical.
 
 ### Split phases and why
 
@@ -499,13 +502,15 @@ SECURITY DEFINER `SET ROLE` escape hatch and do not use owner/BYPASSRLS as a run
 
 ---
 
-## FINALIZATION v0.3 (2026-07-13) — owner decisions folded + review-pass-2 resolved (THIS LAYER IS AUTHORITATIVE)
+## Historical finalization v0.3 (2026-07-13) — retained technical decisions, superseded finish line
 
-This section overrides anything above it where they differ. The roadmap is READY for an orchestrator to execute
-phase-by-phase (A1 first), each phase: worker (tier as noted) → independent adversarial audit (different model) →
-lead verification against reality → owner control. Scratch/disposable DB only until owner authorizes TEST/PROD.
+This was the authoritative layer before the owner's 2026-07-15 path correction. Section 0 now overrides it where
+they differ: there is no legacy-production cutover, no OFF requirement, and no instruction to restart execution at
+A1 without re-deriving current phase status. The compatible technical decisions below remain evidence. Scratch or
+disposable environments remain the implementation default; live TEST work requires owner authorization, and any
+future fresh-product deployment is a separate owner action rather than authorization to cut over `bersoncare`.
 
-### Owner decisions (locked 2026-07-13)
+### Owner decisions (2026-07-13, retained where compatible with the current path)
 - **Smoke login (override A1):** on TEST the product smoke authenticates as the owner's **real seeded TEST doctor +
   TEST patient/user accounts** (TEST is a production-like build with send-safety restrictions on broadcasts). The
   dev/test auth-bypass is **dev:turbo-only and MUST NOT be used on TEST**. Store TEST smoke credentials in a
@@ -513,8 +518,9 @@ lead verification against reality → owner control. Scratch/disposable DB only 
 - **Shadow acceptance (override E2/B7):** ONE full pass of the product smoke + a representative background workload
   with **zero unexplained fail-closed/missing-context events** = shadow PASS. No multi-day soak required for TEST.
 - **Signing-key rotation (override C2/G8):** NO zero-downtime rotation. Generate/rotate the signing key in the
-  **same maintenance window as the flip** (a brief restart pause is acceptable). Drop the dual-key overlap
-  requirement from C2; keep least-permission file storage + fingerprint preflight + redaction.
+  **same maintenance window as the enforced fresh-copy deployment/restart** (a brief restart pause is acceptable).
+  Drop the dual-key overlap requirement from C2; keep least-permission file storage + fingerprint preflight +
+  redaction. This is not an ON/OFF flip instruction.
 
 ### #664 is DONE — D1 becomes RE-VERIFY, not implement
 taskdb #664 = done+sealed (commit `02936c257`). The two re-added patient columns are named:
@@ -523,15 +529,17 @@ taskdb #664 = done+sealed (commit `02936c257`). The two re-added patient columns
 value-enforcement + these two columns against reality (malicious cross-org/cross-patient write must fail; legit
 writes pass); only implement if re-verification finds a real gap. Do NOT re-derive the columns.
 
-### Review pass 2 (Claude) — RESOLVED against reality
+### Review pass 2 (Claude) — historical artifact analysis retained
 - **Finding 1 & 2 ("policies read GUC channel; locked runtime writes signed-helper channel; never meet; blocks R2")
-  = REFUTED.** The FLIP replaces the policy set. `deploy/postgres/phase4-locked-helper-rls-policies.sql` contains
+  = REFUTED.** In the historical rehearsal, the strict policy artifact replaced the policy set.
+  `deploy/postgres/phase4-locked-helper-rls-policies.sql` contains
   **322 `app.current_org_id()/current_patient_user_id()` calls and 0 `current_setting('app.org')`**, and DROPs all
   163 policies **by the same names the migrations created** (e.g. `saas_org_dormant_p0_8_3` on `org_enrollments` in
   both 0167 and the artifact), re-creating them helper-based. The full prod-copy rehearsal applied this artifact +
   FORCE and the S1/S2/S3/P2/P_SHARED isolation matrix PASSED. So under enforce the policies read exactly the signed
   channel locked mode populates. **No "re-point every policy to the helper channel" phase is needed** — the reviewer
-  analyzed only the dormant/migration policies and missed the flip-time policy swap.
+  analyzed only the dormant/migration policies and missed the rehearsal-time policy replacement. This technical
+  conclusion does not reinstate the superseded flip finish line.
 - **Finding 5 ("fail-open on empty context") = REFUTED for enforce.** The strict `\if :phase4_enforce_locked_context`
   branch is `(is_staff() AND org-match) OR (patient owns)` with NO empty-context permit → **fail-closed**. The
   permissive empty-context branch exists only in the dormant-compat `\else` branch (correct for dormant).
@@ -547,35 +555,48 @@ writes pass); only implement if re-verification finds a real gap. Do NOT re-deri
     longer than the signed-context TTL (default 30s, cap 300s) does not silently lose context → either re-stamp
     per statement or bound long handlers; the enforce read/write smokes (D3/D4) must include a >30s path.
   - **§1 framing (Finding 8, real):** dormant safety is `0177_phase4_no_force_rls_compat.sql` (NO FORCE on every
-    table) + owner runtime; the flip's real job is re-applying FORCE via `phase4-force-rls-cutover.sql`. State it
-    against that baseline.
+    table) + owner runtime; the historical enforce artifact re-applied FORCE through
+    `phase4-force-rls-cutover.sql`. State technical evidence against that baseline without turning it into a current
+    ON/OFF requirement.
   - **Integrator (Finding 7):** confirm during C3 that integrator (mapped to `app_patient`) has the grants its write
     paths need and that its policies (helper-based `current_integrator_user_id()`) resolve under locked context.
 
-### Execution start
-Orchestrator begins at **Phase A1** and proceeds in order; C0 is the first deep-tier architectural phase and gates
-all of C–G. Nothing touches TEST/PROD DBs or real deliveries during implementation; owner authorizes TEST, then PROD.
+### Historical execution-start note
+The pre-R1 instruction was to begin at A1 and proceed in order. It is superseded: the orchestrator must use the
+reality-derived phase table below and must not redo completed artifact work from scratch. No implementation pass
+touches a live DB or delivery channel without explicit owner authorization. Authorized TEST work does not authorize
+a legacy-production cutover; a later fresh-product deployment is a distinct owner-controlled launch.
 
 ---
 
 ## R0 plan reconciliation register (2026-07-15)
 
-The archived `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. The areas below
-are retained as archived reasoning because they are covered there more explicitly than in this roadmap:
+The archived `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. This is an
+exhaustive crosswalk for its load-bearing §5, §6.1, §7, H0–H8 and O1–O13 scope. A row may say “covered” rather than
+“draft-only”; keeping it here is intentional evidence that the scope was checked instead of silently omitted.
 
-| Draft-only area | Draft pointer | Current roadmap relationship |
+| Archived scope | Draft pointer | Current roadmap relationship / retained requirement |
 |---|---|---|
-| DB role granularity beyond the built `app_staff`/`app_patient` pair | O1 | Open owner-facing question; current roadmap phases continue on the built/live-proven topology until a later decision changes it. |
-| Broadcasts queue ownership / claim model, recipient validity, and lease semantics | archived §7, O6/O7, H1-A | Roadmap C3/C4/D4 require worker/background proof, but do not carry the full queue separation-of-duties design. |
-| Media NULL-row ownership policy | O5, H1-B | Roadmap C4/D3/D4 cover media behavior, but the NULL legacy/platform-media ownership decision remains next-stage scope. |
-| Platform admin / `super-org`, `platform_support`, break-glass | §5, O2/O3/O12/O13 | Roadmap keeps owner/lead decisions around platform scope, but does not implement the full support/break-glass taxonomy. |
-| References and catalog ownership | O4, H7 | Roadmap D/G gates do not resolve global-vs-per-org reference/catalog ownership. |
-| Analytics org attribution / unknown bucket / platform-vs-clinic split | H7 | Roadmap E/G need observability, but not the full analytics attribution model. |
-| Rubitime legacy quarantine timing | O10, H6 | Roadmap treats Rubitime as legacy/cutover-sensitive; quarantine timing remains for the next-stage isolation plan. |
-| Multi-org patient enrollment org-derivation rule | O8, H5 | Roadmap R2/D3 require shared-patient proof; draft H5 carries the deeper UX/source rule. |
-| Public booking and webhook/M2M tenant source | O9, H6 | R2 requires these paths to work, but the archived design uniquely specifies trusted exact-one host/link/branch-service derivation, separate webhook signature and tenant derivation, payload-org denial, narrow bootstrap access, and per-org batch splitting. |
-| H0 census -> descriptor -> entrypoint-matrix pipeline and 8-class RLS taxonomy | §6.1, H0 | Roadmap uses phased gates; the draft retains the deeper descriptor/taxonomy workstream for a future stage. |
-| H8 production cutover package | H8 | Not a requirement on the current path: the new product launches as a fresh copy with walls enforced. Retained only as historical reasoning. |
+| DB role granularity beyond the built `app_staff`/`app_patient` pair | O1 | Open owner-facing question. The current roadmap continues with the built/live-proven topology until a later decision changes it; app-layer clinic capability does not settle DB-role granularity. |
+| `super-org` is a reserved platform namespace, never a tenant wildcard | §5.1, O2 | Retained design constraint for future platform scope: cross-tenant access needs a distinct platform role, signed platform context, dedicated port, allowlisted reason, and immutable audit. |
+| Platform admin clinic scope is a separate tenant run | §5.2, O3 | Retained. Explicit org selection starts a new tenant-scoped principal; platform scope cannot flow through clinic repositories or `adminMode`. |
+| Global versus org-scoped `system_settings` writes | §5.2, §6.1 class E | Retained exactly: `organization_id IS NULL` global defaults are written only from audited platform scope through `updateSetting`; clinic scope writes only the selected org override, preserving the `public`/`integrator` mirror identity and global fallback. |
+| Reserved `platform_support` extension | §5.3, O13 | Not in the first rollout. Future support uses dedicated platform-support ports, masked-by-default contact views, reasoned reveal/audit, and no tenant-repository bypass or provisioning/global-settings/billing mutation. |
+| Break-glass | §5.4, O12 | Deferred to a separate owner-approved ADR/runbook with short TTL, reason, dual approval, and audit; owner/migrator credentials are never the mechanism. |
+| H0 exhaustive census, machine-readable descriptor, entrypoint matrix, and eight table classes | §6.1, H0 | Retained future workstream: every DB surface maps to owner path, principals/verbs, rollout state, and one of direct-tenant, scoped-parent, enrollment/self, true-global, global-default+org-override, queue/infra, telemetry/operator, or legacy/unclassified. No `unknown global`. |
+| H0 method-level Store mechanic matrix and entitlement ordering | H0 work/checklist, §14.1–§14.2 | Retained: map `mechanic → entrypoint/method/action → auth guard → principal → entitlement → service`; directory-level guesses are insufficient, and tenant resolution precedes `requireEntitlement`. |
+| Broadcast queue ownership, claim/execution separation, recipient validity, and leases | §7, H1-A, O6/O7 | Roadmap C3/C4/D4 require background proof but not this full design. Retain immutable non-null job org, INSERT-only writers, narrow worker claim, per-job org principal, recipient revalidation, lease-token-only completion/retry, and per-org batch execution. |
+| Media NULL-row ownership and complete media path | H1-B, O5 | Roadmap C4/D3/D4 cover behavior; the owner decision remains: backfill legacy rows to an owning org or classify genuine platform media separately. Never make NULL visible to every clinic. List/tree/upload/multipart/job inheritance remain one wall. |
+| Typed principal, protected signed session, cleanup, and shadow governance across every process family | H2 | C0–C4/E1 cover much of it. Retain H2's stricter all-checkout contract, narrowing-only nested runs, connection poisoning on cleanup failure, named-source static gates, and PII-free violation counters. |
+| Reproducible P0 RLS/grants on fresh restore with ownership cleanup and rollback artifact | H3 | Current migration/proof phases partially cover this. Retain zero unexplained NULL/orphan/foreign-parent rows, real-role A/B proofs, post-migrate checks, and rollback that preserves tenant data/ownership columns. |
+| Clinic-domain rollout choreography and capability order | H4 | D3/D4/G1 do not replace the domain gate: `auth → workspace → principal → entitlement → service`, ownership never from payload, doctor and clinic-admin capabilities tested separately, then shadow/backfill/constraint/enforce. Schedule-setting clinic writes stay tenant-scoped while true global Rubitime/read-source settings stay platform-scoped. |
+| Multi-org patient enrollment and org derivation | H5, O8 | R2/D3 require shared-patient proof; retain resource-derived org, explicit enrollment selection only for truly org-agnostic surfaces, no first/default fallback, and self+active-enrollment protection for global identity/channel reads. |
+| Public booking and webhook/M2M tenant source | H6, O9 | R2 requires the paths, while H6 uniquely requires exact-one org from trusted **host/link/profile/branch/service**, separate caller-signature and tenant derivation, payload-org denial, narrow bootstrap resolution access, and mixed-org batches split into per-org runs. |
+| Rubitime legacy quarantine timing/default-org fallback | H6, O10 | Retained as an explicit isolation exception until canonical org source and quarantine package are owner-approved. It is not a reason to revive the legacy-production cutover. |
+| References/catalog ownership and uniqueness | H7, O4 | Still open: true global, per-org, or global-base+org-overlay. Unique keys, seed/backfill, NULL precedence, and A/B policies must follow the chosen ownership model. |
+| Analytics org attribution | H7 | Retain deterministic org-at-ingest, multi-enrollment rule, org-dimensional rollups, unknown bucket, clinic-only projection, and separately audited platform aggregate port. |
+| Shadow acceptance threshold | O11 | Covered by the retained 2026-07-13 owner decision: one full product smoke plus representative all-unit workload with zero unexplained violations. A static checker or “no one noticed errors” is not evidence. |
+| H8 full cutover/cleanup package | H8 | The production-cutover portion is historical and not required. Reusable parts remain: all process families on NOBYPASSRLS roles, no unclassified enforced scope, legacy helper removal only after runtime proof, TEST acceptance, and one appropriate final integration gate. |
 
 The archived objection to a global FORCE flip remains relevant to TEST validation: E2/R5 must find failures under
 enforce. F1/F2/G2 are not requirements because the owner will not cut over the frozen legacy production.
@@ -601,7 +622,7 @@ PASS, and the final D3 17/17 smoke remains absent.
 | C1 | repo-artifact-only | `pnpm run check:saas-c1-webapp-dual-pool-fanout` | App-level shadow/locked smoke proving role/helper cleanup and concurrency. |
 | C2 | repo-artifact-only | `pnpm run check:saas-c2-secrets-deployment-plumbing` | Real secret installation/fingerprint/redaction audit in disposable environment. |
 | C3 | repo-artifact-only | `pnpm run check:saas-c3-integrator-fanout-inventory` | Controlled queued fixtures under strict roles with send-safe/no-delivery proof. |
-| C4 | repo-artifact-only | `pnpm run check:saas-c4-scheduler-media-cron-fanout` after the R0 checker repair | Strict+FORCE scheduler/media/internal cron fixtures, fake/local object storage proof, and infra pool/grants decision. |
+| C4 | repo-artifact-only (checker not trusted as chain proof) | Inventory/checker artifacts exist, but `check:saas-c4-scheduler-media-cron-fanout` is bypassable: an org principal may wrap a no-op while real DB/S3 work runs after infra-principal restoration and the checker still exits 0. | Owner decision on checker repair; then strict+FORCE scheduler/media/internal cron fixtures, fake/local object storage proof, and infra pool/grants decision. |
 | D1 | repo-artifact-only | `pnpm run check:saas-d1-664-with-check-reverify` | Owner-authorized strict+FORCE/live re-verification if required by the phase gate. |
 | D2 | repo-artifact-only | `pnpm run check:saas-d2-fb1-bootstrap-phone-write` | Production-topology strict+FORCE application smoke for FB#1 and isolation negatives. |
 | D3 | blocked | `SAAS_PRODUCT_SMOKE_A1.md` and runner/checker are repo artifacts; supplied `/tmp` smoke progression was 4/17 → 13/17 → 16/17, with no final 17/17 | Authorized locked+FORCE read matrix with expected non-empty facts; do not infer a PASS from log prose. |

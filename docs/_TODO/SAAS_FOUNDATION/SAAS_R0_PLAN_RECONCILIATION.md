@@ -3,6 +3,10 @@
 > Stage owner: orchestrator (Claude/Opus). Created 2026-07-15 after an owner-facing audit found two rival plan
 > documents, an unticked checklist in both, a red gate reported as PASS, and uncommitted work.
 
+> **Independent audit verdict (frozen): 4/9.** PASS: R0.1, R0.2, R0.5, R0.8. FAIL: R0.3, R0.4,
+> R0.6, R0.7, R0.9. The checkboxes below encode that audit verdict, not the worker's self-report. A later stage may
+> repair the underlying canonical documents and link the repair, but must not retick this historical stage record.
+
 ## Owner decision being encoded (2026-07-15)
 
 The owner was shown the fact base and the conflict analysis. Decision encoded by this stage:
@@ -38,44 +42,43 @@ turning walls OFF in a live multi-tenant product risks a cross-clinic disclosure
 
 ## Stage checklist
 
-Each item must be closed with concrete evidence (`file:line`, command + exit code, or commit hash). Report
-`closed X/9` against this file. Do not tick an item you did not verify against reality.
+Each item was required to close with concrete evidence (`file:line`, command + exit code, or commit hash). The
+independent audit result is `closed 4/9`. Do not reinterpret a successful command exit as proof of the asserted
+property, and do not replace the independent verdict with a later worker claim.
 
-- [x] **R0.1** Historical: the roadmap was marked canonical for the former flip path. R1 supersedes that finish line
+- [x] **R0.1 — AUDIT PASS.** Historical: the roadmap was marked canonical for the former flip path. R1 supersedes that finish line
       with TEST-first enforced readiness and a fresh-product launch.
-- [x] **R0.2** Historical draft moved to
+- [x] **R0.2 — AUDIT PASS.** Historical draft moved to
       `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`; its body remains intact as reasoning, but
       its header now says **DO NOT EXECUTE** and links the roadmap register.
       **O1 wording (corrected):** state that O1 is an **open question under owner discussion as of 2026-07-15**,
       that the currently built and live-proven topology is `app_staff`/`app_patient` + app-layer capability at a
       single chokepoint, and that the owner's 2026-07-13 decision covers the **app-layer** authorization model
       only — it does **not** settle DB role granularity. **Do not write "the owner decided O1" anywhere.**
-- [x] **R0.3** Scope register: every area the draft covers that the roadmap does **not** is listed in one place
-      with a pointer to the draft section, so it cannot be silently lost. Verified-absent-from-roadmap areas:
-      broadcasts queue ownership/claim model (draft §7, H1-A), media NULL-row ownership policy (O5, H1-B),
-      platform admin / `super-org` + `platform_support` + break-glass (draft §5, O2/O3/O12/O13), references and
-      catalog ownership (O4, H7), analytics org attribution / unknown bucket / platform-vs-clinic split (H7),
-      Rubitime legacy quarantine timing (O10, H6), multi-org patient enrollment org-derivation rule (O8, H5),
-      H0 census → descriptor → entrypoint-matrix pipeline and the 8-class RLS taxonomy (draft §6.1, H0).
-- [x] **R0.4** Real per-phase status table for all 19 roadmap phases (A1, A2, B1, B2, C0, C1, C2, C3, C4, D1, D2,
+- [ ] **R0.3 — AUDIT FAIL.** The scope register was incomplete. The first audit found O9/H6 missing; convergence
+      review also found three narrower losses: H6's exact-one public-booking source omitted `profile`, H0's
+      method-level Store mechanic matrix was absent, and the draft §5/§6.1 split between global and org-scoped
+      `system_settings` writes was not retained. R2 repairs the canonical register, but this R0 result remains FAIL.
+- [ ] **R0.4 — AUDIT FAIL.** Real per-phase status table for all 19 roadmap phases (A1, A2, B1, B2, C0, C1, C2, C3, C4, D1, D2,
       D3, D4, E1, E2, F1, F2, G1, G2). One row per phase: state ∈ {not-started, repo-artifact-only, live-proven,
       blocked}, evidence (`file:line` / run artifact / commit), and what is still missing for that phase's exit
       criterion. **Derive every status from reality — git, checker exit codes, evidence files — NOT from the
       prose in `TENANT_HARD_MODE_LOG.md`.** The log has at least one stale PASS (see R0.6); treat it as a claim
-      to verify, never as a source.
-- [x] **R0.5** `docs/_TODO/SAAS_FOUNDATION/README.md` index points at the canonical plan. It is currently stale:
+      to verify, never as a source. The audit found D3 derived from claim prose rather than admissible artifacts.
+- [x] **R0.5 — AUDIT PASS.** `docs/_TODO/SAAS_FOUNDATION/README.md` index points at the canonical plan. It is currently stale:
       its "LIVE (read these)" section points at `CORRECTED_PLAN.md` and lists neither the roadmap nor the draft.
-- [x] **R0.6** Gate `pnpm run check:saas-c4-scheduler-media-cron-fanout` exits 0. It currently **FAILS** on HEAD:
-      it pins the literal `createDbOrganizationPrincipal` inside `apps/media-worker/src/processTranscodeJob.ts`,
-      but commit `f9a004f07` moved that call behind `runWithOptionalMediaWorkerOrganizationPrincipal` in
-      `apps/media-worker/src/runMediaWorkerSql.ts:81`. Runtime behavior is intact; the checker is stale.
-      **Fix the checker so it verifies the real call chain** (`processTranscodeJob` → `runMediaWorkerSql` →
-      `createDbOrganizationPrincipal`), not by re-pinning the same brittle string against whichever file holds
-      it today. Do not weaken the gate into a no-op.
-- [x] **R0.7** Stale policy count corrected across docs: the renderer asserts **163** targets
-      (`docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs:35-54`; 107+38+13+5), but
-      `SAAS_ENFORCE_ROADMAP.md:66,512` and `PHASE4_ROLLOUT_RUNBOOK.md:89` still say 161. Fix the docs to 163.
-- [x] **R0.8** **Inventory the uncommitted working tree — do NOT blanket-commit it.**
+- [ ] **R0.6 — AUDIT FAIL / OPEN OWNER TRIAGE.** The checker exits 0 on genuinely broken code. Confirmed bypass:
+      `runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () => undefined, ...)` may wrap a
+      no-op, followed by `return processTranscodeJobInner(ctx, job)` after the infra principal is restored. The
+      real DB/S3 work then runs under infra while the checker still passes. Exit 0 is not C4 evidence. Repairing
+      the checker is deliberately outside R2 and awaits an owner decision; do not claim runtime behavior is intact.
+- [ ] **R0.7 — AUDIT FAIL / OPEN OWNER TRIAGE.** **161 and 163 are different inventories, not a stale-number typo.**
+      The strict renderer asserts 163 targets (`scripts/phase4-locked-policy-artifact.mjs:47`). The prod-copy
+      DB-state checker derives 161 targets from migrations 0160–0176
+      (`scripts/check-phase4-prod-copy-db-state.mjs:17,211`). Its missing two are
+      `public.organization_member_invites` and `public.saas_org_entitlement_overrides`; their ENABLE/FORCE state
+      can be wrong without that gate noticing. Documentation must preserve both counts and the open coverage gap.
+- [x] **R0.8 — AUDIT PASS.** **Inventory the uncommitted working tree — do NOT blanket-commit it.**
       *(Rewritten 2026-07-15 by the orchestrator after discovering the tree is not a single clean batch.)*
       The ~28 uncommitted files are at least two different things mixed together:
       **(a)** the D3.3–D3.5 work described in `TENANT_HARD_MODE_LOG.md`, and
@@ -96,8 +99,8 @@ Each item must be closed with concrete evidence (`file:line`, command + exit cod
       **Commit ONLY the files this R0 stage itself creates or changes** (the R0 stage doc, the R0.6 C4 checker
       fix, the R0.1/R0.2/R0.3/R0.5/R0.7 doc edits, the R0.9 log row). Everything else stays in the tree
       untouched. **Do not push. Do not touch `main` or `test`.**
-- [x] **R0.9** `TENANT_HARD_MODE_LOG.md` gets an R0 row in its existing table format (Date | Stage | Done |
-      Checks | Decisions/skipped), honestly recording what was and was not verified.
+- [ ] **R0.9 — AUDIT FAIL.** The original R0 log row repeated the false C4 proof. R1 later withdrew that claim and
+      recorded the bypass honestly, but the independent verdict for the R0 deliverable remains FAIL.
 
 ## R0.8 working-tree inventory (2026-07-15)
 
@@ -124,15 +127,15 @@ This table is intentionally not a review or acceptance of the non-R0 changes.
 | `docs/_TODO/SAAS_FOUNDATION/P0_5B_GRANTS.md` | D3.3-D3.5 per log | mtime `02:00`; diff documents reviewed 219/111 grant surfaces and D3.5 boolean credential helpers. |
 | `docs/_TODO/SAAS_FOUNDATION/README.md` | orchestrator R0 artifact | R0.5 edit points LIVE index at `SAAS_ENFORCE_ROADMAP.md` and demoted draft. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_D2_FB1_BOOTSTRAP_PHONE_WRITE.md` | D3.3-D3.5 per log | mtime `02:00`; diff adds D3.4 composition note. |
-| `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` | orchestrator R0 artifact | R0.1/R0.3/R0.4/R0.7 edits in this stage. |
+| `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` | orchestrator R0 artifact | R0.1/R0.3/R0.4/R0.7 edits in this stage; independent audit failed R0.3, R0.4, and R0.7. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | D3.3-D3.5 per log | mtime `02:08`; diff adds meaningful JSON evidence requirements. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | D3.3-D3.5 per log | mtime `02:00`; diff hardens auth-header/fixture evidence wording. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | orchestrator R0 artifact | untracked stage contract/inventory file for this stage. |
 | `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` | archived by R1 | Original draft body preserved as non-executable historical reasoning. |
 | `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md` | orchestrator R0 artifact | pre-existing D3 rows plus R0.9 row appended by this stage. |
-| `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` | orchestrator R0 artifact | R0.7 policy-count correction from 161 to 163. |
+| `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` | orchestrator R0 artifact | R0.7 incorrectly collapsed two inventories into 163; R1 restored 161 for the DB-state checker, retained 163 for the renderer, and recorded the two-table gap. |
 | `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` | D3.3-D3.5 per log | mtime `01:58`; D3.3/D3.5 product-smoke contract calibration. |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs` | orchestrator R0 artifact | R0.6 checker fix: real chain `processTranscodeJob` -> `runMediaWorkerSql` -> `createDbOrganizationPrincipal`. |
+| `docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs` | orchestrator R0 artifact | R0.6 attempted checker repair; independent audit proved it does not establish the real-work principal chain and supplied a passing no-op-wrapper bypass. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs` | D3.3-D3.5 per log | untracked, mtime `02:06`; package script and D3.4 log identify it as bootstrap/base-login grant checker. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs` | D3.3-D3.5 per log | mtime `01:59`; paired with hard-migration protocol changes. |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs` | D3.3-D3.5 per log | mtime `02:08`; diff pins meaningful JSON evidence and fixture actor checks. |
@@ -152,15 +155,12 @@ sweep. Read-only inspection result:
 | `deploy/postgres/specialist-owner-provisioning-rls.sql` | specialist owner provisioning helper | safe by inspection: persistent tables are schema-qualified as `public.*`. |
 | `deploy/postgres/specialist-signup-public-bootstrap-rls.sql` | public config, credential-presence, email registration, signup intent helpers | safe by inspection: persistent tables are schema-qualified as `public.*`; helper calls are `app.*` or `pg_catalog.*`. Mixed D3.5 changes still need owner review before commit. |
 
-## Stage exit
+## Stage exit — independent result
 
-- All 9 items closed with evidence, or explicitly `blocked` with the exact reason and a pointer to the log.
-- `pnpm run check:saas-c4-scheduler-media-cron-fanout` exits 0.
-- `pnpm run check:saas-db-regression` exits 0 (it aggregates ~28 sub-checkers; it does **not** include c4, so run
-  c4 separately — that gap is itself worth noting in the log).
-- The R0 stage's own changes are committed; the rest of the working tree is left exactly as found, with R0.8's
-  classification table explaining what each remaining file is.
-- No scope from the draft is lost: R0.3 register accounts for every area listed there.
+- **Result: 4/9, stage exit not met.** R0.1, R0.2, R0.5, and R0.8 passed.
+- R0.3, R0.4, R0.6, R0.7, and R0.9 failed for the reasons recorded inline above.
+- The C4 checker exiting 0 is explicitly not evidence: the no-op-wrapper bypass also exits 0.
+- Later convergence work may repair the roadmap/register/log, but cannot rewrite this historical audit verdict.
 
 ## Hard boundaries for this stage
 
