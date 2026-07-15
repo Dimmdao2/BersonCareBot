@@ -20,6 +20,16 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 
 ## Прочие файлы
 
+**SaaS S3 TEST fixture:** [`seed-saas-test-walkthrough-fixtures.ts`](seed-saas-test-walkthrough-fixtures.ts)
+транзакционно и идемпотентно восстанавливает две полностью синтетические A/B клиники после fresh restore.
+Запускается только из `deploy/host/deploy-test-saas.sh` в узком controlled owner+BYPASSRLS reconciliation
+window с обязательным cleanup, требует explicit
+`SAAS_TEST_FIXTURE_ENABLED=1` и четыре credential key из защищённого внешнего TEST operator packet. Скрипт
+проверяет `current_database() = bersoncarebot_test`, не делает внешних вызовов и не печатает реквизиты/ID.
+Packet никогда не shell-source-ится: единый parser требует non-symlink `root:deploy 0640`, ровно пять
+JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell-конструкции.
+Канон: `docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md`.
+
 Остальные скрипты (`backfill-*`, `reconcile-*`, `*.sql`, …) — назначение и параметры в комментариях в начале каждого файла.
 
 **Rubitime ↔ канон (переход):** [`rubitime-appointment-mapping-audit.sql`](rubitime-appointment-mapping-audit.sql) (dry-run метрики), [`backfill-rubitime-appointment-mappings.sql`](backfill-rubitime-appointment-mappings.sql) (восстановление `be_external_entity_mappings` для orphan `rubitime_projection`). См. [`docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md`](../../../docs/OWN_BOOKING_ENGINE_INITIATIVE/LOG.md) §2026-05-30 transitional read. Перед изменением данных в `platform_users` сверяйтесь с **PLATFORM_IDENTITY_OPS.md**.

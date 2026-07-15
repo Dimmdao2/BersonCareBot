@@ -6,6 +6,13 @@ import { resolve } from "node:path";
 const files = {
   protocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   deployTestSaas: "deploy/host/deploy-test-saas.sh",
+  fixtureSeeder: "apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts",
+  fixturePacket: "deploy/host/saas-test-fixture-packet.mjs",
+  fixtureSeederTest: "apps/webapp/src/modules/saas-test-fixture/contract.test.ts",
+  webappPackageJson: "apps/webapp/package.json",
+  s3Walkthrough: "docs/_TODO/SAAS_FOUNDATION/SAAS_S3_TEST_WALKTHROUGH.md",
+  hostDeployReadme: "deploy/HOST_DEPLOY_README.md",
+  serverConventions: "docs/ARCHITECTURE/SERVER CONVENTIONS.md",
   testNginxApply: "deploy/host/apply-test-nginx-webapp.sh",
   testModeSwitch: "deploy/host/saas-test-mode.sh",
   testModeSwitchChecker: "docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-test-mode-switch.mjs",
@@ -120,6 +127,9 @@ function runChecks(overrides = {}) {
     "entrypoints still call `runMigrations()`",
     "TEST-only, redacted, default-dry-run, backup-before-rewrite",
     "future full flip wrapper owns repo-known locked URLs/secrets",
+    "Every fresh TEST restore must reconcile the repo-managed S3 A/B walkthrough fixture",
+    "Fixture credential values\n    never enter the repository, command arguments, or logs.",
+    "separate TEST fixture reconciliation\n   window",
     "Assert TEST runtime mode",
     "read only the `DB_PRINCIPAL_CONTEXT_MODE` key",
     "Missing mode means the application default `legacy-guc`",
@@ -177,6 +187,18 @@ function runChecks(overrides = {}) {
     "revoke the temporary membership immediately after the consolidation step",
     "Specialist consolidation does not require `BYPASSRLS`",
     "B1, A2, and product smoke gates",
+    "`apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts`",
+    "`/opt/env/bersoncarebot/saas-test-fixture.env`",
+    "`SAAS_TEST_FIXTURE_ENABLED=1`",
+    "two synthetic verified email+password owners",
+    "reserved non-deliverable `.test` top-level domain",
+    "Clinic A has exactly five synthetic patients",
+    "Clinic B has no patients or appointments",
+    "queries `current_database()` before any write and accepts exactly `bersoncarebot_test`",
+    "no real PII, message delivery, notification, S3, HTTP, or other external write path",
+    "temporarily sets that owner role `BYPASSRLS` only for\n  the seeder command",
+    "immediately reuses `cleanup_elevation` to revoke both",
+    "fixture reconciliation privilege window is also not runtime",
     "repo-managed TEST nginx apply path before A2",
     "`bash deploy/host/apply-test-nginx-webapp.sh --apply`",
     "default-dry-run unless `--apply`",
@@ -447,7 +469,8 @@ function runChecks(overrides = {}) {
     "grant_api_runtime_migration_ledger_read",
     "assert_api_runtime_can_read_migration_ledger",
     "# 5. test-only settings override",
-    "# 8. restart test units + verify",
+    "# 8. Reconcile the repo-managed A/B walkthrough fixture",
+    "# 9. restart test units + verify",
   ]);
 
   requireFragments(files.integratorMain, loaded.integratorMain, [
@@ -522,6 +545,149 @@ function runChecks(overrides = {}) {
     "export PGOPTIONS='-c role=$DBROLE'",
   ]);
 
+  requireFragments(files.deployTestSaas, loaded.deployTestSaas, [
+    "SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env",
+    "assert_saas_test_fixture_packet_ready",
+    "saas-test-fixture-packet.mjs",
+    "SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1",
+    "node --input-type=module - \"$SAAS_TEST_FIXTURE_ENV\" < \"$validator\"",
+    "run_deploy_repo_with_test_db_owner_bypass \\\n  \"export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough\"",
+    "run_deploy_repo_with_test_db_owner_bypass(){",
+    "ALTER ROLE \\\"$DBROLE\\\" BYPASSRLS;",
+  ]);
+  forbidFragments(files.deployTestSaas, loaded.deployTestSaas, [
+    ". '$SAAS_TEST_FIXTURE_ENV'",
+    'source "$SAAS_TEST_FIXTURE_ENV"',
+  ]);
+  requireOrderedFragments(files.deployTestSaas, deployMain, [
+    "assert_test_runtime_mode_ready",
+    "assert_saas_test_fixture_packet_ready",
+    "trap cleanup_exit EXIT",
+    "log \"test settings override\"",
+    "log \"consolidate duplicate specialists",
+    "log \"B1 doctor/admin identity assertion\"",
+    "log \"reconcile SaaS S3 TEST walkthrough fixture\"",
+    "log \"restart test units\"",
+  ]);
+  const fixtureBypassHelper = loaded.deployTestSaas.slice(
+    loaded.deployTestSaas.indexOf("run_deploy_repo_with_test_db_owner_bypass(){"),
+    loaded.deployTestSaas.indexOf("run_a2_nginx_preflight(){"),
+  );
+  requireOrderedFragments(`${files.deployTestSaas} fixture BYPASS cleanup`, fixtureBypassHelper, [
+    "grant_migrator_owner_membership",
+    "ALTER ROLE \\\"$DBROLE\\\" BYPASSRLS;",
+    "set +e",
+    "$deploy_command",
+    "command_status=$?",
+    "cleanup_elevation",
+    "cleanup_status=$?",
+    "set -e",
+    '[ "$cleanup_status" -eq 0 ] || return "$cleanup_status"',
+    'return "$command_status"',
+  ]);
+
+  requireFragments(files.fixtureSeeder, loaded.fixtureSeeder, [
+    'const REQUIRED_DATABASE = "bersoncarebot_test"',
+    'const PACKET_PATH_ENV = "SAAS_TEST_FIXTURE_ENV_FILE"',
+    "readSaasTestFixturePacket",
+    "resolveDeployGroupId",
+    "SAAS_TEST_FIXTURE_CLINIC_A_EMAIL",
+    "SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD",
+    "SAAS_TEST_FIXTURE_CLINIC_B_EMAIL",
+    "SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD",
+    "SELECT current_database()::text AS database_name",
+    "if (databaseName !== REQUIRED_DATABASE)",
+    'if (!normalized.endsWith(".test"))',
+    "await db.transaction(async (tx) =>",
+    "await argon2.verify(existingHash, password)",
+    "argon2.hash(password, { type: argon2.argon2id })",
+    "emailVerifiedAt: nowIso",
+    'role: "owner"',
+    'status: "active"',
+    "await tx.delete(beAppointments)",
+    "await tx.delete(orgEnrollments)",
+    "buildSaasTestFixturePlan",
+    'status: "completed"',
+    'status: "confirmed"',
+    'assertCount("clinic_a_patients"',
+    'assertCount("clinic_a_past_appointments"',
+    'assertCount("clinic_a_future_appointments"',
+    'assertCount("clinic_b_patients"',
+    'assertCount("clinic_b_appointments"',
+    "Clinic A has 5 synthetic patients with past/future appointments, Clinic B is empty",
+    'writeError("[saas-test-fixture] FAILED\\n")',
+  ]);
+  forbidFragments(files.fixtureSeeder, loaded.fixtureSeeder, [
+    "fetch(",
+    "axios",
+    "console.log(config",
+    "console.log(owner",
+    "console.log(process.env",
+    "error.message",
+    "String(error)",
+  ]);
+
+  requireFragments(files.fixturePacket, loaded.fixturePacket, [
+    "lstatSync",
+    "SAAS_TEST_FIXTURE_PACKET_KEYS.length",
+    "const ALLOWED_KEYS = new Set",
+    "UNSAFE_VALUE_PATTERN",
+    'if (UNSAFE_VALUE_PATTERN.test(encodedValue)) fail("unsafe_value")',
+    'if (UNSAFE_VALUE_PATTERN.test(value)) fail("unsafe_value")',
+    "metadata.isSymbolicLink()",
+    "metadata.isFile()",
+    "metadata.uid !== expectedOwnerId",
+    "metadata.gid !== expectedGroupId",
+    "(metadata.mode & 0o777) !== 0o640",
+    "if (!ALLOWED_KEYS.has(key)) fail(\"unknown_key\")",
+    "if (seen.has(key)) fail(\"duplicate_key\")",
+    "JSON.parse(encodedValue)",
+    "resolveDeployGroupId",
+    'candidate.startsWith("deploy:")',
+    "SaaS TEST fixture packet: INVALID",
+  ]);
+  forbidFragments(files.fixturePacket, loaded.fixturePacket, [
+    "DATABASE_URL\"",
+    "PGOPTIONS\"",
+    "node:child_process",
+  ]);
+  requireFragments(files.fixtureSeederTest, loaded.fixtureSeederTest, [
+    "accepts exactly the five data-only JSON-quoted keys",
+    "symlink_forbidden",
+    "owner_must_be_root",
+    "group_must_be_deploy",
+    "mode_must_be_0640",
+    "unknown DATABASE_URL",
+    "unknown PGOPTIONS",
+    "duplicate_key",
+    "command substitution",
+    "SENTINEL_SECRET",
+    'toBe("[saas-test-fixture] FAILED\\n")',
+    "builds exact A/B linkage",
+    "toHaveLength(5)",
+    "toHaveLength(10)",
+    "anchors representative past and future appointments",
+  ]);
+  requireFragments(files.s3Walkthrough, loaded.s3Walkthrough, [
+    "/opt/env/bersoncarebot/saas-test-fixture.env",
+    "Clinic A —\n  пять синтетических пациентов",
+    "Clinic B — без пациентов и записей",
+  ]);
+  requireFragments(files.hostDeployReadme, loaded.hostDeployReadme, [
+    "`deploy-test.sh` — **code-only/no-fresh-restore**",
+    "bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild",
+    "install -o root -g deploy -m 0640 /dev/null /opt/env/bersoncarebot/saas-test-fixture.env",
+    'SAAS_TEST_FIXTURE_ENABLED="1"',
+    "обычным файлом `root:deploy 0640`",
+    "ручной/plain restore **не поддерживается и запрещён**",
+  ]);
+  requireFragments(files.serverConventions, loaded.serverConventions, [
+    "code-only/no-fresh-restore",
+    "Любой fresh prod-dump restore поддерживается **только** через",
+    "exact `root:deploy 0640`",
+    "файл никогда не shell-source-ится",
+  ]);
+
   requireFragments(files.disposableWrapper, loaded.disposableWrapper, [
     "scripts/deploy-saas-667.sh",
     "safeDbNamePattern",
@@ -569,6 +735,13 @@ function runChecks(overrides = {}) {
   if (script !== "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs --self-test && pnpm run check:saas-test-mode-switch && pnpm run check:saas-disposable-dormant-wrapper") {
     fail(`${files.packageJson} must wire check:saas-hard-migration-protocol to syntax, main check, and self-test`);
   }
+  const webappPackageJson = JSON.parse(loaded.webappPackageJson);
+  if (
+    webappPackageJson.scripts?.["seed:saas-test-walkthrough"] !==
+    "tsx scripts/seed-saas-test-walkthrough-fixtures.ts"
+  ) {
+    fail(`${files.webappPackageJson} must wire seed:saas-test-walkthrough to the repo-managed seeder`);
+  }
 
   requireFragments(files.tenantLog, loaded.tenantLog, [
     "Hard migration protocol artifact",
@@ -602,8 +775,77 @@ function runSelfTest() {
     },
     {
       deployTestSaas: read(files.deployTestSaas).replace(
-        "log \"TEST runtime mode preflight\"\nassert_test_runtime_mode_ready\ntrap cleanup_exit EXIT",
-        "trap cleanup_exit EXIT\nlog \"TEST runtime mode preflight\"\nassert_test_runtime_mode_ready",
+        "log \"SaaS TEST fixture operator packet preflight\"\nassert_saas_test_fixture_packet_ready",
+        "# missing fixture packet preflight",
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        "log \"reconcile SaaS S3 TEST walkthrough fixture\"",
+        "# missing walkthrough fixture reconciliation",
+      ),
+    },
+    {
+      deployTestSaas: `${read(files.deployTestSaas)}\n. '$SAAS_TEST_FIXTURE_ENV'\n`,
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        "if (metadata.isSymbolicLink()) fail(\"symlink_forbidden\");",
+        "// symlink accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        "if (metadata.uid !== expectedOwnerId) fail(\"owner_must_be_root\");",
+        "// arbitrary owner accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        "if (metadata.gid !== expectedGroupId) fail(\"group_must_be_deploy\");",
+        "// arbitrary group accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        "if ((metadata.mode & 0o777) !== 0o640) fail(\"mode_must_be_0640\");",
+        "// arbitrary mode accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        'if (!ALLOWED_KEYS.has(key)) fail("unknown_key");',
+        "// unknown keys accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        'if (seen.has(key)) fail("duplicate_key");',
+        "// duplicate keys accepted",
+      ),
+    },
+    {
+      fixturePacket: read(files.fixturePacket).replace(
+        "if (UNSAFE_VALUE_PATTERN.test(encodedValue)) fail(\"unsafe_value\");",
+        "// shell syntax accepted",
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        "run_deploy_repo_with_test_db_owner_bypass(){",
+        "run_deploy_repo_with_test_db_owner_bypass_disabled(){",
+      ),
+    },
+    {
+      fixtureSeeder: read(files.fixtureSeeder).replace(
+        'const REQUIRED_DATABASE = "bersoncarebot_test"',
+        'const REQUIRED_DATABASE = "bersoncarebot"',
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        "log \"TEST runtime mode preflight\"\nassert_test_runtime_mode_ready\nlog \"SaaS TEST fixture operator packet preflight\"\nassert_saas_test_fixture_packet_ready\ntrap cleanup_exit EXIT",
+        "trap cleanup_exit EXIT\nlog \"TEST runtime mode preflight\"\nassert_test_runtime_mode_ready\nlog \"SaaS TEST fixture operator packet preflight\"\nassert_saas_test_fixture_packet_ready",
       ),
     },
     {
@@ -613,7 +855,7 @@ function runSelfTest() {
       ),
     },
     {
-      deployTestSaas: read(files.deployTestSaas).replace("export PGOPTIONS='-c role=$DBROLE'", "# missing role options"),
+      deployTestSaas: read(files.deployTestSaas).replaceAll("export PGOPTIONS='-c role=$DBROLE'", "# missing role options"),
     },
     {
       deployTestSaas: read(files.deployTestSaas).replace(
@@ -726,16 +968,18 @@ function runSelfTest() {
   ];
 
   let detected = 0;
-  for (const testCase of cases) {
+  const undetected = [];
+  for (const [index, testCase] of cases.entries()) {
     try {
       runChecks(testCase);
+      undetected.push(index + 1);
     } catch {
       detected += 1;
     }
   }
 
   if (detected !== cases.length) {
-    fail(`self-test detected ${detected}/${cases.length} broken cases`);
+    fail(`self-test detected ${detected}/${cases.length} broken cases; undetected case(s): ${undetected.join(", ")}`);
   }
 }
 

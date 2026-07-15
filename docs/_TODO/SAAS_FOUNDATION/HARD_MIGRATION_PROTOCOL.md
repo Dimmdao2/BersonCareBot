@@ -9,6 +9,7 @@ allowed sequence once a fresh production dump is obtained.
 ## Canonical sources
 
 - `deploy/host/deploy-test-saas.sh` - TEST from-zero wrapper.
+- `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
 - `scripts/deploy-saas-667.sh` - disposable/prod-copy #667 migration chain model.
 - `docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md` - production-window sequence and rollback model.
@@ -28,7 +29,8 @@ be updated in the same change.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
-5. Temporary privileges are allowed only inside the migration window and must be cleaned up fail-visibly.
+5. Temporary privileges are allowed only inside the migration window and the separate TEST fixture reconciliation
+   window. Both must be cleaned up fail-visibly; neither privilege window is application runtime.
 6. Reports and evidence must be aggregate-only: no patient names, phone numbers, emails, raw payloads,
    credential-bearing URLs, or secrets.
 7. The TEST wrapper owns the migration window. It may run with
@@ -51,6 +53,10 @@ be updated in the same change.
 9. `deploy/host/saas-test-mode.sh` remains TEST-only, redacted, default-dry-run, backup-before-rewrite, and useful
    only for an owner-approved dormant rollback. It must not invent locked URLs/secrets, and `--mode locked` remains
    blocked until the future full flip wrapper owns repo-known locked URLs/secrets.
+10. Every fresh TEST restore must reconcile the repo-managed S3 A/B walkthrough fixture before TEST services
+    restart. The protected external operator packet is mandatory and the wrapper fails before restore when it is
+    missing, symlinked, not exact `root:deploy 0640`, disabled, malformed, or incomplete. Fixture credential values
+    never enter the repository, command arguments, or logs.
 
 ## Roles
 
@@ -288,6 +294,39 @@ B1 must not run as the raw TEST runtime `DATABASE_URL` role. The checker must ve
 reading `public.platform_users`, and the database URL must remain explicit and unprinted. B1 does not require
 `BYPASSRLS`; if it is ever added for this step, that must be documented and checked as a separate protocol
 change.
+
+Before restarting TEST units, the wrapper must reconcile the S3 walkthrough fixture through
+`apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` in a separate controlled TEST-only fixture
+reconciliation window. This happens after migrations, runtime overlays, TEST settings,
+specialist consolidation, and B1. The contract is:
+
+- secret packet path: `/opt/env/bersoncarebot/saas-test-fixture.env`, non-symlink regular file, exact owner/group/mode
+  `root:deploy 0640`;
+- explicit opt-in key: `SAAS_TEST_FIXTURE_ENABLED=1`;
+- required secret keys, names only:
+  `SAAS_TEST_FIXTURE_CLINIC_A_EMAIL`, `SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD`,
+  `SAAS_TEST_FIXTURE_CLINIC_B_EMAIL`, `SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD`;
+- parser accepts exactly those five keys once each as JSON-quoted strings. Unknown/duplicate keys, unquoted or
+  malformed lines, command substitution/backticks, `DATABASE_URL`, `PGOPTIONS`, and every other override fail
+  before restore. The packet is never sourced by a shell;
+- the seeder queries `current_database()` before any write and accepts exactly `bersoncarebot_test`; URL-shape
+  matching alone is not sufficient;
+- two synthetic verified email+password owners are active `owner`/clinic-admin members with active specialists;
+- both fixture emails must use the reserved non-deliverable `.test` top-level domain;
+- Clinic A has exactly five synthetic patients with deterministic representative past and future appointments;
+  Clinic B has no patients or appointments;
+- reconciliation is transactional and deterministic for repo-reserved fixture IDs; reruns repair the same rows
+  rather than appending duplicates;
+- because locked/FORCE policies correctly reject an unscoped runtime write, the wrapper temporarily grants the
+  webapp migrator membership in `bersoncarebot_test` and temporarily sets that owner role `BYPASSRLS` only for
+  the seeder command. It immediately reuses `cleanup_elevation` to revoke both, and the existing `EXIT` trap plus
+  post-cleanup assertions make residue fatal on success or failure;
+- no real PII, message delivery, notification, S3, HTTP, or other external write path is used;
+- stdout is aggregate-only and never contains fixture email, password, cookie, token, or opaque row ID.
+
+This fixture packet is TEST operator input, not application runtime/integration configuration. It must not be
+added to `api.test`, `webapp.test`, `system_settings`, git, screenshots, shell history, or captured evidence.
+The fixture reconciliation privilege window is also not runtime and must never be reused by an application unit.
 
 It must then restart TEST units and run:
 

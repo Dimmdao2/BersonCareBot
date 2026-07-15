@@ -20,6 +20,7 @@ DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="${1:-auto/code-pg-delta}"
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
+SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
@@ -157,6 +158,13 @@ assert_test_runtime_mode_ready(){
         ;;
     esac
   done
+}
+
+assert_saas_test_fixture_packet_ready(){
+  local validator="$SRC_REPO/deploy/host/saas-test-fixture-packet.mjs"
+  [ -r "$validator" ] || { echo "FATAL: missing TEST fixture packet validator" >&2; exit 1; }
+  sudo -u deploy env SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1 \
+    node --input-type=module - "$SAAS_TEST_FIXTURE_ENV" < "$validator"
 }
 
 has_signed_runtime_mode(){
@@ -451,6 +459,26 @@ run_deploy_repo_with_test_db_owner_role(){
   return "$command_status"
 }
 
+run_deploy_repo_with_test_db_owner_bypass(){
+  local deploy_command="$1"
+  local command_status cleanup_status
+  if [ -z "${MIGRATOR_ROLE:-}" ]; then
+    MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
+  fi
+  grant_migrator_owner_membership "$MIGRATOR_ROLE"
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
+  set +e
+  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
+    export PGOPTIONS='-c role=$DBROLE' && \
+    $deploy_command"
+  command_status=$?
+  cleanup_elevation
+  cleanup_status=$?
+  set -e
+  [ "$cleanup_status" -eq 0 ] || return "$cleanup_status"
+  return "$command_status"
+}
+
 run_a2_nginx_preflight(){
   local dump_file
   dump_file="$(mktemp /tmp/bcb-nginx-dump.XXXXXX)"
@@ -543,6 +571,8 @@ for f in "$API_ENV" "$WEBAPP_ENV"; do
 done
 log "TEST runtime mode preflight"
 assert_test_runtime_mode_ready
+log "SaaS TEST fixture operator packet preflight"
+assert_saas_test_fixture_packet_ready
 trap cleanup_exit EXIT   # NEVER leave BYPASSRLS or owner-role membership on
 
 # 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
@@ -642,7 +672,14 @@ echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT futur
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion
 
-# 8. restart test units + verify (and that the prod WireGuard relay is untouched)
+# 8. Reconcile the repo-managed A/B walkthrough fixture after every fresh restore. Credentials live only
+#    in the protected external TEST packet. The seeder re-asserts current_database()=bersoncarebot_test,
+#    performs no external calls, and logs only aggregate fixture shape.
+log "reconcile SaaS S3 TEST walkthrough fixture"
+run_deploy_repo_with_test_db_owner_bypass \
+  "export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough"
+
+# 9. restart test units + verify (and that the prod WireGuard relay is untouched)
 log "restart test units"
 for u in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$u-test"; done
 sleep 4
