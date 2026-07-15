@@ -399,3 +399,109 @@
   review и consolidated verdict.
 - Статус UX-07: **completed; PASS; seals #1 and #2 granted**. Остаточные ограничения относятся к production
   implementation/accessibility gates; pending OM/BD owner rulings не изменялись.
+
+## 2026-07-16 — UX-08 owner decision packet candidate
+
+- Перечитаны owner rulings, `REQUIREMENTS`, UX-03 operating/capability model, UX-04/05 pending gates, UX-06 IA/
+  composition/route map и финальный UX-07 prototype/audit.
+- Создан только предусмотренный планом `OWNER_DECISION_PACKET.md`; новый параллельный contract или ad hoc ruling
+  file не создавался.
+- OM/BD вопросы консолидированы в десять продуктовых развилок. Удалены вопросы про DB/schema/RLS/token/TTL/2FA
+  mechanics, current defects, обязательные security invariants, индустриально стандартные implementation choices и
+  уже зафиксированные решения владельца.
+- Каждый пункт имеет stable ID, `status=pending`, `owner ruling/source=none`, понятные альтернативы, явно
+  planner-owned recommendation, safe default, последствия, downstream blocks и границу условного UX-09.
+- Статус UX-08: **candidate complete; awaiting full independent critic**. Candidate не является owner ruling и ещё
+  не готов к переносу в dated rulings file.
+
+## 2026-07-16 — UX-08 full independent plan-critic
+
+- **Метод:** перечитаны `ORCHESTRATION_BINDINGS.md`, canonical owner rulings/review/schema decisions, literal
+  `REQUIREMENTS.md`, все UX-03…07 contracts и independent audits, текущие `ROADMAP.md`, `LOG.md` и полный
+  `OWNER_DECISION_PACKET.md`. Проверка велась по всему packet, не по последнему diff.
+- **До correction — FAIL:** у нескольких вопросов поле `Источник: none` скрывало реальное основание в owner
+  addendum/ruling; recommendation и safe default местами совпадали как одна policy; OM/BD consolidation не была
+  трассируема; packet не объяснял, почему OM-8 и owner/admin permission details не эскалируются; future public scope
+  можно было спутать с текущим TEST-only execution.
+- Выполнена одна integrated correction всего существующего `OWNER_DECISION_PACKET.md`: отдельно введены `owner
+  ruling` и `основание`, добавлены exact OM/BD mappings, отличные временные безопасные границы, affected
+  screens/epics и conditional UX-09 paths. Зафиксировано, что brand depth и origin/PWA scope — разные решения, а
+  card/history/`Мои` намеренно согласуются одним решением.
+- Подтверждена минимальность: остаются десять реальных продуктовых choices. Уже ruled identity/auth/tenant/filter/
+  tariff facts, current defects, RLS/schema/token/TTL/2FA/DNS/TLS/idempotency и стандартные least-privilege/
+  per-mechanic lifecycle задачи владельцу не переадресуются. Custom-sender item сохранён только как коммерческая
+  fallback/hold policy, а не вопрос о DNS/security implementation.
+- **Проверки:** `10/10` stable IDs; по три взаимоисключающих product alternatives; все обязательные поля присутствуют;
+  OM-1…7 и BD-1…6 покрыты без второго вопроса на тот же выбор; OM-8 имеет явный non-escalation path; target screen
+  IDs/epics и UX-09 branch указаны для каждого item; stale `source=none` provenance patterns отсутствуют;
+  `git diff --check` PASS.
+- **Финальный вердикт:** **PASS. UX-08 complete; packet ready for owner review.** Все items остаются `pending`; PASS
+  подтверждает качество и sufficiency пакета, но не является owner ruling и не разрешает deploy/implementation.
+
+## 2026-07-16 — UX-09 implementation roadmap candidate
+
+- Перечитаны обязательный `ORCHESTRATION_BINDINGS.md`, UX-03…08 contracts/audits, final owner decision packet,
+  `SAAS_FOUNDATION/SEQUENCE.md`, enforcement/readiness roadmaps, current route allocation and documented data/API
+  gaps. Текущий SaaS TEST-first order сохранён отдельным authoritative workstream.
+- Создан только предусмотренный планом `IMPLEMENTATION_ROADMAP.md`; параллельные contract/ruling документы не
+  создавались. Application, DB, runtime, deploy, commit и push не выполнялись.
+- Roadmap разбит на meaningful stages U0…U10: contracts/ownership; capability spine; management/operations/account
+  shells; staff and patient invite/activation; patient context/card/history/handoff; platform and organization
+  public surfaces; branding; independently gated domain/PWA/sender capabilities; platform admin; route/visual final
+  convergence.
+- Для каждого stage зафиксированы outcome, canonical screens/flows, reuse/gaps, scope/forbidden scope,
+  tenant/identity boundaries, owner-decision gate и safe default, dependencies, data/API/UI workstreams,
+  migration/backfill/compat boundary без придуманной schema, risk-proportional validation, rollback/degradation,
+  completion checklist и merge dependency.
+- `UX08-01…10` остаются `pending` с `owner ruling=none`. Safe prerequisites разрешены, но shared history, handoff,
+  assistant grants, dual-mode composition, multi-org default, public bundle, W branding, custom origins/W-PWA,
+  sender fallback и patient-level support не выданы за выбранную policy.
+- Execution protocol взят из repo binding: один цельный worker stage → full independent audit → одна integrated
+  correction связанного класса → full re-audit; после каждого второго stage — process audit. Микрослайсы, короткие
+  timeout/retry и повторный full CI после мелких правок прямо запрещены.
+- **Candidate validation:** master registry `57 rows / 57 unique`; `SCREEN_COMPOSITION` parity `57/57`, missing/extra
+  `0`; current filesystem и route map `150/150`, duplicate/missing/stale `0`; UX-09 unknown canonical screen refs `0`;
+  `UX08-01…10` coverage `10/10`; `ACQ/STF/PIN/SMS/PBK/MOR/ERR` coverage complete; leaf stages
+  `U0, U1, U2, U3A, U3B, U4, U5A…C, U6A…B, U7, U8A…C, U9, U10` имеют все обязательные поля/checklists;
+  dependency refs неизвестных stage IDs `0`; `git diff --check` PASS. App/DB/runtime tests не запускались, потому
+  что изменён только planning documentation.
+- Статус UX-09: **candidate complete; awaiting full independent audit**. Аудит должен проверить ID/dependency/
+  decision/screen/flow/checklist consistency и отсутствие вмешательства в foundation sequence.
+
+## 2026-07-16 — UX-08/09 integrated convergence after full audit FAIL
+
+- Полный `UX09_INDEPENDENT_AUDIT.md` принят как один consolidated correction brief. Предыдущие UX-08 PASS и UX-09
+  candidate-validation записи выше сохранены как исторические pre-audit checkpoints; они не являются текущим
+  acceptance после findings F1–F4.
+- `OWNER_DECISION_PACKET.md` обновлён на месте без нового decision/ruling файла. Два literal upstream выбора,
+  потерянные при прежней консолидации, получили pending gates `UX08-11` (enrollment creation timing при staff patient
+  invite) и `UX08-12` (organization/specialist/thread communication topology). Все 12 остаются `owner ruling=none`.
+- В packet добавлен единый provenance reconciliation для каждого explicit open item `REQUIREMENTS.md` и UX-03…05:
+  existing ruling + source, architecture/security invariant + source, planner recommendation + safe default или
+  pending owner gate. Signup composition, SMS-only activation и booking-channel choice не переатрибутированы
+  владельцу; security mechanics не превращены в optional product choices.
+- `IMPLEMENTATION_ROADMAP.md` получил отдельный meaningful stage `U3S`, который полностью владеет J1/
+  `ACQ-01…05`: secure signup retry/session, exactly-once organization+owner membership, authorized
+  membership→specialist binding, truthful clinical actor and complete first-run password/2FA/recovery lifecycle.
+- Patient resolver `U5A` теперь ранний независимый stage с zero/one/many/chooser/switch/object authorization и без
+  invite dependency. Направление стало только `U5A -> U3B -> U4`; обратная final-merge зависимость удалена.
+  `U4` интегрирует уже прошедшие U3S/U3A/U3B/U5A outputs.
+- Добавлен meaningful `U5D` для decision-safe communication attribution/parity and conditional target topology.
+  Core `U9` PLAT shell/configuration/reliability/org operations теперь идёт до optional `U8A/B/C`; каждый U8
+  подключается к единому U9 adapter path, а невыбранная ветка физически отсутствует и ничего core не блокирует.
+- Нормативный direct-dependency registry содержит 19 leaf stages и один ацикличный graph. Text dependencies, merge
+  dependencies, phase order и diagram приведены к одному направлению. Full CI назначен после последнего реально
+  включённого stage каждой фазы, без повторов после микроправок; docs-only U0 и absent optional U8 не создают
+  искусственный CI gate.
+- `ROADMAP.md` синхронизирован на месте. Сохранены `57/57`, `150/150`, J1…J7/flow contracts, tenant/security/
+  foundation/no-dup, migration/compat/rollback, proportional validation и TEST/deploy boundaries. Application, DB,
+  runtime, TEST, deploy, commit и push не выполнялись.
+- Статус UX-08/09: **integrated correction complete; awaiting one full independent re-audit**. Correction owner не
+  выдаёт себе PASS и не редактирует audit record.
+- **Correction validation:** 19/19 stage registry rows; all 19 stages contain all 14 required fields; normative DAG
+  has no cycle/unknown dependency and document section order is topological; `UX08-01…12` = 12/12 complete packet
+  sections with three alternatives and required provenance/safe-boundary fields; 22 upstream choice classes
+  reconciled; J1…J7 and ACQ/STF/PIN/SMS/PBK/MOR/ERR present; canonical target/composition `57/57`; current route
+  allocation `150 actual = 150 references = 150 unique`, missing/stale/duplicate `0`; stale cycle/U8-core inversion
+  patterns `0`; `git diff --check` PASS. App tests, lint, typecheck, build and DB smoke were not run because this pass
+  changes planning documentation only.

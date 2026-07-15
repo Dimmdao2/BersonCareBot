@@ -289,6 +289,9 @@ owner rulings.
 
 ## UX-08 — Owner decision packet
 
+**Статус:** integrated UX-09 correction complete; ожидает полного независимого re-audit. Все двенадцать rulings
+пока `pending`; прежний UX-08 PASS остаётся историческим pre-UX09 verdict и не закрывает найденные provenance gaps.
+
 **Цель:** передать владельцу только решения, реально меняющие продукт.
 
 Пакет не должен спрашивать инженерные детали. В нём остаются короткие альтернативы с последствиями, например:
@@ -303,24 +306,45 @@ owner rulings.
 
 **Выход:** `OWNER_DECISION_PACKET.md`, затем решения переносятся в отдельный dated rulings file.
 
+Текущий packet содержит двенадцать консолидированных продуктовых развилок: clinic card/history/default filters,
+handoff launch/acceptance, assistant scope, dual-mode navigation, patient multi-org default, public launch scope,
+paid white-label depth, custom-domain/W-PWA launch surfaces, custom-sender failure policy и platform support surface.
+После полного UX-09 audit добавлены два потерянных literal upstream выбора: момент создания patient enrollment при
+staff invite и topology коммуникаций organization/specialist/thread. Отдельный provenance registry классифицирует
+все остальные explicit вопросы UX-03…05 как existing ruling, architecture/security invariant, planner
+recommendation + safe default либо pending owner gate; safe default не назван решением владельца.
+Из него исключены уже вынесенные owner rulings, текущие дефекты, инженерные/security invariants, 2FA/token/TTL/RLS/
+schema details и вопросы, решаемые индустриальным стандартом. OM/BD gates сведены без дублей; exact provenance,
+planner recommendation, отличная от неё временная безопасная граница, affected screens/epics и conditional UX-09
+path проверены для каждого пункта.
+
 ## UX-09 — Implementation roadmap
+
+**Статус:** integrated correction complete; awaiting full independent re-audit. Ни implementation, ни app/DB/runtime
+changes этим статусом не разрешены.
 
 **Цель:** после решений разложить реализацию на независимые эпики, не вмешавшись в текущий SaaS-поток.
 
 Порядок зависимости, а не обещание релиза:
 
 1. contracts/data gaps;
-2. role/capability guards;
-3. organization management shell;
-4. invite/delivery/activation;
-5. patient context UX;
-6. public landing and organization pages;
-7. branding;
-8. custom domains;
-9. global admin;
-10. visual consolidation and acceptance.
+2. role/capability guards and organization workspace spine;
+3. early patient-context resolver plus specialist signup/staff/patient acquisition;
+4. clinical card/history, handoff and communications policy;
+5. public landing and organization pages;
+6. core branding and global platform configuration/reliability/org operations;
+7. only then optional custom domain, sender and per-origin PWA adapters;
+8. route/visual consolidation and acceptance.
 
 Каждый epic получает scope, forbidden scope, tests, screenshots/smoke и merge dependency. Реализация идёт по worker → independent code audit → fixer → risk-tiered audit → visual seals.
+
+Фактический planned output: `IMPLEMENTATION_ROADMAP.md`. После integrated correction он содержит 19 meaningful
+leaf stages: отдельный J1 owner `U3S`, независимый ранний resolver `U5A`, acquisition convergence без обратной
+зависимости, отдельный communications stage `U5D`, core platform stage `U9` до optional `U8A/B/C` и normative
+acyclic dependency registry. Все `UX08-01…12` остаются явными gates с fail-closed safe defaults; каждый stage имеет
+data/API/UI, migration/compat, validation, rollback/degradation, checklist и merge dependency. Full CI привязан к
+последнему stage каждой фактически исполняемой фазы. До полного re-audit это corrected candidate, а не принятый
+execution plan.
 
 ## Стоп-гейты
 
