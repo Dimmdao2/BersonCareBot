@@ -30,7 +30,7 @@ brain, не источник канона оркестрации.
 | `{HEARTBEAT}` | Legacy host-orch heartbeat: `{REPO_ROOT}/.r3-heartbeat` в интеграционном worktree. В изолированном Codex-worktree может отсутствовать; не считать это ошибкой локального этапа. |
 | `{CODE_SEARCH}` | точное/лексическое: `node /home/dev/brain/tools/code-search.mjs "<query>" --repo bcb [-k N]`; смысловое: `bash /home/dev/brain/tools/codeq.sh "<query>" --repo bcb [--k N]` |
 | `{TASKDB}` | `node /home/dev/brain/tools/taskdb.mjs <cmd>`; не писать в taskdb сырым SQL |
-| `{SUBAGENTS}` | В Codex использовать MCP/tool `multi_agent_v1.spawn_agent` / `wait_agent` при доступности. Актуальные model overrides: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`; старые формы `gpt-5-5` и `gpt-5-6-sol` не использовать. Host legacy fallback — `/home/dev/brain/tools/lead-delegate.mjs`, только если работа идёт через host-orch loop. |
+| `{SUBAGENTS}` | В Codex использовать MCP/tool `multi_agent_v1.spawn_agent` / `wait_agent` при доступности. Допустимые model overrides: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`. Другие поколения и старые формы имён не использовать. Host legacy fallback — `/home/dev/brain/tools/lead-delegate.mjs`, только если работа идёт через host-orch loop. |
 | `{ORCH_VERIFY}` | `node /home/dev/brain/tools/orch-verify.mjs <TID> [--dry]` для независимой проверки taskdb-задачи, где применимо |
 | `{CRON}` | только `node /home/dev/brain/tools/cronport.mjs ...`; прямой `crontab` запрещён |
 | `{VALIDATION}` | Полноценные локальные проверки доступны напрямую через `pnpm`: targeted tests, `pnpm run typecheck`, `pnpm run lint`, affected builds и `pnpm run ci` для крупных/final gate. `run-tests.sh` — только optional mutex/throttling, не обязательный wrapper. |
