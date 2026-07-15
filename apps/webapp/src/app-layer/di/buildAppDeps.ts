@@ -1263,7 +1263,6 @@ function _buildAppDeps() {
     getProfileEmailFields: userProjectionPort.getProfileEmailFields,
     webPushSubscriptions: webPushSubscriptionsPort,
     systemSettings: systemSettingsService,
-    runtimeConfig,
   };
   return {
     auth: {
@@ -1577,6 +1576,7 @@ function _buildAppDeps() {
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,
+    runtimeConfig,
     notifTemplates: notifTemplatesService,
     lfkExercises: lfkExercisesService,
     clinicalTests: clinicalTestsService,
