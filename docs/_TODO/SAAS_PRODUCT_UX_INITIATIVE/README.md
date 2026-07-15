@@ -56,4 +56,6 @@
 - `SCREEN_INVENTORY_PATIENT_PUBLIC.md` и `SCREEN_INVENTORY_SPECIALIST.md` — route/family inventory;
 - `UX01_EVIDENCE_MANIFEST.md` и `UX01_VISUAL_ATTEMPT_LEDGER.md` — текущая evidence-классификация;
 - `UX01_FRESH_AUDIT_2026-07-15.md` — актуальный независимый вердикт UX-01;
+- `UX02_PRODUCT_PATTERNS.md` и `UX02_TECHNICAL_PATTERNS.md` — внешние product/technical patterns;
+- `UX02_RESEARCH_AUDIT.md` — независимый PASS внешнего исследования;
 - `LOG.md` — журнал фактов, решений и проверок.

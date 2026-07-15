@@ -56,3 +56,23 @@
 - Единственный обязательный completion blocker: полный patient slice отсутствует из-за maintenance + скопированного
   TEST lock (`#795`). После исправления повторить patient matrix и fresh audit.
 - Аудит зафиксирован в `UX01_FRESH_AUDIT_2026-07-15.md`.
+
+## 2026-07-15 — owner addendum: solo vs clinic specialist
+
+- Владелец требует различать UI solo specialist и специалиста клиники.
+- Для clinic-mode в discovery добавлены patient handoff/transfer и просмотр истории по всем визитам.
+- Открытый продуктовый выбор: отдельные карточки пациента по специалистам или одна organization-scoped карточка
+  с фильтрами `мои визиты / вся история / конкретный специалист`.
+- Фильтрация не считается authorization: права доступа, attribution и audit trail должны быть определены отдельно
+  на UX-03 до screen composition.
+
+## 2026-07-15 — UX-02 external patterns
+
+- Product track: SimplePractice, Jane, Healthie, Practice Better и Cliniko; solo/clinic onboarding, roles,
+  invitations, patient record/history, handoff, multi-practice context, branding и platform lifecycle.
+- Technical track: trusted invite lifecycle, SMS boundary, PWA/install/push, branding, custom domains/TLS/DNS,
+  sender identity и security invariants.
+- Owner addendum включён: единая clinic card остаётся preferred candidate для UX-03 comparison, не решением;
+  transfer разделён на primary assignment, care team, work-item reassignment и cross-org transfer.
+- Independent audit сначала потребовал 3 точечных исправления источников/формулировок; после исправлений — **PASS**.
+- Audit record: `UX02_RESEARCH_AUDIT.md`.

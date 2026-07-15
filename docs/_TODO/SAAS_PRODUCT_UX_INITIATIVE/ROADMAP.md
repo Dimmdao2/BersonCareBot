@@ -52,6 +52,8 @@ maintenance/test-lock state (`#795`). После исправления нуже
 
 ## UX-02 — Внешнее исследование рабочих SaaS-паттернов
 
+**Статус:** completed; independent research audit PASS.
+
 **Цель:** не изобретать onboarding, white-label и role IA с нуля.
 
 Исследовательские треки:
@@ -71,6 +73,9 @@ maintenance/test-lock state (`#795`). После исправления нуже
 
 **Выход:** `EXTERNAL_PATTERNS.md` с pattern comparison и применимостью.
 
+Фактические выходы: `UX02_PRODUCT_PATTERNS.md`, `UX02_TECHNICAL_PATTERNS.md`,
+`UX02_RESEARCH_AUDIT.md`.
+
 ## UX-03 — Product operating model и role/capability matrix
 
 **Цель:** определить, кто, в каком контексте и над какими объектами работает.
@@ -82,6 +87,10 @@ maintenance/test-lock state (`#795`). После исправления нуже
 - owner/admin, который одновременно specialist;
 - assistant permissions;
 - «мои пациенты / все пациенты организации»;
+- solo-mode vs clinic-mode composition: team context, collaboration actions и отсутствие лишнего clinic UI у solo;
+- patient handoff/transfer semantics и состояния передачи между специалистами;
+- clinic patient record model: отдельные specialist-карточки против единой organization-scoped карточки;
+- history access и фильтры `мои визиты / вся история / конкретный специалист`, отдельно от permission enforcement;
 - patient multi-org context и specialist attribution;
 - public/onboarding/patient границы;
 - entitlement influence на IA.
