@@ -33,7 +33,7 @@ Media-worker:
 
 - `apps/media-worker/src/poolProvider.ts` - pool provider
 - `apps/media-worker/src/withClient.ts` - transaction helper
-- `apps/media-worker/src/runMediaWorkerSql.ts` - SQL bridge and optional organization principal helper
+- `apps/media-worker/src/runMediaWorkerSql.ts` - SQL bridge and infra-principal helper
 
 Principal carrier:
 
@@ -140,7 +140,6 @@ All App Router server action entrypoints at T0.1. Only one currently has a direc
 Files using `runWithDbOrganizationPrincipal` in runtime code:
 
 - `apps/integrator/src/infra/principal/organizationPrincipal.ts`
-- `apps/media-worker/src/runMediaWorkerSql.ts`
 - `apps/webapp/src/app-layer/guards/doctorWorkspacePrincipal.ts`
 - `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
 - `apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts`

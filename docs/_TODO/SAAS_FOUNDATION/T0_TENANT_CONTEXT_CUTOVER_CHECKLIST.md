@@ -22,15 +22,15 @@ Progress:
 - [x] Reminder dispatch slice: `integrator.user_reminder_rules` and `integrator.content_access_grants` write paths stamp `organization_id` from the current organization principal or the target integrator user's single active organization; `integrator.user_reminder_occurrences` and `integrator.user_reminder_delivery_logs` continue copying org from parent rule/occurrence rows.
 - [x] Contacts fallback slice: `integrator.contacts` phone-link writes stamp `organization_id` from the current organization principal or the canonical integrator user's single active organization; conflict updates preserve existing org when no new org is derivable.
 - [x] Mailing/subscription slice: `integrator.user_subscriptions` and `integrator.mailing_logs` writes stamp `organization_id` from the current organization principal or the canonical integrator user's single active organization; conflict updates preserve existing org when no new org is derivable. `mailing_topics` remains a global catalog projection in this slice.
-- [x] Media-worker context slice: webapp enqueue stamps `media_transcode_jobs.organization_id` from `media_files.organization_id`; worker claim keeps a legacy `COALESCE(job.organization_id, media_files.organization_id)` backfill; post-claim media/job updates run through `runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId)` and the media-worker SQL chokepoint applies `app.org` inside transactions.
+- [x] Media-worker context slice: tenant-filtered webapp enqueue stamps `media_transcode_jobs.organization_id` from `media_files.organization_id`; claim requires non-null equal job/media organizations and quarantines violations; processing runs as the narrow tenant-agnostic infra dispatcher.
 - [x] Rubitime/appointment writer audit: legacy `integrator.rubitime_records`, `integrator.rubitime_events`, and `public.appointment_records` remain live unscoped compatibility projections; canonical `be_*` projection writes already require explicit `organizationId`; multi-org Rubitime ingress remains an entrypoint-map/cutover decision, not an implicit T0.4 legacy-table stamp.
 - [x] Entrypoint/worker/scheduler map: `T0_4_ENTRYPOINT_ORG_CONTEXT_MAP.md` documents Telegram, MAX, BersonCare M2M, Rubitime, scheduler, outgoing-delivery worker, projection worker, and generic retry-job organization context. The source audit confirms `integrator.mailings` has no current live runtime insert/update writer under `apps/integrator/src`; current mailing runtime writes are `integrator.mailing_logs` and already stamped.
 
 - [x] Integrator DB trunk: every SCOPED integrator writer derives or receives organization context.
 - [x] Integrator entrypoint-to-org map: Telegram/MAX/Rubitime/M2M/worker/scheduler sources documented and tested.
 - [x] Integrator worker/scheduler: jobs that touch SCOPED rows run with the correct organization principal.
-- [x] Media-worker claim/reclaim: claim remains safe and post-claim writes run with job/media organization context.
-- [x] Media-worker processing/failure/duration writes: `media_files` and `media_transcode_jobs` writes run with organization principal.
+- [x] Media-worker claim/reclaim: enqueue stamping and claim equality/quarantine keep audit metadata safe.
+- [x] Media-worker processing/failure/duration writes: the narrow `app_worker` is the explicit exception to tenant-principal worker processing.
 - [x] Focused tests and source audit cover runtime paths.
 
 ## T0.5-T0.8 readiness markers

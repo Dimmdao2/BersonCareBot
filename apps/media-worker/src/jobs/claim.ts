@@ -43,17 +43,43 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
   const tx = await startMediaWorkerTransaction(pool);
   const client = tx.client;
   try {
-    const sel = await client.query<{ id: string }>(
-      `SELECT id FROM media_transcode_jobs
-       WHERE status = 'pending'
+    const sel = await client.query<{
+      id: string;
+      job_organization_id: string | null;
+      media_organization_id: string | null;
+    }>(
+      `SELECT j.id,
+              j.organization_id AS job_organization_id,
+              mf.organization_id AS media_organization_id
+       FROM media_transcode_jobs AS j
+       LEFT JOIN media_files AS mf ON mf.id = j.media_id
+       WHERE j.status = 'pending'
          AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-       ORDER BY created_at ASC
-       FOR UPDATE SKIP LOCKED
+       ORDER BY j.created_at ASC
+       FOR UPDATE OF j SKIP LOCKED
        LIMIT 1`,
     );
     const row = sel.rows[0];
     if (!row) {
       await tx.rollback();
+      return null;
+    }
+    if (!row.job_organization_id?.trim() || !row.media_organization_id?.trim() || row.job_organization_id !== row.media_organization_id) {
+      await client.query(
+        `UPDATE media_transcode_jobs
+         SET status = 'failed',
+             attempts = attempts + 1,
+             locked_at = now(),
+             locked_by = $2,
+             last_error = 'organization_invariant_violation',
+             next_attempt_at = NULL,
+             processing_started_at = NULL,
+             finished_at = now(),
+             updated_at = now()
+         WHERE id = $1::uuid AND status = 'pending'`,
+        [row.id, lockedBy],
+      );
+      await tx.commit();
       return null;
     }
     const upd = await client.query<{
@@ -62,20 +88,17 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
       organization_id: string | null;
       attempts: number;
     }>(
-      `UPDATE media_transcode_jobs AS j
+      `UPDATE media_transcode_jobs
        SET status = 'processing',
            locked_at = now(),
            locked_by = $2,
            attempts = attempts + 1,
-           organization_id = COALESCE(j.organization_id, mf.organization_id),
            processing_started_at = now(),
            finished_at = NULL,
            updated_at = now()
-       FROM media_files AS mf
-       WHERE j.id = $1::uuid
-         AND j.status = 'pending'
-         AND mf.id = j.media_id
-       RETURNING j.id, j.media_id, j.organization_id, j.attempts`,
+       WHERE id = $1::uuid
+         AND status = 'pending'
+       RETURNING id, media_id, organization_id, attempts`,
       [row.id, lockedBy],
     );
     const job = upd.rows[0];

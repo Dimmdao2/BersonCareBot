@@ -10,8 +10,6 @@ const files = {
   claim: "apps/media-worker/src/jobs/claim.ts",
   claimTest: "apps/media-worker/src/jobs/claim.test.ts",
   process: "apps/media-worker/src/processTranscodeJob.ts",
-  executor: "apps/media-worker/src/runMediaWorkerSql.ts",
-  executorTest: "apps/media-worker/src/runMediaWorkerSql.test.ts",
   tx: "apps/media-worker/src/withClient.ts",
 };
 
@@ -31,8 +29,6 @@ function runChecks(overrides = {}) {
   const claim = overrides.claim ?? read(files.claim);
   const claimTest = overrides.claimTest ?? read(files.claimTest);
   const process = overrides.process ?? read(files.process);
-  const executor = overrides.executor ?? read(files.executor);
-  const executorTest = overrides.executorTest ?? read(files.executorTest);
   const tx = overrides.tx ?? read(files.tx);
 
   for (const needle of [
@@ -53,8 +49,11 @@ function runChecks(overrides = {}) {
   }
 
   for (const needle of [
-    "organization_id = COALESCE(j.organization_id, mf.organization_id)",
-    "RETURNING j.id, j.media_id, j.organization_id, j.attempts",
+    "j.organization_id AS job_organization_id",
+    "mf.organization_id AS media_organization_id",
+    "FOR UPDATE OF j SKIP LOCKED",
+    "row.job_organization_id !== row.media_organization_id",
+    "organization_invariant_violation",
     "organizationId: job.organization_id",
   ]) {
     assertContains(files.claim, claim, needle);
@@ -62,36 +61,22 @@ function runChecks(overrides = {}) {
 
   for (const needle of [
     "organizationId: \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\"",
-    "organization_id = COALESCE(j.organization_id, mf.organization_id)",
-    "preserves missing organization as dormant no-op context",
+    "quarantines invariant violations",
+    "organization_invariant_violation",
   ]) {
     assertContains(files.claimTest, claimTest, needle);
   }
 
   for (const needle of [
-    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "runWithMediaWorkerInfraPrincipal(\"media-worker:process-transcode-job\"",
     "processTranscodeJobInner(ctx, job)",
     "processProgramSubmissionTranscodeJob(ctx, job",
   ]) {
     assertContains(files.process, process, needle);
   }
 
-  for (const needle of [
-    "getCurrentDbPrincipalOrganizationId()",
-    "startMediaWorkerTransaction(pool)",
-    "runWithDbOrganizationPrincipal(organizationId, fn)",
-  ]) {
-    assertContains(files.executor, executor, needle);
-  }
-
-  for (const needle of [
-    "SELECT set_config('app.org', $1, true)",
-    "uses media-worker transaction chokepoint when organization principal is set",
-  ]) {
-    assertContains(files.executorTest, executorTest, needle);
-  }
-
   assertContains(files.tx, tx, "applyCurrentDbPrincipalToTransaction(client,");
+  assertContains(files.tx, tx, "DB organization principal is not allowed on media-worker pool in locked mode");
 }
 
 if (process.argv.includes("--self-test")) {
@@ -99,13 +84,20 @@ if (process.argv.includes("--self-test")) {
     "organizationId: media.organization_id",
     "organizationId: null",
   );
-  try {
-    runChecks({ enqueue });
-  } catch {
+  const claim = read(files.claim).replace("row.job_organization_id !== row.media_organization_id", "false");
+  let detected = 0;
+  for (const overrides of [{ enqueue }, { claim }]) {
+    try {
+      runChecks(overrides);
+    } catch {
+      detected += 1;
+    }
+  }
+  if (detected === 2) {
     console.log("check-t0-4-media-worker-org self-test: OK");
     process.exit(0);
   }
-  throw new Error("self-test did not detect missing enqueue organization stamp");
+  throw new Error("self-test did not detect required media-worker invariants");
 }
 
 try {

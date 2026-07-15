@@ -323,10 +323,6 @@ function runChecks(overrides = {}) {
     ]);
   }
 
-  requireFragments(files.mediaProcessTranscodeJob, loaded.mediaProcessTranscodeJob, [
-    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
-  ]);
-
   const missingPrincipalRoutes = collectScopedDbTouchingRoutesMissingPrincipalSource();
   if (missingPrincipalRoutes.length > 0) {
     fail(`SCOPED DB-touching webapp routes missing a principal source:\n${missingPrincipalRoutes.join("\n")}`);

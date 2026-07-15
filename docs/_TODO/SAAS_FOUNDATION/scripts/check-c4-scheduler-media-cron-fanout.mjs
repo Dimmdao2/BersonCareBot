@@ -245,8 +245,11 @@ function assertMediaWorker(loaded) {
     "processTranscodeJob",
   ]);
   requireFragments(files.mediaClaim, loaded.mediaClaim, [
-    "organization_id = COALESCE(j.organization_id, mf.organization_id)",
-    "RETURNING j.id, j.media_id, j.organization_id, j.attempts",
+    "j.organization_id AS job_organization_id",
+    "mf.organization_id AS media_organization_id",
+    "FOR UPDATE OF j SKIP LOCKED",
+    "row.job_organization_id !== row.media_organization_id",
+    "organization_invariant_violation",
     "organizationId: job.organization_id",
   ]);
   requireFragments(files.mediaWithClient, loaded.mediaWithClient, [
@@ -256,6 +259,7 @@ function assertMediaWorker(loaded) {
     "DB principal context is required before media-worker scoped DB access in locked mode",
     "DB infra principal source is not allowed on media-worker pool in locked mode",
     "DB bootstrap principal source is not allowed on media-worker pool in locked mode",
+    "DB organization principal is not allowed on media-worker pool in locked mode",
     "DB patient principal is not allowed on media-worker pool in locked mode",
     "DB staff principal is not allowed on media-worker pool in locked mode",
     "DB integrator principal is not allowed on media-worker pool in locked mode",
@@ -280,51 +284,25 @@ function assertMediaWorker(loaded) {
     "const client = await pool.connect();",
   );
   requireFragments(files.mediaProcess, loaded.mediaProcess, [
-    "runWithOptionalMediaWorkerOrganizationPrincipal",
-    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "runWithMediaWorkerInfraPrincipal(\"media-worker:process-transcode-job\"",
     "processTranscodeJobInner(ctx, job)",
-    "\"media-worker:process-transcode-job\"",
-    "media-worker transcode job is missing organization_id in locked mode",
   ]);
   requireFragmentBefore(
     files.mediaProcess,
     loaded.mediaProcess,
-    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
+    "runWithMediaWorkerInfraPrincipal(\"media-worker:process-transcode-job\"",
     "processTranscodeJobInner(ctx, job)",
   );
-  requireFragments(files.mediaSql, loaded.mediaSql, [
-    "createDbOrganizationPrincipal",
-    "runWithDbPrincipal",
-    "runWithDbOrganizationPrincipal",
-    "export function runWithOptionalMediaWorkerOrganizationPrincipal",
-    "if (!organizationId?.trim())",
-    "runWithMediaWorkerInfraPrincipal(\"media-worker:optional-organization-principal:missing-org\", fn)",
-    "if (source?.trim())",
-    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
-    "return runWithDbOrganizationPrincipal(organizationId, fn);",
-  ]);
-  requireFragmentBefore(
-    files.mediaSql,
-    loaded.mediaSql,
-    "if (!organizationId?.trim())",
-    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
-  );
-  requireFragmentBefore(
-    files.mediaSql,
-    loaded.mediaSql,
-    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
-    "return runWithDbOrganizationPrincipal(organizationId, fn);",
-  );
   requireFragments(files.mediaPrincipalTest, loaded.mediaPrincipalTest, [
-    "runs DB access under the claimed job organization principal",
-    "media-worker:process-transcode-job",
-    "fails closed before S3 or DB work when locked mode sees a job without organization_id",
-    "expect(query).not.toHaveBeenCalled();",
+    "runs DB access under the tick infra principal",
+    "media-worker:tick",
+    "principal?.kind === \"infra\"",
   ]);
   requireFragments(files.mediaWithClientTest, loaded.mediaWithClientTest, [
     "fails closed in locked mode before checkout when no DB principal is active",
     "rejects missing locked DB principal before pool.query checkout",
     "rejectedLockedDbPrincipals",
+    "name: \"organization\"",
     "name: \"patient\"",
     "name: \"staff\"",
     "name: \"integrator\"",
@@ -335,8 +313,8 @@ function assertMediaWorker(loaded) {
   ]);
   requireFragments(files.doc, loaded.doc, [
     "`media-worker-process`",
-    "`media-worker:process-transcode-job`",
-    "missing org fails closed in locked mode before S3/DB work",
+    "organization_invariant_violation",
+    "tenant-agnostic dispatcher",
     "separate operational DB login/pool/grants contract",
   ]);
 }
@@ -422,13 +400,13 @@ if (process.argv.includes("--self-test")) {
     "\"media-worker:process-transcode-job\"",
     "\"media-worker:process-transcode-job-missing\"",
   );
-  const mediaProcessNoDelegation = read(files.mediaProcess).replace(
-    "runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId",
-    "runWithOptionalMediaWorkerInfraOnly(job.organizationId",
+  const mediaClaim = read(files.mediaClaim).replace(
+    "row.job_organization_id !== row.media_organization_id",
+    "false",
   );
-  const mediaSqlNoOrgPrincipal = read(files.mediaSql).replace(
-    "return runWithDbPrincipal(createDbOrganizationPrincipal({ organizationId, source }), fn);",
-    "return fn();",
+  const mediaProcessNoDelegation = read(files.mediaProcess).replace(
+    "runWithMediaWorkerInfraPrincipal(\"media-worker:process-transcode-job\"",
+    "runWithMediaWorkerInfraOnly(\"media-worker:process-transcode-job\"",
   );
   const mediaWithClient = read(files.mediaWithClient).replace(
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
@@ -441,8 +419,8 @@ if (process.argv.includes("--self-test")) {
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
   const cases = [
     { mediaProcess },
+    { mediaClaim },
     { mediaProcess: mediaProcessNoDelegation },
-    { mediaSql: mediaSqlNoOrgPrincipal },
     { mediaWithClient },
     { "apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts": webpushRoute },
     { doc },

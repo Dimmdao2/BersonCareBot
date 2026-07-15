@@ -39,7 +39,11 @@ describe("claimNextJob", () => {
     const client = createClientMock();
     client.query
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows: [{ id: "job-1" }] })
+      .mockResolvedValueOnce({ rows: [{
+        id: "job-1",
+        job_organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        media_organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }] })
       .mockResolvedValueOnce({
         rows: [{
           id: "job-1",
@@ -60,39 +64,49 @@ describe("claimNextJob", () => {
       attempts: 2,
     });
     const selectSql = String(client.query.mock.calls[1]?.[0] ?? "");
-    expect(selectSql).toContain("FOR UPDATE SKIP LOCKED");
+    expect(selectSql).toContain("LEFT JOIN media_files");
+    expect(selectSql).toContain("FOR UPDATE OF j SKIP LOCKED");
     const updateSql = String(client.query.mock.calls[2]?.[0] ?? "");
-    expect(updateSql).toContain("organization_id = COALESCE(j.organization_id, mf.organization_id)");
+    expect(updateSql).not.toContain("COALESCE");
+    expect(updateSql).not.toContain("organization_id =");
     expect(client.query).toHaveBeenCalledWith("COMMIT");
   });
 
-  it("preserves missing organization as dormant no-op context", async () => {
+  it.each([
+    [null, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+    ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", null],
+    ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+  ])("quarantines invariant violations (%s, %s)", async (jobOrganizationId, mediaOrganizationId) => {
     const client = createClientMock();
     client.query
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows: [{ id: "job-null-org" }] })
-      .mockResolvedValueOnce({
-        rows: [{ id: "job-null-org", media_id: "media-null-org", organization_id: null, attempts: 1 }],
-      })
+      .mockResolvedValueOnce({ rows: [{
+        id: "job-invalid-org",
+        job_organization_id: jobOrganizationId,
+        media_organization_id: mediaOrganizationId,
+      }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce(undefined);
     const pool = createPoolMock(client);
 
-    const job = await claimNextJob(pool as never, "worker-1");
-
-    expect(job).toEqual({
-      id: "job-null-org",
-      mediaId: "media-null-org",
-      organizationId: null,
-      attempts: 1,
-    });
+    await expect(claimNextJob(pool as never, "worker-1")).resolves.toBeNull();
+    const quarantineSql = String(client.query.mock.calls[2]?.[0] ?? "");
+    expect(quarantineSql).toContain("status = 'failed'");
+    expect(quarantineSql).toContain("organization_invariant_violation");
+    expect(client.query.mock.calls[2]?.[1]).toEqual(["job-invalid-org", "worker-1"]);
     expect(client.query).toHaveBeenCalledWith("COMMIT");
+    expect(client.query.mock.calls.filter((call) => String(call[0]).includes("status = 'processing'"))).toHaveLength(0);
   });
 
   it("rolls back when concurrent worker claims the same row first", async () => {
     const client = createClientMock();
     client.query
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ rows: [{ id: "job-race" }] })
+      .mockResolvedValueOnce({ rows: [{
+        id: "job-race",
+        job_organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        media_organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce(undefined);
     const pool = createPoolMock(client);

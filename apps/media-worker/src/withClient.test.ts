@@ -1,4 +1,5 @@
 import {
+  runWithDbInfraPrincipal,
   runWithDbIntegratorPrincipal,
   runWithDbOrganizationPrincipal,
   runWithDbPatientPrincipal,
@@ -21,6 +22,11 @@ const rejectedLockedDbPrincipals: ReadonlyArray<{
   run: PrincipalRunner;
   expectedMessage: string;
 }> = [
+  {
+    name: "organization",
+    run: (fn) => runWithDbOrganizationPrincipal(ORG_ID, fn),
+    expectedMessage: "DB organization principal is not allowed on media-worker pool in locked mode",
+  },
   {
     name: "patient",
     run: (fn) => runWithDbPatientPrincipal({ organizationId: ORG_ID, platformUserId: PATIENT_USER_ID }, fn),
@@ -153,23 +159,13 @@ describe("media-worker DB client helpers", () => {
     const client = { query, release };
     const pool = { connect: vi.fn(async () => client) };
 
-    const tx = await runWithDbOrganizationPrincipal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", () =>
+    const tx = await runWithDbInfraPrincipal({ source: "media-worker:tick" }, () =>
       startMediaWorkerTransaction(pool as never),
     );
     await tx.commit();
     await tx.release();
 
-    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
-    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
-    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[3]?.[1]).toEqual(
-      expect.arrayContaining([8282, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]),
-    );
-    expect(query.mock.calls[4]).toEqual(["BEGIN"]);
-    expect(query.mock.calls[5]).toEqual(["RESET ROLE"]);
-    expect(query.mock.calls[6]).toEqual(["SET ROLE app_staff"]);
-    expect(String(query.mock.calls[8]?.[0])).toContain("app.install_signed_context");
+    expect(query.mock.calls).toContainEqual(["BEGIN"]);
     expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
     expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);
@@ -308,16 +304,12 @@ describe("media-worker DB client helpers", () => {
     vi.spyOn(Pool.prototype, "end").mockResolvedValue(undefined);
     const pool = createMediaWorkerPoolProvider({ connectionString: "postgres://example/test" });
 
-    await runWithDbOrganizationPrincipal("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", () =>
+    await runWithDbInfraPrincipal({ source: "media-worker:tick" }, () =>
       pool.query("SELECT ok"),
     );
     await pool.end();
 
-    expect(query.mock.calls[0]).toEqual(["RESET ROLE"]);
-    expect(query.mock.calls[1]).toEqual(["SET ROLE app_staff"]);
-    expect(query.mock.calls[2]).toEqual(["SELECT pg_backend_pid() AS backend_pid"]);
-    expect(String(query.mock.calls[3]?.[0])).toContain("app.install_signed_context");
-    expect(query.mock.calls[4]).toEqual(["SELECT ok"]);
+    expect(query.mock.calls).toContainEqual(["SELECT ok"]);
     expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
     expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);

@@ -19,7 +19,7 @@ function assertAllowedMediaWorkerPrincipal(principal: DbPrincipal): void {
   const source = principal.source ?? "";
   switch (principal.kind) {
     case "organization":
-      return;
+      throw new Error("DB organization principal is not allowed on media-worker pool in locked mode");
     case "infra":
       if (allowedLockedInfraSources.has(source)) {
         return;

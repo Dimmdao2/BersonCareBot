@@ -3,9 +3,6 @@ import type { Dirent } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import type { S3Client } from "@aws-sdk/client-s3";
-import {
-  buildDbPrincipalApplyOptionsFromEnv,
-} from "@bersoncare/db-principal";
 import type { Pool } from "pg";
 import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from "./ffmpeg/hlsArgs.js";
 import { composeHlsVideoFilter, watermarkTextLine, type WatermarkDrawtextParams } from "./ffmpeg/watermarkVideoFilter.js";
@@ -23,7 +20,7 @@ import {
 } from "./hlsStorageLayout.js";
 import {
   runMediaWorkerPgText,
-  runWithOptionalMediaWorkerOrganizationPrincipal,
+  runWithMediaWorkerInfraPrincipal,
 } from "./runMediaWorkerSql.js";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
@@ -229,17 +226,9 @@ async function uploadDirRecursive(
 /**
  * End-to-end transcode (FFmpeg + S3). Source MP4 at `s3_key` is deleted after a successful
  * HLS transcode (best-effort; failure to delete is logged but does not fail the job).
- * In locked DB-principal mode, a claimed job without `organization_id` fails before DB/S3 work.
  */
 export async function processTranscodeJob(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
-  const organizationId = job.organizationId?.trim() || null;
-  if (!organizationId && buildDbPrincipalApplyOptionsFromEnv(process.env).mode === "locked") {
-    throw new Error("media-worker transcode job is missing organization_id in locked mode");
-  }
-  return runWithOptionalMediaWorkerOrganizationPrincipal(job.organizationId, () =>
-    processTranscodeJobInner(ctx, job),
-    "media-worker:process-transcode-job",
-  );
+  return runWithMediaWorkerInfraPrincipal("media-worker:process-transcode-job", () => processTranscodeJobInner(ctx, job));
 }
 
 async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob): Promise<void> {
