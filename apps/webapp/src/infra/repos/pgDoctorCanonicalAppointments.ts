@@ -30,6 +30,7 @@ import type {
   DoctorDashboardAppointmentMetrics,
   ScheduleKpis,
   ScheduleKpisQuery,
+  DoctorScheduleKpisAudience,
 } from "@/modules/doctor-appointments/ports";
 
 const CANCELLED_STATUSES = [
@@ -467,10 +468,13 @@ export function createPgDoctorCanonicalAppointmentsPort(
 
     async getScheduleKpis(
       query: ScheduleKpisQuery,
-      audience?: { excludedUserIds?: string[]; organizationId?: string },
+      audience: DoctorScheduleKpisAudience,
     ): Promise<ScheduleKpis> {
+      if (!audience?.organizationId) {
+        throw new Error("schedule_kpis_organization_required");
+      }
       const db = getDrizzle();
-      const organizationId = audience?.organizationId ?? await getDefaultOrganizationId();
+      const organizationId = audience.organizationId;
       const nowIso = new Date().toISOString();
       const { from, to: toExclusive, branchId, serviceId } = query;
       const excluded = audience?.excludedUserIds ?? [];

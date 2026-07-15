@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createPgDoctorCanonicalAppointmentsPort } from "./pgDoctorCanonicalAppointments";
+import type {
+  ScheduleKpis,
+  ScheduleKpisQuery,
+} from "@/modules/doctor-appointments/ports";
 
 const repoDir = dirname(fileURLToPath(import.meta.url));
 
@@ -35,5 +40,32 @@ describe("pgDoctorCanonicalAppointments soft-delete filter (F1b)", () => {
     // + stats rangeCond/createdInRangeCond + joins + cancel30 + orgCond + KPI active/cancelled ranges).
     const occurrences = src.match(/isNull\(beAppointments\.deletedAt\)/g) ?? [];
     expect(occurrences.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe("pgDoctorCanonicalAppointments schedule KPI organization gate", () => {
+  it("fails closed before DB/default lookup when organization is absent at runtime", async () => {
+    const getDefaultOrganizationId = vi.fn(async () => "default-organization");
+    const port = createPgDoctorCanonicalAppointmentsPort(getDefaultOrganizationId);
+    const unsafeGetScheduleKpis = port.getScheduleKpis as unknown as (
+      query: ScheduleKpisQuery,
+      audience?: { excludedUserIds?: string[]; organizationId?: string },
+    ) => Promise<ScheduleKpis>;
+
+    await expect(
+      unsafeGetScheduleKpis({ from: "2026-06-01T00:00:00Z", to: "2026-06-02T00:00:00Z" }),
+    ).rejects.toThrow("schedule_kpis_organization_required");
+    expect(getDefaultOrganizationId).not.toHaveBeenCalled();
+  });
+
+  it("contains no default-organization fallback inside getScheduleKpis", () => {
+    const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");
+    const method = src.slice(
+      src.indexOf("async getScheduleKpis("),
+      src.indexOf("async getAppointmentDailySeries("),
+    );
+
+    expect(method).toContain("schedule_kpis_organization_required");
+    expect(method).not.toContain("getDefaultOrganizationId");
   });
 });

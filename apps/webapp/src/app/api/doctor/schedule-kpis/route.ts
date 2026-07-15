@@ -6,8 +6,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { logger, serializeError } from "@/infra/logging/logger";
@@ -20,11 +20,8 @@ const KpisQuerySchema = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const url = new URL(req.url);
   const raw = {
@@ -46,9 +43,14 @@ export async function GET(req: Request) {
   const audience = await loadDoctorAnalyticsAudience();
 
   try {
-    const kpis = await deps.doctorAppointments.getScheduleKpis(parsed.data, {
-      excludedUserIds: audience?.excludedUserIds ?? [],
-    });
+    const kpis = await withDoctorWorkspacePrincipal(
+      gate.ctx,
+      "doctor.schedule-kpis.read",
+      () => deps.doctorAppointments.getScheduleKpis(parsed.data, {
+        excludedUserIds: audience?.excludedUserIds ?? [],
+        organizationId: gate.ctx.organizationId,
+      }),
+    );
     return NextResponse.json({ ok: true, kpis });
   } catch (e) {
     logger.error({ err: serializeError(e), from: parsed.data.from, to: parsed.data.to }, "schedule-kpis.failed");

@@ -512,7 +512,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
     // Legacy Rubitime port does not have per-patient analytics; returns zeros for all 9 KPI.
     async getScheduleKpis(
       _query: ScheduleKpisQuery,
-      _audience?: { excludedUserIds?: string[]; organizationId?: string },
+      _audience: { excludedUserIds?: string[]; organizationId: string },
     ): Promise<ScheduleKpis> {
       return {
         recordsInPeriod: 0,

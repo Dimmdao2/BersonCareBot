@@ -268,7 +268,10 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
       reschedulesInPeriod: 0,
     };
     const svc = createDoctorAppointmentsService({ appointmentsPort: buildPortWithKpis(zeroKpis) });
-    const result = await svc.getScheduleKpis({ from: "2026-06-01T00:00:00", to: "2026-06-04T00:00:00" });
+    const result = await svc.getScheduleKpis(
+      { from: "2026-06-01T00:00:00", to: "2026-06-04T00:00:00" },
+      { organizationId: "00000000-0000-4000-8000-0000000000aa" },
+    );
     expect(result.recordsInPeriod).toBe(0);
     expect(result.pastInPeriod).toBe(0);
     expect(result.futureInPeriod).toBe(0);
@@ -297,7 +300,10 @@ describe("doctor-appointments service — getScheduleKpis invariants", () => {
     const svc = createDoctorAppointmentsService({ appointmentsPort: port });
 
     const query = { from: "2026-06-01T00:00:00", to: "2026-06-04T00:00:00", branchId: "branch-1" };
-    const audience = { excludedUserIds: ["user-x"] };
+    const audience = {
+      excludedUserIds: ["user-x"],
+      organizationId: "00000000-0000-4000-8000-0000000000aa",
+    };
     await svc.getScheduleKpis(query, audience);
 
     expect(spy).toHaveBeenCalledWith(query, audience);
