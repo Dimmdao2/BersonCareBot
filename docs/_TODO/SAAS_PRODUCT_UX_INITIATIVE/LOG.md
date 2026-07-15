@@ -26,3 +26,33 @@
 - code-search до точечного чтения кода;
 - taskdb только через `/home/dev/brain/tools/taskdb.mjs`.
 
+## 2026-07-15 — UX-01 started
+
+- Владелец разрешил следующий этап без дополнительных вопросов.
+- Запущены два независимых bounded audit-потока: specialist/clinic/global-admin и patient/public/auth/booking/install.
+- Один dev-сервер `127.0.0.1:5200` запущен из интеграционного worktree на том же code HEAD; отдельные серверы аудиторам запрещены.
+- Зафиксирован baseline universe и independent acceptance gate в `UX01_ACCEPTANCE.md`.
+- На этапе разрешены только inventory docs и screenshots; application code, DB и delivery state вне scope.
+
+## 2026-07-15 — UX-01 role-matrix reconciliation
+
+- DEV ранее обновлена из TEST, миграции применены; прежний missing `staff_user_has_password_credentials` blocker снят.
+- Reconciled run: `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/`, commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`.
+- Public: clean login desktop/mobile и landing mobile подтверждены.
+- Registration: через стандартный DEV admin settings API контролируемо установлен `specialist_signup_enabled=true`; desktop/mobile показывают email, password, specialist name и organization title. Form submit не выполнялся.
+- Regular doctor: отдельный shell/nav boundary подтверждён; clinic/global links отсутствуют. Communications capture удалён из-за real-looking restored names/messages.
+- Clinic admin: clinic management links и отсутствие global sections подтверждены.
+- Global admin: shell, analytics, system health, audit log и promo подтверждены; sensitive settings attempts удалены после privacy review.
+- Patient: auth succeeds, но full shell BLOCKED maintenance replacement. `patient_app_maintenance_enabled=true`; TEST-only `system_settings_test_lock`, скопированный в DEV, не даёт изменить setting через стандартный `updateSetting`/API path. Сохранены только desktop/mobile guard frames. Taskdb `#795`.
+- Три TEST walkthrough manifests подключены как готовое evidence; superseded Today/legacy appointments/KPI findings не считаются повторно.
+- Current selected totals: 64 safe referenced PNG, 59 valid product/role states, 5 finding-only; 14 superseded TEST PNG excluded.
+- `UX01_INDEPENDENT_AUDIT.md` оставлен историческим FAIL. Для закрытия UX-01 нужен новый independent audit.
+
+### Fresh independent audit
+
+- Вердикт: **FAIL / UX-01 completion BLOCKED**.
+- Подтверждено: allocation `150/150`, все manifests/PNG существуют, counts `64 = 59 valid + 5 finding-only`,
+  14 superseded TEST frames исключены, desktop role boundaries корректны, privacy omissions сохранены.
+- Единственный обязательный completion blocker: полный patient slice отсутствует из-за maintenance + скопированного
+  TEST lock (`#795`). После исправления повторить patient matrix и fresh audit.
+- Аудит зафиксирован в `UX01_FRESH_AUDIT_2026-07-15.md`.

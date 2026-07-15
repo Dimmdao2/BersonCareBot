@@ -53,4 +53,7 @@
 - `REQUIREMENTS.md` — цель, исходные требования, ограничения и стартовые гипотезы;
 - `ROADMAP.md` — этапы исследования, роли исполнителей и критерии закрытия;
 - `CURRENT_STATE_BASELINE.md` — стартовая карта уже существующих поверхностей;
+- `SCREEN_INVENTORY_PATIENT_PUBLIC.md` и `SCREEN_INVENTORY_SPECIALIST.md` — route/family inventory;
+- `UX01_EVIDENCE_MANIFEST.md` и `UX01_VISUAL_ATTEMPT_LEDGER.md` — текущая evidence-классификация;
+- `UX01_FRESH_AUDIT_2026-07-15.md` — актуальный независимый вердикт UX-01;
 - `LOG.md` — журнал фактов, решений и проверок.

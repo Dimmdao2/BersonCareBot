@@ -4,7 +4,7 @@
 
 Каждый этап отвечает на один класс вопросов и создаёт отдельный проверяемый артефакт. Следующий synthesis-этап не стартует, пока входные карты не закончены. Параллельность — максимум два независимых исследовательских потока; синтез, decision gates и редактирование master-docs сериализуются.
 
-На текущем шаге субагенты не запускаются. Сначала владелец видит структуру работ и границы.
+Текущий UX-01 evidence pass выполнен отдельными bounded аудиторами; synthesis и изменение master-docs остаются сериализованными.
 
 ## UX-00 — Boundary и канон
 
@@ -20,6 +20,8 @@
 Проверка: `git status -sb`, `git worktree list`, ссылки на канонические документы.
 
 ## UX-01 — Фактический аудит текущих экранов
+
+**Статус:** evidence reconciled, fresh independent audit **FAIL / completion BLOCKED by `#795`**.
 
 **Цель:** получить не список файлов, а карту реально доступных экранов и состояний.
 
@@ -43,6 +45,10 @@
 **Исполнители:** два bounded UI-auditor/explorer, Sonnet-high или `gpt-5.5`; затем один независимый audit полноты. Это механический evidence pass, не работа Planner.
 
 **Выход:** `SCREEN_INVENTORY.md`, screenshot index и gap list. Никаких code changes.
+
+Текущее состояние: route allocation `150/150`; role-matrix evidence собрано для public, registration и staff boundaries.
+Fresh audit подтвердил manifests, counts и role boundaries, но не закрыл этап: patient full shell blocked
+maintenance/test-lock state (`#795`). После исправления нужен повтор patient matrix и новый independent audit.
 
 ## UX-02 — Внешнее исследование рабочих SaaS-паттернов
 

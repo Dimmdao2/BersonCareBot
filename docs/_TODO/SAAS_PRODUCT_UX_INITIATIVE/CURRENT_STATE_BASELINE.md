@@ -1,6 +1,13 @@
 # Current State Baseline
 
-Стартовый факт-снимок. Полный route-by-route и visual audit выполняется в UX-01.
+Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; visual audit ждёт свежего независимого acceptance после текущего role-matrix run.
+
+## Текущая среда UX-аудита
+
+- DEV обновлена из TEST, миграции применены и является изменяемой UX-песочницей; прежний missing-function blocker больше не актуален.
+- Раздельные входы существуют для public, registration entry, patient, regular doctor, clinic admin и global admin.
+- TEST A/B walkthrough даёт актуальные desktop-состояния clinic-owner/clinic-admin и tenant separation.
+- Patient full shell сейчас заменяется maintenance guard. `patient_app_maintenance_enabled=true`, а TEST-only `system_settings_test_lock`, перенесённый при TEST→DEV refresh, блокирует стандартный settings write path. Это taskdb `#795`, а не отсутствие patient routes.
 
 ## Уже существует
 
@@ -10,6 +17,7 @@
 - `/book/*` — публичная запись;
 - `/legal/*` — privacy/terms;
 - PWA разделена на patient и staff surfaces.
+- `/api/auth/dev-public?view=registration` открывает specialist/organization registration с email, password, specialist name и organization title, когда `specialist_signup_enabled=true`; это подтверждено после контролируемого изменения setting через стандартный DEV admin API. Submit не проверялся.
 
 ### Patient
 
@@ -26,6 +34,7 @@
 - clinic-admin sections `Врачи` и `Настройки клиники`;
 - global-admin sections analytics, platform settings и system health;
 - фактические layout families описаны в `SCREEN_LAYOUT_INVENTORY.md`.
+- regular doctor, clinic admin и global admin имеют различимые server-derived role/navigation boundaries; assistant capability boundary остаётся не определена.
 
 ### Organization / SaaS
 
@@ -59,4 +68,3 @@
 - invite API не означает доставку email;
 - org-scoped setting не означает готовую white-label модель;
 - один global identity не определяет автоматически UI выбора care context.
-
