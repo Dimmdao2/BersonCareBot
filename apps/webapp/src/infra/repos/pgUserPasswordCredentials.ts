@@ -88,13 +88,8 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
     plainPassword: string,
   ): Promise<{ userId: string; emailVerified: boolean } | null> {
     const r = await runWebappPgText<{ user_id: string; password_hash: string; email_verified: boolean }>(
-      `SELECT upc.user_id::text AS user_id, upc.password_hash,
-              (pu.email_verified_at IS NOT NULL) AS email_verified
-       FROM user_password_credentials upc
-       INNER JOIN platform_users pu ON pu.id = upc.user_id
-       WHERE pu.merged_into_id IS NULL
-         AND pu.email_normalized = $1
-       LIMIT 1`,
+      `SELECT user_id::text AS user_id, password_hash, email_verified
+       FROM app.email_password_find_login_candidate($1)`,
       [emailNormalized],
     );
     const row = r.rows[0];
@@ -134,12 +129,9 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
     async tryResendRegistrationChallenge({ emailNormalized, plainPassword }) {
       const r = await runWebappPgText<{ id: string; password_hash: string }>(
-        `SELECT pu.id::text AS id, upc.password_hash
-         FROM platform_users pu
-         INNER JOIN user_password_credentials upc ON upc.user_id = pu.id
-         WHERE pu.email_normalized = $1
-           AND pu.merged_into_id IS NULL
-           AND pu.email_verified_at IS NULL`,
+        `SELECT user_id::text AS id, password_hash
+         FROM app.email_password_find_login_candidate($1)
+         WHERE email_verified = false`,
         [emailNormalized],
       );
       const row = r.rows[0];
@@ -163,13 +155,9 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
 
     async findVerifiedUserIdWithPassword(emailNormalized) {
       const r = await runWebappPgText<{ id: string }>(
-        `SELECT upc.user_id::text AS id
-         FROM user_password_credentials upc
-         INNER JOIN platform_users pu ON pu.id = upc.user_id
-         WHERE pu.merged_into_id IS NULL
-           AND pu.email_normalized = $1
-           AND pu.email_verified_at IS NOT NULL
-         LIMIT 1`,
+        `SELECT user_id::text AS id
+         FROM app.email_password_find_login_candidate($1)
+         WHERE email_verified = true`,
         [emailNormalized],
       );
       return r.rows[0]?.id ?? null;

@@ -182,6 +182,15 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     );
   });
 
+  it("createPgUserPasswordCredentialsPort uses the narrow login-candidate accessor for credential reads", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "u1" }] });
+    const port = createPgUserPasswordCredentialsPort();
+    await expect(port.findVerifiedUserIdWithPassword("user@example.com")).resolves.toBe("u1");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0]);
+    expect(sql).toContain("app.email_password_find_login_candidate");
+    expect(sql).not.toContain("FROM user_password_credentials");
+  });
+
   it("createPgUserPasswordCredentialsPort registerPendingVerification uses runWebappTransaction", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [{ ok: true, code: null, user_id: "u-new" }],

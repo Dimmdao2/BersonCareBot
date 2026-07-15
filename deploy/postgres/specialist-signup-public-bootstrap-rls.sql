@@ -49,6 +49,7 @@ DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
+DROP FUNCTION IF EXISTS app.email_password_find_login_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
 DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text);
 DROP FUNCTION IF EXISTS app.staff_user_has_web_oauth_binding(uuid);
@@ -346,6 +347,26 @@ COMMENT ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) IS
 
 ALTER FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) OWNER TO :specialist_signup_email_challenges_owner_ident;
 
+CREATE OR REPLACE FUNCTION app.email_password_find_login_candidate(p_email_norm text)
+RETURNS TABLE (user_id uuid, password_hash text, email_verified boolean)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT upc.user_id, upc.password_hash, (pu.email_verified_at IS NOT NULL)
+  FROM public.user_password_credentials AS upc
+  INNER JOIN public.platform_users AS pu ON pu.id = upc.user_id
+  WHERE pu.merged_into_id IS NULL
+    AND pu.email_normalized = lower(btrim(p_email_norm))
+  LIMIT 1
+$$;
+
+COMMENT ON FUNCTION app.email_password_find_login_candidate(text) IS
+  'Narrow pre-auth email/password login lookup. It exposes one candidate only to the application so password verification stays in Node without granting credential-table access.';
+
+ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO :specialist_signup_password_credentials_owner_ident;
+
 CREATE OR REPLACE FUNCTION app.create_specialist_signup_intent(
   p_user_id uuid,
   p_challenge_id uuid,
@@ -472,6 +493,7 @@ REVOKE ALL ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
@@ -484,6 +506,7 @@ GRANT EXECUTE ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) TO app_staf
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
