@@ -53,6 +53,13 @@ export function AppEntryLoginContent({
             </p>
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
               <a
+                id="app-entry-dev-public-registration"
+                href="/api/auth/dev-public?view=registration"
+                className={cn(buttonVariants({ size: "sm" }))}
+              >
+                Public / регистрация
+              </a>
+              <a
                 id="app-entry-dev-login-patient"
                 href="/api/auth/dev-bypass?token=dev%3Aclient"
                 className={cn(buttonVariants({ size: "sm" }))}
@@ -61,10 +68,10 @@ export function AppEntryLoginContent({
               </a>
               <a
                 id="app-entry-dev-login-doctor"
-                href="/api/auth/dev-bypass?token=dev%3Aadmin"
+                href="/api/auth/dev-bypass?token=dev%3Aclinic-admin"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
-                Как врач / админ
+                Как администратор клиники
               </a>
               <a
                 id="app-entry-dev-login-doctor-role"
@@ -72,6 +79,13 @@ export function AppEntryLoginContent({
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как специалист
+              </a>
+              <a
+                id="app-entry-dev-login-global-admin"
+                href="/api/auth/dev-bypass?token=dev%3Aadmin"
+                className={cn(buttonVariants({ size: "sm" }))}
+              >
+                Как глобальный администратор
               </a>
             </div>
           </div>

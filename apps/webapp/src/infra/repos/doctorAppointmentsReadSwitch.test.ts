@@ -3,7 +3,11 @@ import {
   createDoctorAppointmentsReadSwitchPort,
   parseDoctorAppointmentsReadSource,
 } from "./doctorAppointmentsReadSwitch";
-import type { DoctorAppointmentsPort } from "@/modules/doctor-appointments/ports";
+import type {
+  DoctorAppointmentsPort,
+  ScheduleKpis,
+  ScheduleKpisQuery,
+} from "@/modules/doctor-appointments/ports";
 
 function mockPort(tag: string): DoctorAppointmentsPort {
   // Encode the port tag into recordsInPeriod so KPI routing is observable:
@@ -107,6 +111,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
   // S2b (D1): KPI source is pinned to canonical regardless of the read-source flag,
   // because the legacy port's getScheduleKpis is an all-zero stub.
   const KPI_QUERY = { from: "2026-06-01T00:00:00+03:00", to: "2026-07-01T00:00:00+03:00" };
+  const KPI_AUDIENCE = { organizationId: "00000000-0000-4000-8000-0000000000aa" };
 
   it("getScheduleKpis uses canonical even when read-source is rubitime_legacy", async () => {
     const legacy = mockPort("legacy");
@@ -115,7 +120,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       canonicalPort: canonical,
       resolveReadSource: async () => "rubitime_legacy",
     });
-    const kpis = await port.getScheduleKpis(KPI_QUERY);
+    const kpis = await port.getScheduleKpis(KPI_QUERY, KPI_AUDIENCE);
     // Non-zero => came from canonical, not the legacy all-zero stub.
     expect(kpis.recordsInPeriod).toBe(37);
     expect(canonical.getScheduleKpis).toHaveBeenCalled();
@@ -129,7 +134,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       canonicalPort: canonical,
       resolveReadSource: async () => "canonical",
     });
-    const kpis = await port.getScheduleKpis(KPI_QUERY);
+    const kpis = await port.getScheduleKpis(KPI_QUERY, KPI_AUDIENCE);
     expect(kpis.recordsInPeriod).toBe(37);
     expect(canonical.getScheduleKpis).toHaveBeenCalled();
     expect(legacy.getScheduleKpis).not.toHaveBeenCalled();
@@ -141,9 +146,26 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       resolveReadSource: async () => "canonical",
     });
 
-    await expect(port.getScheduleKpis(KPI_QUERY)).rejects.toThrow(
+    await expect(port.getScheduleKpis(KPI_QUERY, KPI_AUDIENCE)).rejects.toThrow(
       "doctor_appointments_canonical_port_unavailable",
     );
+  });
+
+  it("getScheduleKpis fails closed before dispatch when organization is absent at runtime", async () => {
+    const canonical = mockPort("canonical");
+    const port = createDoctorAppointmentsReadSwitchPort({
+      canonicalPort: canonical,
+      resolveReadSource: async () => "canonical",
+    });
+    const unsafeGetScheduleKpis = port.getScheduleKpis as unknown as (
+      query: ScheduleKpisQuery,
+      audience?: { organizationId?: string },
+    ) => Promise<ScheduleKpis>;
+
+    await expect(unsafeGetScheduleKpis(KPI_QUERY)).rejects.toThrow(
+      "schedule_kpis_organization_required",
+    );
+    expect(canonical.getScheduleKpis).not.toHaveBeenCalled();
   });
 
   it("all other read-path methods are canonical-only after R2 cutover", async () => {
@@ -153,7 +175,7 @@ describe("createDoctorAppointmentsReadSwitchPort", () => {
       canonicalPort: canonical,
       resolveReadSource: async () => "rubitime_legacy",
     });
-    await port.getScheduleKpis(KPI_QUERY);
+    await port.getScheduleKpis(KPI_QUERY, KPI_AUDIENCE);
     const rows = await port.listAppointmentsForSpecialist({ kind: "futureActive" });
     expect(rows[0]?.id).toBe("canonical");
     expect(canonical.listAppointmentsForSpecialist).toHaveBeenCalled();

@@ -12,7 +12,7 @@
 | Вкладка | `?tab=` | Старый URL (308 → агрегатный) |
 |---------|---------|-------------------------------|
 | Записи | `cal` (default) | `/app/doctor/calendar` → `?tab=cal` |
-| Записи | `cal` | `/app/doctor/appointments` → `?tab=cal` |
+| Записи | `cal` | `/app/doctor/appointments` (включая `?view=future\|past`) → `?tab=cal`; legacy query отбрасывается |
 | Настройки | `setup` | `/app/doctor/admin/booking` → `?tab=setup` |
 
 **Loop-guard:** `x-bc-doctor-rewrite` в `doctorRouteRedirects.ts` сохранён (защита от петли для
@@ -49,7 +49,7 @@
 | Отмены | `cancellationsInPeriod` |
 | Переносы | `reschedulesInPeriod` |
 
-Отображаются только в «Записях» (не в «Ленте» и не в «Дне»). Параллельная загрузка фид + KPI
+Отображаются только в «Записях» (не в drill-down «День»). Параллельная загрузка событий + KPI
 по одному диапазону + фильтрам. API: `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=`.
 
 **Семантика ключевых полей:**
@@ -71,16 +71,20 @@
 
 ### Записи (`cal`) — `ScheduleCalendarTab`
 
-- 4 вида в переключателе: **3 дня / Неделя / Месяц / Лента**. «День» — только drill-down (клик по
+- 3 диапазона в переключателе: **3 дня / Неделя / Месяц**. «День» — только drill-down (клик по
   заголовку дня или числу в месяце).
   - `3days` — FullCalendar `timeGrid3days` (custom view, duration 3 days).
   - `weekgrid` — FullCalendar `timeGridWeek`.
   - `month` — FullCalendar `dayGridMonth`; плашка = фамилия; сегодня `#fff8e6`; `+N` при переполнении.
-  - `feed` — кастомный `FeedView`; пустые дни пропущены; бесконечная прокрутка ±30 дней.
   - `day` — drill-down: кнопка «← Назад», стрелки по дням, KPI скрыт.
-- **KPI-ряд** 9 карточек — под тулбаром, скрыт в `feed`/`day`. Нули отображаются как 0.
-- Тулбар: вид + ◀period▶ (скрыт в Ленте) + Локация + Услуга + «+ Создать запись».
-- Часы сетки: из `workingBounds` ответа фида (±1ч); fallback `06:00–23:00`.
+- **KPI-ряд** 9 карточек — под тулбаром, скрыт в `day`. Нули отображаются как 0.
+- Тулбар: диапазон + независимый переключатель рендера **Календарь / Список** (`render=list`) +
+  ◀period▶ + Локация + Услуга + «+ Создать запись».
+- Прошедшие и будущие записи проверяются в этом же календаре: выбрать подходящий вид и перейти к нужному
+  диапазону кнопками предыдущего/следующего периода либо через deep-link `view` + `date`; при необходимости
+  тот же диапазон открыть списком через `render=list`. Отдельных past/future-списков больше нет; legacy
+  `/appointments?view=future|past` всегда ведёт на `?tab=cal`.
+- Часы сетки: из `workingBounds` ответа календарного API (±1ч); fallback `06:00–23:00`.
 - Правая панель: карточка записи или заглушка «Запись не выбрана» + CTA + `NearestWindowLine`.
 - Поллинг: только когда `isActive === true`.
 
@@ -138,7 +142,7 @@ Admin-only (обеспечено на уровне nav и шелла). Под-н
 - `GET/POST/DELETE /api/admin/booking-engine/working-schedule-templates` — CRUD + apply.
 - `GET /api/doctor/schedule-kpis?from=&to=&branchId?=&serviceId?=` — 9 метрик.
 - `GET /api/doctor/schedule/nearest-free-window` — ближайшее свободное окно (C3).
-- `GET /api/doctor/booking-engine/calendar` — фид событий + `workingBounds` (C1/C2).
+- `GET /api/doctor/booking-engine/calendar` — события календаря + `workingBounds` (C1/C2).
 
 Авторизация: `requireAdminBookingEngine` (booking routes) / `requireDoctorAccess` (KPI, calendar).
 

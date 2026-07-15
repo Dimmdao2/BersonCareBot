@@ -42,8 +42,12 @@ export function createDoctorAppointmentsReadSwitchPort(input: {
     getAppointmentStats: async (filter, audience) => (await pick()).getAppointmentStats(filter, audience),
     getDashboardAppointmentMetrics: async (audience) =>
       (await pick()).getDashboardAppointmentMetrics(audience),
-    getScheduleKpis: async (query, audience) =>
-      (await pick()).getScheduleKpis(query, audience),
+    getScheduleKpis: async (query, audience) => {
+      if (!audience?.organizationId) {
+        throw new Error("schedule_kpis_organization_required");
+      }
+      return (await pick()).getScheduleKpis(query, audience);
+    },
     getAppointmentDailySeries: async (filter, audience) =>
       (await pick()).getAppointmentDailySeries(filter, audience),
   };

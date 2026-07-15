@@ -6,10 +6,14 @@ export type DoctorProactiveInsightsQueryResult = {
 };
 
 export type DoctorProactiveInsightsPort = {
-  queryInsights(params: { limit: number; displayIana: string }): Promise<DoctorProactiveInsightsQueryResult>;
+  queryInsights(params: {
+    limit: number;
+    displayIana: string;
+    organizationId: string;
+  }): Promise<DoctorProactiveInsightsQueryResult>;
   listForPatient(params: {
     patientUserId: string;
     displayIana: string;
-    organizationId?: string;
+    organizationId: string;
   }): Promise<ProactiveInsightRow[]>;
 };

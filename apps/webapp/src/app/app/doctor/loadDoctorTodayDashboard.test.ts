@@ -184,6 +184,7 @@ describe("loadDoctorTodayDashboard audience", () => {
     const audience = { excludedUserIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"] };
     const listCalls: Array<{ filter: unknown; audience?: unknown }> = [];
     const deps = {
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       doctorAppointments: {
         listAppointmentsForSpecialist: async (
           filter: unknown,
@@ -195,11 +196,11 @@ describe("loadDoctorTodayDashboard audience", () => {
       },
       doctorClients: {
         getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
-          expect(aud).toEqual(audience);
+          expect(aud).toEqual({ ...audience, organizationId: deps.organizationId });
           return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
         },
         listClients: async (_filters: unknown, aud?: { excludedUserIds?: string[] }) => {
-          expect(aud).toEqual(audience);
+          expect(aud).toEqual({ ...audience, organizationId: deps.organizationId });
           return [];
         },
       },
@@ -285,10 +286,12 @@ describe("loadDoctorTodayDashboard audience", () => {
 });
 
 describe("loadDoctorTodayDashboard proactive", () => {
-  it("uses single queryInsights call for proactive section", async () => {
+  it("uses single organization-scoped queryInsights call for proactive section", async () => {
     const { loadDoctorTodayDashboard } = await import("./loadDoctorTodayDashboard");
-    let queryCalls = 0;
+    const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const queryCalls: unknown[] = [];
     const deps = {
+      organizationId,
       doctorAppointments: {
         listAppointmentsForSpecialist: async () => [],
       },
@@ -314,8 +317,8 @@ describe("loadDoctorTodayDashboard proactive", () => {
         },
       },
       doctorProactiveInsights: {
-        queryInsights: async () => {
-          queryCalls += 1;
+        queryInsights: async (params: unknown) => {
+          queryCalls.push(params);
           return {
             items: [
               {
@@ -335,7 +338,13 @@ describe("loadDoctorTodayDashboard proactive", () => {
     const data = await loadDoctorTodayDashboard(deps, {
       listForDoctor: async () => ({ items: [], total: 0 }),
     } as unknown as import("@/modules/online-intake/ports").OnlineIntakeService);
-    expect(queryCalls).toBe(1);
+    expect(queryCalls).toEqual([
+      {
+        limit: 10,
+        displayIana: "Europe/Moscow",
+        organizationId,
+      },
+    ]);
     expect(data.proactiveInsightsTotal).toBe(3);
     expect(data.proactiveInsights).toHaveLength(1);
     expect(data.proactiveInsights[0]?.href).toBe("/app/doctor/patients/p1");

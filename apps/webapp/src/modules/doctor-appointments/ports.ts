@@ -90,6 +90,11 @@ export type DoctorDashboardAppointmentMetrics = {
 
 export type DoctorAppointmentsAudience = { excludedUserIds?: string[]; organizationId?: string };
 
+export type DoctorScheduleKpisAudience = {
+  excludedUserIds?: string[];
+  organizationId: string;
+};
+
 /** KPI метрики для страницы «Расписание» врача (9 плиток в KPI-строке, ТЗ §4.1). */
 export type ScheduleKpis = {
   /** Неотменённые записи в периоде по start_at. */
@@ -159,7 +164,7 @@ export type DoctorAppointmentsPort = {
   /** KPI строка раздела «Расписание»: 9 метрик по произвольному диапазону + фильтры. */
   getScheduleKpis(
     query: ScheduleKpisQuery,
-    audience?: DoctorAppointmentsAudience,
+    audience: DoctorScheduleKpisAudience,
   ): Promise<ScheduleKpis>;
   /** Дневной ряд динамики записей + разбивка по филиалам за выбранный период. */
   getAppointmentDailySeries(

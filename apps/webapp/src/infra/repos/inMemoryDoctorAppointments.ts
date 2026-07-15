@@ -44,7 +44,7 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   },
   async getScheduleKpis(
     _query: ScheduleKpisQuery,
-    _audience?: { excludedUserIds?: string[] },
+    _audience: { excludedUserIds?: string[]; organizationId: string },
   ): Promise<ScheduleKpis> {
     // Stub: no in-memory appointment dataset; returns zeros for all 9 KPI.
     // Real KPIs come from pgDoctorCanonicalAppointments.

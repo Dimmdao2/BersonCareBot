@@ -56,10 +56,11 @@ function listBasePathForScope(scope: "appointments" | "all" | "archived"): strin
 export async function loadDoctorClientProfileCardProps(input: {
   userId: string;
   doctorUserId: string;
+  organizationId: string;
   scopeParam?: string;
   autoOpenChat?: boolean;
 }): Promise<LoadDoctorClientProfileCardResult> {
-  const { userId, doctorUserId, scopeParam, autoOpenChat = false } = input;
+  const { userId, doctorUserId, organizationId, scopeParam, autoOpenChat = false } = input;
   const deps = buildAppDeps();
   const hasDb = Boolean(env.DATABASE_URL);
   const profileListScope = normalizeDoctorClientProfileScope(scopeParam);
@@ -110,6 +111,7 @@ export async function loadDoctorClientProfileCardProps(input: {
   const proactiveInsights = hasDb
     ? await deps.doctorProactiveInsights.listForPatient({
         patientUserId: userId,
+        organizationId,
         displayIana: displayTimeZone,
       })
     : [];

@@ -11,6 +11,7 @@ import {
   shouldAllowStandaloneTokenExchange,
 } from "@/modules/auth/appEntryClassification";
 import { buildPrefetchedPublicAuthConfig } from "@/modules/auth/publicAuthSnapshot";
+import { isDevAuthBypassEnabled } from "@/modules/auth/devBypassPolicy";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getMessengerSurfaceHint, getPlatformEntry } from "@/shared/lib/platformCookie.server";
@@ -36,7 +37,10 @@ export async function AppEntryRsc({
     redirect(getPostAuthRedirectTarget(session.user.role, nextParam ?? null));
   }
 
-  const allowDevBypass = env.ALLOW_DEV_AUTH_BYPASS === true && env.NODE_ENV !== "production";
+  const allowDevBypass = isDevAuthBypassEnabled({
+    nodeEnv: env.NODE_ENV,
+    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
+  });
   const allowStandaloneTokenExchange = shouldAllowStandaloneTokenExchange({
     token: rawToken,
     switchParam: switchParam ?? null,

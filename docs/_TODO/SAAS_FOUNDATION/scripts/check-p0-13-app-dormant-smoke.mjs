@@ -12,6 +12,7 @@ const files = {
   doctorSmoke: "apps/webapp/e2e/doctor-pages-inprocess.test.ts",
   patientSmoke: "apps/webapp/e2e/patient-playback-inprocess.test.ts",
   devBypassRoute: "apps/webapp/src/app/api/auth/dev-bypass/route.ts",
+  devBypassPolicy: "apps/webapp/src/modules/auth/devBypassPolicy.ts",
   devBypassClassification: "apps/webapp/src/modules/auth/appEntryClassification.test.ts",
   devBypassExchange: "apps/webapp/src/modules/auth/exchangeIntegratorToken.devBypassPhoneTrust.test.ts",
 };
@@ -38,6 +39,7 @@ function runChecks(overrides = {}) {
   const doctorSmoke = overrides.doctorSmoke ?? read(files.doctorSmoke);
   const patientSmoke = overrides.patientSmoke ?? read(files.patientSmoke);
   const devBypassRoute = overrides.devBypassRoute ?? read(files.devBypassRoute);
+  const devBypassPolicy = overrides.devBypassPolicy ?? read(files.devBypassPolicy);
   const devBypassClassification = overrides.devBypassClassification ?? read(files.devBypassClassification);
   const devBypassExchange = overrides.devBypassExchange ?? read(files.devBypassExchange);
 
@@ -81,14 +83,21 @@ function runChecks(overrides = {}) {
   }
 
   for (const token of [
-    "env.NODE_ENV === \"production\"",
-    "env.ALLOW_DEV_AUTH_BYPASS !== true",
+    "isDevAuthBypassEnabled",
     "dev:client",
     "dev:doctor",
+    "dev:clinic-admin",
     "dev:admin",
     "getPostAuthRedirectTarget",
   ]) {
     assertContains(files.devBypassRoute, devBypassRoute, token);
+  }
+
+  for (const token of [
+    "input.nodeEnv === 'development'",
+    "input.allowDevAuthBypass",
+  ]) {
+    assertContains(files.devBypassPolicy, devBypassPolicy, token);
   }
 
   for (const token of [
@@ -103,6 +112,7 @@ function runChecks(overrides = {}) {
     "writes phone + patient_phone_trust_at for dev:client",
     "writes phone only for dev:admin",
     "forces preset role for dev:admin",
+    "provisions an owner workspace for dev:clinic-admin",
     "getTelegramBotToken: async () => \"\"",
     "getMaxBotApiKey: async () => \"\"",
   ]) {

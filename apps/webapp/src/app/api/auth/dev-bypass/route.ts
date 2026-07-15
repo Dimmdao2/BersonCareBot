@@ -4,8 +4,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { getRequestOrigin } from "@/shared/lib/http/getRequestOrigin";
+import { isDevAuthBypassEnabled } from "@/modules/auth/devBypassPolicy";
 
-const DEV_BYPASS_TOKENS = new Set(["dev:client", "dev:doctor", "dev:admin"]);
+const DEV_BYPASS_TOKENS = new Set(["dev:client", "dev:doctor", "dev:clinic-admin", "dev:admin"]);
 
 function redirectToPath(path: string, origin: string): NextResponse {
   return NextResponse.redirect(new URL(path, origin), { status: 303 });
@@ -16,7 +17,10 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request, requestUrl);
 
-  if (env.NODE_ENV === "production" || env.ALLOW_DEV_AUTH_BYPASS !== true) {
+  if (!isDevAuthBypassEnabled({
+    nodeEnv: env.NODE_ENV,
+    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
+  })) {
     return redirectToPath("/app", origin);
   }
 

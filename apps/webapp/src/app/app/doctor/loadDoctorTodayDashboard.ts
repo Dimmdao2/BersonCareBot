@@ -75,7 +75,7 @@ export type DoctorTodayDashboardDeps = {
   specialistTasks?: SpecialistTasksService;
   specialistOwnerUserId?: string;
   doctorUserId?: string;
-  organizationId?: string;
+  organizationId: string;
   treatmentProgramProgress?: TreatmentProgramProgressService;
   doctorProactiveInsights?: DoctorProactiveInsightsPort;
   treatmentProgramInstance?: {
@@ -383,13 +383,10 @@ export async function loadDoctorTodayDashboard(
   intakeService: OnlineIntakeService,
   audience?: DoctorAppointmentsAudience,
 ): Promise<TodayDashboardData> {
-  const scopedAudience: DoctorAppointmentsAudience | undefined =
-    audience?.excludedUserIds?.length || deps.organizationId
-      ? {
-          excludedUserIds: audience?.excludedUserIds ?? [],
-          organizationId: deps.organizationId,
-        }
-      : undefined;
+  const scopedAudience: DoctorAppointmentsAudience = {
+    excludedUserIds: audience?.excludedUserIds ?? [],
+    organizationId: deps.organizationId,
+  };
   const clientAudience = scopedAudience;
   const [
     todayRaw,
@@ -455,6 +452,7 @@ export async function loadDoctorTodayDashboard(
       ? deps.doctorProactiveInsights.queryInsights({
           limit: DOCTOR_TODAY_PROACTIVE_INSIGHTS_PREVIEW_LIMIT,
           displayIana: deps.displayIana,
+          organizationId: deps.organizationId,
         })
       : Promise.resolve({ items: [], totalCount: 0 }),
     loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
