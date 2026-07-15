@@ -68,8 +68,11 @@ function runFixtureGateDocChecks() {
   ]);
 
   requireFragments(files.roadmap, roadmap, [
-    "If the operator-managed\n`SAAS_PRODUCT_SMOKE_FIXTURE` / `--fixture-file` path is absent, this gate is **SKIPPED/BLOCKED**, not PASS.",
-    "Missing `SAAS_PRODUCT_SMOKE_FIXTURE` remains a **SKIPPED/BLOCKED** product gate and cannot be\nused as R2 evidence.",
+    // The R1/R2 finish line was rewritten 2026-07-15 (owner: no prod cutover; TEST-first, then a
+    // fresh new-domain copy). The two fragments previously pinned here quoted the superseded
+    // cutover wording. The RULE they protected — a missing fixture is SKIPPED/BLOCKED, never PASS —
+    // is unchanged and is now stated once for both R1 and R2; only the prose moved.
+    "If the\noperator-managed fixture is absent, product smoke is **SKIPPED/BLOCKED**, not PASS.",
     "Confirm an owner/operator-managed product smoke fixture file path is supplied.",
     "If the fixture is absent, record\n  **SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence.",
     "`SAAS_PRODUCT_SMOKE_FIXTURE` unset is a documented blocker,\nnot a successful D3 exit.",
