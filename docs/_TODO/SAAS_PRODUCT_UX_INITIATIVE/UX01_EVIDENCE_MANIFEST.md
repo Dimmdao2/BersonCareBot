@@ -7,14 +7,17 @@ routes/states but no hashes or dimensions; file existence and dimensions are rec
 
 ## Canonical source manifests
 
-### DEV role matrix — commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`
+### DEV role matrix — application commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`
 
 - `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/public/manifest.md`
 - `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/registration/manifest.md`
-- `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/patient/manifest.md`
 - `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/doctor/manifest.md`
 - `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/clinic-admin/manifest.md`
 - `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/global-admin/manifest.md`
+
+### DEV patient replay — application commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`
+
+- `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T17-51-35Z/patient/manifest.md`
 
 ### TEST walkthrough
 
@@ -28,13 +31,15 @@ routes/states but no hashes or dimensions; file existence and dimensions are rec
 |---|---|---|
 | Public | `desktop-login.png`, `mobile-login.png`, `mobile-root.png` | 3 valid |
 | Registration | `desktop-registration.png`, `mobile-registration.png` | 2 valid: specialist/organization signup; no submit |
-| Patient | `desktop-maintenance-guard.png`, `mobile-maintenance-guard.png` | 2 finding-only: maintenance replacement, not full shell |
+| Patient replay | `desktop-today.png`, `desktop-booking.png`, `desktop-treatment.png`, `desktop-profile.png`, `desktop-notification-settings.png`, `mobile-today.png`, `mobile-booking.png`, `mobile-treatment.png`, `mobile-profile.png` | 7 valid + 2 finding-only Today error boundaries |
 | Doctor | `desktop-today.png`, `mobile-today.png`, `desktop-patients.png`, `desktop-schedule.png`, `desktop-lfk.png` | 5 valid |
 | Clinic admin | `desktop-today.png`, `mobile-today.png`, `desktop-clinic-members.png`, `desktop-clinic-settings.png` | 4 valid |
 | Global admin | `00-shell-today-desktop.png`, `01-shell-today-mobile.png`, `10-analytics-desktop.png`, `20-system-health-desktop.png`, `22-audit-log-desktop.png`, `40-platform-promo-desktop.png` | 5 valid + 1 finding-only |
-| **DEV total** | **22** | **19 valid + 3 finding-only** |
+| **DEV selected total** | **29** | **26 valid + 3 finding-only** |
 
-Deleted privacy-review attempts are not retained or counted: doctor communications; global health archive, app settings, auth settings, integrations and technical settings. Duplicate patient maintenance frames and obsolete `/app/patient/home` 404 were also deleted.
+Deleted privacy-review attempts are not retained or counted: doctor communications; global health archive, app settings,
+auth settings, integrations and technical settings. Obsolete `/app/patient/home` 404 helper captures were deleted.
+The two earlier maintenance captures remain historical files but are superseded/excluded from current totals.
 
 ## TEST selection and supersession
 
@@ -53,16 +58,27 @@ Final schedule truth comes from `15-42-10Z`; corrected Today/badge truth comes f
 
 | Classification | PNG |
 |---|---:|
-| Safe retained/referenced | 64 |
-| Valid product/role-state | 59 |
+| Safe retained/referenced | 71 |
+| Valid product/role-state | 66 |
 | Finding-only | 5 |
 | Superseded TEST, excluded | 14 |
+| Historical maintenance, excluded | 2 |
 
 The two identical mobile shell hashes for doctor and clinic-admin remain separate role attempts/files but do not by themselves prove different expanded mobile menus; role boundary proof comes from the corresponding desktop navigation and manifests.
 
 ## Unclosed acceptance items
 
-- Patient full-shell composition is BLOCKED by maintenance plus copied TEST-only settings lock (`#795`).
+- Patient Today remains finding-only because `organization_principal_required` persists after active enrollment
+  restoration. Other retained patient replay states are valid.
 - Registration submit/verification/first-run states were not exercised. The retained form was exposed after a controlled standard DEV admin API update of `specialist_signup_enabled=true`.
 - Regular-doctor communications has no retained privacy-safe screenshot.
-- Fresh independent audit is required; `UX01_INDEPENDENT_AUDIT.md` remains historical FAIL.
+- Fresh independent audit of the replay is required; `UX01_INDEPENDENT_AUDIT.md` and
+  `UX01_FRESH_AUDIT_2026-07-15.md` remain historical FAIL records.
+
+## Controlled DEV mutations for patient replay
+
+- With explicit owner authorization, a database-name-guarded operation removed the copied TEST-only
+  `system_settings_test_lock` trigger/function from current DEV only.
+- The standard admin settings API set `patient_app_maintenance_enabled=false`.
+- Synthetic `dev:client` active enrollment was restored in organization `a000...0001`.
+- TEST and PROD were untouched; no application code or external delivery state changed.

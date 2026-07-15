@@ -7,24 +7,31 @@
 **Дата:** 2026-07-15
 
 **Область:** фактический аудит без изменений application code и внешней доставки. DEV является изменяемой
-UX-песочницей; единственное контролируемое изменение текущего прохода —
-`specialist_signup_enabled=true` через стандартный admin settings API для проверки формы регистрации.
+UX-песочницей. Контролируемые изменения: `specialist_signup_enabled=true` через стандартный admin settings API;
+owner-authorized удаление скопированного TEST-only lock только из current DEV; стандартный API write
+`patient_app_maintenance_enabled=false`; восстановление active enrollment synthetic `dev:client` в
+organization `a000...0001`.
 
 **Исторические скриншоты:** `.claude/screenshots/SAAS-UX-01-PATIENT-PUBLIC/`.
 
-**Текущее evidence:** `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/{public,registration,patient}/`
-и `UX01_EVIDENCE_MANIFEST.md`. Visual-статусы в route tables ниже относятся к первому pre-refresh run; текущая
-классификация всегда берётся из role-matrix manifests и раздела 1a.
+**Текущее evidence:** `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T16-42-31Z/{public,registration}/`,
+`.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T17-51-35Z/patient/` и `UX01_EVIDENCE_MANIFEST.md`.
+Visual-статусы в route tables ниже относятся к первому pre-refresh run; текущая классификация всегда берётся
+из role-matrix manifests и раздела 1a.
 
 ## 1a. Текущая live-сверка после TEST→DEV refresh
 
 - Public login подтверждён desktop/mobile; текущий landing подтверждён mobile.
 - Registration подтверждена desktop/mobile как форма кабинета специалиста: email, пароль, имя специалиста,
   название организации. Submit не выполнялся.
-- Patient auth через `dev:client` успешен, но весь `/app/patient/**` сейчас заменяется одним maintenance screen.
-  `patient_app_maintenance_enabled=true`, а скопированный из TEST trigger `system_settings_test_lock` блокирует
-  штатное изменение через `updateSetting`/admin API. Поэтому сохранены только два guard-state кадра; Today,
-  appointments, treatment/program, profile/settings и patient navigation остаются **BLOCKED**, taskdb `#795`.
+- По прямому разрешению владельца в DEV защищённой операцией удалены скопированные из TEST lock trigger/function;
+  затем через стандартный admin API установлено `patient_app_maintenance_enabled=false`. TEST и PROD не менялись.
+- Для synthetic `dev:client` восстановлен active enrollment в organization `a000...0001`. Это контролируемое
+  изменение данных DEV-песочницы, выполненное только для проверки разрешённых patient состояний.
+- Новый patient replay сохранил 9 privacy-safe кадров: 7 valid состояний booking, treatment, profile,
+  notification settings и mobile shell; desktop/mobile Today — finding-only. Today после восстановления enrollment
+  по-прежнему падает в product error boundary `organization_principal_required`, поэтому это самостоятельный
+  RSC/product defect, а не fixture/maintenance blocker.
 - Прежний missing-function/schema blocker устранён миграциями и больше не является текущей причиной.
 
 ## 1. Покрытие и способ проверки
@@ -38,7 +45,10 @@ UX-песочницей; единственное контролируемое �
 - PWA manifest и две install-поверхности: публичный install-блок лендинга и `/app/patient/install`;
 - patient layout, route-tier policy, page-level guards, редиректы и legacy aliases.
 
-Кодовая инвентаризация полная по перечисленным деревьям. После risk review сохранено **9 safe PNG**. Из них **4** являются valid product-state captures: одна полная desktop/mobile пара (public booking) и 2 одиночных valid captures (contact support mobile, patient booking desktop). Ещё 5 файлов сохраняют только безопасные наблюдения login/error/blocked states и не считаются визуальной верификацией. Landing и patient-home пары удалены, потому что содержали узнаваемое изображение специалиста (PII).
+Кодовая инвентаризация полная по перечисленным деревьям. Первый pre-refresh run сохранил **9 safe PNG**:
+4 valid и 5 finding-only. Текущий patient replay отдельно добавляет **9 safe PNG**: 7 valid и 2 finding-only.
+Landing и старую patient-home пару удалили из первого run, потому что они содержали узнаваемое изображение
+специалиста (PII). Текущая aggregate-классификация приведена в `UX01_EVIDENCE_MANIFEST.md`.
 
 Важное различие: `patientPageMinAccessTier()` называет часть RSC `guest`, но общий `/app/patient/*` layout всё равно требует session и без неё отправляет на `/app`. Следовательно, эти страницы не являются фактически публичными entrypoints; `guest` здесь означает только optional-session/data fallback внутри реализации, а не anonymous browser access. Evidence: `apps/webapp/src/app/app/patient/layout.tsx:30-39`, `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts:85-100,155-175`.
 
@@ -66,7 +76,7 @@ UX-песочницей; единственное контролируемое �
 | `/app/contact-support?from=` | Anonymous/pre-login | Support form with reply email, message, back to login; retains origin/auth flow. Sending was not exercised. | Compact branded auth shell | Platform support | **keep** as platform support; future org support sender/branding needs decision | mobile verified, no submit |
 | `/legal/terms`, `/legal/privacy` | Anonymous | Read-only legal text and back navigation. | Narrow `640px` legal shell | Platform terms | **keep**; organization-specific supplements need decision, not duplicated legal trees | code verified only |
 | `/manifest.webmanifest` | Browser/PWA | Single global app id `/app`, name/short name BersonCare, start `/app/patient`, scope `/app`, global icons. | Browser manifest | Platform global; no org branding | **needs-decision** for paid white-label/custom-domain contract; current manifest cannot represent concurrent org-branded installs | non-visual; `apps/webapp/src/app/manifest.ts:11-38` |
-| `/app/patient/install` | Onboarding or patient session (`requirePatientAccess`) | Manual browser-specific install instructions + Web Push opt-in. | L10 standard stack | Platform app; text says same account across Telegram/browser | **move/merge** into post-invite first-run and persistent settings/help entry; push consent after useful first screen | not visually verified due DB blocker |
+| `/app/patient/install` | Onboarding or patient session (`requirePatientAccess`) | Manual browser-specific install instructions + Web Push opt-in. | L10 standard stack | Platform app; text says same account across Telegram/browser | **move/merge** into post-invite first-run and persistent settings/help entry; push consent after useful first screen | install action visible in notification settings; dedicated install interaction not exercised |
 
 Public landing evidence: `apps/webapp/src/app/page.tsx:1-69`. Auth shell evidence: `apps/webapp/src/app/app/AppEntryRsc.tsx:21-87`. Email/setup and support entry evidence: `apps/webapp/src/app/app/auth/email-setup/page.tsx:1-13`, `apps/webapp/src/app/app/contact-support/page.tsx:1-9`. Install evidence: `apps/webapp/src/app/app/patient/install/page.tsx:8-27`.
 
@@ -88,22 +98,22 @@ Evidence for current org boundary in public booking: `apps/webapp/src/app/book/n
 
 | Route / coherent family | Actor / guard | Purpose, key actions and states | Layout | Current context | Disposition hypothesis | Visual |
 |---|---|---|---|---|---|---|
-| `/app/patient` | Onboarding or patient session; `requirePatientAccess` + RSC personal-data gate | Today dashboard: greeting, warmup, wellbeing check-in, daily progress, next reminder, urgent-help/booking cards. Onboarding state disables progress/check-in and shows activation prompts. | L11 today mosaic | No visible organization switch; content and specialist are effectively current/global | **keep/reframe** as organization-scoped Today; add explicit active organization and attribution where multiple enrollments exist | attempted desktop/mobile; pair deleted because it contained an identifiable specialist image; **NOT VISUALLY VERIFIED** |
-| `/profile` | Onboarding+; `requirePatientAccess`; profile is the only onboarding server-action surface | Identity/profile edit, channels, activation-related actions. | L10 | Global identity | **keep**, split global identity from per-organization patient profile/preferences | code verified only |
+| `/app/patient` | Onboarding or patient session; `requirePatientAccess` + RSC personal-data gate | Today dashboard: greeting, warmup, wellbeing check-in, daily progress, next reminder, urgent-help/booking cards. Onboarding state disables progress/check-in and shows activation prompts. | L11 today mosaic | No visible organization switch; content and specialist are effectively current/global | **keep/reframe** as organization-scoped Today; add explicit active organization and attribution where multiple enrollments exist | desktop/mobile replay reaches `organization_principal_required`; **finding-only, NOT VISUALLY VERIFIED as healthy state** |
+| `/profile` | Onboarding+; `requirePatientAccess`; profile is the only onboarding server-action surface | Identity/profile edit, channels, activation-related actions. | L10 | Global identity | **keep**, split global identity from per-organization patient profile/preferences | desktop/mobile verified with synthetic fixture |
 | `/bind-phone` | Onboarding+; `requirePatientAccess` | Phone/channel activation, then safe `next` redirect; already activated path exits to target/home. | Embedded/standard Patient shell | Global identity | **keep** as fallback activation, not mandatory for email-verified patient except trusted-phone booking requirement | code verified only |
 | `/about`, `/address` | Session required by parent layout; page uses optional session | Singular specialist info and clinic address content/linking. | L10 | Single specialist/single clinic assumption | **move** to organization public/profile context; appointment-specific address remains in booking detail | code verified only |
 | `/help`, `/help/[slug]`, `/content/[slug]` | Help index onboarding+; dynamic pages may expose only published/non-auth content and RSC gate personal data | Help list/detail and CMS content, booking/support links, media/markdown. Not-found for inaccessible content. | L10 | Content has publication/auth flags, but patient UI has no visible org source label | **keep**, add content ownership/source attribution; merge duplicate help/content concepts only after CMS contract | code verified only |
 | `/sections`, `/sections/[slug]`, `/lessons`, `/emergency` | Session; some dynamic content allowed during onboarding | `/sections` redirects home; dynamic section lists content; lessons/emergency are compatibility redirects; daily warmup can redirect through `go`. | L10 | Current CMS/global content | **merge/retire aliases**: keep canonical content destinations, retire navigation-only aliases after deep-link audit | code verified only |
 | `/courses` | Layout allows optional data surface; actions remain business-gated | Course catalog/metadata. | L10 | No explicit org selector | **needs-decision**: organization catalog vs global marketplace | code verified only |
-| `/treatment`, `/treatment/[instanceId]`, `/item/[itemId]` | Patient tier via RSC personal-data gate | Program list/single-program redirect, program tabs/stages/status, item execution/media/test states. | L12 treatment | Program instance implicitly owns clinical context; no persistent org/specialist label in route | **keep**, add organization + author specialist attribution; no duplicate per-specialist app | blocked/limited mobile shell observed, **not verified**; no valid business content |
+| `/treatment`, `/treatment/[instanceId]`, `/item/[itemId]` | Patient tier via RSC personal-data gate | Program list/single-program redirect, program tabs/stages/status, item execution/media/test states. | L12 treatment | Program instance implicitly owns clinical context; no persistent org/specialist label in route | **keep**, add organization + author specialist attribution; no duplicate per-specialist app | desktop/mobile program shell and assigned pre-start program verified; item execution not exercised |
 | `/treatment/promo`, `/promo/item/[templateStageItemId]` | Patient tier/data gate | Resolve published promo template, materialize/pick program and redirect to canonical instance/item. | L12 transitional | Global/default promo template | **move/retire** from patient IA after assignment-source/entitlement contract; keep redirect compatibility if needed | code verified only |
-| `/booking`, `/booking/new`, `/new/service`, `/new/slot`, `/new/confirm`, `/new/done` | Session; page optional-session checks redirect without session; confirmation business API requires trusted phone | Patient booking, upcoming/history/memberships/payment history, four-step new/reschedule flow. | L14 booking wizard | Loads by `userId`; selected city/branch/service carries booking context, but no visible active org switch | **keep**, make organization selection/identity explicit before services when patient has multiple enrollments | desktop step 1 verified |
+| `/booking`, `/booking/new`, `/new/service`, `/new/slot`, `/new/confirm`, `/new/done` | Session; page optional-session checks redirect without session; confirmation business API requires trusted phone | Patient booking, upcoming/history/memberships/payment history, four-step new/reschedule flow. | L14 booking wizard | Loads by `userId`; selected city/branch/service carries booking context, but no visible active org switch | **keep**, make organization selection/identity explicit before services when patient has multiple enrollments | desktop/mobile step 1 verified; Moscow, Saint Petersburg and online services render |
 | `/booking/service`, `/slot`, `/confirm`, `/done`; `/new/city` | Same as canonical booking | Compatibility exports/redirects to new wizard. | L14 | Same | **retire aliases** after external deep-link inventory | code verified only |
 | `/booking/pay` | Patient tier/payment context | Legacy/payment continuation. | L10/L14 adjacent | Appointment/payment context | **merge** into canonical booking payment journey | code verified only |
 | `/cabinet` | Session/data gate | Compatibility booking entry; guest-like fallback then redirect to `/booking/new`. | L10 transient | User bookings | **retire** after entry links converge | code verified only |
-| `/messages` | Patient tier; `requirePatientAccessWithPhone` | Dedicated chat. Current title is hard-coded «Чат с Дмитрием». | L13 dedicated chat | Single specialist, no org/thread selection | **split** into organization-scoped inbox + clearly attributed conversation threads; author/recipient explicit | not visually verified due DB blocker |
+| `/messages` | Patient tier; `requirePatientAccessWithPhone` | Dedicated chat. Current title is hard-coded «Чат с Дмитрием». | L13 dedicated chat | Single specialist, no org/thread selection | **split** into organization-scoped inbox + clearly attributed conversation threads; author/recipient explicit | not visually verified; omitted from bounded replay |
 | `/notifications` | Patient tier; `requirePatientAccessWithPhone` | Notification/history chat-like surface. | L13 embedded chat variant | No explicit org source | **merge** delivery inbox semantics with messages/activity after content audit; avoid two chat chromes | not visually verified |
-| `/notifications/settings` | Patient tier | Topic/channel preferences and Web Push controls. | L10 | Global user channel preferences today | **split** global channel consent from optional per-organization/topic preferences | code verified only |
+| `/notifications/settings` | Patient tier | Topic/channel preferences and Web Push controls. | L10 | Global user channel preferences today | **split** global channel consent from optional per-organization/topic preferences | desktop verified; install action visible, no preference/install mutation exercised |
 | `/broadcasts/[auditId]` | Onboarding+ session then redirect | Compatibility deep-link to messages. | Redirect | Broadcast source implicit | **retire alias** after notification deep-link contract | code verified only |
 | `/reminders`, `/reminders/journal/[ruleId]` | Patient tier; `requirePatientAccessWithPhone` | Reminder schedule/rules and completion journal. | L10 | Rule/assignment owns clinical context, not exposed as org selector | **keep**, display org/specialist source for multi-org patient | not visually verified |
 | `/diary`, `/diary/symptoms/journal`, `/diary/lfk/journal` | Layout permits route; personal data through RSC gate; mutations require patient tier | Overview and symptom/rehab journals; guest/blocked fallback exists. | L10 | User/program context; legacy LFK naming still present in journal route/UI | **keep/merge** into program-aware diary; migrate user-facing LFK wording per rule | not visually verified |
@@ -117,6 +127,8 @@ Key evidence: home `apps/webapp/src/app/app/patient/page.tsx:24-55`; booking `ap
 
 ## 6. Visual evidence index
 
+Current patient replay: `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T17-51-35Z/patient/manifest.md`.
+
 | File | Surface/state | Assessment |
 |---|---|---|
 | `public-auth-desktop.png`, `public-auth-mobile.png` | `/app` | Safe login-shell evidence only; **not counted as verified**. |
@@ -126,6 +138,11 @@ Key evidence: home `apps/webapp/src/app/app/patient/page.tsx:24-55`; booking `ap
 | `auth-tg-entry-mobile.png` | `/app/tg` without init data | Safe missing-init error finding only; **not counted as verified**. |
 | `patient-booking-desktop.png` | `/app/patient/booking/new` | Verified step 1 shell/content; no selection or mutation exercised. |
 | `patient-treatment-mobile.png` | `/app/patient/treatment` | Safe blocked/limited finding only; **not counted as verified**. |
+| `desktop-booking.png`, `mobile-booking.png` | `/app/patient/booking` | Verified healthy booking step 1 and patient navigation. |
+| `desktop-treatment.png`, `mobile-treatment.png` | `/app/patient/treatment` | Verified assigned program/pre-start treatment shell. |
+| `desktop-profile.png`, `mobile-profile.png` | `/app/patient/profile` | Verified synthetic patient profile/settings and navigation. |
+| `desktop-notification-settings.png` | `/app/patient/notifications/settings` | Verified channel/topic settings; no mutation exercised. |
+| `desktop-today.png`, `mobile-today.png` | `/app/patient` | `organization_principal_required` product error; finding-only. |
 
 No screenshot contains a submitted form, booking creation, payment, support delivery, push subscription, or message send.
 
@@ -133,22 +150,24 @@ No screenshot contains a submitted form, booking creation, payment, support deli
 
 The following remain explicitly **NOT VISUALLY VERIFIED as valid product states**:
 
-- all patient business-content states dependent on a successful `patientClientBusinessGate`: full treatment/program item, messages, notifications, reminders, diary journals, intake, purchases, memberships;
+- patient program item execution, messages, notification inbox, reminders, diary journals, intake, purchases and memberships;
 - booking steps 2–4 and success/payment states for both patient and public flows;
 - valid email setup/invite token flow;
 - MAX miniapp init-data flow;
 - legal page rendering (code inspected; Chromium request stalled during this run);
 - valid product-token purchase pages;
 - dynamic CMS help/content/section pages requiring known slugs;
-- patient install screen and actual browser install prompt/service-worker behavior;
+- dedicated patient install screen and actual browser install prompt/service-worker behavior;
 - push permission/subscription states;
 - any multi-organization patient state (no safe fixture exposed through the UI in this run).
 
-### Evidence-backed blocker
+### Evidence-backed patient finding
 
 Historical pre-refresh note: the first run observed a missing `staff_user_has_password_credentials(uuid)` function
 and treated DEV as read-only. That premise is superseded: migrations are now applied and DEV is an authorized
-mutable sandbox. The current patient blocker is the maintenance flag plus copied TEST-only lock described in §1a.
+mutable sandbox. The copied TEST-only lock and maintenance flag were removed from the current DEV instance as
+described in §1a. The remaining Today failure is `organization_principal_required`, reproduced after enrollment
+restoration; it is an application finding, not an environment blocker.
 
 ## 8. Risks and gaps for UX-03/04
 
@@ -161,9 +180,9 @@ mutable sandbox. The current patient blocker is the maintenance flag plus copied
 7. **Duplicated/compatibility route surface is substantial.** Patient booking aliases, public booking aliases, `/cabinet`, `/sections`, lessons/emergency and broadcast redirects should not all survive in target IA.
 8. **Messages and notifications have overlapping chat presentation.** The existing layout inventory already flags two chromes; multi-org conversations make a single canonical inbox/thread rule more urgent.
 9. **Tier terminology can be misread.** Policy-level `guest` does not mean anonymous access beneath the session-enforcing patient layout.
-10. **Current live audit environment does not expose the full patient shell.** UX decisions must not infer missing
-    features from the maintenance replacement state; the former schema mismatch is resolved, and the current blocker
-    is the copied TEST-only settings lock tracked as `#795`.
+10. **Patient Today has an independent organization-principal defect.** Booking, treatment, profile/settings and
+    mobile navigation now render, while Today still reaches `organization_principal_required` after active enrollment
+    restoration. Filters or inferred UI context must not mask this server-side context failure.
 
 ## 9. Commands and results
 
@@ -202,4 +221,5 @@ git diff --check -- docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/SCREEN_INVENTORY_PATIE
 find .claude/screenshots/SAAS-UX-01-PATIENT-PUBLIC -maxdepth 1 -type f -name '*.png'
 ```
 
-Application tests, lint, typecheck and DB migrations were not run: this pass changes documentation/screenshots only and explicitly forbids DB writes.
+Application tests, lint, typecheck and DB migrations were not run: no application code changed. Controlled DEV-only
+settings/data mutations used for the replay are recorded in §1a and `UX01_EVIDENCE_MANIFEST.md`.

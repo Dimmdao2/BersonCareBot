@@ -21,7 +21,7 @@
 
 ## UX-01 — Фактический аудит текущих экранов
 
-**Статус:** evidence reconciled, fresh independent audit **FAIL / completion BLOCKED by `#795`**.
+**Статус:** completed; fresh independent acceptance audit PASS.
 
 **Цель:** получить не список файлов, а карту реально доступных экранов и состояний.
 
@@ -46,9 +46,11 @@
 
 **Выход:** `SCREEN_INVENTORY.md`, screenshot index и gap list. Никаких code changes.
 
-Текущее состояние: route allocation `150/150`; role-matrix evidence собрано для public, registration и staff boundaries.
-Fresh audit подтвердил manifests, counts и role boundaries, но не закрыл этап: patient full shell blocked
-maintenance/test-lock state (`#795`). После исправления нужен повтор patient matrix и новый independent audit.
+Итог: route allocation `150/150`; role-matrix evidence собрано для public, registration, staff boundaries и patient
+booking/treatment/profile/settings/navigation. Maintenance/test-lock снят в current DEV контролируемой
+owner-authorized операцией. Fresh independent audit подтвердил `71 = 66 valid + 5 finding-only` и закрыл UX-01 с
+**PASS**. Patient Today остаётся документированным product defect `organization_principal_required`, а не valid
+screen capture.
 
 ## UX-02 — Внешнее исследование рабочих SaaS-паттернов
 

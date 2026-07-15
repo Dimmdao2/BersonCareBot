@@ -76,3 +76,29 @@
   transfer разделён на primary assignment, care team, work-item reassignment и cross-org transfer.
 - Independent audit сначала потребовал 3 точечных исправления источников/формулировок; после исправлений — **PASS**.
 - Audit record: `UX02_RESEARCH_AUDIT.md`.
+
+## 2026-07-15 — UX-01 patient replay after DEV unblock
+
+- По прямому разрешению владельца в current DEV database-name-guarded операцией удалены скопированные из TEST
+  `system_settings_test_lock` trigger/function; стандартный admin API установил
+  `patient_app_maintenance_enabled=false`. TEST и PROD не менялись.
+- Для synthetic `dev:client` восстановлен active enrollment в organization `a000...0001`; это контролируемая
+  мутация свободной DEV UX-песочницы. Application code и внешняя доставка не менялись.
+- Replay: `.claude/screenshots/UX-ROLE-MATRIX/2026-07-15T17-51-35Z/patient/manifest.md`.
+- 7 valid кадров подтверждают booking, treatment/program, profile, notification settings и mobile navigation.
+- Desktop/mobile Today — finding-only: после enrollment restoration остаётся
+  `organization_principal_required`, самостоятельный RSC/product defect.
+- Current selected totals: `71 = 66 valid + 5 finding-only`. Исключены 14 superseded TEST frames и 2
+  исторических maintenance frames. Route allocation остаётся `150/150`.
+- Исторический `UX01_FRESH_AUDIT_2026-07-15.md` не переписывался; нужен новый independent acceptance audit.
+
+### Fresh patient-replay independent audit
+
+- Вердикт: **PASS — UX-01 factual current-state audit complete**.
+- Независимо подтверждены allocation `150/150`, все canonical manifests/files, DEV SHA-256 и dimensions, арифметика
+  `71 = 66 valid + 5 finding-only`, исключение 14 superseded TEST и 2 historical maintenance frames.
+- Role/privacy boundaries и controlled DEV mutations подтверждены; TEST/PROD, application code и delivery state не
+  менялись.
+- Patient Today остаётся finding-only product defect `organization_principal_required`. Acceptance требует честно
+  сохранять error как finding, а не исправлять продукт внутри factual audit, поэтому defect не блокирует PASS UX-01.
+- Новый audit record: `UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`; прежние FAIL records сохранены историческими.

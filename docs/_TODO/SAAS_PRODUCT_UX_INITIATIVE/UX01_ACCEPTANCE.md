@@ -36,7 +36,8 @@ Auth/onboarding is not represented only by pages: baseline also contains 43 `/ap
 - Dynamic/data-gated pages must be reached through an existing list/fixture. If no safe fixture exists, mark `NOT VISUALLY VERIFIED` with the attempted entrypoint and reason.
 - A route returning login, forbidden, loading forever, empty data unexpectedly or server error is a finding, not a valid screen capture.
 - No application-code or delivery mutations solely to manufacture screenshot data. Controlled DEV sandbox data or
-  settings changes are allowed only through the documented application path and must be recorded with their purpose.
+  settings changes must use the documented application/ops path, or an explicitly owner-authorized guarded DEV-only
+  operation when clearing a copied environment lock; every mutation and purpose must be recorded.
 
 ## Independent audit gate
 
@@ -67,15 +68,37 @@ Fix run `UX01-EVIDENCE-FIX-20260715T142736Z` does not change the independent ver
 
 ## Current reconciliation — 2026-07-15
 
-The original independent verdict remains **FAIL**. It is historical and must not be rewritten as PASS. A fresh independent audit is still required.
+The original independent verdict remains **FAIL**. It is historical and must not be rewritten as PASS. At this
+reconciliation checkpoint a fresh independent audit after the patient replay was still required; that later verdict
+is recorded in the final section below.
 
 - Route allocation remains `150/150`; the page-path set is unchanged.
-- Current evidence is the DEV role-matrix run `UX-ROLE-MATRIX/2026-07-15T16-42-31Z` plus the three named TEST walkthrough manifests.
-- Current selected evidence totals: **64 safe retained/referenced PNG**, of which **59** are valid product/role-state evidence and **5** are finding-only. Fourteen older TEST PNG are explicitly superseded and excluded from those totals.
+- Current evidence is the DEV role-matrix runs `UX-ROLE-MATRIX/2026-07-15T16-42-31Z` and patient replay
+  `UX-ROLE-MATRIX/2026-07-15T17-51-35Z`, plus the three named TEST walkthrough manifests.
+- Current selected evidence totals: **71 safe retained/referenced PNG**, of which **66** are valid product/role-state
+  evidence and **5** are finding-only. Fourteen older TEST PNG and the two historical maintenance captures are
+  explicitly superseded/excluded from those totals.
 - Public, regular-doctor, clinic-admin and global-admin role boundaries now have current evidence.
 - Registration is verified: desktop/mobile show email, password, specialist name and organization title. Enabling `specialist_signup_enabled=true` was a controlled DEV sandbox settings change through the standard API; signup submit and verification states were not exercised.
-- Patient full-shell evidence remains **BLOCKED**. Authentication succeeds, but `patient_app_maintenance_enabled=true` and the TEST-only `system_settings_test_lock` copied into DEV prevent the normal approved `updateSetting`/API path from changing the setting. The retained desktop/mobile maintenance guard is evidence of the guard only, not of Today, booking, treatment, profile or patient navigation. Tracking: taskdb `#795`.
+- Patient replay now verifies booking, treatment/program, profile, notification settings and desktop/mobile patient
+  navigation. With explicit owner authorization, the copied TEST-only lock trigger/function was removed from current
+  DEV by a database-name-guarded operation; `patient_app_maintenance_enabled=false` was then written through the
+  standard admin API. Synthetic `dev:client` active enrollment was restored in organization `a000...0001`.
+  TEST/PROD were not changed and no application code changed.
+- Patient Today remains finding-only: desktop/mobile independently reproduce the product error boundary
+  `organization_principal_required` after enrollment restoration. This is no longer a maintenance/fixture blocker.
 - Regular-doctor communications was attempted but the capture exposed real-looking restored names/messages and was deleted. This remains a privacy/tenant-scope visual gap.
 - Assistant has no independent role slice/capability contract; it remains an explicit `needs-decision`, not silently covered by doctor evidence.
 
 Visual attempts and blockers are enumerated in `UX01_VISUAL_ATTEMPT_LEDGER.md`; aggregate counts and canonical manifest links are in `UX01_EVIDENCE_MANIFEST.md`.
+
+## Fresh patient-replay audit verdict — 2026-07-15
+
+**PASS — UX-01 factual current-state audit complete.** The new independent verdict is recorded in
+`UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`; the earlier FAIL records remain historical.
+
+The auditor independently confirmed route allocation `150/150`, all canonical manifest/file references, DEV hashes
+and dimensions, evidence arithmetic `71 = 66 valid + 5 finding-only`, explicit supersession/exclusion, role/privacy
+boundaries and the controlled DEV mutation record. Patient Today remains finding-only with
+`organization_principal_required`. This is a product defect retained by the audit, not a reason to falsify the screen
+as verified and not a completion blocker for the factual inventory under the rules above.

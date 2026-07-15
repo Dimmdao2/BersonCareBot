@@ -1,13 +1,17 @@
 # Current State Baseline
 
-Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; visual audit ждёт свежего независимого acceptance после текущего role-matrix run.
+Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; patient replay выполнен, visual audit ждёт
+свежего независимого acceptance.
 
 ## Текущая среда UX-аудита
 
 - DEV обновлена из TEST, миграции применены и является изменяемой UX-песочницей; прежний missing-function blocker больше не актуален.
 - Раздельные входы существуют для public, registration entry, patient, regular doctor, clinic admin и global admin.
 - TEST A/B walkthrough даёт актуальные desktop-состояния clinic-owner/clinic-admin и tenant separation.
-- Patient full shell сейчас заменяется maintenance guard. `patient_app_maintenance_enabled=true`, а TEST-only `system_settings_test_lock`, перенесённый при TEST→DEV refresh, блокирует стандартный settings write path. Это taskdb `#795`, а не отсутствие patient routes.
+- Current DEV освобождён от скопированного TEST-only settings lock по прямому разрешению владельца;
+  `patient_app_maintenance_enabled=false` установлен стандартным API. Booking, treatment, profile/settings и
+  patient navigation подтверждены. Today отдельно падает с `organization_principal_required` даже после
+  восстановления active enrollment synthetic `dev:client`.
 
 ## Уже существует
 
