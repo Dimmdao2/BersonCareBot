@@ -355,3 +355,29 @@ Roadmap принят как decision-safe execution plan; owner-gated branches �
 - UX-07 не начинается без target IA и screen composition.
 - UX-09 не начинается до owner decision packet.
 - Ни один implementation agent не запускается из discovery roadmap.
+
+## Final initiative completion gate
+
+**Статус:** **PASS — independently audited discovery / planning complete.** Все `UX08-01…12` остаются
+`pending` с `owner ruling=none`; PASS подтверждает полноту product/UX specification и decision-safe roadmap, но не
+разрешает implementation, TEST/deploy, DB/runtime changes или выбор conditional product branches.
+
+**Final run:** `SAAS-UX-FINAL-REAUDIT-20260716-AF864C-01` на
+`af864c2d98bd89421f60c4ed04af0f2499b5b06c`.
+
+- [x] Literal owner requirements покрыты UX-01…09: roles, solo/clinic, card/history/handoff, multi-org patient,
+      specialist landing, signup, email-first invite, optional SMS, activation/install, branding, domains, PWA и
+      sender identity.
+- [x] Current/target registries воспроизведены: `150/150` current routes и `57/57` canonical target compositions.
+- [x] UX-01 runtime evidence доступно и согласовано; UX-07 exact source/manifests и оба independent visual seals
+      воспроизведены без hash/status drift.
+- [x] Owner packet содержит `12/12` pending decisions с alternatives, provenance, recommendation, distinct safe
+      boundary и execution consequence; ни одна рекомендация агента не названа owner ruling.
+- [x] Implementation roadmap содержит `19 × 14` complete stage contracts; dependency registry `19/19` ацикличен,
+      unknown dependencies `0`; Foundation/no-dup/migration/rollback/validation gates сохранены.
+- [x] F-FINAL-01 current-source status convergence и F-FINAL-02 integration-canon sync закрыты; orchestration model
+      tiers соответствуют действующему `ORCHESTRATION_BINDINGS.md`.
+- [x] Initiative delta относительно integration branch остаётся documentation-only; app/DB/runtime implementation
+      этой инициативой не заявлена и не начиналась.
+- [x] Markdown links/evidence paths, branch history, worktree cleanliness и coordination acknowledgements проверены;
+      подробный evidence record находится в `LOG.md`.

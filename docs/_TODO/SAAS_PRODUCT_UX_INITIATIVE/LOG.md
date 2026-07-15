@@ -729,3 +729,74 @@ no commit or push.
   `gpt-5.6-terra`, `gpt-5.6-luna`; UX roadmap ему соответствует.
 - F-FINAL-02 устранён синхронизацией с integration canon. Это coordination correction, не продуктовый ruling и не
   изменение app/DB/runtime/TEST/PROD. Итоговый PASS по-прежнему требует полного независимого completion re-audit.
+
+## 2026-07-16 — Final initiative completion re-audit PASS
+
+- **Run ID:** `SAAS-UX-FINAL-REAUDIT-20260716-AF864C-01`.
+- **Проверенный clean HEAD:** `af864c2d98bd89421f60c4ed04af0f2499b5b06c` на
+  `feat/saas-interface-work3`, синхронный с `origin/feat/saas-interface-work3` до этой audit-записи.
+- **Финальный verdict:** **PASS — SaaS Product UX discovery/planning independently audited complete; awaiting all
+  12 owner decisions.** PASS не означает, что future UI/API/data contracts реализованы, не выбирает conditional
+  branches и не разрешает TEST/deploy/app/DB/runtime operations.
+
+Audit полностью повторил original owner requirement/evidence checklist после закрытия F-FINAL-01 и F-FINAL-02, а
+не ограничился проверкой merge/status diff.
+
+### Requirement-by-requirement verdict
+
+| Requirement | Result |
+|---|---|
+| UX-01 factual current screens | **PASS:** route inventory `150/150`; 9/9 canonical manifests; 85/85 referenced PNG exist; 23/23 declared DEV hashes match; evidence arithmetic `71 = 66 valid + 5 finding-only`. |
+| UX-02 external research | **PASS:** official practice-product/help sources and primary technical/security sources; external facts, BersonCare recommendations and owner rulings remain separated. |
+| Roles and contexts | **PASS:** global admin, owner, delegated admin, bound specialist, assistant-safe, patient, onboarding and public surfaces have distinct capability/context boundaries. |
+| Solo specialist vs clinic doctor | **PASS:** one tenant/account/component model with capability-driven composition; team/history/handoff/filter chrome is absent in solo and conditional in clinic, without parallel route trees. |
+| Patient card/history/handoff | **PASS as decision-safe contract:** one organization-card candidate, authorization-before-filter, own/assigned safe subset, private-entry protection and named handoff primitives; exact policy remains UX08-01/02. |
+| Multi-organization patient | **PASS:** zero/one/many enrollment resolver, explicit chooser/switch, trusted deep-link/object verification, no cached data flash or silent organization substitution. |
+| Specialist landing/signup/first run | **PASS:** specialist-oriented platform landing, solo/clinic composition within one onboarding, secure owner provisioning/binding and truthful first-run/recovery states. |
+| Staff/patient invite, email/SMS, activation/install | **PASS:** J1…J7 and ACQ/STF/PIN/SMS/PBK/MOR/ERR coverage; email proof remains primary, SMS is transport-only, first useful value precedes install and push consent. |
+| Branding/domain/PWA/senders | **PASS:** core platform/organization identity is distinct from paid W presentation; Host is not authz; base/binding, canonical fallback, per-origin and authenticated-sender readiness contracts are explicit. |
+| Target IA/composition/migration | **PASS:** `57` unique canonical IDs and `57/57` compositions, missing `0`; current routes `150 actual = 150 refs = 150 unique`, missing/stale/duplicate `0`. |
+| UX-07 prototype/seals | **PASS:** exact SHA `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`; 9 flows, 73 states, 142 actions; 18/18 evidence hashes; seals #1/#2 remain source-bound and valid; contact sheet re-inspected. |
+| Owner decisions/provenance | **PASS:** UX08-01…12 = 12/12 unique, each with three alternatives, provenance, planner recommendation, distinct safe boundary and execution consequence; all are still `pending/none`. |
+| Implementation roadmap | **PASS:** 19 unique stages × 14 mandatory fields; dependency rows 19/19, cycles `0`, unknown dependencies `0`, topological coverage 19/19; migration, rollback, validation and merge gates present. |
+| Foundation/no-dup/security | **PASS:** current Foundation files equal integration branch; no second principal/settings/membership path, ad hoc RLS, invented schema, parallel solo/clinic/per-specialist/account/booking/white-label trees or permission-by-filter/Host. |
+| Implementation honesty | **PASS:** target/current gaps remain explicit; `IMPLEMENTATION_ROADMAP.md` states implementation has not begun; no initiative output claims absent API/schema/runtime/UI behavior exists. |
+| Model tiers and coordination | **PASS:** roadmap names only `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`; integration canon `2da21d045` is ancestor through merge `0edc83372`; ACK `af864c2d9`; all four coordination-canon files match integration. |
+| F-FINAL-01/F-FINAL-02 and status consistency | **PASS:** all eight phase artifacts cite current independent PASS records; no new pending-audit wording; branch-local orchestration canon drift is absent. |
+| Links/evidence/branch isolation | **PASS with recorded portability risk:** 38 Markdown + 1 HTML, 39 local links missing `0`; initiative delta relative to integration is docs-only; worktree was clean; screenshot paths exist on this server. |
+
+### Reproduced evidence and commands
+
+- Node full-registry script: local links `39/39`; target registry/composition `57/57`; current route allocation
+  `150/150`; owner decisions `12/12`; stage fields `19 × 14`; DAG rows/coverage `19/19`, cycle/unknown `0`.
+- Node evidence script: UX-01 9 manifests / 85 unique PNG refs / missing `0` / 23 declared hash checks / mismatch
+  `0`; UX-07 18 PNG hash checks / mismatch `0`; exact prototype SHA.
+- Prototype object evaluation: 9 flows, 73 states, 142 declared actions = 33 result actions + 109 navigations;
+  malformed actions `0`. Manifest doubles these across desktop/mobile to 66 result + 218 navigation checks.
+- All 18 current UX-07 screenshots were rebuilt into a single contact sheet and visually re-inspected without stale
+  context, cross-role substitution or visible clipping.
+- `git diff --check` PASS. Ancestor checks PASS for `d8c197a5d`, `302571f5f`, `cebc0790c`, `2da21d045` and
+  `0edc83372`. The four coordination files and all `SAAS_FOUNDATION` files have no delta from integration branch.
+- `git diff --name-only origin/feat/doctor-ui-rebuild...HEAD` contains only initiative documentation plus its
+  existing `docs/README.md` index entry; no initiative app/schema/runtime implementation delta.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run because this completion audit changes only
+  documentation and does not validate or alter application runtime.
+
+### Residual risks, not completion failures
+
+- All 12 product decisions remain pending; conditional UI/access/launch branches must remain absent or use their
+  documented safe boundary until a dated owner ruling exists.
+- UX-01 retains `organization_principal_required` on Patient Today plus explicitly unexercised registration,
+  communications, expanded mobile and write/delivery states. These are implementation inputs, not hidden PASSes.
+- Screenshot evidence is runtime-only/gitignored and split between integration worktree (UX-01) and work3 (UX-07).
+  It is present and hash-valid on this server but not portable from Git checkout alone.
+- UX-07 validates a low-fidelity represented interaction contract, not live auth, delivery, DNS/domain, install/push,
+  final component accessibility or production visual acceptance.
+- Integration Foundation advanced substantially through `0edc83372`; each future UX implementation stage must run
+  its required U0/current-state handoff rather than relying on this discovery-time snapshot.
+
+**НАШЁЛ:** no remaining completion blocker; F-FINAL-01 and F-FINAL-02 remain closed and the complete UX-01…09
+specification/evidence chain passes without new drift.
+
+**ИЗМЕНИЛ:** existing `LOG.md`, `README.md` status and `ROADMAP.md` final initiative gate/checklist only; no new
+audit file, app/DB/runtime change, commit or push.
