@@ -9,6 +9,7 @@
 --
 -- Required psql variable:
 --   - d3_4_bootstrap_base_role
+--   - d3_4_media_worker_runtime_role
 --
 -- Rollback:
 --   Re-run with -v d3_4_bootstrap_grants_down=1.
@@ -20,6 +21,12 @@
 \else
 \echo 'FATAL: missing required psql variable d3_4_bootstrap_base_role.'
 SELECT 1 / 0 AS d3_4_bootstrap_base_role_missing;
+\endif
+
+\if :{?d3_4_media_worker_runtime_role}
+\else
+\echo 'FATAL: missing required psql variable d3_4_media_worker_runtime_role.'
+SELECT 1 / 0 AS d3_4_media_worker_runtime_role_missing;
 \endif
 
 SELECT 1 / (
@@ -43,6 +50,17 @@ SELECT 1 / (
 SELECT 1 / (
   pg_has_role(:'d3_4_bootstrap_base_role', 'app_patient', 'MEMBER')
 )::int AS d3_4_bootstrap_base_role_is_patient_member;
+
+SELECT 1 / (
+  length(:'d3_4_media_worker_runtime_role') > 0
+  AND EXISTS (
+    SELECT 1
+    FROM pg_roles
+    WHERE rolname = :'d3_4_media_worker_runtime_role'
+      AND rolsuper = false
+      AND rolbypassrls = false
+  )
+)::int AS d3_4_media_worker_runtime_role_is_restricted;
 
 -- P2-B owns the protected principal-context helper bundle. The TEST wrapper may
 -- intentionally skip P2-B in legacy-guc mode, so D3.4 accepts either the complete
@@ -83,6 +101,7 @@ SELECT (
 \if :{?d3_4_bootstrap_grants_down}
 \if :d3_4_has_p2_b_context_bundle
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.current_integrator_user_id() FROM :"d3_4_bootstrap_base_role";
@@ -132,15 +151,21 @@ REVOKE SELECT, INSERT, UPDATE ON TABLE public.user_phone_history FROM :"d3_4_boo
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts FROM :"d3_4_bootstrap_base_role";
 
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_bootstrap_base_role";
+REVOKE USAGE ON SCHEMA app FROM :"d3_4_media_worker_runtime_role";
 REVOKE USAGE ON SCHEMA public FROM :"d3_4_bootstrap_base_role";
 \echo 'D3.4 bootstrap/base-login grants DOWN complete.'
 \quit
 \endif
 
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
+GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";
+REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;
 
 \if :d3_4_has_p2_b_context_bundle
+REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"d3_4_bootstrap_base_role";

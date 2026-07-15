@@ -15,6 +15,7 @@ const files = {
   testDeploySaas: "deploy/host/deploy-test-saas.sh",
   platformAccessRepo: "apps/webapp/src/infra/repos/pgPlatformAccess.ts",
   hardProtocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
+  runtimeHelperSmoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs",
   packageJson: "package.json",
 };
 
@@ -159,19 +160,28 @@ function runChecks(overrides = {}) {
   requireFragments(files.grantSql, loaded.grantSql, [
     "D3.4 bootstrap/base-login direct read grant closure",
     "d3_4_bootstrap_base_role",
+    "d3_4_media_worker_runtime_role",
     "d3_4_bootstrap_grants_down",
     "d3_4_bootstrap_base_role_exists",
     "d3_4_bootstrap_base_role_no_rls_bypass",
     "d3_4_bootstrap_base_role_not_staff_member",
     "d3_4_bootstrap_base_role_is_patient_member",
+    "d3_4_media_worker_runtime_role_is_restricted",
     "d3_4_p2_b_context_bundle_is_complete_or_absent",
     "d3_4_has_p2_b_context_bundle",
     "to_regprocedure('app.release_principal_context()')",
     "to_regprocedure('app.close_active_user_phone_history(uuid)')",
     "pg_has_role(:'d3_4_bootstrap_base_role', 'app_patient', 'MEMBER')",
     "GRANT USAGE ON SCHEMA public, app TO :\"d3_4_bootstrap_base_role\";",
+    "GRANT USAGE ON SCHEMA app TO :\"d3_4_media_worker_runtime_role\";",
     "REVOKE USAGE ON SCHEMA app FROM :\"d3_4_bootstrap_base_role\";",
     "REVOKE USAGE ON SCHEMA public FROM :\"d3_4_bootstrap_base_role\";",
+    "REVOKE USAGE ON SCHEMA app FROM :\"d3_4_media_worker_runtime_role\";",
+    "GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;",
+    "REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;",
     "Do not add clinical/media/content/full-settings tables here",
   ]);
   requireOccurrenceCount(
@@ -311,6 +321,16 @@ function runChecks(overrides = {}) {
     "app.staff_user_has_web_oauth_binding(pu.id)",
     "app.current_patient_has_web_oauth_binding()",
   ]);
+  requireFragments(files.runtimeHelperSmoke, loaded.runtimeHelperSmoke, [
+    "d3_4_media_worker_runtime_role",
+    "app.staff_user_has_password_credentials(uuid)",
+    "app.release_principal_context()",
+    "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
+    "app.current_org_id()",
+    "app.reset_principal_context()",
+    "acl.grantee = 0",
+    'SET SESSION AUTHORIZATION ${mediaIdent}',
+  ]);
   forbidRegex(files.platformAccessRepo, loaded.platformAccessRepo, [
     /FROM\s+(?:public\.)?user_password_credentials\b/i,
     /FROM\s+(?:public\.)?user_oauth_bindings\b/i,
@@ -341,13 +361,15 @@ function runChecks(overrides = {}) {
     "[ -r \"$SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS\" ]",
     "[ -r \"$SRC_REPO/$PATIENT_VAPID_ACCESSOR\" ]",
     "discover_webapp_bootstrap_base_role(){",
+    "discover_media_worker_runtime_role(){",
     "\\${DATABASE_URL_NONSTAFF:-\\${DATABASE_URL:-}}",
     "grant_webapp_bootstrap_base_login_d3_4(){",
     "role_name=\"$(discover_webapp_bootstrap_base_role)\"",
+    "media_worker_role=\"$(discover_media_worker_runtime_role)\"",
     "-v d3_4_bootstrap_base_role=\"$role_name\"",
+    "-v d3_4_media_worker_runtime_role=\"$media_worker_role\"",
     "-f \"$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS\"",
     "[ -r \"$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS\" ]",
-    "log \"grant D3.4 webapp bootstrap/base-login direct surface\"",
     "grant_webapp_bootstrap_base_login_d3_4",
   ]);
   const wallInstaller = extractBashFunction(
@@ -394,26 +416,31 @@ function runChecks(overrides = {}) {
     "if [ \"$P2_B_CONTEXT_INSTALLED\" = \"1\" ]; then",
     "-f \"$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR\"",
   ]);
-  const deployMain = extractDeployMain(loaded.testDeploySaas);
-  requireOrderedFragments(`${files.testDeploySaas} legacy-guc-safe main branch`, deployMain, [
-    "log \"install P0.5b runtime wall\"",
+  const sharedClosure = extractBashFunction(
+    loaded.testDeploySaas,
+    "run_strict_post_migration_closure",
+  );
+  requireOrderedFragments(`${files.testDeploySaas} shared strict closure`, sharedClosure, [
+    "log \"strict closure: roles + grants\"",
     "install_p0_5b_runtime_wall",
     "install_p2_b_protected_principal_context",
-    "log \"rehydrate post-restore runtime overlays\"",
     "rehydrate_post_restore_runtime_overlays",
     "grant_api_runtime_migration_ledger_read",
     "grant_webapp_bootstrap_base_login_d3_4",
-    "log \"test settings override\"",
+    "log \"strict closure: TEST settings override\"",
   ]);
-  requireOrderedFragments(`${files.testDeploySaas} D3.4 grant order`, deployMain, [
+  requireOrderedFragments(`${files.testDeploySaas} D3.4 grant order`, sharedClosure, [
     "install_p0_5b_runtime_wall",
     "install_p2_b_protected_principal_context",
     "rehydrate_post_restore_runtime_overlays",
     "grant_api_runtime_migration_ledger_read",
     "assert_api_runtime_can_read_migration_ledger",
-    "log \"grant D3.4 webapp bootstrap/base-login direct surface\"",
     "grant_webapp_bootstrap_base_login_d3_4",
-    "log \"test settings override\"",
+    "log \"strict closure: TEST settings override\"",
+  ]);
+  const deployMain = extractDeployMain(loaded.testDeploySaas);
+  requireFragments(`${files.testDeploySaas} supported deploy entrypoints`, deployMain, [
+    "run_strict_post_migration_closure",
   ]);
   requireFragments(files.hardProtocol, loaded.hardProtocol, [
     "D3.4 bootstrap/base-login grant closure",
@@ -444,6 +471,18 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         'GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO :"d3_4_bootstrap_base_role";',
         "-- removed public-bootstrap base-login EXECUTE by self-test",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        'GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";',
+        "-- removed media-worker cleanup EXECUTE by self-test",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;",
+        "-- removed app_staff credential helper EXECUTE by self-test",
       ),
     },
     {
@@ -501,27 +540,27 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      testDeploySaas: read(files.testDeploySaas).replace(
-        'log "grant D3.4 webapp bootstrap/base-login direct surface"\ngrant_webapp_bootstrap_base_login_d3_4',
-        'log "test settings override"\ngrant_webapp_bootstrap_base_login_d3_4',
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
+        "acl.grantee = 0",
+        "acl.grantee = 42",
       ),
     },
     {
       testDeploySaas: read(files.testDeploySaas).replace(
-        'log "install P0.5b runtime wall"\ninstall_p0_5b_runtime_wall',
-        'log "install P0.5b runtime wall: removed by self-test"',
+        'log "strict closure: roles + grants"\n  install_p0_5b_runtime_wall',
+        'log "strict closure: roles + grants removed by self-test"',
       ),
     },
     {
       testDeploySaas: read(files.testDeploySaas).replace(
-        'log "rehydrate post-restore runtime overlays"\nrehydrate_post_restore_runtime_overlays',
-        'log "rehydrate post-restore runtime overlays: removed by self-test"',
+        'log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
+        'log "strict closure: reviewed runtime overlays removed by self-test"',
       ),
     },
     {
       testDeploySaas: read(files.testDeploySaas).replace(
-        'log "install + verify protected DB principal context"\ninstall_p2_b_protected_principal_context\nlog "rehydrate post-restore runtime overlays"\nrehydrate_post_restore_runtime_overlays',
-        'log "rehydrate post-restore runtime overlays"\nrehydrate_post_restore_runtime_overlays\nlog "install + verify protected DB principal context"\ninstall_p2_b_protected_principal_context',
+        'log "strict closure: protected principal helpers"\n  install_p2_b_protected_principal_context\n  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
+        'log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays\n  log "strict closure: protected principal helpers"\n  install_p2_b_protected_principal_context',
       ),
     },
     {
