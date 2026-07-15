@@ -62,55 +62,15 @@ describe("createOrganizationMembershipService", () => {
     expect(port.listActiveByPlatformUser).toHaveBeenCalledWith("user-1");
   });
 
-  it("requires explicit organization selection for multiple active memberships", async () => {
+  it("throws for multiple active staff memberships", async () => {
     const { service } = serviceFor([
       membership({ id: "membership-1", organizationId: "org-1" }),
       membership({ id: "membership-2", organizationId: "org-2" }),
     ]);
 
-    await expect(service.resolveOrganizationForUser({ platformUserId: "user-1" })).resolves.toEqual({
-      ok: false,
-      reason: "membership_selection_required",
-      organizationIds: ["org-1", "org-2"],
-    });
-  });
-
-  it("resolves a selected organization from active memberships", async () => {
-    const { service } = serviceFor([
-      membership({ id: "membership-1", organizationId: "org-1" }),
-      membership({ id: "membership-2", organizationId: "org-2", role: "admin", specialistId: null }),
-    ]);
-
-    await expect(
-      service.resolveOrganizationForUser({
-        platformUserId: "user-1",
-        selectedOrganizationId: "org-2",
-      }),
-    ).resolves.toMatchObject({
-      ok: true,
-      context: {
-        membershipId: "membership-2",
-        organizationId: "org-2",
-        role: "admin",
-        specialistId: null,
-        canManageOrganization: true,
-        canManageAllSpecialists: true,
-      },
-    });
-  });
-
-  it("rejects selected organization outside the user's active memberships", async () => {
-    const { service } = serviceFor([membership({ organizationId: "org-1" })]);
-
-    await expect(
-      service.resolveOrganizationForUser({
-        platformUserId: "user-1",
-        selectedOrganizationId: "org-2",
-      }),
-    ).resolves.toEqual({
-      ok: false,
-      reason: "selected_membership_not_found",
-    });
+    await expect(service.resolveOrganizationForUser({ platformUserId: "user-1" })).rejects.toThrow(
+      "multiple_active_staff_memberships",
+    );
   });
 
   it.each([

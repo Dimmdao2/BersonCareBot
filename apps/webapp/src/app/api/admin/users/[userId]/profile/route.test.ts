@@ -133,8 +133,8 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
   it("returns workspace gate response before profile patch", async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
-        status: 409,
+      response: new Response(JSON.stringify({ ok: false, error: "doctor_workspace_membership_required" }), {
+        status: 403,
       }),
     });
     const res = await PATCH(

@@ -84,8 +84,8 @@ describe("GET /api/admin/audit-log", () => {
     });
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
-        status: 409,
+      response: new Response(JSON.stringify({ ok: false, error: "doctor_workspace_membership_required" }), {
+        status: 403,
       }),
     });
     const res = await GET(new Request("http://localhost/api/admin/audit-log?page=1"));

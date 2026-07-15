@@ -56,8 +56,8 @@ describe("doctor patient physical route", () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
       response: NextResponse.json(
-        { ok: false, error: "organization_selection_required" },
-        { status: 409 },
+        { ok: false, error: "doctor_workspace_membership_required" },
+        { status: 403 },
       ),
     });
 

@@ -14,7 +14,7 @@ const urlEnv = "PHASE4_REHEARSAL_DATABASE_URL";
 const allowedHostsEnv = "PHASE4_REHEARSAL_ALLOWED_HOSTS";
 const migrationsDir = path.join(repoRoot, "apps/webapp/db/drizzle-migrations");
 const compatMigration = "0177_phase4_no_force_rls_compat.sql";
-const migrationFilePattern = /^(016\d|017[0-6])_.*\.sql$/;
+const migrationFilePattern = /^(016\d|017[0-6]|0179|0180)_.*\.sql$/;
 const enableRlsPattern = /ALTER\s+TABLE\s+"([^"]+)"\."([^"]+)"\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\s*;/gi;
 const safeDbPattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
 const unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
@@ -208,7 +208,7 @@ function reportGate(name, count) {
 async function checkDbState() {
   const safe = parseSafeRehearsalUrl(process.env[urlEnv]);
   const targets = loadRlsTargets();
-  if (targets.length !== 161) fail(`static RLS target count mismatch: expected 161, got ${targets.length}`);
+  if (targets.length !== 163) fail(`static RLS target count mismatch: expected 163, got ${targets.length}`);
 
   const { Client } = requireFromWebapp("pg");
   const client = new Client({ connectionString: safe.connectionString, application_name: "phase4-prod-copy-db-state-check" });

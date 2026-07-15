@@ -93,7 +93,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
       },
     });
 
-    const gate = await requireDoctorWorkspaceApiContext({ selectedOrganizationId: "org-1" });
+    const gate = await requireDoctorWorkspaceApiContext();
 
     expect(gate).toEqual({
       ok: true,
@@ -109,7 +109,6 @@ describe("requireDoctorWorkspaceApiContext", () => {
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
       platformUserId: doctor.user.userId,
-      selectedOrganizationId: "org-1",
     });
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "staff",
@@ -163,23 +162,11 @@ describe("requireDoctorWorkspaceApiContext", () => {
     });
   });
 
-  it("maps multi-organization state to selection-required response", async () => {
+  it("propagates duplicate staff memberships as a data-integrity error", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(session("admin"));
-    resolveOrganizationForUserMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "membership_selection_required",
-      organizationIds: [ORG_1, ORG_2],
-    });
+    resolveOrganizationForUserMock.mockRejectedValueOnce(new Error("multiple_active_staff_memberships"));
 
-    const gate = await requireDoctorWorkspaceApiContext();
-
-    expect(gate.ok).toBe(false);
-    if (gate.ok) return;
-    expect(gate.response.status).toBe(409);
-    await expect(gate.response.json()).resolves.toMatchObject({
-      ok: false,
-      error: "organization_selection_required",
-    });
+    await expect(requireDoctorWorkspaceApiContext()).rejects.toThrow("multiple_active_staff_memberships");
   });
 });
 
@@ -234,7 +221,7 @@ describe("requireAdminWorkspaceApiContext", () => {
       },
     });
 
-    const gate = await requireAdminWorkspaceApiContext({ selectedOrganizationId: "org-1" });
+    const gate = await requireAdminWorkspaceApiContext();
 
     expect(gate).toEqual({
       ok: true,
@@ -250,7 +237,6 @@ describe("requireAdminWorkspaceApiContext", () => {
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
       platformUserId: admin.user.userId,
-      selectedOrganizationId: "org-1",
     });
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "staff",
@@ -348,24 +334,6 @@ describe("requireClinicManagementApiContext", () => {
     expect(gate.response.status).toBe(403);
   });
 
-  it("rejects selected organizations outside the caller memberships", async () => {
-    const doctor = session("doctor");
-    getCurrentSessionMock.mockResolvedValueOnce(doctor);
-    resolveOrganizationForUserMock.mockResolvedValueOnce({
-      ok: false,
-      reason: "selected_membership_not_found",
-    });
-
-    const gate = await requireClinicManagementApiContext({ selectedOrganizationId: ORG_2 });
-
-    expect(gate.ok).toBe(false);
-    if (gate.ok) return;
-    expect(gate.response.status).toBe(403);
-    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
-      platformUserId: doctor.user.userId,
-      selectedOrganizationId: ORG_2,
-    });
-  });
 });
 
 describe("requireDoctorWorkspaceContext", () => {

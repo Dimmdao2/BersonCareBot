@@ -59,7 +59,7 @@ describe("POST /api/doctor/patients/[userId]/visits", () => {
   it("returns workspace gate response before resolving deps", async () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "organization_selection_required" }, { status: 409 }),
+      response: NextResponse.json({ ok: false, error: "doctor_workspace_membership_required" }, { status: 403 }),
     });
 
     const res = await POST(

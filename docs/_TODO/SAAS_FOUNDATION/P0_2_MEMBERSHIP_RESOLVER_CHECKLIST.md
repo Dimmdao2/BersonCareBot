@@ -48,12 +48,10 @@ The resolver should accept:
 ```ts
 type ResolveOrganizationForUserInput = {
   platformUserId: string;
-  selectedOrganizationId?: string | null;
 };
 ```
 
-`selectedOrganizationId` is dormant for the current single-clinic app, but it prevents a future UI org switcher
-from inventing a different contract.
+One staff login has exactly one active organization membership. A second clinic requires a separate login.
 
 ### Resolution Result
 
@@ -74,16 +72,14 @@ type OrganizationResolution =
       };
     }
   | { ok: false; reason: "no_active_membership" }
-  | { ok: false; reason: "membership_selection_required"; organizationIds: string[] }
-  | { ok: false; reason: "selected_membership_not_found" };
+;
 ```
 
 Behavior:
 
 - Zero active memberships: `no_active_membership`.
-- One active membership and no selection: resolve it.
-- Multiple active memberships and no selection: `membership_selection_required`; do not silently pick the first org.
-- Selection provided: resolve only if the selected organization is one of the user's active memberships.
+- One active membership: resolve it.
+- Multiple active memberships: throw `new Error("multiple_active_staff_memberships")`; do not silently pick the first/default org.
 - `canManageOrganization` and `canManageAllSpecialists` are `true` only for `owner` / `admin`.
 
 ## P0.2.2 — Resolver Service
@@ -172,8 +168,7 @@ Implementation checklist:
 - [ ] Keep existing role-only gates backward compatible.
 - [ ] Map resolver outcomes to RSC redirects or API responses:
   - `no_active_membership` -> forbidden / access denied.
-  - `membership_selection_required` -> forbidden or explicit `organization_selection_required`.
-  - `selected_membership_not_found` -> forbidden.
+  - duplicate active staff memberships propagate as `multiple_active_staff_memberships` data-integrity failures.
 - [ ] Replace `bookingEngine.organization.getDefaultOrganizationId()` in doctor/admin booking-engine gates with resolved `organizationId`.
 - [ ] Add `membershipRole`, `membershipId`, `specialistId`, and permission flags to the new gate context.
 - [ ] Preserve current single-clinic behavior in tests.

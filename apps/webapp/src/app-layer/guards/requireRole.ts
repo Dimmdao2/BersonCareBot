@@ -91,8 +91,7 @@ export type DoctorWorkspaceAccessContext = {
 };
 
 function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
-  const status = reason === "organization_selection_required" ? 409 : 403;
-  return NextResponse.json({ ok: false, error: reason }, { status });
+  return NextResponse.json({ ok: false, error: reason }, { status: 403 });
 }
 
 // Best-effort by contract: staff-principal stamping must never throw. Real prod session ids are
@@ -147,21 +146,16 @@ async function stampPatientPrincipalForApi(
 
 async function resolveDoctorWorkspaceAccessContext(
   session: AppSession,
-  selectedOrganizationId?: string | null,
 ): Promise<
   | { ok: true; ctx: DoctorWorkspaceAccessContext }
-  | { ok: false; reason: "doctor_workspace_membership_required" | "organization_selection_required" | "forbidden" }
+  | { ok: false; reason: "doctor_workspace_membership_required" | "forbidden" }
 > {
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
-    selectedOrganizationId,
   });
   if (!resolution.ok) {
     if (resolution.reason === "no_active_membership") {
       return { ok: false, reason: "doctor_workspace_membership_required" };
-    }
-    if (resolution.reason === "membership_selection_required") {
-      return { ok: false, reason: "organization_selection_required" };
     }
     return { ok: false, reason: "forbidden" };
   }
@@ -180,11 +174,9 @@ async function resolveDoctorWorkspaceAccessContext(
   };
 }
 
-export async function requireDoctorWorkspaceContext(options?: {
-  selectedOrganizationId?: string | null;
-}): Promise<DoctorWorkspaceAccessContext> {
+export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const session = await requireDoctorAccess();
-  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
@@ -206,15 +198,13 @@ export async function requireDoctorApiSession(): Promise<
 }
 
 /** Для Route Handlers под `/api/doctor/*`: doctor или admin + resolved organization membership. */
-export async function requireDoctorWorkspaceApiContext(options?: {
-  selectedOrganizationId?: string | null;
-}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+export async function requireDoctorWorkspaceApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: "requireDoctorWorkspaceApiContext:pending" });
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
@@ -223,9 +213,7 @@ export async function requireDoctorWorkspaceApiContext(options?: {
 }
 
 /** Для Route Handlers под `/api/admin/*`: admin + adminMode + resolved organization membership. */
-export async function requireAdminWorkspaceApiContext(options?: {
-  selectedOrganizationId?: string | null;
-}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+export async function requireAdminWorkspaceApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: "requireAdminWorkspaceApiContext:pending" });
   const session = await getCurrentSession();
   if (!session) {
@@ -234,7 +222,7 @@ export async function requireAdminWorkspaceApiContext(options?: {
   if (session.user.role !== "admin" || !session.adminMode) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
@@ -245,12 +233,9 @@ export async function requireAdminWorkspaceApiContext(options?: {
 /**
  * Для clinic-management API: platform admin in adminMode OR a management-capable member
  * (`owner`/`admin`) of the resolved organization. Organization is always resolved from the
- * caller's own active memberships; a selected org outside those memberships is rejected by
- * `resolveOrganizationForUser`.
+ * caller's sole active staff membership.
  */
-export async function requireClinicManagementApiContext(options?: {
-  selectedOrganizationId?: string | null;
-}): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
+export async function requireClinicManagementApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: "requireClinicManagementApiContext:pending" });
   const session = await getCurrentSession();
   if (!session) {
@@ -259,7 +244,7 @@ export async function requireClinicManagementApiContext(options?: {
   if (!canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session, options?.selectedOrganizationId);
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }

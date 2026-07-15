@@ -99,8 +99,8 @@ describe("POST /api/admin/operator-incidents/resolve-all", () => {
     });
     requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
       ok: false,
-      response: new Response(JSON.stringify({ ok: false, error: "organization_selection_required" }), {
-        status: 409,
+      response: new Response(JSON.stringify({ ok: false, error: "doctor_workspace_membership_required" }), {
+        status: 403,
       }),
     });
     const res = await POST();

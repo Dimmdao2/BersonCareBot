@@ -95,8 +95,8 @@ Rules:
 
 - Resolve workspace before entering the DB principal.
 - Do not use `session.user.role` or `adminMode` as a tenant source.
-- Do not choose the first/default org when `membership_selection_required`.
-- Keep current 409/403 behavior for API gates.
+- Do not choose the first/default org; duplicate active staff memberships throw `multiple_active_staff_memberships`.
+- API membership denial remains 403; duplicate membership errors propagate as data-integrity failures.
 - The wrapper may be added to existing workspace helpers so route families can migrate incrementally.
 
 First T0.3 candidates:

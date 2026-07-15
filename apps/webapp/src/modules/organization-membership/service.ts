@@ -7,7 +7,6 @@ import type {
 
 export type ResolveOrganizationForUserInput = {
   platformUserId: string;
-  selectedOrganizationId?: string | null;
 };
 
 export type OrganizationMembershipContext = {
@@ -22,9 +21,7 @@ export type OrganizationMembershipContext = {
 
 export type OrganizationResolution =
   | { ok: true; context: OrganizationMembershipContext }
-  | { ok: false; reason: "no_active_membership" }
-  | { ok: false; reason: "membership_selection_required"; organizationIds: string[] }
-  | { ok: false; reason: "selected_membership_not_found" };
+  | { ok: false; reason: "no_active_membership" };
 
 function canManageOrganization(role: OrganizationMembershipRole): boolean {
   return role === "owner" || role === "admin";
@@ -53,21 +50,8 @@ export function createOrganizationMembershipService(deps: {
         return { ok: false, reason: "no_active_membership" };
       }
 
-      const selectedOrganizationId = input.selectedOrganizationId?.trim() || null;
-      if (selectedOrganizationId) {
-        const selected = memberships.find((membership) => membership.organizationId === selectedOrganizationId);
-        if (!selected) {
-          return { ok: false, reason: "selected_membership_not_found" };
-        }
-        return { ok: true, context: toMembershipContext(selected) };
-      }
-
       if (memberships.length > 1) {
-        return {
-          ok: false,
-          reason: "membership_selection_required",
-          organizationIds: memberships.map((membership) => membership.organizationId),
-        };
+        throw new Error("multiple_active_staff_memberships");
       }
 
       return { ok: true, context: toMembershipContext(memberships[0]) };
