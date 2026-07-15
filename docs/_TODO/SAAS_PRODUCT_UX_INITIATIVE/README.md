@@ -80,4 +80,7 @@
 - `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и `ROUTE_MIGRATION_MAP.md` — целевая IA, канонический состав экранов и
   полная current→target migration map;
 - `UX06_INDEPENDENT_AUDIT.md` — full-coverage audit и PASS после integrated correction;
+- `UX07_PROTOTYPE_INDEX.md`, `UX07_USABILITY_FINDINGS.md` и `ux07-prototype/index.html` — навигируемый прототип
+  ключевых сценариев и наблюдения по нему;
+- `UX07_INDEPENDENT_AUDIT.md` — полный двухревьюерный visual/usability audit; seals #1/#2 PASS;
 - `LOG.md` — журнал фактов, решений и проверок.

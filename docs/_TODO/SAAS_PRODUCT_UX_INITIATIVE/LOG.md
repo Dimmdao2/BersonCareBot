@@ -291,3 +291,111 @@
   остаются pending gates, а current implementation gaps — входами UX-09, не скрыто готовыми возможностями.
 - `git diff --check` и structural scripts — PASS. App tests/DB smoke не запускались; application/schema/runtime не
   менялись. Audit record `UX06_INDEPENDENT_AUDIT.md` обновлён in place, новый audit-файл не создавался.
+
+## 2026-07-15 — UX-07 complete executor prototype pass
+
+- `ROADMAP.md` сначала уточнён на месте: UX-07 получил полный canonical flow scope, три заранее предусмотренных
+  phase output, executor checklist и обязательный full visual/usability audit gate.
+- Созданы ровно contract outputs фазы: `UX07_PROTOTYPE_INDEX.md`, `UX07_USABILITY_FINDINGS.md` и self-contained
+  `ux07-prototype/index.html`; findings явно являются наблюдениями исполнителя, не audit verdict.
+- Навигируемый low-fidelity prototype содержит девять цельных сценариев: ACQ, STF, PIN, SMS, PBK, MOR, dual
+  management/clinical, branding/domain и decision-safe clinic patient card/history/handoff. UX-04 IDs используются
+  как state references, UX-06 canonical IDs — как destinations; parallel route registry не создан.
+- В prototype сохранены staff one-org / patient multi-org, first value before install, SMS transport without auth
+  elevation, permission-before-filter, exact booking appointment/enrollment, explicit deep-link context change,
+  HostnameBase vs independent bindings, sender/PWA separation и OM/BD candidate provenance.
+- Один visual direction использует текущий BersonCare white/gray/blue workbench language; staff desktop, public и
+  patient mobile отличаются композицией, но используют общие tokens. CRUD surfaces не перерисовывались.
+- 12 representative desktop/mobile renders собраны в
+  `.claude/screenshots/SAAS-UX07-PROTOTYPE/2026-07-15T19-36-23Z/`; manifest содержит viewport, hash/state и SHA-256.
+  Временный static server использовал `127.0.0.1:8767`; `:5200`, application, DB и delivery не затрагивались.
+- Validation: inline JS syntax PASS; 72 prototype screen references resolve only to UX-06 canonical IDs; every
+  `ACQ-01…05`, `STF-01…08`, `PIN-01…09`, `SMS-01…03`, `PBK-01…08` and `MOR-01…05` ID is present; nine flows
+  present; Markdown local links PASS; 12 manifest hashes match and renders have expected 1440×1000 / 430×932
+  dimensions; CDP interaction smoke verified next, flow-map step, viewport/hash and mobile map behavior with zero
+  page console exceptions/errors; visual spot-check PASS after mobile map correction; final `git diff --check` PASS.
+- Статус UX-07: **executor prototype complete; pending full independent visual/usability audit**. Никакой executor
+  finding или safe candidate не записан как owner ruling.
+
+## 2026-07-15 — UX-07 integrated correction after two independent FAIL reviews
+
+- Оба независимых pre-correction reviewer section в `UX07_INDEPENDENT_AUDIT.md` прочитаны как единый phase audit.
+  Они независимо подтвердили связанные root causes F1…F5: linear deck transitions, несинхронный URL/history,
+  смешение product/diagnostic copy, context/capability-insensitive shell, fake controls и stale evidence. Ни один
+  visual seal не был выдан; audit record не редактировался correction owner.
+- Один цельный correction pass обновил существующие `ux07-prototype/index.html`, `UX07_PROTOTYPE_INDEX.md`,
+  `UX07_USABILITY_FINDINGS.md`, `ROADMAP.md` и `LOG.md` in place. Новых contract/ad hoc docs не создано.
+- Все девять сценариев и 73 состояния сохранены, но продуктовые действия теперь образуют explicit labelled graph:
+  happy, recovery, terminal и object actions имеют точные destinations; reviewer previous/next/map отделены и явно
+  подписаны. `pushState` + `popstate/hashchange` синхронизируют direct hash, back/forward и видимое состояние.
+- Primary copy переведён на понятный task/outcome/recovery язык. IDs, canonical screen, lifecycle status,
+  authorization order и pending OM/BD gates перенесены в закрытый по умолчанию reviewer disclosure. Собственные
+  safe defaults/candidates не переатрибутированы владельцу.
+- Shell теперь выводится из state context: neutral patient chooser не предвыбирает организацию и не показывает
+  organization navigation; authorized patient показывает активный org; staff mobile сохраняет `Клиника Север` и
+  semantic drawer; dual mode виден только при specialist binding; active nav соответствует MGMT/CLIN/PAT screen.
+  `Все доступные`, specialist history и generic/cross-org handoff отсутствуют без capability/ruling.
+- Поля стали labelled `input/select`; product actions, public links, staff/patient navigation и mobile menu —
+  semantic button/link/nav controls с keyboard focus и `aria-current`. Decorative chevrons/fake actionable div/span
+  удалены.
+- Новый batch `.claude/screenshots/SAAS-UX07-PROTOTYPE/2026-07-15T20-16-39Z/` содержит 16 desktop/mobile вариантов,
+  включая corrected recovery, neutral chooser, public/mobile recovery, mobile staff org/drawer, owner without
+  clinical switch, domain fallback и capability-withheld clinic states. Manifest фиксирует source SHA-256
+  `c4903ff11452053367d7be4174ff188620a512371eebf726211b440a20de0c3d`, git base, dimensions, hashes и state traces.
+  Batch `2026-07-15T19-36-23Z` сохранён, но явно помечен historical/superseded.
+- Полный automated gate текущего source: `73 × 2 = 146` renders, `284` labelled action transitions, `134`
+  back/forward pairs, `146` external hash re-renders, `146` keyboard-entry checks и `28` mobile staff menu checks;
+  assertion/overflow/console/runtime/network failures — `0`. Representative screenshots открыты в original
+  resolution. Temporary server `127.0.0.1:8791`; `:5200`, application, API, DB и delivery не использовались.
+- Статус UX-07: **integrated correction complete; awaiting full two-reviewer re-audit**. Correction evidence не
+  является visual seal или phase acceptance.
+
+## 2026-07-15 — UX-07 full interaction/context-graph convergence after re-audit §§8–10
+
+- Re-audit §§8–10 перечитан полностью. Оба reviewer сохранили PASS для product/diagnostic separation, trusted shell,
+  core semantic controls и source-bound evidence, но отказали в seal из-за общего interaction/context-graph класса:
+  18 inert same-state actions, неверные public Support/Documents и anonymous invite recovery destinations,
+  `handoffAllowed:false` рядом с видимой collaboration CTA и drawer без focus/Escape/return-focus contract.
+- Один correction owner проверил весь visible graph: 9 scenarios / 73 states / 142 actions, а не только 18 residual
+  buttons. Prototype, index, findings, roadmap и log обновлены in place; audit record не редактировался, новых
+  contract/ad hoc docs не создано.
+- Resend/retry/status actions теперь показывают idempotent result. Support/recovery/calendar/preparation/nearest
+  visit/settings/visit-assignment/install/push actions имеют truthful represented result или destination. Inert
+  same-state target actions: `0`.
+- Public Support/Documents, expired invite, seat block, wrong-recipient и SMS fresh-invite recovery остаются в
+  public-safe composition и не открывают MGMT/CLIN/PAT chrome. Anonymous→authenticated edges ограничены
+  provision/login/confirmation continuations; SMS «только email» возвращает к delivery state, а не к recipient view.
+- Каждая product action несёт actor/trusted-context/capability/outcome metadata. Patient card с collaboration CTA
+  согласован как `handoffAllowed:true`; capability-withheld handoff state по-прежнему не показывает transfer action.
+- Shared mobile drawer сохраняет один toggle, переводит focus на navigation или drawer, закрывается Escape,
+  возвращает focus на toggle и не теряет organization/navigation text.
+- Полный semantic gate разбит на три параллельных bounded группы без урезания coverage: `146` renders, `284` action
+  clicks (`66` results + `218` navigations), `284` actor/context/capability contracts, `284` back/forward pairs,
+  `146` external hash, `146` keyboard activation, `42` drawer и `124` public Support/Documents checks. Overflow,
+  assertion, console, runtime и network failures: `0`; `git diff --check`: PASS.
+- Новый current evidence batch:
+  `.claude/screenshots/SAAS-UX07-PROTOTYPE/2026-07-15T21-03-18Z/` — 18 inspected desktop/mobile PNGs + manifest,
+  source SHA-256 `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`. Batches
+  `2026-07-15T19-36-23Z` и `2026-07-15T20-16-39Z` superseded. Temporary server `127.0.0.1:8796`; `:5200`, app,
+  API, DB и delivery не использовались.
+- Статус UX-07: **interaction/context-graph convergence complete; awaiting full two-reviewer re-audit**. Ни seal,
+  ни phase acceptance correction owner не выдаёт.
+
+## 2026-07-16 — UX-07 final two-reviewer acceptance
+
+- Два независимых reviewer выполнили полный final re-audit exact source
+  `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` и batch
+  `.claude/screenshots/SAAS-UX07-PROTOTYPE/2026-07-15T21-03-18Z/`; spot acceptance не использовался.
+- Reviewer #2 сначала сформировал собственный PASS, только затем прочитал §11 reviewer #1. False acceptance и false
+  rejection не обнаружены; оба reviewer независимо выдали visual/usability seals #1 и #2.
+- Повторно пройдены 9 scenarios / 73 states × desktop/mobile = `146` renders, `284` declared-action instances и
+  `124` generated public Support/Documents instances. Reviewer #2 проверил combined `408` visible actions,
+  actor/context/capability/outcome contracts и history pairs; `146` external hashes, `146` keyboard activations и
+  все `42` authenticated mobile drawers.
+- Public recovery не открыл authenticated chrome; six represented anonymous→authenticated continuations остались
+  единственными; handoff action/capability и visit-scoped result согласованы; same-state targets, semantic/focus,
+  console/network/overflow и diagnostic leaks: `0` failures.
+- Все 18 PNG SHA-256 и source SHA совпали с manifest. `UX07_INDEPENDENT_AUDIT.md` §§11–13 содержит оба независимых
+  review и consolidated verdict.
+- Статус UX-07: **completed; PASS; seals #1 and #2 granted**. Остаточные ограничения относятся к production
+  implementation/accessibility gates; pending OM/BD owner rulings не изменялись.

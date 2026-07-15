@@ -232,22 +232,60 @@ Audit record: `UX06_INDEPENDENT_AUDIT.md`.
 
 ## UX-07 — Wireframes и scenario prototype
 
+**Статус:** completed — final independent two-reviewer re-audit PASS; visual/usability seals #1 and #2 granted on
+source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and evidence batch
+`2026-07-15T21-03-18Z`.
+
 **Цель:** проверить структуру до изменения рабочего UI.
 
-Прототипировать только ключевые цепочки:
+Прототипировать только ключевые цепочки и их recovery, используя canonical UX-06 screen IDs и UX-04 state IDs:
 
-- specialist landing → signup;
-- owner first-run;
-- patient invite → install;
-- patient multi-org switch;
-- owner/admin ↔ clinical work;
-- branding/custom-domain setup.
+- specialist landing → signup и owner first-run/security/setup (`ACQ-01…05`);
+- clinic staff invite acceptance (`STF-01…08`);
+- patient email invite → OTP → first value → install → installed first launch → push recovery (`PIN-01…09`);
+- SMS fallback (`SMS-01…03`) как transport-only branch без auth elevation;
+- public booking → exact appointment/enrollment → patient app (`PBK-01…08`);
+- returning multi-org switch и denied/revoked deep-link recovery (`MOR-01…05`);
+- owner/admin management ↔ clinical work;
+- brand/publication → hostname base → independent surface binding, включая degraded fallback;
+- decision-safe clinic patient card/history/handoff candidate без превращения OM-4…7 в owner rulings.
 
 Сначала low-fidelity flow/wireframe, затем один согласованный visual direction. Не рисовать все существующие CRUD-экраны заново.
 
 **Исполнители:** UI/UX executor; два независимых visual reviewers по seal-протоколу только после появления рендера.
 
-**Выход:** prototype index и usability findings.
+**Выходы этой фазы (не создавать дополнительные contract-документы):**
+
+- `UX07_PROTOTYPE_INDEX.md` — карта прототипа, flow/state trace, способ запуска и ограничения;
+- `UX07_USABILITY_FINDINGS.md` — наблюдения исполнителя до независимого аудита, не audit verdict;
+- `ux07-prototype/index.html` — self-contained static prototype с локальными CSS/JS;
+- `.claude/screenshots/SAAS-UX07-PROTOTYPE/<UTC>/` — representative desktop/mobile renders и manifest evidence.
+- `UX07_INDEPENDENT_AUDIT.md` — один audit record с двумя независимыми visual/usability review sections и итоговым
+  verdict после integrated correction/re-audit, если он потребуется.
+
+**Executor checklist:**
+
+- один навигируемый low-fidelity prototype покрывает все цепочки выше и явные error/recovery states;
+- desktop/mobile меняют композицию, но не trusted context, CTA priority, authorization или recovery;
+- current BersonCare visual language используется как одно направление, без перерисовки всех CRUD;
+- staff one-org, patient multi-org, permission-before-filter, core org context, one-way domain fallback и
+  transport/auth/relationship separation не нарушены;
+- безопасные кандидаты OM/BD явно отмечены как candidates/pending, а не owner rulings;
+- нет реальных PII, delivery, application/DB/runtime changes;
+- проверены local links/navigation, canonical IDs, UX-04 flow trace, representative viewport renders, browser
+  console и `git diff --check`.
+
+Фаза считается завершённой только после полного независимого visual/usability audit всего прототипа и, при
+связанных findings, одного integrated correction pass с последующим full re-audit. Executor findings сами по себе
+не закрывают UX-07.
+
+Финальный full re-audit независимо повторён двумя reviewers на точном source-bound batch. Каждый проверил 9
+scenarios / 73 states × desktop/mobile = `146` renders, `284` declared-action checks и `124` generated public
+Support/Documents checks; reviewer #2 дополнительно зафиксировал combined total `408` visible action/history/metadata
+checks. Hash/history/focus, public recovery boundaries, handoff capability, neutral/authorized shell, all `42` mobile
+drawers, semantics, diagnostics, console/network и overflow прошли без failures. Все 18 PNG и source SHA совпали с
+manifest. Итоговый record и оба seal: `UX07_INDEPENDENT_AUDIT.md` §§11–13. Pending OM/BD gates не были превращены в
+owner rulings.
 
 ## UX-08 — Owner decision packet
 
