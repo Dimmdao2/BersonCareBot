@@ -1,5 +1,11 @@
+import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
+
 export type DevBypassClinicAdminWorkspacePort = {
-  ensureClinicOwnerWorkspace(input: { platformUserId: string; displayName: string }): Promise<void>;
+  ensureStaffWorkspace(input: {
+    platformUserId: string;
+    displayName: string;
+    kind: DevBypassStaffWorkspaceKind;
+  }): Promise<void>;
 };
 
 let workspacePort: DevBypassClinicAdminWorkspacePort | undefined;
@@ -19,9 +25,10 @@ function requireWorkspacePort(): DevBypassClinicAdminWorkspacePort {
   return workspacePort;
 }
 
-export async function ensureDevBypassClinicAdminWorkspace(input: {
+export async function ensureDevBypassStaffWorkspace(input: {
   platformUserId: string;
   displayName: string;
+  kind: DevBypassStaffWorkspaceKind;
 }): Promise<void> {
-  await requireWorkspacePort().ensureClinicOwnerWorkspace(input);
+  await requireWorkspacePort().ensureStaffWorkspace(input);
 }

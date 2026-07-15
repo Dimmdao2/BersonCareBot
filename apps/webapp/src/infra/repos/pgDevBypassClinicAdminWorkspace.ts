@@ -1,7 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { runWebappTransaction } from '@/infra/db/runWebappSql';
 import type { DevBypassClinicAdminWorkspacePort } from '@/modules/auth/devBypassClinicAdminWorkspacePort';
-import { reconcileDevClinicAdminWorkspace } from '@/modules/auth/devBypassClinicAdminWorkspaceReconciliation';
+import { reconcileDevBypassStaffWorkspace } from '@/modules/auth/devBypassClinicAdminWorkspaceReconciliation';
 import {
   beOrganizationMembers,
   beOrganizations,
@@ -9,14 +9,14 @@ import {
 } from '../../../db/schema/bookingEngine';
 
 /**
- * Idempotently gives the dedicated dev-bypass identity one unambiguous owner workspace.
+ * Idempotently gives each dedicated staff dev-bypass identity one unambiguous workspace.
  * This port is reachable only from the development-only dev-bypass token path.
  */
 export const pgDevBypassClinicAdminWorkspacePort: DevBypassClinicAdminWorkspacePort = {
-  async ensureClinicOwnerWorkspace({ platformUserId, displayName }) {
+  async ensureStaffWorkspace({ platformUserId, displayName, kind }) {
     await runWebappTransaction(async (tx) => {
       const now = new Date().toISOString();
-      const desired = reconcileDevClinicAdminWorkspace({ platformUserId, displayName });
+      const desired = reconcileDevBypassStaffWorkspace({ platformUserId, displayName, kind });
 
       await tx
         .insert(beOrganizations)
@@ -35,23 +35,25 @@ export const pgDevBypassClinicAdminWorkspacePort: DevBypassClinicAdminWorkspaceP
           },
         });
 
-      await tx
-        .insert(beSpecialists)
-        .values({
-          ...desired.specialist,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: beSpecialists.id,
-          set: {
-            organizationId: desired.specialist.organizationId,
-            fullName: desired.specialist.fullName,
-            isActive: desired.specialist.isActive,
-            sortOrder: desired.specialist.sortOrder,
+      if (desired.specialist) {
+        await tx
+          .insert(beSpecialists)
+          .values({
+            ...desired.specialist,
+            createdAt: now,
             updatedAt: now,
-          },
-        });
+          })
+          .onConflictDoUpdate({
+            target: beSpecialists.id,
+            set: {
+              organizationId: desired.specialist.organizationId,
+              fullName: desired.specialist.fullName,
+              isActive: desired.specialist.isActive,
+              sortOrder: desired.specialist.sortOrder,
+              updatedAt: now,
+            },
+          });
+      }
 
       // A staff principal must resolve to exactly one active organization. The dedicated dev
       // identity is allowed to be repaired after arbitrary DEV data experiments.

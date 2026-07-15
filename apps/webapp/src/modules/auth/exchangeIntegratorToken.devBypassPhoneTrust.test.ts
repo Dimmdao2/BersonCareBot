@@ -16,9 +16,9 @@ vi.mock("@/modules/auth/devBypassPlatformUserPhonePort", () => ({
   applyDevBypassPlatformUserPhoneInDb: (...args: unknown[]) => applyDevBypassMock(...args),
 }));
 
-const ensureClinicAdminWorkspaceMock = vi.fn().mockResolvedValue(undefined);
+const ensureStaffWorkspaceMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/modules/auth/devBypassClinicAdminWorkspacePort", () => ({
-  ensureDevBypassClinicAdminWorkspace: (...args: unknown[]) => ensureClinicAdminWorkspaceMock(...args),
+  ensureDevBypassStaffWorkspace: (...args: unknown[]) => ensureStaffWorkspaceMock(...args),
 }));
 
 const findByUserIdMock = vi.fn();
@@ -53,7 +53,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   beforeEach(() => {
     cookieSet.mockClear();
     applyDevBypassMock.mockClear();
-    ensureClinicAdminWorkspaceMock.mockClear();
+    ensureStaffWorkspaceMock.mockClear();
     findByUserIdMock.mockReset();
   });
 
@@ -125,6 +125,11 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     );
     expect(findByUserIdMock).toHaveBeenCalledWith("bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000003");
+    expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
+      platformUserId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      displayName: "Demo Admin",
+      kind: "global_admin",
+    });
   });
 
   it("forces preset role for dev:admin even when identity row is client", async () => {
@@ -154,6 +159,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     const result = await exchangeIntegratorToken("dev:admin", identityResolutionPort);
     expect(result).not.toBeNull();
     expect(result!.session.user.role).toBe("admin");
+    expect(result!.session.adminMode).toBe(true);
     expect(result!.redirectTo).toBe("/app/doctor");
   });
 
@@ -183,9 +189,43 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
     expect(result?.session.user.role).toBe("doctor");
     expect(result?.session.adminMode).toBeUndefined();
-    expect(ensureClinicAdminWorkspaceMock).toHaveBeenCalledWith({
+    expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
       platformUserId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
       displayName: "Demo Clinic Owner",
+      kind: "clinic_admin",
+    });
+  });
+
+  it("provisions a specialist workspace for dev:doctor without admin semantics", async () => {
+    findByUserIdMock.mockResolvedValue({
+      userId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "doctor",
+      displayName: "Demo Doctor",
+      phone: "+79990000002",
+      bindings: { telegramId: "222222222" },
+    } satisfies SessionUser);
+
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => null),
+      findOrCreateByChannelBinding: vi.fn(async () => ({
+        user: {
+          userId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+          role: "doctor" as const,
+          displayName: "Demo Doctor",
+          bindings: { telegramId: "222222222" },
+        },
+        accountOutcome: "linked_existing" as const,
+      })),
+    };
+
+    const result = await exchangeIntegratorToken("dev:doctor", identityResolutionPort);
+
+    expect(result?.session.user.role).toBe("doctor");
+    expect(result?.session.adminMode).toBeUndefined();
+    expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
+      platformUserId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      displayName: "Demo Doctor",
+      kind: "doctor",
     });
   });
 });

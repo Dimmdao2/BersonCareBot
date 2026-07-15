@@ -137,14 +137,16 @@ NODE_ENV=development
 
 | `token` | Роль в сессии | Admin mode | Типичное использование |
 |---------|---------------|------------|------------------------|
-| `dev:admin` | `admin` | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
+| `dev:admin` | `admin` + membership `assistant` | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
 | `dev:clinic-admin` | `doctor` + membership `owner` | нет | Управление своей клиникой (`Врачи`, `Настройки клиники`) без global-admin экранов |
-| `dev:doctor` | `doctor` | нет | Кабинет специалиста без admin-only экранов |
+| `dev:doctor` | `doctor` + membership `doctor` + specialist | нет | Кабинет специалиста без admin-only экранов |
 | `dev:client` | `client` | — | Кабинет пациента |
 
-`dev:clinic-admin` идемпотентно создаёт/чинит отдельную `DEV UX Clinic`, owner-membership и specialist для
-выделенной dev-identity. Поэтому токен продолжает работать после TEST→DEV refresh и после произвольных
-экспериментов с DEV-данными. Он остаётся обычной platform-role `doctor`, а не глобальным `admin`.
+Все три staff-токена идемпотентно создают/чинят общую `DEV UX Clinic` и своё единственное active membership.
+`dev:doctor` получает отдельного specialist, `dev:clinic-admin` — owner-membership и отдельного specialist,
+`dev:admin` — минимальный `assistant` membership без specialist (права global admin даёт platform-role +
+`adminMode`, а не ownership клиники). Поэтому токены продолжают работать после TEST→DEV refresh и после
+произвольных экспериментов с DEV-данными, сохраняя разные меню и полномочия.
 
 ### 4.3 Способы входа
 

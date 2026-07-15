@@ -42,6 +42,7 @@ import {
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
 import { isDevAuthBypassEnabled } from "./devBypassPolicy";
+import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -475,13 +476,22 @@ export async function exchangeIntegratorToken(
 
   if (devParsed && env.DATABASE_URL?.trim()) {
     user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
-    if (parsed.sub === "00000000-0000-0000-0000-000000000004") {
-      const { ensureDevBypassClinicAdminWorkspace } = await import(
+    const staffWorkspaceKind: DevBypassStaffWorkspaceKind | null =
+      parsed.sub === "00000000-0000-0000-0000-000000000002"
+        ? "doctor"
+        : parsed.sub === "00000000-0000-0000-0000-000000000003"
+          ? "global_admin"
+          : parsed.sub === "00000000-0000-0000-0000-000000000004"
+            ? "clinic_admin"
+            : null;
+    if (staffWorkspaceKind) {
+      const { ensureDevBypassStaffWorkspace } = await import(
         "@/modules/auth/devBypassClinicAdminWorkspacePort"
       );
-      await ensureDevBypassClinicAdminWorkspace({
+      await ensureDevBypassStaffWorkspace({
         platformUserId: user.userId,
-        displayName: parsed.displayName ?? "Demo Clinic Owner",
+        displayName: parsed.displayName ?? user.displayName,
+        kind: staffWorkspaceKind,
       });
     }
   }

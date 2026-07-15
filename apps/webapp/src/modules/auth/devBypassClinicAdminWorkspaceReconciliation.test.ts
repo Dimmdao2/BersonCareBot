@@ -1,15 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { reconcileDevClinicAdminWorkspace } from "./devBypassClinicAdminWorkspaceReconciliation";
+import {
+  DEV_CLINIC_ADMIN_ORGANIZATION_ID,
+  DEV_CLINIC_ADMIN_SPECIALIST_ID,
+  DEV_DOCTOR_SPECIALIST_ID,
+  reconcileDevBypassStaffWorkspace,
+  type DevBypassStaffWorkspaceKind,
+} from "./devBypassClinicAdminWorkspaceReconciliation";
 
-describe("reconcileDevClinicAdminWorkspace", () => {
+describe("reconcileDevBypassStaffWorkspace", () => {
   const input = {
     platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     displayName: "Demo Clinic Owner",
+    kind: "clinic_admin" as const,
   };
 
   it("is stable across two consecutive reconciliation runs", () => {
-    const first = reconcileDevClinicAdminWorkspace(input);
-    const second = reconcileDevClinicAdminWorkspace(input);
+    const first = reconcileDevBypassStaffWorkspace(input);
+    const second = reconcileDevBypassStaffWorkspace(input);
     expect(second).toEqual(first);
   });
 
@@ -25,7 +32,7 @@ describe("reconcileDevClinicAdminWorkspace", () => {
       },
     };
 
-    const repaired = { ...corrupted, ...reconcileDevClinicAdminWorkspace(input) };
+    const repaired = { ...corrupted, ...reconcileDevBypassStaffWorkspace(input) };
 
     expect(repaired.organization).toEqual({
       id: "d0000000-0000-4000-8000-000000000004",
@@ -45,5 +52,43 @@ describe("reconcileDevClinicAdminWorkspace", () => {
       role: "owner",
       status: "active",
     });
+  });
+
+  it.each<{
+    kind: DevBypassStaffWorkspaceKind;
+    role: "owner" | "doctor" | "assistant";
+    specialistId: string | null;
+  }>([
+    {
+      kind: "doctor",
+      role: "doctor",
+      specialistId: DEV_DOCTOR_SPECIALIST_ID,
+    },
+    {
+      kind: "clinic_admin",
+      role: "owner",
+      specialistId: DEV_CLINIC_ADMIN_SPECIALIST_ID,
+    },
+    {
+      kind: "global_admin",
+      role: "assistant",
+      specialistId: null,
+    },
+  ])("projects the exact $kind membership for a fresh workspace", ({ kind, role, specialistId }) => {
+    const state = reconcileDevBypassStaffWorkspace({
+      platformUserId: input.platformUserId,
+      displayName: input.displayName,
+      kind,
+    });
+
+    expect(state.organization.id).toBe(DEV_CLINIC_ADMIN_ORGANIZATION_ID);
+    expect(state.membership).toEqual({
+      organizationId: DEV_CLINIC_ADMIN_ORGANIZATION_ID,
+      platformUserId: input.platformUserId,
+      role,
+      specialistId,
+      status: "active",
+    });
+    expect(state.specialist?.id ?? null).toBe(specialistId);
   });
 });
