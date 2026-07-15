@@ -1,6 +1,8 @@
 # UX-05 — Branding capability and entitlement matrix
 
-**Статус:** integrated correction complete; awaiting full independent re-audit.  
+**Статус:** completed as a decision-ready matrix; full independent re-audit **PASS** after integrated correction.
+Канонический phase verdict: [`UX05_INDEPENDENT_AUDIT.md`](./UX05_INDEPENDENT_AUDIT.md) §5. Pending BD-1…BD-6
+остаются owner gates и не являются rulings.
 **Связанный контракт:** [`BRANDING_DOMAIN_CONTRACT.md`](./BRANDING_DOMAIN_CONTRACT.md).
 
 ## 1. Что разделяет эта матрица

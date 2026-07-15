@@ -1,7 +1,8 @@
 # Current State Baseline
 
-Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; patient replay выполнен, visual audit ждёт
-свежего независимого acceptance.
+Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; patient replay выполнен. Независимый
+patient-replay audit завершён с **PASS — UX-01 factual current-state audit complete**; канонический verdict и
+сохранённые finding-only ограничения: [`UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`](./UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md).
 
 ## Текущая среда UX-аудита
 

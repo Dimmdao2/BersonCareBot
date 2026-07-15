@@ -1,6 +1,8 @@
 # UX-06 — Current route to target screen migration map
 
-**Статус:** integrated correction complete; awaiting full independent UX-06 re-audit.
+**Статус:** completed as a decision-safe route migration contract; full independent UX-06 re-audit **PASS** after
+integrated correction. Канонический phase verdict: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
+(`150 actual = 150 references = 150 unique`; missing/stale/duplicate `0`).
 **Allocation:** every current `page.tsx` is listed exactly once below: **150 / 150**.
 **Rule:** disposition is a migration instruction, not evidence that the target capability/data contract already exists.
 
@@ -109,7 +111,7 @@ screens.
 | `patient/go/[kind]` | object/action deep-link resolver | Entry behavior into PAT-02/PAT-03/PAT-06 after object → organization → enrollment verification; never a navigation screen |
 | public/patient booking `done`, `pay`, product-token states | result/payment/trusted continuation variants | States of ORG-PUB-02, PAT-04 or PAT-07 as allocated; token/result state cannot authorize a different organization or expose an internal user id |
 
-Re-audit therefore has two independent invariants:
+The accepted map preserves two independent invariants, both of which must be rechecked after future map changes:
 
 1. all 150 current `page.tsx` files appear exactly once in the allocation tables;
 2. every inventoried material view above has a target screen or is explicitly classified as guarded

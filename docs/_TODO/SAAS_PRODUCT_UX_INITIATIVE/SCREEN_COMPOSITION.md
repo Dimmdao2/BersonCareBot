@@ -1,6 +1,8 @@
 # UX-06 — Target screen composition
 
-**Статус:** integrated correction complete; awaiting full independent UX-06 re-audit.
+**Статус:** completed as a decision-safe screen-composition contract; full independent UX-06 re-audit **PASS**
+after integrated correction. Канонический phase verdict:
+[`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7 (`57/57` compositions; unknown target IDs `0`).
 **Contract:** screen specifications below are logical compositions. Target route names are migration candidates, not
 an authorization source or an implementation commitment.
 

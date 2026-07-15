@@ -66,14 +66,15 @@ Final schedule truth comes from `15-42-10Z`; corrected Today/badge truth comes f
 
 The two identical mobile shell hashes for doctor and clinic-admin remain separate role attempts/files but do not by themselves prove different expanded mobile menus; role boundary proof comes from the corresponding desktop navigation and manifests.
 
-## Unclosed acceptance items
+## Retained findings after UX-01 acceptance
 
 - Patient Today remains finding-only because `organization_principal_required` persists after active enrollment
   restoration. Other retained patient replay states are valid.
 - Registration submit/verification/first-run states were not exercised. The retained form was exposed after a controlled standard DEV admin API update of `specialist_signup_enabled=true`.
 - Regular-doctor communications has no retained privacy-safe screenshot.
-- Fresh independent audit of the replay is required; `UX01_INDEPENDENT_AUDIT.md` and
-  `UX01_FRESH_AUDIT_2026-07-15.md` remain historical FAIL records.
+- Fresh independent patient-replay audit завершён с **PASS**; канонический текущий verdict:
+  [`UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`](./UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md). `UX01_INDEPENDENT_AUDIT.md`
+  и `UX01_FRESH_AUDIT_2026-07-15.md` остаются историческими FAIL records и не переопределяют текущий acceptance.
 
 ## Controlled DEV mutations for patient replay
 

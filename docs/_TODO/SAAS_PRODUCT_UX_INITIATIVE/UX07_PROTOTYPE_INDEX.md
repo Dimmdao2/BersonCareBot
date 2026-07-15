@@ -1,8 +1,9 @@
 # UX-07 — Scenario prototype index
 
-**Статус:** full interaction/context-graph convergence complete after re-audit §§8–10; fresh source-bound evidence
-ready; awaiting full independent two-reviewer re-audit. Ни executor, ни correction owner не выдают audit verdict
-или visual seal.  
+**Статус:** **PASS; UX-07 complete.** Full independent two-reviewer re-audit granted visual/usability seals #1 and
+#2 on source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and evidence batch
+`2026-07-15T21-03-18Z`. Канонический phase verdict:
+[`UX07_INDEPENDENT_AUDIT.md`](./UX07_INDEPENDENT_AUDIT.md) §§11–13.
 **Прототип:** [`ux07-prototype/index.html`](./ux07-prototype/index.html).  
 **Scope:** self-contained low-fidelity task/recovery prototype; application routes, API, DB and delivery are not
 changed.
@@ -108,7 +109,7 @@ Current representative batch:
 - source SHA-256: `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`
 
 The batches `2026-07-15T19-36-23Z` and `2026-07-15T20-16-39Z` are historical/superseded evidence and must not be
-used for the next re-audit.
+used as current acceptance evidence.
 
 Automated convergence gate on the current source:
 
@@ -120,6 +121,6 @@ Automated convergence gate on the current source:
 - `124` public Support/Documents boundary checks;
 - zero same-state target actions, overflow, assertion, console, runtime or network failures.
 
-This evidence demonstrates correction convergence, not phase acceptance. UX-07 closes only after both independent
-reviewers repeat the full review against this exact source and current batch and record the shared verdict in
-`UX07_INDEPENDENT_AUDIT.md`.
+This evidence and the two independent source-bound reviews demonstrate phase acceptance. Both reviewers recorded
+**PASS** and seals #1/#2 in [`UX07_INDEPENDENT_AUDIT.md`](./UX07_INDEPENDENT_AUDIT.md) §§11–13. Any prototype
+source change invalidates these source-bound seals and requires fresh evidence plus a new full two-reviewer audit.

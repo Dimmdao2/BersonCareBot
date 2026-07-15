@@ -548,3 +548,171 @@
 - Audit record обновлён на месте: `UX09_INDEPENDENT_AUDIT.md` §8. `ROADMAP.md` синхронизирован; новый документ не
   создавался. App tests, lint, typecheck, build и DB smoke не запускались, потому что re-audit меняет только
   planning/audit documentation.
+
+## 2026-07-16 — Final initiative completion audit
+
+- **Run ID:** `SAAS-UX-FINAL-AUDIT-20260716-A8417-01`.
+- **Проверенный HEAD:** `a8417ef333f517ecf3dafa2c5c025bb4524d3d3f` на
+  `feat/saas-interface-work3`; worktree был clean и совпадал с `origin/feat/saas-interface-work3` до этой audit-записи.
+- **Финальный verdict:** **FAIL — формальная цель инициативы пока не может быть отмечена независимо завершённой.**
+  Содержательная спецификация UX-01…09 собрана и её phase-аудиты воспроизводятся, но current-source статусы
+  противоречат этим аудитам. При правиле «неясное или противоречивое evidence = не достигнуто» это блокирует final
+  completion seal. `README.md` и `ROADMAP.md` намеренно не переведены в independently audited complete.
+
+### Requirement-by-requirement result
+
+| Требование | Результат | Evidence |
+|---|---|---|
+| Current screens / factual baseline | **PASS по содержанию** | UX-01 inventories и route allocation `150/150`; retained evidence arithmetic `71 = 66 valid + 5 finding-only`; DEV-хэши `23/23` совпали. |
+| Roles, contexts and screen composition | **PASS** | UX-03 operating model и role-capability matrix; UX-06 target registry ↔ composition `57/57`, missing/extra/duplicate `0`. |
+| Solo specialist vs clinic doctor modes | **PASS** | Единая tenant/component model с capability/composition variants; team, handoff и clinic-wide filters не превращены в параллельное solo-приложение. |
+| Patient card, full clinic history, specialist filtering and handoff | **PASS как decision-safe contract** | Один organization card shell; authorization precedes filter; own/assigned safe subset; shared/private history и handoff остаются за явными `UX08-01/02` owner gates. |
+| Public landing, signup, invite, email-first install and optional SMS | **PASS** | UX-04 J1…J7 и `ACQ/STF/PIN/SMS/PBK/MOR/ERR`; email proof remains primary, SMS is transport-only and cannot elevate auth. |
+| Branding, domain, PWA and sender identity | **PASS** | UX-05 contract/matrix separates core platform/organization identity from owner-gated white-label, custom-origin, W-PWA and sender branches; Host is not authorization. |
+| Patient multi-organization use | **PASS** | Zero/one/many enrollment resolver, explicit chooser/switch and no silent context substitution are assigned to U5A. |
+| Research basis and recommendation/owner-decision separation | **PASS** | UX-02 uses official vendor/help sources and primary technical/security sources; facts, planner recommendations and owner rulings are distinct. |
+| Interactive prototype and visual evidence | **PASS with portability risk** | Nine prototype flows, 73 states and 142 actions; deep-link/mobile DOM smoke passed; 18/18 UX-07 PNG hashes matched and contact sheet was visually inspected. |
+| Owner decision packet | **PASS / decisions intentionally open** | `UX08-01…12 = 12/12`, unique, three alternatives and required provenance/recommendation/safe-boundary fields; every ruling remains `none/pending`. |
+| Implementation roadmap | **PASS** | 19 stages × 14 mandatory fields; normative DAG covers `19/19`, cycles and unknown direct dependencies `0`; proportional validation, rollback, migration and merge gates present. |
+| Foundation, tenant, privacy and workstream isolation | **PASS** | No second principal/settings/membership path, ad hoc RLS, implementation/deploy permission or overlap with the authoritative SaaS Foundation sequence was introduced. Branch delta is docs-only. |
+| Canonical documentation consistency | **FAIL** | Current artifact headers/acceptance sections still claim audits are pending after the matching independent PASS records. |
+
+### Blocking finding F-FINAL-01 — stale current-source status
+
+Один связанный класс status drift должен быть исправлен согласованно, после чего нужен один full completion
+re-audit, а не серия узких audit/fix циклов:
+
+- `CURRENT_STATE_BASELINE.md` всё ещё говорит, что visual audit ждёт fresh independent acceptance;
+- `UX01_EVIDENCE_MANIFEST.md` всё ещё требует fresh independent replay audit, хотя последующий UX-01 PASS существует;
+- `BRANDING_DOMAIN_CONTRACT.md` и `BRANDING_CAPABILITY_MATRIX.md` всё ещё ожидают UX-05 re-audit;
+- `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и `ROUTE_MIGRATION_MAP.md` всё ещё ожидают UX-06 re-audit;
+- `UX07_PROTOTYPE_INDEX.md` всё ещё ожидает two-reviewer re-audit, хотя source-bound functional и visual seals PASS.
+
+Исторические FAIL/checkpoint записи в audit-файлах и `LOG.md` сами по себе не являются finding: они сохраняют
+хронологию. Finding относится только к текущим статусам действующих deliverables.
+
+### Reproduced checks and residual risks
+
+- Markdown local links: `38` files scanned, `30` local links, missing `0`; `git diff --check` PASS до audit-записи.
+- Current route allocation: `150 actual = 150 referenced = 150 unique`, missing/stale/duplicate `0`.
+- Prototype source SHA-256:
+  `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`; evidence PNG hashes `18/18`.
+- UX-01 source manifests: `9/9` exist in the integration worktree named by the owner handoff; referenced PNG files
+  `85`, missing `0`; DEV declared hashes `23/23`.
+- Screenshot evidence is runtime-only under gitignored `.claude/screenshots/` and split between the integration
+  worktree (UX-01) and work3 (UX-07). It is valid on the current server but not portable from Git alone.
+- Patient Today `organization_principal_required`, unexercised registration submit/verification/first-run and the
+  absent privacy-safe regular-doctor communications screenshot remain explicitly documented UX-01 findings, not
+  silently treated as implemented behavior.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run: this was a docs/evidence completion audit and
+  application, DB, runtime, TEST and PROD were not changed.
+
+**НАШЁЛ:** substantive UX-01…09 coverage passes; one consolidated blocking class of stale current-source statuses.
+
+**ИЗМЕНИЛ:** only this existing `LOG.md` audit record; no new document, app/DB/runtime change, commit or push.
+
+## 2026-07-16 — F-FINAL-01 integrated status convergence
+
+- **Run ID:** `SAAS-UX-FINAL-CORRECTION-20260716-FINAL01-01`.
+- Один integrated correction stage согласованно обновил текущие status/acceptance формулировки во всех восьми
+  артефактах из F-FINAL-01: UX-01 baseline/evidence, оба UX-05 branding outputs, три UX-06 outputs и UX-07
+  prototype index.
+- Текущие deliverables теперь прямо ссылаются на фактические phase verdicts: UX-01 patient-replay **PASS**,
+  UX-05 full re-audit **PASS**, UX-06 full re-audit **PASS** и UX-07 two-reviewer **PASS** с seals #1/#2 на
+  source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` / batch
+  `2026-07-15T21-03-18Z`.
+- Исторические FAIL/checkpoint ledger записи не переписывались. Pending OM/BD/UX08 owner gates не стали rulings;
+  prototype/source-bound и runtime-evidence ограничения сохранены.
+- Статус correction stage: **complete; awaiting one full independent final completion re-audit**. README/ROADMAP
+  final status не менялся; application, DB, runtime, TEST и PROD не затрагивались; commit/push не выполнялись.
+
+## 2026-07-16 — Full final completion re-audit after F-FINAL-01 correction
+
+- **Run ID:** `SAAS-UX-FINAL-REAUDIT-20260716-FINAL01-01`.
+- **Проверенный UX HEAD:** `a8417ef333f517ecf3dafa2c5c025bb4524d3d3f` на
+  `feat/saas-interface-work3`, включая uncommitted integrated correction
+  `SAAS-UX-FINAL-CORRECTION-20260716-FINAL01-01` только в initiative docs.
+- **Вердикт:** **FAIL — F-FINAL-01 закрыт, но полный coordination/canon gate обнаружил новый blocker
+  F-FINAL-02.** `README.md` и `ROADMAP.md` намеренно не переведены в independently audited complete.
+
+Это был полный повтор owner requirement checklist и authoritative evidence, а не spot-check status-строк. Заново
+проверены UX-01…09, current/target registries, phase audits, prototype source/manifests/seals, owner decisions,
+implementation DAG, Foundation separation, model routing, branch/worktree coordination и отсутствие ложных
+implementation claims.
+
+### Requirement-by-requirement verdict
+
+| Требование | Итог полного re-audit |
+|---|---|
+| UX-01 current-state screens/evidence | **PASS:** `150/150`; 9/9 manifests; 85/85 referenced PNG exist; 23/23 declared DEV hashes match; `71 = 66 valid + 5 finding-only`. |
+| UX-02 external research | **PASS:** official product/help and primary technical/security sources; facts, recommendations and owner rulings remain separated. |
+| Roles and capability boundaries | **PASS:** global admin, owner/admin with and without specialist binding, specialist, assistant-safe, patient, onboarding and public have bounded surfaces; permission precedes filters/entitlements. |
+| Solo specialist vs clinic doctor | **PASS:** one tenant/account/component family with capability-driven composition; team/history/handoff chrome is absent in solo and conditional in clinic, without parallel route trees. |
+| Patient card/history/handoff | **PASS as decision-safe contract:** one organization card candidate, own/assigned safe subset, authorization-before-filter, private-entry protection and named handoff primitives; final policy remains `UX08-01/02`. |
+| Multi-organization patient context | **PASS:** zero/one/many resolver, explicit chooser/switch, verified deep-link/object context, cache isolation and no silent organization substitution. |
+| Specialist landing, signup and first run | **PASS:** specialist-oriented platform landing, solo/clinic composition within one onboarding, exactly-once owner workspace path and explicit first-run/security states. |
+| Staff/patient invite, email/SMS, activation/install | **PASS:** J1…J7 and `ACQ/STF/PIN/SMS/PBK/MOR/ERR`; email proof is primary, SMS transport cannot elevate auth, first value precedes install/push. |
+| Branding, domains, PWA and sender identity | **PASS:** core P/O context is independent from W presentation; Host is not authz; base/binding lifecycle, canonical fallback, per-origin isolation and truthful sender readiness remain gated. |
+| UX-06 IA/composition/routes | **PASS:** canonical registry `57/57`, composition missing `0`; current routes `150 actual = 150 refs = 150 unique`, missing/stale/duplicate `0`. |
+| UX-07 prototype and visual evidence | **PASS:** unchanged source SHA `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`; 9 flows, 73 states, 142 actions; 18/18 evidence hashes; both source-bound seals PASS; contact sheet re-inspected. |
+| UX-08 owner decision packet/provenance | **PASS:** `UX08-01…12 = 12/12`, each has three alternatives, provenance, recommendation, distinct safe boundary and execution consequence; all rulings remain `pending/none`. |
+| UX-09 implementation roadmap | **PASS:** 19 unique stages × 14 mandatory fields; 19/19 dependency registry, unknown dependencies `0`, cycles `0`, full topological coverage; migration/rollback/validation/no-dup gates intact. |
+| Foundation and implementation honesty | **PASS:** no second principal/settings/membership path, ad hoc RLS, invented schema, TEST/deploy permission or overlap with `SAAS_FOUNDATION/SEQUENCE.md`; docs explicitly state implementation has not begun. |
+| Model tiers | **PASS in initiative roadmap:** only `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` are referenced, matching the latest integration policy. |
+| F-FINAL-01 status convergence | **PASS:** all eight current artifacts now cite the applicable independent PASS; no new pending-audit wording exists in current deliverables. Historical FAIL/checkpoint records remain correctly historical. |
+| Canon/coordination sync | **FAIL:** work3 `docs/ORCHESTRATION_BINDINGS.md` is one integration commit behind and retains a superseded model-override line. |
+
+### F-FINAL-01 closure
+
+The integrated correction is coherent across all eight artifacts:
+
+- UX-01 baseline/evidence now points to `UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md` PASS while retaining factual gaps;
+- both UX-05 outputs point to `UX05_INDEPENDENT_AUDIT.md` §5 PASS and keep BD-1…6 pending;
+- all three UX-06 outputs point to `UX06_INDEPENDENT_AUDIT.md` §7 PASS and preserve `57/57`/`150/150` invariants;
+- UX-07 index points to both PASS seals on the exact unchanged source/evidence batch and still says any source change
+  invalidates them.
+
+### Blocking finding F-FINAL-02 — integration canon not synced back
+
+`origin/feat/doctor-ui-rebuild` now contains `2da21d045 docs(agents): standardize BersonCare on 5.6 models`.
+Comparison of the four coordination-canon files shows only one difference: work3 still permits `gpt-5.5` and
+`gpt-5.4` in `docs/ORCHESTRATION_BINDINGS.md`, while integration canon permits only `gpt-5.6-sol`,
+`gpt-5.6-terra`, `gpt-5.6-luna`. `AGENTS.md`, `CLAUDE.md` and `docs/AGENT_AUTORUN_SCHEME.md` match.
+
+The initiative roadmap itself already uses only the three current 5.6 models, so no phase output needs redesign.
+Nevertheless, the explicit coordination rule forbids retaining a branch-local canon fork and required the
+integration-approved line to be synced back. This auditor does not merge/fix its own finding. Required correction:
+sync integration commit `2da21d045` (or its exact approved bindings line) into work3 without overwriting the current
+initiative-doc correction, reread the four canon files, record acknowledgement, then perform one final full
+completion re-audit.
+
+### Reproduced commands/evidence
+
+- Node registry/link checks: 38 Markdown + 1 HTML; 39 local links, missing `0`; target IDs `57/57`; routes
+  `150/150`; decisions `12/12`; stages `19 × 14`; DAG cycles/unknown `0`.
+- Node evidence checks: UX-01 manifests `9`, PNG refs `85`, missing `0`, declared hashes `23`, mismatches `0`; UX-07
+  PNG refs `18`, mismatches `0`; prototype source SHA exact.
+- Prototype object evaluation: 9 flows, 73 states, 142 actions = 33 result actions + 109 navigations; malformed
+  actions `0`.
+- Visual evidence: all 18 current UX-07 PNGs rebuilt into one contact sheet and re-inspected without visible stale
+  context, substitution or clipping.
+- `git diff --check`: PASS before this audit record. `git merge-base --is-ancestor` for `d8c197a5d`, `302571f5f`
+  and `cebc0790c`: all PASS. Current worktree changes remain initiative documentation only.
+- `git diff origin/feat/doctor-ui-rebuild -- AGENTS.md CLAUDE.md docs/AGENT_AUTORUN_SCHEME.md
+  docs/ORCHESTRATION_BINDINGS.md`: exactly one changed file/one line, caused by missing `2da21d045` sync.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run: application/schema/runtime did not change.
+
+### Residual risks
+
+- All 12 product rulings remain pending; PASS phase contracts do not choose them.
+- UX-01 retains the Patient Today defect and explicitly unexercised/private evidence states.
+- Screenshot evidence is server-local and gitignored, split between integration worktree (UX-01) and work3
+  (UX-07); all paths exist now, but Git checkout alone is not portable evidence.
+- UX-07 proves a low-fidelity represented interaction contract, not live auth/delivery/domain/install behavior or
+  final production accessibility/visual acceptance.
+
+**НАШЁЛ:** F-FINAL-01 fully closed and every substantive UX/evidence requirement still passes; one new blocking
+coordination drift, F-FINAL-02, caused by unsynced integration commit `2da21d045`.
+
+**ИЗМЕНИЛ:** only this existing `LOG.md` re-audit record; README/ROADMAP, canon, app, DB and runtime were not changed;
+no commit or push.

@@ -1,6 +1,8 @@
 # UX-06 — Target information architecture
 
-**Статус:** integrated correction complete; awaiting full independent UX-06 re-audit.
+**Статус:** completed as a decision-safe target IA contract; full independent UX-06 re-audit **PASS** after
+integrated correction. Канонический phase verdict: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
+(`57/57` canonical registry/composition parity; `150/150` current route allocation).
 **Scope:** logical IA and navigation contract; this is not an implementation route freeze.
 **Inputs:** UX-01 factual inventory, UX-02 patterns, audited UX-03 operating model, audited UX-04 journeys and
 audited UX-05 branding/domain contract.

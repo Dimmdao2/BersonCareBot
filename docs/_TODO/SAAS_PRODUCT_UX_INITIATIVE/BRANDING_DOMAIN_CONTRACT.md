@@ -1,6 +1,8 @@
 # UX-05 — Branding and domain contract
 
-**Статус:** integrated correction complete; awaiting full independent re-audit.  
+**Статус:** completed as a decision-ready contract; full independent re-audit **PASS** after integrated correction.
+Канонический phase verdict: [`UX05_INDEPENDENT_AUDIT.md`](./UX05_INDEPENDENT_AUDIT.md) §5. Pending BD-1…BD-6
+остаются owner gates и не являются rulings.
 **Дата:** 2026-07-15.  
 **Scope:** platform landing, organization identity, white-label, custom domains, PWA identity, sender presentation,
 legal/support и безопасная деградация. Это discovery-контракт; application code, schema, DB и тарифы не менялись.
