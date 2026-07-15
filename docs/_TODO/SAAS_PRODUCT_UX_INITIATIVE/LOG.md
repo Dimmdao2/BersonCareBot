@@ -716,3 +716,16 @@ coordination drift, F-FINAL-02, caused by unsynced integration commit `2da21d045
 
 **ИЗМЕНИЛ:** only this existing `LOG.md` re-audit record; README/ROADMAP, canon, app, DB and runtime were not changed;
 no commit or push.
+
+## 2026-07-16 — Integration canon `2da21d045` synchronized before final re-audit
+
+- Текущая UX status-convergence и оба final-audit records сохранены checkpoint-коммитом `1e0f46988` и запушены
+  до нового integration merge.
+- `origin/feat/doctor-ui-rebuild` с каноническим коммитом `2da21d045` влит merge-коммитом `0edc83372`;
+  `2da21d045` проверен как ancestor текущего HEAD.
+- Дельта четырёх обязательных orchestration-файлов относительно предыдущего подтверждённого merge проверена:
+  `AGENTS.md`, `CLAUDE.md` и `docs/AGENT_AUTORUN_SCHEME.md` не изменялись; полностью перечитан изменённый
+  `docs/ORCHESTRATION_BINDINGS.md`. Действующий допустимый набор overrides — только `gpt-5.6-sol`,
+  `gpt-5.6-terra`, `gpt-5.6-luna`; UX roadmap ему соответствует.
+- F-FINAL-02 устранён синхронизацией с integration canon. Это coordination correction, не продуктовый ruling и не
+  изменение app/DB/runtime/TEST/PROD. Итоговый PASS по-прежнему требует полного независимого completion re-audit.
