@@ -49,7 +49,10 @@ and is not proof that a fixture exists or works.
 ```
 
 Allowed auth header names are `Cookie`, `Authorization`, `x-bersoncare-smoke-auth`, or explicit `x-smoke-*`
-operator headers. The `refs` values are opaque TEST identifiers required only for rendering smoke paths.
+operator headers. Doctor, clinic-admin, and patient profiles each require at least one non-empty auth header; the
+public profile must have no headers so public/bootstrap coverage cannot be satisfied by a staff session. The `refs`
+values are opaque TEST identifiers required only for rendering requests. JSON/JUnit evidence stores the contract
+path templates and never the rendered ref values.
 
 ## Command Order
 

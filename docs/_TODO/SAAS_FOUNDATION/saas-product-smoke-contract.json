@@ -47,7 +47,11 @@
       "method": "GET",
       "path": "/api/doctor/booking-engine/working-hours",
       "expectStatus": 200,
-      "jsonExpectation": "object",
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "nonEmptyPaths": ["rows"]
+      },
       "knownFailureHint": "G1"
     },
     {
@@ -55,19 +59,23 @@
       "actor": "doctor",
       "category": "bookings",
       "method": "GET",
-      "path": "/api/doctor/appointments/list",
+      "path": "/api/doctor/appointments/list?view=past&offset=0&limit=1",
       "expectStatus": 200,
-      "jsonExpectation": "non_empty",
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "nonEmptyPaths": ["appointments"]
+      },
       "knownFailureHint": "G1"
     },
     {
-      "id": "doctor.clients.list",
+      "id": "doctor.patients.list",
       "actor": "doctor",
       "category": "client_card",
       "method": "GET",
-      "path": "/api/doctor/clients",
+      "path": "/app/doctor/patients",
       "expectStatus": 200,
-      "jsonExpectation": "non_empty",
+      "minBodyBytes": 800,
       "knownFailureHint": "G1"
     },
     {
@@ -75,17 +83,17 @@
       "actor": "doctor",
       "category": "client_card",
       "method": "GET",
-      "path": "/app/doctor/clients/{doctorClientUserId}",
+      "path": "/app/doctor/patients/{doctorClientUserId}",
       "expectStatus": 200,
       "minBodyBytes": 800,
       "knownFailureHint": "G1"
     },
     {
       "id": "doctor.analytics.notifications",
-      "actor": "doctor",
+      "actor": "clinic_admin",
       "category": "analytics",
       "method": "GET",
-      "path": "/app/doctor/analytics/notifications",
+      "path": "/app/doctor/analytics?tab=app",
       "expectStatus": 200,
       "minBodyBytes": 800,
       "knownFailureHint": "G1"
@@ -105,7 +113,7 @@
       "actor": "doctor",
       "category": "broadcasts",
       "method": "GET",
-      "path": "/app/doctor/broadcasts",
+      "path": "/app/doctor/communications?tab=broadcasts",
       "expectStatus": 200,
       "minBodyBytes": 800,
       "knownFailureHint": "G1"
@@ -127,7 +135,10 @@
       "method": "GET",
       "path": "/api/admin/system-health",
       "expectStatus": 200,
-      "jsonExpectation": "object",
+      "jsonExpectation": {
+        "type": "object",
+        "requiredPaths": ["webappDb", "meta.probes"]
+      },
       "knownFailureHint": "G1"
     },
     {
@@ -149,13 +160,19 @@
       "minBodyBytes": 800
     },
     {
-      "id": "patient.program.item.discussion-media",
+      "id": "patient.program.item.discussion-summary",
       "actor": "patient",
       "category": "patient_program_media",
       "method": "GET",
-      "path": "/api/patient/treatment-program-instances/{patientProgramInstanceId}/items/{patientProgramItemId}/discussion/media",
+      "path": "/api/patient/treatment-program-instances/{patientProgramInstanceId}/discussion/summary?itemIds={patientProgramItemId}",
       "expectStatus": 200,
-      "jsonExpectation": "object"
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "fixtureKeys": [
+          { "path": "summaryByItemId", "ref": "patientProgramItemId" }
+        ]
+      }
     },
     {
       "id": "patient.media.playback",
@@ -164,7 +181,19 @@
       "method": "GET",
       "path": "/api/media/{mediaFileId}/playback",
       "expectStatus": 200,
-      "jsonExpectation": "object"
+      "jsonExpectation": {
+        "type": "object",
+        "requiredPaths": ["delivery", "mp4.url"],
+        "fixtureEquals": [
+          { "path": "mediaId", "ref": "mediaFileId" }
+        ],
+        "fixtureContains": [
+          { "path": "mp4.url", "ref": "mediaFileId" }
+        ],
+        "allowedValues": [
+          { "path": "delivery", "values": ["hls", "mp4", "file"] }
+        ]
+      }
     },
     {
       "id": "public.booking.entry",
@@ -180,9 +209,13 @@
       "actor": "public",
       "category": "public_booking",
       "method": "GET",
-      "path": "/api/booking/public/slots?serviceId={publicBookingServiceId}",
+      "path": "/api/booking/public/slots?type=in_person&branchServiceId={publicBookingServiceId}",
       "expectStatus": 200,
-      "jsonExpectation": "object"
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "nonEmptyPaths": ["slots"]
+      }
     }
   ],
   "mutationScenarios": [

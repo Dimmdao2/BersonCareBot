@@ -59,6 +59,11 @@ fixture IDs only. The runner masks auth material and never prints response bodie
 - [x] Runner emits machine-readable JSON and optional JUnit.
 - [x] Runner fails on 401/403/5xx, Next render digests, permission/RLS text, unexpected empty fixture facts, and
   configured forbidden body text.
+- [x] JSON API scenarios assert successful response semantics and their relevant fixture fact; a non-empty error
+  object or an empty appointments/working-hours/slots/summary payload cannot count as PASS.
+- [x] The `public` profile is required to have zero auth headers, authenticated profiles require non-empty auth
+  material, redirects are classified before they can resolve to a login page, and JSON/JUnit evidence records path
+  templates rather than rendered fixture identifiers.
 - [x] Self-tests prove failure classifiers, including the known G1 doctor/admin identity symptom classifier.
 - [x] No prod auth bypass, env read, DB read/write, live delivery, S3 operation, or Rubitime cleanup is performed by
   the contract validation command.
@@ -149,3 +154,13 @@ The TEST deploy wrapper accepts the same filter via `SAAS_PRODUCT_SMOKE_CATEGORI
 It pins `/run/bersoncarebot/saas-smoke.fixture`, the REDACTED non-runnable JSON shape, the offline preflight order,
 the owner-authorized live TEST smoke order, prohibited actions, and the evidence boundary. It is a fixture readiness
 packet only, not D3/R1/R2 PASS evidence.
+
+## D3.3 Meaningful JSON Evidence
+
+The live smoke accepts a JSON scenario only when the response satisfies its scenario-level assertion in
+`saas-product-smoke-contract.json`. `{ "ok": false, "error": "..." }` never satisfies either legacy JSON
+expectation. The D3 contract additionally requires non-empty doctor appointments, working-hours rows, and public
+slots; the discussion summary must contain a non-empty fact for the requested `patientProgramItemId`; and media
+playback must return the requested `mediaFileId`, bind the progressive URL to that ID, and report one of the real
+`hls|mp4|file` delivery modes. These are response facts from the owner-managed fixture, not inferred fallback data.
+Empty or mismatched fixture facts keep D3/R1/R2 blocked even when every HTTP status is 200.

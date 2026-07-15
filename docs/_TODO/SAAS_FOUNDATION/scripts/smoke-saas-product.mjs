@@ -42,6 +42,9 @@ function parseArgs(argv) {
   };
 
   for (const arg of argv) {
+    if (arg === "--") {
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       console.log(usage());
       process.exit(0);
@@ -164,6 +167,7 @@ function validateContract(contract) {
     assert(typeof scenario.method === "string" && scenario.method.length > 0, `${scenario.id}: method is required`);
     assert(typeof scenario.path === "string" && scenario.path.startsWith("/"), `${scenario.id}: absolute path required`);
     assert(Number.isInteger(scenario.expectStatus), `${scenario.id}: expectStatus must be an integer`);
+    validateJsonExpectation(scenario);
     categories.add(scenario.category);
   }
 
@@ -191,26 +195,119 @@ function validateContract(contract) {
   assert(mutationDefaults, "all mutation scenarios must be disabledByDefault in A1");
 }
 
+function validateJsonExpectation(scenario) {
+  const expectation = scenario.jsonExpectation;
+  if (expectation === undefined) return;
+  if (typeof expectation === "string") {
+    assert(["object", "non_empty"].includes(expectation), `${scenario.id}: unsupported jsonExpectation`);
+    return;
+  }
+
+  assert(
+    expectation && typeof expectation === "object" && !Array.isArray(expectation),
+    `${scenario.id}: jsonExpectation must be a string or object`,
+  );
+  assert(expectation.type === "object", `${scenario.id}: jsonExpectation.type must be object`);
+  for (const field of ["requiredPaths", "nonEmptyPaths"]) {
+    if (expectation[field] === undefined) continue;
+    assert(
+      Array.isArray(expectation[field]) && expectation[field].length > 0,
+      `${scenario.id}: ${field} must be a non-empty array`,
+    );
+    assert(
+      expectation[field].every((path) => typeof path === "string" && path.length > 0),
+      `${scenario.id}: ${field} paths must be non-empty strings`,
+    );
+  }
+  for (const field of ["fixtureEquals", "fixtureContains", "fixtureKeys"]) {
+    if (expectation[field] === undefined) continue;
+    assert(
+      Array.isArray(expectation[field]) && expectation[field].length > 0,
+      `${scenario.id}: ${field} must be a non-empty array`,
+    );
+    for (const check of expectation[field]) {
+      assert(
+        check && typeof check === "object" && !Array.isArray(check),
+        `${scenario.id}: ${field} entries must be objects`,
+      );
+      assert(typeof check.path === "string" && check.path.length > 0, `${scenario.id}: ${field}.path is required`);
+      assert(typeof check.ref === "string" && check.ref.length > 0, `${scenario.id}: ${field}.ref is required`);
+    }
+  }
+  if (expectation.allowedValues !== undefined) {
+    assert(
+      Array.isArray(expectation.allowedValues) && expectation.allowedValues.length > 0,
+      `${scenario.id}: allowedValues must be a non-empty array`,
+    );
+    for (const check of expectation.allowedValues) {
+      assert(
+        check && typeof check === "object" && !Array.isArray(check),
+        `${scenario.id}: allowedValues entries must be objects`,
+      );
+      assert(typeof check.path === "string" && check.path.length > 0, `${scenario.id}: allowedValues.path is required`);
+      assert(
+        Array.isArray(check.values) && check.values.length > 0,
+        `${scenario.id}: allowedValues.values must be a non-empty array`,
+      );
+    }
+  }
+  assert(
+    expectation.requireSuccess === undefined || typeof expectation.requireSuccess === "boolean",
+    `${scenario.id}: requireSuccess must be boolean`,
+  );
+  assert(
+    expectation.requireSuccess === true ||
+      (expectation.requiredPaths?.length ?? 0) > 0 ||
+      (expectation.nonEmptyPaths?.length ?? 0) > 0 ||
+      (expectation.fixtureEquals?.length ?? 0) > 0 ||
+      (expectation.fixtureContains?.length ?? 0) > 0 ||
+      (expectation.allowedValues?.length ?? 0) > 0 ||
+      (expectation.fixtureKeys?.length ?? 0) > 0,
+    `${scenario.id}: object jsonExpectation must assert a meaningful response fact`,
+  );
+}
+
 function validateFixture(contract, fixture) {
   assert(fixture.schemaVersion === 1, "fixture schemaVersion must be 1");
-  assert(fixture.authProfiles && typeof fixture.authProfiles === "object", "fixture authProfiles object is required");
-  assert(fixture.refs && typeof fixture.refs === "object", "fixture refs object is required");
+  assert(
+    fixture.authProfiles && typeof fixture.authProfiles === "object" && !Array.isArray(fixture.authProfiles),
+    "fixture authProfiles object is required",
+  );
+  assert(
+    fixture.refs && typeof fixture.refs === "object" && !Array.isArray(fixture.refs),
+    "fixture refs object is required",
+  );
 
   for (const actor of ["doctor", "clinic_admin", "patient", "public"]) {
-    assert(fixture.authProfiles[actor], `fixture missing auth profile ${actor}`);
-    const headers = fixture.authProfiles[actor].headers ?? {};
+    const profile = fixture.authProfiles[actor];
+    assert(profile && typeof profile === "object" && !Array.isArray(profile), `fixture missing auth profile ${actor}`);
+    const headers = profile.headers ?? {};
     assert(headers && typeof headers === "object" && !Array.isArray(headers), `${actor}: headers must be an object`);
-    for (const headerName of Object.keys(headers)) {
+    const headerEntries = Object.entries(headers);
+    assert(
+      actor === "public" ? headerEntries.length === 0 : headerEntries.length > 0,
+      actor === "public"
+        ? "public auth profile must not contain auth headers"
+        : `${actor}: at least one auth header is required`,
+    );
+    for (const [headerName, headerValue] of headerEntries) {
       const normalized = headerName.toLowerCase();
       assert(
         allowedAuthHeaderNames.has(normalized) || normalized.startsWith("x-smoke-"),
         `${actor}: unsupported auth header ${headerName}`,
       );
+      assert(
+        typeof headerValue === "string" && headerValue.trim().length > 0,
+        `${actor}: auth header ${headerName} must be a non-empty string`,
+      );
     }
   }
 
   for (const refName of contract.requiredFixtureRefs) {
-    assert(typeof fixture.refs[refName] === "string" && fixture.refs[refName].length > 0, `fixture missing ref ${refName}`);
+    assert(
+      typeof fixture.refs[refName] === "string" && fixture.refs[refName].trim().length > 0,
+      `fixture missing ref ${refName}`,
+    );
   }
 
   if (fixture.forbiddenBodyText !== undefined) {
@@ -267,7 +364,7 @@ function headersForActor(fixture, actor) {
   return { ...(fixture.authProfiles[actor]?.headers ?? {}) };
 }
 
-function classifyResponse({ scenario, status, bodyText, expectedStatus, forbiddenBodyText }) {
+function classifyResponse({ scenario, status, bodyText, expectedStatus, forbiddenBodyText, fixtureRefs = {} }) {
   if (status === 401 || status === 403) {
     if (scenario.knownFailureHint === "G1" && (scenario.actor === "doctor" || scenario.actor === "clinic_admin")) {
       return "known_g1_doctor_admin_identity";
@@ -302,14 +399,38 @@ function classifyResponse({ scenario, status, bodyText, expectedStatus, forbidde
   }
 
   if (scenario.jsonExpectation) {
-    const jsonResult = classifyJsonExpectation(bodyText, scenario.jsonExpectation);
+    const jsonResult = classifyJsonExpectation(bodyText, scenario.jsonExpectation, fixtureRefs);
     if (jsonResult) return jsonResult;
   }
 
   return null;
 }
 
-function classifyJsonExpectation(bodyText, expectation) {
+function valueAtPath(value, path) {
+  let current = value;
+  for (const segment of path.split(".")) {
+    if (current === null || typeof current !== "object" || !Object.hasOwn(current, segment)) {
+      return { found: false, value: undefined };
+    }
+    current = current[segment];
+  }
+  return { found: true, value: current };
+}
+
+function isNonEmpty(value) {
+  if (Array.isArray(value) || typeof value === "string") return value.length > 0;
+  return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+}
+
+function isMeaningfulRequiredValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+function classifyJsonExpectation(bodyText, expectation, fixtureRefs = {}) {
   let value;
   try {
     value = JSON.parse(bodyText);
@@ -317,28 +438,104 @@ function classifyJsonExpectation(bodyText, expectation) {
     return "unexpected_empty_fixture";
   }
 
-  if (expectation === "object") {
-    if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0) {
-      return null;
-    }
+  if (!value || typeof value !== "object") {
     return "unexpected_empty_fixture";
   }
+
+  if (Array.isArray(value)) {
+    return expectation === "non_empty" && value.length > 0 ? null : "unexpected_empty_fixture";
+  }
+
+  if (Object.keys(value).length === 0) return "unexpected_empty_fixture";
+
+  const responseError = Object.hasOwn(value, "error") ? value.error : undefined;
+  if (
+    value.ok === false ||
+    (typeof responseError === "string"
+      ? responseError.trim().length > 0
+      : responseError !== null && responseError !== undefined)
+  ) {
+    return "unexpected_empty_fixture";
+  }
+
+  if (expectation === "object") return null;
 
   if (expectation === "non_empty") {
-    if (Array.isArray(value)) {
-      return value.length > 0 ? null : "unexpected_empty_fixture";
-    }
-    if (value && typeof value === "object") {
-      if (Object.keys(value).length === 0) return "unexpected_empty_fixture";
-      for (const nestedValue of Object.values(value)) {
-        if (Array.isArray(nestedValue) && nestedValue.length > 0) return null;
-      }
-      return null;
+    for (const nestedValue of Object.values(value)) {
+      if (isNonEmpty(nestedValue)) return null;
     }
     return "unexpected_empty_fixture";
   }
 
-  return `unsupported_json_expectation:${expectation}`;
+  if (!expectation || typeof expectation !== "object" || expectation.type !== "object") {
+    return `unsupported_json_expectation:${String(expectation)}`;
+  }
+
+  if (expectation.requireSuccess === true && value.ok !== true) return "unexpected_empty_fixture";
+
+  for (const path of expectation.requiredPaths ?? []) {
+    const found = valueAtPath(value, path);
+    if (!found.found || !isMeaningfulRequiredValue(found.value)) {
+      return "unexpected_empty_fixture";
+    }
+  }
+
+  for (const path of expectation.nonEmptyPaths ?? []) {
+    const found = valueAtPath(value, path);
+    if (!found.found || !isNonEmpty(found.value)) return "unexpected_empty_fixture";
+  }
+
+  for (const check of expectation.fixtureEquals ?? []) {
+    const found = valueAtPath(value, check.path);
+    const fixtureValue = fixtureRefs[check.ref];
+    if (
+      typeof fixtureValue !== "string" ||
+      fixtureValue.length === 0 ||
+      !found.found ||
+      found.value !== fixtureValue
+    ) {
+      return "unexpected_empty_fixture";
+    }
+  }
+
+  for (const check of expectation.fixtureContains ?? []) {
+    const found = valueAtPath(value, check.path);
+    const fixtureValue = fixtureRefs[check.ref];
+    if (
+      typeof fixtureValue !== "string" ||
+      fixtureValue.trim().length === 0 ||
+      !found.found ||
+      typeof found.value !== "string" ||
+      !found.value.includes(fixtureValue)
+    ) {
+      return "unexpected_empty_fixture";
+    }
+  }
+
+  for (const check of expectation.allowedValues ?? []) {
+    const found = valueAtPath(value, check.path);
+    if (!found.found || !check.values.includes(found.value)) return "unexpected_empty_fixture";
+  }
+
+  for (const check of expectation.fixtureKeys ?? []) {
+    const found = valueAtPath(value, check.path);
+    const fixtureKey = fixtureRefs[check.ref];
+    if (
+      !found.found ||
+      !found.value ||
+      typeof found.value !== "object" ||
+      Array.isArray(found.value) ||
+      typeof fixtureKey !== "string" ||
+      fixtureKey.length === 0 ||
+      !Object.hasOwn(found.value, fixtureKey)
+    ) {
+      return "unexpected_empty_fixture";
+    }
+    const keyedValue = found.value[fixtureKey];
+    if (!isMeaningfulRequiredValue(keyedValue)) return "unexpected_empty_fixture";
+  }
+
+  return null;
 }
 
 function compactError(error) {
@@ -365,6 +562,7 @@ async function runScenario({ baseUrl, fixture, scenario }) {
       bodyText,
       expectedStatus: scenario.expectStatus,
       forbiddenBodyText: fixture.forbiddenBodyText ?? [],
+      fixtureRefs: fixture.refs,
     });
 
     return {
@@ -372,26 +570,25 @@ async function runScenario({ baseUrl, fixture, scenario }) {
       actor: scenario.actor,
       category: scenario.category,
       method: scenario.method,
-      path,
+      path: scenario.path,
       status: response.status,
       durationMs: Date.now() - startedAt,
       requestId: response.headers.get("x-request-id") ?? response.headers.get("x-bc-auth-correlation-id") ?? null,
       outcome: failureCode ? "fail" : "pass",
       failureCode,
     };
-  } catch (error) {
+  } catch {
     return {
       id: scenario.id,
       actor: scenario.actor,
       category: scenario.category,
       method: scenario.method,
-      path,
+      path: scenario.path,
       status: null,
       durationMs: Date.now() - startedAt,
       requestId: null,
       outcome: "fail",
       failureCode: "request_failed",
-      error: compactError(error),
     };
   }
 }
@@ -449,7 +646,6 @@ function toJunit(summary) {
         method: result.method,
         path: result.path,
         requestId: result.requestId,
-        error: result.error,
       });
       return `    <testcase ${attrs}><failure message="${xmlEscape(message)}">${xmlEscape(detail)}</failure></testcase>`;
     })
@@ -507,6 +703,279 @@ function runSelfTest(contract) {
       name: "forbidden text classifier",
       input: { scenario: baseScenario, status: 200, bodyText: "contains sentinel", expectedStatus: 200, forbiddenBodyText: ["sentinel"] },
       expected: "forbidden_body_text",
+    },
+    {
+      name: "object expectation rejects ok false",
+      input: {
+        scenario: { ...baseScenario, jsonExpectation: "object" },
+        status: 200,
+        bodyText: '{"ok":false,"error":"permission_failed"}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "non-empty expectation rejects ok false",
+      input: {
+        scenario: { ...baseScenario, jsonExpectation: "non_empty" },
+        status: 200,
+        bodyText: '{"ok":false,"appointments":[{"id":"should-not-pass"}]}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "object expectation rejects object-valued error",
+      input: {
+        scenario: { ...baseScenario, jsonExpectation: "object" },
+        status: 200,
+        bodyText: '{"ok":true,"error":{"code":"permission_failed"},"rows":[{"id":"false-pass"}]}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "required path rejects empty string",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requiredPaths: ["delivery"] },
+        },
+        status: 200,
+        bodyText: '{"delivery":""}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "required path rejects empty object",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requiredPaths: ["meta.probes"] },
+        },
+        status: 200,
+        bodyText: '{"meta":{"probes":{}}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "appointments expectation rejects empty facts",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requireSuccess: true, nonEmptyPaths: ["appointments"] },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"appointments":[]}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "working hours expectation rejects empty facts",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requireSuccess: true, nonEmptyPaths: ["rows"] },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"rows":[],"usesFallback":false}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "slots expectation rejects empty facts",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requireSuccess: true, nonEmptyPaths: ["slots"] },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"slots":[]}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "slots expectation accepts non-empty facts",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: { type: "object", requireSuccess: true, nonEmptyPaths: ["slots"] },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"slots":[{"start":"fixture"}]}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+      },
+      expected: null,
+    },
+    {
+      name: "discussion summary rejects missing fixture item",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requireSuccess: true,
+            fixtureKeys: [{ path: "summaryByItemId", ref: "patientProgramItemId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"summaryByItemId":{}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { patientProgramItemId: "fixture-item" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "discussion summary accepts fixture item fact",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requireSuccess: true,
+            fixtureKeys: [{ path: "summaryByItemId", ref: "patientProgramItemId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"summaryByItemId":{"fixture-item":{"totalCount":0}}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { patientProgramItemId: "fixture-item" },
+      },
+      expected: null,
+    },
+    {
+      name: "discussion summary rejects null fixture item fact",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requireSuccess: true,
+            fixtureKeys: [{ path: "summaryByItemId", ref: "patientProgramItemId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"summaryByItemId":{"fixture-item":null}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { patientProgramItemId: "fixture-item" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "discussion summary rejects empty fixture item fact",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requireSuccess: true,
+            fixtureKeys: [{ path: "summaryByItemId", ref: "patientProgramItemId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"ok":true,"summaryByItemId":{"fixture-item":{}}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { patientProgramItemId: "fixture-item" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "playback fixtureEquals rejects mismatched mediaFileId",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requiredPaths: ["delivery", "mp4.url"],
+            fixtureEquals: [{ path: "mediaId", ref: "mediaFileId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"mediaId":"other-media","delivery":{"kind":"mp4"},"mp4":{"url":"/media.mp4"}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { mediaFileId: "fixture-media" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "playback fixtureEquals rejects missing mediaFileId",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requiredPaths: ["delivery", "mp4.url"],
+            fixtureEquals: [{ path: "mediaId", ref: "mediaFileId" }],
+          },
+        },
+        status: 200,
+        bodyText: '{"delivery":{"kind":"mp4"},"mp4":{"url":"/media.mp4"}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { mediaFileId: "fixture-media" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "playback rejects invalid delivery descriptor",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requiredPaths: ["delivery", "mp4.url"],
+            fixtureEquals: [{ path: "mediaId", ref: "mediaFileId" }],
+            fixtureContains: [{ path: "mp4.url", ref: "mediaFileId" }],
+            allowedValues: [{ path: "delivery", values: ["hls", "mp4", "file"] }],
+          },
+        },
+        status: 200,
+        bodyText: '{"mediaId":"fixture-media","delivery":"unknown","mp4":{"url":"/api/media/fixture-media"}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { mediaFileId: "fixture-media" },
+      },
+      expected: "unexpected_empty_fixture",
+    },
+    {
+      name: "playback rejects URL for different media fixture",
+      input: {
+        scenario: {
+          ...baseScenario,
+          jsonExpectation: {
+            type: "object",
+            requiredPaths: ["delivery", "mp4.url"],
+            fixtureEquals: [{ path: "mediaId", ref: "mediaFileId" }],
+            fixtureContains: [{ path: "mp4.url", ref: "mediaFileId" }],
+            allowedValues: [{ path: "delivery", values: ["hls", "mp4", "file"] }],
+          },
+        },
+        status: 200,
+        bodyText: '{"mediaId":"fixture-media","delivery":"mp4","mp4":{"url":"/api/media/other"}}',
+        expectedStatus: 200,
+        forbiddenBodyText: [],
+        fixtureRefs: { mediaFileId: "fixture-media" },
+      },
+      expected: "unexpected_empty_fixture",
     },
   ];
 
@@ -573,6 +1042,38 @@ function runSelfTest(contract) {
     invalidFixtureFailed = compactError(error).includes("fixture missing ref doctorClientUserId");
   }
   assert(invalidFixtureFailed, "invalid fixture preflight must fail");
+
+  let authenticatedPublicFixtureFailed = false;
+  try {
+    validateFixture(contract, {
+      ...fixture,
+      authProfiles: {
+        ...fixture.authProfiles,
+        public: { headers: { Cookie: "must-not-be-present" } },
+      },
+    });
+  } catch (error) {
+    authenticatedPublicFixtureFailed = compactError(error).includes(
+      "public auth profile must not contain auth headers",
+    );
+  }
+  assert(authenticatedPublicFixtureFailed, "public smoke profile must remain unauthenticated");
+
+  let unauthenticatedPatientFixtureFailed = false;
+  try {
+    validateFixture(contract, {
+      ...fixture,
+      authProfiles: {
+        ...fixture.authProfiles,
+        patient: { headers: {} },
+      },
+    });
+  } catch (error) {
+    unauthenticatedPatientFixtureFailed = compactError(error).includes(
+      "patient: at least one auth header is required",
+    );
+  }
+  assert(unauthenticatedPatientFixtureFailed, "patient smoke profile must carry auth material");
 
   console.log("smoke-saas-product self-test: OK");
 }
