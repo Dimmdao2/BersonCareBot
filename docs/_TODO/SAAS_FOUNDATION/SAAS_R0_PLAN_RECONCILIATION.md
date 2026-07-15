@@ -7,14 +7,12 @@
 
 The owner was shown the fact base and the conflict analysis. Decision encoded by this stage:
 
-1. **`SAAS_ENFORCE_ROADMAP.md` is the CANONICAL execution plan** for the dormant⇄enforced flip (R1–R5).
-   All current work continues against it. It was authored first (2026-07-13 00:46–01:03), self-marked
-   "v0.3 FINAL — ready for orchestrator", and every dated entry in `TENANT_HARD_MODE_LOG.md` executes its
-   phase structure (A1, A2, B1, C0–C4, D1, D2, D3.x).
-2. **`TENANT_HARD_MODE_EXECUTION_PLAN.md` is NOT the active execution plan.** It is retained as the
-   **next-stage isolation-depth plan**. It is a draft (self-labeled "draft for owner decisions", authored
-   2026-07-14 00:58, 23h *after* the roadmap, in the same commit as the Rubitime retirement plan) and it never
-   references the roadmap. Its O1–O13 do **not** gate current work.
+1. **`SAAS_ENFORCE_ROADMAP.md` remains the canonical plan, but its old cutover finish line is superseded by R1.**
+   Current work is TEST-first enforced product readiness followed by a fresh new-domain product copy; frozen legacy
+   `bersoncare` production is never cut over.
+2. **[`docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`](../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md)
+   is an archived, non-executable reasoning record.** It was never approved or executed; its O1–O13 do **not** gate
+   current work, and its unique scope is retained in the roadmap register.
 3. **O1 (DB role granularity) is OPEN — do not record it as decided.**
    *(Corrected 2026-07-15 by the orchestrator, who initially overstated this. The owner pushed back: "я не
    уверен что это моё решение, и хочу понять оптимально ли оно сейчас." He is right.)*
@@ -34,24 +32,20 @@ The owner was shown the fact base and the conflict analysis. Decision encoded by
 4. **Nothing from the draft is discarded.** Its unique scope is transferred to an explicit register (R0.3) so a
    future stage can pick it up.
 
-**Not decided here, deliberately:** the draft's objection that a single global FORCE flip is a forbidden
-"big bang". That objection is legitimate and is answered *inside the roadmap itself* by phases **E2** (shadow run
-across all units) and **F1** (flip state machine with automatic OFF on failed postcheck) — both of which are
-**not yet built**. The risk is retired by building E2/F1 honestly, not by switching plans. Do not weaken E2/F1
-scope; record this link so it is not lost.
+**Superseded by R1 owner path:** TEST observability and an all-unit shadow run remain valuable to find enforce
+failures, but the old F1 automatic-OFF design is no longer a requirement. There is no legacy-production cutover and
+turning walls OFF in a live multi-tenant product risks a cross-clinic disclosure.
 
 ## Stage checklist
 
 Each item must be closed with concrete evidence (`file:line`, command + exit code, or commit hash). Report
 `closed X/9` against this file. Do not tick an item you did not verify against reality.
 
-- [x] **R0.1** `SAAS_ENFORCE_ROADMAP.md` header states it is the canonical execution plan for the flip, cites the
-      owner decision date 2026-07-15, and cross-links `TENANT_HARD_MODE_EXECUTION_PLAN.md` as the next-stage
-      depth plan. Do not delete or rewrite the existing "FINALIZATION v0.3 … THIS LAYER IS AUTHORITATIVE"
-      section — it predates the draft and stays valid.
-- [x] **R0.2** `TENANT_HARD_MODE_EXECUTION_PLAN.md` header states: not the active execution plan; retained as the
-      next-stage isolation-depth plan; O1–O13 do not gate current work; cross-links the roadmap. Keep the
-      document's content intact — this is a status marker, not a rewrite.
+- [x] **R0.1** Historical: the roadmap was marked canonical for the former flip path. R1 supersedes that finish line
+      with TEST-first enforced readiness and a fresh-product launch.
+- [x] **R0.2** Historical draft moved to
+      `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`; its body remains intact as reasoning, but
+      its header now says **DO NOT EXECUTE** and links the roadmap register.
       **O1 wording (corrected):** state that O1 is an **open question under owner discussion as of 2026-07-15**,
       that the currently built and live-proven topology is `app_staff`/`app_patient` + app-layer capability at a
       single chokepoint, and that the owner's 2026-07-13 decision covers the **app-layer** authorization model
@@ -134,7 +128,7 @@ This table is intentionally not a review or acceptance of the non-R0 changes.
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | D3.3-D3.5 per log | mtime `02:08`; diff adds meaningful JSON evidence requirements. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | D3.3-D3.5 per log | mtime `02:00`; diff hardens auth-header/fixture evidence wording. |
 | `docs/_TODO/SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | orchestrator R0 artifact | untracked stage contract/inventory file for this stage. |
-| `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` | orchestrator R0 artifact | R0.2 status marker added; original draft content preserved. |
+| `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` | archived by R1 | Original draft body preserved as non-executable historical reasoning. |
 | `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md` | orchestrator R0 artifact | pre-existing D3 rows plus R0.9 row appended by this stage. |
 | `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` | orchestrator R0 artifact | R0.7 policy-count correction from 161 to 163. |
 | `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` | D3.3-D3.5 per log | mtime `01:58`; D3.3/D3.5 product-smoke contract calibration. |

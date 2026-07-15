@@ -15,8 +15,8 @@ const manifest = 'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_SECTION10_DOCS_
 
 const section10Docs = [
   {
-    path: 'docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md',
-    requiredDisposition: 'follow_up_after_r6_r7',
+    path: 'docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md',
+    requiredDisposition: 'historical_record_no_execution',
   },
   {
     path: 'docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md',

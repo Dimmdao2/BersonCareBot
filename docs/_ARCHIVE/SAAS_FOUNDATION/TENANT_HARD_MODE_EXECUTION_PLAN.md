@@ -1,13 +1,15 @@
-# Tenant Hard Mode — execution plan
+# Tenant Hard Mode — archived reasoning record
 
-> **R0 status marker (owner decision, 2026-07-15).** This document is **not** the active execution plan for the
-> current dormant⇄enforced flip. It is retained as the next-stage isolation-depth plan. Current work is gated by
-> `SAAS_ENFORCE_ROADMAP.md`; this draft's O1-O13 do not gate that work. O1 (DB role granularity) remains an open
-> owner-facing question as of 2026-07-15. The owner's 2026-07-13 decision covers app-layer authorization:
-> clinic-management is authorized by clinic-membership capability at a single backend chokepoint, not by the global
-> `admin` role. That decision does **not** settle whether the DB topology should remain the built/live-proven
-> `app_staff`/`app_patient` pair or move toward the draft's more granular role set. Draft-only scope is preserved in
-> `SAAS_ENFORCE_ROADMAP.md` R0 reconciliation register.
+> **НЕ ЗАПУСКАТЬ ПО НЕМУ АГЕНТОВ / DO NOT EXECUTE.** This was never approved as an execution plan; none of its 143
+> items were executed, and its goal was reached by a different route. It is archived outside `_TODO` because a
+> document there reads as pending work. Keep the body intact only as a record of the reasoning. Its unique scope is
+> preserved in the [R0 reconciliation register](../../_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md#r0-plan-reconciliation-register-2026-07-15).
+
+> **Historical R0 marker (2026-07-15).** O1 (DB role granularity) remained an open owner-facing question. The
+> owner's 2026-07-13 decision covered app-layer clinic-membership capability, not the DB-role topology.
+
+> The original body below is preserved verbatim as historical reasoning, including old phase names and agent
+> prompts. Those passages are not instructions and must not be executed.
 
 Статус: draft for owner decisions, 2026-07-14. Это план исполнения; код, миграции и runtime-конфигурация этим документом не меняются.
 

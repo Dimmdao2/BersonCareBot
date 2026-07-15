@@ -18,7 +18,7 @@ pnpm run check:rubitime-section10-docs
 
 | Document | Disposition | Owner / phase | Follow-up |
 | --- | --- | --- | --- |
-| `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` | `follow_up_after_r6_r7` | Tenant hard mode owner after Rubitime `RR-PROOF-09/10` | Replace Rubitime quarantine/observe exceptions with a completed-retirement prerequisite and remove stale "canonical cutover pending" wording after runtime routes/code and archive/drop proof are complete. |
+| `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` | `historical_record_no_execution` | SaaS documentation owner | Archived reasoning only: retain the Rubitime quarantine discussion as history; do not reopen it as a plan or assign agents from it. |
 | `docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` | `follow_up_after_r6_r7` | SaaS cleanup owner after R6/R7 | Reclassify Rubitime raw/projection rows from quarantine/retain to retired/archive/drop according to `RUBITIME_RETIREMENT_R7_TABLE_DISPOSITION.md` and final `RUBITIME_RETIREMENT_R7_DROP_RESTORE_PROOF.md`. |
 | `docs/_TODO/SAAS_FOUNDATION/scope-derivation/t0-4-pre-table-matrix.tsv` | `follow_up_after_r7` | DB/schema owner after R7 migration proof | Move Rubitime raw tables from retain/quarantine to retired/drop; keep `patient_bookings`, `be_external_entity_mappings`, and `booking_calendar_map` according to the R7 disposition. |
 | `docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md` | `follow_up_after_r6` | Integrator/architecture owner after runtime route/code removal | Mark the Rubitime pipeline as retired/archived and point live booking docs to provider-neutral canonical lifecycle, canonical slots/create and R7 archive/drop proof. |

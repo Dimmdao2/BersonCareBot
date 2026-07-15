@@ -1,63 +1,62 @@
-# SaaS enforce roadmap — from current state to “one-command walls” (v0.2, hardened)
+# SaaS enforce roadmap — TEST-first enforced walls and fresh-product launch (v0.3)
 
-> **R0 canonical-plan marker (owner decision, 2026-07-15).** This document is the canonical execution plan for
-> the dormant⇄enforced flip (R1-R5). `TENANT_HARD_MODE_EXECUTION_PLAN.md` is retained as the next-stage
-> isolation-depth plan; it is not the active execution plan and its O1-O13 do not gate the current roadmap phases.
-> The reconciliation register near the end of this file preserves the draft-only scope so it is not lost.
-
-> Owner target, 2026-07-13: the application must work with the walls both DORMANT and ENFORCED, and the transition
-> in either direction must be one owner command. This roadmap is an execution plan, not evidence that the flip is
-> ready. Every database exercise below is limited to a disposable production copy until the owner authorizes TEST;
-> never use prod/test/dev databases for development proofs.
+> **Canonical owner path (2026-07-15).** This document is the canonical plan for product parity and enforced tenant
+> isolation on TEST, followed by a fresh new-product deployment. The old `bersoncare` production is LEGACY and
+> frozen: it is never cut over. The archived
+> [`Tenant Hard Mode draft`](../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md) is not executable;
+> its unique scope remains in the reconciliation register near the end of this file.
 
 ---
 
 ## 0. FINAL RESULT (fixed definition of done)
 
-**R1 — DORMANT product parity.** On a fresh production copy deployed by the repository scripts, all five units run
-with `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc`. A browser/API smoke logs in as real seeded doctor, admin, and patient
-identities and drives the critical screens and reads/writes. It detects 401/403/5xx, empty-result regressions,
-Server Action errors, and new application errors. A health endpoint alone is not evidence. If the operator-managed
-`SAAS_PRODUCT_SMOKE_FIXTURE` / `--fixture-file` path is absent, this gate is **SKIPPED/BLOCKED**, not PASS.
+**R1 — TEST product parity and multi-org readiness.** On TEST, create as many organizations and test clients as are
+needed; exercise every role, clinic admin capability, settings flow, and the doctor/client routes. Product smoke
+must detect 401/403/5xx, empty-result regressions, Server Action errors, and new application errors; a health
+endpoint alone is not evidence. UI, route infrastructure, the landing page, and separate specialist/client entry
+flows are part of the product work still required before launch.
 
-**R2 — ENFORCED product parity plus isolation.** On the same data after one flip command, the same product smoke is
-green under locked principal context and strict/FORCE RLS. A second clinic and a shared/multi-clinic patient prove
-the canonical staff-org and patient-own-data matrix. Legitimate webapp, integrator API, worker, scheduler,
-media-worker, cron/internal-job, public booking, OTP, and registration paths work; attempts without or with forged
-context fail closed. Missing `SAAS_PRODUCT_SMOKE_FIXTURE` remains a **SKIPPED/BLOCKED** product gate and cannot be
-used as R2 evidence. The canonical wall is documented at
+**R2 — TEST enforced product parity plus isolation.** TEST runs with locked principal context and strict/FORCE RLS.
+Multiple clinics and a shared/multi-clinic patient prove the staff-org and patient-own-data matrix. Legitimate
+webapp, integrator API, worker, scheduler, media-worker, cron/internal-job, public booking, OTP, registration, and
+settings paths work; missing or forged context fails closed. The canonical wall is documented at
 `TENANT_WALLS_AND_ACCESS_MODEL.md:21-75,92-110`.
 
-**R3 — one command each way, transactional operational contract.** One owner command performs preflight, quiesces
-writers, changes all required DB artifacts and runtime configuration, restarts all affected units, then runs the
-mode-specific product and isolation gates. One owner command returns to dormant. If ON verification fails, the
-wrapper automatically executes the OFF path and proves dormant product parity. “One command” may invoke versioned
-subscripts, but must not require an operator to edit env files, run SQL, or restart individual units by hand.
+**R3 — NOT A REQUIREMENT on the current path (owner, 2026-07-15).** There is no `bersoncare` production cutover,
+so an ON/OFF state machine and an OFF rollback lever solve no launch problem. Turning walls OFF in a live
+multi-tenant SaaS can expose clinic A data to clinic B; it is unacceptable rollback insurance.
 
-**R4 — repeatable and prod-mappable.** A fresh-copy rehearsal proves dormant deploy → shadow → ON → OFF twice
-without residue. TEST and PROD wrappers share the same implementation with explicit environment/unit allowlists;
-only owner authorization selects TEST/PROD. `deploy-test-saas.sh` is not yet sufficient evidence merely because
-migrations and `/api/health` pass.
+**R4 — NOT A REQUIREMENT on the current path (owner, 2026-07-15).** The dormant → ON → OFF → ON → OFF rehearsal
+and PROD-mapped wrappers existed only to support a cutover of the frozen legacy product. The new `therapysto`/
+`therapio` product is deployed as a fresh copy on a new domain, born with walls enforced.
 
-**R5 — observable, auditable, and recoverable.** Missing-principal, signature, role-switch, RLS denial, and pool
-selection failures are countable by unit/mode/path without logging PII or the signing secret. The cutover has a
-tested database/config rollback, writer-quiescence procedure, log capture, and decision thresholds.
+**R5 — observability for enforced TEST work.** Missing-principal, signature, role-switch, RLS-denial, and pool
+selection failures must be countable by unit/mode/path without PII or signing secrets, so the team can find and fix
+what breaks under enforce on TEST. It is not a cutover-decision threshold or an OFF/rollback procedure.
 
-### Overall acceptance commands
+### Overall acceptance commands for the current path
 
-The implementation phase must replace placeholders below with committed commands. The final gate is objectively:
+The owner-authorized TEST workflow is objectively centred on a fresh TEST deployment and locked-mode product proof;
+it does not invoke an ON/OFF flip:
 
 ```bash
-deploy/host/deploy-test-saas.sh --source fresh-prod-copy --mode dormant
-deploy/host/smoke-saas-product.sh --mode dormant --fixture-file /run/bersoncarebot/saas-smoke.fixture
-deploy/host/flip-saas.sh --target test on
-deploy/host/smoke-saas-product.sh --mode locked --fixture-file /run/bersoncarebot/saas-smoke.fixture
-deploy/host/smoke-saas-isolation.sh --mode locked --fixture-file /run/bersoncarebot/saas-smoke.fixture
-deploy/host/flip-saas.sh --target test off
-deploy/host/smoke-saas-product.sh --mode dormant --fixture-file /run/bersoncarebot/saas-smoke.fixture
+bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+pnpm run smoke:saas-product -- \
+  --mode=locked \
+  --base-url=https://test.bersoncare.ru \
+  --fixture-file=/run/bersoncarebot/saas-smoke.fixture
 ```
 
-Every command must exit 0 only after its assertions pass; any non-zero result is a failed R1/R2/R3 gate.
+The product smoke and multi-org isolation matrix must pass before the fresh-copy launch. If the
+operator-managed fixture is absent, product smoke is **SKIPPED/BLOCKED**, not PASS. The future new-domain deployment
+is a fresh project-copy launch with enforced walls, never an old-production cutover.
+
+### Historical note — superseded flip finish line
+
+The former R3/R4 finish line required `flip-saas.sh --target test on|off`, automatic OFF after a failed ON, and a
+dormant → ON → OFF → ON → OFF rehearsal. It is retained here as historical rationale only: it was designed to cut
+over an existing production system. The owner rejected that path on 2026-07-15 because legacy `bersoncare` remains
+frozen and an OFF lever in a live multi-tenant product would create a cross-clinic disclosure risk.
 
 ---
 
@@ -128,9 +127,8 @@ Every command must exit 0 only after its assertions pass; any non-zero result is
 - **G9 — shadow observability/B7.** Shadow currently emits a plain `console.warn` for missing context
   (`db-principal/index.ts:515-523`). There is no durable per-unit counter/structured event, route/job attribution,
   threshold, or zero-gap report. A shadow period cannot be accepted from absence of noticed logs.
-- **G10 — atomic one-command ON/OFF and backout/B8.** Section B remains a stub
-  (`SAAS_DEPLOY_SEQUENCE.md:52-59`); no idempotent wrapper coordinates writer stop, DB/config change, all-unit
-  restart, post-smokes, and automatic rollback.
+- **Historical G10 — atomic one-command ON/OFF and backout/B8.** This former cutover requirement is not current:
+  legacy `bersoncare` is frozen, and the fresh product copy launches with walls already enforced.
 - **G11 — product smoke.** Current deployment proof ends at migration count/health and manual browsing
   (`SAAS_DEPLOY_SEQUENCE.md:37-49`; `DORMANT_DEPLOY_TEST_RUNBOOK.md:40-42`). It did not expose a repeatable
   authenticated R1/R2 oracle.
@@ -347,6 +345,9 @@ duration/count. This is B7; “no one noticed errors” is not acceptance.
 
 ### Phase F1 — B8 flip state machine and OFF/backout · tier: deep · audit: deep
 
+> **NOT REQUIRED on the current path (owner, 2026-07-15).** There is no legacy-production cutover; an OFF lever
+> would risk exposing clinic A data to clinic B in a live multi-tenant SaaS.
+
 - [ ] Define explicit states `dormant`, `transitioning-on`, `enforced`, `transitioning-off`, `failed-rolled-back` and
   a lock preventing concurrent deploy/flip.
 - [ ] Version a state manifest of expected roles, memberships, grants, helpers/policies, FORCE flags, credential
@@ -363,6 +364,9 @@ Exit: static/self-tests plus fault-injected rehearsal prove every transition and
 
 ### Phase F2 — one-command wrappers and full TEST rehearsal (R3/R4) · tier: daily · audit: deep
 
+> **NOT REQUIRED on the current path (owner, 2026-07-15).** The one-command ON/OFF rehearsal only served the
+> legacy-production cutover that the owner is not performing.
+
 - [ ] Implement environment-allowlisted `flip-saas.sh --target test on|off`; PROD selection requires a separate
   explicit confirmation and remains owner-only.
 - [ ] ON order is derived from proven SQL dependencies: writer stop/drain, roles/grants and protected helper setup,
@@ -375,16 +379,24 @@ to a green dormant app. Operator invokes exactly one command per transition.
 
 ### Phase G1 — owner-facing TEST acceptance · tier: daily · audit: deep
 
-- [ ] Owner drives clinic #1 in dormant and enforced modes and self-registers clinic #2; automated harness verifies
-  the same facts and the patient matrix.
+> **REQUIRED and more important on the current path.** TEST is the sanctioned live working environment: prove
+> enforced walls while exercising multiple organizations, roles, settings, and the investor-facing product flows.
+
+- [ ] Owner drives clinic #1 and self-registers clinic #2 under enforced walls; automated harness verifies the same
+  facts and the patient matrix.
 - [ ] Exercise real TEST integrations only through approved send-safe redirects/mocks; confirm no production relay,
   credentials, DB, or bucket is used.
-- [ ] Record command outputs, manifest revisions, screenshots where UI-relevant, shadow report, and rollback result.
+- [ ] Record command outputs, screenshots where UI-relevant, the shadow report, and every TEST wall failure found
+  and fixed.
 
-Exit: automated R1/R2/R3 commands are green and owner records acceptance. Owner observation cannot override a red
+Exit: automated R1/R2 TEST gates are green and owner records acceptance. Owner observation cannot override a red
 automated gate.
 
 ### Phase G2 — PROD mapping, rollback drill, holistic audit · tier: deep · audit: deep
+
+> **NOT REQUIRED on the current path (owner, 2026-07-15).** No `bersoncare` PROD mapping, rollback drill, or
+> cutover command will be built: the new product launches as a fresh copy on a new domain with walls already
+> enforced.
 
 - [ ] Map TEST wrapper to exact canonical PROD paths/units without copying TEST credentials; reconcile with
   `scripts/deploy-saas-667.sh` and host conventions.
@@ -401,8 +413,9 @@ and the owner has one exact ON command and one exact OFF command. The roadmap do
 
 ## 3. Execution rules
 
-- One phase above is one focused pass. D3/D4 must be subdivided by the orchestrator if the discovered failure set
-  cannot be fixed and verified honestly in one pass; never collapse C1-C4 or F1-F2 back into a mega-pass.
+- One active phase above is one focused pass. D3/D4 must be subdivided by the orchestrator if the discovered failure
+  set cannot be fixed and verified honestly in one pass; never collapse C1-C4 into a mega-pass. F1/F2/G2 are
+  explicitly not required on the current path.
 - Before each phase, read its canonical task/docs and locate code through the repository index. Record load-bearing
   evidence as `file:line`; rerun line references after edits.
 - Every phase receives an independent adversarial audit against executable evidence. Green mocks/static checks do
@@ -461,9 +474,9 @@ Lead/owner decisions still required before execution:
 - C → ADR/role proof, webapp dual pool, secret plumbing, integrator/worker, scheduler/media/cron: original B4 fanout
   crossed security architecture, multiple runtimes, operations, and media and could not fit one pass.
 - D → #664, FB#1, enforce reads, enforce writes: original phase combined schema/policy design with every product path.
-- E/F → observability, B7 shadow, B8 state machine, wrapper/rehearsal: shadow must be measurable before it gates flip;
-  rollback mechanics must exist before the one-command rehearsal.
-- G → TEST acceptance and separate PROD mapping/audit: TEST evidence must precede any production package decision.
+- E → observability and B7 shadow: enforce failures must be measurable before TEST acceptance.
+- G1 → owner-facing TEST acceptance: TEST evidence precedes a fresh product-copy launch. F1/F2/G2 remain historical
+  cutover phases, not current requirements.
 
 ### Phase-C topology recommendation
 
@@ -547,30 +560,36 @@ all of C–G. Nothing touches TEST/PROD DBs or real deliveries during implementa
 
 ## R0 plan reconciliation register (2026-07-15)
 
-`TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. The areas below are retained for the next-stage
-isolation-depth plan because they are covered there more explicitly than in this roadmap:
+The archived `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` is not discarded. The areas below
+are retained as archived reasoning because they are covered there more explicitly than in this roadmap:
 
 | Draft-only area | Draft pointer | Current roadmap relationship |
 |---|---|---|
 | DB role granularity beyond the built `app_staff`/`app_patient` pair | O1 | Open owner-facing question; current roadmap phases continue on the built/live-proven topology until a later decision changes it. |
-| Broadcasts queue ownership / claim model | `TENANT_HARD_MODE_EXECUTION_PLAN.md` §7, H1-A | Roadmap C3/C4/D4 require worker/background proof, but do not carry the full queue separation-of-duties design. |
+| Broadcasts queue ownership / claim model, recipient validity, and lease semantics | archived §7, O6/O7, H1-A | Roadmap C3/C4/D4 require worker/background proof, but do not carry the full queue separation-of-duties design. |
 | Media NULL-row ownership policy | O5, H1-B | Roadmap C4/D3/D4 cover media behavior, but the NULL legacy/platform-media ownership decision remains next-stage scope. |
 | Platform admin / `super-org`, `platform_support`, break-glass | §5, O2/O3/O12/O13 | Roadmap keeps owner/lead decisions around platform scope, but does not implement the full support/break-glass taxonomy. |
 | References and catalog ownership | O4, H7 | Roadmap D/G gates do not resolve global-vs-per-org reference/catalog ownership. |
 | Analytics org attribution / unknown bucket / platform-vs-clinic split | H7 | Roadmap E/G need observability, but not the full analytics attribution model. |
 | Rubitime legacy quarantine timing | O10, H6 | Roadmap treats Rubitime as legacy/cutover-sensitive; quarantine timing remains for the next-stage isolation plan. |
 | Multi-org patient enrollment org-derivation rule | O8, H5 | Roadmap R2/D3 require shared-patient proof; draft H5 carries the deeper UX/source rule. |
+| Public booking and webhook/M2M tenant source | O9, H6 | R2 requires these paths to work, but the archived design uniquely specifies trusted exact-one host/link/branch-service derivation, separate webhook signature and tenant derivation, payload-org denial, narrow bootstrap access, and per-org batch splitting. |
 | H0 census -> descriptor -> entrypoint-matrix pipeline and 8-class RLS taxonomy | §6.1, H0 | Roadmap uses phased gates; the draft retains the deeper descriptor/taxonomy workstream for a future stage. |
+| H8 production cutover package | H8 | Not a requirement on the current path: the new product launches as a fresh copy with walls enforced. Retained only as historical reasoning. |
 
-The draft objection that a single global FORCE flip would be a forbidden big bang is answered inside this roadmap
-by E2 (shadow run across all units) and F1 (flip state machine with automatic OFF on failed postcheck). Those gates
-must not be weakened.
+The archived objection to a global FORCE flip remains relevant to TEST validation: E2/R5 must find failures under
+enforce. F1/F2/G2 are not requirements because the owner will not cut over the frozen legacy production.
 
 ## R0 roadmap phase status table (reality-derived, 2026-07-15)
 
 States are deliberately conservative. `TENANT_HARD_MODE_LOG.md` is treated as a claim source only; evidence below
 comes from committed/repo artifacts and checker results, and live TEST/PROD/dev DB proof is not claimed by this R0
 stage.
+
+Live proof that the enforced walls work exists outside repository artifacts: taskdb #725 records the 2026-07-13
+FORCE-RLS test cutover and two-clinic denial proof; #734 records the clinic-admin capability proof; #735 records
+200 interleaved requests with zero cross-org leaks. This evidence does not turn every individual phase below into
+PASS, and the final D3 17/17 smoke remains absent.
 
 | Phase | State | Evidence used | Missing for roadmap exit |
 |---|---|---|---|
@@ -585,11 +604,11 @@ stage.
 | C4 | repo-artifact-only | `pnpm run check:saas-c4-scheduler-media-cron-fanout` after the R0 checker repair | Strict+FORCE scheduler/media/internal cron fixtures, fake/local object storage proof, and infra pool/grants decision. |
 | D1 | repo-artifact-only | `pnpm run check:saas-d1-664-with-check-reverify` | Owner-authorized strict+FORCE/live re-verification if required by the phase gate. |
 | D2 | repo-artifact-only | `pnpm run check:saas-d2-fb1-bootstrap-phone-write` | Production-topology strict+FORCE application smoke for FB#1 and isolation negatives. |
-| D3 | blocked | D3 fixture/preflight artifacts exist; current repo log says final 17/17 live smoke was not run | Owner/operator fixture path plus authorized locked+FORCE read matrix with expected non-empty facts. |
+| D3 | blocked | `SAAS_PRODUCT_SMOKE_A1.md` and runner/checker are repo artifacts; supplied `/tmp` smoke progression was 4/17 → 13/17 → 16/17, with no final 17/17 | Authorized locked+FORCE read matrix with expected non-empty facts; do not infer a PASS from log prose. |
 | D4 | not-started | No D4 write-matrix artifact found in this R0 pass | Controlled create/update/delete write matrix and cross-tenant mutation negatives. |
 | E1 | not-started | Roadmap still describes future structured observability work | Structured counters/report command and redaction/fault-injection tests. |
 | E2 | not-started | Roadmap still describes future all-unit shadow run | Full A1/background shadow workload with zero unexplained events. |
-| F1 | not-started | Roadmap still describes future flip state machine | State manifest, automatic OFF, fault-injected rollback proof. |
-| F2 | not-started | `deploy/host/deploy-test-saas.sh` exists, but no `flip-saas.sh --target test on|off` implementation was verified | Idempotent one-command ON/OFF rehearsal twice from fresh copy. |
+| F1 | not-required-current-path | Explicit roadmap marker (owner, 2026-07-15) | No legacy-production cutover exists; an OFF lever would create a cross-clinic disclosure risk. |
+| F2 | not-required-current-path | Explicit roadmap marker (owner, 2026-07-15) | No ON/OFF rehearsal is required for a fresh product-copy launch. |
 | G1 | not-started | No owner-facing TEST acceptance artifact found in this R0 pass | Automated gates green plus owner acceptance evidence. |
-| G2 | not-started | No PROD mapping/rollback drill artifact found in this R0 pass | Disposable PROD-mapped rehearsal, holistic audit, SHIP/NO-SHIP checklist. |
+| G2 | not-required-current-path | Explicit roadmap marker (owner, 2026-07-15) | No `bersoncare` PROD mapping or rollback drill: the new product starts on a new domain with walls enforced. |

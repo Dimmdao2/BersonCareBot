@@ -43,7 +43,7 @@ Rubitime должен быть полностью удалён из целево
 
 ## 2. Why this is prerequisite for hard mode
 
-`TENANT_HARD_MODE_EXECUTION_PLAN.md` может начинаться с P0 стен без Rubitime retirement, но full enforce будет постоянно упираться в Rubitime quarantine:
+Archived `TENANT_HARD_MODE_EXECUTION_PLAN.md` recorded that full enforce would otherwise keep hitting Rubitime quarantine:
 
 - `integrator.rubitime_records`, `integrator.rubitime_events`, `public.appointment_records` исторически unscoped/legacy.
 - Rubitime inbound сейчас использует default-org compatibility, а не полноценный multi-org contract.
@@ -664,7 +664,8 @@ After R7:
 
 Update these docs as retirement proceeds:
 
-- `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` — replace Rubitime quarantine with retirement prerequisite/gate.
+- `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` — historical reasoning only; do not reopen it as
+  an execution plan. Its Rubitime quarantine note remains a record, while current work follows the roadmap.
 - `docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` — update Rubitime classification after R6/R7.
 - `docs/_TODO/SAAS_FOUNDATION/scope-derivation/t0-4-pre-table-matrix.tsv` — move Rubitime rows from retain/quarantine to retired/drop.
 - `docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md` — archive or mark retired.
@@ -768,7 +769,8 @@ Ask Sol to verify:
 3. Are any public/patient booking paths still forced through Rubitime v1/v2 after `booking_slots_read_source=canonical`?
 4. Is it safe to remove `booking_rubitime_bridge_enabled`, or does it also gate non-Rubitime mirror behavior?
 5. Which tables must be archived, migrated or kept live rather than dropped immediately?
-6. Does this plan sequence unblock `TENANT_HARD_MODE_EXECUTION_PLAN.md` without adding unsafe RLS exceptions?
+6. Does this plan preserve the archived Tenant Hard Mode reasoning without adding unsafe RLS exceptions to the
+   current roadmap?
 
 ## 13. Next agent assignment prompts
 

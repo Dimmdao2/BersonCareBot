@@ -114,5 +114,10 @@ OR
 ## 7. Текущее состояние (2026-07-12)
 
 - Клиника одна → мультиклиника dormant. Дефолт `legacy-guc` — поведение №1 не изменено.
-- БД-стены (161 политика) и рантайм-обвязка (порт + гейт) построены и проверены на одноразовой копии прод-дампа; независимые аудиты пройдены.
-- До боевого флипа: доунести хвост роутов на гейт, теневой прогон (найти пропуски), полная репетиция `locked`+FORCE на копии, ужесточить пару bootstrap-таблиц, финальный аудит. **Прод не трогаем до кнопки владельца.**
+- Строгий renderer строит **163** policy targets, а prod-copy DB-state checker сверяет отдельный inventory из
+  migrations 0160–0176 из **161** ENABLE + NO FORCE targets. Разница —
+  `public.organization_member_invites` и `public.saas_org_entitlement_overrides`: их ENABLE/FORCE состояние не
+  покрыто 161-target gate и остаётся открытым finding для triage владельца. Рантайм-обвязка (порт + гейт) и
+  renderer были проверены на одноразовой копии прод-дампа; независимые аудиты пройдены.
+- Historical 2026-07-12 follow-up was a production flip. It is superseded: frozen legacy `bersoncare` is never cut
+  over; current work finds/fixes enforce failures on TEST, then launches a fresh product copy with walls enforced.

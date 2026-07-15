@@ -9,7 +9,7 @@ credentials or patient data in the repository.
 Canonical inputs:
 
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` Phase A1.
-- `docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`.
+- `docs/_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md` (archived reasoning only; do not execute).
 - `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_DB_CLEANUP_SEQUENCE.md` as pre-Tenant input only.
 - `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` for the fresh-copy/Rubitime boundary.
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` for the owner/operator fixture
