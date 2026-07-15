@@ -175,6 +175,7 @@
 | `token` | Роль |
 |---------|------|
 | `dev:admin` | врач + admin mode (настройки, audit-log) |
+| `dev:clinic-admin` | администратор/owner своей dev-клиники, без global admin mode |
 | `dev:doctor` | только кабинет специалиста |
 | `dev:client` | пациент |
 
@@ -184,6 +185,9 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 ```
 
 Проверка: `curl -s -c /tmp/c.cookies -L "…dev-bypass…"` → `curl -s -b /tmp/c.cookies http://127.0.0.1:5200/api/me`.
+
+Чистый public/login без сессии: `/api/auth/dev-public`; явная регистрация кабинета:
+`/api/auth/dev-public?view=registration`. Это dev-only clear-session helper, не отдельная authenticated role.
 
 **Скриншоты авторизованных страниц без браузер-MCP** (headless chromium, двухшаговая схема с флашем cookie) — канон в [`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) §4.7. Главное: `next` для doctor/admin игнорируется; на auth-шаге chromium запускать **без** `--virtual-time-budget` (иначе cookie не сохранится в профиль).
 
@@ -201,7 +205,7 @@ http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
 
 1. **Реальные креды — только на проде.** Dev-env НЕ содержит реальных prod-секретов внешних каналов (Telegram / Rubitime / MAX / SMSC / S3) — они только в `/opt/env/bersoncarebot/*`. В dev: `NODE_ENV=development`, send-креды пустые, `MAX_ENABLED=false` / `SMSC_ENABLED=false`. Нашёл реальные креды в dev-env — очистить и сообщить владельцу.
 2. **Dev не шлёт реально.** В `development` доставка = no-op/мок. Не делать действий, способных отправить реальное сообщение/SMS в Telegram / Rubitime / SMSC / MAX или записать в реальный S3 из dev (тестовые записи, рассылки, ретраи). `INTEGRATOR_API_URL` в dev — только локальный `127.0.0.1:4200`.
-3. **Dev-БД = реальные ПДн.** `bcb_webapp_dev` — копия прод-дампа с реальными данными пациентов: только read-only SELECT при необходимости, не писать, не слать уведомления, не печатать ПДн в чат/логи.
+3. **Dev-БД = изменяемая песочница.** `bcb_webapp_dev` разрешено пересоздавать, сидировать и менять для разработки/UX. TEST→DEV разрешён через `bash deploy/host/refresh-dev-from-test.sh --execute` (ровно `bersoncarebot_test` → `bcb_webapp_dev`, PROD не открывается). Не коммитить dumps/cookie jars/runtime exports; запрет реальной доставки из dev сохраняется.
 4. **Прод не трогать из dev.** Не подключаться к `bcb_webapp_prod`, не читать `/opt/env/*`, не дёргать прод-сервисы — только по явному запросу владельца и канону SERVER CONVENTIONS (+ раздел [Host: PostgreSQL](#6-host-postgresql-и-database_url)).
 5. **Секреты не печатать.** Значения `.env`/секретов — маскировать; не вставлять креды в чат / логи / коммиты / доки.
 6. **Не удалять `.next`/кэш работающих серверов вслепую** — сперва `pgrep -af next`.
@@ -729,7 +733,7 @@ pnpm run ci
 
 ### Dev-DB opt-in smoke-тесты
 
-Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Запускаются вручную в dev-среде. Обязаны быть **строго read-only** — `bcb_webapp_dev` содержит реальные PII пациентов. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
+Ряд Vitest-тестов в `apps/webapp` скрыт за флагами `RUN_<DOMAIN>_DEV_DB=1` (плюс `USE_REAL_DATABASE=1` и `DATABASE_URL`). По умолчанию они **пропускаются** (`describe.skipIf`) и **не входят в CI**. Запускаются вручную в dev-среде. `bcb_webapp_dev` в целом является owner-authorized изменяемой песочницей, но текущие `*.devDb.integration.test.ts` сохраняют свой локальный **read-only** контракт; новый mutating smoke требует отдельного opt-in, fixture и cleanup. Полное соглашение: `.cursor/rules/test-execution-policy.md` §«Dev-DB opt-in smoke-тесты».
 
 ---
 

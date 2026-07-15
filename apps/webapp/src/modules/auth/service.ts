@@ -41,6 +41,7 @@ import {
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
+import { isDevAuthBypassEnabled } from "./devBypassPolicy";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -157,8 +158,11 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
 }
 
 function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
-  if (env.NODE_ENV === "production") return null;
-  if (!env.ALLOW_DEV_AUTH_BYPASS) return null;
+  const enabled = isDevAuthBypassEnabled({
+    nodeEnv: env.NODE_ENV,
+    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
+  });
+  if (!enabled) return null;
 
   const presets: Record<string, IntegratorTokenPayload> = {
     "dev:client": {
@@ -185,6 +189,15 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
       displayName: "Demo Admin",
       phone: "+79990000003",
       bindings: { telegramId: "333333333" },
+      purpose: "webapp-entry",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    "dev:clinic-admin": {
+      sub: "00000000-0000-0000-0000-000000000004",
+      role: "doctor",
+      displayName: "Demo Clinic Owner",
+      phone: "+79990000004",
+      bindings: { telegramId: "999999999999004" },
       purpose: "webapp-entry",
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
@@ -462,6 +475,15 @@ export async function exchangeIntegratorToken(
 
   if (devParsed && env.DATABASE_URL?.trim()) {
     user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
+    if (parsed.sub === "00000000-0000-0000-0000-000000000004") {
+      const { ensureDevBypassClinicAdminWorkspace } = await import(
+        "@/modules/auth/devBypassClinicAdminWorkspacePort"
+      );
+      await ensureDevBypassClinicAdminWorkspace({
+        platformUserId: user.userId,
+        displayName: parsed.displayName ?? "Demo Clinic Owner",
+      });
+    }
   }
 
   if (
@@ -806,10 +828,12 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
   let session: AppSession = { ...decoded, user: resolvedUser };
-  const isDevBypassSession =
-    session.authSource === "dev_bypass" &&
-    env.NODE_ENV !== "production" &&
-    env.ALLOW_DEV_AUTH_BYPASS === true;
+  const devBypassEnabled = isDevAuthBypassEnabled({
+    nodeEnv: env.NODE_ENV,
+    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
+  });
+  if (session.authSource === "dev_bypass" && !devBypassEnabled) return null;
+  const isDevBypassSession = session.authSource === "dev_bypass";
   if (isDevBypassSession) {
     // Keep explicit dev bypass role from the login token even if DB row has client role.
     session = { ...session, user: { ...session.user, role: decoded.user.role } };

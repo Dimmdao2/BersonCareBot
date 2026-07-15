@@ -17,6 +17,8 @@ vi.mock("@/config/env", async (importOriginal) => {
     ...mod,
     env: {
       ...mod.env,
+      NODE_ENV: "development",
+      ALLOW_DEV_AUTH_BYPASS: true,
       ALLOWED_TELEGRAM_IDS: "999000111",
       ADMIN_TELEGRAM_ID: 0,
       DOCTOR_TELEGRAM_IDS: "",

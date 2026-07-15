@@ -16,6 +16,11 @@ vi.mock("@/modules/auth/devBypassPlatformUserPhonePort", () => ({
   applyDevBypassPlatformUserPhoneInDb: (...args: unknown[]) => applyDevBypassMock(...args),
 }));
 
+const ensureClinicAdminWorkspaceMock = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/modules/auth/devBypassClinicAdminWorkspacePort", () => ({
+  ensureDevBypassClinicAdminWorkspace: (...args: unknown[]) => ensureClinicAdminWorkspaceMock(...args),
+}));
+
 const findByUserIdMock = vi.fn();
 vi.mock("@/infra/repos/pgUserByPhone", () => ({
   pgUserByPhonePort: {
@@ -29,6 +34,7 @@ vi.mock("@/config/env", async (importOriginal) => {
     ...mod,
     env: {
       ...mod.env,
+      NODE_ENV: "development",
       DATABASE_URL: "postgres://test:test@127.0.0.1:5432/test",
       ALLOW_DEV_AUTH_BYPASS: true,
     },
@@ -47,6 +53,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   beforeEach(() => {
     cookieSet.mockClear();
     applyDevBypassMock.mockClear();
+    ensureClinicAdminWorkspaceMock.mockClear();
     findByUserIdMock.mockReset();
   });
 
@@ -148,5 +155,37 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     expect(result).not.toBeNull();
     expect(result!.session.user.role).toBe("admin");
     expect(result!.redirectTo).toBe("/app/doctor");
+  });
+
+  it("provisions an owner workspace for dev:clinic-admin while keeping the doctor platform role", async () => {
+    findByUserIdMock.mockResolvedValue({
+      userId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "doctor",
+      displayName: "Demo Clinic Owner",
+      phone: "+79990000004",
+      bindings: { telegramId: "999999999999004" },
+    } satisfies SessionUser);
+
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => null),
+      findOrCreateByChannelBinding: vi.fn(async () => ({
+        user: {
+          userId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+          role: "doctor" as const,
+          displayName: "Demo Clinic Owner",
+          bindings: { telegramId: "999999999999004" },
+        },
+        accountOutcome: "linked_existing" as const,
+      })),
+    };
+
+    const result = await exchangeIntegratorToken("dev:clinic-admin", identityResolutionPort);
+
+    expect(result?.session.user.role).toBe("doctor");
+    expect(result?.session.adminMode).toBeUndefined();
+    expect(ensureClinicAdminWorkspaceMock).toHaveBeenCalledWith({
+      platformUserId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      displayName: "Demo Clinic Owner",
+    });
   });
 });

@@ -132,12 +132,16 @@ Wrapper/throttling остаётся допустимым по ситуации: 
 - **Реализация:** `describe.skipIf(!enabled)(...)` где `enabled` проверяет все три переменные; файлы именуются `*.devDb.integration.test.ts`.
 - **Исключение из CI:** ни один из этих флагов не выставляется в GitHub Actions — тесты автоматически пропускаются. Запускать вручную в dev-окружении.
 
-### Критическое ограничение безопасности
+### Контракт существующих opt-in smoke
 
-`bcb_webapp_dev` содержит **реальные данные пациентов (PII)** — это prod-дамп.  
-Эти тесты **обязаны быть строго read-only**: никаких `INSERT/UPDATE/DELETE`, никакого вывода PII в лог/stdout.  
-Каждый файл проверяет имя базы (`assertDevDb`) и отказывает при подключении к не-dev БД.  
-См. `.cursor/rules/dev-prod-isolation-no-real-creds.mdc`.
+`bcb_webapp_dev` — owner-authorized изменяемая песочница: её можно пересоздавать, сидировать и менять для
+разработки/UX. Это не делает каждый существующий smoke мутирующим автоматически. Текущий набор
+`*.devDb.integration.test.ts` сохраняет свой **локальный read-only контракт**: никаких
+`INSERT/UPDATE/DELETE` и вывода строковых данных пациентов в stdout. Для нового mutating DEV-теста нужны
+явное назначение fixture/scratch data, cleanup/idempotency и отдельный opt-in; нельзя незаметно превращать
+имеющийся read-only smoke в writer. Каждый файл проверяет имя базы (`assertDevDb`) и отказывает при
+подключении к не-dev БД. Общая политика изменяемой DEV-песочницы —
+`.cursor/rules/dev-prod-isolation-no-real-creds.mdc`.
 
 ---
 

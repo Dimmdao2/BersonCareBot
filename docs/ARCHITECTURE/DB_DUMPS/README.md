@@ -21,6 +21,22 @@ pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges -n public \
 
 ---
 
+## Предпочтительный UX refresh: текущая TEST → DEV
+
+Для интерфейсной работы не собирайте restore-команды вручную:
+
+```bash
+cd /home/dev/dev-projects/BersonCareBot
+pnpm run dev:stop
+bash deploy/host/refresh-dev-from-test.sh --execute
+```
+
+Wrapper имеет фиксированные source/target guards: читает только `bersoncarebot_test`, удаляет и пересоздаёт
+только `bcb_webapp_dev`, восстанавливает с owner `bcb_webapp_dev_user` и запускает миграции текущей ветки.
+PROD и `/opt/env` не используются. DEV после этого остаётся изменяемой песочницей.
+
+---
+
 ## Пересоздание dev-базы из prod-дампа (refresh `bcb_webapp_dev`)
 
 **Когда:** нужно обновить данные dev на свежий прод-снапшот, либо `bcb_webapp_dev` повреждена/дропнута.

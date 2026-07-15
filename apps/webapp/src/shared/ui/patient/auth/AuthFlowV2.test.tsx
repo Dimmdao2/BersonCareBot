@@ -563,6 +563,28 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByLabelText("Имя специалиста")).not.toBeInTheDocument();
   });
 
+  it("opens the explicit registration surface without creating an authenticated public role", async () => {
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        initialDevView="registration"
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    expect(await screen.findByLabelText("Название организации")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Создать кабинет" })).toBeInTheDocument();
+  });
+
   it("specialist signup starts verification and confirms into doctor redirect", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

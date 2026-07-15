@@ -35,7 +35,7 @@ Default local URL: `http://127.0.0.1:5200/app`
 
 **Режим разработки и тестирование UI:** полный гайд для агентов — [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](../../docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) (dev-bypass, `pnpm dev` / `webapp:dev` / `dev:turbo` / `dev:visual`, порты, curl).
 
-**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `ALLOW_DEV_AUTH_BYPASS=true`. На странице `/app` появятся кнопки «Как пациент», «Как врач / админ», «Как специалист» — по клику создаётся сессия. Или сразу: `/api/auth/dev-bypass?token=dev%3Aadmin` (см. гайд выше).
+**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`. На `/app` доступны отдельные входы пациента, специалиста, администратора клиники (`dev:clinic-admin`) и глобального администратора (`dev:admin`). Чистый public/login: `/api/auth/dev-public`; регистрация кабинета: `/api/auth/dev-public?view=registration` (без fake authenticated public role). Полная матрица ролей и TEST→DEV refresh — в гайде выше.
 
 ## Environment
 

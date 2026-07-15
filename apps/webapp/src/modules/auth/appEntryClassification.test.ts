@@ -9,6 +9,7 @@ describe("appEntryClassification", () => {
   it("detects dev bypass tokens", () => {
     expect(isDevBypassToken("dev:admin")).toBe(true);
     expect(isDevBypassToken("dev:client")).toBe(true);
+    expect(isDevBypassToken("dev:clinic-admin")).toBe(true);
     expect(isDevBypassToken("token")).toBe(false);
     expect(isDevBypassToken(null)).toBe(false);
   });

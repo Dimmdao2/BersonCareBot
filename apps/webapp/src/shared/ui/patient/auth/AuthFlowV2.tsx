@@ -191,6 +191,8 @@ type AuthFlowV2Props = {
   onStepChange?: (step: AuthFlowStep) => void;
   /** Сид из `AuthBootstrap` prefetch (публичные конфиги входа). */
   prefetchedAuthConfig?: PrefetchedPublicAuthConfig | null;
+  /** Safe UI deep-link used by the dev-public helper; it does not create an authenticated role. */
+  initialDevView?: "registration";
   /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
   onInteractiveLoginEngaged?: () => void;
 };
@@ -200,6 +202,7 @@ export function AuthFlowV2({
   supportContactHref,
   onStepChange,
   prefetchedAuthConfig,
+  initialDevView,
   onInteractiveLoginEngaged,
 }: AuthFlowV2Props) {
   const router = useRouter();
@@ -208,6 +211,7 @@ export function AuthFlowV2({
   }, [onInteractiveLoginEngaged]);
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
   const pendingHydratedRef = useRef(false);
+  const initialDevViewAppliedRef = useRef(false);
   const [oauthProviders, setOauthProviders] = useState<OauthProviderFlags>({
     yandex: false,
     google: false,
@@ -269,6 +273,17 @@ export function AuthFlowV2({
   useEffect(() => {
     onStepChange?.(step);
   }, [step, onStepChange]);
+
+  useEffect(() => {
+    if (initialDevViewAppliedRef.current || initialDevView !== "registration") return;
+    if (step === "entry_loading" || isMessengerMiniAppHost()) return;
+    initialDevViewAppliedRef.current = true;
+    clearAuthFlowPending();
+    engageInteractive();
+    setStep("email_password");
+    setEmailVerifyPurpose("specialist_signup");
+    setEmailAuthMode(specialistSignupEnabled ? "specialist_signup" : "login");
+  }, [engageInteractive, initialDevView, specialistSignupEnabled, step]);
 
   useEffect(() => {
     if (pendingHydratedRef.current) return;

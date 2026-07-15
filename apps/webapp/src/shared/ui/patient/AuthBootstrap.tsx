@@ -136,6 +136,7 @@ export function AuthBootstrap({
   const searchParams = useSearchParams();
   const rawToken = searchParams.get("t") ?? searchParams.get("token");
   const nextParam = searchParams.get("next");
+  const initialDevView = searchParams.get("devView") === "registration" ? "registration" : undefined;
   const debug = searchParams.get("debug") === "1";
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
@@ -1005,6 +1006,7 @@ export function AuthBootstrap({
           supportContactHref={supportContactHref}
           onStepChange={onAuthStepChange}
           prefetchedAuthConfig={prefetchedAuth}
+          initialDevView={initialDevView}
           onInteractiveLoginEngaged={handleInteractiveEngaged}
         />
       </>
