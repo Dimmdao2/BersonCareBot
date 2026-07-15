@@ -1,12 +1,12 @@
 # Rubitime retirement — execution plan
 
-Статус: R1-R4 closed in working branch, 2026-07-14. R5 closed for code/non-prod proof but still needs
-production monitoring/approval. R6/R7 are gated by owner-approved cutoff/drain and archive/drop proof.
+Статус: R1-R4 closed in working branch, 2026-07-14. R5-R7 продолжаются только как TEST-доказательства,
+удаление runtime-зависимости и TEST archive/drop proof.
 Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только
 отдельными phase-коммитами с proof-документами ниже.
 
 **Старт для агентов:** сначала читать `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`. Там
-сведены правила старта, server conventions, orchestration, fresh prod-dump порядок, owner doctor/admin data-fix,
+сведены правила старта, server conventions, orchestration, порядок свежего дампа, owner doctor/admin data-fix,
 placeholder bookings Дмитрия Берсона, specialist consolidation, R1 aggregate audits и порядок R2-R7 gates. Этот
 execution plan не заменяет runbook.
 
@@ -131,17 +131,23 @@ Drop must be migration-backed and preceded by archive/export decision. No ad hoc
 
 ## 5. Owner decisions
 
-Required before implementation:
+Resolved or explicit engineering inputs:
 
-1. **History source.** Owner decision recorded 2026-07-14: fresh Rubitime export is the R1 canon. The export is the one-specialist owner context (`89643805480` / tail `9643805480`) and is matched through existing city/branch mappings. `public.appointment_records` plus canonical mappings are checked against the export; `integrator.rubitime_records` is audit-only and non-authoritative when the fresh export exists.
+1. **History source — confirmed by owner 2026-07-15.** Fresh Rubitime export is the R1 canon. The export is the one-specialist owner context (`89643805480` / tail `9643805480`) and is matched through existing city/branch mappings. `public.appointment_records` plus canonical mappings are checked against the export; `integrator.rubitime_records` is audit-only and non-authoritative when the fresh export exists. Acceptance: every CSV-present record is in application history; extra cancelled rows are allowed; missing real records block completion.
 2. **Archive window.** Decide whether legacy Rubitime raw tables are archived to SQL/CSV before drop, and how long archives are retained.
 3. **Google Calendar ownership.** Confirm provider-neutral canonical lifecycle becomes the only source of GCal writes and `booking_calendar_map` is migrated/kept as canonical infrastructure.
 4. **Downstream ownership.** Confirm canonical booking lifecycle becomes the only source for booking reminders, patient/staff notifications, Web Push, payment capture, package link/unlink and booking delete side effects.
-5. **Rollback horizon.** Decide how long to keep retired settings/tables after canonical-only cutover before destructive drop.
-6. **Production timing.** Decide whether retirement happens before Tenant Hard Mode full-enforce or in parallel with P0 walls. Recommended: in parallel, but full-enforce waits for retirement completion.
+5. **Archive horizon.** Required only for a TEST archive/drop proof; record the retention choice in the proof.
+6. **Timing.** Engineering sequencing on TEST; no external-environment timing decision is requested.
 7. **Catalog model.** Confirm public booking catalog moves from legacy `booking_*` to `be_*` before dropping any public booking catalog table.
 
 ## 6. Execution phases
+
+> **Supersession boundary, 2026-07-15.** Any fragment below that describes an action outside TEST is historical
+> evidence only and is not executable. The binding work for R5-R7 is the TEST checklist in
+> `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`,
+> `RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`, and
+> `RUBITIME_RETIREMENT_R7_ARCHIVE_DROP_RUNBOOK.md`. Fresh CSV preservation remains mandatory.
 
 ### Phase R0 — freeze new Rubitime dependency
 
@@ -208,7 +214,7 @@ pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- \
 Rules:
 
 - Always run dry-run first.
-- On production, source env exactly as server docs require.
+- On TEST, use only the approved TEST configuration.
 - Use a fresh Rubitime CSV if `--drop-stale-from-csv` is used.
 - Do not use ad hoc SQL for import or cleanup.
 - Do not delete `admin_manual` conflicts via this script; use the proper UI/flow.
@@ -326,7 +332,7 @@ Acceptance:
 - Patient/public slots work with canonical scheduling.
 - Create/reschedule/cancel all work without integrator Rubitime.
 - Attempt to book occupied canonical slot is rejected.
-- No production path calls `/api/bersoncare/rubitime/slots` or `/create-record`.
+- No TEST application path calls `/api/bersoncare/rubitime/slots` or `/create-record`.
 - Test with integrator/Rubitime unavailable still passes patient/public slots/create.
 
 ### Phase R3-TENANT — exact tenant for public/patient booking
@@ -444,9 +450,9 @@ Work:
 
 1. Confirm no webapp path still sends v1 Rubitime slots/create.
 2. Confirm online LFK/nutrition legacy flow is retired or unrelated.
-3. Set env flag in target non-prod first.
+3. Set the flag only in the declared TEST configuration.
 4. Verify v2/current canonical paths unaffected.
-5. Set env flag in production only after monitoring shows no v1 requests for the agreed window.
+5. Record aggregate TEST v1 request counts for the declared evidence window.
 
 Acceptance:
 
@@ -530,7 +536,7 @@ Drop candidates after archive/drain/proof:
 Rules:
 
 - Generate migrations; do not use ad hoc `DROP TABLE`.
-- Drop in non-prod first.
+- Run the drop proof in TEST/disposable copy first.
 - Run full DB restore/migration proof.
 - Keep rollback backup available through the agreed horizon.
 
@@ -669,7 +675,7 @@ Update these docs as retirement proceeds:
 - `docs/_TODO/SAAS_FOUNDATION/T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md` — update Rubitime classification after R6/R7.
 - `docs/_TODO/SAAS_FOUNDATION/scope-derivation/t0-4-pre-table-matrix.tsv` — move Rubitime rows from retain/quarantine to retired/drop.
 - `docs/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md` — archive or mark retired.
-- `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` — record actual production run.
+- `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` — historical background only; no operation is planned here.
 - `docs/ARCHITECTURE/DB_STRUCTURE.md` — update table inventory after drops.
 
 Section-10 manifest / follow-up assignment:
@@ -691,7 +697,7 @@ Scope:
 
 - Run dry-run script.
 - Run fresh Rubitime CSV vs `appointment_records`/canonical reconciliation.
-- Import/map CSV-present deltas before cutover.
+- Import/map CSV-present deltas before TEST route/table removal proof.
 - Collect output.
 - If conflicts, prepare owner review list.
 - Run commit only after approval.
@@ -1025,18 +1031,18 @@ and ignores unknown provider events instead of processing them under `booking_de
 
 ### R5 — disable legacy v1 profile resolve
 
-Prepared runbook: `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`. It is not proof of completed production
-disable; it defines the owner-approved flag-change, monitoring and rollback evidence required for the final R5 proof.
+Prepared runbook: `RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_RUNBOOK.md`. It defines TEST-only flag and smoke
+evidence required for the R5 proof.
 
 - [x] no webapp path still sends Rubitime v1 slots requests. *(Runtime inventory: patient/public slots use canonical scheduling, not `syncPort.fetchSlots`.)*
 - [x] no webapp path still sends Rubitime v1 create requests. *(Runtime inventory: Rubitime-first/mirror switches are hardcoded false; normal create is canonical.)*
 - [x] online LFK/nutrition legacy path is retired or proven unrelated. *(Categories feed the same canonical online booking path; no separate Rubitime profile path found.)*
-- [x] non-prod `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
+- [x] TEST `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` is tested. *(Unit/integrator route proof only; no host env changed. See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`.)*
 - [x] v1 requests return `legacy_resolve_disabled`. *(Slots and create-record covered.)*
 - [x] canonical/current booking paths are unaffected. *(v2 explicit-id slots/create still pass with legacy resolve disabled.)*
-- [ ] production monitoring window shows no v1 requests.
-- [ ] live flag change is approved.
-- [x] live flag change has rollback instruction. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no live env was changed.)*
+- [ ] TEST evidence window shows no v1 requests.
+- [ ] TEST flag change is recorded.
+- [x] TEST flag restore instruction exists. *(See `RUBITIME_RETIREMENT_R5_LEGACY_PROFILE_RESOLVE_PROOF.md`; no host env was changed.)*
 
 ### R6 — remove Rubitime runtime routes and code
 
@@ -1059,7 +1065,7 @@ only; post-R6 it must pass with `--expect-post-r6`.
 - [x] patient/public create has no hard-disabled Rubitime-first/create-mirror branch.
 - [x] patient cancel/reschedule skips outbound Rubitime mirror when bridge is disabled.
 - [x] Rubitime webhook route is unmounted from integrator app wiring. *(Code wiring removed from `buildDeps` /
-  `registerRoutes`; production external ingress disable remains owner-gated.)*
+  `registerRoutes`; TEST negative route assertions remain required.)*
 - [x] Rubitime `/slots` route is unmounted from integrator app wiring. *(Legacy source file still exists until the
   source cleanup batch; route is no longer registered by `registerRoutes`.)*
 - [x] Rubitime `/create-record` route is unmounted from integrator app wiring. *(Same wiring batch as `/slots`.)*
@@ -1127,7 +1133,7 @@ Prepared non-final static reference audit: `RUBITIME_RETIREMENT_R7_STATIC_REFERE
 - [x] `be_external_entity_mappings` table is explicitly kept. *(Explicit `keep`; only Rubitime rows are later traceability policy scope.)*
 - [x] public `booking_*` tables are not dropped until R3-CATALOG is complete. *(Explicit `defer_drop`; legacy catalog compatibility is outside Rubitime raw-table drop.)*
 - [ ] drop migration is generated.
-- [ ] drop migration is tested in non-prod.
+- [ ] drop migration is tested in TEST/disposable copy.
 - [ ] fresh restore + migrate proof passes.
 - [ ] no code references dropped tables.
 - [ ] rollback backup/archive is available through approved horizon.

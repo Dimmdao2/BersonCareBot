@@ -1,428 +1,388 @@
-# SaaS S4 — тарифы, магазин, entitlements и абонементы
+# SaaS S4 — тарифы, магазин, entitlements, биллинг и безопасная аналитика
 
-> План ЭТАПА 4 из [`SEQUENCE.md`](./SEQUENCE.md): развернуть уже принятые владельцем решения в исполнимые
-> чек-листы. Этот документ планирует работу; он не является отчётом о выполнении и не разрешает действия на
-> PROD/TEST сам по себе.
+> План этапа 4 из [`SEQUENCE.md`](./SEQUENCE.md). При конфликте старых формулировок с
+> [`OWNER_RULINGS_2026-07-15.md`](./OWNER_RULINGS_2026-07-15.md) приоритет имеют дословные рулинги владельца.
+> Этот файл задаёт только работу для полностью функционирующей системы на тестовом сервере.
 
-## 0. Цель и место в последовательности
+## 0. Результат
 
-На TEST должен появиться рабочий коммерческий контур без реального эквайринга клиники:
+На тестовом сервере должен работать единый коммерческий контур:
 
-`тариф (данные global_admin) → entitlements механик → клиника → единый гейт механики`
+`тариф как данные → полный набор механик → клиника → requireEntitlement() → разрешённое действие`
 
-Параллельно нужен магазин курируемых пакетов упражнений с доступом по грантам на канонические `content_id`,
-аналитика global_admin по клиникам и завершённая существующая подсистема пациентских абонементов.
+Поверх него работают:
 
-Этот результат входит в owner-facing финиш TEST до копирования нового продукта на новый домен
-([`SEQUENCE.md:9-18`](./SEQUENCE.md), [`SAAS_ENFORCE_ROADMAP.md:11-25`](./SAAS_ENFORCE_ROADMAP.md)). Старый
-`bersoncare` PROD не является целью и не переключается.
+- global_admin-конструктор тарифов, цен, состава механик и точечных override для клиники;
+- магазин курируемых пакетов упражнений, где купленный пакет и собственные упражнения клиники сосуществуют;
+- org-facing биллинг, достроенный поверх существующих PSP adapters, payment intents, refunds и webhook verification;
+- аналитика по клиникам как клиентам платформы: биллинг, агрегированное использование и общая нагрузка;
+- существующие пациентские абонементы без повторной реализации.
 
-## 1. Провенанс: что именно решил владелец
+Файлы упражнений и медиа никогда не копируются: любой тарифный или купленный доступ — source-aware grant на
+канонический `content_id`.
 
-Ни один пункт ниже не расширяет решение владельца без явной пометки.
+## 1. Канон и провенанс
+
+### Решения владельца
 
 | Решение | Источник |
 |---|---|
-| Тариф → флаги механик → клиника; цена и состав — данные global_admin, не хардкод | [`OWNER_DECISIONS_FOR_REVIEW.md:39-42`](./OWNER_DECISIONS_FOR_REVIEW.md); `/home/dev/.claude/projects/-home-dev-dev-projects-BersonCareBot/memory/store-tariff-entitlements-model.md:10-21`; taskdb `#751` |
-| На старте нет реальных денег: global_admin назначает тариф вручную; PSP, invoices и lifecycle позже | [`OWNER_DECISIONS_FOR_REVIEW.md:43-44`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:19` |
-| Тариф даёт дефолт; global_admin может точечно переопределить механику клинике | [`OWNER_DECISIONS_FOR_REVIEW.md:45-46`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:19` |
-| Нужен полный конструктор всех механик, не 2–3 пресета | [`OWNER_DECISIONS_FOR_REVIEW.md:47-48`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:14-19` |
-| Пакеты магазина курирует только global_admin из платформенной библиотеки; собственные упражнения клиники остаются отдельной фичей | [`OWNER_DECISIONS_FOR_REVIEW.md:49-51`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:12-19`; taskdb `#724` |
-| Файлы не копируются: покупка/выдача доступа создаёт грант на канонический `content_id` | [`OWNER_DECISIONS_FOR_REVIEW.md:49-51`](./OWNER_DECISIONS_FOR_REVIEW.md); taskdb `#724` |
-| Порядок P0→P5: фундамент, `requireEntitlement`, конструктор, пакеты, аналитика, затем реальный billing | [`OWNER_DECISIONS_FOR_REVIEW.md:52-53`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:19` |
-| Global_admin нужна аналитика в разрезе клиник, не только пользователей | [`OWNER_DECISIONS_FOR_REVIEW.md:54-55`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `store-tariff-entitlements-model.md:17` |
-| Абонементы не строить заново: достроить существующие `modules/memberships` | [`OWNER_DECISIONS_FOR_REVIEW.md:107-113`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `subscription-system-already-exists.md:10-16` |
-| PROD заморожен; рабочая приёмка выполняется на TEST, новый продукт затем рождается отдельной копией со стенами | [`OWNER_DECISIONS_FOR_REVIEW.md:90-105`](./OWNER_DECISIONS_FOR_REVIEW.md); memory `launch-model-new-domain-test-is-live.md:10-40` |
+| Тариф → механики → клиника; цены и состав настраивает global_admin | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md), [`OWNER_DECISIONS_FOR_REVIEW.md:39-42`](./OWNER_DECISIONS_FOR_REVIEW.md) |
+| Полный конструктор механик сразу; override на конкретную клинику сохраняется | [`OWNER_RULINGS_2026-07-15.md:28-34`](./OWNER_RULINGS_2026-07-15.md) |
+| Платёжная система уже есть и почти готова; её не удалять, а достраивать; ключи владелец даст позже | [`OWNER_RULINGS_2026-07-15.md:10-19`](./OWNER_RULINGS_2026-07-15.md) |
+| Купленные пакеты и собственные упражнения клиники сосуществуют; магазин не поглощает clinic-owned feature | [`OWNER_RULINGS_2026-07-15.md:35-44`](./OWNER_RULINGS_2026-07-15.md) |
+| Файлы не копируются; доступ выдаётся грантом на канонический `content_id` | [`OWNER_DECISIONS_FOR_REVIEW.md:49-51`](./OWNER_DECISIONS_FOR_REVIEW.md) |
+| Global_admin нужна аналитика по клиникам как клиентам, биллингу, использованию и общей нагрузке платформы | [`OWNER_RULINGS_2026-07-15.md:45-63`](./OWNER_RULINGS_2026-07-15.md) |
+| Персональная аналитика пациентов чужих клиник, выполнение упражнений и переписка не входят в platform view | [`OWNER_RULINGS_2026-07-15.md:50-63`](./OWNER_RULINGS_2026-07-15.md) |
+| Точный набор метрик определяется в конце | [`OWNER_RULINGS_2026-07-15.md:60-63`](./OWNER_RULINGS_2026-07-15.md) |
+| Система абонементов существует; сначала проверить наличие кнопки пересчёта | [`OWNER_RULINGS_2026-07-15.md:115-120`](./OWNER_RULINGS_2026-07-15.md) |
 
-Taskdb-связи, прочитанные как контекст, а не как новое решение: `#724`/`#751` — этот коммерческий контур;
-`#752` — уже принятый split UI по `global_admin/clinic_admin/doctor`; `#755` — отдельные настройки clinic_admin;
-`#738`/`#747` — регистрация и provisioning, не scope этого плана.
+Порядок S4-0…S4-6 ниже — **инженерное предложение**, а не решение владельца. Он выбран по зависимостям данных:
+сначала registry и chokepoint, затем управляющий UI, store, billing, PII-free analytics и общий тестовый gate.
 
-## 2. Фактическая база в коде на 2026-07-15
+### Инженерный канон исполнения
 
-План строится поверх следующего, а не рядом с ним.
+- порядок инициативы: [`SEQUENCE.md`](./SEQUENCE.md);
+- tenant/principal/aggregate boundaries: [`SAAS_ENFORCE_ROADMAP.md`](./SAAS_ENFORCE_ROADMAP.md);
+- ownership и clean architecture: [`AGENTS.md`](../../../AGENTS.md),
+  [`.cursor/rules/saas-foundation-aware-development.mdc`](../../../.cursor/rules/saas-foundation-aware-development.mdc),
+  [`.cursor/rules/clean-architecture-module-isolation.mdc`](../../../.cursor/rules/clean-architecture-module-isolation.mdc);
+- DB-backed provider credentials: [`.cursor/rules/000-critical-integration-config-in-db.mdc`](../../../.cursor/rules/000-critical-integration-config-in-db.mdc),
+  [`.cursor/rules/system-settings-integrator-mirror.mdc`](../../../.cursor/rules/system-settings-integrator-mirror.mdc);
+- этапный worker/audit/fixer loop и доказательства: [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
 
-| Область | Что уже есть | Фактический разрыв |
+## 2. Reality lock на 2026-07-15
+
+| Область | Уже есть | Что нужно достроить |
 |---|---|---|
-| SaaS entitlements | `saas_tariffs`, существующий `be_organizations.tariff_id`, `saas_org_entitlement_overrides` ([`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts)); `MECHANICS` и приоритет `override > tariff > true` ([`types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts), [`service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts)); PG-port ([`pgOrgEntitlements.ts:16-43`](../../../apps/webapp/src/infra/repos/pgOrgEntitlements.ts)) | Нет global_admin CRUD/назначения/редактора; текущие 14 ключей нельзя считать доказанно полным перечнем без method-level инвентаря |
-| Гейт механик | Центральная функция `requireEntitlement()` существует ([`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts)) | Она прямо помечена route-by-route slice и используется только на `POST /api/doctor/courses` ([`courses/route.ts:49-77`](../../../apps/webapp/src/app/api/doctor/courses/route.ts)); auth вызывается дважды; системного покрытия нет |
-| Контентные гранты | Две существующие поверхности `content_access_grants` и `content_access_grants_webapp`; webapp-таблица уже имеет nullable `organization_id` ([`schema.ts:370-395`](../../../apps/webapp/db/schema/schema.ts), [`schema.ts:2288-2306`](../../../apps/webapp/db/schema/schema.ts)); `modules/entitlements` и `pgEntitlements` выдают гранты на `content_id` ([`service.ts:5-40`](../../../apps/webapp/src/modules/entitlements/service.ts), [`pgEntitlements.ts:9-76`](../../../apps/webapp/src/infra/repos/pgEntitlements.ts)) | Service/port реализуют только грант пользователю; `organization_id` не участвует в write/read API. Нельзя создавать третью параллельную систему грантов |
-| Products | `modules/products` активирует покупку и выдаёт content grants ([`products/service.ts:330-379`](../../../apps/webapp/src/modules/products/service.ts)) | `be_products` — org-scoped patient commerce; это не готовый platform-global магазин клиник и не SaaS-тариф |
-| Платформенная/клиническая ЛФК | `lfk_exercises`, media и templates уже имеют `organization_id` ([`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts)); существующие `modules/lfk-exercises`/`modules/lfk-templates` являются каноническими движками упражнений/наборов | Нужно отделить platform-global rows/package curation от собственных clinic rows, не создавать второй LFK engine |
-| Аналитика | Raw/push/user-hourly таблицы уже имеют `organization_id` ([`productAnalytics.ts:17-84`](../../../apps/webapp/db/schema/productAnalytics.ts), [`productAnalytics.ts:117-147`](../../../apps/webapp/db/schema/productAnalytics.ts)) | Ingest types и write path не несут org; platform hourly не имеет org dimension; dashboard остаётся user/platform aggregate ([`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts), [`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts), [`types.ts:173-187`](../../../apps/webapp/src/modules/product-analytics/types.ts)) |
-| Абонементы пациента | Зрелые `modules/memberships` + `be_subscription_packages`/patient packages/usages. Bulk recalc уже есть ([`memberships/service.ts:1148-1387`](../../../apps/webapp/src/modules/memberships/service.ts)); Finance уже монтирует панель ([`PatientTabFinances.tsx:353`](../../../apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabFinances.tsx)); visit badge и mapping уже есть ([`pgPatientClinical.ts:290-377`](../../../apps/webapp/src/infra/repos/pgPatientClinical.ts), [`PatientTabKarta.tsx:1055-1062`](../../../apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.tsx)) | Решение владельца было записано до этих доработок. Нужен reality-based reverify/hardening, а не повтор ST-01…ST-05 и не второй модуль |
+| Entitlements | `saas_tariffs`, `be_organizations.tariff_id`, `saas_org_entitlement_overrides` ([`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts)); typed `MECHANICS` и resolver `override > tariff > current default` ([`types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts), [`service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts)) | Полный method-level registry, global_admin CRUD/assignment/override UI и системное покрытие механик |
+| Chokepoint | `requireEntitlement()` существует ([`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts)) | Сейчас используется только в одном slice; auth вызывается повторно; нет coverage gate |
+| PSP adapters | Общий `PaymentProviderPort.createIntent/refund/verifyWebhook` ([`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts)); registry с mock, YooKassa, Tinkoff, CloudPayments и Alfa-Bank ([`paymentProviderRegistry.ts:8-45`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts)) | Не переписывать adapters; проверить provider contracts и подключить их к org-facing SaaS billing |
+| Платёжный ledger | Org-scoped intents/payments/refunds/provider events и idempotency уже есть ([`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts)); service создаёт intents, capture и refund ([`payments/service.ts:136-299`](../../../apps/webapp/src/modules/payments/service.ts), [`payments/service.ts:327-512`](../../../apps/webapp/src/modules/payments/service.ts)) | Это booking/patient commerce, а не subscription ledger клиники. Нужен отдельный org-facing lifecycle без второго PSP abstraction |
+| Webhooks | Подписанный route определяет клинику по intent/provider ref и исполняет capture под org principal ([`payments/webhook/[provider]/route.ts:10-64`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts)) | Добавить отдельный SaaS webhook path/config boundary; не смешивать platform merchant с per-org booking merchant |
+| Payment UI/config | Provider credentials редактируются в Settings и хранятся в `system_settings` ([`BookingPaymentsSection.tsx:41-75`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx), [`system-settings/types.ts:111-123`](../../../apps/webapp/src/modules/system-settings/types.ts)) | Текущая секция относится к оплате записи; patient pay clients завершают только mock ([`PatientPackagePayClient.tsx:42-79`](../../../apps/webapp/src/app/app/patient/memberships/pay/PatientPackagePayClient.tsx)). Для SaaS billing нужны отдельная global config и реальный redirect/status flow |
+| Store grants | `content_access_grants_webapp` уже несёт `organization_id`, canonical `content_id`, expiry/revoke ([`schema.ts:370-395`](../../../apps/webapp/db/schema/schema.ts)); `modules/entitlements` выдаёт user grants ([`entitlements/service.ts:5-40`](../../../apps/webapp/src/modules/entitlements/service.ts)) | Эволюционировать существующий grant path для org targets; третья grant table запрещена |
+| LFK | `lfk_exercises`, media и ordered templates имеют `organization_id`; `NULL` может обозначать platform content ([`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts)) | Store package должен ссылаться на canonical template/exercise IDs; clinic create/edit flow остаётся отдельным |
+| Аналитика | Raw/user rows содержат `organization_id`, но ingest его не передаёт; platform hourly не имеет org dimension ([`productAnalytics.ts:53-147`](../../../apps/webapp/db/schema/productAnalytics.ts), [`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts), [`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts)) | Отдельная PII-free platform aggregate projection. Существующий `clientActivity` с `userId/displayName` ([`types.ts:161-186`](../../../apps/webapp/src/modules/product-analytics/types.ts)) нельзя отдавать platform analytics |
+| Абонементы | Кнопка, route, service, concurrency guard и тесты уже существуют | Пункт владельца закрыт фактом; новой реализации в S4 нет, см. §10 |
 
-Критическое разделение терминов:
+Термины не смешивать:
 
-- `saas_tariffs` — тариф клиники на механику платформы;
-- `be_subscription_packages` — пациентский абонемент на визиты внутри одной клиники;
-- `be_products` — org-scoped продукт для пациента;
-- store exercise package — platform-global курируемый пакет контента для выдачи клинике.
+- SaaS tariff — цена и механики платформы для клиники;
+- SaaS subscription — оплачиваемый период доступа клиники к тарифу;
+- store exercise package — курируемый пакет platform content для клиники;
+- patient membership — абонемент пациента на услуги внутри клиники;
+- `be_products` — clinic-owned продукт для пациента.
 
-Эти четыре сущности нельзя схлопывать, переименовывать друг в друга или связывать неявным общим `status`.
+## 3. Неподвижные рамки
 
-## 3. Жёсткие рамки исполнения
+- Изменять только webapp-домены tariffs/entitlements/store/SaaS billing/platform analytics и их тесты/доки.
+- Не создавать второй LFK/media engine, второй PSP registry, второй memberships domain или третью grant table.
+- Platform package — настоящий global catalog; tariff assignment, subscription, invoice, purchase и grant имеют явный
+  `organization_id` или scoped parent.
+- Provider keys/webhook secrets хранятся только в DB-backed `system_settings`, редактируются global_admin и никогда
+  не попадают в env, клиентский JSON, screenshot или лог.
+- `booking_payment_providers` остаётся конфигурацией оплаты записи конкретной клиники. Platform merchant получает
+  отдельный global setting key; смешивать эти credentials нельзя.
+- Tenant resolution и authorization выполняются раньше entitlement. `organizationId` из body/query не является
+  источником полномочий.
+- Единственный механизм feature-gating — `requireEntitlement(ctx, mechanic)`; локальные проверки тарифа/override в
+  routes и services запрещены.
+- Platform cross-clinic operations проходят отдельный audited platform port/capability, не `adminMode`, не случайную
+  clinic session и не DB bypass.
+- Store purchase никогда не создаёт новую строку упражнения, media file или object key.
+- Platform analytics storage/API не содержит patient/user IDs, ФИО, телефоны, email, тексты сообщений, содержимое
+  программ, факты выполнения конкретным пациентом или free-form metadata.
+- UI использует существующий global_admin shell и doctor shared primitives. Новые path names в пунктах ниже —
+  инженерные имена; перед реализацией их сверяют с актуальным nav contract, не создавая второй shell.
 
-- Не менять порядок `SEQUENCE.md` и не возобновлять OFF/ON-cutover старого PROD.
-- Не трогать PROD, `/opt/env`, реальные каналы и старый `bersoncare`.
-- Не менять DDL/RLS/ownership/provisioning `be_organizations` и не решать три вопроса из
-  [`OWNER_DECISIONS_FOR_REVIEW.md:119-125`](./OWNER_DECISIONS_FOR_REVIEW.md). Существующий `tariff_id` можно
-  использовать как уже созданный контракт; если назначение тарифа требует расширить границу `be_organizations`,
-  этап останавливается с **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА**, а не создаёт обходную таблицу.
-- Не использовать `system_settings` как склад entitlement-флагов: тарифы и overrides уже имеют отдельную модель.
-- Не добавлять env-переменные для тарифов, магазина, грантов или аналитики.
-- Не строить новый `memberships`, `products`, `entitlements`, LFK/media engine или вторую таблицу грантов.
-- Tenant resolution и auth выполняются до entitlement. `organizationId` не принимается из body/query как источник
-  авторизации. Канонический method-level порядок зафиксирован в
-  [`SAAS_ENFORCE_ROADMAP.md:681`](./SAAS_ENFORCE_ROADMAP.md).
-- Platform/global_admin cross-tenant read/write идёт через отдельный проверяемый platform port/context, а не через
-  `adminMode`, случайно выбранную clinic session или BYPASSRLS
-  ([`SAAS_ENFORCE_ROADMAP.md:675-677`](./SAAS_ENFORCE_ROADMAP.md)).
-- Новые запросы — Drizzle, business logic — modules/service, зависимости — ports + DI; routes остаются тонкими.
-- UI global_admin строится только на текущем role split (`#752`) и существующих doctor shared/shadcn primitives.
-- Каждая фаза: executor → независимый code audit → fixer → повторный audit. UI-фазы получают сценарий данных,
-  скриншоты и две независимые печати по `docs/AGENT_AUTORUN_SCHEME.md`/`docs/ORCHESTRATION_BINDINGS.md`.
-
-## 4. Порядок фаз
+## 4. Порядок исполнения
 
 `S4-0 → S4-1 → S4-2 → S4-3 → S4-4 → S4-5 → S4-6`
 
-- `S4-0` закрывает полноту mechanic registry и не даёт строить гейты по догадкам.
-- `S4-1` закрепляет единственный resolver/chokepoint до появления UI управления.
-- `S4-2` делает тарифы и overrides управляемыми global_admin.
-- `S4-3` строит магазин на существующих content grants.
-- `S4-4` добавляет clinic dimension в существующую аналитику.
-- `S4-5` подтверждает/доводит существующие абонементы отдельно от SaaS billing.
-- `S4-6` собирает всё на TEST; реальный PSP остаётся поздней отдельной фазой.
+- S4-0 фиксирует полный registry и ownership/data contracts.
+- S4-1 создаёт один проверяемый entitlement boundary.
+- S4-2 даёт global_admin управление тарифами и override.
+- S4-3 строит store grants без копирования контента.
+- S4-4 подключает существующий PSP foundation к SaaS billing и store orders.
+- S4-5 создаёт PII-free aggregate boundary; точные метрики утверждаются только в конце этапа.
+- S4-6 доказывает весь контур на тестовом сервере.
 
-### Формат закрытия каждого checkbox
+Каждый checkbox закрывается записью: **изменение · точные `file:line` после изменения · доказательство и результат**.
+Если новый файл ещё не существует, стартовой точкой служит указанный существующий anchor, а окончательные строки
+фиксируются в execution log.
 
-Каждый `- [ ]` ниже закрывается только записью из трёх обязательных полей: **что изменено**, **где** — точные
-`file:line` после изменения, **доказательство** — test/checker/screenshot и его результат. `Scope` и строковые ссылки
-в начале каждой фазы — минимальные стартовые точки, а не разрешение менять все перечисленные файлы. Если будущего
-файла ещё нет, план указывает существующий composition/schema/UI anchor; выдумывать заранее имя файла и номер строки
-запрещено. Без всех трёх полей checkbox остаётся открытым.
+## 5. S4-0 — mechanic, ownership и payment-contract inventory
 
-## 5. S4-0 — reality lock и полный реестр механик
+**Стартовые точки:** [`org-entitlements/types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts),
+[`org-entitlements/service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts),
+[`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts),
+[`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts),
+[`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
-**Цель:** доказать полный набор коммерчески управляемых механик и их реальные action boundaries до изменений.
+- [ ] Построить method-level матрицу `mechanic → entrypoint/action → auth/context source → requireEntitlement →
+  service/port` с `file:line` для каждого реального action. Доказательство: checker сопоставляет export/action symbols,
+  а не каталоги routes; неизвестный или двойной mapping даёт non-zero.
+- [ ] Сверить все ключи `MECHANICS` с реальными поверхностями. Отсутствующая поверхность получает
+  `declared_no_surface` + code-search evidence; route ради флага не создаётся.
+- [ ] Зафиксировать единую typed registry с ключом и русской подписью; constructor, chokepoint и checker импортируют
+  её, локальных массивов mechanic keys нет.
+- [ ] Зафиксировать инженерный compatibility path для клиники без тарифа: до назначения всем существующим test-org
+  явного тарифа сохраняется текущий resolver result; после заполнения fixture/data gate implicit default не используется
+  для новых test-org. Доказательство: migration/fixture report `unassigned org = 0` и resolver tests на assigned,
+  override и intentionally-unassigned cases.
+- [ ] Описать ownership новых сущностей до DDL: platform package/tariff = global catalog; subscription/invoice/order/
+  grant = direct org или scoped parent; analytics aggregate = org bucket без person identity.
+- [ ] Провести provider contract inventory по всем четырём real adapters: checkout URL, provider intent ref,
+  idempotency, success/refund event, amount/currency verification и signature/status verification. Доказательство:
+  таблица по adapters + contract tests; неподтверждённый callback не может активировать subscription/grant.
+- [ ] Зафиксировать отдельные config identities: existing per-org booking merchant и new global SaaS merchant.
+  Доказательство: разные typed accessors/settings keys и тест отсутствия fallback между ними.
+- [ ] Зафиксировать один source-aware tariff access contract: временно существующий `be_organizations.tariff_id`
+  остаётся compatibility projection; конечный resolver различает manual assignment и active paid subscription,
+  не держит две расходящиеся истины и не снимает доступ одного source при завершении другого.
 
-**Scope:** `modules/org-entitlements/**`, app-layer guards/DI, route/service inventory, этот план и будущий execution
-log. Никаких UI/DDL/поведенческих изменений.
+**Проверка:** inventory checker self-test; resolver/provider contract unit tests; webapp typecheck.
 
-**Стартовые `file:line`:** registry [`types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts),
-resolver [`service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts), DI
-[`buildAppDeps.ts:492-494`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts), текущий единственный consumer
-[`courses/route.ts:49-77`](../../../apps/webapp/src/app/api/doctor/courses/route.ts). **Общее доказательство:**
-method-level matrix + executable coverage-check + resolver tests; в execution log — точные строки для каждого action.
+**Выход:** реализация следующих фаз не угадывает mechanics, ownership, provider behavior или source of truth.
 
-- [ ] Построить method-level матрицу `mechanic → entrypoint/method/action → текущий auth guard → principal source →
-  entitlement point → service/port`; для каждого пункта указать `file:line`. Доказательство: в матрице нет строк
-  уровня «весь каталог routes», а checker сопоставляет реальные export/action symbols.
-- [ ] Проверить все текущие `MECHANICS` из
-  [`org-entitlements/types.ts:6-21`](../../../apps/webapp/src/modules/org-entitlements/types.ts) против реальных
-  product surfaces и owner-list из memory `store-tariff-entitlements-model.md:12-19`.
-- [ ] Для отсутствующей поверхности поставить статус `declared_no_surface` с доказательством code-search; не
-  придумывать route только ради флага.
-- [ ] Любую найденную механику, которой нет в registry, добавить в единый typed registry вместе с русской подписью и
-  стабильным ключом. Доказательство: constructor и chokepoint импортируют один registry, локальных копий массива нет.
-- [ ] Зафиксировать default для нового/неуказанного флага. Текущий код использует `true`
-  ([`service.ts:19-26`](../../../apps/webapp/src/modules/org-entitlements/service.ts)); изменение этого поведения —
-  **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА** и не входит автоматически в S4.
-- [ ] Добавить статический coverage-check: каждый защищаемый action имеет ровно одну mechanic mapping; неизвестный
-  mechanic и дублирующий mapping дают non-zero exit.
-- [ ] Расширить существующие unit tests resolver-а: override > tariff > default; неизвестные DB-ключи не ломают
-  typed result; новый ключ registry автоматически попадает в constructor/test matrix.
+## 6. S4-1 — один requireEntitlement() chokepoint
 
-**Проверка:** targeted tests `org-entitlements/service.test.ts` + coverage-check + webapp typecheck.
+**Стартовые точки:** [`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts),
+[`requireEntitlement.test.ts:1-79`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.test.ts),
+[`courses/route.ts:49-77`](../../../apps/webapp/src/app/api/doctor/courses/route.ts),
+[`buildAppDeps.ts:1583-1585`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts).
 
-**Выход:** перечень механик доказан кодом, а не размером старого массива или старого плана.
+- [ ] Привести guard к typed контракту `requireEntitlement(ctx, mechanic)`: context уже авторизован и содержит
+  server-derived org; guard обращается только к `orgEntitlements` и возвращает единый 403
+  `entitlement_required` с mechanic key.
+- [ ] Убрать повторный auth call из существующего courses slice. Доказательство: одна auth/context resolution на
+  request; service не вызывается после 401/403.
+- [ ] Применить S4-0 mapping ко всем `protected` actions. Для feature с несколькими aliases gate стоит на общем
+  application command/feature boundary, а не копируется по routes.
+- [ ] Доказать ordering `auth → tenant/principal → entitlement → service`: unauthenticated, wrong role/org,
+  disabled mechanic и success имеют разные ожидаемые результаты.
+- [ ] Доказать org isolation: override/tariff A не меняет B; forged org ID не меняет target resolver.
+- [ ] Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне
+  единственного boundary дают non-zero.
 
-## 6. S4-1 — единый entitlement chokepoint
+**Проверка:** guard tests; по одному contract test на action family; static checker + self-test; webapp lint/typecheck.
 
-**Цель:** все действия одной механики проходят один общий entitlement boundary; routes не содержат копий правил.
+**Выход:** coverage checker сообщает `protected actions = mapped actions`, дублирующих entitlement rules нет.
 
-**Scope:** `app-layer/guards/requireEntitlement.ts`, общий mechanic action registry/guard, composition root, shared
-feature guards/services и их tests. Не менять tariff UI и store.
+## 7. S4-2 — global_admin-конструктор тарифов и overrides
 
-**Стартовые `file:line`:** guard
-[`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts), его тест
-[`requireEntitlement.test.ts:1-79`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.test.ts), двойной
-auth call [`courses/route.ts:49-54`](../../../apps/webapp/src/app/api/doctor/courses/route.ts), DI export
-[`buildAppDeps.ts:1583-1585`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts). **Общее доказательство:**
-contract matrix `401/403/success`, static direct-use guard и A/B isolation tests.
+**Стартовые точки:** [`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts),
+[`pgOrgEntitlements.ts:16-43`](../../../apps/webapp/src/infra/repos/pgOrgEntitlements.ts),
+[`doctorNavLinks.ts:36-52`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts),
+[`doctorNavLinks.ts:105-135`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts).
 
-- [ ] Разделить auth/context resolution и проверку entitlement так, чтобы auth выполнялся один раз. Текущий
-  `courses` POST не должен последовательно вызывать и `requireDoctorWorkspaceApiContext()`, и функцию, которая снова
-  вызывает тот же auth ([`courses/route.ts:49-54`](../../../apps/webapp/src/app/api/doctor/courses/route.ts)).
-- [ ] Оставить одну typed реализацию `requireEntitlement(ctx, mechanic)` (точное имя может сохраниться), которая:
-  получает server-derived org context; вызывает только `orgEntitlements`; возвращает единый 403
-  `entitlement_required` с mechanic key; не знает route paths.
-- [ ] Для механики с несколькими routes поставить gate на общем feature guard/application command boundary. Route
-  вправе только вызвать общий boundary; локальные `if tariff/mechanic/override` и повторные DB reads запрещены.
-- [ ] Применить mapping из S4-0 к каждому action со статусом `protected`; read/write гранулярность берётся из матрицы,
-  а не угадывается по имени каталога.
-- [ ] Доказать ordering `auth → tenant/principal → entitlement → service`: unauthenticated даёт 401, wrong role/org
-  даёт 403/404 существующего authz, disabled entitlement даёт 403, service не вызывается при любом отказе.
-- [ ] Доказать isolation: выключение mechanic у org A не влияет на org B; request body/query с чужим org ID не меняет
-  resolver target.
-- [ ] Добавить static guard, запрещающий прямые вызовы `isMechanicEnabled` вне единственного chokepoint и запрещающий
-  локальные чтения `saas_tariffs`/`saas_org_entitlement_overrides` из routes/modules features.
-- [ ] Сохранить backward compatibility для клиники без назначенного тарифа и override согласно принятому default из
-  S4-0.
+- [ ] Расширить существующий `modules/org-entitlements` typed CRUD: tariff list/get/create/update/deactivate,
+  assign/unassign, override list/upsert/delete. Новый соседний tariffs module не создаётся.
+- [ ] Хранить name, description, `priceMinor`, currency, billing period и полный mechanic map как DB data.
+  Hardcoded tier names/prices/compositions отсутствуют.
+- [ ] Валидировать mechanics только по registry S4-0; отсутствующий UI-toggle не может тихо потерять mechanic key.
+- [ ] Реализовать узкий platform write port для manual tariff assignment. До S4-4 он транзакционно меняет только
+  compatibility `be_organizations.tariff_id`; S4-4 мигрирует такие назначения в source=`manual` и оставляет колонку
+  только согласованной projection, не универсальным editor организации.
+- [ ] Override identity остаётся `(organization_id, mechanic)`; delete возвращает tariff default, а не сохраняет
+  копию этого default.
+- [ ] Global_admin page содержит tariff list/editor, цену/период, grid всех mechanics, clinic assignment и override.
+  `clinic_admin`/doctor не видят nav item и получают 403 на API.
+- [ ] Audit event содержит actor, target org, tariff, before/after mechanic map и reason без secret/PII.
+- [ ] E2E contract: tariff с mechanic=false → A denied; B unchanged; override A=true → allowed; delete override →
+  denied; смена тарифа меняет доступ через тот же chokepoint.
 
-**Проверка:** `requireEntitlement.test.ts`; по одному контрактному тесту на mechanic action family; static guard;
-webapp typecheck/lint. Не плодить по одному тяжёлому route test на каждый одинаковый alias.
+**Проверка:** module/PG/API tests; authz A/B matrix; constructor RTL; desktop/mobile visual acceptance.
 
-**Выход:** coverage-check показывает `protected action count = mapped action count`, а поиск по feature routes не
-находит дублирующих entitlement-условий.
+**Выход:** тарифная сетка, цены, период, mechanics и clinic override управляются global_admin как данные.
 
-## 7. S4-2 — global_admin CRUD тарифов, ручное назначение и overrides
+## 8. S4-3 — магазин пакетов и org grants без копирования
 
-**Цель:** global_admin управляет тарифами как данными и вручную задаёт тариф/исключения клинике без PSP.
+**Стартовые точки:** [`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts),
+[`entitlements/ports.ts:1-20`](../../../apps/webapp/src/modules/entitlements/ports.ts),
+[`entitlements/service.ts:5-40`](../../../apps/webapp/src/modules/entitlements/service.ts),
+[`pgEntitlements.ts:9-76`](../../../apps/webapp/src/infra/repos/pgEntitlements.ts),
+[`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
-**Scope:** расширение `modules/org-entitlements` ports/service/types, PG implementation, thin global_admin API,
-global_admin page/nav, focused tests. DDL только если реальный schema diff доказан; не менять `be_organizations`
-schema/policies/provisioning.
+- [ ] Добавить минимальную platform package entity с commercial metadata, price/currency/access duration и ссылкой
+  на существующий ordered `lfk_complex_template`; exercises/media остаются canonical rows.
+- [ ] Platform package composition может ссылаться только на platform exercises/templates. Clinic-owned exercise
+  create/edit/list продолжает жить в текущем LFK flow и не становится store content.
+- [ ] Эволюционировать `content_access_grants_webapp` и `modules/entitlements` для org target: source kind/id,
+  organizationId, contentId, expiry/revoke, idempotency. Существующие user grants и integrator projection не ломаются;
+  третья grant table не создаётся.
+- [ ] Grant одного source идемпотентен. Revoke/refund удаляет только этот source; доступ сохраняется, если тот же
+  `content_id` покрыт другим active tariff/purchase/manual source.
+- [ ] Access predicate clinic-facing store: own clinic content OR active org grant. Patient program assignment остаётся
+  отдельным patient access source и не расширяет clinic-wide store visibility.
+- [ ] Добавить no-copy invariant: package grant/order не создаёт `lfk_exercises`, `lfk_exercise_media`, `media_files`
+  или object keys; IDs до/после совпадают.
+- [ ] `exercise_packages` mechanic и specific package grant проверяются раздельно: mechanic ON не открывает все
+  packages; grant без mechanic ON не открывает store surface.
+- [ ] Global_admin курирует/архивирует packages; clinic_admin/doctor только видят разрешённое и используют купленное
+  рядом со своими упражнениями.
+- [ ] A/B negatives закрывают list, direct package ID, direct exercise ID и media playback; B без grant не получает
+  package/content A.
+- [ ] Поддержать два source path: package включён в tariff composition и package куплен отдельно. Оба создают
+  source-aware grants на те же canonical content IDs.
 
-**Стартовые `file:line`:** tariff/override schema
-[`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts), существующий PG read port
-[`pgOrgEntitlements.ts:16-43`](../../../apps/webapp/src/infra/repos/pgOrgEntitlements.ts), composition
-[`buildAppDeps.ts:492-494`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts), текущий global-admin nav contract
-[`doctorNavLinks.ts:36-52`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts) и его settings cluster
-[`doctorNavLinks.ts:105-135`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts). **Общее доказательство:**
-service/API authz tests, tariff/override A/B contract и desktop/mobile constructor acceptance.
+**Проверка:** package/grant service+PG tests; RLS/IDOR A/B matrix; no-copy invariant; curator/store visual acceptance.
 
-- [ ] Расширить существующий module/port CRUD-операциями `list/get/create/update/deactivate tariff`,
-  `assign/unassign existing tariff`, `list/upsert/delete org override`. Не создавать `modules/tariffs` рядом.
-- [ ] Валидировать mechanics по единому registry S4-0; сохранять полный map флагов, а не частичный UI-пресет.
-- [ ] Сохранять `name`, `description`, `priceMinor`, `currency`, `isActive`, mechanics как DB data. В коде нет названий
-  тарифов, цен или готовых tier compositions.
-- [ ] Не удалять активный тариф физически: деактивация сохраняет исторические ссылки. Иное поведение — инженерное
-  предложение и требует отдельного data-lifecycle обоснования.
-- [ ] Реализовать manual assignment через уже существующий `tariff_id` только в узком audited platform write port.
-  Доказательство: порт может изменить только tariff reference, не становится универсальным editor
-  `be_organizations`. Если это невозможно без изменения заблокированной границы — **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА**.
-- [ ] Реализовать точечный override по `(organization_id, mechanic)` поверх существующей unique identity
-  ([`saasEntitlements.ts:37-57`](../../../apps/webapp/db/schema/saasEntitlements.ts)); удаление override возвращает
-  tariff default, не записывает копию default.
-- [ ] Все API/page actions требуют `global_admin` platform capability. `clinic_admin`/doctor получают 403 и не видят
-  nav item; `adminMode` в clinic session не является cross-tenant полномочием.
-- [ ] UI: список тарифов, compact create/edit form, цена как данные, grid всех mechanic toggles, clinic assignment и
-  per-clinic override editor. Путь `/app/doctor/admin/tariffs` и API `/api/admin/tariffs/**` — **инженерное
-  предложение**; перед реализацией сверить с текущей навигацией `#752`, не создавать второй admin shell.
-- [ ] Select с opaque tariff/org ID показывает label через `displayLabel`; UI использует doctor shared primitives,
-  без bespoke cards и лишних поясняющих текстов.
-- [ ] Audit trail фиксирует actor, tariff, target org, before/after flags и причину ручного override без secret/PII.
-- [ ] E2E contract: создать тариф с выключенной mechanic, назначить org A → action A запрещён; org B не изменился;
-  override A=true возвращает доступ; удаление override снова применяет tariff=false; unassign возвращает принятый
-  default S4-0.
+**Выход:** купленные пакеты и clinic-owned exercises одновременно доступны клинике, не смешаны и не копируют файлы.
 
-**Проверка:** module/service unit tests; API global_admin/clinic_admin authorization tests; constructor RTL contract;
-targeted visual acceptance desktop/mobile с двумя клиниками и двумя печатями.
+## 9. S4-4 — достройка SaaS billing поверх существующих PSP
 
-**Выход:** тарифная сетка полностью настраивается global_admin; ни одного hardcoded price/tier; реальных денежных
-операций и PSP нет.
+**Стартовые точки:** [`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts),
+[`paymentProviderRegistry.ts:8-45`](../../../apps/webapp/src/infra/payments/paymentProviderRegistry.ts),
+[`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts),
+[`payments/service.ts:136-450`](../../../apps/webapp/src/modules/payments/service.ts),
+[`payments/webhook/[provider]/route.ts:10-64`](../../../apps/webapp/src/app/api/payments/webhook/[provider]/route.ts),
+[`BookingPaymentsSection.tsx:41-75`](../../../apps/webapp/src/app/app/settings/BookingPaymentsSection.tsx).
 
-## 8. S4-3 — магазин курируемых пакетов и org content grants
+- [ ] Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine; он переиспользует
+  `PaymentProviderPort` через DI и не импортирует infra registry напрямую.
+- [ ] Добавить минимальные org-owned records: billing account, source-aware subscription, invoice/order и normalized provider
+  event. Invoice фиксирует tariff/package, amount/currency/period snapshot; webhook event имеет provider event ID и
+  idempotency, но не хранит patient data.
+- [ ] Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`; переключить
+  resolver на один access contract и проверять, что compatibility projection совпадает. Mismatch checker даёт non-zero.
+- [ ] Реализовать prepaid lifecycle `pending_payment → active → expired/cancelled` с идемпотентным повторным checkout,
+  capture, refund и периодическим expiry evaluation. Автоматическое списание без provider token contract не
+  имитируется; новый оплачиваемый период создаётся подтверждённым checkout.
+- [ ] Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`, Settings UI, redaction/secret-retain
+  service и sanctioned accessor; запись идёт через `updateSetting` с обычным mirror contract. Он не читает и не
+  перезаписывает per-org `booking_payment_providers`.
+- [ ] Сохранить и вернуть provider checkout URL безопасному clinic_admin UI. Return/status page сверяет invoice/order
+  из server-derived org и никогда не принимает сумму, tariff или target org от клиента как source of truth.
+- [ ] Добавить SaaS webhook route под bootstrap principal: load global provider config → verify signature/status →
+  resolve invoice/order → run org-scoped capture. Unknown ref acknowledges safely; forged signature, amount/currency
+  mismatch и replay не активируют доступ.
+- [ ] Закрыть provider-specific gaps из S4-0. В частности, callback, который требует server-side status verification,
+  не считается успешным только по payload; provider order ref и transaction ref имеют проверенный mapping.
+- [ ] Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот
+  source. Manual global_admin assignment или более новый paid source сохраняют доступ; compatibility tariff projection
+  обновляется тем же service transaction.
+- [ ] Store package capture выдаёт source-aware org grants; refund/reversal отзывают только grants этого order.
+- [ ] Payment failure/expiry не затрагивают другую клинику и не удаляют clinic-owned exercises/content.
+- [ ] Реальные provider credentials, когда владелец их предоставит, вводятся только через Settings на тестовом сервере.
+  До этого architecture, mock checkout и recorded provider contract fixtures должны проходить полностью; отсутствие
+  ключей не блокирует schema/service/UI/webhook implementation.
 
-**Цель:** global_admin собирает platform packages из канонического контента; клиника получает доступ грантом без
-копирования файлов или упражнений.
+**Проверка:** state-machine and idempotency tests; provider adapter contract tests; signed webhook success/replay/
+forgery/amount mismatch; tariff and package capture/refund integration; A/B authz; secret redaction scan; checkout UI.
 
-**Scope:** существующие `modules/lfk-exercises`, `modules/lfk-templates`, `modules/entitlements`,
-`modules/products` только как переиспользуемые primitives; минимальная package model/UI/API; content access checks.
+**Выход:** клиника может оплатить тариф или отдельный package через существующий provider layer; успешное событие
+идемпотентно меняет subscription/grants, а refund корректно отзывает только свой источник доступа.
 
-**Стартовые `file:line`:** org-capable webapp grant row
-[`schema.ts:370-395`](../../../apps/webapp/db/schema/schema.ts), legacy/integrator grant row
-[`schema.ts:2288-2306`](../../../apps/webapp/db/schema/schema.ts), user-only port
-[`entitlements/ports.ts:1-20`](../../../apps/webapp/src/modules/entitlements/ports.ts), PG implementation
-[`pgEntitlements.ts:9-76`](../../../apps/webapp/src/infra/repos/pgEntitlements.ts), current product grant issue
-[`products/service.ts:330-379`](../../../apps/webapp/src/modules/products/service.ts), LFK ownership columns
-[`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts). **Общее доказательство:** grant lifecycle tests,
-A/B list/direct-ID/media negatives и no-copy invariant over canonical content/media IDs.
+## 10. Абонементы — факт проверен, работа закрыта
 
-- [ ] Сначала зафиксировать инженерное решение хранения package composition: переиспользовать существующий ordered
-  template primitive либо добавить минимальную platform package entity. Доказательство выбора: нет второго exercise,
-  media, purchase или access engine; package содержит ссылки на canonical exercise/content IDs и порядок.
-- [ ] Явно разделить platform rows и clinic-owned exercises по существующему `organization_id` contract. Global_admin
-  curator видит platform library; clinic create/edit flow продолжает создавать только clinic-owned content и не
-  становится частью store.
-- [ ] Инвентаризировать обе текущие grant tables и projection flow. Выбрать один канонический write/read path внутри
-  существующего `modules/entitlements`; третья grant table запрещена.
-- [ ] Расширить `EntitlementsPort` org-scoped grant операциями: target `organizationId`, canonical `contentId`,
-  `purpose`, `expiresAt`, `revokedAt`, source package/tariff metadata. Не подменять org grant набором user grants.
-- [ ] Grant upsert/revoke идемпотентен; повторная выдача не создаёт дубль; revoke/expiry немедленно снимают store
-  access, не удаляя канонический контент.
-- [ ] Access predicate для clinic-facing чтения покрывает owner constraint из taskdb `#724`: own clinic content OR
-  active org grant OR content assigned in patient program. Конкретный SQL/RLS/service split проходит отдельный
-  security audit; payload `organizationId` не участвует в решении.
-- [ ] Файлы/media references остаются теми же canonical IDs/URLs. Добавить доказательство отсутствия copy path:
-  выдача package не создаёт новые `media_files`, `lfk_exercises` или object keys.
-- [ ] `exercise_packages` mechanic gate применяется через S4-1 chokepoint отдельно от specific package grant:
-  mechanic ON не даёт все пакеты; grant без mechanic ON не открывает store surface.
-- [ ] Global_admin может создать/редактировать/архивировать package и его ordered composition; clinic_admin/doctor
-  не могут курировать platform packages.
-- [ ] Clinic store list/detail возвращают только доступные packages/content; org B без grant не видит package A по
-  list, direct ID и media playback path.
-- [ ] Связать package availability с tariff composition там, где пакет включён в тариф. Семантика отдельной ручной
-  «покупки» без PSP против «включено в тариф» не зафиксирована источниками достаточно точно: до product UI поставить
-  **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА**; foundation grant API не должен угадывать checkout.
+- [x] Кнопка «Пересчитать» существует на active package:
+  [`PatientPackageCard.tsx:165-177`](../../../apps/webapp/src/app/app/doctor/clients/PatientPackageCard.tsx).
+- [x] UI вызывает `POST .../[id]/recalc`, показывает summary и refresh:
+  [`DoctorClientMembershipsPanel.tsx:247-269`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.tsx).
+- [x] Route получает org из doctor gate и вызывает существующий memberships service:
+  [`recalc/route.ts:12-48`](../../../apps/webapp/src/app/api/doctor/booking-engine/patient-packages/[id]/recalc/route.ts).
+- [x] Bulk implementation идемпотентно списывает прошлые состоявшиеся визиты, работает под package lock и не уходит
+  ниже нуля: [`memberships/service.ts:1133-1369`](../../../apps/webapp/src/modules/memberships/service.ts).
+- [x] UI behavior покрыт тестом:
+  [`DoctorClientMembershipsPanel.test.tsx:213-285`](../../../apps/webapp/src/app/app/doctor/clients/DoctorClientMembershipsPanel.test.tsx);
+  duplicate consume защищён unique index
+  [`0137_be_package_usages_consume_unique.sql:1-9`](../../../apps/webapp/db/drizzle-migrations/0137_be_package_usages_consume_unique.sql).
 
-**Проверка:** entitlements service/PG tests; package service tests; RLS/isolation matrix A/B; no-copy invariant;
-global_admin curator visual acceptance; clinic list/direct-ID/media negative cases.
+**Вывод:** owner question закрыт фактом. S4 не планирует кнопку, второй memberships module или повтор ST-01/ST-02.
 
-**Выход:** несколько demo packages можно выдать клиникам на TEST, и всё содержимое остаётся единственным каноническим
-контентом.
+## 11. S4-5 — PII-free analytics по клиникам и нагрузке
 
-## 9. S4-4 — аналитика global_admin по клиникам
+**Стартовые точки:** [`productAnalytics.ts:53-147`](../../../apps/webapp/db/schema/productAnalytics.ts),
+[`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts),
+[`types.ts:161-186`](../../../apps/webapp/src/modules/product-analytics/types.ts),
+[`ports.ts:14-30`](../../../apps/webapp/src/modules/product-analytics/ports.ts),
+[`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts).
 
-**Цель:** дать владельцу platform view с отдельной строкой/серией по каждой клинике, сохранив clinic isolation.
+- [ ] Ввести отдельную typed platform aggregate projection/port. Строка содержит только time bucket,
+  organizationId или platform-total bucket, allowlisted metric key, integer/decimal value и generatedAt; нет FK на
+  user/patient, person/session IDs и JSON metadata.
+- [ ] Существующий raw/user analytics остаётся clinic-operational source и не экспортируется через platform port.
+  `ProductAnalyticsClientActivityRow` и registration drill-down физически недоступны platform API/page.
+- [ ] Протянуть trusted `organizationId` в те ingest paths, которые действительно org-scoped. Payload не назначает
+  org; shared-patient event без scoped resource не угадывается и не попадает в per-clinic aggregate.
+- [ ] Aggregate builders считают только allowlisted counters из billing/subscription и platform load sources.
+  Message body, exercise execution event, program content и patient identity не читаются и не проецируются.
+- [ ] Добавить schema/DTO/static checker, запрещающий в platform analytics person columns, free-form payload и imports
+  clinic drill-down repo. Canary test кладёт узнаваемые PII strings в source fixtures и доказывает их отсутствие в
+  aggregate rows, API JSON, logs и screenshots.
+- [ ] Сделать отдельный global_admin platform port/API; clinic analytics port остаётся строго single-org.
+  clinic_admin A не может запросить B query/filter/direct ID.
+- [ ] До финального решения владельца UI показывает только технический preview структуры aggregate buckets без
+  объявления набора KPI окончательным.
+- [ ] **ФИНАЛЬНОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА:** утвердить точный список метрик и формулы после работающих tariffs/store/billing.
+  Кандидаты из рулинга — клиники, специалисты, клиенты как counts, загрузки видео, биллинг и использование — не
+  расширяются персональными drill-down.
+- [ ] После решения реализовать только утверждённые metric keys, формулы и layout; каждый metric получает source
+  query `file:line`, denominator/timezone semantics и fixture с ожидаемым числом.
 
-**Scope:** существующий `modules/product-analytics`, schema/migrations только для доказанного org-dimension gap,
-отдельный platform aggregate port/API/page. Не строить новую analytics subsystem.
+**Проверка:** aggregate builder/port/API tests; schema/static PII checker + self-test; A/B authz; canary PII scan;
+global_admin visual acceptance после финального metric decision.
 
-**Стартовые `file:line`:** ingest type
-[`types.ts:56-68`](../../../apps/webapp/src/modules/product-analytics/types.ts), current port
-[`ports.ts:14-30`](../../../apps/webapp/src/modules/product-analytics/ports.ts), write/rollup path
-[`pgProductAnalytics.ts:57-176`](../../../apps/webapp/src/infra/repos/pgProductAnalytics.ts), org-bearing raw/user schema
-[`productAnalytics.ts:17-84`](../../../apps/webapp/db/schema/productAnalytics.ts) и
-[`productAnalytics.ts:117-147`](../../../apps/webapp/db/schema/productAnalytics.ts). **Общее доказательство:**
-trusted-org ingest tests, org-dimensional rollup invariant, platform/clinic authz matrix и PII-free A/B view.
+**Выход:** global_admin видит утверждённую аналитику по клиникам и общей нагрузке, но platform analytics физически
+не содержит персональной активности пациентов чужих клиник.
 
-- [ ] Протянуть `organizationId` в ingest contract из доверенного session/resource context; event body не может
-  назначать клинику самостоятельно.
-- [ ] Зафиксировать deterministic org-at-ingest для каждого event family и explicit `unknown/unattributed` bucket.
-  Multi-enrollment rule не угадывать: resource-derived org обязателен; по-настоящему org-agnostic событие остаётся
-  `unknown` с причиной. Это инженерное safety-предложение; оно не приписывается владельцу.
-- [ ] Исправить hourly/user-hourly identity так, чтобы события одного пользователя в двух клиниках не схлопывались в
-  одну строку. Backfill не приписывает org по «первой клинике».
-- [ ] Расширить существующий dashboard builder/types clinic breakdown, не создавая параллельный dashboard service.
-- [ ] Сделать отдельный audited platform aggregate port для cross-tenant выборки. Clinic analytics port по-прежнему
-  ограничен одной org; clinic_admin A не может получить B, в том числе фильтром/query param.
-- [ ] Минимальный набор до решения о KPI: количество событий/активных пользователей по клинике и окно времени,
-  выведенные из существующих event types. Точный инвесторский набор KPI, retention formulas и визуальная композиция
-  — **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА**; агент не объявляет «регистрации/retention» решёнными владельцем.
-- [ ] Global_admin page показывает clinic label, период и explicit unknown bucket; никаких patient names/phones в
-  cross-tenant summary.
-- [ ] Проверить org A/B + shared patient: platform total равен сумме clinic buckets + unknown; clinic A API/UI не
-  раскрывает B; global_admin видит обе клиники через platform scope.
+## 12. S4-6 — интеграционная приёмка на тестовом сервере
 
-**Проверка:** ingest/rollup/dashboard unit tests; migration/backfill invariant на disposable fixture; authorization
-tests; PII scan; global_admin visual acceptance с неравными данными A/B.
+- [ ] Подготовить непересекающиеся synthetic fixtures: global_admin; clinic_admin/doctor A и B; разные tariffs/
+  overrides; platform package; grant только A; clinic-owned exercises у A и B; SaaS invoice/subscription/order.
+  Доказательство: fixture manifest без реальных PII.
+- [ ] Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, курирует package,
+  видит billing state и утверждённые aggregate metrics.
+- [ ] Clinic A проходит checkout mock/recorded-provider flow, получает tariff/package access и продолжает видеть свои
+  clinic exercises отдельно от store content.
+- [ ] Clinic B не видит tariff override, invoice, grant, package/content/media или analytics A; её собственные
+  exercises и mechanics работают по её tariff.
+- [ ] Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider
+  ref, refund replay. Ни один отказ не меняет subscription/grant.
+- [ ] Entitlement/store negatives: unauthenticated, doctor вместо global_admin, direct IDs, expired/revoked grant,
+  mechanic OFF with active package grant.
+- [ ] Analytics negatives: platform JSON/schema/visual artifacts не содержат patient identity, message text,
+  exercise execution details или clinic drill-down rows; clinic A не получает B.
+- [ ] UI-фазы получают desktop/mobile screenshots; executor, independent audit и fixer закрывают один и тот же
+  checklist по [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
+- [ ] После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`; повторять полный gate
+  без изменений кода не требуется.
 
-**Выход:** per-clinic breakdown доказан данными и isolation tests; неизвестные события видны, а не тихо приписаны.
+**Выход:** tariffs, one chokepoint, store, real-provider-ready SaaS billing, безопасная analytics и coexistence с
+clinic exercises работают на тестовом сервере для A/B.
 
-## 10. S4-5 — абонементы: reverify и доводка существующего
+## 13. Единственные открытые решения владельца
 
-**Цель:** закрыть owner pain поверх `modules/memberships`, учитывая, что bulk/visit/Finance уже реализованы после
-исходной фиксации решения.
+1. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** как выглядит ручная «покупка» store package, пока PSP keys ещё не переданы:
+   отдельное действие global_admin, clinic_admin request с последующим подтверждением или другой UX. Foundation
+   order/grant API не угадывает этот интерфейс; tariff-included path и PSP checkout path строятся независимо.
+2. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА В КОНЦЕ:** точный набор metric keys, formulas и layout platform analytics.
 
-**Scope:** только существующий membership service/port/repo, существующие doctor patient-card surfaces и targeted
-tests. `be_subscription_packages` не используется как SaaS tariff/store package.
+Все остальные детали этого плана — инженерная работа. Порядок фаз, table/route names, state machine, provider
+contract, grant lifecycle, default compatibility и DB-role implementation не подписываются именем владельца и не
+останавливаются вопросом к нему.
 
-**Стартовые `file:line`:** membership port
-[`ports.ts:44-120`](../../../apps/webapp/src/modules/memberships/ports.ts), bulk implementation
-[`service.ts:1148-1387`](../../../apps/webapp/src/modules/memberships/service.ts), bulk tests
-[`service.test.ts:1100-1693`](../../../apps/webapp/src/modules/memberships/service.test.ts), Finance mount
-[`PatientTabFinances.tsx:353`](../../../apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabFinances.tsx),
-visit projection [`pgPatientClinical.ts:290-377`](../../../apps/webapp/src/infra/repos/pgPatientClinical.ts) и badge
-[`PatientTabKarta.tsx:1055-1062`](../../../apps/webapp/src/app/app/doctor/patients/[userId]/tabs/PatientTabKarta.tsx).
-**Общее доказательство:** one-flow trace, idempotency/concurrency tests и visual proof Finance/Visit/Calendar/Overview.
+## 14. Definition of Done
 
-- [ ] Трассировкой подтвердить один путь `Finance → DoctorClientMembershipsPanel → recalc API →
-  recalcPastSessionsForPackage → append-only be_package_usages → appointment package ref → visit/calendar UI` с
-  `file:line` на каждом звене.
-- [ ] Bulk proof: окно `[soldAt, now)`, только состоявшиеся eligible visits, already-debited no-op, stop at zero,
-  service mismatch skip, повторный и параллельный запуск без double debit. Основа уже есть в
-  [`memberships.md:24-36`](../../../apps/webapp/src/modules/memberships/memberships.md) и
-  [`service.test.ts:1100-1693`](../../../apps/webapp/src/modules/memberships/service.test.ts).
-- [ ] Проверить транзакционную атомарность `runWithPackageLock` и partial unique debit index; failure посередине не
-  оставляет usage без appointment ref/history и не уменьшает баланс дважды.
-- [ ] Visit proof: canonical appointment mapping, а не legacy record ID, приводит к package title/display number;
-  visit badge тестируется на linked/unlinked/cross-org cases.
-- [ ] Finance proof: создание с датой, список активных packages, кнопка «Пересчитать», summary результата и обновление
-  баланса доступны в существующей Finance tab без второй формы/панели.
-- [ ] Calendar/Overview/Visits используют один formatter/summary source; после recalc метка и остаток обновляются без
-  ручного reload там, где текущий UI contract обещает refresh.
-- [ ] Если все пункты уже зелёные, этап закрывается как `reverified-existing` без code rewrite. Реальный найденный gap
-  чинится минимально в текущем модуле и фиксируется в execution log.
-- [ ] Не добавлять PSP/tenant billing: patient membership payment domain остаётся отдельным от SaaS tariff billing.
+- [ ] Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md` либо непереопределённую Часть Б
+  `OWNER_DECISIONS_FOR_REVIEW.md`; инженерные решения подписаны как инженерные.
+- [ ] Полный mechanic registry доказан method-level matrix; все protected actions используют один chokepoint.
+- [ ] Global_admin управляет tariffs/prices/periods/mechanics/assignments/overrides как DB data.
+- [ ] Store packages и clinic-owned exercises сосуществуют; grants source-aware; canonical content/media не копируются.
+- [ ] Existing provider adapters обслуживают SaaS checkout/capture/refund/webhook; keys DB-backed и redacted.
+- [ ] Platform analytics содержит только утверждённые org/platform aggregates и проходит PII canary/static gate.
+- [x] Bulk «Пересчитать» в memberships подтверждён существующим UI, route, service, tests и DB invariant.
+- [ ] A/B acceptance, security negatives, screenshots/audits и один финальный CI gate закрыты на тестовом сервере.
 
-**Проверка:** targeted membership service/PG/API/RTL tests; visual scenario в Finance, Visit, Calendar и Overview;
-cross-org IDOR negative. Полный CI не запускать только ради reverify без новых изменений.
+## 15. Execution log
 
-**Выход:** пять owner pains подтверждены реальным текущим flow; нет второго subscription engine.
+При старте реализации создать рядом `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS_LOG.md`. После каждой фазы фиксировать:
 
-## 11. S4-6 — TEST product acceptance и интеграционный gate
-
-**Цель:** доказать весь коммерческий контур на TEST со включёнными стенами до нового-domain copy launch.
-
-**Стартовые `file:line`:** последовательность и запрет legacy cutover
-[`SEQUENCE.md:9-18`](./SEQUENCE.md), TEST/new-domain launch
-[`OWNER_DECISIONS_FOR_REVIEW.md:90-105`](./OWNER_DECISIONS_FOR_REVIEW.md), финальная product-приёмка roadmap
-[`SAAS_ENFORCE_ROADMAP.md:574-575`](./SAAS_ENFORCE_ROADMAP.md). **Общее доказательство:** scenario log с точными
-UI/API entrypoint `file:line`, A/B screenshots, двумя seals, security negatives и одним финальным CI результатом.
-
-- [ ] Подготовить непересекающиеся demo fixtures: global_admin, clinic_admin/doctor A, clinic_admin/doctor B;
-  разные тарифы/overrides, минимум несколько store packages, грант только одной клинике, абонемент пациента с
-  прошедшими визитами. Не использовать реальные patient PII.
-- [ ] Global_admin: создать/изменить тариф, задать полный mechanic map, назначить его A, сделать override, курировать
-  package, выдать grant, увидеть A/B analytics.
-- [ ] Clinic A: разрешённые mechanics работают, выключенные получают `entitlement_required`, granted package и media
-  доступны, собственные clinic exercises остаются отдельными.
-- [ ] Clinic B: не видит тарифные overrides/гранты/content/analytics A; её собственные mechanics и exercises работают
-  согласно её тарифу.
-- [ ] Абонемент: создать с прошлой датой в Finance, пересчитать, увидеть ledger-derived остаток и package marker в
-  Visit/Calendar/Overview.
-- [ ] Security negatives: unauthenticated, doctor вместо global_admin, clinic_admin cross-tenant, forged org ID,
-  direct package/content/media ID, expired/revoked grant.
-- [ ] Product smoke падает на 401/403/5xx там, где ожидается успех, unexpected empty results, RLS/principal errors и
-  cross-org disclosure; ожидаемые entitlement 403 классифицируются отдельно.
-- [ ] На каждую UI-фазу сохранить desktop/mobile screenshots всех состояний и получить две независимые seals.
-- [ ] После закрытия всех фаз выполнить один финальный integration gate `pnpm install --frozen-lockfile && pnpm run ci`
-  перед merge/deploy checkpoint; не повторять full CI без изменения кода.
-- [ ] TEST deploy/smoke выполняется только отдельным авторизованным оркестраторским проходом по каноническому runbook.
-  Этот план не разрешает SSH/DB/service actions и никогда не направляет команды на старый PROD.
-
-**Выход:** tariff grid, entitlement enforcement, несколько store packages, clinic analytics и memberships работают
-на TEST для A/B; старый PROD не затронут.
-
-## 12. Решения, которых нет в источниках
-
-Исполнитель не имеет права заполнить эти пробелы «разумным дефолтом»:
-
-1. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** store UX/commerce без PSP — отдельная ручная «покупка» пакета, только
-   включение пакета в тариф или обе механики.
-2. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** точный набор KPI/formulas/layout аналитики по клиникам. До ответа разрешён только
-   безопасный org-dimensional foundation и минимальные существующие event counts.
-3. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** любое изменение default entitlement для новой/неназначенной клиники с текущего
-   `true` на fail-closed/иной режим.
-4. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** любое расширение заблокированной границы `be_organizations`; обходная модель не
-   создаётся.
-
-Не являются owner decisions и не должны так называться: конкретные route names, package storage table, audit event
-shape, deactivation strategy и состав минимального technical dashboard. Это инженерные решения, проверяемые
-архитектурой и acceptance этого плана.
-
-## 13. Definition of Done
-
-- [ ] Каждый пункт, приписанный владельцу, имеет ссылку на `OWNER_DECISIONS_FOR_REVIEW.md`, memory или taskdb.
-- [ ] Полный mechanic registry доказан method-level матрицей; все protected actions проходят единый chokepoint.
-- [ ] Global_admin управляет тарифами/назначением/overrides как данными; clinic_admin/doctor не получают platform
-  scope; `be_organizations` boundary не расширена.
-- [ ] Store packages global-admin-curated; clinic exercises отделены; org access работает через существующие grants;
-  canonical content/media не копируются.
-- [ ] Global_admin видит безопасный clinic breakdown; клиники не видят аналитику друг друга; unknown org не скрыт.
-- [ ] Memberships owner pains закрыты через существующий `modules/memberships`, без повторной реализации.
-- [ ] TEST A/B acceptance, security negatives, screenshots/seals и финальный CI gate закрыты; PROD не затронут.
-
-## 14. Обязательный execution log
-
-При начале исполнения создать рядом `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS_LOG.md` и после каждой фазы фиксировать:
-
-- run/agent IDs, commit range и фактически затронутые files;
-- закрытые checklist IDs и доказательства `file:line`;
-- tests/smokes/screenshots/seals;
-- найденные расхождения текущего кода с этим baseline;
-- owner decisions с исходной ссылкой; инженерные решения — отдельно и без атрибуции владельцу;
-- residual risks/blocked пункты, включая точную формулировку **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА**.
+- run/agent IDs, checklist IDs, commit range и фактически изменённые files;
+- точные post-change `file:line` для каждого закрытого пункта;
+- tests/checkers/smokes/screenshots и exit/result;
+- provider contract и credential-independent evidence;
+- owner rulings отдельно от инженерных решений;
+- residual risks и только два owner-decision пункта из §13.

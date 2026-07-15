@@ -1,4 +1,4 @@
-# Phase 0 design-lock — multitenant flip
+# Phase 0 design-lock — multitenant TEST enforcement
 
 Status: Phase 0 design-lock delivered 2026-07-12 after branch sync. Scope: design-lock only; no Phase 1+
 code until the owner confirms the Phase 1 direction recorded at the end of this file.
@@ -10,15 +10,18 @@ Branch baseline:
 
 Owner decisions:
 - Start model keeps one doctor and one admin as separate `platform_users`.
-- Do not collapse `admin = doctor`.
-- `#670` auth/UI/OTP rework is a separate product track and does not block this isolation cutover.
+- **Superseded owner attribution (2026-07-15):** this document previously presented “do not collapse
+  `admin = doctor`” as the owner's decision. It was not. An organization administrator may also be a doctor;
+  the interface may use an organization-settings tab, cabinet switching, or tabs on one page. See
+  `OWNER_RULINGS_2026-07-15.md:142-151`.
+- `#670` auth/UI/OTP rework is a separate product track and does not block this isolation work.
 
 ## Initial Audit Synthesis
 
 Read-only audits completed on 2026-07-12:
 - Security/locked labels: Nash (`gpt-5.5`, high reasoning).
 - DB access surface: Ampere (`gpt-5.4`, high reasoning).
-- RLS/migration/#664 cutover: Kuhn (`gpt-5.4`, high reasoning).
+- RLS/migration/#664 TEST-enforcement design: Kuhn (`gpt-5.4`, high reasoning).
 
 Accepted findings:
 - `app.is_staff()` should remain DB-role-derived through `app_staff` membership. Do not reintroduce
@@ -31,7 +34,7 @@ Accepted findings:
 - Per-checkout setup/reset is required for coverage; transaction-only setup misses plain
   `getPool()` / `getDrizzle()` / `DbPort.query` paths.
 - `FORCE ROW LEVEL SECURITY` is already present in the dormant migration chain, not reserved for a final
-  cutover migration. Committed SQL has 160 org/hybrid FORCE statements and 210 patient-side FORCE
+  TEST-enforcement migration. Committed SQL has 160 org/hybrid FORCE statements and 210 patient-side FORCE
   statements.
 - The current patient wall is not dormant-symmetric: unset patient context denies the patient branch.
 - `#664` is not a GRANT-only cleanup. It needs `WITH CHECK`, triggers, or repo splits for value-level
@@ -47,14 +50,13 @@ Scratch proofs completed on local disposable PostgreSQL 16.14:
   (`pgcrypto` installed in a pinned `app_ext` schema) works as a DB-enforced context mechanism in scratch:
   `app_patient` cannot read/write the context table, cannot install a victim identity with a bad/replayed
   signature, and can install only a payload with a matching trusted signature.
-- Caveat: if a victim signature leaks, the setter can install that victim payload. A production design must
+- Caveat: if a victim signature leaks, the setter can install that victim payload. A target-environment design must
   keep the signing secret outside patient-visible SQL/logs, include short TTL/backend binding, and clear
   context on release.
 
-Missing cutover blockers now tracked here:
+Missing TEST-enforcement blockers now tracked here:
 - Process-family smoke under real app roles after B4-fanout.
-- Cluster-global role naming / environment-boundary decision for `app_staff` and `app_patient` if dev and
-  prod share one PostgreSQL cluster.
+- Cluster-global role naming / TEST-environment boundary for `app_staff` and `app_patient`.
 
 ## Goal
 
@@ -67,7 +69,7 @@ Return a concrete implementation decision before Phase 1:
 
 ## Non-goals
 
-- No prod/test DB writes.
+- No database writes outside the declared disposable proof or authorized TEST task.
 - No deploy.
 - No `main`/`test` merge or push.
 - No Phase 1 implementation hidden inside discovery.
@@ -100,7 +102,7 @@ Current decision direction:
 - Prefer helper functions such as `app.current_org_id()` / `app.current_patient_user_id()` reading a
   protected backend-context table written only through a signed SECURITY DEFINER setter.
 - Keep `app.is_staff()` role-derived.
-- Phase 1 must prove the production-grade version with TTL/backend binding and release cleanup before any
+- Phase 1 must prove the hardened version with TTL/backend binding and release cleanup before any
   policy renderer is switched from raw `current_setting('app.*')` to helper functions.
 
 ### B. DB Access Surface
@@ -126,23 +128,23 @@ Current confirmed surface:
 - Server action entrypoints: 28.
 - Core issue unchanged from `T0_DB_ACCESS_SURFACE.md`: labels apply only on transaction paths today.
 
-### C. RLS / Migration / #664 Cutover
+### C. RLS / Migration / #664 TEST enforcement
 
 Owner: migration/RLS audit agent + orchestrator review.
 
 Questions:
 - Current ORG wall state in 0160-0168.
 - Current PATIENT wall state in 0169-0175, including dormant symmetry gaps.
-- Exact `FORCE ROW LEVEL SECURITY` placement and what must move to final cutover migration.
+- Exact `FORCE ROW LEVEL SECURITY` placement and what must move to final TEST-enforcement migration.
 - Which `P0_5B_GRANTS.md` value-level residuals must become `WITH CHECK`, triggers, or repo splits before enforce.
 
 Exit evidence:
 - List of migrations/docs/scripts to edit in Phase 1/2.
-- Explicit cutover blocker list.
+- Explicit TEST-enforcement blocker list.
 - Confirmation that `DORMANT_DEPLOY_TEST_RUNBOOK.md` "Why safe" is corrected or queued.
 
-Current cutover blockers:
-- Remove or neutralize `FORCE ROW LEVEL SECURITY` from dormant deploy path until final cutover.
+Current TEST-enforcement blockers:
+- Remove or neutralize `FORCE ROW LEVEL SECURITY` from dormant deploy path until final TEST enforcement.
 - Re-render patient wall with dormant symmetry or prove an equivalent compatibility mode.
 - Close `P0_5B_GRANTS.md` value-level residuals:
   appointment lifecycle rows, `program_item_discussion_messages`, `support_conversation_messages`,
@@ -212,7 +214,7 @@ Phase 2 — enforce-ready RLS + `#664`: 4-6 focused days.
 Likely files:
 - `docs/_TODO/SAAS_FOUNDATION/scripts/rls-sql-renderer.mjs`
 - `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs`
-- migrations `0160-0175` replacement/follow-up strategy or final cutover migrations
+- migrations `0160-0175` replacement/follow-up strategy or final TEST-enforcement migrations
 - `deploy/postgres/p0-5b-grants.sql`
 - `docs/_TODO/SAAS_FOUNDATION/P0_5B_GRANTS.md`
 - booking lifecycle repos/services
@@ -261,17 +263,17 @@ Expected work:
 - Do not create `org_enrollments` for the owner.
 - Update seed/provisioning assumptions for separate doctor/admin users.
 
-Phase 4 — rollout/cutover: 2-3 focused days plus owner-operated staging/prod windows.
+Phase 4 — TEST enforcement: 2-3 focused days plus an owner-authorized TEST window.
 
 Likely files:
 - `deploy/HOST_DEPLOY_README.md`
 - `docs/_TODO/SAAS_FOUNDATION/DORMANT_DEPLOY_TEST_RUNBOOK.md`
 - new flip runbook
-- migration/deploy scripts for NO FORCE / FORCE cutover
+- migration/deploy scripts for NO FORCE / FORCE TEST enforcement
 - smoke scripts for process-family real-role runs.
 
 Required gates:
-- Fresh disposable prod-copy validation.
+- Fresh disposable dump-copy validation.
 - 2-org + 2-patient deny/allow smoke.
 - Process-family smoke under real `app_staff`/`app_patient` roles.
 - 0 missing-principal shadow entries.
@@ -287,7 +289,7 @@ not be diluted by UI work.
 - [x] Locked-label direction chosen: protected backend-context table + signed SECURITY DEFINER setter +
       helper functions; raw custom GUCs rejected as trusted identity.
 - [x] Initial spoofing proofs run for custom GUC ACL and signed backend-context setter.
-- [ ] Production-grade locked-label implementation designed with TTL/backend binding/release cleanup.
+- [ ] Hardened locked-label implementation designed with TTL/backend binding/release cleanup.
 - [ ] Remaining spoofing proofs defined and assigned.
 - [x] DB access surface refreshed from current branch.
 - [x] Non-centralizable entrypoints listed with principal source.
@@ -314,6 +316,6 @@ Ready for owner decision:
   runtime credentials.
 
 Open Phase 1 proof work, not Phase 0 discovery:
-- Production-grade locked-label implementation with TTL/backend binding/release cleanup.
-- Remaining spoofing proofs against the production-grade implementation.
+- Hardened locked-label implementation with TTL/backend binding/release cleanup.
+- Remaining spoofing proofs against the hardened implementation.
 - Process-family smoke under real app roles after B4-fanout.

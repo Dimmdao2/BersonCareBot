@@ -1,36 +1,23 @@
-# SAAS_FOUNDATION — initiative index
+# SAAS_FOUNDATION
 
-**Status:** ✅ **PHASE 0 MICRO-STAGE SPINE COMPLETE.** Hardening loop closed on **v8** after two consecutive CLEAN reviews (r8 + r9) by independent fresh Opus agents, each running its own `pg_constraint` FK-scan + soft-ref scan + full count reproduction. **v9** keeps the v8 architecture/scope unchanged and adds a pre-start sizing pass: aggregate P0.4/P0.7/P0.8/P0.11/P0.13 are split into executable micro-stages. Final scope: SCOPED 155 (**111 need org_id**) / BOOTSTRAP 24 / INFRA 22 / LEGACY 16 / TELEMETRY 2 = 219; FK-based derivation; default-deny + 3 tiers; integrator bridge; `system_settings` hybrid. **P0.1.1-P0.5.1 are implemented; P0.6.1 and P0.7.1-P0.7.6 are implemented; P0.8.1-P0.8.7 are implemented with scratch-smoked public direct-org, public FK/denorm-path, integrator SCOPED, and BOOTSTRAP hybrid policy migrations plus DB-free INFRA/LEGACY/TELEMETRY exemption/user-ref denial guards. P0.9.1 enforce-mode default-deny descriptors are implemented and scratch-smoked on disposable DB only. P0.10.1-P0.10.3 CI invariants are implemented. P0.11.1-P0.11.4 system_settings storage/read/write/rules-docs are implemented; storage and write-path audit migration were scratch-smoked on disposable DB only. P0.12.1-P0.12.2 residual reference scans are implemented as static artifacts/checkers. P0.13.1-P0.13.3 isolation fixtures/smokes are implemented; the Phase 0 integration checkpoint passed full `pnpm run ci` on 2026-07-08. Remaining P0 work: none. Next direction: T0/R2 tenant-context cutover, starting with `T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`.**
-**Goal:** lay the dormant foundation to turn the single-clinic app into a multi-tenant
-(multi-specialist / multi-organization), later multi-lingual + multi-region SaaS, with **zero behavior
-change** today; turning it on is a controlled cutover, not a flag.
+## Current authority
 
-**Product direction (2026-07-01):** do not assume an inevitable hard product fork. Continue the
-main BersonCareBot product in one development stream while adding dormant SaaS-capable schema and
-access mechanisms. Future commercialization may remain one codebase with optional organization
-features: white-label branding in an upper-tier plan, package-gated capability bundles (store,
-tariffs, products/courses), and tenant lifecycle only when the business flow requires it.
+- [`OWNER_RULINGS_2026-07-15.md`](OWNER_RULINGS_2026-07-15.md) — sole owner-decision source.
+- [`SEQUENCE.md`](SEQUENCE.md) — order of current work.
+- [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) — TEST-only enforcement and acceptance plan.
+- [`RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](RUBITIME_RETIREMENT_EXECUTION_PLAN.md) — Rubitime history and
+  retirement plan; fresh CSV is the preservation canon.
 
-## Documents
-**Rubitime / fresh prod dump agent start:** [`../../OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md`](../../OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md) — first read for clean-copy rehearsal, owner doctor/admin data-fix, placeholder bookings cleanup, specialist consolidation and R1 audits.
+## Boundary
 
-**LIVE (read these):** [`SAAS_ENFORCE_ROADMAP.md`](SAAS_ENFORCE_ROADMAP.md) — **canonical TEST-first plan** for enforced walls and a fresh-product launch (owner decision 2026-07-15) · [`../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md`](../../_ARCHIVE/SAAS_FOUNDATION/TENANT_HARD_MODE_EXECUTION_PLAN.md) — **archived, DO NOT EXECUTE** reasoning record; its scope is kept in the roadmap register · [`SAAS_R0_PLAN_RECONCILIATION.md`](SAAS_R0_PLAN_RECONCILIATION.md) — R0 reconciliation checklist/evidence contract · [`CORRECTED_PLAN.md`](CORRECTED_PLAN.md) — historical Phase 0 canonical plan · [`AUTONOMOUS_NIGHTLY_RUNBOOK.md`](AUTONOMOUS_NIGHTLY_RUNBOOK.md) — execution base for autonomous/checkpoint passes · [`P0_2_MEMBERSHIP_RESOLVER_CHECKLIST.md`](P0_2_MEMBERSHIP_RESOLVER_CHECKLIST.md) — executable P0.2 resolver/gate/workspace checklist · [`P0_4_BATCHES.md`](P0_4_BATCHES.md) — concrete scoped-table batch map for P0.4 · [`P0_5_DB_ROLE_SPLIT.md`](P0_5_DB_ROLE_SPLIT.md) — P0.5.1 role split contract and scratch proof · [`P0_6_DORMANT_CONTEXT_CHECKLIST.md`](P0_6_DORMANT_CONTEXT_CHECKLIST.md), [`P0_7_WRITER_CENSUS_CHECKLIST.md`](P0_7_WRITER_CENSUS_CHECKLIST.md), [`P0_7_WRITER_CENSUS.md`](P0_7_WRITER_CENSUS.md), [`P0_8_RLS_DESCRIPTOR_CHECKLIST.md`](P0_8_RLS_DESCRIPTOR_CHECKLIST.md), [`P0_8_CODE_FACTS.md`](P0_8_CODE_FACTS.md), [`P0_8_3_PREFLIGHT.md`](P0_8_3_PREFLIGHT.md), [`P0_9_DEFAULT_DENY_CHECKLIST.md`](P0_9_DEFAULT_DENY_CHECKLIST.md), [`P0_10_CI_INVARIANTS_CHECKLIST.md`](P0_10_CI_INVARIANTS_CHECKLIST.md), [`P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md`](P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md), [`P0_12_RESIDUAL_REFS_CHECKLIST.md`](P0_12_RESIDUAL_REFS_CHECKLIST.md), [`P0_13_ISOLATION_FIXTURES_CHECKLIST.md`](P0_13_ISOLATION_FIXTURES_CHECKLIST.md) — executable Phase 0 checklists · [`T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md`](T0_4_PRE_INTEGRATOR_SCHEMA_CLEANUP_PLAN.md), [`T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md`](T0_4_PRE_SCHEMA_CLEANUP_INVENTORY.md), [`T0_4_PRE_SCHEMA_CLEANUP_ADR.md`](T0_4_PRE_SCHEMA_CLEANUP_ADR.md), [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md), [`T0_DB_ACCESS_SURFACE.md`](T0_DB_ACCESS_SURFACE.md) — T0.4-pre/T0 cutover readiness artifacts · [`PHASE4_ROLLOUT_RUNBOOK.md`](PHASE4_ROLLOUT_RUNBOOK.md) — Phase 4 prod-copy rehearsal/cutover gates · [`UPSTREAM_SYNC_REGRESSION_CHECKLIST.md`](UPSTREAM_SYNC_REGRESSION_CHECKLIST.md) — pre-P0.6/upstream DB regression gate · [`R1_TABLE_TAXONOMY.md`](R1_TABLE_TAXONOMY.md) — execution-facing tenant/global/system/audit/integration/legacy taxonomy · [`ROADMAP_TO_SAAS.md`](ROADMAP_TO_SAAS.md) — global path from now to SaaS · [`UPSTREAM_SYNC_POLICY.md`](UPSTREAM_SYNC_POLICY.md) — how this branch stays compatible with upstream UI/product work · [`scope-derivation/tiers-218.tsv`](scope-derivation/tiers-218.tsv) — authoritative baseline tier map · [`scope-derivation/p0-4-batches.tsv`](scope-derivation/p0-4-batches.tsv) — P0.4.0 exact-once table assignments · [`scope-derivation/t0-4-pre-table-matrix.tsv`](scope-derivation/t0-4-pre-table-matrix.tsv) — integrator/public cleanup ownership matrix · [`scope-derivation/VERIFIED_SCOPE.md`](scope-derivation/VERIFIED_SCOPE.md) — historical scope derivation · [`LOG.md`](LOG.md) — execution log.
+The only initiative objective is a fully working system on TEST. A fresh database dump may be obtained for a
+TEST/disposable copy; no other action outside TEST belongs in an active plan. Historical documents remain in this
+directory or Git history only when labelled **superseded** and linked to the ruling that replaced them.
 
-**Rollout package:** [`PHASE4_ROLLOUT_RUNBOOK.md`](PHASE4_ROLLOUT_RUNBOOK.md) + [`scripts/run-phase4-prod-copy-rehearsal.mjs`](scripts/run-phase4-prod-copy-rehearsal.mjs) define the owner-gated compatibility deploy, disposable prod-copy preflight, cutover, and rollback gates. They do not authorize validation on prod/test/dev databases.
+## Active work
 
-**History / rationale (superseded by CORRECTED_PLAN where they conflict):**
-1. [`00_DECISIONS_AND_SCHEMA.md`](00_DECISIONS_AND_SCHEMA.md) — settled decisions + target schema (Drizzle).
-2. [`01_MASTER_PLAN.md`](01_MASTER_PLAN.md) — phases, **Phase 0 stage spine**, critical sizing, **rules-compliance matrix**.
-3. [`02_PHASED_BRIEF.md`](02_PHASED_BRIEF.md) — per-stage brief **template** (§12 + §24 compliant) + stage stubs.
-4. [`LOG.md`](LOG.md) — mandatory execution log (per `.cursor/rules/plan-authoring-execution-standard`).
-5. [`FOUNDATION_PLAN.md`](FOUNDATION_PLAN.md) — **rationale & analysis history** (v1→v3, red-team, grounding). Canonical decisions live in `00_…`; if they conflict, `00_…` wins.
-
-**Blocking prerequisite:** [`../DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md`](../DB_ACCESS_CHOKEPOINT_INITIATIVE/MASTER_PLAN.md) must be completed before SAAS code starts. It is not replaced by this initiative.
-
-## Canonical decision (one line)
-**Cabinet ≡ Organization** (reuse `be_organizations`); specialist = org member; enrollment = Person↔Organization; patient = `platform_users` (no persons-split in Phase 0). Scoping = one context-aware org resolver → request context → Postgres RLS (FORCE + GUC-gated permissive, dormant).
-
-## Workflow (per `.cursor/rules` §24)
-Orchestrator (Opus) writes briefs + reviews + integrates; **all implementation → Sonnet subagents**, one stage at a time, own worktree, **no push, no commit to main**, no dev-server, timeouts not infinite waits.
-
-For historical Phase 0 autonomous/nightly execution evidence, see [`AUTONOMOUS_NIGHTLY_RUNBOOK.md`](AUTONOMOUS_NIGHTLY_RUNBOOK.md). For live T0/R2 work, use [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md): one micro-stage per pass, taskdb + `LOG.md` updates, targeted validation through the wrapper, commit discipline, and backup-push rules.
+- Enforced multi-organization product acceptance: `SAAS_ENFORCE_ROADMAP.md`.
+- UX filter «мои пациенты», without changing clinic-wide staff visibility: `SEQUENCE.md` §4.4.
+- Standard SaaS engineering for organization provisioning, settings-root split and DB-role granularity:
+  `OWNER_RULINGS_2026-07-15.md` §§13–16.
+- Rubitime R1 CSV history proof plus TEST-only R5-R7 proof: `RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.

@@ -118,7 +118,7 @@ If any table is missing, record `to_regclass(...)` output in the proof instead o
 - Do not drop `booking_calendar_map` unless GCal replacement is implemented and tested.
 - Do not drop `public.appointment_records` until every runtime reference is gone and archive decision is recorded.
 
-## 5. Non-Prod Restore/Migrate Proof
+## 5. TEST/disposable Restore/Migrate Proof
 
 Run on a TEST/disposable fresh-copy restore:
 

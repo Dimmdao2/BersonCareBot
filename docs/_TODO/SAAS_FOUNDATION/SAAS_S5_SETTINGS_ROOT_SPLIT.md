@@ -1,487 +1,572 @@
-# SaaS Stage 5 — корневое разделение настроек
+# SaaS S5 — разделение restricted settings и runtime config
 
-Статус: **план; код и БД не менялись**. Этап ждёт выбора владельца.
+Статус: **план; инженерное решение принято, код и БД этим документом не менялись**.
 
-## 1. Рамка решения и провенанс
+Этот этап относится только к полностью рабочей системе на **тестовом сервере**. Любые действия за его пределами
+в scope не входят.
 
-Канон задачи:
+## 0. Канон и провенанс
 
-- `docs/_TODO/SAAS_FOUNDATION/SEQUENCE.md:73-85` фиксирует проблему: одна таблица смешивает секреты и настройки,
-  нужные пациентскому приложению; по одному accessor на каждый флаг уже признан тупиком.
-- `docs/_TODO/SAAS_FOUNDATION/OWNER_DECISIONS_FOR_REVIEW.md:128-134` оставляет корень `system_settings` открытым
-  решением владельца, а не инженерным фактом.
-- Модель тарифа подтверждена отдельно: тариф → entitlements → клиника, глобально настраиваемый каталог и точечные
-  переопределения клиники (`OWNER_DECISIONS_FOR_REVIEW.md:39-46`).
-- Путь запуска — полностью довести новый продукт на тесте и затем развернуть копию на новом домене; старый прод не
-  переключается (`SEQUENCE.md:9-18`, `OWNER_DECISIONS_FOR_REVIEW.md:90-99`).
+При исполнении источники читаются в таком порядке:
 
-Ниже нет утверждения, что владелец уже выбрал схему. Все варианты и рекомендация — инженерные предложения.
+1. [`OWNER_RULINGS_2026-07-15.md:1-167`](./OWNER_RULINGS_2026-07-15.md) — главный источник решений владельца.
+   Для S5 обязательны §3, §9, §10, §15 и §16.
+2. [`OWNER_DECISIONS_FOR_REVIEW.md:36-55`](./OWNER_DECISIONS_FOR_REVIEW.md) Часть Б — тариф → mechanics →
+   клиника, полный конструктор и org overrides. Поправка по биллингу из rulings §1 имеет приоритет.
+3. [`SEQUENCE.md:72-80`](./SEQUENCE.md) — симптом mixed `system_settings` и запрет функции/accessor на каждый флаг.
+4. [`SAAS_ENFORCE_ROADMAP.md:301-349`](./SAAS_ENFORCE_ROADMAP.md) — D3/D4 зависят от исправленного settings-root.
+5. `AGENTS.md`, `.cursor/rules/*.mdc`,
+   [`docs/ORCHESTRATION_BINDINGS.md:49-96`](../../ORCHESTRATION_BINDINGS.md) — архитектура, проверки и цикл
+   executor → audit → fixer → audit.
 
-**ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** выбрать вариант A, B или C в разделе 7. До выбора нельзя закреплять одну из
-схем в roadmap, миграциях или чекерах.
+Владелец **не выбирал техническую схему хранения**. Его решение: приложение обязано читать настройки, смешанный
+корень надо исправить, а инженерную схему не надо выносить ему как меню. Выбор ниже — инженерное решение S5; он не
+подписан именем владельца.
 
-## 2. Что именно смешано сейчас
+## 1. Решение
 
-### 2.1. Модель данных и доступ
+Выбран один путь: **физически разделить restricted settings и безопасный runtime config, затем выдавать UI один
+типизированный effective snapshot через общий provider**.
 
-- Единственная таблица содержит `key`, `scope`, nullable `organization_id`, произвольный `value_json` и аудит
-  обновления (`apps/webapp/db/schema/schema.ts:2642-2658`). Отдельного признака секретности или аудитории нет.
-- В whitelist сейчас **96 ключей** (`apps/webapp/src/modules/system-settings/types.ts:2-189`).
-- Текущая кодовая классификация владения содержит **32 `per_org` и 64 `global`**
-  (`apps/webapp/src/modules/system-settings/orgScopedKeys.ts:27-172`). Это описание поведения текущего кода, а не
-  подтверждённое владельцем решение по каждому ключу.
-- Эффективное чтение пытается взять строку клиники, затем global fallback
-  (`apps/webapp/src/infra/repos/pgSystemSettings.ts:44-75`). Сервис применяет ту же классификацию на write-path и
-  синхронизирует запись в зеркало интегратора (`apps/webapp/src/modules/system-settings/service.ts:95-184`).
-- Жёсткая RLS-политика разрешает строку с `organization_id IS NULL` либо строку текущей клиники, но сама по себе не
-  отделяет секрет от клиентского флага (`deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1331`).
-- Grant inventory даёт `app_staff` доступ к `public.system_settings`, `public.system_settings_audit` и
-  `integrator.system_settings`, но не включает эти таблицы в **111** patient-table grants; staff inventory содержит
-  **219** таблиц (`docs/_TODO/SAAS_FOUNDATION/P0_5B_GRANTS.md:322-328,359-362`,
-  `deploy/postgres/p0-5b-grants.sql:448-461`). Поэтому для `app_patient` строка недоступна независимо от её ключа.
+### 1.1. Два хранилища
 
-Следствие: `apps/webapp/src/app/api/patient/programs/items/[itemId]/discussion/summary/route.ts:40-43` читает
-`patient_program_discussion_ui_enabled` через общий repository под patient principal и получает ошибку доступа.
-Симптом намеренно сохранён после отката точечного accessor
-(`docs/_TODO/SAAS_FOUNDATION/TENANT_HARD_MODE_LOG.md:6`; `SEQUENCE.md:79-85`).
-
-Не все недоступные чтения дают заметный 500: `configAdapter` поглощает DB exception и подставляет fallback
-(`apps/webapp/src/modules/system-settings/configAdapter.ts:34-47,69-103`). Это скрытая деградация, а не доступ к
-настройке: patient request может молча получить default вместо сохранённого значения.
-
-### 2.2. Три независимые оси, которых сейчас нет в модели
-
-Их нельзя сводить в одно поле `scope`:
-
-1. **Владение:** platform-global или override конкретной клиники.
-2. **Чувствительность:** secret, security-sensitive internal или ordinary config.
-3. **Аудитория чтения:** только operator/staff; server-side patient request; authenticated patient client; public
-   pre-session.
-
-Например, `booking_payment_providers` — per-org, но содержит секреты; `web_push_vapid` — global, но в одном JSON
-лежат публичный и приватный ключи; `patient_program_discussion_ui_enabled` — global rollout, но нужен patient request.
-Значит, `global/per_org` не отвечает на вопрос «можно ли читать пациенту».
-
-## 3. Инвентарь ключей
-
-### 3.1. Владение по фактической классификации кода
-
-**32 per-org:**
-
-`patient_label`, `doctor_patient_support_comments_without_support_default_enabled`,
-`doctor_patient_support_media_without_support_default_enabled`, `doctor_specialist_task_reminder_channels`,
-`doctor_appointment_reminder_enabled`, `doctor_appointment_reminder_offsets_minutes`,
-`patient_home_daily_practice_target`, `patient_default_promo_treatment_program_template_id`,
-`patient_home_morning_ping_enabled`, `patient_home_morning_ping_local_time`,
-`patient_home_daily_warmup_rotation_enabled`, `patient_home_daily_warmup_rotation_times`, `patient_booking_url`,
-`booking_calendar_show_working_hours`, `booking_calendar_default_window`, `booking_calendar_default_branch_id`,
-`booking_calendar_default_service_id`, `booking_payment_enabled`, `booking_payment_providers`,
-`booking_lifecycle_notifications`, `booking_allow_doctor_unlink_past_package_sessions`, `booking_min_notice_hours`,
-`patient_home_daily_warmup_repeat_cooldown_minutes`,
-`patient_treatment_plan_item_done_repeat_cooldown_minutes`, `patient_home_mood_icons`, `notifications_topics` и шесть
-`notif_template:{created|cancelled|rescheduled}:{patient|doctor}`.
-
-Источник: `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:32-43,66-72,93-122,133-139`.
-
-**64 global:**
-
-`platform_user_merge_v2_enabled`, `integrator_linked_phone_source`, `sms_fallback_enabled`,
-`debug_forward_to_admin`, `max_debug_page_enabled`, `dev_mode`, `important_fallback_delay_minutes`,
-`integration_test_ids`, `test_account_identifiers`, `app_base_url`, `support_contact_url`,
-`telegram_login_bot_username`, `max_login_bot_nickname`, `max_bot_api_key`, `vk_web_login_url`,
-`app_display_timezone`, `patient_app_maintenance_enabled`, `patient_app_maintenance_message`,
-`specialist_signup_enabled`, `patient_program_discussion_doctor_reply_from_log_enabled`,
-`patient_program_discussion_ui_enabled`, `patient_program_discussion_media_submission_enabled`,
-`video_hls_pipeline_enabled`, `video_hls_new_uploads_auto_transcode`, `video_hls_reconcile_enabled`,
-`video_playback_api_enabled`, `video_default_delivery`, `video_presign_ttl_seconds`, `video_watermark_enabled`,
-`booking_default_organization_id`, `booking_rubitime_bridge_enabled`, `booking_doctor_appointments_read_source`,
-`booking_slots_read_source`, `patient_home_warmup_skip_to_next_available_enabled`, `smtp_outbound`, `web_push_vapid`,
-`admin_incident_alert_config`, `operator_health_alert_config`, `operator_health_projection_thresholds`,
-`yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri`, `google_client_id`,
-`google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`,
-`google_calendar_enabled`, `google_connected_email`, `google_oauth_login_redirect_uri`, `apple_oauth_client_id`,
-`apple_oauth_team_id`, `apple_oauth_key_id`, `apple_oauth_private_key`, `apple_oauth_redirect_uri`,
-`allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`,
-`doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
-
-Источник полного исчерпывающего mapping — `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:27-172`;
-TypeScript требует запись для каждого из 96 ключей (`orgScopedKeys.ts:12-15`).
-
-### 3.2. Секреты и чувствительные данные
-
-По структурам, комментариям и masking-коду найдено **8 явно secret-bearing ключей**:
-
-| Ключ | Что чувствительно | Доказательство |
-|---|---|---|
-| `max_bot_api_key` | API key | `apps/webapp/src/modules/system-settings/types.ts:43-44` |
-| `booking_payment_providers` | `apiKey`, `webhookSecret` | `types.ts:113-123` |
-| `smtp_outbound` | password | `types.ts:139-140` |
-| `web_push_vapid` | private key | `types.ts:141-145` |
-| `yandex_oauth_client_secret` | OAuth secret | `types.ts:159-162` |
-| `google_client_secret` | OAuth secret | `types.ts:163-167` |
-| `google_refresh_token` | refresh token | `types.ts:163-170` |
-| `apple_oauth_private_key` | private key | `types.ts:173-178` |
-
-Три строки — **смешанные JSON-конверты**: `booking_payment_providers`, `smtp_outbound`, `web_push_vapid` одновременно
-содержат несекретные поля и секрет. Маркер видимости на строке не способен безопасно открыть только часть JSON.
-
-Ещё как минимум **11 security-sensitive, хотя не cryptographic-secret, ключей** содержат тестовые аккаунты,
-allowlists и идентификаторы ролей: `integration_test_ids`, `test_account_identifiers`, `allowed_telegram_ids`,
-`allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`,
-`doctor_phones`, `allowed_phones` (`types.ts:30-33,179-188`). Их нельзя автоматически объявлять client-readable.
-
-Это инженерная классификация по статическому коду. Фактические формы и заполненность `value_json` не проверялись,
-потому что этап запрещает доступ к БД.
-
-### 3.3. Кто читает и под каким principal
-
-| Контур | Фактический объём | Principal / роль | Основные точки |
-|---|---:|---|---|
-| Admin/doctor webapp | bulk-read способен прочитать все **96**; статический поиск прямых literal `get*` signatures находит минимум **28 различных ключей**, плюс wrappers/constants/bulk | organization/staff → `app_staff` | `apps/webapp/src/app/api/admin/settings/route.ts:250-264`; `apps/webapp/src/app/app/settings/adminSettingsData.ts:207-213`; `packages/db-principal/src/index.ts:582-591` |
-| Patient webapp requests | **22** ключа в подтверждённых patient request chains; не все безопасны для выдачи клиенту | patient → `app_patient` | `packages/db-principal/src/index.ts:592-605`; список ниже |
-| Integrator | **25** runtime keys: 19 литеральных + 6 динамических templates | вызов зависит от job: bootstrap, organization или integrator; organization → `app_staff`, integrator → `app_patient` | `apps/integrator/src/infra/db/publicSystemSettings.ts:64-102`; `packages/db-principal/src/index.ts:582-605` |
-| Media worker | **2** ключа | узкий infra `app_worker`; его текущий overlay не включает `system_settings` | `apps/media-worker/src/pipelineEnabled.ts:5-12`; `apps/media-worker/src/watermarkEnabled.ts:5-13`; `deploy/postgres/phase4-app-worker-narrow-rls.sql:12-17,53-63` |
-
-Число 28 — нижняя граница воспроизводимого статического поиска литерального ключа непосредственно в accessor call,
-а не число всех runtime запросов: обёртки, constants, динамические templates и bulk-read туда не входят. Полный admin
-bulk-read означает, что staff-контур всё равно обязан поддерживать все 96.
-
-Integrator читает, в частности, `app_base_url`, `app_display_timezone`, SMTP, staff channel IDs, linked-phone mode,
-operator alert config, шесть Google Calendar ключей, два morning-ping ключа и шесть notification templates
-(`apps/integrator/src/config/appBaseUrl.ts:10,32-53`, `appTimezone.ts:20,46-89`,
-`smtpOutbound.ts:15,100-115`, `messengerStaffIds.ts:32-70`, `linkedPhoneSource.ts:13,43-60`,
-`operationalVerboseLog.ts:13,20-33`, `apps/integrator/src/integrations/google-calendar/runtimeConfig.ts:32-50`,
-`apps/integrator/src/kernel/domain/executor/handlers/patientHomeMorningPing.ts:23-24,84-100`,
-`apps/integrator/src/infra/db/repos/notifTemplatePort.ts:43-56`). Точный principal каждого job надо проверить при
-исполнении: общий accessor его не задаёт.
-
-Полный статический набор integrator: 19 литеральных ключей — `admin_incident_alert_config`, `admin_max_ids`,
-`admin_telegram_ids`, `app_base_url`, `app_display_timezone`, `debug_forward_to_admin`, `doctor_max_ids`,
-`doctor_telegram_ids`, `google_calendar_enabled`, `google_calendar_id`, `google_client_id`, `google_client_secret`,
-`google_redirect_uri`, `google_refresh_token`, `integrator_linked_phone_source`, `operator_health_alert_config`,
-`patient_home_morning_ping_enabled`, `patient_home_morning_ping_local_time`, `smtp_outbound` — плюс шесть динамических
-`notif_template:{created|cancelled|rescheduled}:{patient|doctor}`.
-
-Есть два уже существующих исключения без table grant, но они не масштабируются на десятки флагов:
-
-- `app.get_public_config_bool` сейчас допускает только `specialist_signup_enabled`
-  (`deploy/postgres/specialist-signup-public-bootstrap-rls.sql:136-160`);
-- отдельный accessor выдаёт только VAPID `publicKey`, оставляя base table закрытой
-  (`deploy/postgres/patient-web-push-vapid-public-key-accessor.sql:1-22,72-99`).
-
-Они полезны как доказательство нужного default-deny и field projection, но не являются предлагаемым корнем.
-
-### 3.4. 22 ключа в patient request chains
-
-| Группа | Ключи | Текущее использование | Предварительная аудитория |
+| Контур | Хранилище | Что в нём | Кто читает |
 |---|---|---|---|
-| Явно меняют patient UI | `app_display_timezone`, `support_contact_url`, `patient_app_maintenance_enabled`, `patient_app_maintenance_message`, `patient_booking_url`, `patient_default_promo_treatment_program_template_id`, `patient_home_daily_practice_target`, `patient_home_mood_icons`, два cooldown-флага, два discussion-флага, `notifications_topics`, `video_playback_api_enabled`, `video_default_delivery`, `booking_payment_enabled` | layout, home, treatment program, notifications, playback, booking | **16 кандидатов** в client-runtime; окончательный список требует решения/ревью |
-| Server-side поведение patient route | `video_presign_ttl_seconds`, `booking_lifecycle_notifications`, `booking_min_notice_hours` | presign, booking validation/notifications | patient principal должен уметь применить значение, но raw JSON браузеру не нужен |
-| Нельзя открывать patient-role | `test_account_identifiers`, `booking_payment_providers` | bypass/maintenance logic; payment resolver | restricted; второй содержит secrets |
-| Смешанный ключ | `web_push_vapid` | patient получает только `publicKey` через узкую функцию | privateKey restricted; нужна декомпозиция или безопасная проекция |
+| Restricted | существующий `public.system_settings` и его compatibility mirror | API keys, OAuth secrets, VAPID private key, payment credentials, allowlists, test identifiers, internal/security config | только server-side restricted ports и системные роли |
+| Runtime | новая `public.app_runtime_settings` | только значения, безопасные для application runtime; global default и org override; ни одного секрета | staff, patient server runtime; browser/public получает только разрешённую проекцию |
+| Runtime audit | новая `public.app_runtime_settings_audit` | old/new value, actor, source, org, timestamp | staff/platform audit; пациент не читает |
 
-Точки доказательства:
+`system_settings` остаётся DB-backed источником интеграционных секретов. Новые env-переменные для ключей,
+webhook URI или флагов не вводятся. `integrator.system_settings` остаётся compatibility mirror только restricted
+контура. Runtime config хранится один раз в `public.app_runtime_settings`; integrator читает его напрямую из схемы
+`public`, без второго runtime mirror.
 
-- maintenance: `apps/webapp/src/modules/system-settings/patientMaintenance.ts:52-74`,
-  `apps/webapp/src/app/app/patient/layout.tsx:53-79`;
-- patient home/program: `apps/webapp/src/modules/patient-home/todayConfig.ts:211-217`,
-  `apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx:128-156`,
-  `apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts:22-25`;
-- notifications/VAPID: `apps/webapp/src/app/api/patient/web-push/subscribe/route.ts:82`,
-  `apps/webapp/src/app/api/patient/web-push/status/route.ts:9-23`;
-- media: `apps/webapp/src/app-layer/media/resolveMediaPlaybackPayload.ts:48-56`,
-  `apps/webapp/src/app-layer/media/videoPresignTtl.ts:12-16`;
-- booking: `apps/webapp/src/app-layer/di/buildAppDeps.ts:1037-1042`,
-  `apps/webapp/src/modules/booking-notifications/settings.ts:58-62`,
-  `apps/webapp/src/modules/booking-scheduling/service.ts:394`,
-  `apps/webapp/src/modules/payments/service.ts:561-574`.
+### 1.2. Один типизированный registry
 
-Вывод: «ключ читается во время patient request» и «ключ можно выдать браузеру» — разные свойства. Корневое решение
-должно поддержать минимум две patient-аудитории: server-side request и сериализуемый client config.
-
-## 4. Общие инварианты для любого варианта
-
-1. **Default deny.** Новый или неклассифицированный ключ остаётся restricted; сборка должна падать без явной
-   классификации ownership + sensitivity + audience.
-2. **Никаких secret-bearing значений у `app_patient`.** Проверяется и grants/RLS, и API serialization tests.
-3. **Mixed JSON не открывается строкой целиком.** `web_push_vapid`, `booking_payment_providers`, `smtp_outbound`
-   разделяются либо проецируются безопасным типизированным DTO.
-4. **Одна effective-config семантика:** org override → global fallback, если такая ownership-модель разрешена для
-   ключа. Visibility не должна менять ownership.
-5. **Один write chokepoint и аудит.** Admin UI не пишет таблицы напрямую и не создаёт рассинхрон с integrator.
-6. **Patient UI config не является авторизацией.** Скрыв кнопку, нельзя считать mechanic защищённой; server-side
-   entitlement guard остаётся обязательным.
-7. **Один контракт интерфейса:** клиент получает совместный effective runtime config, включающий ordinary settings и
-   resolved mechanics, но источники истины остаются разными.
-8. **Не повторять отвергнутую заплатку:** ни функция/route на каждый флаг, ни растущий ручной whitelist в SQL.
-
-## 5. Варианты корневого разделения
-
-### Вариант A — маркер аудитории в `system_settings` + RLS
-
-Суть: оставить одну таблицу, добавить исчерпывающий столбец, например
-`read_audience = restricted | patient_runtime | client | public`. `app_patient` получает `SELECT` только строк с
-разрешённой аудиторией и только в допустимом org/global контексте.
-
-Что меняется:
-
-- schema/migration: новый NOT NULL marker с default `restricted`; такой же marker в integrator mirror;
-- code: registry каждого ключа получает audience/sensitivity; effective reader фильтрует audience;
-- grants/RLS: table-level `SELECT` для `app_patient`, а RLS одновременно проверяет patient wall, org/global scope и
-  marker;
-- mixed rows: публичные части VAPID/payment/SMTP всё равно надо вынести в отдельные ключи или скрыть за общей
-  безопасной проекцией;
-- admin UI/write service: запрещает выставить client/public для secret-bearing key.
-
-Цена и риск:
-
-- минимальная перестройка repository и admin UI;
-- одна ошибочная классификация или UPDATE marker может открыть секретную строку — максимальный blast radius;
-- table grant расширяется на таблицу, в которой физически лежат секреты; безопасность держится на RLS и registry;
-- integrator mirror schema усложняется, а существующий lag/failure sync не исчезает.
-
-Что ломается: существующие raw/bulk readers, которые предполагают одинаковую форму строк, потребуют обновления;
-mixed JSON нельзя безопасно открыть без изменения контрактов. Обратимость высокая: marker по умолчанию restricted,
-patient grant/policy можно отозвать; старые значения остаются на месте.
-
-### Вариант B — отдельная таблица client runtime config
-
-Суть: `system_settings` остаётся закрытым operator/server secret-контуром. Создаётся отдельная таблица, условно
-`client_runtime_settings`, только для значений, которые разрешено использовать в patient/client runtime. В ней нет
-secret-bearing JSON по конструкции.
-
-Что меняется:
-
-- schema/migration: отдельная org-aware таблица с `key`, `scope`, `organization_id`, typed `value_json`, audit fields
-  и partial unique indexes для global/org rows;
-- code: единый typed registry маршрутизирует ключ в restricted или client store; сервис effective-config объединяет
-  client settings и resolved entitlements;
-- grants/RLS: `app_patient` читает только новую таблицу; `system_settings` остаётся без patient grants;
-- migrations: client-safe rows копируются, но исходные строки не удаляются до завершения dual-read/cutover;
-- mixed rows: VAPID public key получает отдельный client key/record; payment/SMTP secrets остаются в
-  `system_settings`; если клиенту нужны несекретные части, для них создаётся отдельный typed client DTO/record;
-- integrator/media: restricted operational reads остаются в старом контуре; client-facing notification/UI config
-  переводится на новый порт только там, где это действительно нужно.
-
-Цена и риск:
-
-- больше schema/code/migration работы и второй audit/write path;
-- требуется запретить двойной источник истины и определить маршрутизацию ключа compile-time;
-- физическая граница делает ошибку RLS на client-таблице неспособной открыть старые secrets;
-- проще объяснить и проверить: patient role не имеет grants на таблицу секретов вообще.
-
-Что ломается: callsites переносимых ключей должны перейти на effective client-config port; admin bulk settings UI должен
-уметь редактировать два store через один service. Обратимость высокая при additive migration: оставить старые строки,
-вести dual-read с телеметрией, затем переключить; rollback возвращает read source без потери данных.
-
-### Вариант C — безопасная read-only view/projection
-
-Суть: записи остаются в `system_settings`, но `app_patient` получает доступ только к security-barrier view, например
-`client_runtime_config_v`, которая выдаёт безопасные ключи/поля и применяет org/global fallback. Base table остаётся
-без patient grants.
-
-Что меняется:
-
-- schema/migration: view + registry/metadata, откуда view определяет аудиторию; для mixed JSON — явная безопасная
-  проекция полей либо предварительный split ключа;
-- code: общий client-config repository читает view, admin write path остаётся прежним;
-- grants: `SELECT` на view, ноль grants на base table; проверить owner, `security_invoker`/`security_barrier`,
-  `search_path`, FORCE RLS и отсутствие обхода политик;
-- integrator: остаётся на прежнем store, если ему не нужен client contract.
-
-Цена и риск:
-
-- наименьшая перестройка write-path и физического хранения;
-- view SQL может превратиться в новый центральный whitelist/CASE по ключам, то есть в ту же отвергнутую заплатку в
-  другом месте;
-- корректность PostgreSQL view/RLS semantics сложнее доказать, особенно с global fallback;
-- секреты физически остаются рядом, но patient role не получает base-table grant.
-
-Что ломается: patient readers переходят на новый view port; смешанные ключи требуют новых DTO. Обратимость самая
-простая: revoke grant и drop view; base data не меняется. Вариант годится как переходный слой, но как постоянный
-корень требует schema-driven registry, а не ручного SQL списка.
-
-## 6. Стыковка с тарифными mechanics
-
-Текущий entitlement-контур уже имеет **14 mechanics**:
-`booking`, `exercise_catalog`, `exercise_packages`, `courses`, `cms_pages`, `files`, `patient_card`, `subscriptions`,
-`payments`, `mailings`, `patient_app`, `patient_app_paid_subscription`, `branding`, `custom_domain`
-(`apps/webapp/src/modules/org-entitlements/types.ts:6-23`). Resolver применяет приоритет
-`override → tariff → default true` (`apps/webapp/src/modules/org-entitlements/service.ts:10-36`), а server authorization
-выполняет отдельный guard (`apps/webapp/src/app-layer/guards/requireEntitlement.ts:7-20`).
-
-Предложение, общее для A/B/C:
+Каждый setting key имеет одну исчерпывающую запись:
 
 ```text
-system/client settings source ─┐
-                               ├─ resolveEffectiveClientConfig(org, patient) ─► один DTO/API ─► UI
-tariff + org overrides ─────────┘
-                                      │
-                                      └─ mechanics используются UI только для видимости/доступности
-
-server route ─► auth/org context ─► requireEntitlement(mechanic) ─► операция
+key
+storage: restricted | runtime | derived_runtime
+ownership: global | per_org
+audience: server | authenticated_client | public
+value type/parser/default
+optional mechanic dependency
+optional safe projection from a restricted envelope
 ```
 
-- Не копировать mechanics в settings и не заводить второй флаг `payments_enabled_v2`: источник истины остаётся в
-  entitlement tables.
-- Effective client DTO имеет разные namespaces, например `{ settings: {...}, mechanics: {...} }`, но доставляется
-  одним контрактом, потому что и те и другие меняют интерфейс.
-- Обычная настройка отвечает «как выглядит/ведёт себя функция»; entitlement отвечает «включена ли приобретённая
-  механика для клиники». Если оба участвуют, итог UI — логическое пересечение, а server guard проверяет entitlement
-  независимо от UI.
-- `booking_payment_enabled` — существующий дублирующий участок смысла. На этапе исполнения нужно явно выбрать его
-  роль: operational rollout внутри включённой mechanic `payments` либо мигрировать значение в entitlement. Это
-  **ТРЕБУЕТ РЕШЕНИЯ ВЛАДЕЛЬЦА**, потому что меняет продуктовую семантику; до решения нельзя молча удалить один gate.
+- Новый неизвестный key не собирается без полной записи registry.
+- `restricted` никогда не попадает в runtime table или client serializer.
+- `derived_runtime` — только безопасная проекция mixed envelope. Источник истины остаётся restricted row.
+- Новый обычный UI-флаг требует запись registry и обычную строку данных; новая DB function, view или policy для
+  конкретного флага не требуется.
 
-Для patient config требуется однозначный текущий org. Сейчас patient session principal создаётся только с patient ID
-(`apps/webapp/src/app-layer/principal/sessionPrincipal.ts:44-48`), а resolver при нескольких активных клиниках возвращает
-`organization_selection_required` (`apps/webapp/src/modules/patient-organization/service.ts:3-21`). Зафиксировано лишь,
-что разделение клиник для пациента является app-level filter
-(`OWNER_DECISIONS_FOR_REVIEW.md:75-80`). Конкретный UX/источник выбранной клиники не зафиксирован.
+Стартовые anchors: `apps/webapp/src/modules/system-settings/types.ts:1-202` и
+`apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`. Исполнитель создаёт единый registry внутри
+существующего `modules/system-settings`, а `SystemSettingKey`, `ALLOWED_KEYS`, org scope и runtime-key types выводит
+из него либо проверяет compile-time exhaustiveness без второго ручного списка.
 
-**ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** должен ли effective client config строиться по явно выбранной клинике в сессии,
-по клинике текущего ресурса/маршрута или иным способом. Инженер не должен выбирать это скрыто внутри repository.
+### 1.3. Один runtime provider для UI и server-side feature evaluation
 
-## 7. Сравнение и рекомендация
+Клиентские поверхности не читают таблицы и не вызывают key-specific DB accessors. Они используют один контракт:
 
-| Критерий | A: marker + RLS | B: отдельная таблица | C: safe view |
+```text
+resolveRuntimeConfig(context) -> {
+  flags: typed boolean map,
+  values: typed scalar/structured map,
+  revision: opaque string
+}
+```
+
+`context` содержит доказанный `patientUserId` и, когда нужен org override, явный `organizationId`:
+
+1. организация текущего авторизованного ресурса;
+2. иначе явно выбранная организация patient app;
+3. если обе отсутствуют — доступны только global rows, а запрос per-org key получает typed
+   `organization_context_required`.
+
+Запрещены fallback на «первую» или «единственную активную» клинику. Для обсуждения программы организация уже есть
+в `TreatmentProgramInstanceDetail.organizationId` (`apps/webapp/src/modules/treatment-program/types.ts:361-375`):
+route сначала получает свой instance, затем provider читает config с resource-derived org.
+
+### 1.4. Стыковка с S4 без второго механизма
+
+Тарифные mechanics не копируются в settings. Источник истины остаётся
+`saas_tariffs` + `saas_org_entitlement_overrides`, resolver —
+`apps/webapp/src/modules/org-entitlements/service.ts:10-36`.
+
+Runtime provider собирает один UI snapshot из двух источников:
+
+```text
+ordinary runtime values ───────────────┐
+runtime rollout flags ─────────────────┼─> RuntimeConfigSnapshot.flags / values ─> UI
+resolved tariff mechanics + overrides ┘
+```
+
+- UI читает только snapshot, а не два независимых набора флажков.
+- Registry умеет `source=setting`, `source=mechanic` и `source=all(...)`.
+- `booking_payment_enabled` фиксируется как operational readiness; mechanic `payments` — коммерческое право
+  клиники. Effective UI flag равен `payments entitlement AND booking_payment_enabled`.
+- Server-side authorization не доверяет snapshot: порядок остаётся
+  `auth → resource/org context → requireEntitlement(mechanic) → runtime readiness → service`.
+- `requireEntitlement` (`apps/webapp/src/app-layer/guards/requireEntitlement.ts:7-23`) остаётся единственным
+  enforcement chokepoint mechanics и дорабатывается по S4, а S5 не создаёт параллельную tariff model.
+
+### 1.5. Restricted reads из patient-initiated backend command
+
+`app_patient` не получает доступ к `system_settings`. Если backend-команда, начатая пациентом, должна вызвать
+интеграцию с secret-bearing config (известный пример — acquiring provider в
+`apps/webapp/src/app-layer/di/buildAppDeps.ts:776-785`), она использует отдельный server-only
+`RestrictedSettingsPort` и узкую системную DB capability:
+
+- `app_config_reader NOLOGIN NOBYPASSRLS` получает только `USAGE public` и `SELECT` restricted settings;
+- отдельный login/pool является членом только `app_config_reader`, не `app_staff` и не `app_patient`;
+- restricted-table policy для `app_config_reader` разрешает только global row или exact
+  `organization_id = app.current_org_id()`; missing/forged org для org-row fail-closed;
+- config-reader principal несёт resource-derived org, не patient payload;
+- raw pool и port не экспортируются в routes/modules; composition находится в infra/DI;
+- результат передаётся только integration adapter и никогда не сериализуется в response.
+
+Это инженерное применение least privilege к системной роли из rulings §16. Оно не меняет продуктовые роли и не
+даёт patient connection возможность `SET ROLE app_config_reader`.
+
+## 2. Почему этот вариант, а не A/C
+
+| Критерий | A: audience marker в mixed table | **B: отдельный runtime store** | C: view над mixed table |
 |---|---|---|---|
-| Физическая изоляция secrets | Нет | **Да** | Base table закрыта, но хранение общее |
-| Объём миграции | Низкий/средний | Высокий | Средний |
-| Ошибка классификации | Может открыть secret row | Ограничена client table | Может открыть projected row/field |
-| Mixed JSON | Нужен split/projection | Естественный split | Нужна projection/split |
-| Риск повторить per-key whitelist | Средний | Низкий при typed registry | Высокий |
-| Обратимость | Высокая | Высокая при additive dual-read | Очень высокая |
+| Ошибка RLS открывает secret-bearing row | Да | **Нет: secret table не granted** | Base table закрыта, но projection сложнее |
+| Mixed JSON | Нужен field split в той же таблице | **Безопасная derived projection** | CASE/projection по каждому envelope |
+| Следующий UI-флаг | Registry + row, но общий table grant опаснее | **Registry + row** | Часто правка view/SQL whitelist |
+| Проверяемость privileges | Средняя | **Прямая: patient has zero grants on restricted store** | Требует доказывать view owner/invoker semantics |
 | Долговечность при десятках флагов | Средняя | **Высокая** | Средняя |
 
-**Инженерная рекомендация, требует решения владельца: вариант B.** Причина — единственная схема, где ошибка RLS или
-audience policy на client-таблице не открывает закрытую таблицу с OAuth/payment/VAPID secrets. Ошибочное помещение
-секрета в client store всё ещё опасно, поэтому compile-time registry и serialization tests обязательны. Схема дороже
-при внедрении, но стоимость локализована в одном typed registry, одном effective-config service и additive migration.
-Вариант C разумен как переходный адаптер. Вариант A быстрее, но оставляет главный риск задачи — секреты и клиентские
-флаги под одним table grant — внутри одной RLS-ошибки.
+Выбран B. Это не локальное изобретение:
 
-Неизвестно до исполнения/решения:
+- распространённое разделение confidential data и ordinary config отражено в официальной модели
+  [Kubernetes Secret](https://kubernetes.io/docs/concepts/configuration/secret/) против ConfigMap;
+- типизированный provider с evaluation context соответствует
+  [OpenFeature Provider](https://openfeature.dev/specification/sections/providers/) и
+  [Evaluation Context](https://openfeature.dev/specification/sections/evaluation-context/);
+- таблица runtime config получает default-deny RLS и отдельные grants по правилам
+  [PostgreSQL Row Security](https://www.postgresql.org/docs/current/ddl-rowsecurity.html).
 
-- какие из 96 ключей реально имеют строки и каковы фактические JSON shapes;
-- полный список значений, которые владелец хочет отдавать именно браузеру, а не применять server-side;
-- точный org-selection contract для пациента;
-- должен ли public/pre-session config быть отдельной аудиторией от authenticated patient config;
-- какие integrator jobs работают под каким principal в каждом call chain;
-- выдерживает ли зеркало integrator новую модель или его нужно заменить прямым чтением общей schema;
-- продуктовая семантика пересечения `booking_payment_enabled` и mechanic `payments`.
+S5 не внедряет Kubernetes или сторонний feature-flag сервис. Он использует проверенные границы: secrets отдельно,
+typed evaluation отдельно, server enforcement отдельно от UI.
 
-## 8. Чек-лист исполнения — вариант A
+## 3. Фактическая исходная точка
 
-- [ ] Зафиксировать исчерпывающий registry всех 96 ключей в
-  `apps/webapp/src/modules/system-settings/types.ts:2-202` и `orgScopedKeys.ts:27-172`: ownership, sensitivity,
-  audience. **Доказательство:** TypeScript compile-time exhaustiveness и unit test с ровно 96 entries; новый key без
-  трёх классификаций не собирается.
-- [ ] Добавить additive migration рядом с `apps/webapp/db/drizzle-migrations/0163_p0_8_6_bootstrap_hybrid_rls.sql:1-52`:
-  `read_audience NOT NULL DEFAULT 'restricted'` в public и integrator mirror. **Доказательство:** schema snapshot и
-  migration test подтверждают default deny и совпадение обеих schemas.
-- [ ] Разделить три mixed JSON keys из раздела 3.2 до выдачи patient grant.
-  **Доказательство:** regression test сериализует все client/public rows и не находит private key/password/apiKey/
-  webhookSecret/refresh token.
-- [ ] Обновить `apps/webapp/src/infra/repos/pgSystemSettings.ts:44-75,201-253` и
-  `apps/webapp/src/modules/system-settings/service.ts:95-184`: effective read учитывает audience, write запрещает
-  повышение secret-bearing key до client/public. **Доказательство:** repository/service tests на global fallback,
-  org override, downgrade/upgrade audience и forbidden secret exposure.
-- [ ] Добавить patient RLS/grant отдельным canonical SQL artifact рядом с
-  `deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1331` и обновить inventory
-  `deploy/postgres/p0-5b-grants.sql:448-461`. **Доказательство:** live test на тестовой БД после реализации: patient A
-  читает только разрешённый global/org-A config, не читает org-B/restricted; staff behaviour unchanged.
-- [ ] Перевести summary route и остальные 22 patient chains на audience-aware port, начиная с
-  `.../discussion/summary/route.ts:40-43`. **Доказательство:** route tests под locked principal дают 200 для UI flag,
-  а запрос restricted key — 403/typed unavailable, не 500.
-- [ ] Аудировать 25 integrator и 2 media-worker reads против новых policy/grants.
-  **Доказательство:** таблица callsite → principal → required audience и integration tests каждого principal class.
-- [ ] Собрать единый `resolveEffectiveClientConfig` из settings + entitlements без копирования mechanics.
-  **Доказательство:** org A/B получают разные mechanics/settings, disabled mechanic скрыта UI и остаётся 403 на
-  server write route.
-- [ ] Добавить rollback artifact: revoke patient grant/policy и вернуть все markers в restricted без удаления rows.
-  **Доказательство:** rehearsal на disposable test schema восстанавливает прежнее staff чтение и закрывает patient.
+- Mixed table: `apps/webapp/db/schema/schema.ts:2642-2658` — `key/scope/organization_id/value_json`, без
+  sensitivity/audience.
+- Effective org override → global fallback:
+  `apps/webapp/src/infra/repos/pgSystemSettings.ts:201-253`.
+- Единственный write service и compatibility sync:
+  `apps/webapp/src/modules/system-settings/service.ts:95-219`.
+- Patient role не имеет grant на mixed table; staff grant находится в generated inventory:
+  `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:1-51,155-170`.
+- Locked policy mixed table разрешает global/current-org row, но не отделяет secret:
+  `deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1340`.
+- Два исключения уже показывают проблему key-specific accessors:
+  `deploy/postgres/specialist-signup-public-bootstrap-rls.sql:136-160` и
+  `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql:1-22,72-99`.
+- Broken route читает mixed table под patient principal до загрузки resource org:
+  `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.ts:28-49`.
+- Его unit test мокает общий `systemSettings.getSetting` и не доказывает locked DB access:
+  `.../discussion/summary/route.test.ts:1-113,145-160`.
 
-## 9. Чек-лист исполнения — вариант B
+## 4. Инварианты
 
-- [ ] Утвердить имя таблицы и исчерпывающий typed registry, разделяющий restricted/client stores, в
-  `apps/webapp/src/modules/system-settings/types.ts:2-202`. **Доказательство:** все 96 текущих ключей распределены;
-  compile-time test запрещает ключ одновременно в двух stores и secret-bearing key в client store.
-- [ ] Добавить additive migration новой org-aware `client_runtime_settings` + audit table/fields и partial unique
-  indexes по образцу `apps/webapp/db/schema/schema.ts:2642-2658`. Старую таблицу и строки не удалять.
-  **Доказательство:** migration/schema tests, uniqueness global/org и FK/ownership checks проходят.
-- [ ] Добавить port/repository в существующих architecture boundaries; module не импортирует DB напрямую.
-  **Доказательство:** lint architecture rules и unit tests effective org override → global fallback.
-- [ ] Расширить единый admin write service `apps/webapp/src/modules/system-settings/service.ts:95-184`, чтобы registry
-  маршрутизировал write и сохранял единый аудит, не позволяя двойной записи как двум источникам истины.
-  **Доказательство:** admin API contract остаётся backward-compatible; service tests проверяют store routing.
-- [ ] Подготовить idempotent data migration только для утверждённого client-safe набора; оставить shadow copy в старой
-  таблице на период dual-read и записывать mismatch telemetry без значений. **Доказательство:** dry-run counts по key,
-  zero secret-bearing rows in destination, повторный запуск не меняет результат.
-- [ ] Разложить mixed JSON: VAPID public key — отдельный typed client record; payment/SMTP secrets — только restricted.
-  **Доказательство:** client table constraint/validation и serialization test не допускают секретные поля.
-- [ ] Дать `app_patient` SELECT только на новую таблицу и применить org/global RLS; старые
-  `public.system_settings`/audit остаются вне patient grants. **Доказательство:** privilege snapshot показывает zero
-  patient grants на secret tables; live A/B isolation test проходит.
-- [ ] Перевести 22 patient chains на client-config port, оставив два restricted и server-only ключи за закрытым
-  service boundary. **Доказательство:** discussion-summary перестаёт падать; payment providers и test identifiers
-  недоступны patient role; все patient route tests зелёные.
-- [ ] Решить для 25 integrator keys, какие остаются restricted и какие читают client store; для двух media-worker keys
-  подтвердить узкий infra access. **Доказательство:** callsite/principal matrix и focused integration tests, без broad
-  grants.
-- [ ] Реализовать один effective DTO `{ settings, mechanics }`, сохранив `requireEntitlement` на server routes.
-  **Доказательство:** UI contract test + authorization test показывают, что подмена DTO не обходит entitlement.
-- [ ] После периода dual-read удалить только старые client copies отдельной обратимой фазой; до этого rollback меняет
-  reader обратно без schema/data loss. **Доказательство:** зафиксированный zero-mismatch window и rehearsal rollback.
+1. `app_patient` и browser/public principals имеют **zero privileges** на `public.system_settings`,
+   `public.system_settings_audit` и `integrator.system_settings`.
+2. `app_runtime_settings` физически не содержит secret, password, private key, API key, refresh token,
+   webhook secret, allowlist или test identifier.
+3. Новый key default-deny: без registry entry код не собирается; invalid value не записывается.
+4. Ownership и audience независимы: global/per-org не означают public/restricted.
+5. Effective read: exact org override → global fallback. Caller-supplied org без resource/session proof отклоняется.
+6. Один admin write service маршрутизирует storage, пишет audit и поддерживает compatibility; routes не пишут
+   таблицы напрямую.
+7. Browser serializer возвращает только `authenticated_client|public`; `server` rows остаются server-side.
+8. Runtime snapshot для UI включает resolved mechanics; UI не читает entitlement tables отдельно.
+9. Runtime flag не заменяет authorization. Disabled tariff mechanic остаётся запрещённой server guard даже при
+   подменённом client response.
+10. Ни один новый runtime flag не требует новой DB function/view/policy.
+11. Runtime reads webapp/integrator/media проходят только sanctioned ports; direct SQL checker знает оба store.
+12. Все schema/policy/grant изменения additive до финального тестового cleanup; стены не отключаются при rollback.
 
-## 10. Чек-лист исполнения — вариант C
+## 5. Исходная классификация для миграции
 
-- [ ] Создать исчерпывающий schema-driven audience registry для всех 96 keys; не кодировать список флагов вручную в
-  десятках SQL functions. **Доказательство:** новый client key требует одну registry entry и автоматически попадает в
-  view tests.
-- [ ] Спроектировать `client_runtime_config_v` с явной семантикой org override/global fallback и безопасной
-  проекцией mixed JSON. **Доказательство:** SQL tests покрывают duplicate/global/org cases и VAPID выдаёт publicKey без
-  privateKey.
-- [ ] Зафиксировать PostgreSQL security properties view: owner без опасного bypass, `security_barrier`, корректный
-  invoker mode, pinned `search_path`, FORCE RLS на base table. **Доказательство:** privilege/RLS inspection script и
-  adversarial tests под `app_patient`.
-- [ ] Выдать `app_patient` SELECT только на view, не на `public.system_settings` или audit.
-  **Доказательство:** privilege snapshot + прямой SELECT base table запрещён, view возвращает только разрешённые rows.
-- [ ] Добавить client-config port поверх view и перевести 22 patient chains, начиная с summary route.
-  **Доказательство:** route regression tests под locked roles; restricted reads не превращаются в silent defaults.
-- [ ] Оставить admin writes через `createSystemSettingsService().updateSetting`, не добавлять второй sync call в routes.
-  **Доказательство:** service tests и mirror contract остаются зелёными.
-- [ ] Аудировать integrator/media principals отдельно; view grant не расширять на infra роли без фактической нужды.
-  **Доказательство:** callsite/principal matrix и отсутствие новых broad grants.
-- [ ] Объединить projected settings и resolved entitlements в одном effective client DTO, сохранив server guards.
-  **Доказательство:** те же A/B UI + authorization tests, что в вариантах A/B.
-- [ ] Подготовить rollback `REVOKE SELECT` + drop view без изменения base rows.
-  **Доказательство:** rehearsal возвращает исходный privilege graph.
+S5-0 обязан подтвердить каждый key callsite-матрицей. Ниже стартовый набор, уже доказанный текущими patient chains;
+это инженерная классификация, не цитата владельца.
 
-## 11. Общий acceptance gate после выбора
+### Runtime, `authenticated_client`
 
-- [ ] У каждого текущего и нового config key есть три явные характеристики: ownership, sensitivity, audience;
-  доказательство — exhaustive compile-time registry.
-- [ ] `app_patient` не имеет пути к OAuth, payment, SMTP, VAPID private key, allowlists и test identifiers;
-  доказательство — privilege snapshot + adversarial SQL/API tests на тестовой БД.
-- [ ] `patient.program.item.discussion-summary` под locked patient principal возвращает штатный ответ, а не 500;
-  доказательство — focused route test и живой тест на тестовом сервере.
-- [ ] Клиники A/B получают только свой effective client config; global fallback работает только для разрешённых ключей;
-  доказательство — cross-org test matrix.
-- [ ] Один UI config contract включает ordinary settings и resolved mechanics, но server entitlement checks не удалены;
-  доказательство — UI contract + 403 server authorization tests.
-- [ ] Staff/admin settings flow, integrator и media worker не получили broad bypass и не потеряли нужные reads;
-  доказательство — principal/callsite matrix и focused regressions.
-- [ ] Миграция и rollback отрепетированы на тесте; старый прод не затрагивался.
+`app_display_timezone`, `support_contact_url`, `patient_app_maintenance_enabled`,
+`patient_app_maintenance_message`, `patient_booking_url`,
+`patient_default_promo_treatment_program_template_id`, `patient_home_daily_practice_target`,
+`patient_home_mood_icons`, `patient_home_daily_warmup_repeat_cooldown_minutes`,
+`patient_treatment_plan_item_done_repeat_cooldown_minutes`, `patient_program_discussion_ui_enabled`,
+`patient_program_discussion_media_submission_enabled`, `notifications_topics`, `video_playback_api_enabled`,
+`video_default_delivery`, `booking_payment_enabled`.
 
-## 12. Карточка выбора владельцу
+### Runtime, `server`
 
-**ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:**
+`video_presign_ttl_seconds`, `booking_lifecycle_notifications`, `booking_min_notice_hours`. Значения не секретны,
+но raw JSON браузеру не нужен.
 
-1. Корневая схема: **A — marker+RLS**, **B — отдельная client table**, **C — safe view**.
-2. Аудитории: достаточно ли `restricted / authenticated patient`, или нужен отдельный public pre-session config.
-3. Откуда patient request берёт выбранную клинику при нескольких клинических контекстах.
-4. `booking_payment_enabled`: rollout-настройка поверх mechanic `payments` или устаревающий дубль entitlement.
+### Runtime, `public`
 
-До этих четырёх ответов корректно выполнить только статическую классификацию и тестовый дизайн; переносить данные,
-выдавать grants или закреплять UX нельзя.
+`specialist_signup_enabled`, `support_contact_url` и публичные login/link identifiers после проверки их текущих
+pre-session consumers. Один key может иметь только одну максимальную audience; `public` доступен также
+authenticated runtime.
+
+### Derived runtime
+
+- `web_push_vapid_public_key` проецируется из restricted `web_push_vapid.publicKey`; private key не покидает
+  restricted store.
+- `booking_payment_public_config` проецирует только provider id/label/enabled и operational fields без credentials;
+  `booking_payment_providers` остаётся restricted.
+
+### Restricted
+
+Минимум: `max_bot_api_key`, `booking_payment_providers`, `smtp_outbound`, `web_push_vapid`, OAuth client secrets,
+refresh/private keys, role allowlists, phones/telegram/max IDs, `integration_test_ids`,
+`test_account_identifiers`. S5-0 расширяет список по registry и fail-closed относит сюда всё непроверенное.
+
+## 6. Порядок исполнения
+
+`S5-0 → S5-1 → S5-2 → S5-3 → S5-4 → S5-5 → S5-6 → S5-7`
+
+Каждый checkbox закрывается записью в `SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md`: **что изменено**, актуальные
+`file:line`, **какое доказательство выполнено и его результат**. Один этап = один executor pass, затем независимый
+audit, fixer и повторный audit по `docs/ORCHESTRATION_BINDINGS.md:49-96`.
+
+### S5-0 — reality lock: registry и callsite matrix
+
+**Scope:** только инвентаризация, types/registry/checker/tests и execution log. DDL и runtime behavior не менять.
+
+- [ ] Построить исчерпывающую матрицу всех текущих keys:
+  `key → callers → principal → storage → ownership → audience → parser/default → client serialization → mechanic`.
+  **Где:** `apps/webapp/src/modules/system-settings/types.ts:1-202`,
+  `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`, webapp/integrator/media callsites через code-search;
+  **доказательство:** количество registry keys равно `ALLOWED_KEYS`, orphan/unknown caller даёт non-zero checker.
+- [ ] Ввести один typed registry и вывести/проверить из него `SystemSettingKey`, runtime/restricted subsets и
+  runtime flag/value types. **Где:** `apps/webapp/src/modules/system-settings/types.ts:1-202` и
+  `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`; **доказательство:** compile-time fixture с новым
+  key без classification не собирается; key не может одновременно принадлежать restricted и runtime store.
+- [ ] Зафиксировать `RuntimeFlagDefinition` sources `setting|mechanic|all` и mappings минимум для discussion,
+  booking, payments и patient app. **Где:** новый registry рядом с
+  `apps/webapp/src/modules/system-settings/types.ts:1-202` и mechanic types в
+  `apps/webapp/src/modules/org-entitlements/types.ts:6-23`; **доказательство:** unit tests показывают, что payment
+  flag = entitlement AND operational flag, а discussion не создаёт entitlement copy.
+- [ ] Проверить mixed envelopes и утвердить safe projectors для VAPID/payment public config.
+  **Где:** `apps/webapp/src/modules/system-settings/webPushVapidRuntime.ts:1-82` и
+  `apps/webapp/src/modules/payments/bookingPaymentSettings.ts:1-50`; **доказательство:** projector tests не возвращают
+  `privateKey/password/apiKey/webhookSecret/refreshToken`.
+
+**Проверка:** targeted registry/projector tests + `pnpm --dir apps/webapp typecheck`.
+
+**Выход:** каждый существующий key классифицирован; неизвестных и «по умолчанию global/public» нет.
+
+### S5-1 — additive schema и data contract
+
+**Scope:** webapp Drizzle schema, следующая generated migration, schema docs/checkers. Старые rows не удалять.
+
+- [ ] Добавить `public.app_runtime_settings`: `key`, `scope`, nullable `organization_id`, `audience`, `value_json`,
+  `updated_at`, `updated_by`; partial unique indexes для global и org identity; FK на organization/actor по
+  существующим ownership моделям. **Где:** рядом с `schema.ts:2642-2658`; **доказательство:** Drizzle schema/migration
+  test проверяет columns, checks, indexes и FKs.
+- [ ] Добавить `public.app_runtime_settings_audit` с old/new values, actor, source и org.
+  **Где:** рядом с audit-моделью `apps/webapp/db/schema/schema.ts:2642-2658` и следующим generated migration;
+  **доказательство:** first write и update создают ровно одну audit row в той же transaction; rollback transaction
+  не оставляет audit.
+- [ ] Добавить CHECK только на стабильные structural enums (`scope`, `audience`), не DB whitelist ключей.
+  **Где:** schema и generated migration из предыдущего пункта, anchor
+  `apps/webapp/db/schema/schema.ts:2642-2658`; **доказательство:** новый registry key не требует DDL; invalid audience
+  отклоняется DB.
+- [ ] В той же additive migration скопировать только S5-0 runtime keys из `public.system_settings`, сохранив
+  `(key, scope, organization_id, value_json, updated*)`; derived rows построить safe projection.
+  **Где:** следующий generated migration после существующих
+  `apps/webapp/db/drizzle-migrations/0163_saas_tariffs_and_entitlements.sql:1-52`; **доказательство:** idempotent
+  migration fixture, source/destination counts by key, zero restricted keys в destination; значения в test output
+  не печатаются.
+- [ ] Обновить `docs/ARCHITECTURE/DB_STRUCTURE.md` и configuration docs, не объявляя старые copies удалёнными.
+  **Где:** `docs/ARCHITECTURE/DB_STRUCTURE.md:1` и
+  `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md:1`; **доказательство:** docs/checker называют оба store и их
+  ownership.
+
+**Проверка:** migration/schema tests на disposable fixture; никаких подключений к рабочей dev DB.
+
+**Выход:** runtime store существует и заполнен additive; старый read/write path ещё работоспособен.
+
+### S5-2 — RLS, grants и системная config-reader capability
+
+**Scope:** canonical RLS/grant sources, generated artifacts, role/pool contract tests. Никаких broad grants.
+
+- [ ] Добавить runtime table/audit в SaaS table inventory и явную custom-policy классификацию; обновить
+  `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs:34-43,228-230` и связанные target/check scripts.
+  **Где:** указанные descriptor/target/check scripts; **доказательство:** descriptor checker не считает таблицу
+  unknown/unclassified.
+- [ ] Политики runtime table: staff — global/current org; patient — global/current resource org; bootstrap — только
+  `audience='public'`; missing/forged context fail-closed. Audit table пациенту недоступна.
+  **Где:** canonical policy source, anchor
+  `deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1340`; **доказательство:** real-role matrix
+  S1/S2/P1/P2/bootstrap на disposable DB.
+- [ ] Обновить source generator
+  `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:49-53,155-170,772-811`, затем regenerated artifact;
+  `app_patient` получает только `SELECT app_runtime_settings`, staff — нужный DML, patient — zero audit writes.
+  **Где:** указанный source generator и generated artifact из его header; **доказательство:** generated diff + grant
+  smoke; ручная правка generated list запрещена.
+- [ ] Явно сохранить `REVOKE ALL` для patient/bootstrap на restricted table/audit/mirror.
+  **Где:** `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:49-53,155-170,772-811`;
+  **доказательство:** privilege snapshot и прямые negative SELECT.
+- [ ] Добавить `app_config_reader` и отдельный config-reader login/pool без membership в staff/patient; grant только
+  на restricted config surface; policy разрешает global/exact current org и fail-closed org-row. **Где:** role/grant
+  source рядом с C0 topology artifacts, locked policy source и
+  `apps/webapp/src/infra/db/webappPoolProvider.ts:11-29,137-180`; **доказательство:** membership/SET ROLE negative
+  matrix, global/exact-org positive tests, missing/wrong-org denial, pool cleanup/concurrency tests, zero
+  clinical-table privileges.
+- [ ] Синхронизировать generated locked policy artifact
+  (`deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1340`) через его generator, не ручной вставкой.
+  **Где:** указанный artifact и canonical generator из его header; **доказательство:**
+  `pnpm run check:saas-db-regression` и policy artifact self-test green.
+
+**Проверка:** targeted role/grant/policy checkers + disposable real-role SQL smoke.
+
+**Выход:** patient читает safe runtime rows и физически не может прочитать restricted store; server adapter имеет
+узкую отдельную capability для секретов.
+
+### S5-3 — один write chokepoint, dual-read/dual-write compatibility
+
+**Scope:** existing system-settings ports/service, new runtime port/repo, DI, admin API compatibility.
+
+- [ ] Расширить ports в `apps/webapp/src/modules/system-settings/ports.ts:1-44`: restricted и runtime repositories
+  остаются infra implementations, module получает их через DI; общий write unit-of-work port атомарно пишет
+  restricted row, safe runtime projection и оба audits в `public`, а compatibility sync запускается только после
+  commit. **Где:** указанный ports file и composition root `apps/webapp/src/app-layer/di/buildAppDeps.ts:776-785`;
+  **доказательство:** clean-architecture lint, transaction rollback test; module не импортирует
+  `@/infra/db`/`@/infra/repos`.
+- [ ] Реализовать `pgAppRuntimeSettings` с generic `getEffective`, `getSnapshotRows`, `upsert` и audit transaction;
+  org override → global fallback повторяет доказанную семантику `pgSystemSettings.ts:201-253`.
+  **Где:** новый infra repo рядом с `apps/webapp/src/infra/repos/pgSystemSettings.ts:201-253`;
+  **доказательство:** repo tests global-only, org override, wrong-org, audience и concurrent upsert.
+- [ ] Сохранить один `createSystemSettingsService().updateSetting`: registry маршрутизирует restricted write в
+  прежний port+sync, runtime write — в новый store. During compatibility runtime write также обновляет legacy copies
+  в `public` и `integrator` через тот же service boundary, помечая их non-authoritative.
+  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и
+  `apps/webapp/src/app/api/admin/settings/route.ts:250-370`; **доказательство:** одна admin PATCH создаёт
+  согласованные rows/audit; route не вызывает sync сам.
+- [ ] Read path runtime keys: new store first, legacy fallback только при missing row; mismatch telemetry содержит
+  key/source/count, но не value/actor/org identifiers.
+  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и
+  `apps/webapp/src/infra/repos/pgSystemSettings.ts:201-253`; **доказательство:** fallback/mismatch tests; exception не
+  превращается молча в hardcoded default.
+- [ ] Mixed secret write атомарно обновляет restricted row и derived safe projection; private fields никогда не
+  попадают в runtime audit.
+  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и safe projectors из S5-0;
+  **доказательство:** transaction rollback + serialization/redaction tests.
+- [ ] Admin GET/PATCH contract остаётся backward-compatible по key names и redaction.
+  **Где:** `apps/webapp/src/app/api/admin/settings/route.ts:250-370` и
+  `apps/webapp/src/app/api/admin/settings/route.test.ts:1`; **доказательство:** существующие tests + новые routing
+  cases green.
+
+**Проверка:** system-settings service/repo/admin API tests; webapp typecheck/lint.
+
+**Выход:** один write API обслуживает два физических store; compatibility rollback ещё возможен без потери writes.
+
+### S5-4 — generic runtime provider и S4 mechanics
+
+**Scope:** module provider/service, app-layer orchestration, org-entitlements dependency, one patient runtime API/RSC
+contract. UI redesign вне scope.
+
+- [ ] Реализовать typed `resolveRuntimeConfig(context)` и generic `isFlagEnabled(flag, context)` через module port;
+  никаких `getDiscussionFlag()`/`getPaymentFlag()` DB methods.
+  **Где:** `apps/webapp/src/modules/system-settings/ports.ts:1-44` и новый provider/service рядом с
+  `apps/webapp/src/modules/system-settings/service.ts:95-219`; **доказательство:** один provider test matrix для
+  boolean/scalar/structured/default/invalid values.
+- [ ] Derive org только из authorized resource или explicit selected patient org; nested patient principal получает
+  `{platformUserId, organizationId}` через существующий principal carrier
+  (`packages/db-principal/src/index.ts:298-320,507-515`).
+  **Где:** указанный principal carrier и patient orchestration callsites из S5-0 matrix; **доказательство:** payload
+  org игнорируется; shared patient A/B получает соответствующие overrides; no-context per-org read даёт typed error.
+- [ ] Подключить `resolveOrgEntitlements` один раз на snapshot и вычислить registry flags `setting|mechanic|all`.
+  **Где:** runtime provider из предыдущего пункта и
+  `apps/webapp/src/modules/org-entitlements/service.ts:10-36`; **доказательство:** A/B tariffs/overrides дают разные
+  flags; ordinary scalar settings не копируются в entitlement.
+- [ ] Browser/RSC serializer отдаёт только audience `authenticated_client|public`; public pre-session surface —
+  только `public`. **Где:** runtime provider/serializer из первого пункта S5-4, anchor
+  `apps/webapp/src/modules/system-settings/ports.ts:1-44`; **доказательство:** snapshot contract и
+  secret-key/property scan.
+- [ ] Добавить revision/cache invalidation по successful write без per-key cache module.
+  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и runtime provider S5-4;
+  **доказательство:** write → next snapshot changes revision/value; org A invalidation не загрязняет org B.
+
+**Проверка:** provider/entitlement contract tests + cross-org concurrency test.
+
+**Выход:** у UI один runtime contract для обычных settings и tariff mechanics.
+
+### S5-5 — migrate consumers и удалить key-specific runtime accessors
+
+**Scope:** подтверждённые webapp/integrator/media callsites из S5-0; behavior не менять кроме источника config.
+
+- [ ] Перевести все patient request chains на RuntimeConfigProvider; `server` values остаются server-side.
+  **Где:** `apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts:1-44` и patient
+  callsites из S5-0 matrix; **доказательство:** matrix имеет `migrated` и focused test для каждой различной
+  parser/ownership family.
+- [ ] Перевести integrator runtime-safe keys на sanctioned reader `public.app_runtime_settings`; restricted keys
+  остаются на `public.system_settings`. **Где:** anchor
+  `apps/integrator/src/infra/db/publicSystemSettings.ts:64-102`; **доказательство:** principal/callsite matrix и
+  integrator tests global/org fallback.
+- [ ] Перевести media runtime-safe flags на runtime port без расширения restricted grants.
+  **Где:** `apps/media-worker/src/pipelineEnabled.ts:1-13` и
+  `apps/media-worker/src/watermarkEnabled.ts:1-14`; **доказательство:** existing pipeline/watermark tests +
+  direct-read checker.
+- [ ] Перевести acquiring/payment secret read на `RestrictedSettingsPort`; integration adapter получает config,
+  patient route и response — нет. **Где:** `apps/webapp/src/app-layer/di/buildAppDeps.ts:776-785` и
+  `apps/webapp/src/modules/payments/service.ts:561-575`; **доказательство:** app_patient direct SELECT denied,
+  authorized adapter call works, returned/logged objects redacted.
+- [ ] Заменить `app.get_public_config_bool` и VAPID key-specific accessor общим runtime path; удалить их port methods,
+  grants и artifacts только после `rg` подтверждает zero consumers.
+  **Где:** `deploy/postgres/specialist-signup-public-bootstrap-rls.sql:136-160` и
+  `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql:1-22,72-99`; **доказательство:** direct function
+  calls отсутствуют; signup и web-push public-key scenarios green.
+- [ ] Расширить `apps/webapp/scripts/check-system-settings-accessors.mjs:8-19,42-57`: sanctioned readers для обоих
+  stores; direct SELECT из routes/modules/integrator/media даёт non-zero.
+  **Где:** указанный checker и его fixture/test; **доказательство:** checker self-test на injected offender.
+
+**Проверка:** targeted webapp/integrator/media tests, accessor checker, typecheck/lint затронутых приложений.
+
+**Выход:** runtime config не читается из restricted store ни одним patient path; key-specific DB accessors больше не
+нужны.
+
+### S5-6 — discussion-summary и security acceptance
+
+**Scope:** discussion route/shared gate tests, runtime provider integration, locked smoke contract.
+
+- [ ] Переставить summary flow:
+  `patient auth → validate instanceId → get own instance → resource organizationId → generic runtime flag → summary`.
+  **Где:**
+  `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.ts:28-54`;
+  **доказательство:** route не вызывает `systemSettings.getSetting` и не содержит parser setting envelope.
+- [ ] Расширить существующий route test (`.../discussion/summary/route.test.ts:1-160`): enabled=200,
+  disabled=403, чужой instance=404 до config disclosure, org forwarded from instance, restricted read never called.
+  **Где:** `apps/webapp/src/app/api/patient/treatment-program-instances/[instanceId]/discussion/summary/route.test.ts:1-160`;
+  **доказательство:** все пять cases green и test double restricted port падает при любом вызове.
+- [ ] Добавить locked integration case с реальными roles/grants: `patient.program.item.discussion-summary` получает
+  saved flag через generic provider и возвращает 200; другой patient/instance denied.
+  **Где:** `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json:163` и его runner;
+  **доказательство:** сохранённый machine-readable result содержит expected 200 и отрицательный cross-patient case.
+- [ ] Добавить adversarial matrix: direct restricted SELECT, forged org, org-B override, mixed-envelope private
+  fields, browser request for `audience=server`.
+  **Где:** S5 runtime role/integration suite рядом с
+  `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json:163`; **доказательство:** все negative cases denied,
+  org-B возвращает только свой effective override, secret scan пуст.
+- [ ] Добавить structural checker: runtime-key literals отсутствуют в DB functions/views/policies; добавление
+  registry fixture key не меняет SQL artifact count.
+  **Где:** расширение `apps/webapp/scripts/check-system-settings-accessors.mjs:8-19,42-57` и
+  `package.json:33-45`; **доказательство:** self-test намеренно вставляет key-specific SQL и checker падает.
+
+**Проверка:** focused route/provider tests + disposable locked DB smoke + `pnpm run check:saas-db-regression`.
+
+**Выход:** обязательный критерий владельца закрыт без accessor/function на флаг.
+
+### S5-7 — тестовый сервер: порядок, cleanup и rollback rehearsal
+
+**Scope:** только отдельный авторизованный оркестраторский проход на тестовом сервере по существующим scripts/runbook;
+этот план не даёт команд доступа к хосту и не разрешает реальные отправки.
+
+Порядок применения:
+
+1. создать additive tables/audit и backfill;
+2. применить RLS/grants/config-reader role contract;
+3. запустить build с dual-read/dual-write;
+4. выполнить deterministic reconciliation;
+5. прогнать A/B runtime/security matrix и discussion-summary;
+6. перевести все readers на новые ports;
+7. повторить reconciliation и полный declared workload;
+8. удалить runtime copies из `public.system_settings` и `integrator.system_settings` только после двух green
+   reconciliation checkpoints; restricted rows не удалять;
+9. прекратить compatibility dual-write и повторить acceptance.
+
+- [ ] До шага 8 проверить counts по каждому migrated key/global/org identity, zero mismatches и zero restricted rows
+  в runtime store. **Где:** reconciliation artifact и
+  `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md:1`; **доказательство:** redacted machine-readable
+  report без values/PII.
+- [ ] A/B matrix: global fallback, org override, shared patient resource context, public bootstrap, authenticated
+  snapshot, server-only value и tariff mechanic composition. **Где:** runtime integration suite S5-4/S5-6 и
+  `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md:1`; **доказательство:** сохранённый matrix report
+  показывает expected result каждого case.
+- [ ] Security matrix: patient/browser не читают restricted/audit/server serialization; config-reader не читает
+  clinical tables; forged/missing context fail-closed. **Где:** real-role suite S5-2/S5-6 и
+  `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md:1`; **доказательство:** все negative probes denied,
+  permitted runtime probes green.
+- [ ] Product smoke: discussion-summary 200 при enabled, штатный 403 при disabled, ни одного unexpected 5xx/empty
+  result/RLS denial в settings scenarios. **Где:**
+  `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json:163` и
+  `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs:151`;
+  **доказательство:** сохранённый smoke report green по этим scenarios.
+- [ ] После всех этапов выполнить один repo-level gate `pnpm install --frozen-lockfile && pnpm run ci`; не повторять
+  без новых изменений. **Где:** `package.json:61` и
+  `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md:1`; **доказательство:** exit 0 и зафиксированные
+  commit/ref + command + timestamp в log.
+
+**Rollback rehearsal на тестовом сервере:**
+
+1. стены не отключать;
+2. остановиться на последнем green S5 checkpoint;
+3. если cleanup уже выполнен, idempotent rollback artifact восстанавливает runtime copies одновременно в
+   `public.system_settings` и `integrator.system_settings` из `app_runtime_settings`;
+4. вернуть dual-read/dual-write build;
+5. revoke новых patient/bootstrap/config-reader grants, которые не нужны этому checkpoint; новые tables не drop;
+6. повторить reconciliation, restricted-denial matrix и discussion-summary.
+
+**Доказательство rollback:** сохранённые runtime writes не потеряны, restricted rows не менялись, patient не получил
+доступ к mixed table, discussion-summary остаётся green на восстановленном dual-read checkpoint.
+
+## 7. Definition of Done
+
+- [ ] В документе нет выбора, ожидающего владельца; технический путь B обоснован и единственный.
+  **Где:** этот документ, §1-2; **доказательство:** review не находит альтернативного execution path или owner gate.
+- [ ] Все keys имеют exhaustive storage/ownership/audience/type classification; unknown key fail-closed.
+  **Где:** registry S5-0, anchors `apps/webapp/src/modules/system-settings/types.ts:1-202` и
+  `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`; **доказательство:** registry checker и negative
+  compile fixture green.
+- [ ] `system_settings` после cleanup содержит только restricted/internal rows; runtime config — только
+  `app_runtime_settings`; integrator runtime читает каноническую `public` schema.
+  **Где:** schema/migration S5-1 и `apps/integrator/src/infra/db/publicSystemSettings.ts:64-102`;
+  **доказательство:** final reconciliation даёт zero misplaced/mismatched rows.
+- [ ] `app_patient` имеет zero privileges на restricted tables и читает runtime config только в доказанном context.
+  **Где:** grant/policy sources S5-2, anchors
+  `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:49-53,155-170,772-811`;
+  **доказательство:** privilege snapshot + real-role positive/negative matrix green.
+- [ ] UI получает один typed snapshot, в котором tariff mechanics и ordinary flags собраны без копирования sources.
+  **Где:** runtime provider S5-4 и `apps/webapp/src/modules/org-entitlements/service.ts:10-36`;
+  **доказательство:** typed snapshot contract и tariff/override composition tests green.
+- [ ] Server-side mechanics по-прежнему защищены единым `requireEntitlement`; client snapshot не является authz.
+  **Где:** `apps/webapp/src/app-layer/guards/requireEntitlement.ts:7-23` и protected callsites из S4 matrix;
+  **доказательство:** forged-enabled snapshot не проходит server guard при disabled mechanic.
+- [ ] VAPID/payment mixed envelopes имеют safe derived projection; secrets отсутствуют в runtime rows/audit/API/logs.
+  **Где:** `apps/webapp/src/modules/system-settings/webPushVapidRuntime.ts:1-82` и
+  `apps/webapp/src/modules/payments/bookingPaymentSettings.ts:1-50`; **доказательство:** projector, persistence,
+  response и log secret scans пусты.
+- [ ] `patient.program.item.discussion-summary` работает под locked walls через generic provider.
+  **Где:** discussion route/test S5-6 и
+  `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json:163`; **доказательство:** saved smoke result = expected
+  200, cross-patient case denied, restricted port не вызван.
+- [ ] Следующий runtime flag требует registry entry/data/admin UI при необходимости, но не DB function/view/policy.
+  **Где:** registry/checker S5-0/S5-6, anchor
+  `apps/webapp/scripts/check-system-settings-accessors.mjs:8-19,42-57`; **доказательство:** fixture key проходит без
+  изменения SQL artifact count, key-specific SQL fixture роняет checker.
+- [ ] Migration, grants, code, tests, test-server order, cleanup и rollback rehearsal закрыты доказательствами.
+  **Где:** S5-1—S5-7 и `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md:1`;
+  **доказательство:** у каждого этапа есть executor result, independent audit, fixer при необходимости и повторный
+  green audit.
+- [ ] Targeted checks, SaaS DB regression, тестовый A/B smoke и один финальный repo-level CI green.
+  **Где:** `package.json:33-61` и execution log; **доказательство:** зафиксированы команды, exit 0 и ссылки на
+  redacted reports.
+
+## 8. Вне scope
+
+- UX-редизайн экранов настроек.
+- Изменение цен, состава тарифов или mechanic defaults — это S4.
+- Новый billing/provider contract; S5 только разделяет public operational projection и credentials.
+- Переписывание `system_settings` mirror целиком вне runtime keys.
+- Любые хостовые действия в текущем planning pass.

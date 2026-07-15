@@ -1,39 +1,13 @@
-# Rubitime retirement R5 live-disable proof template
+# Rubitime retirement R5 — TEST proof template
 
-Do not rename this template to the final proof until the production action is owner-approved and executed.
+> **SUPERSEDED 2026-07-15.** The former template was for an external operation and must not be executed.
+> Authority: [`OWNER_RULINGS_2026-07-15.md:87-104`](OWNER_RULINGS_2026-07-15.md).
 
-Final proof filename:
+## Required TEST evidence
 
-`docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.md`
+- TEST configuration assertion for `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` (redacted).
+- Canonical booking smoke result and v1 endpoint negative assertions.
+- Aggregate-only route/error counts for the declared TEST window.
+- Any TEST-only restore and its reason.
 
-## live flag-change timestamp
-
-`TODO: YYYY-MM-DDTHH:mm:ss+03:00`, owner-approved.
-
-## monitoring window start/end
-
-`TODO: start/end with timezone`.
-
-## v1 `/api/bersoncare/rubitime/slots` request count
-
-`TODO: aggregate count only; no PII, no raw request bodies`.
-
-## v1 `/api/bersoncare/rubitime/create-record` request count
-
-`TODO: aggregate count only; no PII, no raw request bodies`.
-
-## source of aggregate counts without secrets or PII
-
-`TODO: command/log source used for counts; mask secrets and avoid patient identifiers`.
-
-## confirmation that no user-facing booking path required v1 profile resolution
-
-`TODO: confirm production patient/public booking paths stayed canonical and no user-facing incident required legacy v1 profile resolution during the monitoring window`.
-
-## owner approval note
-
-`TODO: owner decision approving production disable and accepting monitoring result`.
-
-## rollback notes
-
-`TODO: state whether rollback was needed/tested; reference service restart notes if applicable`.
+Do not rename this template into a final proof until all TEST evidence is present.
