@@ -12,7 +12,7 @@ export type InPersonBookingResolveDeps = {
   } | null;
   bookingScheduling: Pick<
     BookingSchedulingService,
-    "resolveLegacyBranchServiceId" | "resolveInPersonContext"
+    "resolveLegacyBranchServiceId" | "resolveInPersonContext" | "resolvePublicBookingOrganization"
   > | null;
 };
 
@@ -27,6 +27,43 @@ export type ResolvedInPersonBookingContext = {
   branchServiceId: string;
   organizationId: string;
 };
+
+export type PublicInPersonBookingKeys =
+  | { branchId: string; serviceId: string; branchServiceId?: never }
+  | { branchServiceId: string; branchId?: never; serviceId?: never };
+
+export async function resolvePublicInPersonBookingOrganization(
+  deps: InPersonBookingResolveDeps,
+  input: { branchServiceId?: string | null; branchId?: string | null; serviceId?: string | null },
+): Promise<{ organizationId: string; keys: PublicInPersonBookingKeys }> {
+  if (!deps.bookingScheduling) {
+    throw new InPersonBookingResolveError("booking_scheduling_unavailable");
+  }
+
+  const branchId = input.branchId?.trim() || null;
+  const serviceId = input.serviceId?.trim() || null;
+  const branchServiceId = input.branchServiceId?.trim() || null;
+  if (Boolean(branchId) !== Boolean(serviceId)) {
+    throw new InPersonBookingResolveError("invalid_in_person_keys");
+  }
+
+  // Canonical public ids are authoritative when both forms are supplied. The legacy id is never
+  // allowed to steer tenant selection away from an explicit branch + service pair.
+  let keys: PublicInPersonBookingKeys;
+  if (branchId && serviceId) {
+    keys = { branchId, serviceId };
+  } else if (branchServiceId) {
+    keys = { branchServiceId };
+  } else {
+    throw new InPersonBookingResolveError("invalid_in_person_keys");
+  }
+
+  const organizationId = await deps.bookingScheduling.resolvePublicBookingOrganization(keys);
+  if (!organizationId) {
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+  }
+  return { organizationId, keys };
+}
 
 export async function resolveInPersonBookingContext(
   deps: InPersonBookingResolveDeps,

@@ -125,6 +125,10 @@ function defaultDateRange(date: string | undefined, timeZone: string): { from: s
 
 export function createBookingSchedulingService(port: BookingSchedulingPort): BookingSchedulingService {
   return {
+    resolvePublicBookingOrganization(input) {
+      return port.resolvePublicBookingOrganization(input);
+    },
+
     resolveInPersonContext(branchServiceId: string) {
       return port.resolveCanonicalFromBranchService(branchServiceId);
     },

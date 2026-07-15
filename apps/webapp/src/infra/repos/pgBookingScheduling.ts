@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import type { BreakInterval } from "@/modules/booking-scheduling/ports";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { runWebappTransaction } from "@/infra/db/runWebappSql";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
   beAppointments,
@@ -54,6 +54,18 @@ const ACTIVE_APPOINTMENT_STATUSES = [
 
 export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<string>): BookingSchedulingPort {
   return {
+    async resolvePublicBookingOrganization({ branchId, serviceId, branchServiceId }) {
+      const result = await runWebappPgText<{ organization_id: string | null }>(
+        `SELECT app.resolve_public_booking_organization(
+           $1::uuid,
+           $2::uuid,
+           $3::uuid
+         )::text AS organization_id`,
+        [branchId?.trim() || null, serviceId?.trim() || null, branchServiceId?.trim() || null],
+      );
+      return result.rows[0]?.organization_id ?? null;
+    },
+
     async resolveCanonicalFromBranchService(branchServiceId) {
       const db = getDrizzle();
       const mapRows = await db

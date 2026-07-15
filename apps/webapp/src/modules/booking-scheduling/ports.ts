@@ -112,6 +112,11 @@ export type NearestFreeWindowInput = {
 export type NearestFreeWindowResult = { from: string; to: string } | null;
 
 export type BookingSchedulingPort = {
+  resolvePublicBookingOrganization(input: {
+    branchId?: string | null;
+    serviceId?: string | null;
+    branchServiceId?: string | null;
+  }): Promise<string | null>;
   resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
@@ -241,6 +246,11 @@ export type UpdateWorkingHoursInput = {
 };
 
 export type BookingSchedulingService = {
+  resolvePublicBookingOrganization(input: {
+    branchId?: string | null;
+    serviceId?: string | null;
+    branchServiceId?: string | null;
+  }): Promise<string | null>;
   resolveInPersonContext(branchServiceId: string): Promise<CanonicalBookingContext | null>;
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
