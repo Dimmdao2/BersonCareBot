@@ -874,10 +874,10 @@ function runChecks(overrides = {}) {
   const script = packageJson.scripts?.['check:saas-hard-migration-protocol'];
   if (
     script !==
-    'node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs --self-test && pnpm run check:saas-test-strict-finalizer && pnpm run check:saas-test-mode-switch && pnpm run check:saas-disposable-dormant-wrapper'
+    'node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-hard-migration-protocol.mjs --self-test && pnpm run check:public-booking-bootstrap-resolver && pnpm run check:saas-test-strict-finalizer && pnpm run check:saas-test-mode-switch && pnpm run check:saas-disposable-dormant-wrapper'
   ) {
     fail(
-      `${files.packageJson} must wire check:saas-hard-migration-protocol to syntax, main check, and self-test`,
+      `${files.packageJson} must wire check:saas-hard-migration-protocol to syntax, main check, self-test, public booking resolver, strict finalizer, mode switch, and disposable wrapper gates`,
     );
   }
   const auditScript = packageJson.scripts?.audit;
