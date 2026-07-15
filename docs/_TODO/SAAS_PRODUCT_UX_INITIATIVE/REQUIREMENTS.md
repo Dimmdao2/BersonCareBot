@@ -1,0 +1,122 @@
+# Requirements — SaaS Product UX
+
+## 1. Исходная задача владельца
+
+Нужно последовательно, без ухода в локальные улучшения:
+
+1. Сначала определить глобальную модель продукта.
+2. Затем определить роли, контексты и состав экранов.
+3. Отдельно проработать specialist-oriented публичный лендинг.
+4. Спроектировать приглашение пациента специалистом: email как основной путь, SMS как дополнительный.
+5. Спроектировать установку клиентского приложения после приглашения.
+6. Определить branding и domain model.
+7. Определить UX пациента, который связан с несколькими специалистами и/или организациями.
+8. Только после этого декомпозировать реализацию.
+
+## 2. Зафиксированные продуктовые роли
+
+Из owner rulings и текущего кода:
+
+| Роль | Назначение |
+|---|---|
+| Global admin | Управление платформой, организациями, тарифами, биллингом, использованием и system health |
+| Organization owner | Владелец SaaS-аккаунта организации; lifecycle, billing, branding, staff и настройки организации |
+| Organization admin | Операционное управление организацией; может одновременно быть специалистом |
+| Specialist / doctor | Клиническая работа, расписание, пациенты, программы, коммуникации и контент в пределах организации |
+| Assistant | Ограниченная операционная работа; точная permission matrix требует отдельной проработки |
+| Patient | Собственные данные и care flows в одной или нескольких организациях |
+| Onboarding patient | Только активация identity; без business actions до достижения patient tier |
+| Anonymous/public | Platform landing, публичный каталог/страница организации, публичная запись и trusted invite entry |
+| System actors | Worker/integrator/scheduler/media/cron; не пользовательские кабинеты |
+
+Текущий канон персонала: одна активная организация на один staff login; несколько активных membership — ошибка данных, не org switcher. Не менять это скрыто внутри UX-плана.
+
+## 3. Продуктовые поверхности, которые надо спроектировать
+
+### 3.1 Platform public
+
+- specialist-oriented landing;
+- возможности продукта и специализации;
+- тарифы/демо/регистрация специалиста;
+- вторичный вход пациента «У меня есть приглашение / войти»;
+- публичный каталог организаций, если он входит в выбранный launch scope;
+- legal/support/status surfaces.
+
+### 3.2 Organization public
+
+- опубликованная страница организации по стабильному slug;
+- специалисты, услуги, локации, запись;
+- организация-ориентированный invite/join entry;
+- canonical platform URL независимо от custom-domain alias.
+
+### 3.3 Organization workspace
+
+- clinic overview;
+- staff и приглашения;
+- organization settings;
+- branding/public page;
+- тариф, usage и billing;
+- integrations/channels;
+- роли и permissions;
+- клинический кабинет для owner/admin, которые также являются специалистами.
+
+### 3.4 Specialist workspace
+
+- сегодня;
+- пациенты, включая UX-фильтр «мои / все клиники» без изменения прав;
+- карточка пациента;
+- расписание;
+- коммуникации;
+- назначения и каталоги;
+- patient-facing content;
+- личные настройки и install PWA.
+
+Формулировка фильтра уточняется на этапе IA: речь о «мои пациенты / все пациенты организации», а не о выборе организации.
+
+### 3.5 Patient app
+
+- организация как основной care context;
+- специалисты внутри организации как участники конкретных записей, программ и диалогов;
+- безопасный выбор организации при нескольких enrollment;
+- отсутствие смешения clinical data между организациями;
+- понятное указание автора назначения/сообщения и получателя ответа;
+- единый global identity без дублирования аккаунтов;
+- activation, install и notification consent после trusted invite.
+
+## 4. Стартовые UX-гипотезы — не решения
+
+Эти пункты надо проверить исследованием и scenario mapping:
+
+1. Главный platform landing продаёт продукт специалисту/клинике. Пациент не проходит обычную свободную регистрацию с hero; он входит по приглашению, через запись или отдельную компактную точку входа.
+2. Patient invite ведёт не на абстрактную инструкцию установки, а на organization-scoped join page: проверка токена → identity activation → подтверждение связи с организацией → первый полезный экран → предложение установить PWA.
+3. Email — основной транспорт приглашения; SMS используется как fallback/дополнительный канал. Web Push становится основным только после установки и подписки.
+4. Пациент выбирает организацию, а не «логинится к каждому врачу». Внутри организации конкретный специалист отображается в записи, программе и диалоге.
+5. Branding имеет уровни: platform brand, organization identity внутри продукта, paid white-label. Custom domain — проверенный alias/entrypoint и не источник authorization.
+6. Кабинет global admin должен быть отдельной IA-поверхностью, а не растущим cluster внутри doctor sidebar.
+
+## 5. Обязательные вопросы, которые должен закрыть discovery
+
+- Solo specialist и clinic: один onboarding или две развилки одного onboarding?
+- Что именно создаётся при self-signup и какой минимальный first-run checklist?
+- Какие capabilities у owner, admin, specialist и assistant?
+- Как owner/admin переключается между management и clinical work без второй авторизации?
+- Как выглядит patient context switch при нескольких организациях?
+- Нужен ли отдельный chat на организацию, на специалиста или conversation threads с явным author/context?
+- Кто считается отправителем email/SMS/push при разных branding tiers?
+- Какие данные бренда видны на landing, join, auth, PWA, email, booking и внутри patient shell?
+- Как ведут себя manifest/install/icon/name для platform и white-label tiers?
+- Какие custom-domain сценарии поддерживаются: public page, booking, join, PWA; какой canonical redirect contract?
+- Что происходит при истёкшей, повторно использованной или отправленной не тому email invite-ссылке?
+- Как пациент попадает в организацию через invite, public booking и ручное создание персоналом; где создаётся enrollment?
+
+## 6. Definition of Done discovery
+
+- есть полная current-state карта экранов с route, actor, purpose и disposition;
+- есть role × capability × screen matrix;
+- есть end-to-end journeys для specialist signup, staff invite, patient invite/install, public booking и returning patient;
+- multi-org/multi-specialist patient model описана состояниями и edge cases;
+- branding/domain contract описан по surface и тарифным уровням;
+- целевая IA по ролям сопоставлена с текущими route/component reuse points;
+- спорные решения вынесены в короткий owner decision packet;
+- после решений создан implementation roadmap без смешения с текущим enforcement workstream.
+

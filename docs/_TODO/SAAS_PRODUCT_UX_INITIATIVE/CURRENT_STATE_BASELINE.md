@@ -1,0 +1,62 @@
+# Current State Baseline
+
+Стартовый факт-снимок. Полный route-by-route и visual audit выполняется в UX-01.
+
+## Уже существует
+
+### Public / entry
+
+- `/` — patient-oriented landing с PWA install и секцией для специалиста;
+- `/book/*` — публичная запись;
+- `/legal/*` — privacy/terms;
+- PWA разделена на patient и staff surfaces.
+
+### Patient
+
+- primary navigation: `Сегодня`, `Упражнения`, `Статистика`, `Запись`, `Чат`;
+- профиль доступен из header;
+- treatment, diary, booking, messages, reminders, notifications, help, install и content существуют;
+- identity tiers `guest → onboarding → patient` уже формализованы;
+- подтверждённый email достаточен для patient tier, trusted phone дополнительно нужен для native booking.
+
+### Specialist
+
+- primary sections: `Сегодня`, `Пациенты`, `Расписание`, `Коммуникации`;
+- каталоги назначений, CMS, media, courses;
+- clinic-admin sections `Врачи` и `Настройки клиники`;
+- global-admin sections analytics, platform settings и system health;
+- фактические layout families описаны в `SCREEN_LAYOUT_INVENTORY.md`.
+
+### Organization / SaaS
+
+- membership roles: `owner`, `admin`, `doctor`, `assistant`;
+- server-derived organization workspace context;
+- clinic member list и email invite creation;
+- invite accept API flow;
+- org-scoped clinic settings;
+- entitlement types и SaaS tariff/store plans;
+- public clinic directory target model уже проработана в SaaS S6.
+
+## Главные разрывы
+
+| Область | Текущее состояние | Нужный discovery result |
+|---|---|---|
+| Platform landing | Прежде всего patient/PWA | Specialist-oriented acquisition IA с компактным patient entry |
+| Staff invite | Создаётся URL для ручного копирования | Delivery, accept, first-login, expired/revoked/error flows |
+| Patient invite | Единого SaaS join flow не найдено | Email-first invite, SMS fallback, activation, enrollment, install |
+| Organization workspace | Members/settings смешаны с doctor navigation | Целевая management IA и связь с clinical mode |
+| Global admin | Встроен в doctor sidebar | Отдельная platform-operations IA |
+| Multi-org patient | Data foundation существует | Явный context selection и cross-org UX contract |
+| Multi-specialist patient | Специалист присутствует в отдельных доменах | Единая модель attribution, conversations и appointments |
+| Branding | В основном platform BersonCare | Surface matrix и entitlement tiers |
+| Custom domains | Roadmap contract, UI нет | Verification/status/error/canonical redirect UX |
+| Public organization page | Target projection описана, UI не закрыт | Directory/profile/booking/join screen composition |
+
+## Нельзя заключать без аудита
+
+- наличие route не означает готовый рабочий сценарий;
+- старые target-structure документы местами расходятся с текущей navigation implementation;
+- invite API не означает доставку email;
+- org-scoped setting не означает готовую white-label модель;
+- один global identity не определяет автоматически UI выбора care context.
+
