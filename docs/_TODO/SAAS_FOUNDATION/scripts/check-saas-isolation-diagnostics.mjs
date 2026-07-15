@@ -10,6 +10,8 @@ const files = {
   ui: 'apps/webapp/src/app/app/settings/SystemHealthSection.tsx',
   testScenarioRunner: 'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.ts',
   testScenarioCli: 'apps/webapp/scripts/run-saas-isolation-test-scenarios.ts',
+  testScenarioCliArgs:
+    'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioCliArgs.ts',
   reporter: 'apps/webapp/src/infra/saasIsolationReporterRuntime.ts',
   pools: 'apps/webapp/src/infra/db/saasIsolationTelemetry.ts',
   webappTelemetryPoolProvider: 'apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts',
@@ -119,12 +121,17 @@ async function main() {
   for (const fragment of [
     "const REQUIRED_DATABASE = 'bersoncarebot_test'",
     'saas_telemetry_operator',
-    '--prove-cleanup-on-injected-failure',
-    '--assert-clean-only',
+    'parseSaasIsolationTestScenarioCliArgs(process.argv.slice(2))',
     'saas_isolation_test_scenario_final_clean',
     'saas_isolation_test_scenario_operator_preflight_failed',
   ])
     requireText(loaded.testScenarioCli, fragment, 'TEST scenario exact operator wrapper');
+  for (const fragment of [
+    "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
+    '--prove-cleanup-on-injected-failure',
+    '--assert-clean-only',
+  ])
+    requireText(loaded.testScenarioCliArgs, fragment, 'TEST scenario CLI argument contract');
   requireText(loaded.reporter, 'MAX_QUEUE = 64', 'bounded reporter');
   requireText(loaded.reporter, 'CIRCUIT_OPEN_MS', 'circuit breaker');
   requireText(loaded.reporter, 'Promise.race', 'total timeout');
@@ -268,6 +275,14 @@ async function main() {
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),
         'finally {',
         'missing scenario cleanup finally',
+      ],
+      [
+        loaded.testScenarioCliArgs.replace(
+          "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
+          'rawArgs',
+        ),
+        "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
+        'pnpm argument separator regression',
       ],
       [
         scenarioProof.replace('"--execute --prove-cleanup-on-injected-failure"', '"--execute"'),
