@@ -49,12 +49,16 @@ const OWN_SPECIALIST = "518ea988-9b5e-4ad8-8194-a2d98f43bd7b";
 const OTHER_ROW_ID = "22222222-2222-4222-8222-222222222222";
 const OWN_ROW_ID = "11111111-1111-4111-8111-111111111111";
 
-/** Gate resolves to a doctor context whose org has a single active specialist (the owner). */
-function mockGateWithSpecialist(specialists: { id: string; isActive: boolean }[]) {
+/** Gate resolves to a doctor context with the membership's exact specialist identity. */
+function mockGateWithSpecialist(
+  specialists: { id: string; isActive: boolean }[],
+  specialistId: string | null = OWN_SPECIALIST,
+) {
   requireDoctorBookingEngineMock.mockResolvedValue({
     ok: true,
     ctx: {
       organizationId: "org-1",
+      specialistId,
       service: { catalog: { listSpecialists: vi.fn().mockResolvedValue(specialists) } },
     },
   });
@@ -94,6 +98,20 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
       expect.objectContaining({ specialistId: OWN_SPECIALIST }),
     );
     expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
+  it("GET resolves the membership specialist instead of the first active clinic specialist", async () => {
+    const otherSpecialist = "628ea988-9b5e-4ad8-8194-a2d98f43bd7b";
+    mockGateWithSpecialist([
+      { id: otherSpecialist, isActive: true },
+      { id: OWN_SPECIALIST, isActive: true },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/doctor/booking-engine/working-hours"));
+    expect(res.status).toBe(200);
+    expect(listWorkingHoursAdminMock).toHaveBeenCalledWith(
+      expect.objectContaining({ specialistId: OWN_SPECIALIST }),
+    );
   });
 
   it("POST forces own specialist (body specialistId is ignored)", async () => {
@@ -219,7 +237,7 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
   });
 
   it("returns 409 when the org has no specialist configured", async () => {
-    mockGateWithSpecialist([]);
+    mockGateWithSpecialist([], null);
 
     const res = await GET(new Request("http://localhost/api/doctor/booking-engine/working-hours"));
     const json = (await res.json()) as { error?: string };

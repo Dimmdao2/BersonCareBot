@@ -6,28 +6,11 @@ import {
   runSaasIsolationTestScenarios,
   type SaasIsolationTestScenarioState,
 } from '../src/modules/operator-health/saasIsolationTestScenarioRunner';
+import {
+  parseSaasIsolationTestScenarioCliArgs,
+} from '../src/modules/operator-health/saasIsolationTestScenarioCliArgs';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
-
-function parseArgs(args: string[]): {
-  assertCleanOnly: boolean;
-  proveInjectedFailureCleanup: boolean;
-} {
-  const allowed = new Set([
-    '--execute',
-    '--assert-clean-only',
-    '--prove-cleanup-on-injected-failure',
-  ]);
-  if (args.some((arg) => !allowed.has(arg)) || !args.includes('--execute')) {
-    throw new Error('usage: --execute [--assert-clean-only|--prove-cleanup-on-injected-failure]');
-  }
-  const assertCleanOnly = args.includes('--assert-clean-only');
-  const proveInjectedFailureCleanup = args.includes('--prove-cleanup-on-injected-failure');
-  if (assertCleanOnly && proveInjectedFailureCleanup) {
-    throw new Error('saas_isolation_test_scenario_conflicting_options');
-  }
-  return { assertCleanOnly, proveInjectedFailureCleanup };
-}
 
 async function assertExactTestOperator(): Promise<void> {
   const result = await getSaasIsolationOperatorPool().query<{
@@ -83,7 +66,7 @@ async function readFixtureCounts() {
 }
 
 async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseSaasIsolationTestScenarioCliArgs(process.argv.slice(2));
   try {
     await assertExactTestOperator();
     if (options.assertCleanOnly) {

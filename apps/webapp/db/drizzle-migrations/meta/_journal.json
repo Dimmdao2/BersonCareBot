@@ -1303,6 +1303,13 @@
       "when": 1791811200000,
       "tag": "0185_saas_isolation_diagnostics",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1791897600000,
+      "tag": "0186_app_runtime_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -65,7 +65,12 @@ const ids = {
     '53000000-0000-4000-8000-0000000053a1',
     '53000000-0000-4000-8000-0000000053b1',
   ],
-  workingHours: ['53000000-0000-4000-8000-0000000054a1', '53000000-0000-4000-8000-0000000054b1'],
+  workingHours: [
+    '53000000-0000-4000-8000-0000000054a1',
+    '53000000-0000-4000-8000-0000000054a2',
+    '53000000-0000-4000-8000-0000000054a3',
+    '53000000-0000-4000-8000-0000000054b1',
+  ],
   externalMappings: [
     '53000000-0000-4000-8000-0000000055a1',
     '53000000-0000-4000-8000-0000000055b1',
@@ -1072,20 +1077,20 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       },
     ]);
     await tx.insert(schema.beWorkingHours).values([
-      {
-        id: ids.workingHours[0],
+      ...ids.specialistsA.map((specialistId, index) => ({
+        id: ids.workingHours[index]!,
         organizationId: ids.organizationA,
-        specialistId: ids.specialistsA[0],
+        specialistId,
         branchId: ids.branches[0],
         roomId: null,
-        weekday: 1,
+        weekday: index + 1,
         startMinute: 540,
         endMinute: 1020,
         isActive: true,
         updatedAt: nowIso,
-      },
+      })),
       {
-        id: ids.workingHours[1],
+        id: ids.workingHours[3],
         organizationId: ids.organizationB,
         specialistId: ids.specialistB,
         branchId: ids.branches[1],
