@@ -43,7 +43,7 @@ async function startWorker(): Promise<void> {
       while (true) {
         try {
           // Claim + queue bookkeeping is tenant-agnostic dispatch (rows were already org-filtered
-          // at enqueue time); wrap the whole drain cycle in infra so DB_PRINCIPAL_CONTEXT_MODE=locked
+          // at enqueue time); wrap the whole drain cycle in infra when DB_PRINCIPAL_CONTEXT_MODE is locked, so it
           // doesn't reject the claim query before per-job dispatch gets a chance to install its own
           // org principal deeper in the executor pipeline.
           await runWithInfraPrincipal({ source: 'worker:job-queue-drain' }, async () => {

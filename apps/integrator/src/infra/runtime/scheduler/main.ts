@@ -14,7 +14,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function startScheduler(): Promise<void> {
   // Advisory lock acquisition happens before any staff/patient/org context exists (pre-buildDeps);
-  // under DB_PRINCIPAL_CONTEXT_MODE=locked the connection layer requires SOME principal to be set
+  // when DB_PRINCIPAL_CONTEXT_MODE is locked, the connection layer requires SOME principal to be set
   // before it will touch the DB at all (even for a pg_try_advisory_lock, which isn't RLS-governed
   // data access). infra is the right shape here — same as the actual dispatch tick below.
   const lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>

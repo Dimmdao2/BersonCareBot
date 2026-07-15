@@ -681,7 +681,7 @@ export async function runOutgoingDeliveryWorkerTick(input: {
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 }): Promise<{ claimed: number; processed: number; errors: number }> {
   // The claim/reset step below is tenant-agnostic dispatch (rows were already org-filtered at
-  // enqueue time); wrap the whole tick in infra so DB_PRINCIPAL_CONTEXT_MODE=locked doesn't reject
+  // enqueue time); wrap the whole tick in infra when DB_PRINCIPAL_CONTEXT_MODE is locked, so it doesn't reject
   // the connection before per-row processing gets a chance to install its own org principal.
   return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () => runOutgoingDeliveryWorkerTickInner(input));
 }
