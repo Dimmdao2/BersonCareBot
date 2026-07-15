@@ -69,6 +69,7 @@ const {
   getOperatorJobStatusMock,
   listIntegrationWebhookLastStatusMock,
   loadAdminReminderPipelineMetricsMock,
+  readSaasIsolationHealthMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -95,6 +96,7 @@ const {
   getOperatorJobStatusMock: vi.fn(),
   listIntegrationWebhookLastStatusMock: vi.fn(),
   loadAdminReminderPipelineMetricsMock: vi.fn(),
+  readSaasIsolationHealthMock: vi.fn(),
 }));
 
 /** Routes SQL by substring — media preview probes run in parallel with playback metrics; order unspecified. */
@@ -126,6 +128,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getOutgoingDeliveryQueueHealth: getOutgoingDeliveryQueueHealthMock,
       getIntegratorPushOutboxHealth: getIntegratorPushOutboxHealthMock,
       listIntegrationWebhookLastStatus: listIntegrationWebhookLastStatusMock,
+    },
+    saasIsolationDiagnostics: {
+      readHealth: readSaasIsolationHealthMock,
     },
   })),
 }));
@@ -262,6 +267,7 @@ describe("GET /api/admin/system-health", () => {
     getIntegratorPushOutboxHealthMock.mockReset();
     getOperatorJobStatusMock.mockReset();
     loadAdminReminderPipelineMetricsMock.mockReset();
+    readSaasIsolationHealthMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
     getOutgoingDeliveryQueueHealthMock.mockResolvedValue({ ...zeroOutgoingSnapshot });
@@ -276,6 +282,40 @@ describe("GET /api/admin/system-health", () => {
         occurrenceHistory: { sent: 0, failed: 0 },
         deliveryEvents: { sent: 0, failed: 0 },
         patientReminderM2mIdempotencyKeysActive: 0,
+      },
+    });
+    readSaasIsolationHealthMock.mockResolvedValue({
+      schemaVersion: 3,
+      status: "okay",
+      statusReasons: [],
+      active: { unexplained: 0, explained: 0, occurrences: 0 },
+      resolved: { unexplained: 0, explained: 0, occurrences: 0 },
+      byClass: {},
+      events: [],
+      lastEventAt: null,
+      lastCoverage: {
+        id: "11111111-1111-4111-8111-111111111111",
+        status: "complete",
+        startedAt: "2026-07-15T10:00:00.000Z",
+        finishedAt: "2026-07-15T11:00:00.000Z",
+        servicesChecked: ["webapp", "integrator", "worker", "scheduler", "media_worker", "cron"],
+        checksCount: 12,
+        unexpectedErrorsCount: 0,
+      },
+      coverageFresh: true,
+      coverageComplete: true,
+      missingServices: [],
+      trend: {
+        asOf: "2026-07-15T12:00:00.000Z",
+        current24Hours: 4,
+        previous24Hours: 2,
+        delta: 2,
+        daily7Days: [
+          { date: "2026-07-09", count: 0 }, { date: "2026-07-10", count: 0 },
+          { date: "2026-07-11", count: 1 }, { date: "2026-07-12", count: 0 },
+          { date: "2026-07-13", count: 2 }, { date: "2026-07-14", count: 2 },
+          { date: "2026-07-15", count: 4 },
+        ],
       },
     });
     globalThis.fetch = originalFetch;
@@ -344,6 +384,7 @@ describe("GET /api/admin/system-health", () => {
         patientReminderM2mIdempotencyKeysActive: number;
       };
       cronJobs: { status: string; jobs: Array<{ id: string; jobKey: string }> };
+      saasIsolation: { schemaVersion: number; status: string; active: { unexplained: number } };
       meta?: {
         probes?: {
           projection?: { status: string; durationMs: number };
@@ -355,6 +396,7 @@ describe("GET /api/admin/system-health", () => {
           integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
           remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
           cronJobs?: { status: string; durationMs: number; errorCode?: string };
+          saasIsolation?: { status: string; durationMs: number; errorCode?: string };
         };
       };
       fetchedAt: string;
@@ -400,6 +442,14 @@ describe("GET /api/admin/system-health", () => {
     expect(body.cronJobs.jobs.some((j) => j.id === "outbound_integration_probes")).toBe(true);
     expect(body.cronJobs.jobs.some((j) => j.id === "playback_retention")).toBe(true);
     expect(body.meta?.probes?.cronJobs?.status).toBeDefined();
+    expect(body.saasIsolation).toMatchObject({
+      schemaVersion: 3,
+      status: "okay",
+      coverageComplete: true,
+      lastCoverage: { status: "complete", checksCount: 12 },
+      trend: { current24Hours: 4, previous24Hours: 2, delta: 2 },
+    });
+    expect(body.meta?.probes?.saasIsolation?.status).toBe("okay");
   });
 
   it("returns integrator unreachable when /health probe fails", async () => {

@@ -5,7 +5,7 @@ import { basename } from "node:path";
 
 const REQUIRED_PROCESS_NAMES = new Set(["webapp", "integrator", "media-worker"]);
 const REQUIRED_SHARED_KEYS = ["DB_PRINCIPAL_CONTEXT_MODE", "DB_PRINCIPAL_SIGNING_SECRET"];
-const WEBAPP_DUAL_URL_KEYS = ["DATABASE_URL_STAFF", "DATABASE_URL_NONSTAFF"];
+const WEBAPP_DATABASE_URL_KEYS = ["DATABASE_URL_STAFF", "DATABASE_URL_NONSTAFF", "SAAS_ISOLATION_OPERATOR_DATABASE_URL"];
 const MIN_SECRET_BYTES = 32;
 
 function fail(message) {
@@ -108,7 +108,7 @@ function defaultPortForProtocol(protocol) {
 
 function assertNoSecretLeak(output, loadedFiles) {
   for (const file of loadedFiles) {
-    for (const key of ["DB_PRINCIPAL_SIGNING_SECRET", ...WEBAPP_DUAL_URL_KEYS]) {
+    for (const key of ["DB_PRINCIPAL_SIGNING_SECRET", ...WEBAPP_DATABASE_URL_KEYS]) {
       const value = file.values.get(key);
       if (value && output.includes(value)) {
         fail(`preflight output leaked ${key} from ${file.processName}`);
@@ -156,7 +156,7 @@ function validateLoadedFiles(loadedFiles) {
   }
 
   const webapp = seen.get("webapp");
-  for (const key of WEBAPP_DUAL_URL_KEYS) {
+  for (const key of WEBAPP_DATABASE_URL_KEYS) {
     const value = webapp?.values.get(key)?.trim() ?? "";
     if (!value) {
       fail(`webapp missing ${key}`);
@@ -168,11 +168,16 @@ function validateLoadedFiles(loadedFiles) {
   if (webapp?.values.get("DATABASE_URL_STAFF") === webapp?.values.get("DATABASE_URL_NONSTAFF")) {
     fail("webapp DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must not be identical for C2 dual-login preflight");
   }
+  const operatorUrl = webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL");
+  if (operatorUrl === webapp?.values.get("DATABASE_URL_STAFF") || operatorUrl === webapp?.values.get("DATABASE_URL_NONSTAFF")) {
+    fail("webapp SAAS_ISOLATION_OPERATOR_DATABASE_URL must use a separate operator login");
+  }
 
   return {
     signingFingerprint: [...uniqueSigningFingerprints][0],
     webappStaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_STAFF") ?? ""),
     webappNonstaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_NONSTAFF") ?? ""),
+    webappOperatorUrlShape: fingerprintUrlHost(webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL") ?? ""),
   };
 }
 
@@ -182,6 +187,7 @@ function renderReport(loadedFiles, summary) {
     `signing_secret_sha256_16=${summary.signingFingerprint}`,
     `webapp_DATABASE_URL_STAFF_shape=${summary.webappStaffUrlShape}`,
     `webapp_DATABASE_URL_NONSTAFF_shape=${summary.webappNonstaffUrlShape}`,
+    `webapp_SAAS_ISOLATION_OPERATOR_DATABASE_URL_shape=${summary.webappOperatorUrlShape}`,
     "restart_order=webapp integrator worker scheduler media-worker",
     "rollback_order=restore previous root-managed env files, restart same units, rerun this preflight",
   ];
@@ -211,6 +217,7 @@ DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET='${sharedSecret}'
 DATABASE_URL_STAFF=postgres://staff:staff-secret@127.0.0.1:5432/bersoncarebot_test
 DATABASE_URL_NONSTAFF=postgres://nonstaff:nonstaff-secret@127.0.0.1:5432/bersoncarebot_test
+SAAS_ISOLATION_OPERATOR_DATABASE_URL=postgres://saas_operator:operator-secret@127.0.0.1:5432/bersoncarebot_test
 `),
     },
     {

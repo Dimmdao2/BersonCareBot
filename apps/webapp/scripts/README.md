@@ -21,11 +21,27 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 ## Прочие файлы
 
 **SaaS S3 TEST fixture:** [`seed-saas-test-walkthrough-fixtures.ts`](seed-saas-test-walkthrough-fixtures.ts)
-транзакционно и идемпотентно восстанавливает две полностью синтетические A/B клиники после fresh restore.
+транзакционно и идемпотентно восстанавливает manifest v2: многопрофильную клинику A (управляющий и два
+специалиста, пять пациентов) и соло-клинику B (один специалист, три пациента). Representative patient каждой
+клиники имеет отдельный email-login; fixture также содержит услуги, прошлые/будущие записи, абонементы с
+историей списаний, программы упражнений, разные варианты отметок выполнения и данные графиков. Очистка
+ограничена repo-reserved персонами/ID и не удаляет произвольные строки всей клиники.
+Shared patient состоит в обеих клиниках; public booking получает branch/availability/hours и два
+deterministic legacy `branchServiceId` mapping, а System Health — отдельный global-admin login.
+Shared patient также имеет свой reserved `.test` email/password credential; пароль повторно использует
+защищённый Clinic A packet key, поэтому нового секрета нет. Детерминированные login/context/route/viewport
+ссылки лежат в `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`; operator walkthrough описан в
+[`ST-02_WALKTHROUGH.md`](../../../docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ST-02_WALKTHROUGH.md).
+Store/payment использует только `fixture_noop`, уведомления выключены. Media rows имеют `s3_key IS NULL`
+и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
+только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3
+и каналы доставки не вызываются.
 Запускается только из `deploy/host/deploy-test-saas.sh` в узком controlled owner+BYPASSRLS reconciliation
 window с обязательным cleanup, требует explicit
 `SAAS_TEST_FIXTURE_ENABLED=1` и четыре credential key из защищённого внешнего TEST operator packet. Скрипт
 проверяет `current_database() = bersoncarebot_test`, не делает внешних вызовов и не печатает реквизиты/ID.
+Добавленные специалисты A и representative patients используют пароль своей клиники только внутри
+зарезервированных `.test`-аккаунтов; secret packet остаётся неизменным.
 Packet никогда не shell-source-ится: единый parser требует non-symlink `root:deploy 0640`, ровно пять
 JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell-конструкции.
 Канон: `docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md`.
@@ -39,3 +55,22 @@ JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell
 **Фон CMS-медиа (превью):** [`media-preview-process-tick.ts`](media-preview-process-tick.ts) — батч `processMediaPreviewBatch` вне Next; запуск `pnpm run media-preview:tick` (см. `deploy/HOST_DEPLOY_README.md`, `docs/MEDIA_PREVIEW_PIPELINE.md`).
 
 **Программы лечения — битые снимки после editor-batch:** [`backfill-treatment-program-editor-draft-snapshots.ts`](backfill-treatment-program-editor-draft-snapshots.ts) — пересборка `treatment_program_instance_stage_items.snapshot` из каталога (`buildSnapshot`); runbook: [`docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md`](../../../docs/OPERATIONS/TREATMENT_PROGRAM_EDITOR_DRAFT_SNAPSHOT_BACKFILL.md). Команда: `pnpm run backfill-treatment-program-editor-draft-snapshots` (dry-run, `--commit` для записи; `--all` — все кандидаты батчами).
+## SaaS isolation diagnostics
+
+`report-saas-isolation-diagnostics.ts` accepts only closed, redacted classes and normalized route/job-family keys.
+Event writes use the ambient EXECUTE-only writer role; `read` and `coverage` require the separate infrastructure
+login in `SAAS_ISOLATION_OPERATOR_DATABASE_URL`. Ambient app/bootstrap roles cannot read, record coverage or resolve.
+Run `pnpm --dir apps/webapp exec tsx scripts/report-saas-isolation-diagnostics.ts read`; coverage also requires a
+caller-generated UUID `--id`. SQL, payloads and identity fields are never accepted.
+
+For the owner-ready TEST walkthrough, the same CLI has a reversible protected scenario command:
+`pnpm --dir apps/webapp run diagnostics:saas-isolation -- scenario --state <okay|incomplete|critical|clean>`.
+The database function refuses every database except exact `bersoncarebot_test`, is executable only by the separate
+operator role, and changes only reserved `test-fixture:v3:*` diagnostics rows and three reserved coverage UUIDs.
+The executable wrapper
+`pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- --execute` verifies
+`okay → incomplete → critical` and always invokes `clean` plus a reserved-row count assertion in `finally`.
+`--prove-cleanup-on-injected-failure` intentionally stops after `incomplete`, then proves the same cleanup path.
+Both modes preflight exact `bersoncarebot_test` and the separate least-privilege operator membership before writes;
+they never print the connection URL. Cleanup does not delete or resolve real diagnostics events. Because real active
+events remain authoritative, `okay` intentionally cannot mask an existing genuine critical signal.

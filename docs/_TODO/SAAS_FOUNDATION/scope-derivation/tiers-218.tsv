@@ -227,3 +227,6 @@ SCOPED|public.user_subscriptions_webapp
 SCOPED|public.webapp_reminder_occurrences
 TELEMETRY|public.media_playback_stats_hourly
 TELEMETRY|public.product_analytics_hourly
+TELEMETRY|public.saas_isolation_coverage_runs
+TELEMETRY|public.saas_isolation_event_hourly
+TELEMETRY|public.saas_isolation_events

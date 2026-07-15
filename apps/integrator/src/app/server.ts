@@ -4,6 +4,8 @@ import { integrationRegistry } from '../integrations/registry.js';
 import { buildDeps, type BuildDepsInput } from './di.js';
 import { registerRoutes } from './routes.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
+import { isRecognizedSaasIsolationFailure } from '@bersoncare/db-principal';
+import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 
 /**
  * Builds Fastify app instance and wires routes with composed dependencies.
@@ -18,6 +20,9 @@ export async function buildApp(input?: BuildDepsInput) {
 
   const deps = buildDeps(input);
   await registerRoutes(app, deps);
+  app.addHook('onError', async (_request, _reply, error) => {
+    if (isRecognizedSaasIsolationFailure(error)) reportIntegratorIsolationFailure(error);
+  });
 
   app.log.info(
     {

@@ -27,6 +27,15 @@ import {
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
   type HealthFailureArchiveProbe,
 } from "@/modules/operator-health/healthFailureArchiveConstants";
+import type {
+  SaasIsolationEventClass,
+  SaasIsolationExplanationStatus,
+  SaasIsolationHealthPayload,
+  SaasIsolationLifecycleStatus,
+  SaasIsolationSourceService,
+  SaasIsolationSourceOperation,
+  SaasIsolationStatusReason,
+} from "@/modules/operator-health/saasIsolationDiagnostics";
 
 type HealthOperatorAction =
   | { kind: "archive"; probe: HealthFailureArchiveProbe }
@@ -288,6 +297,7 @@ type SystemHealthPayload = {
     } | null;
   };
   operatorHealthDigest?: { lastSentAt: string | null };
+  saasIsolation?: SaasIsolationHealthPayload;
   probeOutbound?: { consecutiveFailRuns: number };
   integrations?: {
     rubitime: IntegrationHealthEntryPayload;
@@ -314,6 +324,7 @@ type SystemHealthPayload = {
       webPushOnlyReminderTick?: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery?: { status: string; durationMs: number; errorCode?: string };
       cronJobs?: { status: string; durationMs: number; errorCode?: string };
+      saasIsolation?: { status: string; durationMs: number; errorCode?: string };
     };
   };
   fetchedAt: string;
@@ -773,6 +784,60 @@ function playbackClientEventRu(eventClass: string): string {
   return m[eventClass] ?? eventClass;
 }
 
+const SAAS_ISOLATION_CLASS_LABEL: Record<SaasIsolationEventClass, string> = {
+  missing_principal: "Запрос без удостоверения",
+  invalid_signature_or_install: "Удостоверение не установлено",
+  role_pool_mismatch: "Неверная роль подключения",
+  rls_denial: "Отказ стены базы",
+  cleanup_failure: "Не очищено подключение",
+  unclassified_background_operation: "Фоновая операция без владельца",
+};
+
+const SAAS_ISOLATION_SERVICE_LABEL: Record<SaasIsolationSourceService, string> = {
+  webapp: "Webapp",
+  integrator: "Integrator API",
+  worker: "Worker",
+  scheduler: "Scheduler",
+  media_worker: "Media worker",
+  cron: "Cron",
+};
+
+const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, string> = {
+  webapp_db_request: "запрос webapp к БД",
+  webapp_admin_system_health: "страница здоровья системы",
+  integrator_http_request: "HTTP-запрос integrator",
+  integrator_projection: "проекция integrator",
+  worker_queue_drain: "очередь заданий worker",
+  worker_projection_delivery: "доставка проекций worker",
+  worker_outgoing_delivery: "доставка сообщений worker",
+  scheduler_lock: "лидерская блокировка scheduler",
+  scheduler_dispatch_tick: "тик scheduler",
+  media_transcode_tick: "обработка медиа",
+  cron_health: "cron здоровья системы",
+  cron_media: "cron обслуживания медиа",
+  cron_analytics: "cron аналитики",
+  cron_reminders: "cron напоминаний",
+  cron_specialist_tasks: "cron задач специалистов",
+};
+
+const SAAS_ISOLATION_REASON_LABEL: Record<SaasIsolationStatusReason, string> = {
+  active_unexplained_event: "Есть активная необъяснённая ошибка",
+  coverage_unexpected_error: "Полная проверка нашла неожиданную ошибку",
+  coverage_missing: "Полная проверка ещё не запускалась",
+  coverage_failed: "Полная проверка завершилась ошибкой",
+  coverage_services_missing: "Проверены не все обязательные сервисы",
+  coverage_checks_empty: "В прогоне нет выполненных проверок",
+  active_explained_event: "Есть активная объяснённая ошибка",
+  coverage_stale: "Результат полной проверки устарел",
+};
+
+function saasIsolationAccordionStatus(status: SaasIsolationHealthPayload["status"] | undefined): string {
+  if (status === "critical") return "error";
+  if (status === "incomplete" || status === "stale") return "degraded";
+  if (status === "okay") return "ok";
+  return "no_data";
+}
+
 export function SystemHealthSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -780,6 +845,10 @@ export function SystemHealthSection() {
   const [operatorAction, setOperatorAction] = useState<HealthOperatorAction | null>(null);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
+  const [saasClassFilter, setSaasClassFilter] = useState<"all" | SaasIsolationEventClass>("all");
+  const [saasLifecycleFilter, setSaasLifecycleFilter] = useState<"all" | SaasIsolationLifecycleStatus>("all");
+  const [saasExplanationFilter, setSaasExplanationFilter] = useState<"all" | SaasIsolationExplanationStatus>("all");
+  const [saasServiceFilter, setSaasServiceFilter] = useState<"all" | SaasIsolationSourceService>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -851,6 +920,11 @@ export function SystemHealthSection() {
   const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const cronJobRows = data?.cronJobs?.jobs ?? [];
   const cronJobsAccordionStatus = data?.cronJobs?.status ?? "no_data";
+  const filteredSaasIsolationEvents = (data?.saasIsolation?.events ?? []).filter((event) =>
+    (saasClassFilter === "all" || event.eventClass === saasClassFilter)
+    && (saasServiceFilter === "all" || event.sourceService === saasServiceFilter)
+    && (saasLifecycleFilter === "all" || event.lifecycleStatus === saasLifecycleFilter)
+    && (saasExplanationFilter === "all" || event.explanationStatus === saasExplanationFilter));
 
   const webPushTickStatus = data?.webPushOnlyReminderTick?.status ?? "no_data";
   const webPushSubsStatus = data?.webPush?.status ?? "error";
@@ -920,6 +994,137 @@ export function SystemHealthSection() {
         <CardContent className="space-y-3 text-sm">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Платформа и API</p>
+            <HealthAccordionItem
+              name="Изоляция клиник"
+              status={saasIsolationAccordionStatus(data?.saasIsolation?.status)}
+              aiSnapshot={healthCardAiSnapshot(
+                "Изоляция клиник",
+                data?.saasIsolation?.status ?? "no_data",
+                data?.saasIsolation ?? {},
+                data?.meta?.probes?.saasIsolation ?? null,
+                data?.fetchedAt,
+              )}
+            >
+              <DetailRow
+                label="Итог"
+                value={
+                  data?.saasIsolation?.status === "critical"
+                    ? "Есть необъяснённая ошибка изоляции"
+                    : data?.saasIsolation?.status === "okay"
+                      ? "Свежая полная проверка пройдена"
+                      : data?.saasIsolation?.status === "stale"
+                        ? "Полная проверка устарела"
+                        : "Проверка неполна или требует внимания"
+                }
+              />
+              <DetailRow
+                label="Активные: необъяснённые / объяснённые"
+                value={`${data?.saasIsolation?.active.unexplained ?? 0} / ${data?.saasIsolation?.active.explained ?? 0}`}
+              />
+              <DetailRow
+                label="Причины статуса"
+                value={data?.saasIsolation?.statusReasons.map((reason) => SAAS_ISOLATION_REASON_LABEL[reason]).join("; ") || "нет"}
+              />
+              <DetailRow
+                label="Закрытые: необъяснённые / объяснённые"
+                value={`${data?.saasIsolation?.resolved.unexplained ?? 0} / ${data?.saasIsolation?.resolved.explained ?? 0}`}
+              />
+              <DetailRow
+                label="Последняя полная проверка"
+                value={formatDateTime(data?.saasIsolation?.lastCoverage?.finishedAt ?? null)}
+              />
+              <DetailRow
+                label="Покрытие сервисов"
+                value={data?.saasIsolation?.lastCoverage?.servicesChecked.join(", ") || "нет данных"}
+              />
+              <DetailRow
+                label="Не проверены"
+                value={data?.saasIsolation?.missingServices.join(", ") || "нет"}
+              />
+              <DetailRow
+                label="Проверок / неожиданных ошибок"
+                value={`${data?.saasIsolation?.lastCoverage?.checksCount ?? 0} / ${data?.saasIsolation?.lastCoverage?.unexpectedErrorsCount ?? 0}`}
+              />
+              <DetailRow
+                label="Сигналы: последние 24 ч / предыдущие 24 ч"
+                value={`${data?.saasIsolation?.trend.current24Hours ?? 0} / ${data?.saasIsolation?.trend.previous24Hours ?? 0}`}
+              />
+              <DetailRow
+                label="Окно тренда рассчитано на"
+                value={formatDateTime(data?.saasIsolation?.trend.asOf)}
+              />
+              <DetailRow
+                label="Изменение за 24 ч"
+                value={
+                  data?.saasIsolation
+                    ? `${data.saasIsolation.trend.delta > 0 ? "+" : ""}${data.saasIsolation.trend.delta}`
+                    : "0"
+                }
+              />
+              <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-7" aria-label="Сигналы изоляции за 7 дней">
+                {(data?.saasIsolation?.trend.daily7Days ?? []).map((point) => (
+                  <div key={point.date} className="rounded border border-border/50 p-2 text-center text-xs">
+                    <div className="text-muted-foreground">{point.date.slice(5)}</div>
+                    <div className="font-medium">{point.count}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid gap-1 sm:grid-cols-2">
+                {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map((eventClass) => (
+                  <DetailRow
+                    key={eventClass}
+                    label={SAAS_ISOLATION_CLASS_LABEL[eventClass]}
+                    value={String(data?.saasIsolation?.byClass[eventClass] ?? 0)}
+                  />
+                ))}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Фильтры диагностики изоляции">
+                <label className="space-y-1 text-xs">Класс
+                  <select className="w-full rounded-md border bg-background p-2" value={saasClassFilter} onChange={(event) => setSaasClassFilter(event.target.value as "all" | SaasIsolationEventClass)}>
+                    <option value="all">Все</option>
+                    {(Object.keys(SAAS_ISOLATION_CLASS_LABEL) as SaasIsolationEventClass[]).map((eventClass) => <option key={eventClass} value={eventClass}>{SAAS_ISOLATION_CLASS_LABEL[eventClass]}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs">Сервис
+                  <select className="w-full rounded-md border bg-background p-2" value={saasServiceFilter} onChange={(event) => setSaasServiceFilter(event.target.value as "all" | SaasIsolationSourceService)}>
+                    <option value="all">Все</option>
+                    {(Object.keys(SAAS_ISOLATION_SERVICE_LABEL) as SaasIsolationSourceService[]).map((service) => <option key={service} value={service}>{SAAS_ISOLATION_SERVICE_LABEL[service]}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs">Состояние
+                  <select className="w-full rounded-md border bg-background p-2" value={saasLifecycleFilter} onChange={(event) => setSaasLifecycleFilter(event.target.value as "all" | SaasIsolationLifecycleStatus)}>
+                    <option value="all">Все</option><option value="active">Активные</option><option value="resolved">Закрытые</option>
+                  </select>
+                </label>
+                <label className="space-y-1 text-xs">Объяснение
+                  <select className="w-full rounded-md border bg-background p-2" value={saasExplanationFilter} onChange={(event) => setSaasExplanationFilter(event.target.value as "all" | SaasIsolationExplanationStatus)}>
+                    <option value="all">Все</option><option value="unexplained">Не объяснены</option><option value="explained">Объяснены</option>
+                  </select>
+                </label>
+              </div>
+              {filteredSaasIsolationEvents.map((event) => (
+                <details
+                  key={`${event.eventClass}:${event.sourceService}:${event.sourceOperation}:${event.lifecycleStatus}`}
+                  className="rounded-md border border-border/50 p-2"
+                >
+                  <summary className="cursor-pointer font-medium">{SAAS_ISOLATION_CLASS_LABEL[event.eventClass]} · {event.occurrenceCount}</summary>
+                  <DetailRow label="Класс" value={SAAS_ISOLATION_CLASS_LABEL[event.eventClass]} />
+                  <DetailRow
+                    label="Источник"
+                    value={`${SAAS_ISOLATION_SERVICE_LABEL[event.sourceService]}: ${SAAS_ISOLATION_OPERATION_LABEL[event.sourceOperation]}`}
+                  />
+                  <DetailRow
+                    label="Состояние / объяснение"
+                    value={`${event.lifecycleStatus === "active" ? "активна" : "закрыта"} / ${event.explanationStatus === "explained" ? "объяснена" : "не объяснена"}`}
+                  />
+                  <DetailRow label="Количество" value={String(event.occurrenceCount)} />
+                  <DetailRow label="Первый / последний сигнал" value={`${formatDateTime(event.firstSeenAt)} / ${formatDateTime(event.lastSeenAt)}`} />
+                </details>
+              ))}
+              {filteredSaasIsolationEvents.length === 0 ? <p className="text-xs text-muted-foreground">По выбранным фильтрам событий нет.</p> : null}
+              <ProbeInfo probe={data?.meta?.probes?.saasIsolation} />
+            </HealthAccordionItem>
+
             <HealthAccordionItem
               name="База данных веб-приложения"
               status={data?.webappDb ?? "down"}

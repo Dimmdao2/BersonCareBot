@@ -156,21 +156,21 @@ function runChecks(overrides = {}) {
   ]);
 
   requireFragments(files.deployTestSaas, loaded.deployTestSaas, [
-    "TEST services may run DB_PRINCIPAL_CONTEXT_MODE=legacy-guc|shadow|locked after migrations",
+    "TEST services run DB_PRINCIPAL_CONTEXT_MODE=locked after migrations",
     "assert_test_runtime_mode_ready",
-    "startup DDL disabled",
+    "must use DB_PRINCIPAL_CONTEXT_MODE=locked for strict TEST",
   ]);
 
   requireFragments(files.protocol, loaded.protocol, [
     "`deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.",
     "Integrator API startup is not a migration runner in `shadow|locked`.",
-    "only for an owner-approved dormant rollback",
+    "historical TEST-only diagnostic artifact",
+    "must not be used to recover a\n   failed strict TEST deployment by switching walls off",
     "not required for a locked TEST restart",
     "bash deploy/host/saas-test-mode.sh --check",
     "bash deploy/host/saas-test-mode.sh --mode dormant --dry-run",
-    "bash deploy/host/saas-test-mode.sh --mode dormant --apply --restart",
-    "TEST-only, redacted, default-dry-run, backup-before-rewrite",
-    "`saas-test-mode.sh --mode locked` must fail-fast",
+    "historical mode helper may still be inspected in dry-run mode",
+    "`saas-test-mode.sh --mode locked` remains fail-fast",
   ]);
 
   const packageJson = JSON.parse(loaded.packageJson);
@@ -210,7 +210,10 @@ function runSelfTest() {
       script: baseScript.replace('locked mode is not implemented by this TEST env rollback helper', 'locked mode writes env here'),
     },
     {
-      deployTestSaas: read(files.deployTestSaas).replace("startup DDL disabled", "startup DDL still enabled"),
+      deployTestSaas: read(files.deployTestSaas).replace(
+        "must use DB_PRINCIPAL_CONTEXT_MODE=locked for strict TEST",
+        "legacy mode accepted",
+      ),
     },
     {
       protocol: read(files.protocol).replace("not required for a locked TEST restart", "locked restart requires manual env edit"),

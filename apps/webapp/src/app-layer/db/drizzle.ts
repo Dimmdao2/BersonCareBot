@@ -9,6 +9,11 @@ import {
 } from "@bersoncare/db-principal";
 import * as schema from "../../../db/schema";
 import { getPool } from "./client";
+import {
+  reportDbCleanupFailure,
+  reportDbQueryFailure,
+  reportPrincipalSetupFailure,
+} from "@/infra/db/saasIsolationDbFailureReporting";
 
 export type DrizzleDb = NodePgDatabase<typeof schema>;
 type DrizzleTransaction = Parameters<Parameters<DrizzleDb["transaction"]>[0]>[0];
@@ -91,12 +96,28 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
     return rawTransaction(
       async (tx) => {
         const queryable = drizzlePrincipalQueryable(tx);
-        const applied = await applyCurrentDbPrincipalToTransaction(queryable, principalApplyOptions);
+        let applied = false;
         try {
-          return await callback(tx);
+          applied = await applyCurrentDbPrincipalToTransaction(queryable, principalApplyOptions);
+        } catch (error) {
+          await reportPrincipalSetupFailure(error);
+          throw error;
+        }
+        try {
+          try {
+            return await callback(tx);
+          } catch (error) {
+            await reportDbQueryFailure(error);
+            throw error;
+          }
         } finally {
           if (applied) {
-            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions);
+            try {
+              await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions);
+            } catch (error) {
+              await reportDbCleanupFailure();
+              throw error;
+            }
           }
         }
       },

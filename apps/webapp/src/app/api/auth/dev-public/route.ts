@@ -6,21 +6,29 @@ import { getRequestOrigin } from '@/shared/lib/http/getRequestOrigin';
 import { MESSENGER_SURFACE_COOKIE_NAME, PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
 import { NextResponse } from 'next/server';
 
-/** Dev-only switch to a clean unauthenticated public/login or specialist-registration surface. */
+const REGISTRATION_VIEWS = new Set([
+  'registration',
+  'specialist-registration',
+  'clinic-registration',
+]);
+
+/** Dev-only switch to a clean unauthenticated public/login or combined specialist+clinic registration surface. */
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/dev-public:GET');
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request, requestUrl);
 
-  if (!isDevAuthBypassEnabled({
-    nodeEnv: env.NODE_ENV,
-    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
-  })) {
+  if (
+    !isDevAuthBypassEnabled({
+      nodeEnv: env.NODE_ENV,
+      allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
+    })
+  ) {
     return NextResponse.redirect(new URL('/app', origin), { status: 303 });
   }
 
   await buildAppDeps().auth.clearSession();
-  const target = requestUrl.searchParams.get('view') === 'registration'
+  const target = REGISTRATION_VIEWS.has(requestUrl.searchParams.get('view') ?? '')
     ? '/app?devView=registration'
     : '/app';
   const response = NextResponse.redirect(new URL(target, origin), { status: 303 });

@@ -10,6 +10,15 @@ export async function requireAdminDoctorPage() {
   return session;
 }
 
+/** Глобальные operator pages: global admin и обязательно явно включённый admin mode. */
+export async function requireGlobalAdminDoctorPage() {
+  const session = await requireDoctorAccess();
+  if (session.user.role !== "admin" || session.adminMode !== true) {
+    redirect("/app/doctor");
+  }
+  return session;
+}
+
 /** Страницы управления клиникой: global admin in admin mode или управляющий участник клиники. */
 export async function requireClinicManagementDoctorPage() {
   const workspace = await requireDoctorWorkspaceContext();

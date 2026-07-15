@@ -21,17 +21,18 @@ Webapp:
 - `apps/webapp/src/app-layer/db/drizzle.ts` - `getDrizzle()`; T0.3.2 applies the current `app.org` principal inside Drizzle transactions when AsyncLocalStorage principal exists.
 - `apps/webapp/src/infra/db/runWebappSql.ts` - `runWebappSql`, `runWebappPgText`, `runPgPoolPgText`
 - `apps/webapp/src/infra/db/withClient.ts` - `withClient`, `withTransaction`
+- `apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts` - dedicated max-one true-global telemetry pool provider
 
 Integrator:
 
 - `apps/integrator/src/infra/db/client.ts` - process `DbPort`
-- `apps/integrator/src/infra/db/integratorPoolProvider.ts` - runtime pool provider
+- `apps/integrator/src/infra/db/integratorPoolProvider.ts` - runtime pool provider plus dedicated max-one telemetry factory
 - `apps/integrator/src/infra/db/runIntegratorSql.ts` - Drizzle SQL bridge
 - `apps/integrator/src/infra/db/withClient.ts` - checkout/transaction helpers
 
 Media-worker:
 
-- `apps/media-worker/src/poolProvider.ts` - pool provider
+- `apps/media-worker/src/poolProvider.ts` - runtime pool provider plus dedicated max-one telemetry factory
 - `apps/media-worker/src/withClient.ts` - transaction helper
 - `apps/media-worker/src/runMediaWorkerSql.ts` - SQL bridge and infra-principal helper
 

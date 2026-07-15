@@ -10,6 +10,7 @@ const roleSwitchScanRoots = [...scanRoots, "packages/db-principal/src"];
 
 const allowedPoolProviderFiles = new Set([
   "apps/webapp/src/infra/db/webappPoolProvider.ts",
+  "apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts",
   "apps/webapp/src/infra/db/integratorPurgePoolProvider.ts",
   "apps/integrator/src/infra/db/integratorPoolProvider.ts",
   "apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts",

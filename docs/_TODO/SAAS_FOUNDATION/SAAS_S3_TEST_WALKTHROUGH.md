@@ -36,9 +36,10 @@
   содержимого файла в команды, shell history, чат или отчёт. Сам исполнитель walkthrough файл не печатает и не
   переносит. Доказательство: обе сессии открывают кабинет без OTP; секретов в артефактах нет. Канон seeder и
   packet — `HARD_MIGRATION_PROTOCOL.md`, раздел «B1, A2, and product smoke gates».
-- [ ] До первого экрана записать в `run-manifest.md` только каноническую aggregate-картину fixture: Clinic A —
-  пять синтетических пациентов и representative past+future appointments; Clinic B — без пациентов и записей;
-  обе клиники имеют отдельного active owner/clinic_admin и specialist. Не писать credential values или opaque IDs.
+- [ ] До первого экрана записать в `run-manifest.md` только каноническую aggregate-картину fixture v2: Clinic A —
+  управляющий и два специалиста, пять пациентов; Clinic B — соло-специалист и три пациента. В обеих клиниках
+  есть past+future appointments, а representative patient имеет абонемент, программу и историю выполнения.
+  Не писать credential values или opaque IDs.
   Доказательство: каждая пустая страница ниже сопоставлена с этой картиной, а не с догадкой.
 - [ ] Использовать два независимых постоянных browser profiles: `clinic-a` и `clinic-b`; никогда не
   перелогиниваться в одном профиле. Доказательство: перед каждым блоком виден свой кабинет/роль и нет cookie
@@ -113,7 +114,7 @@
 - [ ] **2. Пациенты и две карточки.** `/app/doctor/patients` и открыть по одному пациенту из доступного
   списка A и B без сохранения. Где: `DOCTOR_CABINET_NAVIGATION.md:19-21`; экран пациента в
   `apps/webapp/src/shared/ui/doctorScreenTitles.ts:69-72`. Доказательство: список и карточка не содержат
-  пациента другой клиники; законно пустой B остаётся пустым, а не показывает A.
+  пациента другой клиники; Clinic A показывает пять своих пациентов, Clinic B — три своих.
 - [ ] **3. Записи и календарь.** Пройти canonical `/app/doctor/schedule?tab=cal`: выбрать подходящие
   диапазоны **3 дня / Неделя / Месяц** и кнопками предыдущего/следующего периода либо через `date`
   открыть fixture past и future appointments; «День» использовать только как drill-down. Для каждого
@@ -146,9 +147,8 @@
   клиники; global-admin страницы не использовать как A/B tenant assertion, потому что они определены как
   platform/global-only (`DOCTOR_CABINET_NAVIGATION.md:38-42`).
 
-Покрытие patient/global-admin поверхностей не выдумывать: для него нужны отдельно авторизованные TEST fixture
-accounts и разрешение владельца/оператора. Это отдельный проход, а не расширение S3 двумя doctor/clinic-admin
-профилями.
+Patient-поверхности можно проверять отдельным разрешённым проходом: manifest v2 содержит по одному
+representative patient login в каждой клинике. Global-admin остаётся отдельным проходом.
 
 ## Классификация результата
 

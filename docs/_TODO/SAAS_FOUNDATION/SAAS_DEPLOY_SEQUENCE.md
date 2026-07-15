@@ -18,56 +18,34 @@
 - Deploy repo: `/opt/projects/bersoncarebot-test` (checked out as user `deploy`).
 - Test units: `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`.
 
-## A. DORMANT deploy to TEST (walls installed, asleep — app behaves as today)
+## Historical A/B sequence (superseded)
+
+The recorded 2026-07-12 rehearsal first left migration 0177 in dormant/NO FORCE state and then planned a separate
+enforce flip. That split is retained only as provenance for disposable compatibility testing. It must not be copied
+or run against TEST.
+
+Current TEST has one supported outcome: writers stop, the wrapper performs migrations/data cleanup/roles/grants and
+all reviewed overlays, including the E1 closed telemetry API, then `deploy/postgres/test-strict-rls-finalizer.sql`
+applies base policies → safe invite/course/app_worker overlays → FORCE with exact catalog/semantic assertions.
+Temporary privileges are revoked, fixtures reconcile in a separate short privilege window, and only locked units
+that pass fail-closed health plus mandatory product smoke remain running. A failure is fixed in code/policy; walls
+are not disabled as recovery.
+
+Use only:
 
 ```bash
-DUMP=$(sudo -u postgres bash -lc "ls -t /opt/backups/postgres/hourly/*.dump | head -1")
-
-# 1. Fresh test DB = clean prod copy
-sudo -u postgres bash /tmp/bcb-test-setup/restore-test-db.sh "$DUMP"
-
-# 2. Deploy code (bundle branch → build → checkout). Uses deploy-test.sh but its migrate step WILL fail —
-#    that is expected; steps 3-4 do the correct migrate. (Or split: run only the build part.)
-bash deploy/host/deploy-test.sh auto/code-pg-delta   # migrate step fails here — ignore, do steps 3-4
-
-# 3. DATA-FIX first (the missing step — deploy-saas-667.sh Step 2)
-sudo -u deploy bash -lc "cd /opt/projects/bersoncarebot-test && set -a && . /opt/env/bersoncarebot/webapp.test && set +a && \
-  psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -f deploy/postgres/p0-data-fix-doctor-admin-split.sql"
-
-# 4. Migrate with TEMP BYPASSRLS (backfills under FORCE RLS), always revoke
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE bersoncarebot_test BYPASSRLS;"
-sudo -u deploy bash -lc "cd /opt/projects/bersoncarebot-test && \
-  API_ENV_FILE=/opt/env/bersoncarebot/api.test WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test pnpm migrate"
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE bersoncarebot_test NOBYPASSRLS;"
-# verify: drizzle count >= 178, org columns present
-sudo -u postgres psql -d bersoncarebot_test -tAc "SELECT count(*) FROM drizzle.__drizzle_migrations;"  # expect >=178
-
-# 5. Test-only settings override (send-safety redirect targets, maintenance bypass). NOTE: the override
-#    uses ON CONFLICT (key, scope); system_settings now has a wider org-aware unique key — override needs
-#    updating to match (see TODO below) or apply the fixed variant.
-sudo -u postgres psql -d bersoncarebot_test -v ON_ERROR_STOP=1 -f /tmp/bcb-test-setup/test-settings-override.sql
-
-# 6. Restart + verify
-for u in api worker scheduler webapp media-worker; do sudo systemctl restart "bersoncarebot-$u-test"; done
-curl -sk https://test.bersoncare.ru/api/health      # expect {"ok":true,"db":"up"}
-systemctl is-active awg-quick@awg0                   # must stay 'active' (prod relay untouched)
+bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
 ```
-Walls stay DORMANT: `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc` (default). App connects as owner; single-clinic = today.
 
-## B. FLIP to ENFORCE on TEST (walls ON — real cross-clinic isolation)
-> Separate, deliberate step AFTER A is verified. Do NOT bundle into A.
-> This is the option-D / phase4 cutover; the rehearsal proved the exact SQL. Sequence (roles → strict policies →
-> FORCE → grants → locked mode → role switch). To be scripted from `scripts/deploy-saas-667.sh` + the phase4
-> artifacts (`deploy/postgres/phase4-locked-helper-rls-policies.sql -v phase4_enforce_locked_context=1`,
-> `phase4-force-rls-cutover.sql` with `phase4_bootstrap_base_role`/`phase4_staff_role`/`phase4_owner_role` vars,
-> `p0-5b-role-split-staff-patient.sql`, `p0-5b-grants.sql`), then set the app env to
-> `DB_PRINCIPAL_CONTEXT_MODE=locked` and restart. FILL EXACT COMMANDS HERE once run on test.
+For a code-only update of the existing TEST database use `deploy/host/deploy-test.sh`; it now owns the same controlled
+migration privilege window and invokes the same shared post-migration closure (roles/helpers/grants/telemetry,
+strict finalizer, fixture, restart/health/smoke). Manual restore/SQL chains are prohibited.
 
 ## PROD mapping (eventual)
 - Code: merge to `main` → CI auto-deploys `deploy/host/deploy-prod.sh` (build + `pnpm migrate` + schema guardrail).
   BUT the same #667 gap applies → prod must run the **`scripts/deploy-saas-667.sh`** chain (which already bundles
   data-fix + option-D temp-BYPASSRLS migrate + post-asserts) in a stopped-writers window, NOT the plain deploy.
-- So PROD dormant deploy = `deploy-saas-667.sh` (option-D). PROD flip = phase4 enforce artifacts (section B).
+- Production remains a separate owner-approved cutover; this historical TEST note does not authorize it.
 
 ## Duplicate-specialist consolidation (RESOLVED 2026-07-13)
 Historical rubitime-per-branch specialists left TWO active "Дмитрий Берсон" rows in `be_specialists`
@@ -102,6 +80,7 @@ The override inserts GLOBAL rows, so change every `ON CONFLICT (key, scope) DO U
 `ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE` (matches the global partial index). Applied
 cleanly on test. Fold this into `/tmp/bcb-test-setup/test-settings-override.sql` permanently.
 
-## TODO (small, tracked)
-- Turn section A into a single script `deploy/host/deploy-test-saas.sh`; turn section B into `flip-test-saas.sh`.
-- Persist the override ON-CONFLICT fix into the canonical test-settings-override.sql.
+## Current status
+
+The single hard TEST wrapper and repo-tracked settings override are implemented. There is no separate supported
+`flip-test-saas.sh`: strict/FORCE finalization is mandatory inside every supported TEST migration path.

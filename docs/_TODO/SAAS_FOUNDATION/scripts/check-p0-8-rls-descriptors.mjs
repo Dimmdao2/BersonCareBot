@@ -13,7 +13,7 @@ const expectedTierCounts = new Map([
   ["INFRA", 25],
   ["LEGACY", 16],
   ["SCOPED", 159],
-  ["TELEMETRY", 2],
+  ["TELEMETRY", 5],
 ]);
 
 const expectedBootstrapHybridTables = new Set([
@@ -80,8 +80,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(", ")}`);
 }
 
-if (tierRows.length !== 229) {
-  fail(`Expected 229 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 232) {
+  fail(`Expected 232 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {
@@ -228,7 +228,7 @@ if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
   );
 }
 
-console.log("P0.8.1 RLS descriptor model OK: 229 descriptors cover tiers-218.tsv exactly once.");
+console.log("P0.8.1 RLS descriptor model OK: 232 descriptors cover tiers-218.tsv exactly once.");
 console.log(
   Array.from(actualTierCounts.entries())
     .sort(([left], [right]) => left.localeCompare(right))

@@ -75,3 +75,15 @@ export function createMediaWorkerPoolProvider(config: MediaWorkerPoolProviderCon
   installPrincipalAwarePoolQuery(pool);
   return pool;
 }
+
+/** Dedicated true-global telemetry transport; intentionally bypasses job-principal installation. */
+export function createMediaWorkerSaasIsolationTelemetryPoolProvider(connectionString: string): Pool {
+  return new Pool({
+    connectionString,
+    max: 1,
+    application_name: "bcb_media_worker_saas_telemetry",
+    connectionTimeoutMillis: 250,
+    query_timeout: 200,
+    statement_timeout: 200,
+  });
+}

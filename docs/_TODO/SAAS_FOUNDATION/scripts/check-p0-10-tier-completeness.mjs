@@ -16,7 +16,7 @@ const expectedTierCounts = Object.freeze({
   INFRA: 25,
   LEGACY: 16,
   SCOPED: 159,
-  TELEMETRY: 2,
+  TELEMETRY: 5,
 });
 
 function fail(message) {

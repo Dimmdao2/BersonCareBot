@@ -22,6 +22,10 @@ import { getConfigBool, getConfigValue } from "@/modules/system-settings/configA
 import { canAccessProgramSubmissionMedia } from "@/modules/media/programSubmissionPlaybackAccess";
 import type { AppSession } from "@/shared/types/session";
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from "@/shared/lib/hlsStorageLayout";
+import {
+  databaseNameFromUrl,
+  isSaasTestLocalMediaAllowed,
+} from '@/app-layer/media/localSaasTestFixtureMedia';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,8 +49,21 @@ export async function resolveMediaPlaybackPayload(input: {
     return { ok: false, status: 404, error: "not found" };
   }
 
+  const row = await getMediaRowForPlayback(id, {
+    allowLocalSaasTestFixture: databaseNameFromUrl(env.DATABASE_URL ?? '') === 'bersoncarebot_test',
+  });
+  if (!row) {
+    return { ok: false, status: 404, error: "not found" };
+  }
+
+  const localSaasTestFixture = isSaasTestLocalMediaAllowed({
+    databaseUrl: env.DATABASE_URL ?? '',
+    storedPath: row.stored_path,
+    s3Key: row.s3_key,
+    mimeType: row.mime_type,
+  });
   const playbackEnabled = await getConfigBool("video_playback_api_enabled", false);
-  if (!playbackEnabled) {
+  if (!playbackEnabled && !localSaasTestFixture) {
     return { ok: false, status: 503, error: "feature_disabled" };
   }
 
@@ -54,11 +71,6 @@ export async function resolveMediaPlaybackPayload(input: {
 
   const defaultRaw = await getConfigValue("video_default_delivery", "auto");
   const systemDefault = parseDefaultDeliveryConfig(defaultRaw, "auto");
-
-  const row = await getMediaRowForPlayback(id);
-  if (!row) {
-    return { ok: false, status: 404, error: "not found" };
-  }
 
   if (
     !canAccessProgramSubmissionMedia(input.session, {

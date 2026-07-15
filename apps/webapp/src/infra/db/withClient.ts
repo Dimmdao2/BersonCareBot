@@ -8,6 +8,11 @@ import {
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
+import {
+  reportDbCleanupFailure,
+  reportDbQueryFailure,
+  reportPrincipalSetupFailure,
+} from "@/infra/db/saasIsolationDbFailureReporting";
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
@@ -29,6 +34,7 @@ async function releasePreparedClient(
     await clearDbPrincipalFromConnection(client, options);
   } catch (err) {
     cleanupError = err;
+    await reportDbCleanupFailure();
     throw err;
   } finally {
     if (cleanupError === undefined) {
@@ -68,11 +74,26 @@ export async function withPoolClient<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+  try {
+    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+  } catch (error) {
+    await reportPrincipalSetupFailure(error);
+    throw error;
+  }
   const client = await pool.connect();
   try {
-    await prepareClientForRequest(client, principalApplyOptions);
-    return await fn(client);
+    try {
+      await prepareClientForRequest(client, principalApplyOptions);
+    } catch (error) {
+      await reportPrincipalSetupFailure(error);
+      throw error;
+    }
+    try {
+      return await fn(client);
+    } catch (error) {
+      await reportDbQueryFailure(error);
+      throw error;
+    }
   } finally {
     await releasePreparedClient(client, principalApplyOptions);
   }
@@ -91,7 +112,12 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+  try {
+    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+  } catch (error) {
+    await reportPrincipalSetupFailure(error);
+    throw error;
+  }
   const client = await pool.connect();
   let transactionStarted = false;
   try {
@@ -100,6 +126,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     transactionStarted = true;
     await prepareTransactionClientForRequest(client, principalApplyOptions);
   } catch (err) {
+    await reportPrincipalSetupFailure(err);
     if (transactionStarted) {
       try {
         await client.query("ROLLBACK");

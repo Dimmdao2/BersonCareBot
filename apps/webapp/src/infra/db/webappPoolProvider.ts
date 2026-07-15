@@ -7,6 +7,8 @@ import {
   clearDbPrincipalFromConnection,
   getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
+import { reportSaasIsolationEventBestEffort } from "@/infra/saasIsolationReporterRuntime";
+import { classifyPostgresIsolationDenial } from "@/infra/db/saasIsolationDbFailureReporting";
 
 type WebappPoolProviderConfig = {
   connectionString?: string;
@@ -60,18 +62,53 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
-    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+    try {
+      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+    } catch (error) {
+      void reportSaasIsolationEventBestEffort({
+        eventClass: "missing_principal",
+        sourceService: "webapp",
+        sourceOperation: "webapp_db_request",
+      });
+      throw error;
+    }
     const client = await pool.connect();
     try {
-      await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
+      try {
+        await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
+      } catch (error) {
+        await reportSaasIsolationEventBestEffort({
+          eventClass: "invalid_signature_or_install",
+          sourceService: "webapp",
+          sourceOperation: "webapp_db_request",
+        });
+        throw error;
+      }
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
-      return await query(...args);
+      try {
+        return await query(...args);
+      } catch (error) {
+        const eventClass = classifyPostgresIsolationDenial(error);
+        if (eventClass) {
+          await reportSaasIsolationEventBestEffort({
+            eventClass,
+            sourceService: "webapp",
+            sourceOperation: "webapp_db_request",
+          });
+        }
+        throw error;
+      }
     } finally {
       let cleanupError: unknown;
       try {
         await clearDbPrincipalFromConnection(client, principalApplyOptions);
       } catch (err) {
         cleanupError = err;
+        await reportSaasIsolationEventBestEffort({
+          eventClass: "cleanup_failure",
+          sourceService: "webapp",
+          sourceOperation: "webapp_db_request",
+        });
         throw err;
       } finally {
         releasePoolClient(client, cleanupError);
@@ -114,6 +151,11 @@ function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): W
       principalKind: principal?.kind ?? "missing",
       selectedPoolKind: poolKind,
     });
+    void reportSaasIsolationEventBestEffort({
+      eventClass: "role_pool_mismatch",
+      sourceService: "webapp",
+      sourceOperation: "webapp_db_request",
+    });
   }
 
   return poolKind;
@@ -127,6 +169,11 @@ function assertRoutedWebappPoolCheckoutAllowed(metrics: WebappPoolRoutingMetrics
     const principal = getCurrentDbPrincipal();
     if (!principal) {
       metrics.missingPrincipalSelections += 1;
+      void reportSaasIsolationEventBestEffort({
+        eventClass: "missing_principal",
+        sourceService: "webapp",
+        sourceOperation: "webapp_db_request",
+      });
     } else if (principal.kind === "infra") {
       metrics.infraSelections += 1;
     }

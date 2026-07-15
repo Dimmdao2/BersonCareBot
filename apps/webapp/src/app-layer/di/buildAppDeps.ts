@@ -283,6 +283,9 @@ import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
 import { checkDbHealth } from "@/infra/db/client";
 import { pgOperatorHealthReadPort } from "@/infra/repos/pgOperatorHealthRead";
 import { inMemoryOperatorHealthReadPort } from "@/infra/repos/inMemoryOperatorHealthRead";
+import { inMemorySaasIsolationDiagnosticsPort } from "@/infra/repos/inMemorySaasIsolationDiagnostics";
+import { runtimeSaasIsolationDiagnostics } from "@/infra/saasIsolationReporterRuntime";
+import { createSaasIsolationDiagnosticsService } from "@/modules/operator-health/saasIsolationDiagnostics";
 import { pgOperatorHealthDigestReadPort } from "@/infra/repos/pgOperatorHealthDigestRead";
 import { inMemoryOperatorHealthDigestReadPort } from "@/infra/repos/inMemoryOperatorHealthDigestRead";
 import { pgOperatorHealthWritePort } from "@/infra/repos/pgOperatorHealthWrite";
@@ -394,6 +397,9 @@ const productAnalyticsPort = !inMemoryRepos
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
 
 const operatorHealthReadPort = !inMemoryRepos ? pgOperatorHealthReadPort : inMemoryOperatorHealthReadPort;
+const saasIsolationDiagnostics = !inMemoryRepos
+  ? runtimeSaasIsolationDiagnostics
+  : createSaasIsolationDiagnosticsService(inMemorySaasIsolationDiagnosticsPort);
 const operatorHealthDigestReadPort = !inMemoryRepos
   ? pgOperatorHealthDigestReadPort
   : inMemoryOperatorHealthDigestReadPort;
@@ -1483,6 +1489,7 @@ function _buildAppDeps() {
       checkDbHealth,
     },
     operatorHealthRead: operatorHealthReadPort,
+    saasIsolationDiagnostics,
     operatorHealthDigestRead: operatorHealthDigestReadPort,
     operatorHealthWrite: operatorHealthWritePort,
     healthFailureArchive,

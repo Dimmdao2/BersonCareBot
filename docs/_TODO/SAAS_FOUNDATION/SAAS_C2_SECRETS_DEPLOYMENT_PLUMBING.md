@@ -14,12 +14,16 @@ The same active signing key must be present in every process that installs signe
 - integrator API / worker / scheduler process family;
 - media-worker.
 
-The webapp also needs separate runtime login URLs:
+The webapp also needs three separate database login URLs:
 
 - `DATABASE_URL_STAFF`;
-- `DATABASE_URL_NONSTAFF`.
+- `DATABASE_URL_NONSTAFF`;
+- `SAAS_ISOLATION_OPERATOR_DATABASE_URL`.
 
-These URLs must be provisioned outside the repository and must not be embedded in docs or scripts.
+The first two are ambient application runtime logins. The operator URL is a distinct LOGIN/INHERIT,
+NOSUPERUSER/NOBYPASSRLS infrastructure login for Global Admin diagnostics reads and E2 coverage only. It must not
+inherit `app_owner`, `app_staff`, `app_patient`, or `app_worker`. All three URLs must be provisioned outside the
+repository and must not be embedded in docs or scripts.
 
 ## Preflight
 
@@ -37,7 +41,7 @@ The preflight:
 - requires `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked`;
 - requires `DB_PRINCIPAL_SIGNING_SECRET` to be at least 32 bytes in each process;
 - compares signing secrets by SHA-256 fingerprint prefix only;
-- requires webapp `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF` to exist and differ;
+- requires all three webapp URLs to exist and the operator URL to differ from both ambient URLs;
 - prints URL shape only, never credential-bearing URLs;
 - self-tests that fingerprint mismatches fail and that output does not contain fixture secrets.
 

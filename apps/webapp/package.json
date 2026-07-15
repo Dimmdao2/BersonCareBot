@@ -43,6 +43,8 @@
     "sanitize-reschedule-count": "tsx scripts/sanitize-reschedule-count.ts",
     "consolidate-specialist-identity": "tsx scripts/consolidate-specialist-identity.ts",
     "seed:saas-test-walkthrough": "tsx scripts/seed-saas-test-walkthrough-fixtures.ts",
+    "diagnostics:saas-isolation": "tsx scripts/report-saas-isolation-diagnostics.ts",
+    "diagnostics:saas-isolation:test-scenarios": "tsx scripts/run-saas-isolation-test-scenarios.ts",
     "purge-placeholder-bookings": "tsx scripts/purge-placeholder-bookings.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
     "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",

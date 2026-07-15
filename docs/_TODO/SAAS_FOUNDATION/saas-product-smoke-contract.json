@@ -17,7 +17,8 @@
     "patientProgramInstanceId",
     "patientProgramItemId",
     "mediaFileId",
-    "publicBookingServiceId"
+    "publicBookingServiceId",
+    "clinicAAppointmentId"
   ],
   "readOnlyScenarios": [
     {
@@ -129,17 +130,49 @@
       "knownFailureHint": "G1"
     },
     {
-      "id": "admin.system-health.api",
-      "actor": "clinic_admin",
+      "id": "global-admin.system-health.api",
+      "actor": "global_admin",
       "category": "system_health",
       "method": "GET",
       "path": "/api/admin/system-health",
       "expectStatus": 200,
       "jsonExpectation": {
         "type": "object",
-        "requiredPaths": ["webappDb", "meta.probes"]
-      },
-      "knownFailureHint": "G1"
+        "requiredPaths": [
+          "webappDb",
+          "meta.probes",
+          "saasIsolation.schemaVersion",
+          "saasIsolation.status",
+          "saasIsolation.coverageFresh",
+          "saasIsolation.coverageComplete",
+          "saasIsolation.trend.current24Hours",
+          "saasIsolation.trend.daily7Days"
+        ],
+        "allowedValues": [
+          { "path": "saasIsolation.schemaVersion", "values": [3] },
+          { "path": "saasIsolation.status", "values": ["okay", "stale", "incomplete", "critical"] }
+        ]
+      }
+    },
+    {
+      "id": "doctor.system-health.denied",
+      "actor": "doctor",
+      "category": "system_health",
+      "method": "GET",
+      "path": "/api/admin/system-health",
+      "expectStatus": 403,
+      "expectAuthDenial": true,
+      "expectedErrorValues": ["forbidden", "admin_mode_required"]
+    },
+    {
+      "id": "clinic-admin.system-health.denied",
+      "actor": "clinic_admin",
+      "category": "system_health",
+      "method": "GET",
+      "path": "/api/admin/system-health",
+      "expectStatus": 403,
+      "expectAuthDenial": true,
+      "expectedErrorValues": ["forbidden", "admin_mode_required"]
     },
     {
       "id": "patient.appointments.surface",
@@ -169,9 +202,7 @@
       "jsonExpectation": {
         "type": "object",
         "requireSuccess": true,
-        "fixtureKeys": [
-          { "path": "summaryByItemId", "ref": "patientProgramItemId" }
-        ]
+        "fixtureKeys": [{ "path": "summaryByItemId", "ref": "patientProgramItemId" }]
       }
     },
     {
@@ -184,16 +215,42 @@
       "jsonExpectation": {
         "type": "object",
         "requiredPaths": ["delivery", "mp4.url"],
-        "fixtureEquals": [
-          { "path": "mediaId", "ref": "mediaFileId" }
-        ],
-        "fixtureContains": [
-          { "path": "mp4.url", "ref": "mediaFileId" }
-        ],
-        "allowedValues": [
-          { "path": "delivery", "values": ["hls", "mp4", "file"] }
-        ]
+        "fixtureEquals": [{ "path": "mediaId", "ref": "mediaFileId" }],
+        "fixtureContains": [{ "path": "mp4.url", "ref": "mediaFileId" }],
+        "allowedValues": [{ "path": "delivery", "values": ["hls", "mp4", "file"] }]
       }
+    },
+    {
+      "id": "public.app.entry",
+      "actor": "public",
+      "category": "public_auth",
+      "method": "GET",
+      "path": "/app",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "bodyIncludes": ["Войти по паролю"]
+    },
+    {
+      "id": "public.login.config",
+      "actor": "public",
+      "category": "public_auth",
+      "method": "GET",
+      "path": "/api/auth/login/alternatives-config",
+      "expectStatus": 200,
+      "jsonExpectation": {
+        "type": "object",
+        "requiredPaths": ["ok"]
+      }
+    },
+    {
+      "id": "public.specialist-clinic-registration.entry",
+      "actor": "public",
+      "category": "public_auth",
+      "method": "GET",
+      "path": "/app",
+      "expectStatus": 200,
+      "minBodyBytes": 800,
+      "bodyIncludes": ["Я специалист"]
     },
     {
       "id": "public.booking.entry",
@@ -219,6 +276,19 @@
     }
   ],
   "mutationScenarios": [
+    {
+      "id": "global-admin.clinical-write.denied",
+      "actor": "global_admin",
+      "category": "bookings",
+      "method": "POST",
+      "path": "/api/doctor/booking-engine/appointments/{clinicAAppointmentId}/comments",
+      "requestJson": { "body": "owner-ready locked denial probe" },
+      "expectStatus": 403,
+      "expectAuthDenial": true,
+      "expectedErrorValues": ["doctor_workspace_membership_required", "forbidden"],
+      "disabledByDefault": true,
+      "note": "Global admin has no implicit tenant clinical workspace and must not write tenant records."
+    },
     {
       "id": "server-action.forwarded-host.sentinel",
       "actor": "public",

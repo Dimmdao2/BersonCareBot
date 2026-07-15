@@ -5,6 +5,10 @@ import { logger } from '../../observability/logger.js';
 import { closeDb } from '../../db/client.js';
 import { tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
+import {
+  reportSchedulerDispatchIsolationFailure,
+  reportSchedulerLockIsolationFailure,
+} from '../../observability/saasIsolationTelemetry.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -17,9 +21,15 @@ async function startScheduler(): Promise<void> {
   // when DB_PRINCIPAL_CONTEXT_MODE is locked, the connection layer requires SOME principal to be set
   // before it will touch the DB at all (even for a pg_try_advisory_lock, which isn't RLS-governed
   // data access). infra is the right shape here — same as the actual dispatch tick below.
-  const lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
-    tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY),
-  );
+  let lockHandle: Awaited<ReturnType<typeof tryAcquireSchedulerLock>>;
+  try {
+    lockHandle = await runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }, () =>
+      tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY),
+    );
+  } catch (error) {
+    reportSchedulerLockIsolationFailure(error);
+    throw error;
+  }
   if (!lockHandle) {
     logger.warn(
       'Scheduler lock not acquired, another instance is leader. Exiting.',
@@ -69,6 +79,7 @@ async function startScheduler(): Promise<void> {
         }),
       );
     } catch (err) {
+      reportSchedulerDispatchIsolationFailure(err);
       logger.error({ err }, 'Runtime scheduler tick failed');
     }
 
@@ -77,6 +88,7 @@ async function startScheduler(): Promise<void> {
 }
 
 startScheduler().catch((err) => {
+  reportSchedulerDispatchIsolationFailure(err);
   logger.error({ err }, 'Runtime scheduler crashed');
   process.exit(1);
 });

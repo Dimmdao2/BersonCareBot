@@ -267,4 +267,48 @@ ORDER BY target
 \gexec
 \endif
 
+CREATE TEMP TABLE phase4_force_expected_state (
+  force_enabled boolean NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO phase4_force_expected_state (force_enabled)
+VALUES (:'phase4_force_rls_down' = '0');
+
+DO $phase4_force_post_assert$
+DECLARE
+  v_expected_count integer;
+  v_resolved_count integer;
+  v_invalid_count integer;
+BEGIN
+  SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
+
+  IF v_expected_count <> 163 THEN
+    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 163, got %', v_expected_count;
+  END IF;
+
+  SELECT count(*)
+  INTO v_resolved_count
+  FROM phase4_force_rls_targets targets
+  JOIN pg_class relation ON relation.oid = targets.target::regclass
+  WHERE relation.relkind IN ('r', 'p');
+
+  IF v_resolved_count <> v_expected_count THEN
+    RAISE EXCEPTION 'phase4_force_target_resolution_mismatch: expected %, resolved %',
+      v_expected_count, v_resolved_count;
+  END IF;
+
+  SELECT count(*)
+  INTO v_invalid_count
+  FROM phase4_force_rls_targets targets
+  JOIN pg_class relation ON relation.oid = targets.target::regclass
+  WHERE NOT relation.relrowsecurity
+     OR relation.relforcerowsecurity <> (SELECT force_enabled FROM phase4_force_expected_state);
+
+  IF v_invalid_count <> 0 THEN
+    RAISE EXCEPTION 'phase4_force_post_assert_failed: % of % targets have unexpected ENABLE/FORCE state',
+      v_invalid_count, v_expected_count;
+  END IF;
+END
+$phase4_force_post_assert$;
+
 COMMIT;

@@ -1296,6 +1296,13 @@
       "when": 1791724800000,
       "tag": "0184_reference_catalog_org_insert_hook",
       "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1791811200000,
+      "tag": "0185_saas_isolation_diagnostics",
+      "breakpoints": true
     }
   ]
 }

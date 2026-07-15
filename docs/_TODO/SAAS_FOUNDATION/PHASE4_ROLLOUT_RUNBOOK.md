@@ -26,10 +26,11 @@ file records those gates.
 - Environment-boundary decision is settled for this rollout: prod uses a separate cluster; dev+test share
   the non-prod cluster; fixed role names stay `app_staff` and `app_patient`.
 
-## Compatibility deploy
+## Historical compatibility deploy (disposable/provenance only)
 
-Goal: deploy schema, locked-principal runtime wiring, #664 value guards, and specialist provisioning while
-signup is disabled and runtime remains compatible.
+This section preserves the 0177/disposable migration provenance. It no longer defines TEST end-state: supported
+TEST deploys must finish through `deploy/postgres/test-strict-rls-finalizer.sql` with locked runtime and exact FORCE
+assertions. NO FORCE remains useful only to prove that an old production dump can traverse compatibility migrations.
 
 Required evidence:
 - `specialist_signup_enabled=false`.

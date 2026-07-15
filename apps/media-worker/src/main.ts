@@ -3,6 +3,7 @@ import { loadMediaWorkerEnv } from "./env.js";
 import { createMediaWorkerPoolProvider } from "./poolProvider.js";
 import { createS3Client } from "./s3.js";
 import { runMediaWorkerTick } from "./workerTick.js";
+import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -12,6 +13,7 @@ async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
   const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
+  const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,
@@ -55,12 +57,14 @@ async function main() {
         continue;
       }
     } catch (e) {
+      isolationTelemetry.report(e);
       log.error({ err: e }, "main loop error");
       await sleep(env.POLL_MS);
     }
   }
 
   await pool.end();
+  await isolationTelemetry.close();
   log.info("media-worker stopped");
 }
 

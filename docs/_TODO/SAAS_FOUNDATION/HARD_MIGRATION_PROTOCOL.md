@@ -33,10 +33,9 @@ be updated in the same change.
    window. Both must be cleaned up fail-visibly; neither privilege window is application runtime.
 6. Reports and evidence must be aggregate-only: no patient names, phone numbers, emails, raw payloads,
    credential-bearing URLs, or secrets.
-7. The TEST wrapper owns the migration window. It may run with
-   `DB_PRINCIPAL_CONTEXT_MODE=legacy-guc|shadow|locked` in the TEST env files, but DDL/backfill work must happen
-   only inside the documented temporary owner-authority migration step. Runtime restart in `shadow|locked` must not
-   require a dormant owner `DATABASE_URL` in `/opt/env`.
+7. The TEST wrapper owns the migration window. Both TEST env files must use
+   `DB_PRINCIPAL_CONTEXT_MODE=locked`; DDL/backfill work happens only inside the documented temporary
+   owner-authority migration step. Runtime restart must not require an owner `DATABASE_URL` in `/opt/env`.
 8. Integrator API startup is not a migration runner in `shadow|locked`. `apps/integrator/src/main.ts` must call the
    startup migration gate, and that gate must skip DDL migrations in `shadow|locked`, performing only non-DDL
    migration-state verification against `integrator.schema_migrations`. The gate must prove the ledger exists,
@@ -50,9 +49,11 @@ be updated in the same change.
    and before restart: `USAGE` on schema `integrator` and `SELECT` on
    `integrator.schema_migrations` to the `api.test` `DATABASE_URL` role discovered from the env file, then verify
    that the same runtime login can `SELECT` the ledger. Direct deploy/script migration entrypoints still call `runMigrations()`.
-9. `deploy/host/saas-test-mode.sh` remains TEST-only, redacted, default-dry-run, backup-before-rewrite, and useful
-   only for an owner-approved dormant rollback. It must not invent locked URLs/secrets, and `--mode locked` remains
-   blocked until the future full flip wrapper owns repo-known locked URLs/secrets.
+9. `deploy/host/saas-test-mode.sh` is a historical TEST-only diagnostic artifact: redacted, default-dry-run and
+   backup-before-rewrite. It is not part of either supported TEST deploy path and must not be used to recover a
+   failed strict TEST deployment by switching walls off. `--mode locked` remains blocked because the supported
+   wrappers already own the locked closure; any exceptional owner-directed environment rewrite is a separate
+   incident operation and does not count as strict TEST acceptance.
 10. Every fresh TEST restore must reconcile the repo-managed S3 A/B walkthrough fixture before TEST services
     restart. The protected external operator packet is mandatory and the wrapper fails before restore when it is
     missing, symlinked, not exact `root:deploy 0640`, disabled, malformed, or incomplete. Fixture credential values
@@ -82,30 +83,29 @@ The wrapper owns the full sequence below.
 
 Before acquiring a dump or rebuilding anything, the wrapper must read only the `DB_PRINCIPAL_CONTEXT_MODE` key from
 `/opt/env/bersoncarebot/api.test` and `/opt/env/bersoncarebot/webapp.test` as the deploy-readable TEST env files.
-Missing mode means the application default `legacy-guc`. The accepted values are `legacy-guc`, `shadow`, and
-`locked`; any other value is a preflight failure.
+Missing mode means the application default `legacy-guc`, which is now a preflight failure for TEST. Both files
+must explicitly say `locked`; `legacy-guc`, `shadow`, and every other value are rejected before writers stop.
 
-If either file says `shadow` or `locked`, the wrapper must continue to own migrations through the temporary
-owner-authority window below, then restart TEST units under that runtime mode. It must not patch grants outside the
+The wrapper must continue to own migrations through the temporary owner-authority window below, then restart TEST
+units in locked mode. It must not patch grants outside the
 documented migration window and must not edit `/opt/env`. The reason this restart is valid is the integrator startup
 contract: after deploy has run `pnpm migrate`, API startup skips DDL migrations in `shadow|locked` and strictly
 verifies that `integrator.schema_migrations` contains every discovered integrator migration from the deployed repo.
 
-The repo-tracked TEST-only dormant rollback helper remains available for an owner-approved rollback to `legacy-guc`,
-but it is not required for a locked TEST restart:
+The repo-tracked historical mode helper may still be inspected in dry-run mode, but it is not a recovery step for
+strict TEST and is not required for a locked TEST restart:
 
 ```bash
 bash deploy/host/saas-test-mode.sh --check
 bash deploy/host/saas-test-mode.sh --mode dormant --dry-run
-# owner/operator-approved TEST action only:
-bash deploy/host/saas-test-mode.sh --mode dormant --apply --restart
 ```
 
 Agents must not
 edit `/opt/env` manually, run ad hoc grants, or introduce a one-off locked grants path here. The only allowed
 ledger grant in this protocol is the repo-managed narrow `deploy-test-saas.sh` grant/check described in step 7.
-`saas-test-mode.sh --mode locked` must fail-fast until locked URLs/secrets and the all-unit flip contract are
-repo-known and owned by the future full flip wrapper.
+Neither helper mode may replace the supported wrappers. `saas-test-mode.sh --mode locked` remains fail-fast because
+locked URLs/secrets and the all-unit closure are owned by `deploy-test-saas.sh` / `deploy-test.sh`, not by an env
+rewriter.
 
 This preflight must be read-only and must run before the `cleanup_exit` trap is installed. An unsupported-mode
 failure before restore must not call `cleanup_elevation`, must not execute `ALTER ROLE`, and must not perform DB
@@ -248,6 +248,16 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth email/invite/signup accessors.
   It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
   base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
+- after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
+  `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
+  `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the
+  distinct login from webapp `SAAS_ISOLATION_OPERATOR_DATABASE_URL`. The operator URL is infrastructure config,
+  must point to the same TEST DB, and must not reuse staff/nonstaff/API/app roles. This overlay
+  runs after P0.5b/P2-B role/helper setup and reviewed runtime overlays, but before the strict base-policy render,
+  safe specialized policy overlays, FORCE, and final semantic assertions. It moves the two true-global telemetry
+  tables behind a NOLOGIN owner. Ambient runtime logins receive only the closed event-writer function; they cannot
+  read diagnostics or record/resolve E2 coverage. Only the separate operator login inherits the NOLOGIN
+  `saas_telemetry_operator` read/coverage functions. Direct table access remains revoked from every login.
 
 Do not add broad `integrator.*` table grants for the runtime login to fix startup. Do not route this through
 P0.5b `app_staff`/`app_patient` DML grants: those intentionally exclude migration ledgers from the app DML surface.
@@ -304,7 +314,15 @@ reading `public.platform_users`, and the database URL must remain explicit and u
 `BYPASSRLS`; if it is ever added for this step, that must be documented and checked as a separate protocol
 change.
 
-Before restarting TEST units, the wrapper must reconcile the S3 walkthrough fixture through
+Before fixture reconciliation, the wrapper must run the mandatory idempotent TEST strict finalizer
+`deploy/postgres/test-strict-rls-finalizer.sql`. It reapplies the generated helper-based strict policy set, applies
+FORCE to the exact canonical 163-table inventory, and fails unless every target has both ENABLE and FORCE. Migration
+0177 remains historical compatibility provenance; its NO FORCE end-state is not accepted on TEST. The finalizer runs
+after migrations, data cleanup, settings, runtime roles/grants, reviewed overlays, specialist consolidation, and B1.
+The runtime owner must already be `NOBYPASSRLS`, and temporary membership/BYPASS cleanup is asserted again after the
+finalizer. Recovery means fixing code/policy and rerunning; TEST walls are never switched off.
+
+The wrapper must then reconcile the S3 walkthrough fixture through
 `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` in a separate controlled TEST-only fixture
 reconciliation window. This happens after migrations, runtime overlays, TEST settings,
 specialist consolidation, and B1. The contract is:
@@ -321,17 +339,31 @@ specialist consolidation, and B1. The contract is:
 - the seeder queries `current_database()` before any write and accepts exactly `bersoncarebot_test`; URL-shape
   matching alone is not sufficient;
 - two synthetic verified email+password owners are active `owner`/clinic-admin members with active specialists;
+- manifest v2 gives Clinic A three staff accounts (owner/manager plus two specialists) and five patients, while
+  solo Clinic B has one owner/specialist and three patients. The extra Clinic A specialists, one representative
+  patient in each clinic, and the shared A/B patient have separate reserved `.test` email logins; they reuse their
+  clinic's protected TEST-only password, so the five-key packet does not grow. Non-secret login refs, exact A/B
+  organization/enrollment refs, public routes and desktop/mobile viewports are versioned under
+  `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`;
 - both fixture emails must use the reserved non-deliverable `.test` top-level domain;
-- Clinic A has exactly five synthetic patients with deterministic representative past and future appointments;
-  Clinic B has no patients or appointments;
+- both clinics have deterministic past/future appointments with canonical services. Representative patients also
+  have an active package ledger, a treatment program, exercise completion history (weighted, bodyweight and
+  metric-less variants), events, and rolling diary snapshots for doctor/patient graphs;
 - reconciliation is transactional and deterministic for repo-reserved fixture IDs; reruns repair the same rows
-  rather than appending duplicates;
+  rather than appending duplicates. Cleanup is limited to reserved fixture personas and manifest IDs and must never
+  delete every appointment/enrollment merely because it belongs to a fixture organization;
 - because locked/FORCE policies correctly reject an unscoped runtime write, the wrapper temporarily grants the
   webapp migrator membership in `bersoncarebot_test` and temporarily sets that owner role `BYPASSRLS` only for
   the seeder command. It immediately reuses `cleanup_elevation` to revoke both, and the existing `EXIT` trap plus
   post-cleanup assertions make residue fatal on success or failure;
 - no real PII, message delivery, notification, S3, HTTP, or other external write path is used;
 - stdout is aggregate-only and never contains fixture email, password, cookie, token, or opaque row ID.
+
+The TEST settings override enables and locks the mirrored global `specialist_signup_enabled=true` row for the
+owner walkthrough. This is TEST-only: production remains default-off. On TEST, clean public/login, combined
+specialist+clinic registration and booking are reached at `/app`, `/app` → `Я специалист`, and `/book` in a
+cookie-free profile. DEV-only `/api/auth/dev-public` helpers are not valid TEST evidence. Exact scenarios and
+viewports are in `OWNER_READY_TEST/ST-02_WALKTHROUGH.md`.
 
 This fixture packet is TEST operator input, not application runtime/integration configuration. It must not be
 added to `api.test`, `webapp.test`, `system_settings`, git, screenshots, shell history, or captured evidence.
@@ -347,16 +379,25 @@ It must then restart TEST units and run:
   and `proxy_set_header X-Forwarded-Proto $scheme` in the webapp `location /`, backup active TEST nginx config,
   run `nginx -t`, reload nginx only on success, and run the A2 checker against `nginx -T`;
 - A2 nginx forwarded-host preflight against active `nginx -T`;
-- A1/product smoke when `SAAS_PRODUCT_SMOKE_FIXTURE` is supplied;
+- mandatory locked A1/product smoke using `/run/bersoncarebot/saas-smoke.fixture` by default (an explicit
+  `SAAS_PRODUCT_SMOKE_FIXTURE` may select another protected external path);
 - `awg-quick@awg0` active check, because the production Telegram relay on the TEST host must remain untouched.
 
 Do not claim a TEST deploy passed unless the wrapper has actually run and these gates have passed.
-If `SAAS_PRODUCT_SMOKE_FIXTURE` is unset, the wrapper's product smoke line is **SKIPPED/BLOCKED** for product parity:
-the migration/restart/health/A2 gates may be reported, but D3/R1/R2 product-smoke evidence remains open. The fixture
-must be an owner/operator-managed secret file path outside the repo, for example
-`/run/bersoncarebot/saas-smoke.fixture`; do not document, print, commit, or infer fixture values.
+The smoke fixture is mandatory and must be an owner/operator-managed secret file outside both the source and deploy
+repositories. Its path must be absolute and canonical with no symlink file or symlink parent, and the file contract is
+exactly `root:deploy 0640`. Missing, unreadable, in-repo, non-canonical, symlinked, or incorrectly owned/mode-set
+`/run/bersoncarebot/saas-smoke.fixture` fails the wrapper. The same validator runs at preflight and again immediately
+before smoke consumption; fixture values are never printed, committed, documented, or inferred.
 
-### 11. D2 FB#1 and future strict/FORCE gates (plus D3.4 bootstrap grants)
+Historical D3 evidence vocabulary is retained for older run logs: the wrapper used to run A1/product smoke when `SAAS_PRODUCT_SMOKE_FIXTURE` is supplied.
+If `SAAS_PRODUCT_SMOKE_FIXTURE` is unset, the wrapper's product smoke line is **SKIPPED/BLOCKED** for product parity
+and D3/R1/R2 product-smoke evidence remains open; the path was always an
+owner/operator-managed secret file path outside the repo. This paragraph describes pre-strict evidence semantics
+only. The current strict TEST wrapper above is fail-closed: it defaults to the protected `/run/...` path and a missing
+or invalid fixture aborts before migration/deploy work rather than producing a skipped successful deploy.
+
+### 11. Strict/FORCE TEST gate and D2/D3.4 checks
 
 D2 FB#1 and D3.4 static/scratch-package checks are repo gates, not live TEST proof. Keep running:
 
@@ -365,9 +406,11 @@ pnpm run check:saas-d2-fb1-bootstrap-phone-write
 pnpm run check:saas-d3-4-bootstrap-base-login-grants
 ```
 
-The future strict+FORCE cutover remains separate from dormant TEST deploy. It is gated by
-`PHASE4_ROLLOUT_RUNBOOK.md`, `deploy/postgres/phase4-force-rls-cutover.sql`, and the Phase 4 FORCE checkers.
-Do not bundle strict/FORCE into the fresh-dump dormant rehearsal.
+Strict+FORCE is mandatory in both supported TEST deploy paths: fresh restore (`deploy-test-saas.sh`) and code-only
+migration (`deploy-test.sh`). Both stop writers, migrate under a short audited privilege window, clean it up, run
+`test-strict-rls-finalizer.sql`, assert the exact target state, restart locked units, and keep walls on after failures.
+The disposable rehearsal remains dormant/NO FORCE for historical migration compatibility proof only; it is not TEST
+acceptance.
 
 ## Failure policy
 

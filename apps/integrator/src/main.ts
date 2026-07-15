@@ -9,6 +9,7 @@ import './config/loadEnv.js';
  * Перед стартом применяет legacy startup-миграции или выполняет locked-runtime preflight.
  */
 async function start() {
+  const { reportIntegratorIsolationFailure } = await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
@@ -24,6 +25,7 @@ async function start() {
     });
     logger.info(`Server listening on http://${env.HOST}:${env.PORT}`);
   } catch (err) {
+    reportIntegratorIsolationFailure(err);
     logger.error(err, 'Failed to start server');
     process.exit(1);
   }

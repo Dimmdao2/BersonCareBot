@@ -660,3 +660,92 @@ async function readBackendPid(client: DbPrincipalQueryable): Promise<number> {
   }
   return backendPid;
 }
+
+export type SaasIsolationTelemetryEventClass =
+  | "missing_principal"
+  | "invalid_signature_or_install"
+  | "role_pool_mismatch"
+  | "rls_denial"
+  | "cleanup_failure"
+  | "unclassified_background_operation";
+export type SaasIsolationBackgroundSource =
+  | { service: "integrator"; operation: "integrator_http_request" | "integrator_projection" }
+  | { service: "worker"; operation: "worker_queue_drain" | "worker_projection_delivery" | "worker_outgoing_delivery" }
+  | { service: "scheduler"; operation: "scheduler_lock" | "scheduler_dispatch_tick" }
+  | { service: "media_worker"; operation: "media_transcode_tick" };
+
+export function classifySaasIsolationFailure(error: unknown): SaasIsolationTelemetryEventClass {
+  const value = typeof error === "object" && error !== null
+    ? error as { code?: unknown; message?: unknown }
+    : {};
+  const message = typeof error === "string" ? error : typeof value.message === "string" ? value.message : error instanceof Error ? error.message : "";
+  if (/principal context is required/i.test(message)) return "missing_principal";
+  if (/signed context|signature|install_signed_context/i.test(message)) return "invalid_signature_or_install";
+  if ((value.code === "42501" || value.code === undefined) && /row-level security|row level security|policy/i.test(message)) return "rls_denial";
+  if ((value.code === "42501" || value.code === undefined) && /permission denied for (table|schema|sequence|function|relation)/i.test(message)) {
+    return "role_pool_mismatch";
+  }
+  if (/release_principal_context|cleanup/i.test(message)) return "cleanup_failure";
+  return "unclassified_background_operation";
+}
+
+export function isRecognizedSaasIsolationFailure(error: unknown): boolean {
+  const value = typeof error === "object" && error !== null ? error as { code?: unknown; message?: unknown } : {};
+  const message = typeof error === "string" ? error : typeof value.message === "string" ? value.message : "";
+  return value.code === "42501"
+    || /principal context is required|signed context|signature|install_signed_context|release_principal_context|permission denied for (table|schema|sequence|function|relation)|row-level security|row level security/i.test(message);
+}
+
+/**
+ * Process-family integration point. `query` must be backed by a dedicated max=1 pool, never the
+ * request/job client that just failed. Calls synchronously enqueue and are bounded/circuit-broken.
+ */
+export function createSaasIsolationBackgroundReporter(input: {
+  source: SaasIsolationBackgroundSource;
+  query: (sql: string, values: readonly unknown[]) => Promise<unknown>;
+  now?: () => number;
+  timeoutMs?: number;
+}) {
+  const queue: SaasIsolationTelemetryEventClass[] = [];
+  const now = input.now ?? Date.now;
+  const timeoutMs = input.timeoutMs ?? 250;
+  let draining = false;
+  let circuitOpenUntil = 0;
+
+  async function drain(): Promise<void> {
+    if (draining) return;
+    draining = true;
+    try {
+      while (queue.length > 0) {
+        if (now() < circuitOpenUntil) { queue.length = 0; return; }
+        const eventClass = queue.shift();
+        if (!eventClass) return;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            input.query("SELECT app.report_saas_isolation_event($1, $2, $3, $4)", [
+              eventClass, input.source.service, input.source.operation, "unexplained",
+            ]),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error("saas_isolation_telemetry_timeout")), timeoutMs);
+            }),
+          ]);
+        } catch {
+          circuitOpenUntil = now() + 30_000;
+          queue.length = 0;
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      }
+    } finally {
+      draining = false;
+    }
+  }
+
+  return (error: unknown): void => {
+    if (!isRecognizedSaasIsolationFailure(error)) return;
+    if (now() < circuitOpenUntil || queue.length >= 32) return;
+    queue.push(classifySaasIsolationFailure(error));
+    void drain();
+  };
+}
