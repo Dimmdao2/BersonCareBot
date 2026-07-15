@@ -68,6 +68,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       createTemplate: createTemplateMock,
       addStageItem: addStageItemMock,
     },
+    orgEntitlements: {
+      getTariffForOrg: vi.fn(async () => null),
+      listOverrides: vi.fn(async () => []),
+    },
   }),
 }));
 

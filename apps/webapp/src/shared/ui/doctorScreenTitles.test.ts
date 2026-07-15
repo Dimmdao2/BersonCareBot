@@ -82,7 +82,7 @@ describe("getDoctorScreenTitle", () => {
     );
     expect(getDoctorScreenTitle("/app/doctor/admin/booking/payments")).toBe("Настройки записи — Оплата");
     expect(getDoctorScreenTitle("/app/doctor/admin/booking/integrations")).toBe(
-      "Настройки записи — Интеграция Rubitime",
+      "Настройки записи — Rubitime legacy",
     );
     // Legacy и несуществующие маршруты → overview
     expect(getDoctorScreenTitle("/app/doctor/admin/booking/catalog")).toBe("Настройки записи");

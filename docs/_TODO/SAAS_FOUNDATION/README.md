@@ -16,6 +16,8 @@ directory or Git history only when labelled **superseded** and linked to the rul
 
 ## Active work
 
+- P0.11.1-P0.11.4 system_settings storage/read/write/rules-docs are implemented; the executable
+  contract remains in `P0_11_SYSTEM_SETTINGS_ORG_CHECKLIST.md`.
 - Enforced multi-organization product acceptance: `SAAS_ENFORCE_ROADMAP.md`.
 - UX filter «мои пациенты», without changing clinic-wide staff visibility: `SEQUENCE.md` §4.4.
 - Standard SaaS engineering for organization provisioning, settings-root split and DB-role granularity:

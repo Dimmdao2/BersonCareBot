@@ -15,6 +15,7 @@ vi.mock("@bersoncare/db-principal", () => ({
   applyCurrentDbPrincipalToTransaction: vi.fn(async () => false),
   clearDbPrincipalFromConnection: vi.fn(async () => undefined),
   buildDbPrincipalApplyOptionsFromEnv: vi.fn(() => ({ mode: "legacy-guc" })),
+  assertDbPrincipalRequestPoolCheckoutAllowed: vi.fn(),
 }));
 
 import {

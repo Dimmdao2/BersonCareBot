@@ -291,8 +291,8 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(src).toContain("organization_principal_mismatch");
     expect(src).toContain("organizationId");
     expect(src).toContain("clinical_target_not_found");
-    expect(src).toContain("ar.platform_user_id = pu.id");
-    expect(src).toContain("user_phone_history");
+    expect(src).toContain("bea.platform_user_id = ${input.patientUserId}::uuid");
+    expect(src).toContain("canonicalAppointmentId");
     expect(src).toContain("getDiagnosisStatusHistory(");
     expect(src).toContain("eq(clinicalDiagnosis.patientUserId, patientUserId)");
   });
@@ -367,8 +367,8 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(appointmentsRepo).toContain("bea_scope.organization_id");
     expect(appointmentsRepo).toContain("audience?.organizationId");
     const clientsRepo = readSource("src/infra/repos/pgDoctorClients.ts");
-    expect(clientsRepo).toContain("legacyAppointmentOrgPredicate");
-    expect(clientsRepo).toContain("be_external_entity_mappings m_scope");
+    expect(clientsRepo).toContain("canonicalAppointmentOrgPredicate");
+    expect(clientsRepo).toContain("be_appointments bea");
     expect(clientsRepo).toContain("appendSqlOrganizationEnrollment");
     expect(clientsRepo).toContain("dps.organization_id");
     expect(clientsRepo).toContain("tpi.organization_id");
@@ -525,7 +525,7 @@ describe("doctor support/task workspace principal cutover", () => {
 
     const doctorClientsRepo = readSource("src/infra/repos/pgDoctorClients.ts");
     expect(doctorClientsRepo).toContain("listPatientAppointments(userId: string, organizationId?: string)");
-    expect(doctorClientsRepo).toContain("bea_scope.organization_id = $2::uuid");
+    expect(doctorClientsRepo).toContain("bea.organization_id = $2::uuid");
     const patientPracticeRepo = readSource("src/infra/repos/pgPatientPracticeCompletions.ts");
     expect(patientPracticeRepo).toContain("eq(patientPracticeCompletions.organizationId, organizationId)");
     const programActionLogRepo = readSource("src/infra/repos/pgProgramActionLog.ts");

@@ -39,7 +39,7 @@ describe("admin appointment-records soft-delete workspace principal cutover", ()
   it("softDeleteByIntegratorId accepts an organizationId guard and refuses cross-organization deletes", () => {
     const src = readSource(REPO_FILE);
     expect(src).toContain("organizationId?: string");
-    expect(src).toContain("resolveLegacyAppointmentOrganizationId");
+    expect(src).toContain("resolveLegacyAppointmentCanonicalTarget");
     expect(src).toContain("AppointmentProjectionOrganizationMismatchError");
     // Guard resolves canonical org via be_appointments / be_external_entity_mappings — legacy
     // appointment_records/patient_bookings tables get no organization_id column (T0.4 ADR).
