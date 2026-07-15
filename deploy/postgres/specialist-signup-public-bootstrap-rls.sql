@@ -23,14 +23,27 @@ SELECT 1 / (:'specialist_signup_public_bootstrap_down' IN ('0', '1'))::int
 BEGIN;
 
 \if :specialist_signup_public_bootstrap_down
--- Best-effort revoke of the current_org_id EXECUTE grant added in UP (guarded; ignore if absent).
+-- Revoke the policy-helper EXECUTE grants added to SECURITY DEFINER owners in UP.
 SELECT pg_get_userbyid(c.relowner) AS specialist_signup_system_settings_owner
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public' AND c.relname = 'system_settings' AND c.relkind IN ('r', 'p') \gset
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_password_credentials_owner
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'user_password_credentials' AND c.relkind IN ('r', 'p') \gset
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_oauth_bindings_owner
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'user_oauth_bindings' AND c.relkind IN ('r', 'p') \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_system_settings_owner', 'postgres')) AS specialist_signup_system_settings_owner_ident \gset
+SELECT quote_ident(COALESCE(:'specialist_signup_password_credentials_owner', 'postgres')) AS specialist_signup_password_credentials_owner_ident \gset
+SELECT quote_ident(COALESCE(:'specialist_signup_oauth_bindings_owner', 'postgres')) AS specialist_signup_oauth_bindings_owner_ident \gset
 SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
 \if :specialist_signup_has_current_org_id
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :specialist_signup_system_settings_owner_ident;
+\endif
+SELECT (to_regprocedure('app.current_patient_user_id()') IS NOT NULL)::int AS specialist_signup_has_current_patient_user_id \gset
+\if :specialist_signup_has_current_patient_user_id
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_password_credentials_owner_ident;
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_oauth_bindings_owner_ident;
 \endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
@@ -38,14 +51,20 @@ DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, te
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
 DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text);
+DROP FUNCTION IF EXISTS app.staff_user_has_web_oauth_binding(uuid);
+DROP FUNCTION IF EXISTS app.staff_user_has_password_credentials(uuid);
+DROP FUNCTION IF EXISTS app.current_patient_has_web_oauth_binding();
+DROP FUNCTION IF EXISTS app.current_patient_has_password_credentials();
 DROP FUNCTION IF EXISTS app.get_public_config_bool(text);
 \else
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff')
   AND EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'app')
   AND to_regclass('public.system_settings') IS NOT NULL
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('public.user_password_credentials') IS NOT NULL
+  AND to_regclass('public.user_oauth_bindings') IS NOT NULL
   AND to_regclass('public.email_challenges') IS NOT NULL
   AND to_regclass('public.specialist_signup_intents') IS NOT NULL
 )::int AS specialist_signup_public_bootstrap_preflight_ok \gset
@@ -77,6 +96,13 @@ WHERE n.nspname = 'public'
   AND c.relname = 'user_password_credentials'
   AND c.relkind IN ('r', 'p') \gset
 
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_oauth_bindings_owner
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = 'user_oauth_bindings'
+  AND c.relkind IN ('r', 'p') \gset
+
 SELECT pg_get_userbyid(c.relowner) AS specialist_signup_email_challenges_owner
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -102,6 +128,8 @@ SELECT 1 / 0 AS specialist_signup_password_owner_abort;
 
 SELECT quote_ident(:'specialist_signup_system_settings_owner') AS specialist_signup_system_settings_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_platform_users_owner') AS specialist_signup_platform_users_owner_ident \gset
+SELECT quote_ident(:'specialist_signup_password_credentials_owner') AS specialist_signup_password_credentials_owner_ident \gset
+SELECT quote_ident(:'specialist_signup_oauth_bindings_owner') AS specialist_signup_oauth_bindings_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_email_challenges_owner') AS specialist_signup_email_challenges_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_intents_owner') AS specialist_signup_intents_owner_ident \gset
 
@@ -110,7 +138,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT CASE
     WHEN p_key <> 'specialist_signup_enabled' THEN NULL::boolean
@@ -133,6 +161,104 @@ COMMENT ON FUNCTION app.get_public_config_bool(text) IS
 
 ALTER FUNCTION app.get_public_config_bool(text) OWNER TO :specialist_signup_system_settings_owner_ident;
 
+CREATE OR REPLACE FUNCTION app.current_patient_has_password_credentials()
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_patient_user_id uuid;
+BEGIN
+  IF pg_catalog.to_regprocedure('app.current_patient_user_id()') IS NOT NULL THEN
+    EXECUTE 'SELECT app.current_patient_user_id()' INTO v_patient_user_id;
+  ELSE
+    v_patient_user_id := NULLIF(pg_catalog.current_setting('app.patient_user_id', true), '')::uuid;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.user_password_credentials AS c
+    WHERE c.user_id = v_patient_user_id
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION app.current_patient_has_password_credentials() IS
+  'Patient-self password credential presence check. Uses protected context when installed and legacy app.patient_user_id otherwise; returns only a boolean and never exposes password_hash.';
+
+ALTER FUNCTION app.current_patient_has_password_credentials() OWNER TO :specialist_signup_password_credentials_owner_ident;
+
+CREATE OR REPLACE FUNCTION app.staff_user_has_password_credentials(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_password_credentials AS c
+    WHERE c.user_id = p_user_id
+  )
+$$;
+
+COMMENT ON FUNCTION app.staff_user_has_password_credentials(uuid) IS
+  'Staff-only password credential presence check for a server-resolved canonical user id; returns only a boolean and never exposes password_hash.';
+
+ALTER FUNCTION app.staff_user_has_password_credentials(uuid) OWNER TO :specialist_signup_password_credentials_owner_ident;
+
+CREATE OR REPLACE FUNCTION app.current_patient_has_web_oauth_binding()
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_patient_user_id uuid;
+BEGIN
+  IF pg_catalog.to_regprocedure('app.current_patient_user_id()') IS NOT NULL THEN
+    EXECUTE 'SELECT app.current_patient_user_id()' INTO v_patient_user_id;
+  ELSE
+    v_patient_user_id := NULLIF(pg_catalog.current_setting('app.patient_user_id', true), '')::uuid;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM public.user_oauth_bindings AS b
+    WHERE b.user_id = v_patient_user_id
+      AND b.provider IN ('google', 'yandex', 'apple')
+  );
+END;
+$$;
+
+COMMENT ON FUNCTION app.current_patient_has_web_oauth_binding() IS
+  'Patient-self web OAuth presence check. Uses protected context when installed and legacy app.patient_user_id otherwise; returns only a boolean and never exposes provider credentials.';
+
+ALTER FUNCTION app.current_patient_has_web_oauth_binding() OWNER TO :specialist_signup_oauth_bindings_owner_ident;
+
+CREATE OR REPLACE FUNCTION app.staff_user_has_web_oauth_binding(p_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.user_oauth_bindings AS b
+    WHERE b.user_id = p_user_id
+      AND b.provider IN ('google', 'yandex', 'apple')
+  )
+$$;
+
+COMMENT ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) IS
+  'Staff-only web OAuth presence check for a server-resolved canonical user id; returns only a boolean and never exposes provider credentials.';
+
+ALTER FUNCTION app.staff_user_has_web_oauth_binding(uuid) OWNER TO :specialist_signup_oauth_bindings_owner_ident;
+
 CREATE OR REPLACE FUNCTION app.email_password_register_pending(
   p_email_norm text,
   p_password_hash text,
@@ -143,7 +269,7 @@ RETURNS TABLE (ok boolean, code text, user_id uuid)
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
 #variable_conflict use_column
 DECLARE
@@ -188,7 +314,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   DELETE FROM public.platform_users
   WHERE id = p_user_id
@@ -207,7 +333,7 @@ RETURNS uuid
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.user_id
   FROM public.email_challenges AS c
@@ -231,7 +357,7 @@ RETURNS uuid
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   INSERT INTO public.specialist_signup_intents (
     user_id,
@@ -274,7 +400,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT
     i.id,
@@ -315,7 +441,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT
     i.id,
@@ -339,6 +465,10 @@ COMMENT ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) IS
 ALTER FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) OWNER TO :specialist_signup_intents_owner_ident;
 
 REVOKE ALL ON FUNCTION app.get_public_config_bool(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.current_patient_has_password_credentials() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.current_patient_has_web_oauth_binding() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
@@ -347,6 +477,10 @@ REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO app_staff, app_patient;
+GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;
+GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO app_staff, app_patient;
+GRANT EXECUTE ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) TO app_staff;
 GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
@@ -362,6 +496,11 @@ GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO
 SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
 \if :specialist_signup_has_current_org_id
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :specialist_signup_system_settings_owner_ident;
+\endif
+SELECT (to_regprocedure('app.current_patient_user_id()') IS NOT NULL)::int AS specialist_signup_has_current_patient_user_id \gset
+\if :specialist_signup_has_current_patient_user_id
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_password_credentials_owner_ident;
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_oauth_bindings_owner_ident;
 \endif
 \endif
 

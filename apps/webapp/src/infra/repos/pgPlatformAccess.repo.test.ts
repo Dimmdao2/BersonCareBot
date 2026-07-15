@@ -41,8 +41,13 @@ describe("pgPlatformAccessPort", () => {
 
     const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("FROM platform_users pu");
-    expect(sql).toContain("has_password_credentials");
-    expect(sql).toContain("has_web_oauth_binding");
+    expect(sql).toContain("CASE WHEN app.is_staff()");
+    expect(sql).toContain("app.staff_user_has_password_credentials(pu.id)");
+    expect(sql).toContain("app.current_patient_has_password_credentials()");
+    expect(sql).not.toContain("FROM user_password_credentials");
+    expect(sql).toContain("app.staff_user_has_web_oauth_binding(pu.id)");
+    expect(sql).toContain("app.current_patient_has_web_oauth_binding()");
+    expect(sql).not.toContain("FROM user_oauth_bindings");
     expect(params).toEqual(["00000000-0000-4000-8000-000000000001"]);
   });
 });

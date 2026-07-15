@@ -10,13 +10,14 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
               pu.phone_normalized,
               pu.patient_phone_trust_at,
               pu.email_verified_at,
-              EXISTS (SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id)
-                AS has_password_credentials,
-              EXISTS (
-                SELECT 1 FROM user_oauth_bindings uob
-                WHERE uob.user_id = pu.id
-                  AND uob.provider IN ('google', 'yandex', 'apple')
-              ) AS has_web_oauth_binding
+              CASE WHEN app.is_staff()
+                THEN app.staff_user_has_password_credentials(pu.id)
+                ELSE app.current_patient_has_password_credentials()
+              END AS has_password_credentials,
+              CASE WHEN app.is_staff()
+                THEN app.staff_user_has_web_oauth_binding(pu.id)
+                ELSE app.current_patient_has_web_oauth_binding()
+              END AS has_web_oauth_binding
        FROM platform_users pu
        WHERE pu.id = $1::uuid`,
       [canonicalUserId],

@@ -74,7 +74,7 @@ RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT NULLIF(btrim(s.value_json #>> '{value,publicKey}'), '')
   FROM public.system_settings AS s

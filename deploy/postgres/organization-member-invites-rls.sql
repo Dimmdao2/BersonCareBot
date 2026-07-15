@@ -119,7 +119,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT
     i.id,
@@ -160,7 +160,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
 #variable_conflict use_column
 DECLARE
@@ -296,7 +296,7 @@ RETURNS TABLE (user_id uuid, was_created boolean)
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
 DECLARE
   v_existing_id uuid;
@@ -382,7 +382,7 @@ RETURNS TABLE (id uuid, user_id uuid, code_hash text, expires_at bigint, attempt
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.id, c.user_id, c.code_hash, c.expires_at, c.attempts::integer
   FROM public.email_challenges AS c
@@ -397,7 +397,7 @@ RETURNS TABLE (last_sent_at timestamptz)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.last_sent_at
   FROM public.email_send_cooldowns AS c
@@ -411,7 +411,7 @@ RETURNS TABLE (last_sent_at timestamptz)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.last_sent_at
   FROM public.email_send_cooldowns AS c
@@ -425,7 +425,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   DELETE FROM public.email_challenges WHERE user_id = p_user_id
 $$;
@@ -440,7 +440,7 @@ RETURNS uuid
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   INSERT INTO public.email_challenges (user_id, email, code_hash, expires_at, attempts)
   VALUES (p_user_id, p_email, p_code_hash, p_expires_at, 0)
@@ -452,7 +452,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   DELETE FROM public.email_challenges WHERE id = p_challenge_id
 $$;
@@ -462,7 +462,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   INSERT INTO public.email_send_cooldowns (user_id, email_normalized, last_sent_at)
   VALUES (p_user_id, p_email_norm, now())
@@ -477,7 +477,7 @@ RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts 
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
   FROM public.email_challenges AS c
@@ -493,7 +493,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   UPDATE public.email_challenges
   SET attempts = p_attempts
@@ -505,7 +505,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -521,7 +521,7 @@ RETURNS void
 LANGUAGE sql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   UPDATE public.platform_users
   SET email = p_email,
@@ -539,7 +539,7 @@ RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
   FROM public.email_challenges AS c
@@ -555,7 +555,7 @@ RETURNS TABLE (id uuid, code_hash text, expires_at bigint, attempts integer)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.id, c.code_hash, c.expires_at, c.attempts::integer
   FROM public.email_challenges AS c
@@ -573,7 +573,7 @@ RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts 
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog
 AS $$
   SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer
   FROM public.email_challenges AS c
