@@ -220,3 +220,74 @@
 - Вердикт: **PASS**. UX-04 закрыт как decision-ready journey contract; это не закрывает перечисленные implementation
   defects. Audit record `UX04_INDEPENDENT_AUDIT.md` обновлён на месте, новый audit-файл не создан.
 - `git diff --check` — PASS; app tests/DB smoke не запускались, application/schema/runtime state не менялись.
+
+## 2026-07-15 — UX-06 full IA and screen-composition synthesis
+
+- Созданы только три заранее объявленных phase output: `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и
+  `ROUTE_MIGRATION_MAP.md`; ad hoc contract/audit-файлы не создавались.
+- Целевая IA разделяет platform public, published organization, global platform admin, organization management,
+  clinical work, assistant operations, staff account и patient app. Owner/admin + specialist использует один login
+  и organization context; safe candidate — явный management↔clinical switch. Staff остаётся one-org, patient —
+  multi-org с server-verified enrollment context.
+- Solo/clinic используют общие компоненты и route contracts, но capability-driven composition скрывает team/
+  handoff chrome у solo и показывает clinic filters/actions только после authorization. Карточка пациента оставлена
+  как decision-safe shell: recommended one-org-card candidate, permission-before-filter, own/assigned safe default;
+  OM-4/5 не превращены в owner ruling.
+- Четыре handoff semantics сохранены раздельно. UI размещает primary/care-team/work-item actions у конкретных
+  объектов и recovery queue; generic patient transfer и cross-org re-parent не спроектированы как launch action.
+- UX-04 journeys перенесены в acquisition/signup/staff invite/patient join/public booking/install compositions;
+  UX-05 P/O/W, hostname base/bindings, sender, canonical fallback и degraded states встроены в public/management/
+  patient screens. BD-1…BD-6 остаются pending owner requests.
+- Desktop/mobile navigation определена для platform, management, clinical, assistant и patient shells; общие
+  loading/empty/permission/entitlement/context/degraded/suspended/error states закреплены отдельно от доступа.
+- `ROUTE_MIGRATION_MAP.md` распределяет все текущие page files ровно один раз: `20 + 81 + 49 = 150/150` по
+  `keep / merge / move / split / retire / needs-decision`, с reuse и зависимостями.
+- Выполнены локальные механические проверки allocation/cross-artifact/link/table/diff; результат должен быть
+  повторён независимым full-coverage аудитором. Application code, DB и runtime не менялись. UX-06 пока не closed.
+
+## 2026-07-15 — UX-06 integrated correction after full-coverage audit
+
+- Первый полный аудит подтвердил actor/security/role/solo-clinic/patient/handoff/branding boundaries и exact
+  allocation `150/150`, но выдал **FAIL** по четырём связанным причинам: не было единого screen-ID registry;
+  `/app?view=registration` и другие multi-state surfaces не имели полной migration trace; отсутствовал явный
+  responsive contract для platform/organization public; UX-07 handoff потерял SMS и public-booking journeys.
+- Один correction owner перечитал UX-01…05, все три UX-06 output и полный audit, затем исправил существующие
+  `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и `ROUTE_MIGRATION_MAP.md` in place. Новых contract-документов и нового
+  audit record не создавалось; исходный audit history не редактировался.
+- `TARGET_IA.md` теперь является master registry canonical UX-06 IDs, включая ACC-01…04. `OPS-05`,
+  `ORG-PUB-04`, `MGMT-SETUP/TEAM/INVITE`, `CLIN-PAT-INVITE`, `ACC-FIRST`, `PAT-INSTALL` и все UX-04 ID families
+  явно классифицированы как shared destination, state/flow alias или journey/state reference, а не вторые экраны.
+- PUB-06 имеет deferred-by-BD-6 composition без safe-launch navigation; unavailable organization projection
+  оформлена как state ORG-PUB-01/02/03. Все launch/conditional IDs имеют composition или точный gated reason.
+- Exact file allocation сохранена `20 + 81 + 49 = 150/150`. Отдельная multi-state trace связывает
+  `/app?view=registration` с PUB-03/ACQ-01…05 и проверяет auth/role entry, patient-card tabs, schedule/
+  communications/analytics query tabs, mixed settings/content/booking pages, redirects и deep-link resolvers без
+  превращения aliases в navigation screens.
+- Добавлен desktop/mobile navigation contract для specialist-first platform public и published organization public:
+  приоритет signup/demo, вторичный patient entry, profile→booking/join hierarchy, mobile CTA, legal/support и
+  one-way canonical fallback сохраняют одинаковые trust/recovery правила на обоих breakpoints.
+- UX-07 handoff восстановлен из UX-04: ACQ-01…05, STF-01…08, PIN-01…09, SMS-01…03, PBK-01…08 и MOR-01…05
+  сопоставлены с canonical UX-06 screens и обязательными recovery branches. SMS остаётся transport-only без auth
+  elevation; booking доходит до exact appointment/enrollment/portal state before install.
+- Все ранее проходившие safe defaults сохранены: authorization before filter, staff one-org/patient multi-org,
+  bounded assistant, one-card candidate without owner freeze, four handoff primitives, stable platform fallback,
+  sender/domain/PWA readiness и OM/BD gates without attributed owner rulings.
+- Статус UX-06: **integrated correction complete; awaiting one full independent re-audit**. Application code, DB и
+  runtime не менялись; commit/push не выполнялись этим correction pass.
+
+## 2026-07-15 — UX-06 full independent re-audit
+
+- Повторный аудитор перечитал весь orchestration/product canon, UX-01…05, три UX-06 output и исходный FAIL audit;
+  проверка не ограничивалась diff или четырьмя прежними findings.
+- Exact current allocation подтверждена независимо: `150 actual = 150 refs = 150 unique`, duplicate/missing/stale
+  `0`; multi-state trace отдельно покрывает registration, query tabs, mixed pages, redirects и deep links.
+- Master registry и compositions совпадают точно `57/57`; extra/missing/duplicate/unknown target IDs `0`. Flow,
+  journey и obsolete aliases классифицированы и не образуют parallel IA.
+- Responsive navigation подтверждена для platform/organization public, platform admin, staff management/clinical,
+  assistant и patient desktop/mobile. UX-04→UX-06→UX-07 trace включает ACQ/STF/PIN/SMS/PBK/MOR и recovery branches.
+- Ранее проходившие one-org staff/multi-org patient, permission-before-filter, one-card candidate, four handoff
+  primitives, bounded assistant, branding/domain/sender/PWA fallback и owner-ruling provenance не регрессировали.
+- Финальный вердикт: **PASS**. UX-06 закрыт как decision-safe target IA/screen-composition contract; OM/BD choices
+  остаются pending gates, а current implementation gaps — входами UX-09, не скрыто готовыми возможностями.
+- `git diff --check` и structural scripts — PASS. App tests/DB smoke не запускались; application/schema/runtime не
+  менялись. Audit record `UX06_INDEPENDENT_AUDIT.md` обновлён in place, новый audit-файл не создавался.

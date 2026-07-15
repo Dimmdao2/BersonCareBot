@@ -77,4 +77,7 @@
 - `UX04_INDEPENDENT_AUDIT.md` — полный identity/security/product audit и PASS после integrated correction;
 - `BRANDING_DOMAIN_CONTRACT.md` и `BRANDING_CAPABILITY_MATRIX.md` — branding/domain/sender/PWA contract;
 - `UX05_INDEPENDENT_AUDIT.md` — полный product/architecture audit и PASS после integrated correction;
+- `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и `ROUTE_MIGRATION_MAP.md` — целевая IA, канонический состав экранов и
+  полная current→target migration map;
+- `UX06_INDEPENDENT_AUDIT.md` — full-coverage audit и PASS после integrated correction;
 - `LOG.md` — журнал фактов, решений и проверок.

@@ -196,6 +196,9 @@ identity. Полный re-audit проверил все исправления �
 
 ## UX-06 — Target IA и screen composition
 
+**Статус:** completed as a decision-safe target IA/screen-composition contract; full independent re-audit PASS after
+one integrated correction. Open OM/BD owner gates remain conditional and are not approved target policy.
+
 **Цель:** собрать целевую карту экранов по ролям с максимальным reuse текущего продукта.
 
 Артефакты:
@@ -214,6 +217,18 @@ identity. Полный re-audit проверил все исправления �
 **Исполнитель:** Planner (Opus). Независимый plan-critic проверяет буквальное покрытие `REQUIREMENTS.md`; Decomposer (Sonnet-high) превращает карту в проверяемые screen specifications.
 
 **Выход:** `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md`.
+
+Current synthesis covers all declared actor surfaces, responsive navigation, management↔clinical composition,
+one-org staff vs multi-org patient context, decision-safe card/history and handoff slots, UX-04 acquisition/invite/
+install, UX-05 branding/domain degradation and shared empty/loading/error/permission states. The first full audit
+confirmed exact page allocation `150/150`, but failed the phase on one screen-ID registry, registration/multi-state
+trace, public responsive navigation and incomplete UX-04→UX-07 handoff. One integrated correction updated the three
+existing outputs in place: `TARGET_IA.md` now owns canonical IDs and aliases, `SCREEN_COMPOSITION.md` maps every
+canonical/deferred surface and all six UX-04 prototype journeys, and `ROUTE_MIGRATION_MAP.md` preserves exact file
+allocation while separately tracing multi-state/query-tab/redirect/mixed pages. Full independent re-audit confirmed
+`150/150`, exact `57/57` canonical registry/composition parity, complete responsive navigation and all UX-04 journey
+handoffs with **PASS**. Previously passing role/security/patient/handoff/branding/provenance boundaries remain intact.
+Audit record: `UX06_INDEPENDENT_AUDIT.md`.
 
 ## UX-07 — Wireframes и scenario prototype
 

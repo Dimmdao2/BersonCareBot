@@ -1,0 +1,143 @@
+# UX-06 — Current route to target screen migration map
+
+**Статус:** integrated correction complete; awaiting full independent UX-06 re-audit.
+**Allocation:** every current `page.tsx` is listed exactly once below: **150 / 150**.
+**Rule:** disposition is a migration instruction, not evidence that the target capability/data contract already exists.
+
+## 1. Disposition vocabulary and sequencing
+
+- `keep` — preserve canonical route/component family and adapt composition/context.
+- `merge` — converge several current surfaces into one target screen; retain compatibility until deep-link census.
+- `move` — reuse the surface under a different ownership/shell namespace.
+- `split` — current page mixes personal/org/platform or clinical/management ownership and must be separated.
+- `retire` — remove from product IA after inbound-link/analytics/deep-link census; redirect where needed.
+- `needs-decision` — target screen slot is known but permission, data ownership or launch scope is blocked by an
+  explicit owner/data-contract gate.
+
+Migration order is contract-first: capability/data ownership → target shells → canonical target routes → internal
+links → compatibility redirects → observed deep-link sunset. No redirect is used to bypass a target guard.
+
+## 2. Platform, entry and public organization allocation — 20 files
+
+| # | Current page file(s) | Disposition | Target screen | Reuse and dependencies |
+|---:|---|---|---|---|
+| P01 | `apps/webapp/src/app/page.tsx` | split | PUB-01 platform landing | Replace patient-first hero with specialist acquisition; patient entry secondary |
+| P02 | `apps/webapp/src/app/app/page.tsx`<br>`apps/webapp/src/app/app/auth/email-setup/page.tsx`<br>`apps/webapp/src/app/app/contact-support/page.tsx`<br>`apps/webapp/src/app/app/tg/page.tsx`<br>`apps/webapp/src/app/app/max/page.tsx` | split / merge | PUB-03 registration state, PUB-04 login/recovery, ORG-PUB-03 join, PAT-10 account recovery | `/app?view=registration` is the confirmed specialist-registration view and maps to PUB-03/ACQ-01…05 without adding a second page-file allocation; reuse identity/miniapp entry mechanics and preserve persona safety, token exchange and neutral error states |
+| P03 | `apps/webapp/src/app/legal/privacy/page.tsx`<br>`apps/webapp/src/app/legal/terms/page.tsx` | keep | PUB-05 platform legal | Add organization disclosures on relevant org surfaces without hiding platform operator |
+| P04 | `apps/webapp/src/app/book/page.tsx`<br>`apps/webapp/src/app/book/new/page.tsx`<br>`apps/webapp/src/app/book/new/service/page.tsx`<br>`apps/webapp/src/app/book/new/slot/page.tsx`<br>`apps/webapp/src/app/book/new/confirm/page.tsx` | keep / move | ORG-PUB-02 canonical public booking | Reuse wizard; organization projection and identity/enrollment boundary explicit |
+| P05 | `apps/webapp/src/app/book/service/page.tsx`<br>`apps/webapp/src/app/book/slot/page.tsx`<br>`apps/webapp/src/app/book/confirm/page.tsx`<br>`apps/webapp/src/app/book/done/page.tsx` | retire | ORG-PUB-02 compatibility redirects | Sunset only after external link census |
+| P06 | `apps/webapp/src/app/book/pay/page.tsx` | merge | ORG-PUB-02 booking payment state | Preserve idempotent continuation and organization ownership |
+| P07 | `apps/webapp/src/app/book/product/[token]/page.tsx`<br>`apps/webapp/src/app/book/product/[token]/pay/page.tsx` | split / needs-decision | ORG-PUB-02 product booking/payment or PAT-07 benefits | Trusted product token exchange; exact public product launch scope/data ownership unresolved |
+
+## 3. Staff and platform allocation — 81 files
+
+| # | Current page file(s) | Disposition | Target screen | Reuse and dependencies |
+|---:|---|---|---|---|
+| S01 | `apps/webapp/src/app/app/admin/promo/page.tsx` | retire | CLIN-09 / MGMT-09 compatibility redirect | Canonical target first; link census before removal |
+| S02 | `apps/webapp/src/app/app/doctor/page.tsx` | keep / move | CLIN-01 Today | Reuse dashboard; capability-scoped widgets and one-org context |
+| S03 | `apps/webapp/src/app/app/doctor/patients/page.tsx`<br>`apps/webapp/src/app/app/doctor/patients/[userId]/page.tsx`<br>`apps/webapp/src/app/app/doctor/patients/[userId]/[...tabSlug]/page.tsx`<br>`apps/webapp/src/app/app/doctor/patients/[userId]/programs/[instanceId]/page.tsx` | keep / move / needs-decision | CLIN-02 / CLIN-03 / CLIN-04 / CLIN-08 | Reuse workbench/card/program detail; OM-4/5 and section policy before shared history |
+| S04 | `apps/webapp/src/app/app/doctor/subscribers/page.tsx`<br>`apps/webapp/src/app/app/doctor/subscribers/[userId]/page.tsx` | retire | CLIN-02 / CLIN-03 redirects | Remove after link/deep-link census |
+| S05 | `apps/webapp/src/app/app/doctor/schedule/page.tsx`<br>`apps/webapp/src/app/app/doctor/appointments/page.tsx` | split / merge | CLIN-06 schedule + MGMT-03 booking setup | Keep calendar/work plan; move setup behind management capability |
+| S06 | `apps/webapp/src/app/app/doctor/communications/page.tsx`<br>`apps/webapp/src/app/app/doctor/messages/page.tsx`<br>`apps/webapp/src/app/app/doctor/online-intake/page.tsx`<br>`apps/webapp/src/app/app/doctor/online-intake/[requestId]/page.tsx`<br>`apps/webapp/src/app/app/doctor/comments/page.tsx`<br>`apps/webapp/src/app/app/doctor/broadcasts/page.tsx`<br>`apps/webapp/src/app/app/doctor/broadcasts/archive/page.tsx` | merge / split | CLIN-07 communications; OPS-03 / OPS-04 bounded operations | Reuse tab bodies; define clinical/non-clinical message classes and assistant capabilities |
+| S07 | `apps/webapp/src/app/app/doctor/exercises/page.tsx`<br>`apps/webapp/src/app/app/doctor/exercises/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/exercises/[id]/page.tsx`<br>`apps/webapp/src/app/app/doctor/exercises/auto-create/page.tsx` | split / needs-decision | CLIN-09 library; PLAT-06 catalog governance | Reuse master-detail/editors; explicit platform/org/private ownership required |
+| S08 | `apps/webapp/src/app/app/doctor/lfk-templates/page.tsx`<br>`apps/webapp/src/app/app/doctor/lfk-templates/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/lfk-templates/[id]/page.tsx` | split / needs-decision | CLIN-09; PLAT-06 | Same catalog ownership gate; retain source attribution |
+| S09 | `apps/webapp/src/app/app/doctor/clinical-tests/page.tsx`<br>`apps/webapp/src/app/app/doctor/clinical-tests/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/clinical-tests/[id]/page.tsx` | split / needs-decision | CLIN-09; PLAT-06 | Same catalog ownership gate |
+| S10 | `apps/webapp/src/app/app/doctor/test-sets/page.tsx`<br>`apps/webapp/src/app/app/doctor/test-sets/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/test-sets/[id]/page.tsx` | split / needs-decision | CLIN-09; PLAT-06 | Same catalog ownership gate |
+| S11 | `apps/webapp/src/app/app/doctor/recommendations/page.tsx`<br>`apps/webapp/src/app/app/doctor/recommendations/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/recommendations/[id]/page.tsx` | split / needs-decision | CLIN-09; PLAT-06 | Same catalog ownership gate |
+| S12 | `apps/webapp/src/app/app/doctor/treatment-program-templates/page.tsx`<br>`apps/webapp/src/app/app/doctor/treatment-program-templates/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/treatment-program-templates/[id]/page.tsx` | split / needs-decision | CLIN-09 / CLIN-08; PLAT-06 | Template source/ownership and assignment authorization before relabeling |
+| S13 | `apps/webapp/src/app/app/doctor/treatment-program-promo/page.tsx` | move / split | MGMT-09 care default + CLIN-09 template source | Org-explicit setting/counts; platform default remains PLAT-05 / PLAT-06 if truly global |
+| S14 | `apps/webapp/src/app/app/doctor/references/page.tsx`<br>`apps/webapp/src/app/app/doctor/references/[categoryCode]/page.tsx`<br>`apps/webapp/src/app/app/doctor/references/measure-kinds/page.tsx` | split / needs-decision | CLIN-09 reference use; PLAT-06 governance | Platform catalog vs org extension ownership required |
+| S15 | `apps/webapp/src/app/app/doctor/courses/page.tsx`<br>`apps/webapp/src/app/app/doctor/courses/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/courses/[id]/page.tsx` | split / needs-decision | CLIN-10 content; PLAT-06 governance | Decide org catalog vs platform marketplace before writes |
+| S16 | `apps/webapp/src/app/app/doctor/content/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/edit/[id]/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/sections/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/sections/new/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/sections/edit/[slug]/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/motivation/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/news/page.tsx`<br>`apps/webapp/src/app/app/doctor/patient-home/page.tsx`<br>`apps/webapp/src/app/app/settings/patient-home/page.tsx` | split / merge / move | CLIN-10 content + MGMT-04 / MGMT-09 public/care defaults + PLAT-06 governance | Reuse CMS/editor; retire aliases only after canonical ownership and links |
+| S17 | `apps/webapp/src/app/app/doctor/content/library/page.tsx`<br>`apps/webapp/src/app/app/doctor/content/library/delete-errors/page.tsx` | split / move | CLIN-10 media + PLAT-06 / PLAT-07 diagnostics | Storage ownership required; delete diagnostics restricted |
+| S18 | `apps/webapp/src/app/app/doctor/material-ratings/page.tsx`<br>`apps/webapp/src/app/app/doctor/material-ratings/[kind]/[id]/page.tsx` | split / needs-decision | CLIN-11 org analytics or PLAT-04 aggregate analytics | Classify metric ownership/audience before route move |
+| S19 | `apps/webapp/src/app/app/doctor/install/page.tsx` | move | ACC-04 staff install | Reuse staff PWA status; BD-4 safe platform identity |
+| S20 | `apps/webapp/src/app/app/settings/page.tsx` | split | ACC-01 / ACC-03 personal + MGMT-09 organization defaults | Separate personal contact/notifications/timezone from org patient/SMS/support defaults |
+| S21 | `apps/webapp/src/app/app/doctor/clinic/members/page.tsx`<br>`apps/webapp/src/app/app/doctor/clinic/settings/page.tsx` | move / split | MGMT-02 team + MGMT-09 settings | Reuse members/invites/settings sections; add delivery, capability and recovery states |
+| S22 | `apps/webapp/src/app/app/doctor/analytics/page.tsx`<br>`apps/webapp/src/app/app/doctor/analytics/clients/page.tsx`<br>`apps/webapp/src/app/app/doctor/analytics/notifications/page.tsx`<br>`apps/webapp/src/app/app/doctor/usage/page.tsx`<br>`apps/webapp/src/app/app/doctor/stats/page.tsx` | move / split / merge | PLAT-04 analytics and CLIN-11 org analytics | Separate global aggregates from organization metrics; retire aliases after link census |
+| S23 | `apps/webapp/src/app/app/doctor/admin/app-settings/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/auth/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/integrations/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/technical/page.tsx` | move / split | PLAT-05 configuration + MGMT-07 org integrations | Reuse settings clients only with correct ownership and secret-safe states |
+| S24 | `apps/webapp/src/app/app/doctor/system-health/page.tsx`<br>`apps/webapp/src/app/app/doctor/health-archive/page.tsx`<br>`apps/webapp/src/app/app/doctor/audit-log/page.tsx` | move | PLAT-07 reliability | Separate platform shell; identifier-safe detail/export |
+| S25 | `apps/webapp/src/app/app/doctor/admin/booking/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/catalog/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/form-public/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/payments/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/integrations/page.tsx` | split / move | MGMT-03 booking + MGMT-07 integrations + PLAT-05 legacy/platform ops | Organization ownership first; Rubitime/platform controls must not leak into ordinary setup |
+| S26 | `apps/webapp/src/app/app/doctor/booking-merge/page.tsx`<br>`apps/webapp/src/app/app/doctor/clients/name-match-hints/page.tsx` | move | PLAT-08 identity repair | Restricted target selection, dry-run/result and audit; no clinical nav |
+| S27 | `apps/webapp/src/app/app/doctor/dev/chart-test/page.tsx` | retire | no product target | Keep dev-only outside product IA only if tooling still uses it |
+
+## 4. Patient allocation — 49 files
+
+| # | Current page file(s) | Disposition | Target screen | Reuse and dependencies |
+|---:|---|---|---|---|
+| C01 | `apps/webapp/src/app/app/patient/about/page.tsx`<br>`apps/webapp/src/app/app/patient/address/page.tsx` | merge / move | PAT-09 organization details | Replace singular specialist/clinic assumptions with active-org projection |
+| C02 | `apps/webapp/src/app/app/patient/bind-phone/page.tsx` | keep / move | PAT-10 identity/trusted-phone recovery | Optional except booking trust requirements; preserve identity tiers |
+| C03 | `apps/webapp/src/app/app/patient/booking/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/service/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/slot/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/confirm/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/done/page.tsx` | keep | PAT-04 canonical booking | Reuse wizard; organization context and source visible throughout |
+| C04 | `apps/webapp/src/app/app/patient/booking/service/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/slot/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/confirm/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/done/page.tsx`<br>`apps/webapp/src/app/app/patient/booking/new/city/page.tsx` | retire | PAT-04 compatibility redirects | Sunset after deep-link/link census; no duplicate wizard state |
+| C05 | `apps/webapp/src/app/app/patient/booking/pay/page.tsx` | merge | PAT-04 booking payment | Preserve appointment/payment organization context |
+| C06 | `apps/webapp/src/app/app/patient/broadcasts/[auditId]/page.tsx` | retire | PAT-05 inbox deep-link resolver | Replace with canonical activity/thread target after notification contract |
+| C07 | `apps/webapp/src/app/app/patient/cabinet/page.tsx` | retire | PAT-04 entry redirect | Converge all booking entries; preserve safe redirect during census |
+| C08 | `apps/webapp/src/app/app/patient/content/[slug]/page.tsx`<br>`apps/webapp/src/app/app/patient/help/page.tsx`<br>`apps/webapp/src/app/app/patient/help/[slug]/page.tsx`<br>`apps/webapp/src/app/app/patient/sections/page.tsx`<br>`apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`<br>`apps/webapp/src/app/app/patient/courses/page.tsx`<br>`apps/webapp/src/app/app/patient/lessons/page.tsx`<br>`apps/webapp/src/app/app/patient/emergency/page.tsx` | merge / retire aliases | PAT-08 content/help | Reuse renderers; retain published/source attribution; redirect navigation aliases after census |
+| C09 | `apps/webapp/src/app/app/patient/diary/page.tsx`<br>`apps/webapp/src/app/app/patient/diary/symptoms/journal/page.tsx`<br>`apps/webapp/src/app/app/patient/diary/lfk/journal/page.tsx` | keep / move / merge | PAT-06 progress | Reuse diary components; migrate user-facing LFK wording; org/program attribution |
+| C10 | `apps/webapp/src/app/app/patient/go/[kind]/page.tsx` | keep | PAT-02 / PAT-03 / PAT-06 safe deep-link resolver | Not a navigation screen; verify enrollment/object before context change |
+| C11 | `apps/webapp/src/app/app/patient/install/page.tsx` | merge | PAT-11 notifications/install | Reuse PWA UI; stable platform manifest under BD-5 safe default |
+| C12 | `apps/webapp/src/app/app/patient/intake/lfk/page.tsx`<br>`apps/webapp/src/app/app/patient/intake/nutrition/page.tsx` | move / merge | PAT-04 organization services/intake | Service belongs to verified organization booking context |
+| C13 | `apps/webapp/src/app/app/patient/memberships/[id]/page.tsx`<br>`apps/webapp/src/app/app/patient/memberships/pay/page.tsx` | merge / move | PAT-07 benefits | Group by organization; retain product/payment ownership |
+| C14 | `apps/webapp/src/app/app/patient/messages/page.tsx` | split / keep | PAT-05 inbox/thread | Remove hard-coded specialist; org + author + recipient attribution |
+| C15 | `apps/webapp/src/app/app/patient/notifications/page.tsx`<br>`apps/webapp/src/app/app/patient/notifications/settings/page.tsx` | split / merge | PAT-05 activity + PAT-11 consent/settings | Separate inbox/activity from global channels and optional org preferences |
+| C16 | `apps/webapp/src/app/app/patient/page.tsx` | keep | PAT-02 Today | Reuse home composition after organization-principal defect; visible active org |
+| C17 | `apps/webapp/src/app/app/patient/profile/page.tsx` | keep / split | PAT-10 profile/security/relationships | Global identity and relationship list; no cross-org clinical aggregate |
+| C18 | `apps/webapp/src/app/app/patient/purchases/page.tsx`<br>`apps/webapp/src/app/app/patient/purchases/pay/page.tsx` | merge / move | PAT-07 benefits/payments | Group by organization; preserve payment intent scope |
+| C19 | `apps/webapp/src/app/app/patient/reminders/page.tsx`<br>`apps/webapp/src/app/app/patient/reminders/journal/[ruleId]/page.tsx` | keep / move | PAT-06 progress/reminders | Organization/assignment source visible; direct rule ownership verified |
+| C20 | `apps/webapp/src/app/app/patient/support/page.tsx` | split | PAT-09 organization care support + PUB-05 / PAT-10 platform support | Distinguish care-team contact from platform account/technical support |
+| C21 | `apps/webapp/src/app/app/patient/treatment/page.tsx`<br>`apps/webapp/src/app/app/patient/treatment/[instanceId]/page.tsx`<br>`apps/webapp/src/app/app/patient/treatment/[instanceId]/item/[itemId]/page.tsx`<br>`apps/webapp/src/app/app/patient/treatment/promo/page.tsx`<br>`apps/webapp/src/app/app/patient/treatment/promo/item/[templateStageItemId]/page.tsx` | keep / merge transitional promo | PAT-03 treatment | Reuse program/item components; source attribution; retire promo transition only after assignment/entitlement contract |
+
+## 5. Inventoried multi-state, query-tab, redirect and mixed-page trace
+
+This trace is additional to exact-once file allocation. A page file remains counted once in sections 2–4 while every
+confirmed material view/entry behavior receives a destination. Compatibility resolvers are not promoted into menu
+screens.
+
+| Current file/family | Confirmed material states / behavior | Target mapping and classification |
+|---|---|---|
+| `app/app/page.tsx` | clean login/auth; `?view=registration`; authenticated role redirect | Login/recovery → PUB-04; registration → PUB-03 with ACQ-01…05; authenticated entry resolves server-side to CLIN-01, MGMT-01, OPS-01, PAT-01/02 or PLAT-01 according to actual relationship/capability, not query persona |
+| `app/app/auth/email-setup/page.tsx`, `contact-support`, `tg`, `max` | token/channel entry, invalid/missing init, support recovery | PUB-04/PAT-10 recovery or ORG-PUB-03 trusted join state; entry mechanics only, no independent product navigation item |
+| `doctor/patients/[userId]/page.tsx`, `[...tabSlug]`, `programs/[instanceId]` | patient-card tabs, history/program deep links | CLIN-03 canonical card; CLIN-04 history tab; CLIN-08 program detail. Dynamic tab/deep link verifies the same section/object policy and is not a duplicate card |
+| `doctor/schedule/page.tsx` | `tab=cal\|work\|setup` keep-mounted hub | `cal` / `work` → CLIN-06; `setup` → MGMT-03 after management capability. One current file is intentionally split across two ownership surfaces |
+| `doctor/communications/page.tsx` | `tab=chats\|intake\|comments\|broadcasts` | Clinical classes → CLIN-07; explicitly non-clinical delegated intake/contact/messages → OPS-03/OPS-04. Tab/filter never grants the class capability |
+| `doctor/analytics/page.tsx` | `tab=clients\|app\|content\|soprovozhdenie` | Platform aggregates → PLAT-04; authorized organization metrics → CLIN-11 after metric ownership classification |
+| `app/settings/page.tsx` | personal contact/timezone/channels plus organization defaults | Personal profile/notifications → ACC-01/ACC-03; organization patient/SMS/support defaults → MGMT-09. Direct access must not infer management capability from the legacy mixed form |
+| `doctor/content/**`, `patient-home`, `settings/patient-home` | CMS hub/editors plus patient-home/org-default composition and aliases | Organization content → CLIN-10; public/care defaults → MGMT-04/MGMT-09; true platform content → PLAT-06 only after ownership split; alias files remain guarded compatibility entries |
+| `doctor/admin/booking/**` and base/catalog redirects | organization setup mixed with payments/integrations/legacy platform controls | MGMT-03/MGMT-07 for organization-owned state; PLAT-05 for true platform/legacy controls. Redirects cannot bypass the target guard |
+| `book/{service,slot,confirm,done}` and patient booking alias steps | compatibility exports/redirects into canonical wizards | ORG-PUB-02 or PAT-04 compatibility behavior only; retire after external/deep-link census, never expose duplicate wizard navigation |
+| `subscribers/**`, doctor legacy communications/analytics routes, `admin/promo`, `content/news`, `sections`, `lessons`, `emergency`, `cabinet`, `broadcasts/[auditId]` | redirects, aliases or safe deep-link resolution | Resolve to the canonical row destination already listed in sections 3–4; preserve context/guard and retire only after census. No alias receives a canonical target ID |
+| `patient/go/[kind]` | object/action deep-link resolver | Entry behavior into PAT-02/PAT-03/PAT-06 after object → organization → enrollment verification; never a navigation screen |
+| public/patient booking `done`, `pay`, product-token states | result/payment/trusted continuation variants | States of ORG-PUB-02, PAT-04 or PAT-07 as allocated; token/result state cannot authorize a different organization or expose an internal user id |
+
+Re-audit therefore has two independent invariants:
+
+1. all 150 current `page.tsx` files appear exactly once in the allocation tables;
+2. every inventoried material view above has a target screen or is explicitly classified as guarded
+   state/redirect/deep-link behavior.
+
+## 6. Allocation validation and migration dependencies
+
+Allocation invariant:
+
+```text
+platform/public/entry  20
+staff/platform         81
+patient                49
+total                 150
+```
+
+The map must be mechanically compared with the repository page-file list before every UX-06 audit. A file added or
+removed later changes the denominator and requires this map and both UX-01 inventories to be reconciled.
+
+Cross-family dependency order:
+
+1. resolve OM-2/4/5/6/7 and define granular server capabilities, record visibility and handoff objects;
+2. classify platform/org/private ownership for catalogs, content, media, settings and analytics;
+3. establish platform, management, operations and account shells while preserving the current clinical/patient shells;
+4. implement invite/join/context and branding/domain objects from UX-04/05 contracts;
+5. move canonical internal links and APIs to target ownership paths;
+6. keep old routes as guarded compatibility entries, observe inbound links and only then retire aliases;
+7. run role × route × direct-object × list/count/search/export acceptance for every migrated family.
+
+`needs-decision` rows may reuse visual components in UX-07, but implementation must not create unscoped data or
+authorize a blocked alternative merely to make the prototype clickable.
