@@ -212,6 +212,7 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/patient-course-assignment-wall.sql`,
   `deploy/postgres/specialist-signup-public-bootstrap-rls.sql`, and
   `deploy/postgres/specialist-owner-provisioning-rls.sql`. When P2-B is installed, also rehydrate
+  `deploy/postgres/reference-catalog-rls.sql` and
   `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql`, whose owner contract requires the P2-B
   `app_owner`; skip only that accessor in `legacy-guc` without a signing secret/app owner. The fresh
   `pg_dump --no-acl` restore does not
@@ -224,6 +225,14 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   granting `app_patient` broad access to `system_settings`, password hashes, or OAuth binding rows. All
   public/pre-auth SECURITY DEFINER functions use table/app owners, `search_path=pg_catalog`, explicit object names,
   PUBLIC revocation, and reviewed caller grants;
+- require migrations `0182_reference_catalog_snapshots`, `0183_reference_catalog_snapshot_receipts`, and
+  `0184_reference_catalog_org_insert_hook` before
+  the specialist-owner provisioning and reference-catalog RLS overlays. Provisioning calls
+  `app.seed_reference_catalog_snapshot(uuid)` inside the same SECURITY DEFINER transaction that creates the
+  organization. The immutable per-organization receipt makes every later seed attempt a strict no-op; newer
+  baseline versions apply only to organizations created later and never supplement existing catalogs. Migration
+  0184 takes an organization-table INSERT lock before installing the canonical AFTER INSERT hook and running
+  helper-based catch-up, so every committed organization has a snapshot even during a live cutover;
 - verify through the `api.test` runtime `DATABASE_URL` that `app.release_principal_context()` exists and is
   executable by the runtime login, because infra/bootstrap scheduler paths clear the protected context before
   touching the DB in `shadow|locked`;

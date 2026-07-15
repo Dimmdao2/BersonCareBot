@@ -738,7 +738,7 @@ export const loginTokens = pgTable("login_tokens", {
 
 export const referenceCategories = pgTable("reference_categories", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	organizationId: uuid("organization_id"),
+	organizationId: uuid("organization_id").notNull(),
 	code: text().notNull(),
 	title: text().notNull(),
 	isUserExtensible: boolean("is_user_extensible").default(false).notNull(),
@@ -747,12 +747,13 @@ export const referenceCategories = pgTable("reference_categories", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_reference_categories_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
-	unique("reference_categories_code_key").on(table.code),
+	unique("reference_categories_organization_id_code_key").on(table.organizationId, table.code),
+	unique("reference_categories_id_organization_id_key").on(table.id, table.organizationId),
 ]);
 
 export const referenceItems = pgTable("reference_items", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	organizationId: uuid("organization_id"),
+	organizationId: uuid("organization_id").notNull(),
 	categoryId: uuid("category_id").notNull(),
 	code: text().notNull(),
 	title: text().notNull(),
@@ -769,8 +770,38 @@ export const referenceItems = pgTable("reference_items", {
 			columns: [table.categoryId],
 			foreignColumns: [referenceCategories.id],
 			name: "reference_items_category_id_fkey"
-		}).onDelete("cascade"),
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.categoryId, table.organizationId],
+		foreignColumns: [referenceCategories.id, referenceCategories.organizationId],
+		name: "reference_items_category_organization_fkey"
+	}).onDelete("cascade"),
 	unique("reference_items_category_id_code_key").on(table.categoryId, table.code),
+]);
+
+export const referenceCatalogBaselines = pgTable("reference_catalog_baselines", {
+	version: integer().primaryKey().notNull(),
+	definitionJson: jsonb("definition_json").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	check("reference_catalog_baselines_definition_object_check", sql`jsonb_typeof(${table.definitionJson}) = 'object'`),
+]);
+
+export const referenceCatalogSnapshotReceipts = pgTable("reference_catalog_snapshot_receipts", {
+	organizationId: uuid("organization_id").primaryKey().notNull(),
+	baselineVersion: integer("baseline_version").notNull(),
+	seededAt: timestamp("seeded_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+		columns: [table.organizationId],
+		foreignColumns: [beOrganizations.id],
+		name: "reference_catalog_snapshot_receipts_organization_id_fkey"
+	}).onDelete("cascade"),
+	foreignKey({
+		columns: [table.baselineVersion],
+		foreignColumns: [referenceCatalogBaselines.version],
+		name: "reference_catalog_snapshot_receipts_baseline_version_fkey"
+	}),
 ]);
 
 export const doctorNotes = pgTable("doctor_notes", {

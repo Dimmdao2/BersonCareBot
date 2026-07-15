@@ -92,25 +92,7 @@ function rowItem(row: {
 }
 
 export const pgReferencesPort: ReferencesPort = {
-  async listCategories() {
-    const res = await runWebappPgText<ReferenceCategoryRow>(
-      `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
-       FROM reference_categories
-       ORDER BY title ASC`,
-    );
-    return res.rows.map(rowCat);
-  },
-
-  async findCategoryByCode(categoryCode) {
-    const res = await runWebappPgText<ReferenceCategoryRow>(
-      `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
-       FROM reference_categories WHERE code = $1`,
-      [categoryCode],
-    );
-    return res.rows[0] ? rowCat(res.rows[0]) : null;
-  },
-
-  async listActiveItemsByCategoryCode(categoryCode) {
+  async listPublicBaselineItemsByCategoryCode(categoryCode) {
     const res = await runWebappPgText<{
       id: string;
       category_id: string;
@@ -121,17 +103,37 @@ export const pgReferencesPort: ReferencesPort = {
       deleted_at: Date | string | null;
       meta_json: Record<string, unknown>;
     }>(
-      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.deleted_at, i.meta_json
-       FROM reference_items i
-       JOIN reference_categories c ON c.id = i.category_id
-       WHERE c.code = $1 AND i.is_active = true AND i.deleted_at IS NULL
-       ORDER BY i.sort_order ASC, i.title ASC`,
+      `SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
+       FROM app.get_public_reference_baseline($1)`,
       [categoryCode],
     );
     return res.rows.map(rowItem);
   },
 
-  async listItemsForManagementByCategoryCode(categoryCode) {
+  async listCategories() {
+    const organizationId = currentPrincipalOrganizationId();
+    const res = await runWebappPgText<ReferenceCategoryRow>(
+      `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
+       FROM reference_categories
+       WHERE organization_id = $1::uuid
+       ORDER BY title ASC`,
+      [organizationId],
+    );
+    return res.rows.map(rowCat);
+  },
+
+  async findCategoryByCode(categoryCode) {
+    const organizationId = currentPrincipalOrganizationId();
+    const res = await runWebappPgText<ReferenceCategoryRow>(
+      `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
+       FROM reference_categories WHERE code = $1 AND organization_id = $2::uuid`,
+      [categoryCode, organizationId],
+    );
+    return res.rows[0] ? rowCat(res.rows[0]) : null;
+  },
+
+  async listActiveItemsByCategoryCode(categoryCode) {
+    const organizationId = currentPrincipalOrganizationId();
     const res = await runWebappPgText<{
       id: string;
       category_id: string;
@@ -145,9 +147,33 @@ export const pgReferencesPort: ReferencesPort = {
       `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.deleted_at, i.meta_json
        FROM reference_items i
        JOIN reference_categories c ON c.id = i.category_id
-       WHERE c.code = $1 AND i.deleted_at IS NULL
+       WHERE c.code = $1 AND c.organization_id = $2::uuid
+         AND i.organization_id = $2::uuid AND i.is_active = true AND i.deleted_at IS NULL
        ORDER BY i.sort_order ASC, i.title ASC`,
-      [categoryCode],
+      [categoryCode, organizationId],
+    );
+    return res.rows.map(rowItem);
+  },
+
+  async listItemsForManagementByCategoryCode(categoryCode) {
+    const organizationId = currentPrincipalOrganizationId();
+    const res = await runWebappPgText<{
+      id: string;
+      category_id: string;
+      code: string;
+      title: string;
+      sort_order: number;
+      is_active: boolean;
+      deleted_at: Date | string | null;
+      meta_json: Record<string, unknown>;
+    }>(
+      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.deleted_at, i.meta_json
+       FROM reference_items i
+       JOIN reference_categories c ON c.id = i.category_id
+       WHERE c.code = $1 AND c.organization_id = $2::uuid
+         AND i.organization_id = $2::uuid AND i.deleted_at IS NULL
+       ORDER BY i.sort_order ASC, i.title ASC`,
+      [categoryCode, organizationId],
     );
     return res.rows.map(rowItem);
   },
@@ -157,8 +183,8 @@ export const pgReferencesPort: ReferencesPort = {
     const row = await runPrincipalReferenceTransaction(async (tx, organizationId) => {
       const catRes = await runWebappPgText<ReferenceCategoryRow>(
         `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
-         FROM reference_categories WHERE code = $1`,
-        [params.categoryCode],
+         FROM reference_categories WHERE code = $1 AND organization_id = $2::uuid`,
+        [params.categoryCode, organizationId],
         tx,
       );
       const cat = catRes.rows[0];
@@ -191,8 +217,8 @@ export const pgReferencesPort: ReferencesPort = {
     const row = await runPrincipalReferenceTransaction(async (tx, organizationId) => {
       const catRes = await runWebappPgText<ReferenceCategoryRow>(
         `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
-         FROM reference_categories WHERE code = $1`,
-        [params.categoryCode],
+         FROM reference_categories WHERE code = $1 AND organization_id = $2::uuid`,
+        [params.categoryCode, organizationId],
         tx,
       );
       const cat = catRes.rows[0];
@@ -246,8 +272,8 @@ export const pgReferencesPort: ReferencesPort = {
         `SELECT i.organization_id AS item_org, c.organization_id AS category_org
          FROM reference_items i
          JOIN reference_categories c ON c.id = i.category_id
-         WHERE i.id = $1 AND i.deleted_at IS NULL`,
-        [itemId],
+         WHERE i.id = $1 AND i.organization_id = $2::uuid AND i.deleted_at IS NULL`,
+        [itemId, organizationId],
         tx,
       );
       const currentRow = current.rows[0];
@@ -267,7 +293,7 @@ export const pgReferencesPort: ReferencesPort = {
       }>(
         `UPDATE reference_items
          SET ${updates.join(", ")}, organization_id = $${idx}
-         WHERE id = $${idx + 1} AND deleted_at IS NULL
+         WHERE id = $${idx + 1} AND organization_id = $${idx}::uuid AND deleted_at IS NULL
          RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
         writeValues,
         tx,
@@ -282,8 +308,8 @@ export const pgReferencesPort: ReferencesPort = {
     await runPrincipalReferenceTransaction(async (tx, organizationId) => {
       const catRes = await runWebappPgText<ReferenceCategoryRow>(
         `SELECT id, code, title, is_user_extensible, organization_id, tenant_id
-         FROM reference_categories WHERE code = $1`,
-        [categoryCode],
+         FROM reference_categories WHERE code = $1 AND organization_id = $2::uuid`,
+        [categoryCode, organizationId],
         tx,
       );
       const cat = catRes.rows[0];
@@ -303,8 +329,9 @@ export const pgReferencesPort: ReferencesPort = {
         throw err;
       }
       const currentRes = await runWebappPgText<{ id: string; code: string; organization_id: string | null }>(
-        `SELECT id, code, organization_id FROM reference_items WHERE category_id = $1 AND deleted_at IS NULL`,
-        [cat.id],
+        `SELECT id, code, organization_id FROM reference_items
+         WHERE category_id = $1 AND organization_id = $2::uuid AND deleted_at IS NULL`,
+        [cat.id, organizationId],
         tx,
       );
       for (const row of currentRes.rows) {
@@ -324,7 +351,8 @@ export const pgReferencesPort: ReferencesPort = {
           `UPDATE reference_items AS ri
            SET code = '__tmpref' || replace(ri.id::text, '-', ''),
                organization_id = $2::uuid
-           WHERE ri.category_id = $1 AND ri.deleted_at IS NULL AND ri.id = ANY($3::uuid[])`,
+           WHERE ri.category_id = $1 AND ri.organization_id = $2::uuid
+             AND ri.deleted_at IS NULL AND ri.id = ANY($3::uuid[])`,
           [cat.id, organizationId, idsNeedingTemp],
           tx,
         );
@@ -333,7 +361,7 @@ export const pgReferencesPort: ReferencesPort = {
         const res = await runWebappPgText(
           `UPDATE reference_items
            SET title = $1, sort_order = $2, is_active = $3, code = $4, organization_id = $7::uuid
-           WHERE id = $5::uuid AND category_id = $6 AND deleted_at IS NULL`,
+           WHERE id = $5::uuid AND category_id = $6 AND organization_id = $7::uuid AND deleted_at IS NULL`,
           [
             update.title,
             update.sortOrder,
@@ -369,15 +397,16 @@ export const pgReferencesPort: ReferencesPort = {
         `SELECT i.organization_id AS item_org, c.organization_id AS category_org
          FROM reference_items i
          JOIN reference_categories c ON c.id = i.category_id
-         WHERE i.id = $1 AND i.deleted_at IS NULL`,
-        [itemId],
+         WHERE i.id = $1 AND i.organization_id = $2::uuid AND i.deleted_at IS NULL`,
+        [itemId, organizationId],
         tx,
       );
       const row = current.rows[0];
       if (!row) return;
       currentWriteOrganizationId(row.item_org, row.category_org);
       await runWebappPgText(
-        `UPDATE reference_items SET is_active = false, organization_id = $2::uuid WHERE id = $1 AND deleted_at IS NULL`,
+        `UPDATE reference_items SET is_active = false, organization_id = $2::uuid
+         WHERE id = $1 AND organization_id = $2::uuid AND deleted_at IS NULL`,
         [itemId, organizationId],
         tx,
       );
@@ -393,15 +422,16 @@ export const pgReferencesPort: ReferencesPort = {
         `SELECT i.organization_id AS item_org, c.organization_id AS category_org
          FROM reference_items i
          JOIN reference_categories c ON c.id = i.category_id
-         WHERE i.id = $1 AND i.deleted_at IS NULL`,
-        [itemId],
+         WHERE i.id = $1 AND i.organization_id = $2::uuid AND i.deleted_at IS NULL`,
+        [itemId, organizationId],
         tx,
       );
       const row = current.rows[0];
       if (!row) return;
       currentWriteOrganizationId(row.item_org, row.category_org);
       await runWebappPgText(
-        `UPDATE reference_items SET deleted_at = now(), organization_id = $2::uuid WHERE id = $1 AND deleted_at IS NULL`,
+        `UPDATE reference_items SET deleted_at = now(), organization_id = $2::uuid
+         WHERE id = $1 AND organization_id = $2::uuid AND deleted_at IS NULL`,
         [itemId, organizationId],
         tx,
       );
@@ -409,11 +439,7 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async findItemById(itemId) {
-    const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
-    const organizationPredicate = principalOrganizationId
-      ? ` AND (i.organization_id = $2::uuid OR i.organization_id IS NULL)`
-      : "";
-    const values = principalOrganizationId ? [itemId, principalOrganizationId] : [itemId];
+    const principalOrganizationId = currentPrincipalOrganizationId();
     const res = await runWebappPgText<{
       id: string;
       category_id: string;
@@ -425,8 +451,8 @@ export const pgReferencesPort: ReferencesPort = {
       meta_json: Record<string, unknown>;
     }>(
       `SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
-       FROM reference_items i WHERE id = $1${organizationPredicate}`,
-      values,
+       FROM reference_items i WHERE id = $1 AND i.organization_id = $2::uuid`,
+      [itemId, principalOrganizationId],
     );
     return res.rows[0] ? rowItem(res.rows[0]) : null;
   },

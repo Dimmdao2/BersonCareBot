@@ -149,27 +149,19 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const db = getDrizzle();
       const id = input.id ?? BE_DEFAULT_ORGANIZATION_ID;
       const now = new Date().toISOString();
-      await db
-        .insert(beOrganizations)
-        .values({
-          id,
+      const updated = await db
+        .update(beOrganizations)
+        .set({
           title: input.title,
           isActive: input.isActive,
           sortOrder: input.sortOrder,
-          createdAt: now,
           updatedAt: now,
         })
-        .onConflictDoUpdate({
-          target: beOrganizations.id,
-          set: {
-            title: input.title,
-            isActive: input.isActive,
-            sortOrder: input.sortOrder,
-            updatedAt: now,
-          },
-        });
+        .where(eq(beOrganizations.id, id))
+        .returning();
+      if (updated.length === 0) throw new Error("organization_not_found");
       const row = await this.getOrganization(id);
-      if (!row) throw new Error("organization_upsert_failed");
+      if (!row) throw new Error("organization_not_found");
       return row;
     },
 

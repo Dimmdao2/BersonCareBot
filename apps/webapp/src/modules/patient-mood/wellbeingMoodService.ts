@@ -49,14 +49,10 @@ function averageMoodScores(vals: PatientMoodScore[]): PatientMoodScore {
 }
 
 export function createPatientMoodService(deps: PatientWellbeingMoodDeps) {
-  let cachedRefId: string | null = null;
-
   async function wellbeingTypeRefId(): Promise<string> {
-    if (cachedRefId) return cachedRefId;
     const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
     const item = items.find((i) => i.code === GENERAL_WELLBEING_SYMPTOM_KEY);
     if (!item) throw new Error("general_wellbeing_reference_missing");
-    cachedRefId = item.id;
     return item.id;
   }
 

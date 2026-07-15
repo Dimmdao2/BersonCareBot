@@ -81,7 +81,10 @@ describe("/api/doctor/references/[categoryCode]", () => {
   });
 
   it("GET returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
+    });
     const res = await GET(
       new Request("http://localhost/api/doctor/references/visit_manipulation"),
       { params: Promise.resolve({ categoryCode: "visit_manipulation" }) },
@@ -90,8 +93,9 @@ describe("/api/doctor/references/[categoryCode]", () => {
   });
 
   it("GET returns 403 for non-doctor session", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "p1", role: "client", displayName: "P", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
     const res = await GET(
       new Request("http://localhost/api/doctor/references/visit_manipulation"),
@@ -133,6 +137,7 @@ describe("/api/doctor/references/[categoryCode]", () => {
     const data = (await res.json()) as { ok: boolean; items: { title: string }[] };
     expect(data.ok).toBe(true);
     expect(data.items[0]?.title).toBe("Мобилизация");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 without session", async () => {

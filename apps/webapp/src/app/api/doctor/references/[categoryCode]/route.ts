@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
@@ -18,13 +16,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ categoryCode: string }> }
 ) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { categoryCode } = await context.params;
   if (!categoryCode?.trim()) {
@@ -33,15 +26,19 @@ export async function GET(
 
   const code = categoryCode.trim();
   const deps = buildAppDeps();
-  const cat = await deps.references.findCategoryByCode(code);
-  if (!cat) {
+  const result = await withDoctorWorkspacePrincipal(gate.ctx, async () => {
+    const cat = await deps.references.findCategoryByCode(code);
+    if (!cat) return null;
+    const items = await deps.references.listActiveItemsByCategoryCode(code);
+    return { cat, items };
+  });
+  if (!result) {
     return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
   }
 
-  const items = await deps.references.listActiveItemsByCategoryCode(code);
   return NextResponse.json({
     ok: true,
-    items: items.map((i) => ({
+    items: result.items.map((i) => ({
       id: i.id,
       code: i.code,
       title: i.title,
@@ -70,25 +67,27 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const cat = await deps.references.findCategoryByCode(categoryCode.trim());
-  if (!cat) {
-    return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
-  }
-  if (!cat.isUserExtensible) {
-    return NextResponse.json({ ok: false, error: "category_not_extensible" }, { status: 403 });
-  }
-
   try {
-    const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-      deps.references.insertItem({
+    const result = await withDoctorWorkspacePrincipal(gate.ctx, async () => {
+      const cat = await deps.references.findCategoryByCode(categoryCode.trim());
+      if (!cat) return { kind: "not_found" } as const;
+      if (!cat.isUserExtensible) return { kind: "not_extensible" } as const;
+      const item = await deps.references.insertItem({
         categoryCode: cat.code,
         code: makeDoctorItemCode(),
         title: parsed.data.title,
-      }),
-    );
+      });
+      return { kind: "inserted", item } as const;
+    });
+    if (result.kind === "not_found") {
+      return NextResponse.json({ ok: false, error: "category_not_found" }, { status: 404 });
+    }
+    if (result.kind === "not_extensible") {
+      return NextResponse.json({ ok: false, error: "category_not_extensible" }, { status: 403 });
+    }
     return NextResponse.json({
       ok: true,
-      item: { id: item.id, code: item.code, title: item.title },
+      item: { id: result.item.id, code: result.item.code, title: result.item.title },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "insert_failed";

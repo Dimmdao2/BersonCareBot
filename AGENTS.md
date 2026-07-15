@@ -26,7 +26,7 @@
 - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
 - `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` — **dev-серверы, dev-bypass вход в кабинеты, живое UI-тестирование**
 - `deploy/HOST_DEPLOY_README.md`
-- `docs/AGENT_AUTORUN_SCHEME.md` — **СХЕМА АВТО-ПРОХОДА АГЕНТАМИ** (канон оркестрации: фазы планирования/исполнения, роли, цикл аудитов, параллельность, governance) — для любой оркестрованной/автономной работы
+- `docs/AGENT_AUTORUN_SCHEME.md` — общий метод автопрохода; `docs/ORCHESTRATION_BINDINGS.md` — **обязательный практический канон BersonCare**, который побеждает generic/host материалы в repo-specific вопросах. Читать оба для любой оркестрованной/автономной работы.
 - `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` — **если задача касается Rubitime retirement, fresh prod dump, canonical appointment backfill, Дмитрия Берсона / placeholder bookings, doctor/admin split, clean-copy rehearsal или R5/R6/R7 cutoff/archive gates**. Это единый Rubitime retirement entrypoint для агентов: сначала читать его, потом исполнять существующие scripts/runbooks. Для Rubitime retirement свежая выгрузка Rubitime CSV является каноном состава записей; текущий owner export относится к одному специалисту `89643805480` / tail `9643805480` и сопоставляется через city/branch mappings. `integrator.rubitime_records` используется только как audit/diagnostic material и не может сам создавать import/drop blockers, если CSV есть.
 
 ---
@@ -1214,6 +1214,10 @@ Patient zone и doctor zone — `no-restricted-imports` в `eslint.config.mjs`:
 ## 24. Оркестрация субагентов
 
 *Правила выведены из практики (2026-06): тихие смерти/зависания агентов, git-факапы в общем чек-ауте, дублирование с параллельным чатом.*
+
+**Канон:** общий метод — [`docs/AGENT_AUTORUN_SCHEME.md`](docs/AGENT_AUTORUN_SCHEME.md), обязательные актуальные
+привязки этого репозитория — [`docs/ORCHESTRATION_BINDINGS.md`](docs/ORCHESTRATION_BINDINGS.md). При конфликте
+старых практических заметок этого раздела с bindings побеждает `ORCHESTRATION_BINDINGS.md`.
 
 ### Роли и стоимость
 - Дорогая модель (оркестратор) делает ТОЛЬКО: планирование, брифы, ревью, интеграцию. **Всю реализацию (включая «мелкий» код) отдавать Sonnet-субагентам.** Не писать рутинный код самому — это жжёт контекст чата и токены.

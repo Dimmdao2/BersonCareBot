@@ -62,16 +62,20 @@ const migrationOnlyTables = new Set([
   "public.webapp_schema_migrations",
 ]);
 
-// These tables landed after the reviewed 219-table P0.5b snapshot. Their dedicated overlays own the
+// These tables landed after the reviewed P0.5b snapshot. Their dedicated overlays own the
 // app_staff privilege contract, so regenerating D3.5 must not silently widen this broad full-DML batch:
 // - organization-member-invites-rls.sql grants reviewed staff DML;
 // - store-p0-entitlements-rls.sql grants reviewed staff DML for both dormant entitlement tables;
 // - specialist signup uses narrow SECURITY DEFINER bootstrap/provisioning functions, not direct staff DML.
+// - reference catalog baseline/receipt metadata is immutable runtime infrastructure managed only by
+//   the receipt-backed seed helper; staff edits the per-organization category/item copies instead.
 const overlayManagedAppStaffTables = new Set([
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
   "public.saas_tariffs",
   "public.specialist_signup_intents",
+  "public.reference_catalog_baselines",
+  "public.reference_catalog_snapshot_receipts",
 ]);
 
 const appStaffGrantTiers = new Set(["SCOPED", "BOOTSTRAP", "INFRA", "LEGACY", "TELEMETRY"]);

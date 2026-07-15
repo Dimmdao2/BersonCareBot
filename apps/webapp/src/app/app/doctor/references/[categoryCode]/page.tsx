@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { ReferenceCacheBuster } from "./ReferenceCacheBuster";
 import { ReferenceItemsTableClient } from "./ReferenceItemsTableClient";
 
@@ -9,11 +11,16 @@ type PageProps = {
 
 export default async function DoctorReferenceCategoryPage({ params }: PageProps) {
   const { categoryCode } = await params;
+  const workspace = await requireDoctorWorkspaceContext();
   const deps = buildAppDeps();
-  const category = await deps.references.findCategoryByCode(categoryCode);
+  const category = await withDoctorWorkspacePrincipal(workspace, () =>
+    deps.references.findCategoryByCode(categoryCode),
+  );
   if (!category) notFound();
 
-  const allItems = await deps.references.listItemsForManagementByCategoryCode(category.code);
+  const allItems = await withDoctorWorkspacePrincipal(workspace, () =>
+    deps.references.listItemsForManagementByCategoryCode(category.code),
+  );
 
   return (
     <>

@@ -5,6 +5,8 @@ import {
 } from "@bersoncare/db-principal";
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
+import { createPatientOrganizationService } from "@/modules/patient-organization/service";
+import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
 import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { AppSession } from "@/shared/types/session";
@@ -16,6 +18,9 @@ import type { AppSession } from "@/shared/types/session";
 // service.ts can import stampDbPrincipalFromSession statically instead of via `await import(...)`.
 const organizationMembershipService = createOrganizationMembershipService({
   membershipPort: createPgOrganizationMembershipPort(),
+});
+const patientOrganizationService = createPatientOrganizationService({
+  port: createPgPatientOrganizationPort(),
 });
 
 export async function stampDbPrincipalFromSession(session: AppSession, source: string): Promise<void> {
@@ -42,7 +47,17 @@ export async function stampDbPrincipalFromSession(session: AppSession, source: s
     }
 
     if (canAccessPatient(session.user.role)) {
+      // First establish the patient wall so enrollment resolution is limited to this patient.
       enterWithDbPatientPrincipal({
+        platformUserId: session.user.userId,
+        source: `${source}:patient-enrollment-resolution`,
+      });
+      const resolved = await patientOrganizationService.resolveActiveOrganizationForPatient(
+        session.user.userId,
+      );
+      if (!resolved.ok) return;
+      enterWithDbPatientPrincipal({
+        organizationId: resolved.organizationId,
         platformUserId: session.user.userId,
         source,
       });

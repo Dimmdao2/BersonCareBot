@@ -1,6 +1,8 @@
 import type { ReferenceCategory, ReferenceItem } from "./types";
 
 export type ReferencesPort = {
+  /** Current global baseline for anonymous/public UI; never reads an organization's mutable copy. */
+  listPublicBaselineItemsByCategoryCode(categoryCode: string): Promise<ReferenceItem[]>;
   listCategories(): Promise<ReferenceCategory[]>;
   listActiveItemsByCategoryCode(categoryCode: string): Promise<ReferenceItem[]>;
   listItemsForManagementByCategoryCode(categoryCode: string): Promise<ReferenceItem[]>;

@@ -88,6 +88,11 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm --dir apps/webapp run migrate
 
+# A webapp-only deploy must preserve the same reviewed function ownership/grants and strict-RLS
+# contract as the full production deploy.
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/specialist-owner-provisioning-rls.sql"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/reference-catalog-rls.sql"
+
 # Same guardrail as deploy/host/deploy-prod.sh (shared script; fail before webapp restart).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
 

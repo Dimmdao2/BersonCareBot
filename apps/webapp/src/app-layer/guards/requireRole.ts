@@ -4,6 +4,7 @@ import {
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
+  getCurrentDbPrincipalOrganizationId,
 } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -135,6 +136,7 @@ async function stampPatientPrincipalForApi(
 
   try {
     enterWithDbPatientPrincipal({
+      organizationId: getCurrentDbPrincipalOrganizationId(),
       platformUserId: session.user.userId,
       source: "requirePatientApiBusinessAccess",
     });
