@@ -63,6 +63,9 @@ test("wrapper parses the fixed env as data and completes all guards before DROP"
   assert.match(source, /WEBAPP_ENV_FILE="\$SAFE_MIGRATION_ENV"/u);
   assert.match(source, /safe migration env must contain comments\/blank lines only/u);
   assert.match(source, /PGDATABASE="\$TARGET_DB"/u);
+  assert.doesNotMatch(source, /\bPGSERVICE(?:FILE)?=/u);
+  assert.doesNotMatch(source, /\bPGOPTIONS=/u);
+  assert.match(source, /PGPASSFILE=\/dev\/null/u);
   assert.match(source, /sanitized migration child target guard failed/u);
   assert.ok(source.indexOf("sanitized migration child target guard failed") < source.indexOf("exec pnpm run migrate"));
 });

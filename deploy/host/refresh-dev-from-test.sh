@@ -157,9 +157,7 @@ echo "[refresh-dev] applying current branch migrations"
     PGPORT=5432 \
     PGDATABASE="$TARGET_DB" \
     PGUSER="$TARGET_ROLE" \
-    PGSERVICE= \
     PGPASSFILE=/dev/null \
-    PGOPTIONS= \
     PGCONNECT_TIMEOUT=10 \
     bash --noprofile --norc -c '
       set -Eeuo pipefail
