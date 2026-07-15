@@ -179,19 +179,45 @@ Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and 
 
 Immediately after the migration cleanup/schema assertions and before any TEST service restart, the wrapper must:
 
+- run the fixed `app_staff` / `app_patient` role split SQL as the TEST superuser for every accepted runtime mode,
+  including `legacy-guc` without a signing secret;
+- apply the repo-managed P0.5b app wall grant artifact `deploy/postgres/p0-5b-grants.sql` after creating
+  `app_staff`/`app_patient` and before any locked runtime smoke. A fresh restore has no durable grants on those
+  global roles; skipping this artifact makes `SET ROLE app_staff`/`app_patient` fail on normal product reads;
 - install/refresh the protected principal context when `DB_PRINCIPAL_SIGNING_SECRET` is configured, and require it
-  when either TEST env file is `shadow|locked`;
+  when either TEST env file is `shadow|locked`. In `legacy-guc` with no signing secret, only this signed P2-B helper
+  step is skipped; the preceding role split/P0.5b grants and the following dedicated overlays/D3.4 base-login
+  grants remain mandatory;
 - require `api.test` and `webapp.test` `DB_PRINCIPAL_SIGNING_SECRET` to be present, equal, at least 32 characters,
   and not printed when a signed runtime mode is selected;
-- run the fixed `app_staff` / `app_patient` role split SQL as the TEST superuser, prepare the `app_owner` protected
+- prepare the `app_owner` protected
   helper owner, normalize `pgcrypto` into `app_ext` with repo-controlled `ALTER EXTENSION pgcrypto SET SCHEMA app_ext`
-  when a fresh dump already has it elsewhere, then run `deploy/postgres/p2-b-protected-principal-context.sql` from the
-  version-matched deploy checkout. If `app_ext` already contains conflicting `pgcrypto` function signatures, the wrapper
-  must fail before P2-B with `pgcrypto_app_ext_conflicting_functions` instead of applying manual DB surgery;
+  when a fresh dump already has it elsewhere, then run
+  `deploy/postgres/p2-b-protected-principal-context.sql` from the version-matched deploy checkout. If `app_ext`
+  already contains conflicting `pgcrypto` function signatures, the wrapper must fail before P2-B with
+  `pgcrypto_app_ext_conflicting_functions` instead of applying manual DB surgery;
 - normalize the existing migration-created `app.is_staff()` owner to `app_owner` immediately before P2-B install and
   fail before P2-B if it is missing or still owned by another role. Migration 0175 creates/replaces this helper as
   `CURRENT_USER`; P2-B runs `CREATE OR REPLACE FUNCTION app.is_staff()` under `SET ROLE app_owner`, so the owner handoff
   must be repo-controlled rather than a manual `ALTER FUNCTION`;
+- after any optional P2-B replacement, rehydrate the dedicated runtime overlays from
+  `deploy/postgres/organization-member-invites-rls.sql`,
+  `deploy/postgres/store-p0-entitlements-rls.sql`,
+  `deploy/postgres/patient-course-assignment-wall.sql`,
+  `deploy/postgres/specialist-signup-public-bootstrap-rls.sql`, and
+  `deploy/postgres/specialist-owner-provisioning-rls.sql`. When P2-B is installed, also rehydrate
+  `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql`, whose owner contract requires the P2-B
+  `app_owner`; skip only that accessor in `legacy-guc` without a signing secret/app owner. The fresh
+  `pg_dump --no-acl` restore does not
+  preserve grants to global `app_staff`/`app_patient` roles. The first two artifacts remain the reviewed grant
+  owners for `organization_member_invites`, `saas_org_entitlement_overrides`, and `saas_tariffs`; they must not be
+  broadened into P0.5b incidentally. The public-bootstrap overlay must run after P2-B because P2-B drops and
+  recreates `app.current_org_id()` and `app.current_patient_user_id()`, which removes the narrow EXECUTE grants
+  that the overlay gives to its SECURITY DEFINER table owners. In locked patient routes the overlay supplies
+  helpers such as `app.get_public_config_bool(text)` and `app.current_patient_has_password_credentials()` without
+  granting `app_patient` broad access to `system_settings`, password hashes, or OAuth binding rows. All
+  public/pre-auth SECURITY DEFINER functions use table/app owners, `search_path=pg_catalog`, explicit object names,
+  PUBLIC revocation, and reviewed caller grants;
 - verify through the `api.test` runtime `DATABASE_URL` that `app.release_principal_context()` exists and is
   executable by the runtime login, because infra/bootstrap scheduler paths clear the protected context before
   touching the DB in `shadow|locked`;
@@ -200,6 +226,13 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
 - grant only `USAGE` on schema `integrator` and `SELECT` on table `integrator.schema_migrations` to that role;
 - verify through the `api.test` runtime `DATABASE_URL` that `SELECT count(*) FROM integrator.schema_migrations`
   succeeds and returns at least one row.
+- apply the D3.4 bootstrap/base-login grant closure from
+  `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` to the discovered `webapp.test`
+  `DATABASE_URL_NONSTAFF` role, falling back to `DATABASE_URL` only when dual-pool URLs are absent, before any TEST
+  service restart or product smoke. This repo artifact grants the proven bootstrap direct read surface plus the
+  composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth email/invite/signup accessors.
+  It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
+  base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
 
 Do not add broad `integrator.*` table grants for the runtime login to fix startup. Do not route this through
 P0.5b `app_staff`/`app_patient` DML grants: those intentionally exclude migration ledgers from the app DML surface.
@@ -275,12 +308,13 @@ the migration/restart/health/A2 gates may be reported, but D3/R1/R2 product-smok
 must be an owner/operator-managed secret file path outside the repo, for example
 `/run/bersoncarebot/saas-smoke.fixture`; do not document, print, commit, or infer fixture values.
 
-### 11. D2 FB#1 and future strict/FORCE gates
+### 11. D2 FB#1 and future strict/FORCE gates (plus D3.4 bootstrap grants)
 
-D2 FB#1 static and scratch-package checks are repo gates, not live TEST proof. Keep running:
+D2 FB#1 and D3.4 static/scratch-package checks are repo gates, not live TEST proof. Keep running:
 
 ```bash
 pnpm run check:saas-d2-fb1-bootstrap-phone-write
+pnpm run check:saas-d3-4-bootstrap-base-login-grants
 ```
 
 The future strict+FORCE cutover remains separate from dormant TEST deploy. It is gated by

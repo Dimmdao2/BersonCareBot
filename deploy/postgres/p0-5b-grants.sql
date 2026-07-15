@@ -8,9 +8,9 @@
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the FULL runtime DML surface -- 219 tables (SCOPED + BOOTSTRAP +
---     INFRA + LEGACY + TELEMETRY, excluding the 4 pure migration-bookkeeping tables the migrator role
---     alone touches).
+--   - app_staff: the reviewed P0.5b runtime DML surface -- 219 tables (SCOPED +
+--     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
+--     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- 111 tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
@@ -485,6 +485,36 @@ GRANT INSERT ("id", "user_id", "organization_id", "type", "summary") ON TABLE "p
 GRANT INSERT ("id", "request_id", "organization_id", "from_status", "to_status") ON TABLE "public"."online_intake_status_history" TO app_patient;
 GRANT INSERT ("user_id", "platform_user_id", "channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
 GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "updated_at") ON TABLE "public"."user_channel_preferences" TO app_patient;
+
+-- Safety REVOKEs for sensitive BOOTSTRAP tables deliberately excluded from the app_patient surface.
+-- These make the UP path idempotently repair stale over-grants from earlier rehearsals.
+-- D3.5: password hashes stay table-invisible to app_patient; patient code uses app.current_patient_has_password_credentials() for boolean presence only.
+REVOKE ALL PRIVILEGES ON TABLE "public"."user_password_credentials" FROM app_patient;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  'public',
+  'user_password_credentials'
+)
+FROM pg_attribute
+WHERE attrelid = 'public.user_password_credentials'::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\gexec
+
+-- D3.5: OAuth bindings stay table-invisible to app_patient; patient code uses app.current_patient_has_web_oauth_binding() for boolean presence only.
+REVOKE ALL PRIVILEGES ON TABLE "public"."user_oauth_bindings" FROM app_patient;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  'public',
+  'user_oauth_bindings'
+)
+FROM pg_attribute
+WHERE attrelid = 'public.user_oauth_bindings'::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\gexec
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq

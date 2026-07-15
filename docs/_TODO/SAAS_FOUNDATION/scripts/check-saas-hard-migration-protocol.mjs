@@ -86,6 +86,9 @@ function load(overrides = {}) {
 
 function runChecks(overrides = {}) {
   const loaded = load(overrides);
+  const deployMainIndex = loaded.deployTestSaas.indexOf("# 0. preflight");
+  if (deployMainIndex < 0) fail(`${files.deployTestSaas} missing main preflight marker`);
+  const deployMain = loaded.deployTestSaas.slice(deployMainIndex);
 
   requireFragments(files.protocol, loaded.protocol, [
     "# SaaS hard migration protocol - fresh dump to TEST rehearsal",
@@ -159,6 +162,14 @@ function runChecks(overrides = {}) {
     "SELECT count(*) FROM integrator.schema_migrations",
     "Do not add broad `integrator.*` table grants",
     "P0.5b `app_staff`/`app_patient` DML grants",
+    "deploy/postgres/organization-member-invites-rls.sql",
+    "deploy/postgres/store-p0-entitlements-rls.sql",
+    "deploy/postgres/patient-course-assignment-wall.sql",
+    "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
+    "after any optional P2-B replacement",
+    "P2-B drops and\n  recreates `app.current_org_id()` and `app.current_patient_user_id()`",
+    "must not be\n  broadened into P0.5b incidentally",
     "TEST-only override and send-safety",
     "Specialist consolidation",
     "must not run as the raw runtime",
@@ -236,7 +247,14 @@ function runChecks(overrides = {}) {
     "TEST services may run DB_PRINCIPAL_CONTEXT_MODE=legacy-guc|shadow|locked after migrations",
     "integrator API startup must not attempt DDL migrations in shadow/locked runtime mode",
     "P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql",
+    "P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql",
     "P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql",
+    "ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql",
+    "STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql",
+    "PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql",
+    "PUBLIC_BOOTSTRAP_RLS=deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
+    "SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
     "P2_B_OWNER_ROLE=app_owner",
     "P2_B_STAFF_ROLE=app_staff",
     "P2_B_PATIENT_ROLE=app_patient",
@@ -290,6 +308,7 @@ function runChecks(overrides = {}) {
     "DB_PRINCIPAL_SIGNING_SECRET must be at least 32 characters",
     "DB_PRINCIPAL_SIGNING_SECRET must not contain whitespace or backslashes",
     "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$P0_5B_ROLES\"",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$P0_5B_GRANTS\"",
     "CREATE ROLE %I NOLOGIN BYPASSRLS",
     "CREATE EXTENSION pgcrypto WITH SCHEMA app_ext",
     "pgcrypto_app_ext_conflicting_functions",
@@ -300,6 +319,14 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.is_staff() OWNER TO %I",
     "p2_b_app_is_staff_owner_not_normalized",
     "sudo -u deploy cat \"$DEPLOY_REPO/$P2_B_CONTEXT\"",
+    "rehydrate_post_restore_runtime_overlays",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS\"",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS\"",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$PATIENT_COURSE_WALL\"",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS\"",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS\"",
+    "if [ \"$P2_B_CONTEXT_INSTALLED\" = \"1\" ]; then",
+    "sudo -u postgres psql -d \"$DB\" -X -v ON_ERROR_STOP=1 -f \"$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR\"",
     "has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE')",
     "app.release_principal_context: OK",
     "trap cleanup_exit EXIT",
@@ -407,10 +434,14 @@ function runChecks(overrides = {}) {
     "GRANT ALL ON SCHEMA integrator",
   ]);
 
-  requireOrderedFragments(`${files.deployTestSaas} runtime ledger grant before restart`, loaded.deployTestSaas, [
+  requireOrderedFragments(`${files.deployTestSaas} runtime wall and overlays before restart`, deployMain, [
     "echo \"   drizzle migrations = $CNT (org columns present)\"",
+    "log \"install P0.5b runtime wall\"",
+    "install_p0_5b_runtime_wall",
     "log \"install + verify protected DB principal context\"",
     "install_p2_b_protected_principal_context",
+    "log \"rehydrate post-restore runtime overlays\"",
+    "rehydrate_post_restore_runtime_overlays",
     "assert_api_runtime_can_release_principal_context",
     "log \"grant + verify integrator migration ledger runtime read\"",
     "grant_api_runtime_migration_ledger_read",
@@ -588,6 +619,12 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         "log \"grant + verify integrator migration ledger runtime read\"\ngrant_api_runtime_migration_ledger_read\nassert_api_runtime_can_read_migration_ledger",
         "# missing runtime ledger grant and verification",
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replace(
+        'log "rehydrate post-restore runtime overlays"\nrehydrate_post_restore_runtime_overlays',
+        '# missing post-restore runtime overlay rehydration',
       ),
     },
     {

@@ -27,7 +27,15 @@ RESTORE=/tmp/bcb-test-setup/restore-test-db.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
+P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
+ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql
+STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql
+PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql
+PUBLIC_BOOTSTRAP_RLS=deploy/postgres/specialist-signup-public-bootstrap-rls.sql
+SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
+PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
+D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
 MIGRATOR_OWNER_MEMBERSHIP_ADDED=0
@@ -190,6 +198,15 @@ resolve_p2_b_signing_secret(){
   return 0
 }
 
+install_p0_5b_runtime_wall(){
+  validate_pg_identifier "P0.5b staff role" "$P2_B_STAFF_ROLE"
+  validate_pg_identifier "P0.5b patient role" "$P2_B_PATIENT_ROLE"
+
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$P0_5B_ROLES"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$P0_5B_GRANTS"
+  echo "   P0.5b runtime wall: OK"
+}
+
 install_p2_b_protected_principal_context(){
   P2_B_CONTEXT_INSTALLED=0
   validate_pg_identifier "P2-B owner role" "$P2_B_OWNER_ROLE"
@@ -201,7 +218,6 @@ install_p2_b_protected_principal_context(){
     return 0
   fi
 
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$P0_5B_ROLES"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v p2_b_owner_role="$P2_B_OWNER_ROLE" <<'SQL'
 SELECT format('CREATE ROLE %I NOLOGIN BYPASSRLS', :'p2_b_owner_role')
@@ -300,6 +316,18 @@ SQL
   P2_B_CONTEXT_INSTALLED=1
 }
 
+rehydrate_post_restore_runtime_overlays(){
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_COURSE_WALL"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"
+  if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
+    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
+  fi
+  echo "   post-restore runtime overlays: OK"
+}
+
 assert_api_runtime_can_release_principal_context(){
   local ok
   ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
@@ -323,6 +351,16 @@ discover_webapp_migrator_role(){
   discover_database_role_from_env "webapp.test" "$WEBAPP_ENV"
 }
 
+discover_webapp_bootstrap_base_role(){
+  local identity role_name database_name
+  identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
+  role_name="${identity%%|*}"
+  database_name="${identity#*|}"
+  validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
+  [ "$database_name" = "$DB" ] || { echo "FATAL: webapp.test bootstrap DB URL points to '$database_name', expected '$DB'"; exit 1; }
+  printf '%s\n' "$role_name"
+}
+
 discover_api_runtime_role(){
   discover_database_role_from_env "api.test" "$API_ENV"
 }
@@ -343,6 +381,20 @@ assert_api_runtime_can_read_migration_ledger(){
   [[ "$count" =~ ^[0-9]+$ ]] || { echo "FATAL: api.test runtime ledger SELECT returned non-numeric count: $count" >&2; exit 1; }
   [ "$count" -gt 0 ] || { echo "FATAL: integrator.schema_migrations is readable by api.test runtime but empty" >&2; exit 1; }
   echo "   integrator.schema_migrations: OK ($count rows readable by api.test runtime)"
+}
+
+grant_webapp_bootstrap_base_login_d3_4(){
+  local role_name
+  role_name="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
+  sudo -u deploy test -r "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" || {
+    echo "FATAL: deploy cannot read SQL file: $DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" >&2
+    exit 1
+  }
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v d3_4_bootstrap_base_role="$role_name" \
+    -f "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS"
+  echo "   D3.4 bootstrap/base-login grants: OK (webapp.test role $role_name)"
 }
 
 grant_migrator_owner_membership(){
@@ -477,7 +529,15 @@ assert_awg_relay_active(){
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
+[ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }
+[ -r "$SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"; exit 1; }
+[ -r "$SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS"; exit 1; }
+[ -r "$SRC_REPO/$PATIENT_COURSE_WALL" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_COURSE_WALL"; exit 1; }
+[ -r "$SRC_REPO/$PUBLIC_BOOTSTRAP_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOTSTRAP_RLS"; exit 1; }
+[ -r "$SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"; exit 1; }
+[ -r "$SRC_REPO/$PATIENT_VAPID_ACCESSOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VAPID_ACCESSOR"; exit 1; }
+[ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
@@ -534,14 +594,20 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }
 done
 echo "   drizzle migrations = $CNT (org columns present)"
+log "install P0.5b runtime wall"
+install_p0_5b_runtime_wall
 log "install + verify protected DB principal context"
 install_p2_b_protected_principal_context
+log "rehydrate post-restore runtime overlays"
+rehydrate_post_restore_runtime_overlays
 if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
   assert_api_runtime_can_release_principal_context
 fi
 log "grant + verify integrator migration ledger runtime read"
 grant_api_runtime_migration_ledger_read
 assert_api_runtime_can_read_migration_ledger
+log "grant D3.4 webapp bootstrap/base-login direct surface"
+grant_webapp_bootstrap_base_login_d3_4
 
 # 5. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy

@@ -3,9 +3,9 @@
 // fixed app_staff / app_patient roles created by deploy/postgres/p0-5b-role-split-staff-patient.sql.
 //
 // Two independent grant sets, deliberately built from two different sources:
-//   - app_staff: MECHANICAL, derived straight from tiers-218.tsv (readTierRows()) -- every tier
-//     except the 4 pure migration-bookkeeping tables (touched only by the migrator role, never by a
-//     running app process). This is the FULL runtime surface: SCOPED (patient-wall RLS applies,
+//   - app_staff: derived straight from tiers-218.tsv (readTierRows()) -- every tier except the 4 pure
+//     migration-bookkeeping tables and post-P0.5b tables whose own reviewed overlays manage their
+//     grants. This is the FULL P0.5b runtime surface: SCOPED (patient-wall RLS applies,
 //     app_staff bypasses via app.is_staff()) + BOOTSTRAP (identity/settings) + INFRA (queues/
 //     outboxes the webapp/integrator/worker/scheduler/media processes read and write every request)
 //     + LEGACY (frozen Rubitime-era tables still read by legacy sync paths) + TELEMETRY (analytics
@@ -27,6 +27,9 @@
 //     B4-fanout's pre-flip process smoke; an EXCESS write grant would be a silent, hard-to-notice
 //     privilege escalation). See P0_5B_GRANTS.md for the full table-by-table rationale and the
 //     explicit "flagged for review" list of BOOTSTRAP tables deliberately NOT granted.
+//     D3.5 also makes the UP path self-healing for previously over-granted TEST rehearsals: sensitive
+//     bootstrap tables that are deliberately excluded can carry explicit REVOKEs after the generated
+//     GRANT batch, so re-running this tracked script removes stale grants without manual DB surgery.
 //
 //   NOTE (2026-07-13, taskdb #708 follow-up): `public.courses` ALSO now carries an app_patient
 //   SELECT grant + a patient-assignment RLS policy, but it is installed by the standalone
@@ -59,6 +62,18 @@ const migrationOnlyTables = new Set([
   "public.webapp_schema_migrations",
 ]);
 
+// These tables landed after the reviewed 219-table P0.5b snapshot. Their dedicated overlays own the
+// app_staff privilege contract, so regenerating D3.5 must not silently widen this broad full-DML batch:
+// - organization-member-invites-rls.sql grants reviewed staff DML;
+// - store-p0-entitlements-rls.sql grants reviewed staff DML for both dormant entitlement tables;
+// - specialist signup uses narrow SECURITY DEFINER bootstrap/provisioning functions, not direct staff DML.
+const overlayManagedAppStaffTables = new Set([
+  "public.organization_member_invites",
+  "public.saas_org_entitlement_overrides",
+  "public.saas_tariffs",
+  "public.specialist_signup_intents",
+]);
+
 const appStaffGrantTiers = new Set(["SCOPED", "BOOTSTRAP", "INFRA", "LEGACY", "TELEMETRY"]);
 
 function splitQualifiedName(qualifiedName) {
@@ -73,7 +88,12 @@ function splitQualifiedName(qualifiedName) {
 
 export function getAppStaffGrantTables() {
   return readTierRows()
-    .filter((row) => appStaffGrantTiers.has(row.tier) && !migrationOnlyTables.has(row.table))
+    .filter(
+      (row) =>
+        appStaffGrantTiers.has(row.tier) &&
+        !migrationOnlyTables.has(row.table) &&
+        !overlayManagedAppStaffTables.has(row.table),
+    )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))
     .sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
 }
@@ -148,6 +168,40 @@ const appPatientBootstrapTables = [
   { qualifiedName: "public.user_notification_topic_channels", privileges: "SELECT, INSERT, UPDATE" },
   { qualifiedName: "public.user_web_push_subscriptions", privileges: "SELECT, INSERT, UPDATE, DELETE" },
 ];
+
+const appPatientSensitiveBootstrapRevokes = [
+  {
+    qualifiedName: "public.user_password_credentials",
+    reason:
+      "D3.5: password hashes stay table-invisible to app_patient; patient code uses app.current_patient_has_password_credentials() for boolean presence only.",
+  },
+  {
+    qualifiedName: "public.user_oauth_bindings",
+    reason:
+      "D3.5: OAuth bindings stay table-invisible to app_patient; patient code uses app.current_patient_has_web_oauth_binding() for boolean presence only.",
+  },
+];
+
+function renderAppPatientSensitiveRevokes(revokes) {
+  return revokes
+    .map((revoke) => {
+      const { schemaName, tableName } = splitQualifiedName(revoke.qualifiedName);
+      return `-- ${revoke.reason}
+REVOKE ALL PRIVILEGES ON TABLE ${sqlIdent(schemaName)}.${sqlIdent(tableName)} FROM app_patient;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  '${schemaName}',
+  '${tableName}'
+)
+FROM pg_attribute
+WHERE attrelid = ${sqlString(revoke.qualifiedName)}::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\\gexec`;
+    })
+    .join("\n\n");
+}
 
 // app_patient write-capable subset of the 102 patient-owned SCOPED tables -- every table NOT listed
 // here (or listed with a narrower set below) defaults to SELECT-only. Each entry traced to a
@@ -721,6 +775,7 @@ export function renderP05bGrantsSql({ descriptors = buildRlsDescriptors() } = {}
   const staffSchemas = Array.from(new Set(staffTables.map((table) => table.schemaName))).sort();
   const patientSchemas = Array.from(new Set(patientTables.map((table) => table.schemaName))).sort();
   const patientColumnGrantSql = renderColumnGrantStatements(appPatientColumnGrants, patientTables);
+  const patientSensitiveRevokeSql = renderAppPatientSensitiveRevokes(appPatientSensitiveBootstrapRevokes);
 
   return `-- P0.5b-v2 / B5 (docs/_TODO/SAAS_FOUNDATION/LOG.md, taskdb #655): dormant table-level GRANTs
 -- for the fixed app_staff / app_patient roles created by
@@ -732,9 +787,9 @@ export function renderP05bGrantsSql({ descriptors = buildRlsDescriptors() } = {}
 -- table got SELECT-only vs a write grant, and which BOOTSTRAP tables were deliberately excluded).
 --
 -- Purpose:
---   - app_staff: the FULL runtime DML surface -- ${staffTables.length} tables (SCOPED + BOOTSTRAP +
---     INFRA + LEGACY + TELEMETRY, excluding the 4 pure migration-bookkeeping tables the migrator role
---     alone touches).
+--   - app_staff: the reviewed P0.5b runtime DML surface -- ${staffTables.length} tables (SCOPED +
+--     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
+--     whose dedicated overlays own their grants).
 --   - app_patient: ONLY the patient-facing surface -- ${patientTables.length} tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
@@ -857,6 +912,10 @@ ORDER BY schema_name, table_name
 -- "Column-level restrictions (app_patient)" for the table-by-table rationale (2026-07-11 gpt-5.6-sol
 -- audit fix, taskdb #655).
 ${patientColumnGrantSql}
+
+-- Safety REVOKEs for sensitive BOOTSTRAP tables deliberately excluded from the app_patient surface.
+-- These make the UP path idempotently repair stale over-grants from earlier rehearsals.
+${patientSensitiveRevokeSql}
 
 SELECT format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq

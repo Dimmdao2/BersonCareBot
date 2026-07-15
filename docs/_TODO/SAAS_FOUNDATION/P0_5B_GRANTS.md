@@ -51,12 +51,23 @@ psql '<database-url>' -f deploy/postgres/p0-5b-grants.sql
 
 Rollback: `-v p0_5b_grants_down=1` (revokes everything this script grants; does not drop the roles).
 
-## app_staff — full runtime surface (219 tables)
+## app_staff — reviewed P0.5b runtime surface (219 tables)
 
-Mechanically derived from `tiers-218.tsv` (`readTierRows()`): every SCOPED (157) + BOOTSTRAP (26) +
-INFRA (18) + LEGACY (16) + TELEMETRY (2) table, **excluding 4 pure migration-bookkeeping tables**
+Derived from `tiers-218.tsv` (`readTierRows()`): every table in the reviewed P0.5b snapshot across SCOPED,
+BOOTSTRAP, INFRA, LEGACY, and TELEMETRY, **excluding 4 pure migration-bookkeeping tables**
 (`drizzle.__drizzle_migrations`, `integrator.schema_migrations`, `public.schema_migrations`,
 `public.webapp_schema_migrations` — touched only by the migrator role, never by a running process).
+
+The generator also excludes four post-P0.5b tables so D3.5 regeneration does not silently broaden the reviewed
+full-DML batch: `organization_member_invites` is granted by `organization-member-invites-rls.sql`;
+`saas_org_entitlement_overrides` and `saas_tariffs` are granted by `store-p0-entitlements-rls.sql`; and
+`specialist_signup_intents` is accessed through the narrow SECURITY DEFINER functions installed by the specialist
+signup/provisioning overlays. Those dedicated artifacts remain the grant owners for these tables. Moving any of them
+into P0.5b requires a separate runtime-surface review rather than incidental regeneration.
+
+The UP path also explicitly revokes stale `app_patient` table/column privileges on
+`user_password_credentials` and `user_oauth_bindings`. Rehearsals therefore converge to the reviewed narrow
+accessor model without manual grant cleanup.
 
 This closes the exact gap the cross-model audit flagged: the older single-role
 `deploy/postgres/p0-5-role-split.sql` only grants SCOPED+BOOTSTRAP (183 tables), which is enough for
@@ -75,7 +86,7 @@ grants only `USAGE` on schema `integrator` plus `SELECT` on `integrator.schema_m
 that same runtime login can select the ledger before restart. Do not broaden this P0.5b app DML grant set
 to include migration ledgers.
 
-## app_patient — curated patient-only surface (110 tables)
+## app_patient — curated patient-only surface (111 tables)
 
 **Not** mechanically derived. Candidate tables = the patient-owned SCOPED tables (union of
 `patientOwnedColumns` / `patientChainOwnedTables` / `patientConditionalOwnedColumns` /
@@ -299,6 +310,14 @@ connection query arbitrary other users' active challenge/token rows by phone/ema
 (`app_patient`, a still-undecided dedicated pre-auth service role, or something else) should own this
 flow is exactly the kind of decision B4-fanout is scoped to make; excluding it now is the conservative,
 intentional default this task asked for ("лучше не додать — поймаем в B4-fanout").
+
+For `user_password_credentials` and `user_oauth_bindings`, D3.5 keeps both tables excluded from app_patient
+grants because they store password hashes or provider binding details. The authenticated patient tier gate reads
+only boolean presence through the narrow SECURITY DEFINER helpers
+`app.current_patient_has_password_credentials()` and `app.current_patient_has_web_oauth_binding()`. Both use
+`app.current_patient_user_id()` and return no credential or provider row data. `app_staff` may execute the same
+boolean helpers so shared platform-access resolution does not fail on doctor/admin paths; staff tier resolution
+does not use the patient-only boolean result.
 
 `be_organization_members` (staff roster — confidently staff-only), `system_settings` /
 `system_settings_audit` / `integrator.system_settings` (global platform config; audit table is

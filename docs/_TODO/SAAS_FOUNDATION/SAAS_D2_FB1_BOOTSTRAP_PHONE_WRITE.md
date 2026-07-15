@@ -83,3 +83,15 @@ That future gate must use real runtime role URLs/credentials, the D2 grant artif
 and the app repository smoke. It must not print PII and must record exact PASS/FAIL evidence.
 
 No final D2 acceptance is claimed by this repo/scratch package alone.
+
+## D3.4 composition note
+
+D3.4 adds `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` for the broader locked TEST
+bootstrap/base-login read surface found after D2. That artifact intentionally duplicates the D2 FB#1
+`user_phone_history` and `platform_user_contacts` grants so the TEST wrapper can apply one composed
+bootstrap package before restart/product smoke. It also grants EXECUTE only on the repo-owned narrow
+SECURITY DEFINER email/invite/specialist-signup accessors required while locked bootstrap remains on the
+NOINHERIT base login after `RESET ROLE`. It remains limited to session identity, first membership lookup,
+public booking tenant-resolution reads, and those accessors; clinical/media/content/full-settings access must run
+after `SET ROLE app_staff`/`app_patient` or through a narrow accessor. D3.4 is repo-tracked only until
+the owner-authorized locked TEST product smoke reruns.
