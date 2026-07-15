@@ -90,11 +90,23 @@ requireText('deploy/host/render-saas-isolation-operator-provisioning.mjs', [
 ]);
 requireText('apps/webapp/scripts/run-saas-isolation-test-scenarios.ts', [
   "const REQUIRED_DATABASE = 'bersoncarebot_test'",
-  '--prove-cleanup-on-injected-failure',
-  '--assert-clean-only',
+  'parseSaasIsolationTestScenarioCliArgs(process.argv.slice(2))',
   'saas_isolation_test_scenario_final_clean',
   'saas_isolation_test_scenario_injected_failure_cleaned',
   'app.read_saas_isolation_test_scenario_fixture_counts()',
+]);
+requireText('apps/webapp/src/modules/operator-health/saasIsolationTestScenarioCliArgs.ts', [
+  "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
+  "args.includes('--execute')",
+  '--prove-cleanup-on-injected-failure',
+  '--assert-clean-only',
+  'saas_isolation_test_scenario_conflicting_options',
+]);
+requireText('apps/webapp/src/modules/operator-health/saasIsolationTestScenarioCliArgs.test.ts', [
+  "['--execute', '--assert-clean-only']",
+  "'--prove-cleanup-on-injected-failure'",
+  "'--unexpected'",
+  'saas_isolation_test_scenario_conflicting_options',
 ]);
 requireText('apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.ts', [
   'finally {',
