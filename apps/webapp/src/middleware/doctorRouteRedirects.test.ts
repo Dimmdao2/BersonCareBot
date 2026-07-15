@@ -25,6 +25,17 @@ describe("doctorRouteRedirectResponse — 308 redirects (old → new URLs)", () 
     );
   });
 
+  it.each(["future", "past"])(
+    "redirects legacy /app/doctor/appointments?view=%s to the canonical calendar",
+    (view) => {
+      const res = doctorRouteRedirectResponse(req(`/app/doctor/appointments?view=${view}`));
+      expect(res?.status).toBe(308);
+      expect(res?.headers.get("location")).toBe(
+        "http://localhost/app/doctor/schedule?tab=cal",
+      );
+    },
+  );
+
   it("redirects /app/doctor/admin/booking to schedule?tab=setup", () => {
     const res = doctorRouteRedirectResponse(req("/app/doctor/admin/booking"));
     expect(res?.status).toBe(308);

@@ -535,6 +535,22 @@ describe("doctor support/task workspace principal cutover", () => {
     const proactiveRepo = readSource("src/infra/repos/pgDoctorProactiveInsights.ts");
     expect(proactiveRepo).toContain("dps.organization_id = $2::uuid");
     expect(proactiveRepo).toContain("tpi.organization_id = $2::uuid");
+    expect(proactiveRepo).toContain("t.organization_id = $5::uuid");
+    expect(proactiveRepo).toContain("e.organization_id = $5::uuid");
+    expect(proactiveRepo).toContain("pal.organization_id = $2::uuid");
+    expect(proactiveRepo).not.toContain("IS NULL OR dps.organization_id");
+    expect(proactiveRepo).not.toContain("IS NULL OR t.organization_id");
+    expect(proactiveRepo).not.toContain("IS NULL OR e.organization_id");
+    expect(proactiveRepo).not.toContain("IS NULL OR tpi.organization_id");
+    expect(proactiveRepo).not.toContain("IS NULL OR pal.organization_id");
+
+    const proactiveSummaryRoute = readSource(
+      "src/app/api/doctor/proactive-insights/summary/route.ts",
+    );
+    expect(proactiveSummaryRoute).toContain("requireDoctorWorkspaceApiContext");
+    expect(proactiveSummaryRoute).toContain("withDoctorWorkspacePrincipal");
+    expect(proactiveSummaryRoute).toContain("organizationId: gate.ctx.organizationId");
+    expect(proactiveSummaryRoute).not.toContain("getCurrentSession");
 
     const clinicalRepo = readSource("src/infra/repos/pgPatientClinical.ts");
     expect(clinicalRepo).toContain("listLinkedAppointmentRecordIds(patientUserId");

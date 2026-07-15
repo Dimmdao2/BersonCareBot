@@ -114,9 +114,14 @@
   списка A и B без сохранения. Где: `DOCTOR_CABINET_NAVIGATION.md:19-21`; экран пациента в
   `apps/webapp/src/shared/ui/doctorScreenTitles.ts:69-72`. Доказательство: список и карточка не содержат
   пациента другой клиники; законно пустой B остаётся пустым, а не показывает A.
-- [ ] **3. Записи и календарь.** Пройти `/app/doctor/schedule?tab=cal` и список записей
-  `/app/doctor/appointments` (включая доступный past/future view). Где:
-  `DOCTOR_CABINET_NAVIGATION.md:50-51,75-89`. Доказательство: видны только собственные записи/слоты;
+- [ ] **3. Записи и календарь.** Пройти canonical `/app/doctor/schedule?tab=cal`: выбрать подходящие
+  диапазоны **3 дня / Неделя / Месяц** и кнопками предыдущего/следующего периода либо через `date`
+  открыть fixture past и future appointments; «День» использовать только как drill-down. Для каждого
+  проверяемого диапазона отдельно сверить рендер календаря и списка (`render=list`) — это не отдельный
+  past/future view. `/app/doctor/appointments` не проверять как список: это legacy 308 на тот же
+  `?tab=cal`, а `?view=future|past` отбрасывается. Где:
+  `DOCTOR_CABINET_NAVIGATION.md` §«Расписание», `apps/webapp/src/app/app/doctor/schedule/schedule.md`
+  §«Записи». Доказательство: в каждом прошлом/будущем диапазоне видны только собственные записи/слоты;
   отсутствуют чужие даты, пациент, филиал или счётчик. Не нажимать создание/изменение.
 - [ ] **4. Коммуникации.** `/app/doctor/communications?tab=chats` и
   `/app/doctor/communications?tab=broadcasts`; открыть только существующий чат в режиме чтения.

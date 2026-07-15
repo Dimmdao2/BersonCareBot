@@ -16,7 +16,7 @@
 | Кластер | Пункты (кратко) |
 |---------|------------------|
 | *(standalone)* | Сегодня → `/app/doctor` |
-| Работа с пациентами | Пациенты, Записи, Календарь |
+| Работа с пациентами | Пациенты, Расписание |
 | Коммуникации | Онлайн-заявки, Сообщения, Рассылки |
 | Каталог ЛФК | Упражнения, комплексы, тесты, шаблоны программ, курсы, справочники, … |
 | Контент | Главная пациента, материалы, библиотека файлов |
@@ -47,8 +47,7 @@
 |------------|-----|------------|
 | Сегодня (рабочий inbox) | `/app/doctor` | KPI + очереди; см. [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md) |
 | Врачи / команда клиники | `/app/doctor/clinic/members` | `clinic_admin`; `GET /api/clinic/members`, `GET/POST/DELETE /api/clinic/invites` |
-| Календарь записей | `/app/doctor/calendar` | Read switch: `appointment_records` (default) или `be_appointments` (`booking_doctor_appointments_read_source`); API `/api/doctor/booking-engine/calendar` (`readSource`, `freeSlotsEnabled`) |
-| Список записей | `/app/doctor/appointments` | `?tab=appointments\|schedule` · `?view=future\|past`; tab=**schedule** — только admin; RSC fetch через `DoctorAppointmentsReadSwitch`; API пагинации архива: `GET /api/doctor/appointments/list?view=past&offset=N` |
+| Расписание / записи | `/app/doctor/schedule?tab=cal` | Единый canonical calendar: диапазоны 3 дня / неделя / месяц и независимый рендер календарь / список (`render=list`); прошлые и будущие диапазоны открываются навигацией по периоду. Legacy `/calendar` и `/appointments` (включая `?view=future\|past`) дают **308** ровно на `?tab=cal`, старый query отбрасывается. |
 | Аналитика по клиентам | `/app/doctor/analytics/clients` | Бывш. `/app/doctor/stats`; пресет **«Сутки»** (`preset=day`) + week/month/custom |
 | Статистика (legacy URL) | `/app/doctor/stats` | **Редирект** → `analytics/clients` |
 | По контенту | `/app/doctor/material-ratings` | UI «Статистика материалов»: дашборд **`content-stats`** + таблицы оценок; см. [`MATERIAL_RATINGS.md`](MATERIAL_RATINGS.md) |
@@ -82,6 +81,10 @@
 
 Шелл: `DoctorScheduleShell` + keepMounted-табы. **KPI (9 метрик) живут только в табе «Записи»**
 (`ScheduleCalendarTab`, §3.1 ТЗ); шелл не хранит метрики.
+Past/future — не отдельные списки: диапазон выбирается в `ScheduleCalendarTab` через вид
+**3 дня / Неделя / Месяц** и навигацию по предыдущему/следующему периоду; «День» доступен только
+как drill-down. Рендер **Календарь / Список** переключается независимо (`render=list`) для того же
+диапазона. Query `view=future|past` старого `/appointments` не переносится через 308-редирект.
 Per-date бэкенд: таблицы `be_working_days` / `be_schedule_templates` (breaks jsonb, миграции 0115–0116);
 `be_branches.short_title` (migration 0117); слот-движок учитывает per-date override
 (`workingIntervalsForDate(…, perDayRow?)`), N перерывов через cursor-based `splitByBreak`.
