@@ -74,3 +74,8 @@ The executable wrapper
 Both modes preflight exact `bersoncarebot_test` and the separate least-privilege operator membership before writes;
 they never print the connection URL. Cleanup does not delete or resolve real diagnostics events. Because real active
 events remain authoritative, `okay` intentionally cannot mask an existing genuine critical signal.
+
+The shared TEST deploy closure invokes the generic `post-runtime-gate` command only after locked services, health,
+nginx and product smoke have passed. It reads diagnostics before recording coverage, records all six required process
+families, and rereads the exact fresh run. Active unexplained events fail before or after the write; output contains
+only status/counts and never the coverage UUID, event identifiers, database URL, SQL or identity data.

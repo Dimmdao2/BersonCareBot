@@ -7,6 +7,10 @@ const files = {
   model: 'apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts',
   repository: 'apps/webapp/src/infra/repos/pgSaasIsolationDiagnostics.ts',
   cli: 'apps/webapp/scripts/report-saas-isolation-diagnostics.ts',
+  postRuntimeGate:
+    'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.ts',
+  postRuntimeGateTest:
+    'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.test.ts',
   ui: 'apps/webapp/src/app/app/settings/SystemHealthSection.tsx',
   testScenarioRunner: 'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.ts',
   testScenarioCli: 'apps/webapp/scripts/run-saas-isolation-test-scenarios.ts',
@@ -112,6 +116,40 @@ async function main() {
   requireText(loaded.repository, 'app.read_saas_isolation_trend()', 'operator trend read');
   requireText(loaded.ui, 'Сигналы изоляции за 7 дней', 'seven-day operator UI');
   requireText(loaded.cli, 'state: enumValue(TEST_SCENARIOS', 'closed TEST scenario CLI');
+  for (const fragment of [
+    'post-runtime-gate',
+    'runSaasIsolationPostRuntimeGate',
+    'saas_isolation_post_runtime_gate_ok',
+    'coverage=complete active_unexplained=0',
+    'await getSaasIsolationOperatorPool().end()',
+  ])
+    requireText(loaded.cli, fragment, 'redacted post-runtime gate CLI');
+  requireOrder(
+    loaded.postRuntimeGate,
+    [
+      'const beforeCoverage = await deps.readHealth()',
+      "assertNoActiveUnexplained(beforeCoverage, 'before_coverage')",
+      'await deps.recordCoverage({',
+      'const afterCoverage = await deps.readHealth()',
+      "assertNoActiveUnexplained(afterCoverage, 'after_coverage')",
+      '!afterCoverage.coverageComplete',
+    ],
+    'post-runtime gate pre-read/write/reread fail-closed order',
+  );
+  for (const fragment of [
+    "servicesChecked: [...SAAS_ISOLATION_REQUIRED_SERVICES]",
+    "status: 'complete'",
+    'unexpectedErrorsCount: 0',
+    'afterCoverage.lastCoverage.id !== coverageId',
+    "throw new Error('saas_isolation_post_runtime_gate_coverage_missing')",
+  ])
+    requireText(loaded.postRuntimeGate, fragment, 'post-runtime exact coverage contract');
+  for (const fragment of [
+    'fails before the coverage write when an unexplained event is already active',
+    'fails when a runtime event appears during coverage or the exact coverage reread is missing',
+    'expect(gateDeps.recordCoverage).not.toHaveBeenCalled()',
+  ])
+    requireText(loaded.postRuntimeGateTest, fragment, 'post-runtime focused tests');
   for (const fragment of [
     'finally {',
     "await deps.apply('clean')",
@@ -228,6 +266,10 @@ async function main() {
     'protected diagnostic login provisioning pipeline',
   );
   const closure = shellFunction(loaded.webappDeploy, 'run_strict_post_migration_closure');
+  const postRuntimeGate = shellFunction(
+    loaded.webappDeploy,
+    'run_e1_post_runtime_coverage_gate',
+  );
   const scenarioProof = shellFunction(
     loaded.webappDeploy,
     'run_saas_isolation_test_scenario_proof',
@@ -248,9 +290,46 @@ async function main() {
       'install_saas_isolation_telemetry_overlay',
       'run_saas_isolation_test_scenario_proof',
       'apply_test_strict_rls_finalizer',
+      'mark_e1_runtime_coverage_start',
+      'run_locked_product_smoke',
+      'run_e1_post_runtime_coverage_gate',
+      'assert_awg_relay_active',
     ],
-    'telemetry overlay before strict finalizer execution',
+    'telemetry overlay and post-runtime gate closure order',
   );
+  for (const fragment of [
+    'sleep 1',
+    'diagnostics:saas-isolation -- post-runtime-gate',
+    "--started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks 9",
+  ])
+    requireText(postRuntimeGate, fragment, 'shared post-runtime E1 deploy gate');
+  const d34Grant = shellFunction(loaded.webappDeploy, 'grant_webapp_bootstrap_base_login_d3_4');
+  requireOrder(
+    d34Grant,
+    [
+      'discover_webapp_bootstrap_base_role',
+      'discover_media_worker_runtime_role',
+      'discover_webapp_staff_runtime_role',
+      'd3_4_bootstrap_base_role="$role_name"',
+      'd3_4_media_worker_runtime_role="$media_worker_role"',
+      'D3_4_BOOTSTRAP_GRANTS',
+      'assert_media_worker_runtime_can_release_principal_context',
+      'assert_webapp_credential_helper_runtime_acl',
+    ],
+    'D3.4 actual media-worker role grant and runtime assertion',
+  );
+  const credentialAclProbe = shellFunction(
+    loaded.webappDeploy,
+    'assert_webapp_credential_helper_runtime_acl',
+  );
+  for (const fragment of [
+    'DATABASE_URL_STAFF',
+    'DATABASE_URL_NONSTAFF',
+    "has_function_privilege(current_user, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')",
+    '00000000-0000-4000-8000-000000000000',
+    'staff success; nonstaff permission denied',
+  ])
+    requireText(credentialAclProbe, fragment, 'actual webapp staff/nonstaff credential-helper probe');
   requireOrder(
     loaded.codeOnlyDeploy,
     [
@@ -293,6 +372,19 @@ async function main() {
         closure.replace('run_saas_isolation_test_scenario_proof', 'true'),
         'run_saas_isolation_test_scenario_proof',
         'orphan TEST scenario wrapper',
+      ],
+      [
+        loaded.postRuntimeGate.replace(
+          'const beforeCoverage = await deps.readHealth()',
+          'const beforeCoverage = await Promise.resolve(afterCoverage)',
+        ),
+        'const beforeCoverage = await deps.readHealth()',
+        'missing pre-coverage genuine-event read',
+      ],
+      [
+        closure.replace('run_e1_post_runtime_coverage_gate', 'true'),
+        'run_e1_post_runtime_coverage_gate',
+        'orphan post-runtime deploy gate',
       ],
     ]) {
       let rejected = false;

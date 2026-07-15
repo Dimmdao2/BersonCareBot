@@ -657,7 +657,10 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 ставит roles/helpers/grants и E1 telemetry overlay (ambient event-writer + отдельный
 `SAAS_ISOLATION_OPERATOR_DATABASE_URL` для global-admin read/coverage), выполняет base → safe specialized overlays → FORCE/assert,
 запускает отдельный fixture window, затем fail-closed health и обязательный locked product smoke. Поэтому code-only
-миграция не может незаметно вернуть состояние migration 0177 NO FORCE или пропустить fixture/smoke.
+миграция не может незаметно вернуть состояние migration 0177 NO FORCE или пропустить fixture/smoke. После рестарта,
+health/nginx и обоих product-smoke общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
+families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
+останавливает deploy до AWG/DONE; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
 Для SaaS fresh-dump rehearsal канон — только:
 
 ```bash

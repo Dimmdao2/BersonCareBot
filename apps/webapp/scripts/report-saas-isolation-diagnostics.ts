@@ -8,6 +8,10 @@ import {
 } from "../src/modules/operator-health/saasIsolationDiagnostics";
 import { runtimeSaasIsolationDiagnostics } from "../src/infra/saasIsolationReporterRuntime";
 import { getSaasIsolationOperatorPool } from "../src/infra/db/saasIsolationTelemetry";
+import {
+  createSaasIsolationPostRuntimeGateDeps,
+  runSaasIsolationPostRuntimeGate,
+} from "../src/modules/operator-health/saasIsolationPostRuntimeGate";
 
 const TEST_SCENARIOS = ["clean", "okay", "incomplete", "critical"] as const;
 type TestScenario = (typeof TEST_SCENARIOS)[number];
@@ -16,6 +20,7 @@ type Command =
   | { kind: "event"; input: ReportSaasIsolationEventInput }
   | { kind: "coverage"; input: RecordSaasIsolationCoverageInput }
   | { kind: "scenario"; state: TestScenario }
+  | { kind: "post-runtime-gate"; startedAt: string; checksCount: number }
   | { kind: "read" };
 
 function option(args: string[], name: string): string {
@@ -57,6 +62,13 @@ export function parseSaasIsolationDiagnosticsCommand(args: string[]): Command {
     return {
       kind: "scenario",
       state: enumValue(TEST_SCENARIOS, option(args, "--state"), "invalid_test_scenario"),
+    };
+  }
+  if (command === "post-runtime-gate") {
+    return {
+      kind: "post-runtime-gate",
+      startedAt: iso(option(args, "--started-at"), "invalid_started_at"),
+      checksCount: nonNegativeInt(option(args, "--checks"), "invalid_checks"),
     };
   }
   if (command === "event") {
@@ -116,6 +128,21 @@ async function main(): Promise<void> {
       [command.state],
     );
     process.stdout.write(`scenario_${command.state}\n`);
+    return;
+  }
+  if (command.kind === "post-runtime-gate") {
+    try {
+      const result = await runSaasIsolationPostRuntimeGate(
+        command.startedAt,
+        command.checksCount,
+        createSaasIsolationPostRuntimeGateDeps(runtimeSaasIsolationDiagnostics),
+      );
+      process.stdout.write(
+        `saas_isolation_post_runtime_gate_ok status=${result.status} coverage=complete active_unexplained=0 active_explained=${result.activeExplained}\n`,
+      );
+    } finally {
+      await getSaasIsolationOperatorPool().end();
+    }
     return;
   }
   process.stdout.write(`${JSON.stringify(await runtimeSaasIsolationDiagnostics.readHealth(), null, 2)}\n`);
