@@ -80,6 +80,9 @@ screen capture.
 
 ## UX-03 — Product operating model и role/capability matrix
 
+**Статус:** completed as decision-ready candidate; independent plan-critic PASS. Open owner rulings remain gates for
+the named downstream screens, not hidden defaults.
+
 **Цель:** определить, кто, в каком контексте и над какими объектами работает.
 
 Нужно закрыть:
@@ -100,6 +103,12 @@ screen capture.
 **Исполнитель:** Planner (Opus) синтезирует UX-01/02. **Plan-critic:** независимый Opus проверяет полноту и не позволяет подменить owner decisions догадками. **Architecture reviewer:** `gpt-5.6-sol` проверяет согласованность с identity/tenant walls.
 
 **Выход:** `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, state/context diagrams.
+
+Текущий synthesis собран в `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md`. Инварианты, recommended candidates
+и owner decisions разведены явно; карточка/история, assistant, handoff, dual-mode navigation и entitlement
+degradation не считаются утверждёнными до rulings. Independent plan-critic после исправления row-level ownership /
+enforcement / provenance, data/API gaps, owner-ruling boundaries, status/safe defaults и handoff deactivation states
+выдал **PASS**. Audit record: `UX03_INDEPENDENT_AUDIT.md`.
 
 ## UX-04 — Acquisition, invite, activation и install journeys
 

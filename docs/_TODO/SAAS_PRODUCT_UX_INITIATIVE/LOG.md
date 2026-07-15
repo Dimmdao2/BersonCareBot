@@ -102,3 +102,27 @@
 - Patient Today остаётся finding-only product defect `organization_principal_required`. Acceptance требует честно
   сохранять error как finding, а не исправлять продукт внутри factual audit, поэтому defect не блокирует PASS UX-01.
 - Новый audit record: `UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`; прежние FAIL records сохранены историческими.
+
+## 2026-07-15 — UX-03 operating-model synthesis
+
+- Рабочий draft и независимый architecture/security review синтезированы в `OPERATING_MODEL.md` и
+  `ROLE_CAPABILITY_MATRIX.md`; исходные файлы не переписывались.
+- Канонические identity/tenant/security invariants отделены от recommended candidates и owner decisions.
+- Solo и clinic используют одну Organization/account model, но получают разную capability-driven композицию;
+  owner/admin+specialist работает в одном login с предложенным явным management/clinical mode.
+- Preferred patient-card candidate: одна organization-scoped карточка, authored immutable events, permission before
+  filter; решение о модели карточки и clinic-wide history остаётся за владельцем.
+- Primary assignment, care team, work-item reassignment и cross-org transfer разведены по state/audit semantics.
+- Owner decision packet приоритизирован по блокерам UX-04/05/06. UX-03 не закрыт: требуется independent plan-critic.
+
+### Independent plan-critic
+
+- Initial audit нашёл пять исправимых gaps: неполный row-level ownership/enforcement/provenance contract,
+  отсутствующий data/API gap list, неоднозначность owner rulings по clinic-wide wall и global-admin authority,
+  несогласованные status/safe defaults и неполные handoff deactivation states.
+- `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md` усилены без выбора открытых owner decisions.
+- Подтверждены solo/clinic composition, staff one-org vs patient multi-org, permission-before-filter,
+  list/direct/count/search/export parity, четыре независимых handoff primitive и entitlement denial semantics.
+- Mermaid проверен концептуально; `git diff --check` — PASS.
+- Вердикт: **PASS after fixes**. UX-03 закрыт как decision-ready discovery candidate; owner P0/P1 rulings остаются
+  downstream gates. Audit record: `UX03_INDEPENDENT_AUDIT.md`.
