@@ -2,7 +2,24 @@
 
 ## Принцип исполнения
 
-Каждый этап отвечает на один класс вопросов и создаёт отдельный проверяемый артефакт. Следующий synthesis-этап не стартует, пока входные карты не закончены. Параллельность — максимум два независимых исследовательских потока; синтез, decision gates и редактирование master-docs сериализуются.
+Каждый этап отвечает на один целостный класс вопросов и создаёт только заранее предусмотренный проверяемый
+артефакт. Следующий synthesis-этап не стартует, пока входные карты не закончены. Параллельность — максимум два
+независимых исследовательских потока; синтез, decision gates и редактирование master-docs сериализуются.
+
+Фаза отдаётся способному агенту целиком: сначала полноценная проработка, затем полноценный независимый аудит всего
+результата. Работа не дробится на микрослайсы ради частых diff/test/commit. При связанных замечаниях аудита один
+correction owner получает полный контекст, свободу согласованно исправить весь артефакт и затем проходит один полный
+re-audit. Цикл узких двухстрочных fix/audit допустим только для действительно изолированной механической ошибки.
+
+Агенту даются время и reasoning, соответствующие объёму. Молчание во время работы, незавершённость из-за времени,
+недостаточный контекст и реальная неспособность решить задачу различаются до retry/escalation. Короткий timeout или
+неполный scope не трактуется как провал агента. Если интерфейс оркестрации не позволяет выбрать model/effort, это
+компенсируется полным контекстом, цельным scope и достаточным временем, а не выдуманной отметкой модели.
+
+Проверки, checklist, `LOG.md`, статусы и документация обновляются на границе содержательной фазы; commit/push — один
+осмысленный checkpoint после полного аудита. Новые ad hoc документы не создаются: действующий канон правится на
+месте, а отдельные файлы допустимы только как указанный ниже phase output или audit/evidence record. Собственные
+решения агентов никогда не записываются как owner rulings.
 
 Текущий UX-01 evidence pass выполнен отдельными bounded аудиторами; synthesis и изменение master-docs остаются сериализованными.
 
@@ -112,6 +129,9 @@ enforcement / provenance, data/API gaps, owner-ruling boundaries, status/safe de
 
 ## UX-04 — Acquisition, invite, activation и install journeys
 
+**Статус:** completed as a decision-ready journey contract; full independent re-audit PASS after integrated
+correction. Open owner decisions remain conditional downstream gates.
+
 **Цель:** спроектировать полные входные пути.
 
 Обязательные journeys:
@@ -130,7 +150,19 @@ enforcement / provenance, data/API gaps, owner-ruling boundaries, status/safe de
 
 **Выход:** `ENTRY_AND_INVITE_JOURNEYS.md` и screen/state list.
 
+Corrected outputs: `ENTRY_AND_INVITE_JOURNEYS.md`, `UX04_SCREEN_STATE_LIST.md`. Все семь mandatory journeys
+сохранены. Integrated correction согласовал owner-approved patient passwordless OTP и staff email+password,
+additive persona safety, full 2FA mechanics/recovery, раздельные invite/delivery/proof axes, exactly-once/token
+exchange и browser→installed-PWA recovery. Current gaps сверены с кодом, включая deferred specialist binding,
+`challengeId` session reissue, missing other-active-org check, pre-auth full-email leak и public booking `userId`.
+Полный независимый re-audit проверил F1-F5 и все семь journeys целиком и выдал **PASS**. Audit record обновлён на
+месте: `UX04_INDEPENDENT_AUDIT.md`. Current implementation gaps остаются входами UX-06/UX-09, а не скрыто
+реализованными возможностями.
+
 ## UX-05 — Branding и domain contract
+
+**Статус:** completed as a decision-ready contract; full independent re-audit PASS after integrated correction.
+Pending owner requests BD-1…BD-6 have no owner ruling and remain gates for final launch scope and visual freeze.
 
 **Цель:** определить уровни брендинга и технически честные surface boundaries.
 
@@ -154,6 +186,13 @@ enforcement / provenance, data/API gaps, owner-ruling boundaries, status/safe de
 **Исполнители:** product/brand UX planner + `gpt-5.6-sol` architecture/security reviewer. Визуальный дизайнер подключается только после contract freeze.
 
 **Выход:** `BRANDING_DOMAIN_CONTRACT.md` и тарифная capability matrix.
+
+Финальные outputs: `BRANDING_DOMAIN_CONTRACT.md`, `BRANDING_CAPABILITY_MATRIX.md`. После первого полного аудита и
+одного integrated correction pass они согласованно разделяют core organization context и paid brand presentation,
+`HostnameBase` и независимые surface bindings, стабильный platform alias lifecycle и полную authenticated email
+identity. Полный re-audit проверил все исправления и исходные инварианты с **PASS**; audit record:
+`UX05_INDEPENDENT_AUDIT.md`. BD-1…BD-6 остаются pending owner requests (`owner ruling=none`), а не решениями
+владельца, и переносятся дальше только как явные decision gates.
 
 ## UX-06 — Target IA и screen composition
 

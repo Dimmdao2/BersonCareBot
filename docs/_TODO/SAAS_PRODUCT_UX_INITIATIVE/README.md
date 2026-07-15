@@ -48,6 +48,17 @@
 
 Если старый roadmap противоречит `OWNER_RULINGS_2026-07-15.md`, побеждают rulings. Новая product-гипотеза не подписывается как решение владельца до явной фиксации.
 
+## Правило актуальности документов
+
+- Этот `README.md`, `REQUIREMENTS.md` и `ROADMAP.md` — существующий канон инициативы; новые решения сначала
+  исправляют их, а не создают параллельный документ с конкурирующей версией правил.
+- Новый файл создаётся только когда он заранее указан в `ROADMAP.md` как самостоятельный выход фазы или нужен как
+  обязательный audit/evidence record. Ad hoc документы с новыми правилами или решениями запрещены.
+- Устаревшее положение обновляется или явно помечается историческим в том же каноническом документе. Нельзя
+  оставлять две формулировки без указания, какая действует.
+- Рекомендация агента, safe default и owner decision всегда маркируются раздельно. Решением владельца считается
+  только явно высказанное и трассируемое решение владельца.
+
 ## Артефакты
 
 - `REQUIREMENTS.md` — цель, исходные требования, ограничения и стартовые гипотезы;
@@ -55,7 +66,15 @@
 - `CURRENT_STATE_BASELINE.md` — стартовая карта уже существующих поверхностей;
 - `SCREEN_INVENTORY_PATIENT_PUBLIC.md` и `SCREEN_INVENTORY_SPECIALIST.md` — route/family inventory;
 - `UX01_EVIDENCE_MANIFEST.md` и `UX01_VISUAL_ATTEMPT_LEDGER.md` — текущая evidence-классификация;
-- `UX01_FRESH_AUDIT_2026-07-15.md` — актуальный независимый вердикт UX-01;
+- `UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md` — актуальный независимый PASS UX-01;
+- `UX01_FRESH_AUDIT_2026-07-15.md` — исторический FAIL до разблокировки DEV и patient replay;
 - `UX02_PRODUCT_PATTERNS.md` и `UX02_TECHNICAL_PATTERNS.md` — внешние product/technical patterns;
 - `UX02_RESEARCH_AUDIT.md` — независимый PASS внешнего исследования;
+- `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md` — decision-ready модель ролей, контекстов и capabilities;
+- `UX03_INDEPENDENT_AUDIT.md` — независимый PASS operating model;
+- `ENTRY_AND_INVITE_JOURNEYS.md` и `UX04_SCREEN_STATE_LIST.md` — acquisition/invite/activation/install journeys и
+  проекция экранных состояний;
+- `UX04_INDEPENDENT_AUDIT.md` — полный identity/security/product audit и PASS после integrated correction;
+- `BRANDING_DOMAIN_CONTRACT.md` и `BRANDING_CAPABILITY_MATRIX.md` — branding/domain/sender/PWA contract;
+- `UX05_INDEPENDENT_AUDIT.md` — полный product/architecture audit и PASS после integrated correction;
 - `LOG.md` — журнал фактов, решений и проверок.

@@ -10,7 +10,9 @@
 ## 📁 Инфо по репо (куда смотреть)
 - Архитектура: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md`, `ARCHITECTURE.md`, `apps/webapp/ARCHITECTURE.md`.
 - Dev/тестирование: `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`. Деплой/прод: `deploy/HOST_DEPLOY_README.md`.
-- Оркестрация/автономная работа: `docs/AGENT_AUTORUN_SCHEME.md`.
+- Оркестрация/автономная работа: `docs/AGENT_AUTORUN_SCHEME.md` + repo-specific bindings
+  `docs/ORCHESTRATION_BINDINGS.md` (обязательный практический канон BersonCare: scope, model/effort, timing,
+  audit/fix, документация и provenance решений).
 
 ## 🤖 Для луп/автономных агентов (этот бокс)
 - **Два слоя правил:** ОБЩЕЕ → AGENTS.md (выше). РОЛЕВОЕ (твоя роль луп-агента, ДОПОЛНЯЕТ, не дублирует) →

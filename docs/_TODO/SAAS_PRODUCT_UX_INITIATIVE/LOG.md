@@ -126,3 +126,97 @@
 - Mermaid проверен концептуально; `git diff --check` — PASS.
 - Вердикт: **PASS after fixes**. UX-03 закрыт как decision-ready discovery candidate; owner P0/P1 rulings остаются
   downstream gates. Audit record: `UX03_INDEPENDENT_AUDIT.md`.
+
+## 2026-07-15 — UX-04 entry/invite journey draft
+
+- Подготовлены `ENTRY_AND_INVITE_JOURNEYS.md` и `UX04_SCREEN_STATE_LIST.md` для семи обязательных journey: solo
+  signup, clinic staff invite, patient email invite, SMS fallback, public booking, returning multi-org patient и
+  terminal/wrong-recipient invite recovery.
+- Для каждого flow зафиксированы trigger, actor, channel, token/trust, auth, trusted organization source,
+  relationship records/state, UI, delivery outcome, recovery и privacy/security.
+- Current implementation отделён от target: specialist signup и staff invite имеют reuse points; patient invite не
+  найден; public booking ещё не гарантирует atomic enrollment; 2FA отсутствует; patient context switcher не завершён.
+- Сохранены owner gates OM-2/OM-3, enrollment timing, 2FA policy, SMS-only activation, role collision, booking
+  activation channel и TTL/resend. До решений указаны fail-closed defaults.
+- Application/DB/delivery state не менялись. UX-04 остаётся pending до независимого identity/security audit.
+
+## 2026-07-15 — UX-05 branding/domain contract draft
+
+- Добавлены `BRANDING_DOMAIN_CONTRACT.md` и `BRANDING_CAPABILITY_MATRIX.md`; application code, schema, DB и тарифы
+  не менялись.
+- Для platform landing, org public/profile, booking, join/auth, patient/staff shells, PWA, email/SMS/push,
+  legal/support и domain settings описаны уровни platform-only / organization identity / true white-label,
+  fallback, ownership, entitlement/readiness и security boundary.
+- Host/domain закреплён только как server-verified entry candidate, не authorization. Canonical platform fallback
+  однонаправленный и loop-safe; raw invite token/open redirect не переносятся между origins.
+- `branding`, `custom_domain`, custom sender и per-origin PWA разведены как независимые capability/readiness axes;
+  текущие два entitlement mechanics недостаточны для честной отдельной упаковки sender/PWA.
+- Custom sender failure оставлен pending gate BD-3: explicit platform fallback versus hold/reject. Safe default:
+  transactional mail через disclosed platform sender, custom-only marketing held. На момент draft provenance label
+  был неточным; integrated correction ниже явно фиксирует `owner ruling=none`.
+- Статус draft на этом checkpoint был **pending independent product/architecture audit**; он не считался contract freeze.
+
+## 2026-07-15 — UX-05 integrated correction after independent audit
+
+- Один целостный correction pass обновил существующие `BRANDING_DOMAIN_CONTRACT.md` и
+  `BRANDING_CAPABILITY_MATRIX.md`; новый конкурирующий contract не создавался, audit record не изменялся.
+- Разделены `HostnameBase` (ownership/TLS/routing/base health/decommission/quarantine) и независимые
+  `HostnameSurfaceBinding` для public profile, booking, join, auth, patient PWA и staff PWA. Failure одного binding
+  не выключает готовые sibling surfaces; management UI показывает base health и отдельную таблицу bindings.
+- Core organization context (trusted display name/minimum attribution/platform disclosure) отделён от paid brand
+  presentation на public, booking, join/auth, patient/staff, email/SMS/push, legal/support и domain management.
+  Отключение `branding` возвращает platform visuals, но не скрывает организацию в valid invite/booking/shell или
+  transactional delivery.
+- Добавлен server-owned `PlatformAlias` lifecycle: normalization/reserved names/uniqueness, immutable organization
+  target, versioned rename redirect, hidden/suspended/closed behavior, quarantine и no silent reuse.
+- Email sender `active` теперь требует согласованную identity: visible From, envelope/Return-Path, DKIM selector,
+  SPF, DMARC alignment, provider verification, validated Reply-To, bounce/complaint routing и template eligibility;
+  per-attempt audit фиксирует effective identity/fallback без body/raw token.
+- BD-1…BD-6 переименованы в pending owner decision requests: `status=pending`, `owner ruling=none`, planner
+  recommendation, safe default и downstream impact. Собственные рекомендации агента не атрибутированы владельцу.
+- Повторно сохранены исходные инварианты: Host/alias/brand не авторизуют, fallback custom→platform однонаправленный,
+  platform manifests стабильны, legal/support/recovery достижимы, patient multi-org не мутирует installed identity.
+- Статус UX-05: **integrated correction complete; awaiting full independent re-audit**. UX-05 пока не closed.
+
+## 2026-07-15 — UX-05 full independent re-audit
+
+- Повторный аудитор перечитал всю фазу, corrected contracts, requirements/roadmap, operating/role model, UX-02
+  evidence, owner rulings и исходный полный audit; проверка не ограничивалась changed lines.
+- Все шесть re-audit gates закрыты: независимые hostname bindings, core context vs paid brand, stable platform alias,
+  authenticated email identity, корректный provenance BD-1…BD-6 и отсутствие регрессий исходных инвариантов.
+- Повторно подтверждены complete surface coverage, Host/alias non-authorization, one-way loop-safe fallback, stable
+  platform manifests, W PWA origin gates, patient multi-org behavior, sender anti-spoofing, entitlement separation и
+  постоянная достижимость legal/support/recovery.
+- Вердикт: **PASS**. UX-05 закрыт как decision-ready discovery contract. BD-1…BD-6 остаются pending owner requests с
+  `owner ruling=none`; implementation gaps остаются входами UX-06/UX-09, а не скрыто готовым backend.
+- Audit record обновлён на месте: `UX05_INDEPENDENT_AUDIT.md`; новый audit-файл не создавался. Application code, DB и
+  тарифы не менялись.
+
+## 2026-07-15 — UX-04 integrated correction after independent audit
+
+- Один цельный correction pass обновил существующие `ENTRY_AND_INVITE_JOURNEYS.md` и
+  `UX04_SCREEN_STATE_LIST.md`; parallel state/journey documents не создавались, audit record не редактировался.
+- Patient target приведён к owner ruling passwordless OTP; staff — email + password. Зафиксированы additive
+  patient/staff persona или fail-closed linking, а также полные 2FA setup/recovery/replacement/session-revocation
+  mechanics при открытой политике factor/roles/grace/step-up.
+- Invite relationship, immutable delivery attempts и auth/recipient proof разведены; завершены raw-token exchange,
+  URL scrub, narrow continuation, accepted-user replay match и exactly-once concurrency/idempotency contracts.
+- Current-state gaps сверены с реализацией: deferred specialist bindings, `challengeId` session reissue, отсутствие
+  other-active-org enforcement, full-email pre-auth leak, public booking internal `userId`, неполные lifecycle и
+  delivery states.
+- Добавлены browser→installed PWA first launch, session/passwordless re-auth, exact authorized org restoration,
+  push subscription rotation/revocation и deep-link recovery. UX-04 ожидает один полный независимый re-audit; этап
+  не помечен completed.
+
+### Full independent re-audit
+
+- Повторно проверены orchestration canon, полный UX-04, REQUIREMENTS/ROADMAP, operating/role model, owner rulings,
+  UX-02 evidence, current code и исходный audit; проверка не ограничивалась changed lines.
+- Все F1-F5 закрыты: auth/persona/2FA, current-vs-target honesty, независимые lifecycle axes/token exchange,
+  installed-PWA first launch/push recovery и полная parity screen/state list.
+- Все семь journeys заново трассированы по trigger/channel/trust, identity/auth, organization context,
+  relationship transaction, delivery, privacy и recovery. OM-2/OM-3 и остальные product choices остаются pending,
+  architecture/security invariants не переатрибутированы владельцу.
+- Вердикт: **PASS**. UX-04 закрыт как decision-ready journey contract; это не закрывает перечисленные implementation
+  defects. Audit record `UX04_INDEPENDENT_AUDIT.md` обновлён на месте, новый audit-файл не создан.
+- `git diff --check` — PASS; app tests/DB smoke не запускались, application/schema/runtime state не менялись.
