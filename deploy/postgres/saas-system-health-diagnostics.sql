@@ -46,7 +46,13 @@ REVOKE SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_stats_hourly,
   public.media_playback_user_video_first_resolve
-FROM PUBLIC, app_owner, app_staff, app_patient, app_worker, saas_telemetry_operator;
+FROM PUBLIC, app_staff, app_patient, app_worker, saas_telemetry_operator;
+REVOKE SELECT ON TABLE
+  public.media_playback_resolution_events,
+  public.media_playback_user_video_first_resolve
+FROM app_owner;
+-- The protected ON CONFLICT counter accessor reads the old aggregate values.
+GRANT SELECT ON TABLE public.media_playback_stats_hourly TO app_owner;
 SELECT format(
   'REVOKE SELECT ON TABLE public.media_playback_resolution_events, public.media_playback_stats_hourly, public.media_playback_user_video_first_resolve FROM %I',
   :'system_health_operator_runtime_role'
@@ -147,12 +153,40 @@ SELECT 1 / (
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = ANY (ARRAY[
         0::oid,
-        'app_owner'::regrole::oid,
         'app_staff'::regrole::oid,
         'app_patient'::regrole::oid,
         'app_worker'::regrole::oid,
         'saas_telemetry_operator'::regrole::oid,
         :'system_health_operator_runtime_role'::regrole::oid
       ])
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS source_table
+    JOIN pg_catalog.pg_namespace AS source_schema
+      ON source_schema.oid = source_table.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(source_table.relacl, pg_catalog.acldefault('r', source_table.relowner))
+    ) AS source_acl
+    WHERE source_schema.nspname = 'public'
+      AND source_table.relname = ANY (ARRAY[
+        'media_playback_resolution_events',
+        'media_playback_user_video_first_resolve'
+      ])
+      AND source_acl.privilege_type = 'SELECT'
+      AND source_acl.grantee = 'app_owner'::regrole::oid
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS source_table
+    JOIN pg_catalog.pg_namespace AS source_schema
+      ON source_schema.oid = source_table.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(source_table.relacl, pg_catalog.acldefault('r', source_table.relowner))
+    ) AS source_acl
+    WHERE source_schema.nspname = 'public'
+      AND source_table.relname = 'media_playback_stats_hourly'
+      AND source_acl.privilege_type = 'SELECT'
+      AND source_acl.grantee = 'app_owner'::regrole::oid
   )
 )::int AS curated_system_health_least_privilege_verified;
