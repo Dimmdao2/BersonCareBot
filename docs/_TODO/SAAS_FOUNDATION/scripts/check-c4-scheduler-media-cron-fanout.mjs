@@ -43,6 +43,7 @@ const files = {
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
   testDeploy: "deploy/host/deploy-test-saas.sh",
   mediaWorkerTestUnit: "deploy/systemd/bersoncarebot-media-worker-test.service",
+  mediaWorkerTestUnitAssertion: "deploy/host/assert-media-worker-test-unit-properties.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
   mediaMultipartInit: "apps/webapp/src/app/api/media/multipart/init/route.ts",
@@ -566,8 +567,18 @@ function assertOperationalSqlAndDeploy(loaded) {
     "EnvironmentFile=/opt/env/bersoncarebot/media-worker.test",
   ]);
   requireFragments(files.testDeploy, loaded.testDeploy, [
-    '[ "$effective_working_directory" = "$DEPLOY_REPO/apps/media-worker" ]',
-    '"deploy:deploy"',
+    "-p FragmentPath --value",
+    "-p EnvironmentFiles --value",
+    'bash "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" --validate',
+  ]);
+  requireFragments(files.mediaWorkerTestUnitAssertion, loaded.mediaWorkerTestUnitAssertion, [
+    "EXPECTED_FRAGMENT_PATH=/etc/systemd/system/bersoncarebot-media-worker-test.service",
+    "EXPECTED_ENV_FILE=/opt/env/bersoncarebot/media-worker.test",
+    '[ "$fragment_path" = "$EXPECTED_FRAGMENT_PATH" ]',
+    "^/opt/env/bersoncarebot/media-worker\\.test[[:space:]]+\\(ignore_errors=(yes|no)\\)$",
+    "$EXPECTED_ENV_FILE.bak",
+    "/opt/env/bersoncarebot/extra.test",
+    "assert-media-worker-test-unit-properties self-test: OK",
   ]);
 }
 
@@ -715,6 +726,14 @@ if (process.argv.includes("--self-test")) {
     "/opt/projects/bersoncarebot-test/apps/media-worker",
     "/home/deploy/projects/bersoncarebot-test/apps/media-worker",
   );
+  const mediaWorkerAssertionOpenFragment = read(files.mediaWorkerTestUnitAssertion).replace(
+    '[ "$fragment_path" = "$EXPECTED_FRAGMENT_PATH" ]',
+    '[ -n "$fragment_path" ]',
+  );
+  const mediaWorkerAssertionSubstringEnv = read(files.mediaWorkerTestUnitAssertion).replace(
+    "[[ \"$environment_files\" =~ ^/opt/env/bersoncarebot/media-worker\\.test[[:space:]]+\\(ignore_errors=(yes|no)\\)$ ]]",
+    '[[ "$environment_files" == *"$EXPECTED_ENV_FILE"* ]]',
+  );
   const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
@@ -761,6 +780,8 @@ if (process.argv.includes("--self-test")) {
     { operationalReadiness: schedulerReadinessWithoutScalarAlias },
     { schedulerOrganizationRepo: schedulerRepoWithoutScalarAlias },
     { mediaWorkerTestUnit: mediaWorkerTestUnitWrongRoot },
+    { mediaWorkerTestUnitAssertion: mediaWorkerAssertionOpenFragment },
+    { mediaWorkerTestUnitAssertion: mediaWorkerAssertionSubstringEnv },
     { operationalReadiness: operationalReadinessNoBooleanGate },
     { operationalSql: operationalSqlNoTypeScrub },
     { operationalSql: operationalSqlCategoryArrayFilter },

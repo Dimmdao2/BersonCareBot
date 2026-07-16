@@ -22,6 +22,7 @@ API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
 MEDIA_WORKER_TEST_UNIT=deploy/systemd/bersoncarebot-media-worker-test.service
+MEDIA_WORKER_TEST_UNIT_ASSERTION=deploy/host/assert-media-worker-test-unit-properties.sh
 SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
@@ -790,23 +791,15 @@ assert_test_units_active(){
 install_and_assert_media_worker_test_unit(){
   sudo install -m 0644 "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT" /etc/systemd/system/bersoncarebot-media-worker-test.service
   sudo systemctl daemon-reload
-  local effective_environment_files effective_working_directory effective_user effective_group
+  local effective_fragment_path effective_environment_files effective_working_directory effective_user effective_group
+  effective_fragment_path="$(systemctl show bersoncarebot-media-worker-test.service -p FragmentPath --value)"
   effective_environment_files="$(systemctl show bersoncarebot-media-worker-test.service -p EnvironmentFiles --value)"
-  [[ "$effective_environment_files" == *"$MEDIA_WORKER_ENV"* ]] || {
-    echo "FATAL: bersoncarebot-media-worker-test.service does not use $MEDIA_WORKER_ENV" >&2
-    exit 1
-  }
   effective_working_directory="$(systemctl show bersoncarebot-media-worker-test.service -p WorkingDirectory --value)"
-  [ "$effective_working_directory" = "$DEPLOY_REPO/apps/media-worker" ] || {
-    echo "FATAL: bersoncarebot-media-worker-test.service has unexpected WorkingDirectory" >&2
-    exit 1
-  }
   effective_user="$(systemctl show bersoncarebot-media-worker-test.service -p User --value)"
   effective_group="$(systemctl show bersoncarebot-media-worker-test.service -p Group --value)"
-  [ "$effective_user:$effective_group" = "deploy:deploy" ] || {
-    echo "FATAL: bersoncarebot-media-worker-test.service must run as deploy:deploy" >&2
-    exit 1
-  }
+  bash "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" --validate \
+    "$effective_fragment_path" "$effective_environment_files" "$effective_working_directory" \
+    "$effective_user" "$effective_group"
 }
 
 assert_test_health_ok(){
@@ -946,6 +939,7 @@ esac
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
+[ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV" "$MEDIA_WORKER_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
