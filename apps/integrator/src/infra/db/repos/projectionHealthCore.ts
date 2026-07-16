@@ -33,29 +33,29 @@ export async function readProjectionHealthSnapshot(
   const [countsRes, oldestRes, distRes, lastSuccessRes, overThresholdRes] = await Promise.all([
     db.query<{ status: string; cnt: string }>(
       `SELECT status, count(*)::text AS cnt
-       FROM projection_outbox
+       FROM integrator.projection_outbox
        WHERE status IN ('pending', 'processing', 'dead', 'cancelled')
        GROUP BY status`,
     ),
     db.query<{ next_try_at: string | null }>(
       `SELECT min(next_try_at)::text AS next_try_at
-       FROM projection_outbox
+       FROM integrator.projection_outbox
        WHERE status = 'pending'`,
     ),
     db.query<{ attempts_done: number; cnt: string }>(
       `SELECT attempts_done, count(*)::text AS cnt
-       FROM projection_outbox
+       FROM integrator.projection_outbox
        WHERE status IN ('pending', 'processing')
        GROUP BY attempts_done`,
     ),
     db.query<{ last_success: string | null }>(
       `SELECT max(updated_at)::text AS last_success
-       FROM projection_outbox
+       FROM integrator.projection_outbox
        WHERE status = 'done'`,
     ),
     db.query<{ cnt: string }>(
       `SELECT count(*)::text AS cnt
-       FROM projection_outbox
+       FROM integrator.projection_outbox
        WHERE status IN ('pending', 'processing') AND attempts_done >= $1`,
       [threshold],
     ),

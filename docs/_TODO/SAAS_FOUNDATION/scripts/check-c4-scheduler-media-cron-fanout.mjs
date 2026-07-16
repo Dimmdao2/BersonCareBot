@@ -29,6 +29,7 @@ const files = {
   schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
   idempotencyKeys: "apps/integrator/src/infra/db/repos/idempotencyKeys.ts",
   projectionOutbox: "apps/integrator/src/infra/db/repos/projectionOutbox.ts",
+  projectionHealthCore: "apps/integrator/src/infra/db/repos/projectionHealthCore.ts",
   jobQueue: "apps/integrator/src/infra/db/repos/jobQueue.ts",
   mediaMain: "apps/media-worker/src/main.ts",
   mediaWorkerTick: "apps/media-worker/src/workerTick.ts",
@@ -422,6 +423,12 @@ function assertOperationalSqlAndDeploy(loaded) {
     "FROM integrator.projection_outbox",
     "UPDATE integrator.projection_outbox",
   ]);
+  requireOccurrenceCountAtLeast(
+    files.projectionHealthCore,
+    loaded.projectionHealthCore,
+    "FROM integrator.projection_outbox",
+    5,
+  );
   requireFragments(files.jobQueue, loaded.jobQueue, [
     "FROM integrator.rubitime_create_retry_jobs",
     "UPDATE integrator.rubitime_create_retry_jobs",
@@ -786,6 +793,10 @@ if (process.argv.includes("--self-test")) {
     "integrator.projection_outbox",
     "projection_outbox",
   );
+  const projectionHealthCoreUnqualified = read(files.projectionHealthCore).replaceAll(
+    "integrator.projection_outbox",
+    "projection_outbox",
+  );
   const jobQueueUnqualified = read(files.jobQueue).replaceAll(
     "integrator.rubitime_create_retry_jobs",
     "rubitime_create_retry_jobs",
@@ -824,6 +835,7 @@ if (process.argv.includes("--self-test")) {
     { reportOperatorFailure: reportOperatorFailureRawRecipient },
     { idempotencyKeys: idempotencyKeysUnqualified },
     { projectionOutbox: projectionOutboxUnqualified },
+    { projectionHealthCore: projectionHealthCoreUnqualified },
     { jobQueue: jobQueueUnqualified },
     { mediaClaim: mediaClaimAmbiguousRetry },
   ];
