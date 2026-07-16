@@ -26,7 +26,7 @@
 - `DATABASE_URL='...'`
 - `BOOKING_URL=https://...`
 - `INTEGRATOR_SHARED_SECRET=...`
-- глобальная DB-настройка `app_base_url` должна быть заполнена; integrator читает её через закрытый server-runtime accessor и не использует env fallback
+- глобальная DB-настройка `app_base_url` должна быть заполнена; integrator читает её через закрытый server-runtime accessor и не использует env fallback; TEST deploy нормализует точный API base-login и его PostgreSQL 16 membership edges в `NOINHERIT` / `INHERIT FALSE, SET TRUE`, оставляя classified `SET ROLE`, но запрещая ambient наследование table ACL
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
 - `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true|false`

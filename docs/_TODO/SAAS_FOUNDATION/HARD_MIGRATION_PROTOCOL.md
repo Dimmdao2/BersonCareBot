@@ -238,6 +238,13 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   touching the DB in `shadow|locked`;
 - discover the integrator runtime role from `api.test` `DATABASE_URL`;
 - assert that the URL points to the TEST DB and that the discovered role name is a simple PostgreSQL identifier;
+- apply `deploy/postgres/integrator-server-runtime-config.sql`: normalize that API base-login to `NOINHERIT` and,
+  for PostgreSQL 16, normalize its three existing runtime membership edges to `INHERIT FALSE, SET TRUE`,
+  revoke any direct SELECT residue on `public.app_runtime_settings` / `public.system_settings`, and grant only
+  EXECUTE on `app.read_global_server_runtime_setting(text)`. Membership needed for classified locked `SET ROLE`
+  remains intact; ambient base-login access through inherited `app_staff` / `app_patient` / `app_worker` ACLs is
+  forbidden. The final readiness probe must prove `NOINHERIT`, both table denials, accessor EXECUTE, and a valid
+  redacted HTTP(S)-shape result before services restart;
 - grant only `USAGE` on schema `integrator` and `SELECT` on table `integrator.schema_migrations` to that role;
 - verify through the `api.test` runtime `DATABASE_URL` that `SELECT count(*) FROM integrator.schema_migrations`
   succeeds and returns at least one row.

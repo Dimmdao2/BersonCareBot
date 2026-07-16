@@ -371,3 +371,22 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   `client.release(error)`, поэтому строка/объект больше не возвращают потенциально испорченное соединение в пул;
   наружный redacted probe error не изменён. PASS: focused Vitest `1 file / 5 tests`, typecheck, lint,
   DB chokepoint guard+self-test.
+
+### 0191 live TEST readiness fail-closed correction (`/root/integrator_runtime_bootstrap`)
+
+- Fresh TEST at pre-service readiness correctly stopped with services inactive. Redacted live facts proved the
+  accessor itself healthy (`EXECUTE` and HTTP(S)-shape result true), while the API base-login ambiently inherited
+  SELECT on both runtime/restricted settings tables through its three classified runtime memberships.
+- Root cause has two PostgreSQL 16 layers: the login was `INHERIT`; additionally, existing membership rows retained
+  per-edge `inherit_option=true`, so `ALTER ROLE ... NOINHERIT` alone did not close ambient ACL inheritance.
+- Repo overlay now requires the exact three non-admin memberships only, normalizes the login to `NOINHERIT` and the
+  existing edges to `INHERIT FALSE, SET TRUE`, removes direct table SELECT residue, and keeps accessor EXECUTE.
+  Readiness checks role + edge state, direct/PUBLIC ACL, owner-membership absence and the redacted accessor result.
+- Exact disposable PostgreSQL 16 proof PASS: the real overlay converted an initially inheriting three-role login;
+  ambient SELECT on both tables was denied, accessor read succeeded, and explicit `SET ROLE app_worker` still worked.
+  Canonical C0 scratch smoke also PASS. Targeted Vitest `3 files / 24 tests`, integrator typecheck/lint, runtime-config
+  checker+self-test, hard-migration protocol family and D3.4 checker+self-test PASS.
+- Recovery decision is not discretionary: `HARD_MIGRATION_PROTOCOL.md` Failure policy requires a fresh restore/fresh
+  disposable rerun after a failed gate. `--post-migration-closure` is an internal shared wrapper mode, not an
+  authorized stage-resume for acceptance of this failed fresh rehearsal. No TEST mutation/restart/cleanup or PROD
+  action was performed during diagnosis.

@@ -1,5 +1,6 @@
 -- Pin the generic integrator server-runtime accessor to the protected owner.
--- The exact API base login receives EXECUTE only; it never receives table access.
+-- The exact API base login is normalized to NOINHERIT and receives EXECUTE only. It remains able
+-- to SET ROLE for classified locked principals, but cannot ambiently inherit their table grants.
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -22,6 +23,7 @@ SELECT 1 / (
     SELECT 1
     FROM pg_roles
     WHERE rolname = :'integrator_runtime_config_role'
+      AND rolcanlogin
       AND NOT rolsuper
       AND NOT rolbypassrls
   )
@@ -33,9 +35,51 @@ SELECT 1 / (
       AND rolbypassrls
   )
   AND NOT pg_has_role(:'integrator_runtime_config_role', 'app_owner', 'MEMBER')
+  AND 3 = (
+    SELECT count(*)
+    FROM pg_auth_members membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    JOIN pg_roles member_role ON member_role.oid = membership.member
+    WHERE member_role.rolname = :'integrator_runtime_config_role'
+      AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker')
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_auth_members membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    JOIN pg_roles member_role ON member_role.oid = membership.member
+    WHERE member_role.rolname = :'integrator_runtime_config_role'
+      AND (
+        granted_role.rolname NOT IN ('app_staff', 'app_patient', 'app_worker')
+        OR membership.admin_option
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_class relation
+    JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+    WHERE namespace.nspname = 'public'
+      AND relation.relname IN ('app_runtime_settings', 'system_settings')
+      AND pg_has_role(:'integrator_runtime_config_role', relation.relowner, 'MEMBER')
+  )
   AND to_regprocedure('app.read_global_server_runtime_setting(text)') IS NOT NULL
 )::int AS integrator_server_runtime_config_preflight;
 
+ALTER ROLE :"integrator_runtime_config_role" NOINHERIT;
+SELECT format(
+  'GRANT %I TO %I WITH INHERIT FALSE, SET TRUE',
+  granted_role.rolname,
+  member_role.rolname
+)
+FROM pg_auth_members membership
+JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+JOIN pg_roles member_role ON member_role.oid = membership.member
+WHERE member_role.rolname = :'integrator_runtime_config_role'
+  AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker')
+ORDER BY granted_role.rolname
+\gexec
+REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
+  FROM :"integrator_runtime_config_role";
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
 
@@ -45,5 +89,49 @@ REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
 GRANT USAGE ON SCHEMA app TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   TO :"integrator_runtime_config_role";
+
+WITH runtime_role AS (
+  SELECT oid, NOT rolinherit AS noinherit
+  FROM pg_roles
+  WHERE rolname = :'integrator_runtime_config_role'
+), protected_tables AS (
+  SELECT relation.relowner, relation.relacl
+  FROM pg_class relation
+  WHERE relation.oid IN (
+    'public.app_runtime_settings'::regclass,
+    'public.system_settings'::regclass
+  )
+)
+SELECT 1 / (
+  (SELECT noinherit FROM runtime_role)
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.read_global_server_runtime_setting(text)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_auth_members membership
+    JOIN runtime_role ON runtime_role.oid = membership.member
+    WHERE membership.inherit_option
+      OR NOT membership.set_option
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM protected_tables protected
+    CROSS JOIN runtime_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(protected.relacl, acldefault('r', protected.relowner))
+    ) privilege
+    WHERE privilege.privilege_type = 'SELECT'
+      AND privilege.grantee IN (0, runtime_role.oid)
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM protected_tables protected
+    CROSS JOIN runtime_role
+    WHERE pg_has_role(runtime_role.oid, protected.relowner, 'MEMBER')
+  )
+)::int AS integrator_server_runtime_config_least_privilege_verified;
 
 \echo 'Integrator server-runtime config grants UP complete.'
