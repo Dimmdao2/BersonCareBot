@@ -67,7 +67,14 @@ export function getAppBaseUrlSync(): string {
   throw new Error('app_base_url_runtime_setting_not_initialized');
 }
 
-/** Сброс кэша (например после синка настроек из webapp). */
+/** Помечает async-кэш устаревшим, сохраняя последнее проверенное значение для sync-потребителей. */
 export function invalidateAppBaseUrlCache(): void {
+  if (cache) {
+    cache = { ...cache, expiresAt: 0 };
+  }
+}
+
+/** Полный сброс состояния между тестами. */
+export function resetAppBaseUrlCacheForTests(): void {
   cache = null;
 }

@@ -10,6 +10,7 @@ import {
   getAppBaseUrl,
   getAppBaseUrlSync,
   invalidateAppBaseUrlCache,
+  resetAppBaseUrlCacheForTests,
 } from './appBaseUrl.js';
 
 function mockDb(query: DbPort['query']): DbPort {
@@ -24,7 +25,7 @@ function mockDb(query: DbPort['query']): DbPort {
 
 describe('getAppBaseUrl', () => {
   afterEach(() => {
-    invalidateAppBaseUrlCache();
+    resetAppBaseUrlCacheForTests();
     vi.useRealTimers();
   });
 
@@ -74,7 +75,7 @@ describe('getAppBaseUrl', () => {
     expect(getAppBaseUrlSync()).toBe('https://db.example');
   });
 
-  it('re-queries after cache invalidation', async () => {
+  it('keeps sync consumers on the last successful URL and re-queries async after invalidation', async () => {
     vi.useFakeTimers({ now: 0 });
     const query = vi.fn().mockResolvedValue({
       rows: [{ value_json: { value: 'https://first.example' } }],
@@ -83,6 +84,7 @@ describe('getAppBaseUrl', () => {
 
     expect(await getAppBaseUrl(db)).toBe('https://first.example');
     invalidateAppBaseUrlCache();
+    expect(getAppBaseUrlSync()).toBe('https://first.example');
     query.mockResolvedValueOnce({
       rows: [{ value_json: { value: 'https://second.example' } }],
     });

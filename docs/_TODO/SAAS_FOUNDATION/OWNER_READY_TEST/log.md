@@ -353,3 +353,16 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
 - Общий `check:saas-db-regression` останавливается раньше нового checker на параллельно изменяемом
   `playbackResolutionEvents.ts` (`check-db-chokepoint`, `3x layer SQL signal`); этот чужой scope здесь не менялся.
   Live TEST/PROD deploy не выполнялся.
+
+### Integrator runtime bootstrap follow-up (`/root/integrator_runtime_bootstrap`)
+
+- Устранён прямой `.connect()` из telemetry consumer: checkout/release перенесены в канонический
+  `integratorPoolProvider`, отдельный global telemetry pool не получает request-principal, а failed client по-прежнему
+  уничтожается исходной ошибкой до её редактирования наружу.
+- Invalidation `app_base_url` теперь оставляет последнее успешно проверенное DB-значение синхронным reminder-paths,
+  но помечает async TTL устаревшим; следующий async read перечитывает БД. Добавлен regression sync-after-invalidate.
+- PASS: targeted Vitest `3 files / 13 tests`, integrator typecheck/lint, runtime-config checker+self-test,
+  DB chokepoint guard и его self-test. Полный `check:saas-db-regression` проходит chokepoint и останавливается на
+  предсуществующем inventory-gap миграции `0186`: `public.app_runtime_settings` отсутствует в `tiers-218.tsv`.
+  Автоматически относить таблицу к стандартному BOOTSTRAP-hybrid нельзя: generic policy не учитывает `audience='server'`.
+  Live TEST/PROD не затрагивались.

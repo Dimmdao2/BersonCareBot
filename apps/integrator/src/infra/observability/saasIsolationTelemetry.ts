@@ -4,7 +4,10 @@ import {
   type SaasIsolationBackgroundSource,
   type SaasIsolationTelemetryTransportStatus,
 } from '@bersoncare/db-principal';
-import { createIntegratorSaasIsolationTelemetryPoolProvider } from '../db/integratorPoolProvider.js';
+import {
+  createIntegratorSaasIsolationTelemetryPoolProvider,
+  withIntegratorSaasIsolationTelemetryClient,
+} from '../db/integratorPoolProvider.js';
 import { logger } from './logger.js';
 import type { Pool } from 'pg';
 
@@ -24,25 +27,26 @@ export async function probeSaasIsolationTelemetryWriter(
   pool: Pick<Pool, 'connect'>,
   source: SaasIsolationBackgroundSource,
 ): Promise<void> {
-  const client = await pool.connect();
-  let failure: unknown;
   try {
-    await client.query('BEGIN');
-    await client.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
-      // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
-      'unclassified_background_operation', source.service, source.operation, 'explained',
-    ]);
-    await client.query('ROLLBACK');
-  } catch (error) {
-    failure = error;
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // The probe still fails; preserve only a redacted process-level status.
-    }
+    await withIntegratorSaasIsolationTelemetryClient(pool, async (client) => {
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT app.report_saas_isolation_event($1, $2, $3, $4)', [
+          // eslint-disable-next-line no-secrets/no-secrets -- closed telemetry enum, not credential material
+          'unclassified_background_operation', source.service, source.operation, 'explained',
+        ]);
+        await client.query('ROLLBACK');
+      } catch (error) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // The probe still fails; preserve only a redacted process-level status.
+        }
+        throw error;
+      }
+    });
+  } catch {
     throw new Error('saas_isolation_telemetry_writer_probe_failed');
-  } finally {
-    client.release(failure instanceof Error ? failure : undefined);
   }
 }
 

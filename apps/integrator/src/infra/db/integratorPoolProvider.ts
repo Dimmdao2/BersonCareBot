@@ -85,3 +85,20 @@ export function createIntegratorSaasIsolationTelemetryPoolProvider(connectionStr
 		statement_timeout: 200,
 	});
 }
+
+/** Runs one telemetry operation on a dedicated checked-out client without request-principal installation. */
+export async function withIntegratorSaasIsolationTelemetryClient<T>(
+	pool: Pick<Pool, 'connect'>,
+	fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+	const client = await pool.connect();
+	let failure: unknown;
+	try {
+		return await fn(client);
+	} catch (error) {
+		failure = error;
+		throw error;
+	} finally {
+		client.release(failure instanceof Error ? failure : undefined);
+	}
+}
