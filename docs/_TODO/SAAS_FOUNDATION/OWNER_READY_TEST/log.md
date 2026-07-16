@@ -366,3 +366,8 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   предсуществующем inventory-gap миграции `0186`: `public.app_runtime_settings` отсутствует в `tiers-218.tsv`.
   Автоматически относить таблицу к стандартному BOOTSTRAP-hybrid нельзя: generic policy не учитывает `audience='server'`.
   Live TEST/PROD не затрагивались.
+
+- Re-review LOW закрыт: telemetry checkout нормализует любое defined non-Error failure в `Error` перед
+  `client.release(error)`, поэтому строка/объект больше не возвращают потенциально испорченное соединение в пул;
+  наружный redacted probe error не изменён. PASS: focused Vitest `1 file / 5 tests`, typecheck, lint,
+  DB chokepoint guard+self-test.

@@ -24,6 +24,10 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
 	client.release(cleanupError instanceof Error ? cleanupError : new Error('DB principal cleanup failed'));
 }
 
+function toTelemetryReleaseError(failure: unknown): Error {
+	return failure instanceof Error ? failure : new Error(String(failure));
+}
+
 function installPrincipalAwarePoolQuery(pool: Pool): void {
 	const queryWithPrincipal = async (
 		...args: Parameters<Pool['query']>
@@ -99,6 +103,6 @@ export async function withIntegratorSaasIsolationTelemetryClient<T>(
 		failure = error;
 		throw error;
 	} finally {
-		client.release(failure instanceof Error ? failure : undefined);
+		client.release(failure === undefined ? undefined : toTelemetryReleaseError(failure));
 	}
 }
