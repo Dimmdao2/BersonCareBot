@@ -40,6 +40,18 @@ WHERE granted_role.rolname = 'saas_system_health_owner'
 \gexec
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM saas_system_health_owner;
+-- Remove any stale direct source-table capability left by an older deployment.
+-- Only the sealed SECURITY DEFINER owner may read these telemetry tables.
+REVOKE SELECT ON TABLE
+  public.media_playback_resolution_events,
+  public.media_playback_stats_hourly,
+  public.media_playback_user_video_first_resolve
+FROM PUBLIC, app_owner, app_staff, app_patient, app_worker, saas_telemetry_operator;
+SELECT format(
+  'REVOKE SELECT ON TABLE public.media_playback_resolution_events, public.media_playback_stats_hourly, public.media_playback_user_video_first_resolve FROM %I',
+  :'system_health_operator_runtime_role'
+) \gexec
+
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
   public.system_settings,
@@ -115,7 +127,32 @@ SELECT 1 / (
   AND has_table_privilege('saas_system_health_owner', 'public.operator_incidents', 'SELECT')
   AND has_table_privilege('saas_system_health_owner', 'public.notification_delivery_attempts', 'SELECT')
   AND has_table_privilege('saas_system_health_owner', 'public.media_playback_stats_hourly', 'SELECT')
-  AND NOT has_table_privilege(
-    :'system_health_operator_runtime_role', 'public.media_playback_stats_hourly', 'SELECT'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_class AS source_table
+    JOIN pg_catalog.pg_namespace AS source_schema
+      ON source_schema.oid = source_table.relnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      COALESCE(
+        source_table.relacl,
+        pg_catalog.acldefault('r', source_table.relowner)
+      )
+    ) AS source_acl
+    WHERE source_schema.nspname = 'public'
+      AND source_table.relname = ANY (ARRAY[
+        'media_playback_resolution_events',
+        'media_playback_stats_hourly',
+        'media_playback_user_video_first_resolve'
+      ])
+      AND source_acl.privilege_type = 'SELECT'
+      AND source_acl.grantee = ANY (ARRAY[
+        0::oid,
+        'app_owner'::regrole::oid,
+        'app_staff'::regrole::oid,
+        'app_patient'::regrole::oid,
+        'app_worker'::regrole::oid,
+        'saas_telemetry_operator'::regrole::oid,
+        :'system_health_operator_runtime_role'::regrole::oid
+      ])
   )
 )::int AS curated_system_health_least_privilege_verified;
