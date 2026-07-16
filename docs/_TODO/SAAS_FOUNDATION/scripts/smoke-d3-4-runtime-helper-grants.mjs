@@ -14,6 +14,8 @@ const suffix = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, "_");
 const dbName = `bcb_saas_d3_4_helper_scratch_${suffix}`;
 const bootstrapRole = `bcb_d3_4_bootstrap_${suffix}`;
 const mediaRole = `bcb_d3_4_media_${suffix}`;
+const c4MediaRole = `bcb_d3_4_c4_media_${suffix}`;
+const operationalMediaRole = `app_operational_media_worker_scratch_${suffix}`;
 const workerRole = `bcb_d3_4_worker_${suffix}`;
 const staffRole = `bcb_d3_4_staff_${suffix}`;
 const patientRole = `bcb_d3_4_patient_${suffix}`;
@@ -53,11 +55,14 @@ function psql(database, sql) {
 
 const bootstrapIdent = quoteIdent(bootstrapRole);
 const mediaIdent = quoteIdent(mediaRole);
+const c4MediaIdent = quoteIdent(c4MediaRole);
+const operationalMediaIdent = quoteIdent(operationalMediaRole);
 const workerIdent = quoteIdent(workerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
 const sourceArtifact = readFileSync(artifactPath, "utf8");
 const artifact = sourceArtifact
+  .replaceAll("app_operational_media_worker", operationalMediaRole)
   .replaceAll("app_staff", staffRole)
   .replaceAll("app_patient", patientRole)
   .replaceAll("app_worker", workerRole);
@@ -91,11 +96,14 @@ const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
 const setupSql = [
   `CREATE ROLE ${bootstrapIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${mediaIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
+  `CREATE ROLE ${c4MediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${operationalMediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
   `CREATE ROLE ${workerIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${staffIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${patientIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `GRANT ${patientIdent} TO ${bootstrapIdent};`,
   `GRANT ${workerIdent} TO ${mediaIdent};`,
+  `GRANT ${operationalMediaIdent} TO ${c4MediaIdent} WITH INHERIT FALSE, SET TRUE;`,
   "CREATE SCHEMA app;",
   `GRANT USAGE ON SCHEMA app TO ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
@@ -181,6 +189,14 @@ const applySql = [
   runtimeAudiencePolicy,
 ].join("\n");
 
+// The same pre-C4 D3.4 artifact must also accept the canonical C4 SET-only shape.
+// Applying it a second time proves that shape against a real PostgreSQL 16 catalog.
+const applyC4ShapeSql = [
+  `\\set d3_4_bootstrap_base_role ${bootstrapRole}`,
+  `\\set d3_4_media_worker_runtime_role ${c4MediaRole}`,
+  artifact,
+].join("\n");
+
 const proofSql = `
 SELECT 1 / has_function_privilege(${quoteLiteral(staffRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
@@ -244,6 +260,7 @@ try {
   run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
   psql(dbName, setupSql);
   psql(dbName, applySql);
+  psql(dbName, applyC4ShapeSql);
   psql(dbName, proofSql);
   process.stdout.write("smoke-d3-4-runtime-helper-grants: OK\n");
 } finally {
@@ -251,6 +268,8 @@ try {
   psql("postgres", [
     `DROP ROLE IF EXISTS ${bootstrapIdent};`,
     `DROP ROLE IF EXISTS ${mediaIdent};`,
+    `DROP ROLE IF EXISTS ${c4MediaIdent};`,
+    `DROP ROLE IF EXISTS ${operationalMediaIdent};`,
     `DROP ROLE IF EXISTS ${workerIdent};`,
     `DROP ROLE IF EXISTS ${staffIdent};`,
     `DROP ROLE IF EXISTS ${patientIdent};`,

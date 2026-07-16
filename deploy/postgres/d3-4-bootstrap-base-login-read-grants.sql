@@ -62,9 +62,44 @@ SELECT 1 / (
   )
 )::int AS d3_4_media_worker_runtime_role_is_restricted;
 
+-- D3.4 precedes the C4 overlay and therefore has to accept both supported media
+-- runtime shapes. A legacy deployment reaches the media surface through
+-- app_worker. A C4-provisioned deployment is deliberately detached from that
+-- role and may SET ROLE only into its dedicated terminal capability.
+-- Refuse a mixed shape: it would hide stale authority instead of preserving compatibility.
+WITH media_login AS (
+  SELECT oid, rolinherit
+  FROM pg_roles
+  WHERE rolname = :'d3_4_media_worker_runtime_role'
+), operational_edges AS (
+  SELECT
+    count(*) AS edge_count,
+    count(*) FILTER (
+      WHERE granted.rolname = 'app_operational_media_worker'
+        AND membership.inherit_option = false
+        AND membership.set_option = true
+    ) AS exact_media_set_only_edge_count
+  FROM media_login
+  LEFT JOIN pg_auth_members membership ON membership.member = media_login.oid
+  LEFT JOIN pg_roles granted
+    ON granted.oid = membership.roleid
+    AND granted.rolname LIKE 'app_operational_%'
+  WHERE granted.oid IS NOT NULL
+)
 SELECT 1 / (
-  pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
-)::int AS d3_4_media_worker_runtime_role_is_worker_member;
+  (
+    pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
+    AND (SELECT edge_count = 0 FROM operational_edges)
+  )
+  OR (
+    NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
+    AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')
+    AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')
+    AND (SELECT rolinherit = false FROM media_login)
+    AND (SELECT edge_count = 1 FROM operational_edges)
+    AND (SELECT exact_media_set_only_edge_count = 1 FROM operational_edges)
+  )
+)::int AS d3_4_media_worker_runtime_role_has_exact_supported_capability;
 
 -- P2-B owns the protected principal-context helper bundle. The TEST wrapper may
 -- intentionally skip P2-B in legacy-guc mode, so D3.4 accepts either the complete

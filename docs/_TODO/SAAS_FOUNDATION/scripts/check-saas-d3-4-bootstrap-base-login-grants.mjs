@@ -174,7 +174,16 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_base_role_not_staff_member",
     "d3_4_bootstrap_base_role_is_patient_member",
     "d3_4_media_worker_runtime_role_is_restricted",
-    "d3_4_media_worker_runtime_role_is_worker_member",
+    "d3_4_media_worker_runtime_role_has_exact_supported_capability",
+    "A legacy deployment reaches the media surface through",
+    "Refuse a mixed shape",
+    "granted.rolname = 'app_operational_media_worker'",
+    "membership.inherit_option = false",
+    "membership.set_option = true",
+    "exact_media_set_only_edge_count = 1",
+    "edge_count = 1",
+    "edge_count = 0",
+    "rolinherit = false",
     "d3_4_p2_b_context_bundle_is_complete_or_absent",
     "d3_4_has_p2_b_context_bundle",
     "to_regprocedure('app.release_principal_context()')",
@@ -401,6 +410,10 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.runtimeHelperSmoke, loaded.runtimeHelperSmoke, [
     "d3_4_media_worker_runtime_role",
+    "c4MediaRole",
+    "operationalMediaRole",
+    "WITH INHERIT FALSE, SET TRUE",
+    "canonical C4 SET-only shape",
     "app.staff_user_has_password_credentials(uuid)",
     "app.release_principal_context()",
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
@@ -619,6 +632,24 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         "d3_4_bootstrap_base_role_is_patient_member",
         "d3_4_bootstrap_base_role_missing_patient_member_assertion",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "membership.inherit_option = false",
+        "membership.inherit_option = true",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "membership.set_option = true",
+        "membership.set_option = false",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "AND (SELECT edge_count = 0 FROM operational_edges)",
+        "AND true",
       ),
     },
     {
