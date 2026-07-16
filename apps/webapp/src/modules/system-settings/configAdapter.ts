@@ -8,8 +8,6 @@
 import {
   readAdminSystemSettingString,
   readPublicConfigBoolean,
-  readSystemSettingInnerValueByScopes,
-  systemSettingInnerValueToString,
 } from "@/infra/repos/pgSystemSettings";
 import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
 import {
@@ -19,6 +17,8 @@ import {
   type PublicRuntimeBooleanKey,
   type PublicRuntimeStringKey,
   type RuntimeConfigOperationFamily,
+  type ServerRuntimeBooleanKey,
+  type ServerRuntimeIntegerKey,
 } from "./runtimeConfig";
 
 const TTL_MS = 60_000;
@@ -54,6 +54,14 @@ export function getPatientRuntimeValue(
   organizationId: string | null = null,
 ): Promise<string> {
   return safeRuntimeConfig.getAuthenticatedString(key, organizationId);
+}
+
+export function getServerRuntimeBool(key: ServerRuntimeBooleanKey): Promise<boolean> {
+  return safeRuntimeConfig.getServerBoolean(key);
+}
+
+export function getServerRuntimeInteger(key: ServerRuntimeIntegerKey): Promise<number> {
+  return safeRuntimeConfig.getServerInteger(key);
 }
 
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
@@ -151,24 +159,4 @@ export async function getConfigPositiveInt(
     return defaultValue;
   }
   return Math.min(opts.max, Math.max(opts.min, n));
-}
-
-/**
- * SMS fallback для OTP / записи: ключ `sms_fallback_enabled` в `system_settings`;
- * приоритет строки `doctor`, затем `admin` (сид из миграций).
- * Реализация здесь — рядом с {@link getConfigValue} (тот же allowlist `no-restricted-imports` для адаптера).
- */
-export async function getSmsFallbackEnabled(): Promise<boolean> {
-  try {
-    const value = await readSystemSettingInnerValueByScopes(
-      "sms_fallback_enabled",
-      ["doctor", "admin"],
-    );
-    const normalized = systemSettingInnerValueToString(value);
-    if (normalized === "true" || normalized === "1") return true;
-    if (normalized === "false" || normalized === "0") return false;
-    return true;
-  } catch {
-    return true;
-  }
 }

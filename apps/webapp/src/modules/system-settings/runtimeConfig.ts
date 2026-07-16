@@ -64,6 +64,7 @@ export type RuntimeConfigPort = {
     organizationId: string | null;
     allowedAudiences: readonly RuntimeConfigAudience[];
     operationFamily: RuntimeConfigOperationFamily;
+    allowGlobalFallback?: boolean;
   }): Promise<RuntimeSettingRow | null>;
 };
 
@@ -83,7 +84,7 @@ export const PUBLIC_RUNTIME_BOOLEAN_DEFAULTS = {
   oauth_yandex_enabled: false,
   oauth_google_enabled: false,
   oauth_apple_enabled: false,
-  public_sms_fallback_enabled: true,
+  public_sms_fallback_enabled: false,
   specialist_signup_enabled: false,
 } as const;
 
@@ -106,10 +107,24 @@ export const AUTHENTICATED_RUNTIME_STRING_DEFAULTS = {
   video_default_delivery: "auto",
 } as const;
 
+export const SERVER_RUNTIME_BOOLEAN_DEFAULTS = {
+  debug_forward_to_admin: false,
+} as const;
+
+export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
+  video_presign_ttl_seconds: {
+    defaultValue: 3600,
+    minValue: 60,
+    maxValue: 604800,
+  },
+} as const;
+
 export type PublicRuntimeBooleanKey = keyof typeof PUBLIC_RUNTIME_BOOLEAN_DEFAULTS;
 export type PublicRuntimeStringKey = keyof typeof PUBLIC_RUNTIME_STRING_DEFAULTS;
 export type AuthenticatedRuntimeBooleanKey = keyof typeof AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS;
 export type AuthenticatedRuntimeStringKey = keyof typeof AUTHENTICATED_RUNTIME_STRING_DEFAULTS;
+export type ServerRuntimeBooleanKey = keyof typeof SERVER_RUNTIME_BOOLEAN_DEFAULTS;
+export type ServerRuntimeIntegerKey = keyof typeof SERVER_RUNTIME_INTEGER_DEFINITIONS;
 
 function parseIntegerEnvelope(
   valueJson: unknown,
@@ -233,10 +248,44 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
           organizationId,
           allowedAudiences: ["authenticated_client", "public"],
           operationFamily: "patient_runtime_config",
+          allowGlobalFallback: key !== "patient_booking_url",
         });
         return parseStringEnvelope(row?.valueJson ?? null) ?? AUTHENTICATED_RUNTIME_STRING_DEFAULTS[key];
       } catch {
         return AUTHENTICATED_RUNTIME_STRING_DEFAULTS[key];
+      }
+    },
+    async getServerBoolean(key: ServerRuntimeBooleanKey): Promise<boolean> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["server"],
+          operationFamily: "public_auth_config",
+        });
+        return parseBooleanEnvelope(row?.valueJson ?? null) ?? SERVER_RUNTIME_BOOLEAN_DEFAULTS[key];
+      } catch {
+        return SERVER_RUNTIME_BOOLEAN_DEFAULTS[key];
+      }
+    },
+    async getServerInteger(key: ServerRuntimeIntegerKey): Promise<number> {
+      const definition = SERVER_RUNTIME_INTEGER_DEFINITIONS[key];
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["server"],
+          operationFamily: "patient_runtime_config",
+        });
+        return parseIntegerEnvelope(
+          row?.valueJson ?? null,
+          definition.minValue,
+          definition.maxValue,
+        ) ?? definition.defaultValue;
+      } catch {
+        return definition.defaultValue;
       }
     },
   };

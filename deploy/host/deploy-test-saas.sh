@@ -365,9 +365,9 @@ SQL
 }
 
 rehydrate_post_restore_runtime_overlays(){
-  local webapp_runtime_role
-  webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"
-  validate_pg_identifier "webapp.test E1 runtime role" "$webapp_runtime_role"
+  local e1_runtime_role
+  e1_runtime_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "webapp.test E1 runtime role" "$e1_runtime_role"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_COURSE_WALL"
@@ -379,7 +379,7 @@ rehydrate_post_restore_runtime_overlays(){
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"
   fi
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v e1_webapp_runtime_role="$webapp_runtime_role" \
+    -v e1_webapp_runtime_role="$e1_runtime_role" \
     -f "$DEPLOY_REPO/$E1_WEBAPP_RUNTIME_CONFIG"
   echo "   post-restore runtime overlays: OK"
 }

@@ -45,24 +45,48 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
 ('apple_oauth_key_id','admin',NULL,'{"value":"kid"}'),
 ('apple_oauth_private_key','admin',NULL,'{"value":"TOP_SECRET_A"}'),
 ('specialist_signup_enabled','admin',NULL,'{"value":true}'),
+('sms_fallback_enabled','doctor',NULL,'{"value":false}'),
+('debug_forward_to_admin','admin',NULL,'{"value":true}'),
+('video_presign_ttl_seconds','admin',NULL,'{"value":7200}'),
 ('patient_booking_url','admin','00000000-0000-4000-8000-000000000001','{"value":"https://booking.example.test"}');
 `;
 const proof = `
 GRANT USAGE ON SCHEMA app TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${publicRole};
+GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${publicRole};
 SELECT 1 / (NOT has_table_privilege('${publicRole}','public.system_settings','SELECT'))::int;
 SELECT 1 / (NOT has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT'))::int;
 SET SESSION AUTHORIZATION ${publicRole};
 SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin'))='{"value":true}'::jsonb)::int;
+SELECT 1 / ((SELECT count(*) FROM app.read_public_runtime_setting('debug_forward_to_admin','admin'))=0)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('debug_forward_to_admin','admin'))='{"value":true}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin'))='{"value":7200}'::jsonb)::int;
 RESET SESSION AUTHORIZATION;
+UPDATE public.system_settings SET value_json='{"value":false}'
+WHERE key='debug_forward_to_admin' AND scope='admin' AND organization_id IS NULL;
+UPDATE public.system_settings SET value_json='{"value":120}'
+WHERE key='video_presign_ttl_seconds' AND scope='admin' AND organization_id IS NULL;
+UPDATE public.system_settings SET value_json='{"value":true}'
+WHERE key='sms_fallback_enabled' AND scope='doctor' AND organization_id IS NULL;
+SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='debug_forward_to_admin' AND organization_id IS NULL)='{"value":false}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='video_presign_ttl_seconds' AND organization_id IS NULL)='{"value":120}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='public_sms_fallback_enabled' AND organization_id IS NULL)='{"value":true}'::jsonb)::int;
 SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
 SELECT 1 / has_table_privilege('app_patient','public.app_runtime_settings','SELECT')::int;
+SELECT 1 / (NOT has_function_privilege('app_patient','app.read_webapp_server_runtime_setting(text,text)','EXECUTE'))::int;
 SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings WHERE key IN ('oauth_yandex_enabled','oauth_google_enabled','oauth_apple_enabled') AND value_json='{"value":true}'::jsonb)=3)::int;
 SELECT 1 / (NOT EXISTS (SELECT 1 FROM public.app_runtime_settings WHERE key LIKE '%secret%' OR value_json::text LIKE '%TOP_SECRET%'))::int;
 UPDATE public.system_settings SET value_json='{"value":""}' WHERE key='google_client_secret' AND scope='admin' AND organization_id IS NULL;
 SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='oauth_google_enabled' AND scope='admin' AND organization_id IS NULL)='{"value":false}'::jsonb)::int;
+INSERT INTO public.system_settings(key,scope,organization_id,value_json)
+VALUES ('patient_booking_url','admin',NULL,'{"value":"https://wrong-global.example.test"}');
+SELECT 1 / (NOT EXISTS (
+  SELECT 1 FROM public.app_runtime_settings
+  WHERE key='patient_booking_url' AND scope='admin' AND organization_id IS NULL
+))::int;
 SET SESSION AUTHORIZATION app_patient;
 SET app.org = '00000000-0000-4000-8000-000000000001';
+SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings WHERE audience='server')=0)::int;
 SELECT 1 / ((SELECT value_json->>'value' FROM public.app_runtime_settings WHERE key='patient_booking_url' ORDER BY organization_id IS NULL ASC LIMIT 1)='https://booking.example.test')::int;
 RESET SESSION AUTHORIZATION;
 `;

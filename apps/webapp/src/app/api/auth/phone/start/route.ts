@@ -17,7 +17,7 @@ import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
-import { getSmsFallbackEnabled } from "@/modules/system-settings/configAdapter";
+import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   }
 
   if (deliveryChannel === "sms") {
-    const smsAllowed = await getSmsFallbackEnabled();
+    const smsAllowed = await getPublicRuntimeBool("public_sms_fallback_enabled");
     if (!smsAllowed) {
       return NextResponse.json(
         {

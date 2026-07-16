@@ -15,6 +15,7 @@ import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
+  resolvePatientMaintenanceOrganizationId,
 } from "@/modules/system-settings/patientMaintenance";
 import { PatientMaintenanceScreen } from "./PatientMaintenanceScreen";
 import { PatientClientLayout } from "./PatientClientLayout";
@@ -52,14 +53,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
 
   if (session.user.role === "client") {
     const deps = buildAppDeps();
-    let patientOrganizationId: string | null = null;
-    try {
-      const resolved = await deps.patientOrganization?.resolveActiveOrganizationForPatient(session.user.userId);
-      if (!resolved) throw new Error("patient_organization_port_unavailable");
-      patientOrganizationId = resolved.ok ? resolved.organizationId : null;
-    } catch {
-      patientOrganizationId = null;
-    }
+    const patientOrganizationId = await resolvePatientMaintenanceOrganizationId(
+      deps.patientOrganization,
+      session.user.userId,
+    );
     const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,

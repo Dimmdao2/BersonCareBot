@@ -73,14 +73,14 @@ describe("PatientMaintenanceScreen", () => {
       <PatientMaintenanceScreen
         user={testUser}
         message="Hello maintenance"
-        bookingUrl="https://dmitryberson.rubitime.ru"
+        bookingUrl="https://booking.example.test"
         bookings={[]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
     expect(screen.getByText("Hello maintenance")).toBeTruthy();
     const link = screen.getByRole("link", { name: /Записаться на приём/i });
-    expect(link.getAttribute("href")).toMatch(/dmitryberson\.rubitime\.ru/);
+    expect(link.getAttribute("href")).toBe("https://booking.example.test");
   });
 
   it("shows empty bookings state", () => {
@@ -96,19 +96,17 @@ describe("PatientMaintenanceScreen", () => {
     expect(screen.getByText(/Нет предстоящих записей/i)).toBeTruthy();
   });
 
-  it("falls back to default booking href when URL is not a safe external https link", () => {
+  it("omits the booking CTA when there is no single organization URL", () => {
     render(
       <PatientMaintenanceScreen
         user={null}
         message="x"
-        bookingUrl="javascript:alert(1)"
+        bookingUrl={null}
         bookings={[]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    const link = screen.getByRole("link", { name: /Записаться на приём/i });
-    expect(link.getAttribute("href")).toMatch(/^https:\/\//);
-    expect(link.getAttribute("href")).toContain("dmitryberson.rubitime.ru");
+    expect(screen.queryByRole("link", { name: /Записаться на приём/i })).toBeNull();
   });
 
   it("lists upcoming bookings", () => {

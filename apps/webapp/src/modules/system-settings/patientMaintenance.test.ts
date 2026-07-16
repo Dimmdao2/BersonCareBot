@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_PATIENT_BOOKING_URL,
   DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
   normalizePatientBookingUrl,
   normalizePatientMaintenanceMessage,
@@ -24,10 +23,10 @@ describe("patientMaintenance normalizers", () => {
   });
 
   it("normalizes booking URL", () => {
-    expect(normalizePatientBookingUrl("")).toBe(DEFAULT_PATIENT_BOOKING_URL);
+    expect(normalizePatientBookingUrl("")).toBeNull();
     expect(normalizePatientBookingUrl("https://example.com/x")).toBe("https://example.com/x");
-    expect(normalizePatientBookingUrl("not a url")).toBe(DEFAULT_PATIENT_BOOKING_URL);
-    expect(normalizePatientBookingUrl("ftp://x")).toBe(DEFAULT_PATIENT_BOOKING_URL);
+    expect(normalizePatientBookingUrl("not a url")).toBeNull();
+    expect(normalizePatientBookingUrl("ftp://x")).toBeNull();
   });
 });
 

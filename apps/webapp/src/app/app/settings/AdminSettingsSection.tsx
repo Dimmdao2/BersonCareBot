@@ -330,14 +330,14 @@ export function AdminSettingsSection({
             <span className="text-xs font-medium">Ссылка «Записаться на приём» (внешняя)</span>
             <Input
               type="url"
-              placeholder="https://dmitryberson.rubitime.ru"
+              placeholder="https://booking.example.ru"
               value={bookingUrl}
               onChange={(e) => setBookingUrl(e.target.value)}
               disabled={isPending}
               autoComplete="off"
               className="max-w-2xl"
             />
-            <span className="text-xs text-muted-foreground">Пусто — URL по умолчанию (Rubitime).</span>
+            <span className="text-xs text-muted-foreground">Пусто — кнопка записи для пациента не показывается.</span>
           </label>
         </section>
 

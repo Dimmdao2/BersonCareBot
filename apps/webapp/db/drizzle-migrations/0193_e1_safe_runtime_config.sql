@@ -86,9 +86,10 @@ WITH definitions(key, audience, default_value) AS (VALUES
   ('specialist_signup_enabled', 'public', '{"value":false}'::jsonb),
   ('patient_app_maintenance_enabled', 'authenticated_client', '{"value":false}'::jsonb),
   ('patient_app_maintenance_message', 'authenticated_client', '{"value":""}'::jsonb),
-  ('patient_booking_url', 'authenticated_client', '{"value":""}'::jsonb),
   ('video_playback_api_enabled', 'authenticated_client', '{"value":false}'::jsonb),
-  ('video_default_delivery', 'authenticated_client', '{"value":"auto"}'::jsonb)
+  ('video_default_delivery', 'authenticated_client', '{"value":"auto"}'::jsonb),
+  ('debug_forward_to_admin', 'server', '{"value":false}'::jsonb),
+  ('video_presign_ttl_seconds', 'server', '{"value":3600}'::jsonb)
 )
 INSERT INTO public.app_runtime_settings
   (key, scope, organization_id, audience, value_json, updated_at, updated_by)
@@ -125,6 +126,12 @@ DO UPDATE SET
   value_json = EXCLUDED.value_json,
   updated_at = EXCLUDED.updated_at,
   updated_by = EXCLUDED.updated_by;
+
+-- Never provide a global fallback for a clinic-owned booking destination.
+DELETE FROM public.app_runtime_settings
+WHERE key = 'patient_booking_url'
+  AND scope = 'admin'
+  AND organization_id IS NULL;
 
 WITH derived(key, enabled) AS (VALUES
   ('oauth_yandex_enabled', (
@@ -165,7 +172,7 @@ SELECT
     WHERE key = 'sms_fallback_enabled' AND organization_id IS NULL AND scope IN ('doctor', 'admin')
     ORDER BY CASE scope WHEN 'doctor' THEN 0 ELSE 1 END
     LIMIT 1
-  ), true)),
+  ), false)),
   now(), NULL
 ON CONFLICT (key, scope) WHERE organization_id IS NULL
 DO UPDATE SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at;
@@ -177,6 +184,27 @@ AS $function$
 DECLARE
   runtime_audience text;
 BEGIN
+  IF NEW.key = 'patient_booking_url' AND NEW.scope = 'admin' THEN
+    IF NEW.organization_id IS NULL THEN
+      DELETE FROM public.app_runtime_settings
+      WHERE key = NEW.key AND scope = NEW.scope AND organization_id IS NULL;
+    ELSE
+      INSERT INTO public.app_runtime_settings
+        (key, scope, organization_id, audience, value_json, updated_at, updated_by)
+      VALUES (
+        NEW.key, NEW.scope, NEW.organization_id, 'authenticated_client',
+        NEW.value_json, NEW.updated_at, NEW.updated_by
+      )
+      ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL
+      DO UPDATE SET
+        audience = EXCLUDED.audience,
+        value_json = EXCLUDED.value_json,
+        updated_at = EXCLUDED.updated_at,
+        updated_by = EXCLUDED.updated_by;
+    END IF;
+    RETURN NEW;
+  END IF;
+
   IF NEW.organization_id IS NULL AND NEW.scope = 'admin' AND NEW.key IN (
     'yandex_oauth_client_id', 'yandex_oauth_client_secret', 'yandex_oauth_redirect_uri',
     'google_client_id', 'google_client_secret', 'google_oauth_login_redirect_uri',
@@ -219,7 +247,7 @@ BEGIN
         FROM public.system_settings
         WHERE key = 'sms_fallback_enabled' AND organization_id IS NULL AND scope IN ('doctor', 'admin')
         ORDER BY CASE scope WHEN 'doctor' THEN 0 ELSE 1 END LIMIT 1
-      ), true)),
+      ), false)),
       NEW.updated_at, NEW.updated_by
     )
     ON CONFLICT (key, scope) WHERE organization_id IS NULL
@@ -283,6 +311,33 @@ $function$;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
+
+CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)
+RETURNS TABLE (
+  key text,
+  scope text,
+  organization_id uuid,
+  audience text,
+  value_json jsonb
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT setting.key, setting.scope, setting.organization_id, setting.audience, setting.value_json
+  FROM public.app_runtime_settings AS setting
+  WHERE setting.key = p_key
+    AND setting.scope = p_scope
+    AND setting.organization_id IS NULL
+    AND setting.audience = 'server'
+    AND setting.key IN ('debug_forward_to_admin', 'video_presign_ttl_seconds')
+  LIMIT 1
+$function$;
+
+ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM app_patient, app_staff;
 
 REVOKE ALL ON TABLE public.system_settings FROM app_patient;
 REVOKE ALL ON TABLE public.system_settings_audit FROM app_patient;

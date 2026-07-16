@@ -452,3 +452,19 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
 - Targeted validation PASS: webapp Vitest `9 files / 46 tests`, webapp typecheck and targeted ESLint, E1 checker plus
   mutation self-test, isolation diagnostics/D3.4/hard-protocol checker families, full `check:saas-db-regression`,
   deploy shell syntax, and `git diff --check`. Full application CI was not repeated.
+
+### E1 independent-review closure (`/root/ci_fix_review`)
+
+- Patient maintenance booking is now fail-closed to one explicit active enrollment organization. Zero enrollments,
+  multiple organizations, missing/invalid org URLs and missing settings omit the booking CTA; there is no global or
+  hardcoded Rubitime fallback and no arbitrary first-organization selection.
+- Public phone-start consumes only the derived `public_sms_fallback_enabled` projection. Missing rows, malformed
+  values and DB denial default to disabled. The legacy raw `system_settings` SMS helper is removed.
+- `debug_forward_to_admin` and `video_presign_ttl_seconds` are global `audience='server'` runtime rows. A narrow
+  allowlisted SECURITY DEFINER accessor is executable only by the exact webapp base login; patient/staff roles and
+  the public accessor cannot read server values. Server reads deliberately enter a bootstrap DB principal so a
+  patient request never needs server-accessor privilege. TTL remains bounded to `60..604800`, default `3600`.
+- PostgreSQL 16 scratch proof PASS for table/function ACLs, audience isolation, trigger refresh of SMS/debug/TTL,
+  absence of a global booking projection and exact organization booking. Targeted Vitest `8 files / 42 tests`,
+  webapp typecheck/ESLint, E1 checker+self-test, full SaaS DB regression and hard/isolation/D3.4 gates PASS. No live
+  TEST mutation and no full application CI.

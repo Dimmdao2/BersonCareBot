@@ -16,10 +16,9 @@ function readBooleanValueJson(valueJson: unknown): boolean {
  * `false` (default) — только значимое (warn/error/DLQ/retry-fail); `true` — подробные operational `info`.
  * Verbose-логи не должны содержать сырые params/payload/PII. TTL-кэш (fail-safe `false`).
  *
- * NB: это deps-инъекционный путь для `modules/*`-флоу. Собственный кэш сбрасывается только по TTL
- * (≤30 c), без явной инвалидации при сохранении настройки. Для route-utils без `deps` используется
- * `configAdapter.getConfigBool("debug_forward_to_admin", false)` — он инвалидируется на сохранении
- * (`persistAdminModesBatch` → `invalidateConfigKey`). Оба пути читают тот же ключ и eventually-consistent.
+ * NB: это deps-инъекционный путь для staff/background `modules/*`-флоу. Собственный кэш сбрасывается
+ * только по TTL (≤30 c). Public auth route-utils use the server-only app_runtime projection accessor;
+ * both roots are refreshed by the canonical system_settings write trigger.
  */
 export async function isOperationalVerboseLogEnabled(deps: {
   systemSettings: {

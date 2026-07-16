@@ -5,8 +5,6 @@ import { patientPathsAllowedDuringPhoneActivation } from "@/modules/platform-acc
 export const DEFAULT_PATIENT_MAINTENANCE_MESSAGE =
   "Приложение в разработке, функционал частично недоступен.";
 
-export const DEFAULT_PATIENT_BOOKING_URL = "https://dmitryberson.rubitime.ru";
-
 const PATIENT_MAINTENANCE_MESSAGE_MAX = 500;
 
 export function normalizePatientMaintenanceMessage(raw: string): string {
@@ -16,25 +14,45 @@ export function normalizePatientMaintenanceMessage(raw: string): string {
 }
 
 /**
- * Normalizes booking URL from DB; empty or invalid → default Rubitime URL.
+ * Normalizes an organization-scoped booking URL. Empty or invalid values omit the CTA.
  */
-export function normalizePatientBookingUrl(raw: string): string {
+export function normalizePatientBookingUrl(raw: string): string | null {
   const t = raw.trim();
-  if (t.length === 0) return DEFAULT_PATIENT_BOOKING_URL;
+  if (t.length === 0) return null;
   try {
     const u = new URL(t);
     if (u.protocol === "http:" || u.protocol === "https:") return t;
   } catch {
     /* fall through */
   }
-  return DEFAULT_PATIENT_BOOKING_URL;
+  return null;
 }
 
 export type PatientMaintenanceConfig = {
   enabled: boolean;
   message: string;
-  bookingUrl: string;
+  bookingUrl: string | null;
 };
+
+type PatientOrganizationResolution =
+  | { ok: true; organizationId: string }
+  | { ok: false; reason: "no_active_enrollment" }
+  | { ok: false; reason: "organization_selection_required"; organizationIds: string[] };
+
+export async function resolvePatientMaintenanceOrganizationId(
+  patientOrganization: {
+    resolveActiveOrganizationForPatient(platformUserId: string): Promise<PatientOrganizationResolution>;
+  } | null,
+  platformUserId: string,
+): Promise<string | null> {
+  if (!patientOrganization) return null;
+  try {
+    const resolved = await patientOrganization.resolveActiveOrganizationForPatient(platformUserId);
+    return resolved.ok ? resolved.organizationId : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Решение о полной замене patient shell на экран техработ.
@@ -62,12 +80,14 @@ export async function getPatientMaintenanceConfig(
     return {
       enabled: false,
       message: DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
-      bookingUrl: DEFAULT_PATIENT_BOOKING_URL,
+      bookingUrl: null,
     };
   }
   const [messageRaw, bookingRaw] = await Promise.all([
     getPatientRuntimeValue("patient_app_maintenance_message"),
-    getPatientRuntimeValue("patient_booking_url", organizationId),
+    organizationId === null
+      ? Promise.resolve("")
+      : getPatientRuntimeValue("patient_booking_url", organizationId),
   ]);
   return {
     enabled: true,
