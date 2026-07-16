@@ -61,8 +61,8 @@ function runChecks(overrides = {}) {
     "const staffLoginRole = \"app_runtime_staff_login\";",
     "const nonstaffLoginRole = \"app_runtime_nonstaff_login\";",
     "LOGIN NOINHERIT NOBYPASSRLS",
-    "GRANT app_staff TO app_runtime_staff_login;",
-    "GRANT app_patient TO app_runtime_nonstaff_login;",
+    "GRANT app_staff TO app_runtime_staff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
+    "GRANT app_patient TO app_runtime_nonstaff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
     "NOT pg_has_role('app_runtime_staff_login', 'app_patient', 'MEMBER')",
     "NOT pg_has_role('app_runtime_nonstaff_login', 'app_staff', 'MEMBER')",
     "SET ROLE app_staff;",
@@ -73,6 +73,8 @@ function runChecks(overrides = {}) {
     "c0_scoped_denied",
     "sanitizedChildEnv",
     "DATABASE_URL",
+    "test-patient-identity-capability-gate.sql",
+    "patient_identity_runtime_login_role",
   ]);
 
   forbidFragments(files.smoke, loaded.smoke, [

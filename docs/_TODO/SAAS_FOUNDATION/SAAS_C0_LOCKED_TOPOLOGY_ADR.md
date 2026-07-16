@@ -18,6 +18,8 @@ out the staff pool and locked runtime must execute `SET ROLE app_staff`.
 `app_runtime_nonstaff_login` is a member only of `app_patient`. Patient and integrator principals must
 execute `SET ROLE app_patient`. Bootstrap also uses the nonstaff pool but remains the base login after
 `RESET ROLE`, so `app.is_staff()` is false and only direct bootstrap grants are available.
+Both runtime membership edges are SET-only (`ADMIN FALSE, INHERIT FALSE, SET TRUE`); this is the exact
+topology normalized by D3.4 and exercised by the locked patient identity gate.
 
 Owner and migrator roles remain maintenance-only. They are not application `DATABASE_URL` roles and no
 request pool may be granted `BYPASSRLS`.

@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const files = {
   finalizer: "deploy/postgres/test-strict-rls-finalizer.sql",
   patientIdentityGate: "deploy/postgres/test-patient-identity-capability-gate.sql",
+  c0Smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-c0-locked-topology.mjs",
   force: "deploy/postgres/phase4-force-rls-cutover.sql",
   invites: "deploy/postgres/organization-member-invites-rls.sql",
   courses: "deploy/postgres/patient-course-assignment-wall.sql",
@@ -42,6 +43,13 @@ function requireOrdered(label, text, fragments) {
     const index = text.indexOf(fragment, cursor);
     if (index < 0) fail(`${label} missing ordered fragment after ${cursor}: ${fragment}`);
     cursor = index + fragment.length;
+  }
+}
+
+function requireOccurrences(label, text, fragment, expected) {
+  const actual = text.split(fragment).length - 1;
+  if (actual !== expected) {
+    fail(`${label} expected ${expected} occurrence(s), found ${actual}: ${fragment}`);
   }
 }
 
@@ -183,6 +191,8 @@ function runChecks(overrides = {}) {
     "TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql",
     "TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql",
     "run_test_patient_identity_capability_gate",
+    'runtime_login_role="$(discover_webapp_bootstrap_base_role)"',
+    '-v patient_identity_runtime_login_role="$runtime_login_role"',
     "apply_test_strict_rls_finalizer",
     "run_strict_post_migration_closure",
     "SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql",
@@ -219,13 +229,26 @@ function runChecks(overrides = {}) {
 
   requireFragments(files.patientIdentityGate, loaded.patientIdentityGate, [
     "current_database() = 'bersoncarebot_test'",
-    "NOT rolcanlogin AND NOT rolbypassrls",
+    "rolcanlogin AND NOT rolsuper",
+    "rolcanlogin AND NOT rolinherit AND NOT rolsuper",
+    ":'patient_identity_runtime_login_role' <> 'app_patient'",
+    "NOT pg_has_role(:'patient_identity_runtime_login_role', 'app_staff', 'MEMBER')",
+    "NOT pg_has_role('app_patient', 'app_staff', 'MEMBER')",
+    "NOT membership.inherit_option",
+    "membership.set_option",
+    "WITH RECURSIVE runtime_login AS",
+    "reachable_roles(roleid) AS",
+    "granted_role.rolname <> 'app_patient'",
     "\\o /dev/null",
     "BEGIN;",
     "'53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a101'",
     "'53000000-0000-4000-8000-0000000000b1', '53000000-0000-4000-8000-00000000a201'",
     "'53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a102'",
-    "SET SESSION AUTHORIZATION app_patient;",
+    'SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";',
+    "SET ROLE app_patient;",
+    "SET row_security = on;",
+    "app.install_signed_context",
+    "app.release_principal_context",
     "app.is_current_patient_test_account() AS patient_a \\gset",
     "app.is_current_patient_test_account() AS patient_b \\gset",
     "app.is_current_patient_test_account() AS unrelated \\gset",
@@ -233,6 +256,55 @@ function runChecks(overrides = {}) {
     "\\o\n\\unset QUIET",
     "\\unset QUIET",
     "patientA=true patientB=true unrelated=false",
+  ]);
+  requireOrdered(files.patientIdentityGate, loaded.patientIdentityGate, [
+    "'fixture-capability-a-'",
+    'SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";',
+    "SET ROLE app_patient;",
+    "SET row_security = on;",
+    "SELECT app.install_signed_context",
+    "app.is_current_patient_test_account() AS patient_a \\gset",
+    "SELECT app.release_principal_context();",
+    "RESET ROLE;",
+    "RESET SESSION AUTHORIZATION;",
+    "'fixture-capability-b-'",
+    'SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";',
+    "SET ROLE app_patient;",
+    "SET row_security = on;",
+    "SELECT app.install_signed_context",
+    "app.is_current_patient_test_account() AS patient_b \\gset",
+    "SELECT app.release_principal_context();",
+    "RESET ROLE;",
+    "RESET SESSION AUTHORIZATION;",
+    "'fixture-capability-unrelated-'",
+    'SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";',
+    "SET ROLE app_patient;",
+    "SET row_security = on;",
+    "SELECT app.install_signed_context",
+    "app.is_current_patient_test_account() AS unrelated \\gset",
+    "SELECT app.release_principal_context();",
+    "RESET ROLE;",
+    "RESET SESSION AUTHORIZATION;",
+  ]);
+  for (const fragment of [
+    'SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";',
+    "SET ROLE app_patient;",
+    "SET row_security = on;",
+    "SELECT app.install_signed_context",
+    "SELECT app.release_principal_context();",
+    "RESET ROLE;",
+    "RESET SESSION AUTHORIZATION;",
+  ]) {
+    requireOccurrences(files.patientIdentityGate, loaded.patientIdentityGate, fragment, 3);
+  }
+  requireFragments(files.c0Smoke, loaded.c0Smoke, [
+    "p0-5b-role-split-staff-patient.sql",
+    "p2-b-protected-principal-context.sql",
+    "0194_e1_patient_identity_exception.sql",
+    "test-patient-identity-capability-gate.sql",
+    "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE",
+    "patient_identity_runtime_login_role",
+    "prove canonical patient identity capability gate under locked runtime topology",
   ]);
   if (/\\echo[^\n]*(?:53000000|@|password|token)/i.test(loaded.patientIdentityGate)) {
     fail(`${files.patientIdentityGate} exposes fixture identifiers or secrets in output`);
@@ -324,6 +396,18 @@ function runSelfTest() {
     { hard: baseline.hard.replace("  run_test_patient_identity_capability_gate\n", "") },
     { patientIdentityGate: baseline.patientIdentityGate.replace("00000000a201", "00000000a102") },
     { patientIdentityGate: baseline.patientIdentityGate.replace(" AS unrelated \\gset", " AS unrelated") },
+    { patientIdentityGate: baseline.patientIdentityGate.replaceAll("SET ROLE app_patient;", "") },
+    {
+      patientIdentityGate: baseline.patientIdentityGate.replace(
+        /(SET SESSION AUTHORIZATION :"patient_identity_runtime_login_role";\nSET ROLE app_patient;\nSET row_security = on;\n)(SELECT app\.install_signed_context\([\s\S]*?\);)/,
+        "$2\n$1",
+      ),
+    },
+    { patientIdentityGate: baseline.patientIdentityGate.replace("SELECT app.release_principal_context();", "") },
+    { patientIdentityGate: baseline.patientIdentityGate.replace("granted_role.rolname <> 'app_patient'", "FALSE") },
+    { patientIdentityGate: baseline.patientIdentityGate.replace("NOT membership.inherit_option", "membership.inherit_option") },
+    { hard: baseline.hard.replace('-v patient_identity_runtime_login_role="$runtime_login_role"', "") },
+    { c0Smoke: baseline.c0Smoke.replace("test-patient-identity-capability-gate.sql", "removed-gate.sql") },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
     { hard: baseline.hard.replace('webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"', 'webapp_runtime_role="$(discover_webapp_migrator_role)"') },
     { hard: baseline.hard.replaceAll('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },

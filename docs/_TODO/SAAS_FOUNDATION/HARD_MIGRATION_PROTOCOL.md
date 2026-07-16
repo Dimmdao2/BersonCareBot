@@ -413,11 +413,15 @@ specialist consolidation, and B1. The contract is:
 
 Immediately after fixture reconciliation and privilege cleanup, the shared strict closure must run the canonical
 `deploy/postgres/test-patient-identity-capability-gate.sql`. In a rollback-only transaction it installs the existing
-signed principal context for the two representative fixture patients and one unrelated fixture patient, switches
-the effective principal to locked `app_patient`, and calls only the existing
+signed principal context for the two representative fixture patients and one unrelated fixture patient through the
+actual locked topology: the discovered webapp nonstaff `LOGIN NOINHERIT NOBYPASSRLS` role must have exactly one
+direct `app_patient` membership with `ADMIN FALSE, INHERIT FALSE, SET TRUE`; the gate authenticates as that base
+login, executes `SET ROLE app_patient`, installs the signed context, and calls only the existing
 `app.is_current_patient_test_account()` capability. The required result is `patientA=true`, `patientB=true`, and
 `unrelated=false`; any other result aborts before the owner-ready matrix or service restart. Output contains only
-those labels and booleans, never fixture identifiers or restricted settings.
+those labels and booleans, never fixture identifiers or restricted settings. The canonical P0.5b role wall keeps
+`app_patient` itself as restricted `LOGIN NOBYPASSRLS` without provisioning a credential; `NOLOGIN` is not its
+invariant and must not be asserted by this gate.
 
 The TEST settings override enables and locks the mirrored global `specialist_signup_enabled=true` row for the
 owner walkthrough. This is TEST-only: production remains default-off. On TEST, clean public/login, combined

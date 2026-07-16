@@ -810,7 +810,11 @@ run_owner_ready_locked_db_matrix(){
 }
 
 run_test_patient_identity_capability_gate(){
+  local runtime_login_role
+  runtime_login_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "patient identity runtime login role" "$runtime_login_role"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v patient_identity_runtime_login_role="$runtime_login_role" \
     -f "$DEPLOY_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"
 }
 

@@ -9,7 +9,7 @@
 
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const pgBinDir = "/usr/lib/postgresql/16/bin";
 const roleWallSql = path.join(repoRoot, "deploy/postgres/p0-5b-role-split-staff-patient.sql");
+const protectedContextSql = path.join(repoRoot, "deploy/postgres/p2-b-protected-principal-context.sql");
+const isolationDiagnosticsSql = path.join(
+  repoRoot,
+  "apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql",
+);
+const patientIdentitySql = path.join(
+  repoRoot,
+  "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
+);
+const patientIdentityGateSql = path.join(
+  repoRoot,
+  "deploy/postgres/test-patient-identity-capability-gate.sql",
+);
 
 const scratchSuffix = `p${process.pid}_${randomBytes(4).toString("hex")}`.toLowerCase();
 const dbName = `bcb_saas_c0_topology_scratch_${scratchSuffix}`;
@@ -104,6 +117,26 @@ function psql(args, input, label) {
   ], { input, label });
 }
 
+function psqlExpectFailure(args, input, label) {
+  const result = spawnSync(path.join(pgBinDir, "psql"), [
+    "-h",
+    tempClusterSocketDir,
+    "-p",
+    tempClusterPort,
+    "-v",
+    "ON_ERROR_STOP=1",
+    ...args,
+  ], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: sanitizedChildEnv(),
+    input,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (result.error) throw new Error(`${label} failed to start: ${result.error.message}`);
+  if (result.status === 0) throw new Error(`${label} unexpectedly succeeded`);
+}
+
 function psqlSuper(sql, { database = dbName, label = "psql superuser" } = {}) {
   psql(["-d", database], sql, label);
 }
@@ -175,8 +208,8 @@ CREATE ROLE c0_migrator_role LOGIN NOINHERIT BYPASSRLS;
 CREATE ROLE app_runtime_staff_login LOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE app_runtime_nonstaff_login LOGIN NOINHERIT NOBYPASSRLS;
 
-GRANT app_staff TO app_runtime_staff_login;
-GRANT app_patient TO app_runtime_nonstaff_login;
+GRANT app_staff TO app_runtime_staff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+GRANT app_patient TO app_runtime_nonstaff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 REVOKE app_patient FROM app_runtime_staff_login;
 REVOKE app_staff FROM app_runtime_nonstaff_login;
 REVOKE c0_owner_role FROM app_runtime_staff_login, app_runtime_nonstaff_login;
@@ -190,6 +223,7 @@ STABLE
 AS $$
   SELECT pg_has_role(current_user, 'app_staff', 'MEMBER');
 $$;
+ALTER FUNCTION app.is_staff() OWNER TO c0_owner_role;
 
 GRANT USAGE ON SCHEMA app TO app_staff, app_patient, app_runtime_staff_login, app_runtime_nonstaff_login;
 GRANT EXECUTE ON FUNCTION app.is_staff() TO app_staff, app_patient, app_runtime_staff_login, app_runtime_nonstaff_login;
@@ -243,6 +277,42 @@ SELECT (
   AND NOT pg_has_role('app_runtime_nonstaff_login', 'c0_migrator_role', 'MEMBER')
 )::int AS c0_no_maintenance_membership \gset
 ${fatal("c0_no_maintenance_membership", "runtime login roles must not be members of owner/migrator roles")}
+`;
+
+const patientIdentityFixtureSql = String.raw`
+CREATE TABLE public.system_settings (
+  key text NOT NULL,
+  scope text NOT NULL,
+  organization_id uuid,
+  value_json jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid
+);
+CREATE TABLE public.platform_users (
+  id uuid PRIMARY KEY,
+  phone_normalized text
+);
+CREATE TABLE public.user_channel_bindings (
+  user_id uuid NOT NULL,
+  channel_code text NOT NULL,
+  external_id text NOT NULL
+);
+CREATE TABLE public.org_enrollments (
+  organization_id uuid NOT NULL,
+  platform_user_id uuid NOT NULL,
+  status text NOT NULL
+);
+INSERT INTO public.system_settings(key, scope, organization_id, value_json) VALUES
+  ('test_account_identifiers', 'admin', NULL,
+   '{"value":{"phones":["+75550000101","+75550000201"],"telegramIds":[],"maxIds":[]}}');
+INSERT INTO public.platform_users(id, phone_normalized) VALUES
+  ('53000000-0000-4000-8000-00000000a101', '+75550000101'),
+  ('53000000-0000-4000-8000-00000000a201', '+75550000201'),
+  ('53000000-0000-4000-8000-00000000a102', '+75550000102');
+INSERT INTO public.org_enrollments(organization_id, platform_user_id, status) VALUES
+  ('53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a101', 'active'),
+  ('53000000-0000-4000-8000-0000000000b1', '53000000-0000-4000-8000-00000000a201', 'active'),
+  ('53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a102', 'active');
 `;
 
 const staffConnectionProofSql = String.raw`
@@ -335,6 +405,46 @@ try {
 
   console.log("--- c0: proving nonstaff/bootstrap runtime login wall ---");
   psqlRole(nonstaffLoginRole, nonstaffConnectionProofSql, { label: "prove nonstaff runtime login" });
+
+  console.log("--- c0: reproducing protected-context -> E1 capability -> fixture -> locked gate order ---");
+  psqlSuper(`
+    \\set p2_b_owner_role c0_owner_role
+    \\set p2_b_staff_role app_staff
+    \\set p2_b_patient_role app_patient
+    \\set p2_b_signing_secret c0-scratch-signing-secret-at-least-32-characters
+    CREATE SCHEMA IF NOT EXISTS app_ext;
+    CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA app_ext;
+    GRANT USAGE ON SCHEMA app_ext TO c0_owner_role;
+    \\i ${protectedContextSql}
+    \\i ${isolationDiagnosticsSql}
+    ${patientIdentityFixtureSql}
+    \\i ${patientIdentitySql}
+    GRANT SELECT ON TABLE public.system_settings, public.platform_users,
+      public.user_channel_bindings, public.org_enrollments TO c0_owner_role;
+    ALTER FUNCTION app.is_current_patient_test_account() OWNER TO c0_owner_role;
+    REVOKE ALL ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient;
+  `, { label: "install protected E1 patient identity capability fixture" });
+  const gateProof = readFileSync(patientIdentityGateSql, "utf8")
+    .replace(
+      "current_database() = 'bersoncarebot_test'",
+      `current_database() = '${dbName}'`,
+    );
+  console.log("--- c0: proving canonical gate rejects authority reachable through app_patient ---");
+  psqlSuper("GRANT c0_owner_role TO app_patient WITH ADMIN FALSE, INHERIT TRUE, SET TRUE;", {
+    label: "install forbidden transitive app_patient membership",
+  });
+  psqlExpectFailure(
+    ["-d", dbName],
+    `\\set patient_identity_runtime_login_role ${nonstaffLoginRole}\n${gateProof}`,
+    "canonical patient identity gate with forbidden transitive membership",
+  );
+  psqlSuper("REVOKE c0_owner_role FROM app_patient;", {
+    label: "remove forbidden transitive app_patient membership",
+  });
+  psqlSuper(`\\set patient_identity_runtime_login_role ${nonstaffLoginRole}\n${gateProof}`, {
+    label: "prove canonical patient identity capability gate under locked runtime topology",
+  });
 
   console.log(`smoke-c0-locked-topology: OK (${dbName})`);
 } finally {
