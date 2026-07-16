@@ -100,7 +100,7 @@ sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_delivery_worker_login_role="${roles[1]}" \
   -v c4_scheduler_login_role="${roles[2]}" \
   -v c4_media_worker_login_role="${roles[3]}" \
-  -f "$OVERLAY"
+  -f - < "$OVERLAY"
 
 API_ENV_FILE="$API_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
   bash "$PROJECT_ROOT/deploy/host/assert-c4-operational-runtime-ready.sh"

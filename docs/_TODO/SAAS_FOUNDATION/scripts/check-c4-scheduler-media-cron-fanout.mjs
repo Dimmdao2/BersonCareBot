@@ -539,6 +539,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "saas-c2-secret-preflight.mjs",
     '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
     "sudo -u postgres psql",
+    '-f - < "$OVERLAY"',
     "\\password $role",
     "assert-c4-operational-runtime-ready.sh",
     "--bootstrap-test-env",
