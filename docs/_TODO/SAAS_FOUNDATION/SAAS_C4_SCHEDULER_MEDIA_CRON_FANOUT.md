@@ -62,6 +62,14 @@ The Web Push capability alone receives `EXECUTE` on the complete locked-policy d
 C4 policy. Reapply removes PUBLIC, base-login, discovery-definer and grant-option drift for this bundle and asserts
 the helpers remain `app_owner`-owned; it does not widen staff/patient/table access. DOWN independently revokes the
 same helper ACL drift before dropping C4 roles and does not rely on a preceding successful UP/reapply.
+`operator_job_status` deliberately retains the P0.9 permissive PUBLIC policy for existing app-staff/owner operational
+writers. Because permissive PostgreSQL policies compose with OR, the Web Push capability has a second
+`AS RESTRICTIVE` exact-key policy in addition to its exact-key permissive allow policy. Their intersection limits this
+capability to `reminders.web_push_only.tick` without changing other operator keys. Reapply removes any stale policy
+targeted directly at the Web Push capability and asserts the exact three-policy inventory plus SELECT/INSERT/UPDATE
+without DELETE. It also removes and inventories table and column ACL drift for PUBLIC, the base LOGIN, the capability,
+and the discovery definer; a stale column-only grant therefore cannot bypass the key restriction. DOWN removes only
+the two C4 policies, preserves the canonical P0.9 policy, and is repeat-safe after its overlay-owned roles are absent.
 The overlays scrub current-database, direct, column, type, and default ACLs for all managed base logins and capabilities across
 non-system schemas, then rebuilds and catalog-asserts the exact allowlist. Managed roles are rejected if they own the
 current database, an independent enum/domain/composite/range/base type, or another object recorded by PostgreSQL owner
@@ -91,6 +99,9 @@ First production rollout is a separate root/DB-admin operation:
 `deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
 root-owned webapp/API/media env files. It then creates or normalizes the five distinct LOGIN roles, sets their existing passwords without printing them, applies both overlays as PostgreSQL admin, and
 runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
+PROD env credentials are prepared once by the operator before that initial provision. A later explicit root invocation
+of the provision command is the only C4 password reassertion/rotation path; ordinary code deploy/migrate never invokes
+bootstrap, provision, or the password setter, never rewrites PROD env, and only checks the already-provisioned contract.
 Password rotation is fully noninteractive through `deploy/host/set-postgres-role-password.mjs`: the decoded URL
 password is stdin-only and reaches a fixed temporary server-side function only as an extended-protocol bind parameter;
 the function quotes the identifier and value with `format(%I, %L)`. Before that bind, the privileged session disables

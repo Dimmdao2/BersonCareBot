@@ -154,6 +154,17 @@ unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/
 Первичное создание/нормализация пяти operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
 
+One-time PROD порядок (без фиксации значений секретов в репозитории):
+
+1. root/DB-admin создаёт пять отдельных PostgreSQL LOGIN/паролей и записывает полные connection URL в защищённые
+   файлы: `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`, `DATABASE_URL_SCHEDULER` — в `api.prod`;
+   media operational `DATABASE_URL` — в `media-worker.prod`; `DATABASE_URL_WEB_PUSH_REMINDER` — в `webapp.prod`.
+2. root запускает единственный штатный entrypoint ниже. Он сверяет раздельность URL, создаёт/нормализует роли,
+   передаёт пароли в PostgreSQL без вывода, применяет оба C4 overlay и сам запускает readiness пяти login.
+3. Повторный запуск этой команды является явной операцией re-provision/rotation и повторно устанавливает пароли из
+   защищённых URL. Обычный `deploy-prod.sh` эту команду и password setter не вызывает, PROD-env не переписывает и
+   только fail-closed проверяет уже подготовленный C4-контракт перед рестартом.
+
 ```bash
 bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
 ```

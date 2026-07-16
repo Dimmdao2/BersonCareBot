@@ -12,6 +12,18 @@ SELECT 1 / 0;
 BEGIN;
 
 \if :{?c4_web_push_reminder_down}
+-- DOWN is repeat-safe: recreate absent overlay-owned NOLOGIN roles only long enough to
+-- scrub any surviving ACL/membership drift, then drop them again below.
+DO $down_roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_operational_web_push_reminder') THEN
+    CREATE ROLE app_operational_web_push_reminder NOLOGIN NOINHERIT NOBYPASSRLS;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web_push_reminder_discovery_definer') THEN
+    CREATE ROLE app_web_push_reminder_discovery_definer NOLOGIN NOINHERIT NOBYPASSRLS;
+  END IF;
+END
+$down_roles$;
 REVOKE ALL PRIVILEGES ON FUNCTION
   app.is_staff(),
   app.current_org_id(),
@@ -36,7 +48,43 @@ REVOKE ALL PRIVILEGES ON FUNCTION
   app.current_patient_user_id(),
   app.current_integrator_user_id()
 FROM app_operational_web_push_reminder CASCADE;
+SELECT format('DROP POLICY %I ON public.operator_job_status', policy.polname)
+FROM pg_policy policy
+JOIN pg_roles capability ON capability.rolname = 'app_operational_web_push_reminder'
+WHERE policy.polrelid = 'public.operator_job_status'::regclass
+  AND capability.oid = ANY (policy.polroles)
+ORDER BY policy.polname
+\gexec
 DROP POLICY IF EXISTS c4_web_push_reminder_status ON public.operator_job_status;
+DROP POLICY IF EXISTS c4_web_push_reminder_status_restrictive ON public.operator_job_status;
+SELECT set_config('c4.web_push_reminder_login_role', :'c4_web_push_reminder_login_role', true);
+DO $column_acl$
+DECLARE grant_row record;
+BEGIN
+  FOR grant_row IN
+    SELECT acl.privilege_type, attribute.attname,
+      CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(grantee.rolname) END AS grantee_sql
+    FROM pg_attribute attribute
+    CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+    LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+    WHERE attribute.attrelid = 'public.operator_job_status'::regclass
+      AND attribute.attnum > 0 AND NOT attribute.attisdropped
+      AND (acl.grantee = 0 OR grantee.rolname IN (
+        current_setting('c4.web_push_reminder_login_role'),
+        'app_operational_web_push_reminder',
+        'app_web_push_reminder_discovery_definer'
+      ))
+  LOOP
+    EXECUTE format('REVOKE %s (%I) ON public.operator_job_status FROM %s',
+      grant_row.privilege_type, grant_row.attname, grant_row.grantee_sql);
+  END LOOP;
+END
+$column_acl$;
+REVOKE ALL PRIVILEGES ON public.operator_job_status FROM
+  PUBLIC,
+  :"c4_web_push_reminder_login_role",
+  app_operational_web_push_reminder,
+  app_web_push_reminder_discovery_definer;
 DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.reminder_rules;
 DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.webapp_reminder_occurrences;
 DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.notification_delivery_attempts;
@@ -97,6 +145,30 @@ REVOKE ALL PRIVILEGES ON SCHEMA public, app FROM app_operational_web_push_remind
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_operational_web_push_reminder;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM app_operational_web_push_reminder;
 REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA app FROM app_operational_web_push_reminder;
+SELECT set_config('c4.web_push_reminder_login_role', :'c4_web_push_reminder_login_role', true);
+DO $column_acl$
+DECLARE grant_row record;
+BEGIN
+  FOR grant_row IN
+    SELECT acl.privilege_type, attribute.attname,
+      CASE WHEN acl.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(grantee.rolname) END AS grantee_sql
+    FROM pg_attribute attribute
+    CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+    LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+    WHERE attribute.attrelid = 'public.operator_job_status'::regclass
+      AND attribute.attnum > 0 AND NOT attribute.attisdropped
+      AND (acl.grantee = 0 OR grantee.rolname IN (
+        current_setting('c4.web_push_reminder_login_role'),
+        'app_operational_web_push_reminder',
+        'app_web_push_reminder_discovery_definer'
+      ))
+  LOOP
+    EXECUTE format('REVOKE %s (%I) ON public.operator_job_status FROM %s',
+      grant_row.privilege_type, grant_row.attname, grant_row.grantee_sql);
+  END LOOP;
+END
+$column_acl$;
+REVOKE ALL PRIVILEGES ON public.operator_job_status FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON FUNCTION
   app.is_staff(),
   app.current_org_id(),
@@ -176,8 +248,23 @@ GRANT INSERT ON public.notification_delivery_attempts, public.product_push_notif
 GRANT SELECT, INSERT, UPDATE ON public.product_analytics_hourly TO app_operational_web_push_reminder;
 GRANT SELECT, INSERT, UPDATE ON public.operator_job_status TO app_operational_web_push_reminder;
 
+-- P0.9 classifies operator_job_status as global INFRA and intentionally keeps its legacy PUBLIC
+-- permissive true policy for staff/owner operational writers. PostgreSQL ORs permissive policies,
+-- so this capability needs both its own allow policy and an exact-key restrictive policy.
+SELECT format('DROP POLICY %I ON public.operator_job_status', policy.polname)
+FROM pg_policy policy
+JOIN pg_roles capability ON capability.rolname = 'app_operational_web_push_reminder'
+WHERE policy.polrelid = 'public.operator_job_status'::regclass
+  AND capability.oid = ANY (policy.polroles)
+ORDER BY policy.polname
+\gexec
 DROP POLICY IF EXISTS c4_web_push_reminder_status ON public.operator_job_status;
 CREATE POLICY c4_web_push_reminder_status ON public.operator_job_status TO app_operational_web_push_reminder
+USING (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick')
+WITH CHECK (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick');
+DROP POLICY IF EXISTS c4_web_push_reminder_status_restrictive ON public.operator_job_status;
+CREATE POLICY c4_web_push_reminder_status_restrictive ON public.operator_job_status
+AS RESTRICTIVE TO app_operational_web_push_reminder
 USING (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick')
 WITH CHECK (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick');
 
@@ -296,6 +383,67 @@ SELECT 1 / (
   AND NOT EXISTS ((SELECT * FROM actual EXCEPT SELECT * FROM expected))
   AND NOT EXISTS ((SELECT * FROM expected EXCEPT SELECT * FROM actual))
 )::int AS c4_web_push_helper_acl_exact;
+
+WITH capability AS (
+  SELECT oid FROM pg_roles WHERE rolname = 'app_operational_web_push_reminder'
+), managed AS (
+  SELECT oid, rolname FROM pg_roles WHERE rolname IN (
+    :'c4_web_push_reminder_login_role',
+    'app_operational_web_push_reminder',
+    'app_web_push_reminder_discovery_definer'
+  )
+), actual_acl AS (
+  SELECT COALESCE(grantee.rolname, 'PUBLIC') AS rolname, acl.privilege_type, acl.is_grantable
+  FROM pg_class relation
+  CROSS JOIN LATERAL aclexplode(relation.relacl) acl
+  LEFT JOIN managed grantee ON grantee.oid = acl.grantee
+  WHERE relation.oid = 'public.operator_job_status'::regclass
+    AND (acl.grantee = 0 OR grantee.oid IS NOT NULL)
+), column_acl AS (
+  SELECT 1
+  FROM pg_attribute attribute
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+  LEFT JOIN managed grantee ON grantee.oid = acl.grantee
+  WHERE attribute.attrelid = 'public.operator_job_status'::regclass
+    AND attribute.attnum > 0 AND NOT attribute.attisdropped
+    AND (acl.grantee = 0 OR grantee.oid IS NOT NULL)
+), expected_acl(rolname, privilege_type, is_grantable) AS (VALUES
+  ('app_operational_web_push_reminder', 'SELECT', false),
+  ('app_operational_web_push_reminder', 'INSERT', false),
+  ('app_operational_web_push_reminder', 'UPDATE', false)
+), policy_inventory AS (
+  SELECT policy.polname, policy.polpermissive, policy.polcmd, policy.polroles,
+    pg_get_expr(policy.polqual, policy.polrelid) AS using_expression,
+    pg_get_expr(policy.polwithcheck, policy.polrelid) AS check_expression
+  FROM pg_policy policy
+  WHERE policy.polrelid = 'public.operator_job_status'::regclass
+)
+SELECT 1 / (
+  NOT EXISTS ((SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl))
+  AND NOT EXISTS ((SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl))
+  AND NOT EXISTS (SELECT 1 FROM column_acl)
+  AND (SELECT count(*) FROM policy_inventory) = 3
+  AND EXISTS (
+    SELECT 1 FROM policy_inventory
+    WHERE polname = 'saas_enforce_default_deny_p0_9_1'
+      AND polpermissive AND polcmd = '*' AND polroles = ARRAY[0::oid]
+      AND using_expression = 'true' AND check_expression = 'true'
+  )
+  AND EXISTS (
+    SELECT 1 FROM policy_inventory, capability
+    WHERE polname = 'c4_web_push_reminder_status'
+      AND polpermissive AND polcmd = '*' AND polroles = ARRAY[capability.oid]
+      AND position('reminders.web_push_only.tick' IN using_expression) > 0
+      AND position('reminders.web_push_only.tick' IN check_expression) > 0
+  )
+  AND EXISTS (
+    SELECT 1 FROM policy_inventory, capability
+    WHERE polname = 'c4_web_push_reminder_status_restrictive'
+      AND NOT polpermissive AND polcmd = '*' AND polroles = ARRAY[capability.oid]
+      AND position('reminders.web_push_only.tick' IN using_expression) > 0
+      AND position('reminders.web_push_only.tick' IN check_expression) > 0
+  )
+)::int AS c4_web_push_operator_status_acl_policy_exact;
 
 COMMIT;
 \echo 'C4 Web Push reminder operational runtime overlay complete.'

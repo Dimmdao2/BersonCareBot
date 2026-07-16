@@ -51,6 +51,8 @@ const files = {
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
   webPushReminderCron: "deploy/host/web-push-only-reminder-cron.sh",
   testDeploy: "deploy/host/deploy-test-saas.sh",
+  prodDeploy: "deploy/host/deploy-prod.sh",
+  hostDeployReadme: "deploy/HOST_DEPLOY_README.md",
   mediaWorkerTestUnit: "deploy/systemd/bersoncarebot-media-worker-test.service",
   mediaWorkerTestUnitAssertion: "deploy/host/assert-media-worker-test-unit-properties.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
@@ -274,6 +276,18 @@ function assertWebappInternalRoutesCovered(loaded) {
     "`outbound_integration_probes`",
     "`/internal/operator-health-probe`",
     "`apps/integrator/src/integrations/bersoncare/operatorHealthProbeRoute.ts`",
+  ]);
+  requireFragments(files.hostDeployReadme, loaded.hostDeployReadme, [
+    "One-time PROD порядок (без фиксации значений секретов в репозитории)",
+    "DATABASE_URL_DIAGNOSTIC",
+    "DATABASE_URL_DELIVERY_WORKER",
+    "DATABASE_URL_SCHEDULER",
+    "media-worker.prod",
+    "DATABASE_URL_WEB_PUSH_REMINDER",
+    "единственный штатный entrypoint",
+    "явной операцией re-provision/rotation",
+    "Обычный `deploy-prod.sh` эту команду и password setter не вызывает",
+    "bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh",
   ]);
 }
 
@@ -758,6 +772,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "c4_web_push_reminder_org",
     "reminders.web_push_only.tick",
     "c4_web_push_reminder_down",
+    "DOWN is repeat-safe",
     "DROP ROLE IF EXISTS app_operational_web_push_reminder",
     "granted.rolname IN (:'c4_web_push_reminder_login_role'",
     "app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()",
@@ -771,11 +786,26 @@ function assertOperationalSqlAndDeploy(loaded) {
     "SELECT * FROM actual EXCEPT SELECT * FROM expected",
     "SELECT * FROM expected EXCEPT SELECT * FROM actual",
     "c4_web_push_helper_acl_exact",
+    "saas_enforce_default_deny_p0_9_1",
+    "AS RESTRICTIVE TO app_operational_web_push_reminder",
+    "capability.oid = ANY (policy.polroles)",
+    "policy_inventory",
+    "expected_acl(rolname, privilege_type, is_grantable)",
+    "('app_operational_web_push_reminder', 'SELECT', false)",
+    "('app_operational_web_push_reminder', 'INSERT', false)",
+    "('app_operational_web_push_reminder', 'UPDATE', false)",
+    "NOT polpermissive AND polcmd = '*'",
+    "CROSS JOIN LATERAL aclexplode(attribute.attacl) acl",
+    "AND NOT EXISTS (SELECT 1 FROM column_acl)",
+    "REVOKE ALL PRIVILEGES ON public.operator_job_status FROM PUBLIC",
+    "c4_web_push_operator_status_acl_policy_exact",
   ]);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, 'FROM :"c4_web_push_reminder_login_role" CASCADE', 2);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "FROM app_web_push_reminder_discovery_definer CASCADE", 2);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "FROM app_operational_web_push_reminder CASCADE", 2);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "app.current_integrator_user_id()\nFROM PUBLIC;", 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "capability.oid = ANY (policy.polroles)", 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "CROSS JOIN LATERAL aclexplode(attribute.attacl) acl", 3);
   requireFragments(files.webPushOperationalProof, loaded.webPushOperationalProof, [
     "failed to inject overgrant rehearsal",
     "reapply retained injected overgrant",
@@ -797,6 +827,24 @@ function assertOperationalSqlAndDeploy(loaded) {
     'helper_acl" = "4:4:0"',
     "reapply did not restore exact helper ACL",
     "DOWN retained base-login helper EXECUTE",
+    "pre-overlay proof did not reproduce permissive operator status exposure",
+    "CREATE POLICY saas_enforce_default_deny_p0_9_1",
+    "CREATE POLICY injected_c4_status_permissive",
+    "GRANT UPDATE (last_status) ON public.operator_job_status TO c4_webpush_smoke_login",
+    "GRANT SELECT (job_key) ON public.operator_job_status TO app_web_push_reminder_discovery_definer",
+    "GRANT REFERENCES (job_key) ON public.operator_job_status TO app_operational_web_push_reminder",
+    "GRANT UPDATE (last_status) ON public.operator_job_status TO PUBLIC",
+    "failed to inject operator status column-ACL drift",
+    'status_policy_acl" = "3:1:0:0:0:0:0"',
+    "reapply did not restore exact operator status policy/ACL",
+    "exact operator status transaction failed",
+    "noncanonical operator status insert passed",
+    "operator status delete passed",
+    "restrictive C4 policy broke the intended legacy operator contour",
+    "CREATE POLICY injected_c4_status_down_drift",
+    "repeated role-absent DOWN was not idempotent",
+    'down_status_state" = "1:1:0:0:0"',
+    "DOWN did not preserve only legacy operator policy and scrub base/column/PUBLIC ACL",
     "C4 Web Push reminder private PostgreSQL 16 proof: OK",
   ]);
   requireOccurrenceCountAtLeast(files.webPushOperationalProof, loaded.webPushOperationalProof, "app.current_integrator_user_id(), app.is_staff() TO PUBLIC;", 2);
@@ -868,6 +916,21 @@ function runChecks(overrides = {}) {
   const loaded = Object.fromEntries(
     Object.entries(files).map(([key, path]) => [key, overrides[key] ?? read(path)]),
   );
+  requireFragments(files.doc, loaded.doc, [
+    "PROD env credentials are prepared once by the operator before that initial provision",
+    "ordinary code deploy/migrate never invokes",
+    "only checks the already-provisioned contract",
+  ]);
+  requireOrderedFragments(files.prodDeploy, loaded.prodDeploy, [
+    "pnpm --dir apps/webapp run migrate",
+    'bash "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}"',
+    'sudo -n /bin/systemctl restart "${API_SERVICE}"',
+  ]);
+  forbidFragments(files.prodDeploy, loaded.prodDeploy, [
+    "provision-c4-operational-runtime.sh",
+    "set-postgres-role-password.mjs",
+    "bootstrap-c4-test-env.mjs",
+  ]);
   for (const entry of expectedInternalRoutes) {
     loaded[entry.source] = overrides[entry.source] ?? read(entry.source);
   }
@@ -1061,6 +1124,42 @@ if (process.argv.includes("--self-test")) {
     "TO app_operational_web_push_reminder WITH GRANT OPTION",
     "helper grant-option rehearsal removed",
   );
+  const webPushOperationalSqlNoStatusRestriction = read(files.webPushOperationalSql).replace(
+    "AS RESTRICTIVE TO app_operational_web_push_reminder",
+    "TO app_operational_web_push_reminder",
+  );
+  const webPushOperationalSqlNoTargetedPolicyScrub = read(files.webPushOperationalSql).replaceAll(
+    "capability.oid = ANY (policy.polroles)",
+    "false",
+  );
+  const webPushOperationalSqlNoStatusInventory = read(files.webPushOperationalSql).replace(
+    "c4_web_push_operator_status_acl_policy_exact",
+    "c4_web_push_operator_status_acl_policy_removed",
+  );
+  const webPushOperationalSqlNoStatusColumnAcl = read(files.webPushOperationalSql).replaceAll(
+    "CROSS JOIN LATERAL aclexplode(attribute.attacl) acl",
+    "CROSS JOIN LATERAL aclexplode(NULL::aclitem[]) acl",
+  );
+  const webPushOperationalProofNoStatusExposure = read(files.webPushOperationalProof).replace(
+    "pre-overlay proof did not reproduce permissive operator status exposure",
+    "pre-overlay status exposure proof removed",
+  );
+  const webPushOperationalProofNoInjectedStatusPolicy = read(files.webPushOperationalProof).replace(
+    "CREATE POLICY injected_c4_status_permissive",
+    "-- removed injected permissive status policy",
+  );
+  const webPushOperationalProofNoStatusDownDrift = read(files.webPushOperationalProof).replace(
+    "CREATE POLICY injected_c4_status_down_drift",
+    "-- removed DOWN status policy drift",
+  );
+  const webPushOperationalSqlNoRepeatSafeDown = read(files.webPushOperationalSql).replace(
+    "DOWN is repeat-safe",
+    "DOWN repeat safety removed",
+  );
+  const webPushOperationalProofNoRepeatedDown = read(files.webPushOperationalProof).replace(
+    "repeated role-absent DOWN was not idempotent",
+    "repeated DOWN proof removed",
+  );
   const operationalReadinessScriptNoWebPushHelperProbe = read(files.operationalReadinessScript).replace(
     "SELECT set_config('app.org', '00000000-0000-4000-8000-000000000001', true)",
     "SELECT 'web-push helper readiness removed'",
@@ -1068,6 +1167,15 @@ if (process.argv.includes("--self-test")) {
   const testDeployNoBootstrapProvisionCall = read(files.testDeploy).replace(
     "  bootstrap_and_provision_c4_operational_runtime\n",
     "  # removed bootstrap/provision call\n",
+  );
+  const prodDeployNoC4Readiness = read(files.prodDeploy).replace(
+    'bash "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}"',
+    "# removed C4 readiness",
+  );
+  const prodDeployCallsProvision = `${read(files.prodDeploy)}\nbash deploy/host/provision-c4-operational-runtime.sh\n`;
+  const hostDeployReadmeNoOneTimeC4 = read(files.hostDeployReadme).replace(
+    "One-time PROD порядок (без фиксации значений секретов в репозитории)",
+    "removed one-time PROD C4 runbook",
   );
   const testDeployWrongPostMatrixOrder = read(files.testDeploy).replace(
     "  reapply_c4_operational_runtime_overlays\n  assert_c4_operational_runtime_ready\n",
@@ -1154,8 +1262,20 @@ if (process.argv.includes("--self-test")) {
     { webPushOperationalProof: webPushOperationalProofNoBeforeGrantFailure },
     { webPushOperationalProof: webPushOperationalProofNoLockedPolicy },
     { webPushOperationalProof: webPushOperationalProofNoHelperOvergrant },
+    { webPushOperationalSql: webPushOperationalSqlNoStatusRestriction },
+    { webPushOperationalSql: webPushOperationalSqlNoTargetedPolicyScrub },
+    { webPushOperationalSql: webPushOperationalSqlNoStatusInventory },
+    { webPushOperationalSql: webPushOperationalSqlNoStatusColumnAcl },
+    { webPushOperationalProof: webPushOperationalProofNoStatusExposure },
+    { webPushOperationalProof: webPushOperationalProofNoInjectedStatusPolicy },
+    { webPushOperationalProof: webPushOperationalProofNoStatusDownDrift },
+    { webPushOperationalSql: webPushOperationalSqlNoRepeatSafeDown },
+    { webPushOperationalProof: webPushOperationalProofNoRepeatedDown },
     { operationalReadinessScript: operationalReadinessScriptNoWebPushHelperProbe },
     { testDeploy: testDeployNoBootstrapProvisionCall },
+    { prodDeploy: prodDeployNoC4Readiness },
+    { prodDeploy: prodDeployCallsProvision },
+    { hostDeployReadme: hostDeployReadmeNoOneTimeC4 },
     { testDeploy: testDeployWrongPostMatrixOrder },
     { testDeploy: testDeployNoUnitEnvGate },
     { testDeploy: testDeployNoFiveContourOutput },
