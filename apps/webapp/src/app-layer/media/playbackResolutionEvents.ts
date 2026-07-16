@@ -1,5 +1,5 @@
 import { logger } from "@/app-layer/logging/logger";
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { insertPlaybackResolutionEvent } from "@/infra/repos/pgPlaybackResolutionEvents";
 import type { PlaybackStatDelivery } from "@/app-layer/media/playbackStatsHourly";
 
 const UUID =
@@ -15,10 +15,7 @@ export async function recordPlaybackResolutionEvent(input: {
   if (!UUID.test(input.userId) || !UUID.test(input.mediaId)) return;
 
   try {
-    await runWebappPgText(
-      "SELECT app.record_media_playback_resolution_event($1::uuid, $2::uuid, $3, $4)",
-      [input.userId, input.mediaId, input.delivery, input.fallbackUsed],
-    );
+    await insertPlaybackResolutionEvent(input);
   } catch (e) {
     logger.error({ err: e, mediaId: input.mediaId }, "playback_resolution_event_write_failed");
   }

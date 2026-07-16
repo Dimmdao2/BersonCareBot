@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { runWebappPgTextMock, loggerErrorMock } = vi.hoisted(() => ({
-  runWebappPgTextMock: vi.fn(() => Promise.resolve({ rows: [] })),
+const { insertPlaybackResolutionEventMock, loggerErrorMock } = vi.hoisted(() => ({
+  insertPlaybackResolutionEventMock: vi.fn(() => Promise.resolve()),
   loggerErrorMock: vi.fn(),
 }));
 
-vi.mock("@/infra/db/runWebappSql", () => ({
-  runWebappPgText: runWebappPgTextMock,
+vi.mock("@/infra/repos/pgPlaybackResolutionEvents", () => ({
+  insertPlaybackResolutionEvent: insertPlaybackResolutionEventMock,
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({
@@ -20,9 +20,9 @@ const mid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 describe("recordPlaybackResolutionEvent", () => {
   beforeEach(() => {
-    runWebappPgTextMock.mockReset();
+    insertPlaybackResolutionEventMock.mockReset();
     loggerErrorMock.mockReset();
-    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    insertPlaybackResolutionEventMock.mockResolvedValue(undefined);
   });
 
   it("skips invalid ids", async () => {
@@ -32,7 +32,7 @@ describe("recordPlaybackResolutionEvent", () => {
       delivery: "mp4",
       fallbackUsed: false,
     });
-    expect(runWebappPgTextMock).not.toHaveBeenCalled();
+    expect(insertPlaybackResolutionEventMock).not.toHaveBeenCalled();
   });
 
   it("records valid ids through the narrow playback telemetry accessor", async () => {
@@ -42,15 +42,17 @@ describe("recordPlaybackResolutionEvent", () => {
       delivery: "hls",
       fallbackUsed: true,
     });
-    expect(runWebappPgTextMock).toHaveBeenCalledWith(
-      "SELECT app.record_media_playback_resolution_event($1::uuid, $2::uuid, $3, $4)",
-      [uid, mid, "hls", true],
-    );
+    expect(insertPlaybackResolutionEventMock).toHaveBeenCalledWith({
+      userId: uid,
+      mediaId: mid,
+      delivery: "hls",
+      fallbackUsed: true,
+    });
   });
 
   it("logs and swallows accessor errors", async () => {
     const err = new Error("db_down");
-    runWebappPgTextMock.mockRejectedValue(err);
+    insertPlaybackResolutionEventMock.mockRejectedValue(err);
     await expect(
       recordPlaybackResolutionEvent({
         userId: uid,
