@@ -17,6 +17,8 @@ const files = {
   presignTtl: "apps/webapp/src/app-layer/media/videoPresignTtl.ts",
   operationContext: "apps/webapp/src/infra/db/saasIsolationOperationContext.ts",
   pgRuntime: "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
+  poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
+  poolProviderTest: "apps/webapp/src/infra/db/webappPoolProvider.test.ts",
   diagnostics: "apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts",
   deploy: "deploy/host/deploy-test-saas.sh",
   journal: "apps/webapp/db/drizzle-migrations/meta/_journal.json",
@@ -117,6 +119,19 @@ function runChecks(overrides = {}) {
     'runWithDbBootstrapPrincipal({ source: "webapp-server-runtime-config" }',
     "input.allowGlobalFallback !== false",
   ]);
+  requireText(files.poolProvider, loaded.poolProvider, [
+    'getCurrentWebappDbOperationFamily() ?? "webapp_db_request"',
+    "sourceOperation: currentWebappDbSourceOperation()",
+  ]);
+  forbidText(files.poolProvider, loaded.poolProvider, [
+    'sourceOperation: "webapp_db_request"',
+  ]);
+  requireText(files.poolProviderTest, loaded.poolProviderTest, [
+    'runWithWebappDbOperationFamily("public_booking_config"',
+    '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    'sourceOperation: "webapp_db_request"',
+    "sourceOperation: family",
+  ]);
   requireText(files.phoneStart, loaded.phoneStart, [
     'getPublicRuntimeBool("public_sms_fallback_enabled")',
   ]);
@@ -160,6 +175,7 @@ if (process.argv.includes("--self-test")) {
     ["operation attribution", { operationContext: read(files.operationContext).replace('  | "public_booking_config";', ";") }],
     ["public accessor", { pgRuntime: read(files.pgRuntime).replace("FROM app.read_public_runtime_setting($1, $2)", "FROM public.app_runtime_settings") }],
     ["server accessor", { pgRuntime: read(files.pgRuntime).replace("FROM app.read_webapp_server_runtime_setting($1, $2)", "FROM public.app_runtime_settings") }],
+    ["pool operation attribution", { poolProvider: read(files.poolProvider).replace('getCurrentWebappDbOperationFamily() ?? "webapp_db_request"', '"webapp_db_request"') }],
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],

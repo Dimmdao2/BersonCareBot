@@ -14,6 +14,7 @@ import {
   getWebappPoolRoutingMetrics,
 } from "@/infra/db/webappPoolProvider";
 import { createSaasIsolationTelemetryPoolProvider } from "@/infra/db/saasIsolationTelemetryPoolProvider";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 const { reportSaasIsolationEventBestEffortMock } = vi.hoisted(() => ({
   reportSaasIsolationEventBestEffortMock: vi.fn(async () => undefined),
@@ -270,13 +271,15 @@ describe("webapp pool provider", () => {
     });
     const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
 
-    await expect(pool.query("SELECT ok")).rejects.toBe(cleanupError);
+    await expect(
+      runWithWebappDbOperationFamily("public_booking_config", () => pool.query("SELECT ok")),
+    ).rejects.toBe(cleanupError);
 
     expect(pools[0]?.clients[0]?.release).toHaveBeenCalledWith(cleanupError);
     expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
       eventClass: "cleanup_failure",
       sourceService: "webapp",
-      sourceOperation: "webapp_db_request",
+      sourceOperation: "public_booking_config",
     });
   });
 
@@ -301,6 +304,32 @@ describe("webapp pool provider", () => {
     expect(JSON.stringify(reportSaasIsolationEventBestEffortMock.mock.calls)).not.toContain("private");
   });
 
+  it.each([
+    "public_auth_config",
+    "patient_runtime_config",
+    "public_booking_config",
+  ] as const)("preserves the %s operation family through an async pool query failure", async (family) => {
+    const rlsError = Object.assign(
+      new Error("new row violates row-level security policy for table projected"),
+      { code: "42501" },
+    );
+    const { factory } = createFakePoolFactory(async (sql: string) => {
+      if (sql === "SELECT projected_config") throw rlsError;
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+
+    await expect(
+      runWithWebappDbOperationFamily(family, () => pool.query("SELECT projected_config")),
+    ).rejects.toBe(rlsError);
+
+    expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
+      eventClass: "rls_denial",
+      sourceService: "webapp",
+      sourceOperation: family,
+    });
+  });
+
   it("classifies an injected signed-principal install failure", async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
     process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
@@ -315,15 +344,17 @@ describe("webapp pool provider", () => {
     const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
 
     await expect(
-      runWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID }, () =>
-        pool.query("SELECT tenant_data"),
+      runWithWebappDbOperationFamily("patient_runtime_config", () =>
+        runWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID }, () =>
+          pool.query("SELECT tenant_data"),
+        ),
       ),
     ).rejects.toBe(installError);
 
     expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
       eventClass: "invalid_signature_or_install",
       sourceService: "webapp",
-      sourceOperation: "webapp_db_request",
+      sourceOperation: "patient_runtime_config",
     });
   });
 });

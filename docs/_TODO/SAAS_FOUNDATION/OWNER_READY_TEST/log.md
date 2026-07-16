@@ -468,3 +468,6 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   absence of a global booking projection and exact organization booking. Targeted Vitest `8 files / 42 tests`,
   webapp typecheck/ESLint, E1 checker+self-test, full SaaS DB regression and hard/isolation/D3.4 gates PASS. No live
   TEST mutation and no full application CI.
+- Pool-level missing/setup/query/cleanup reports now resolve the E1 AsyncLocalStorage operation family at the actual
+  failure site. Tests pin all three bounded families through an asynchronous pool failure, setup and cleanup paths,
+  while an unwrapped query remains attributed to `webapp_db_request`.
