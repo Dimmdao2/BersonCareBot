@@ -168,11 +168,17 @@ function runChecks(overrides = {}) {
     '"--self-test"',
   ]);
   requireText(files.migrateWrapper, loaded.migrateWrapper, [
-    "sanitizeMigrationFailureOutput", "Sanitized underlying diagnostics",
-    'query: [redacted]', 'params: [redacted]', "result.error?.message",
+    "classifyMigrationFailureOutput", "renderMigrationFailureDiagnostic",
+    "OBJECT_CONFLICT_SQLSTATES", "SCHEMA_MISMATCH_SQLSTATES",
+    "role_membership_required", "permission_denied", "migration_failed",
+    'sqlstate=${diagnostic.sqlstate ?? "unknown"}', "result.error?.message",
+    "console.error(diagnostic);",
     'process.argv.includes("--self-test")',
   ]);
-  forbidText(files.migrateWrapper, loaded.migrateWrapper, ['stdio: "inherit"']);
+  forbidText(files.migrateWrapper, loaded.migrateWrapper, [
+    'stdio: "inherit"', "sanitizeMigrationFailureOutput", "Sanitized underlying diagnostics",
+    "console.error(`[migrate] ${line}`)",
+  ]);
   requireText(files.packageJson, loaded.packageJson, [
     "node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test",
   ]);
@@ -194,7 +200,7 @@ if (process.argv.includes("--self-test")) {
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
-    ["migration diagnostics redaction", { migrateWrapper: read(files.migrateWrapper).replace('query: [redacted]', 'query: raw') }],
+    ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],
   ];
   let detected = 0;
   const missed = [];

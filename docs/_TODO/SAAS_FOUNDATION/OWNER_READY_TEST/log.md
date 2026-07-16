@@ -485,6 +485,7 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
 - The PostgreSQL 16 scratch now executes 0185/0186/0193 as a non-superuser database owner with temporary BYPASSRLS,
   explicitly proves it is not an `app_owner` member, then applies the runtime ACL phase separately as postgres.
   The proof passes. No manual TEST mutation, service action or PROD access was performed.
-- The Drizzle wrapper now captures failed child output and emits only bounded sanitized error/SQLSTATE diagnostics;
-  SQL/query values, parameters, DB URLs, tokens, email and phone-shaped values are redacted. Its self-test, E1
-  checker/mutations, webapp typecheck, full SaaS DB regression and hard-protocol family pass.
+- The Drizzle wrapper now classifies failed child output internally and emits only a fixed allowlisted reason enum
+  plus a validated labeled SQLSTATE. It never forwards child message/detail/query/params/stack or other original
+  text. Adversarial self-tests cover URLs/paths, bearer/JWT/token material, signed/plain phone shapes, UUIDs, email,
+  query values and stack text. E1 checker/mutations, webapp typecheck, SaaS DB regression and hard gates pass.
