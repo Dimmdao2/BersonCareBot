@@ -535,13 +535,47 @@ assert_api_runtime_can_read_migration_ledger(){
 }
 
 grant_webapp_bootstrap_base_login_d3_4(){
-  local role_name media_worker_role staff_role
+  local role_name media_worker_role staff_role migrator_role api_runtime_role
+  local diagnostic_role delivery_worker_role scheduler_role operator_role role_safe protected_role
   role_name="$(discover_webapp_bootstrap_base_role)"
   media_worker_role="$(discover_media_worker_runtime_role)"
   staff_role="$(discover_webapp_staff_runtime_role)"
+  migrator_role="$(discover_webapp_migrator_role)"
+  api_runtime_role="$(discover_api_runtime_role)"
+  diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
+  delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
+  scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
+  operator_role="$(discover_saas_isolation_operator_role)"
   validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
   validate_pg_identifier "webapp.test media-worker DATABASE_URL role" "$media_worker_role"
   validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$staff_role"
+  [ "$role_name" != "$staff_role" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases staff role '$staff_role'; refusing D3.4 mutation" >&2
+    exit 1
+  }
+  [ "$role_name" != "$media_worker_role" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases media role '$media_worker_role'; refusing D3.4 mutation" >&2
+    exit 1
+  }
+  for protected_role in \
+    "$migrator_role" \
+    "$api_runtime_role" \
+    "$diagnostic_role" \
+    "$delivery_worker_role" \
+    "$scheduler_role" \
+    "$operator_role" \
+    "$DBROLE" \
+    app_owner app_staff app_patient app_worker; do
+    [ "$role_name" != "$protected_role" ] || {
+      echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases protected role '$protected_role'; refusing D3.4 mutation" >&2
+      exit 1
+    }
+  done
+  role_safe="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -qAt -c "SELECT (count(*) = 1 AND bool_and(rolcanlogin AND NOT rolsuper))::int FROM pg_roles WHERE rolname = '$role_name';")"
+  [ "$role_safe" = "1" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' is not a unique LOGIN NOSUPERUSER role; refusing D3.4 mutation" >&2
+    exit 1
+  }
   sudo -u deploy test -r "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" || {
     echo "FATAL: deploy cannot read SQL file: $DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" >&2
     exit 1

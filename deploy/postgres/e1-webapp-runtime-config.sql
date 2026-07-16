@@ -19,6 +19,10 @@ REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
   FROM PUBLIC, app_patient, app_staff;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.read_public_runtime_setting(text, text),
+  app.read_webapp_server_runtime_setting(text, text)
+  FROM :"e1_webapp_runtime_role" CASCADE;
 GRANT USAGE ON SCHEMA app TO :"e1_webapp_runtime_role";
 GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)
   TO :"e1_webapp_runtime_role";
@@ -69,6 +73,22 @@ SELECT 1 / (
     :'e1_webapp_runtime_role',
     'app.read_webapp_server_runtime_setting(text,text)',
     'EXECUTE'
+  )
+  AND 2 = (
+    SELECT count(*)
+    FROM pg_proc procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) privilege
+    WHERE procedure.oid IN (
+        'app.read_public_runtime_setting(text,text)'::regprocedure,
+        'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+      )
+      AND privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = (
+        SELECT oid FROM pg_roles WHERE rolname = :'e1_webapp_runtime_role'
+      )
+      AND NOT privilege.is_grantable
   )
   AND NOT has_function_privilege(
     'app_patient',

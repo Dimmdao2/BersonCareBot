@@ -223,6 +223,40 @@ GRANT app_patient TO :"d3_4_bootstrap_base_role"
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"d3_4_bootstrap_base_role";
 
+-- Rebuild the two E1 accessor ACLs from an exact closed set. REVOKE on the base first
+-- removes any stale WITH GRANT OPTION before the plain EXECUTE grant is restored.
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_public_runtime_setting(text, text)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;
+SELECT format(
+  'REVOKE ALL PRIVILEGES ON FUNCTION %s FROM %I CASCADE',
+  procedure.oid::regprocedure,
+  pg_get_userbyid(privilege.grantee)
+)
+FROM pg_proc procedure
+CROSS JOIN LATERAL aclexplode(
+  COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+) privilege
+WHERE procedure.oid IN (
+    'app.read_public_runtime_setting(text,text)'::regprocedure,
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+  )
+  AND privilege.privilege_type = 'EXECUTE'
+  AND privilege.grantee NOT IN (
+    0,
+    procedure.proowner,
+    (SELECT oid FROM pg_roles WHERE rolname = :'d3_4_bootstrap_base_role')
+  )
+ORDER BY procedure.oid::regprocedure::text, privilege.grantee
+\gexec
+GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)
+  TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  TO :"d3_4_bootstrap_base_role";
+
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
 GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
@@ -402,15 +436,18 @@ SELECT 1 / (
     ) privilege
     WHERE privilege.privilege_type = 'EXECUTE'
       AND privilege.grantee = bootstrap_role.oid
+      AND NOT privilege.is_grantable
   )
   AND NOT EXISTS (
     SELECT 1
     FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
     CROSS JOIN LATERAL aclexplode(
       COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
     ) privilege
-    WHERE privilege.privilege_type = 'EXECUTE'
-      AND privilege.grantee = 0
+    WHERE privilege.privilege_type <> 'EXECUTE'
+      OR privilege.is_grantable
+      OR privilege.grantee NOT IN (accessor.proowner, bootstrap_role.oid)
   )
 )::int AS d3_4_bootstrap_base_role_exact_topology_verified;
 

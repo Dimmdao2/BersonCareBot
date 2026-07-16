@@ -181,6 +181,13 @@ function runChecks(overrides = {}) {
     "AND NOT rolcreaterole",
     "AND NOT rolreplication",
     "privilege.grantee = bootstrap_role.oid",
+    "REVOKE ALL PRIVILEGES ON FUNCTION",
+    "FROM :\"d3_4_bootstrap_base_role\" CASCADE;",
+    "FROM %I CASCADE",
+    "procedure.oid::regprocedure",
+    "privilege.grantee NOT IN (",
+    "AND NOT privilege.is_grantable",
+    "OR privilege.is_grantable",
     "d3_4_bootstrap_base_role_exact_topology_verified",
     "'app.read_public_runtime_setting(text,text)'::regprocedure",
     "'app.read_webapp_server_runtime_setting(text,text)'::regprocedure",
@@ -446,6 +453,11 @@ function runChecks(overrides = {}) {
     "mixedRole",
     "siblingOperationalRole",
     "psqlExpectFailure",
+    "psqlProveGrantDenied",
+    "psqlProveGrantDenied(dbName, bootstrapIdent)",
+    "WITH GRANT OPTION",
+    "TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};",
+    "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
     "app.staff_user_has_password_credentials(uuid)",
     "app.release_principal_context()",
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
@@ -512,6 +524,26 @@ function runChecks(overrides = {}) {
     "-f \"$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS\"",
     "[ -r \"$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS\" ]",
     "grant_webapp_bootstrap_base_login_d3_4",
+    '[ "$role_name" != "$staff_role" ]',
+    '[ "$role_name" != "$media_worker_role" ]',
+    'role_safe="$(sudo -u postgres psql',
+    "aliases protected role",
+    "refusing D3.4 mutation",
+  ]);
+  const d34Installer = extractBashFunction(
+    loaded.testDeploySaas,
+    "grant_webapp_bootstrap_base_login_d3_4",
+  );
+  requireOrderedFragments(`${files.testDeploySaas} D3.4 identity preflight`, d34Installer, [
+    'role_name="$(discover_webapp_bootstrap_base_role)"',
+    'media_worker_role="$(discover_media_worker_runtime_role)"',
+    'staff_role="$(discover_webapp_staff_runtime_role)"',
+    '[ "$role_name" != "$staff_role" ]',
+    '[ "$role_name" != "$media_worker_role" ]',
+    'role_safe="$(sudo -u postgres psql',
+    '[ "$role_safe" = "1" ]',
+    'sudo -u postgres psql -d "$DB"',
+    '-f "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS"',
   ]);
   const wallInstaller = extractBashFunction(
     loaded.testDeploySaas,
@@ -602,6 +634,10 @@ function runChecks(overrides = {}) {
     "the separate staff-pool login is not passed to or changed",
     "effective reads of both `public.system_settings` and `public.app_runtime_settings`",
     "`SET ROLE app_patient` lifecycle",
+    "reject any equality with the nonstaff login",
+    "before `psql -f`",
+    "including stale\n  grant options",
+    "`is_grantable=false`",
   ]);
   assertPackageScript(loaded.packageJson);
 }
@@ -687,6 +723,12 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         "'public.system_settings', 'SELECT'",
         "'public.system_settings', 'UPDATE'",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "AND NOT privilege.is_grantable",
+        "AND privilege.is_grantable",
       ),
     },
     {
@@ -798,6 +840,30 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replaceAll(
+        "TO ${bootstrapIdent} WITH GRANT OPTION;",
+        "TO ${bootstrapIdent};",
+      ),
+    },
+    {
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replaceAll(
+        "TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};",
+        "TO ${staffIdent};",
+      ),
+    },
+    {
+      testDeploySaas: read(files.testDeploySaas).replace(
+        '[ "$role_name" != "$staff_role" ]',
+        "true",
+      ),
+    },
+    {
+      testDeploySaas: read(files.testDeploySaas).replace(
+        '[ "$role_name" != "$media_worker_role" ]',
+        "true",
+      ),
+    },
+    {
       testDeploySaas: read(files.testDeploySaas).replace(
         'log "strict closure: roles + grants"\n  install_p0_5b_runtime_wall',
         'log "strict closure: roles + grants removed by self-test"',
@@ -825,6 +891,12 @@ if (process.argv.includes("--self-test")) {
       hardProtocol: read(files.hardProtocol).replace(
         "remove every unexpected direct membership",
         "preserve every unexpected direct membership",
+      ),
+    },
+    {
+      hardProtocol: read(files.hardProtocol).replace(
+        "reject any equality with the nonstaff login",
+        "accept equality with the nonstaff login",
       ),
     },
   ];

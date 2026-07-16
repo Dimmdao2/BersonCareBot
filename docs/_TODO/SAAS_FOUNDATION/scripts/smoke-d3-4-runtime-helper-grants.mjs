@@ -76,6 +76,24 @@ function psqlExpectFailure(database, sql) {
   }
 }
 
+function psqlProveGrantDenied(database, roleIdent) {
+  psql(database, `
+    SET SESSION AUTHORIZATION ${roleIdent};
+    GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;
+    RESET SESSION AUTHORIZATION;
+    SELECT 1 / (NOT EXISTS (
+      SELECT 1
+      FROM pg_proc procedure
+      CROSS JOIN LATERAL aclexplode(
+        COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+      ) privilege
+      WHERE procedure.oid = 'app.read_public_runtime_setting(text,text)'::regprocedure
+        AND privilege.grantee = 0
+        AND privilege.privilege_type = 'EXECUTE'
+    ))::int;
+  `);
+}
+
 const bootstrapIdent = quoteIdent(bootstrapRole);
 const intermediaryIdent = quoteIdent(intermediaryRole);
 const mediaIdent = quoteIdent(mediaRole);
@@ -119,6 +137,10 @@ const functionSignatures = [...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
     "app.reset_principal_context()",
   ])
+  .filter((signature) => ![
+    "app.read_public_runtime_setting(text, text)",
+    "app.read_webapp_server_runtime_setting(text, text)",
+  ].includes(signature))
   .filter((signature, index, all) => all.indexOf(signature) === index);
 const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
   .map((match) => match[1])
@@ -165,11 +187,16 @@ const setupSql = [
     AS $$ SELECT '{"value":120}'::jsonb $$;`,
   "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;",
   "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;",
-  `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${bootstrapIdent};`,
-  `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${bootstrapIdent};`,
-  `GRANT USAGE ON SCHEMA app TO ${staffIdent}, ${patientIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
+  `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
+  `GRANT USAGE ON SCHEMA app TO ${bootstrapIdent}, ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
+  `SET SESSION AUTHORIZATION ${bootstrapIdent};`,
+  "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
+  "RESET SESSION AUTHORIZATION;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO ${patientIdent};`,
@@ -310,6 +337,17 @@ SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.app_
 SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.system_settings', 'SELECT'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_public_runtime_setting(text,text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_webapp_server_runtime_setting(text,text)', 'EXECUTE')::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_proc procedure
+  CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+  WHERE procedure.oid IN (
+    'app.read_public_runtime_setting(text,text)'::regprocedure,
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+  )
+    AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = ${quoteLiteral(bootstrapRole)})
+    AND privilege.is_grantable
+))::int;
 SET SESSION AUTHORIZATION ${bootstrapIdent};
 SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin')) = '{"value":true}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin')) = '{"value":120}'::jsonb)::int;
@@ -390,6 +428,7 @@ try {
   psqlExpectFailure(dbName, malformedShapeSql(c4UnrelatedRole));
   psqlExpectFailure(dbName, malformedShapeSql(mixedRole));
   psqlExpectFailure(dbName, malformedShapeSql(siblingOperationalRole));
+  psqlProveGrantDenied(dbName, bootstrapIdent);
   psql(dbName, proofSql);
   process.stdout.write("smoke-d3-4-runtime-helper-grants: OK\n");
 } finally {
