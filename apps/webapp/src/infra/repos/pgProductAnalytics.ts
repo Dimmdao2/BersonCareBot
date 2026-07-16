@@ -1,4 +1,5 @@
 import { and, eq, gte, inArray, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
@@ -35,6 +36,8 @@ import {
   productPushNotifications,
 } from "../../../db/schema/productAnalytics";
 import { platformUsers } from "../../../db/schema/schema";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
   return normalizeTestAccountIdentifiersValue(
@@ -55,8 +58,8 @@ function retentionCutoffIso(days: number): string {
 }
 
 async function upsertHourlyCount(
-  db: ReturnType<typeof getDrizzle>,
   event: ProductAnalyticsIngestEvent,
+  organizationId: string | null,
   increment = 1,
 ) {
   const occurredAt = event.occurredAt ?? new Date().toISOString();
@@ -64,37 +67,21 @@ async function upsertHourlyCount(
   const dims = hourlyDimsFromEvent(event);
   const now = new Date().toISOString();
 
-  await db
-    .insert(productAnalyticsHourly)
-    .values({
-      bucketHour,
-      eventType: event.eventType,
-      entryChannel: dims.entryChannel,
-      pageKey: dims.pageKey,
-      topicCode: dims.topicCode,
-      pushKind: dims.pushKind,
-      warmupSloganKey: dims.warmupSloganKey,
-      eventCount: increment,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        productAnalyticsHourly.bucketHour,
-        productAnalyticsHourly.eventType,
-        productAnalyticsHourly.entryChannel,
-        productAnalyticsHourly.pageKey,
-        productAnalyticsHourly.topicCode,
-        productAnalyticsHourly.pushKind,
-        productAnalyticsHourly.warmupSloganKey,
-      ],
-      set: {
-        eventCount: sql`${productAnalyticsHourly.eventCount} + ${increment}`,
-        updatedAt: now,
-      },
-    });
+  const conflict = organizationId
+    ? `(organization_id,bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key) WHERE organization_id IS NOT NULL`
+    : `(bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key) WHERE organization_id IS NULL`;
+  await runWebappPgText(
+    `INSERT INTO product_analytics_hourly(
+       organization_id,bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key,event_count,updated_at
+     ) VALUES ($1::uuid,$2::timestamptz,$3,$4,$5,$6,$7,$8,$9,$10::timestamptz)
+     ON CONFLICT ${conflict} DO UPDATE SET
+       event_count=product_analytics_hourly.event_count+EXCLUDED.event_count,
+       updated_at=EXCLUDED.updated_at`,
+    [organizationId,bucketHour,event.eventType,dims.entryChannel,dims.pageKey,dims.topicCode,dims.pushKind,dims.warmupSloganKey,increment,now],
+  );
 }
 
-async function upsertUserHourly(db: ReturnType<typeof getDrizzle>, event: ProductAnalyticsIngestEvent) {
+async function upsertUserHourly(event: ProductAnalyticsIngestEvent, organizationId: string | null) {
   if (!shouldUpdateUserHourly(event) || !event.userId) return;
 
   const occurredAt = event.occurredAt ?? new Date().toISOString();
@@ -103,44 +90,32 @@ async function upsertUserHourly(db: ReturnType<typeof getDrizzle>, event: Produc
   const delta = userHourlyDeltaFromEvent(event);
   const now = new Date().toISOString();
 
-  await db
-    .insert(productAnalyticsUserHourly)
-    .values({
-      bucketHour,
-      userId: event.userId,
-      entryChannel: event.entryChannel,
-      pageKey,
-      appOpens: delta.appOpens,
-      pageViews: delta.pageViews,
-      pushOpens: delta.pushOpens,
-      activeMinutes: delta.activeMinutes,
-      lastSeenAt: occurredAt,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        productAnalyticsUserHourly.bucketHour,
-        productAnalyticsUserHourly.userId,
-        productAnalyticsUserHourly.entryChannel,
-        productAnalyticsUserHourly.pageKey,
-      ],
-      set: {
-        appOpens: sql`${productAnalyticsUserHourly.appOpens} + ${delta.appOpens}`,
-        pageViews: sql`${productAnalyticsUserHourly.pageViews} + ${delta.pageViews}`,
-        pushOpens: sql`${productAnalyticsUserHourly.pushOpens} + ${delta.pushOpens}`,
-        activeMinutes: sql`${productAnalyticsUserHourly.activeMinutes} + ${delta.activeMinutes}`,
-        lastSeenAt: occurredAt,
-        updatedAt: now,
-      },
-    });
+  const conflict = organizationId
+    ? `(organization_id,bucket_hour,user_id,entry_channel,page_key) WHERE organization_id IS NOT NULL`
+    : `(bucket_hour,user_id,entry_channel,page_key) WHERE organization_id IS NULL`;
+  await runWebappPgText(
+    `INSERT INTO product_analytics_user_hourly(
+       organization_id,bucket_hour,user_id,entry_channel,page_key,app_opens,page_views,push_opens,active_minutes,last_seen_at,updated_at
+     ) VALUES ($1::uuid,$2::timestamptz,$3::uuid,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::timestamptz)
+     ON CONFLICT ${conflict} DO UPDATE SET
+       app_opens=product_analytics_user_hourly.app_opens+EXCLUDED.app_opens,
+       page_views=product_analytics_user_hourly.page_views+EXCLUDED.page_views,
+       push_opens=product_analytics_user_hourly.push_opens+EXCLUDED.push_opens,
+       active_minutes=product_analytics_user_hourly.active_minutes+EXCLUDED.active_minutes,
+       last_seen_at=GREATEST(product_analytics_user_hourly.last_seen_at,EXCLUDED.last_seen_at),
+       updated_at=EXCLUDED.updated_at`,
+    [organizationId,bucketHour,event.userId,event.entryChannel,pageKey,delta.appOpens,delta.pageViews,delta.pushOpens,delta.activeMinutes,occurredAt,now],
+  );
 }
 
 async function insertRecent(
   db: ReturnType<typeof getDrizzle>,
   event: ProductAnalyticsIngestEvent,
+  organizationId: string | null,
 ): Promise<boolean> {
   const occurredAt = event.occurredAt ?? new Date().toISOString();
   const base = {
+    organizationId,
     occurredAt,
     eventType: event.eventType,
     entryChannel: event.entryChannel,
@@ -168,12 +143,41 @@ async function insertRecent(
 export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
   return {
     async recordEventsBatch(events) {
+      const principal = getCurrentDbPrincipal();
+      if (principal?.kind === "patient") {
+        for (const event of events) {
+          if (event.userId !== principal.platformUserId) {
+            throw new Error("patient_analytics_principal_mismatch");
+          }
+          const occurredAt = event.occurredAt ?? new Date().toISOString();
+          const result = await runWithWebappDbOperationFamily("patient_product_analytics", () =>
+            runWebappPgText<{ recorded: boolean }>(
+              `SELECT app.record_current_patient_analytics_event(
+                 $1::timestamptz, $2::text, $3::text, $4::text, $5::text, $6::jsonb
+               ) AS recorded`,
+              [
+                occurredAt,
+                event.eventType,
+                event.entryChannel,
+                event.pageKey ?? null,
+                event.clientSessionId ?? null,
+                JSON.stringify(event.metadata ?? {}),
+              ],
+            ),
+          );
+          if (result.rows[0]?.recorded !== true) {
+            throw new Error("patient_analytics_event_rejected");
+          }
+        }
+        return;
+      }
       const db = getDrizzle();
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
       for (const event of events) {
-        const inserted = await insertRecent(db, event);
+        const inserted = await insertRecent(db, event, organizationId);
         if (!inserted) continue;
-        await upsertHourlyCount(db, event);
-        await upsertUserHourly(db, event);
+        await upsertHourlyCount(event, organizationId);
+        await upsertUserHourly(event, organizationId);
       }
     },
 
@@ -182,6 +186,7 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       const createdAt = row.createdAt ?? new Date().toISOString();
       await db.insert(productPushNotifications).values({
         id: row.id,
+        organizationId: getCurrentDbPrincipalOrganizationId() ?? null,
         userId: row.userId,
         topicCode: row.topicCode ?? null,
         intentType: row.intentType ?? null,
@@ -193,17 +198,40 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         title: row.title ?? null,
         createdAt,
       });
-      await upsertHourlyCount(db, {
+      await upsertHourlyCount({
         eventType: "push_sent",
         entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent["entryChannel"],
         occurredAt: createdAt,
         topicCode: row.topicCode ?? null,
         pushKind: row.pushKind ?? null,
         warmupSloganKey: row.warmupSloganKey ?? null,
-      });
+      }, getCurrentDbPrincipalOrganizationId() ?? null);
     },
 
     async recordPushOpen(input: RecordPushOpenInput) {
+      const principal = getCurrentDbPrincipal();
+      if (principal?.kind === "patient") {
+        if (input.userId && input.userId !== principal.platformUserId) {
+          throw new Error("patient_analytics_principal_mismatch");
+        }
+        const result = await runWithWebappDbOperationFamily("patient_product_analytics", () =>
+          runWebappPgText<{ recorded: boolean; deduped: boolean }>(
+            `SELECT recorded, deduped
+             FROM app.record_current_patient_push_open($1::timestamptz, $2::text, $3::uuid)`,
+            [
+              input.occurredAt ?? new Date().toISOString(),
+              input.entryChannel ?? "pwa",
+              input.pushTrackingId,
+            ],
+          ),
+        );
+        const outcome = result.rows[0];
+        if (outcome?.recorded !== true) {
+          throw new Error("patient_push_open_rejected");
+        }
+        return { deduped: outcome.deduped };
+      }
+
       const db = getDrizzle();
       const [push] = await db
         .select({
@@ -227,12 +255,13 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
         warmupSloganKey: push?.warmupSloganKey ?? null,
       };
 
-      const inserted = await insertRecent(db, event);
+      const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+      const inserted = await insertRecent(db, event, organizationId);
       if (!inserted) {
         return { deduped: true };
       }
-      await upsertHourlyCount(db, event);
-      await upsertUserHourly(db, event);
+      await upsertHourlyCount(event, organizationId);
+      await upsertUserHourly(event, organizationId);
       return { deduped: false };
     },
 

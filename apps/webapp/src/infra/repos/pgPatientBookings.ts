@@ -359,51 +359,21 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async listUpcomingByUser(userId, nowIso) {
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings
-       WHERE platform_user_id = $1
-         AND cancelled_at IS NULL
-         AND status IN ('creating', 'awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
-         AND slot_start >= $2::timestamptz
-         AND NOT (
-           status = 'creating'
-           AND rubitime_id IS NULL
-           AND canonical_appointment_id IS NULL
-         )
-         AND NOT (
-           status = 'creating'
-           AND EXISTS (
-             SELECT 1
-             FROM patient_bookings newer
-             WHERE newer.platform_user_id = patient_bookings.platform_user_id
-               AND newer.id <> patient_bookings.id
-               AND newer.status IN ('awaiting_payment', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
-               AND newer.slot_start = patient_bookings.slot_start
-               AND newer.slot_end = patient_bookings.slot_end
-               AND COALESCE(newer.branch_service_id::text, '') = COALESCE(patient_bookings.branch_service_id::text, '')
-               AND COALESCE(newer.booking_type, '') = COALESCE(patient_bookings.booking_type, '')
-               AND COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')
-           )
-         )
-       ORDER BY slot_start ASC, created_at DESC`,
-      [userId, nowIso],
+    void userId;
+    const result = await runWebappPgText<{ booking: Row }>(
+      `SELECT booking FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`,
+      [nowIso],
     );
-    return result.rows.map(mapRow);
+    return result.rows.map((row) => mapRow(row.booking));
   },
 
   async listHistoryByUser(userId, nowIso) {
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings
-       WHERE platform_user_id = $1
-         AND (
-           slot_start < $2::timestamptz
-           OR status IN ('cancelled', 'completed', 'no_show', 'failed_sync')
-         )
-       ORDER BY slot_start DESC
-       LIMIT 100`,
-      [userId, nowIso],
+    void userId;
+    const result = await runWebappPgText<{ booking: Row }>(
+      `SELECT booking FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`,
+      [nowIso],
     );
-    return result.rows.map(mapRow);
+    return result.rows.map((row) => mapRow(row.booking));
   },
 };
 

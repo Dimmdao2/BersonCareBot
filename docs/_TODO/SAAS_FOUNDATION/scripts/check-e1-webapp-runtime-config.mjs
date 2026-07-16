@@ -5,6 +5,10 @@ const files = {
   migration: "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
   identityMigration: "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
   historyMigration: "apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql",
+  planOpenedMigration: "apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql",
+  visibleCatalogMigration: "apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql",
+  bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
+  productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
   adapter: "apps/webapp/src/modules/system-settings/configAdapter.ts",
@@ -21,6 +25,9 @@ const files = {
   pgRuntime: "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
   pgSystemSettings: "apps/webapp/src/infra/repos/pgSystemSettings.ts",
   pgMaintenanceHistory: "apps/webapp/src/infra/repos/pgPatientMaintenanceHistory.ts",
+  pgPatientBookings: "apps/webapp/src/infra/repos/pgPatientBookings.ts",
+  pgTreatmentProgramInstance: "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
+  pgProductAnalytics: "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
   patientLayout: "apps/webapp/src/app/app/patient/layout.tsx",
   smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-e1-webapp-runtime-config.mjs",
   poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
@@ -31,6 +38,9 @@ const files = {
   dbRegression: "scripts/check-saas-db-regression.mjs",
   migrateWrapper: "apps/webapp/scripts/run-webapp-drizzle-migrate.mjs",
   packageJson: "package.json",
+  p05bGenerator: "docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs",
+  p05bOverlay: "deploy/postgres/p0-5b-grants.sql",
+  capabilityRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs",
 };
 
 function read(path) { return readFileSync(path, "utf8"); }
@@ -115,9 +125,66 @@ function runChecks(overrides = {}) {
   forbidText(files.historyMigration, loaded.historyMigration, [
     "OWNER TO app_owner", "TO app_patient", "p_organization_id", "p_patient_user_id",
   ]);
+  requireText(files.planOpenedMigration, loaded.planOpenedMigration, [
+    "app.touch_current_patient_plan_last_opened(uuid)", "SECURITY DEFINER",
+    "app.current_org_id()", "app.current_patient_user_id()", "enrollment.status = 'active'",
+    "instance.organization_id = v_organization_id", "instance.patient_user_id = v_patient_user_id",
+    "REVOKE ALL ON FUNCTION app.touch_current_patient_plan_last_opened(uuid) FROM PUBLIC",
+  ]);
+  requireText(files.bookingRowsMigration, loaded.bookingRowsMigration, [
+    "app.read_current_patient_booking_rows", "RETURNS TABLE (booking jsonb)", "SECURITY DEFINER",
+    "app.current_org_id()", "app.current_patient_user_id()", "enrollment.status = 'active'",
+    "appointment.organization_id = v_org", "appointment.platform_user_id = v_patient",
+    "LIMIT 100", "jsonb_build_object(",
+  ]);
+  forbidText(files.bookingRowsMigration, loaded.bookingRowsMigration, [
+    "RETURNS SETOF", "SELECT * FROM public.patient_bookings", "p_organization_id", "p_patient_user_id",
+  ]);
+  requireText(files.productAnalyticsMigration, loaded.productAnalyticsMigration, [
+    "app.record_current_patient_analytics_event", "SECURITY DEFINER", "app.current_org_id()",
+    "app.current_patient_user_id()", "enrollment.status = 'active'", "organization_id, occurred_at",
+    "product_analytics_hourly_org_unique", "product_analytics_user_hourly_org_unique",
+    "GREATEST(public.product_analytics_user_hourly.last_seen_at, EXCLUDED.last_seen_at)",
+    "app.record_current_patient_push_open", "push.organization_id = v_org",
+    "push.user_id = v_patient", "ON CONFLICT (push_tracking_id)",
+  ]);
+  requireText(files.pgPatientBookings, loaded.pgPatientBookings, [
+    "app.read_current_patient_booking_rows('upcoming'", "app.read_current_patient_booking_rows('history'",
+  ]);
+  requireText(files.pgTreatmentProgramInstance, loaded.pgTreatmentProgramInstance, [
+    "app.touch_current_patient_plan_last_opened",
+  ]);
+  requireText(files.pgProductAnalytics, loaded.pgProductAnalytics, [
+    'runWithWebappDbOperationFamily("patient_product_analytics"',
+    "app.record_current_patient_analytics_event",
+    "app.record_current_patient_push_open",
+  ]);
+  requireText(files.p05bGenerator, loaded.p05bGenerator, [
+    '"public.product_analytics_events_recent",', '"public.product_push_notifications",',
+    "Direct table access would bypass the closed event semantics and org proof",
+  ]);
+  forbidText(files.p05bOverlay, loaded.p05bOverlay, [
+    "('public', 'product_analytics_events_recent', 'SELECT, INSERT')",
+    "('public', 'product_push_notifications', 'SELECT')",
+  ]);
+  requireText(files.capabilityRehearsal, loaded.capabilityRehearsal, [
+    "--execute", "bcb_webapp_dev", "BEGIN", "ROLLBACK",
+    'resolve("deploy/postgres/e1-webapp-runtime-config.sql")',
+    "TO app_staff WITH GRANT OPTION", "shared capability patient",
+    "app.touch_current_patient_plan_last_opened", "app.read_current_patient_booking_rows",
+    "app.record_current_patient_analytics_event", "app.record_current_patient_push_open",
+    "product_analytics_events_recent", "product_push_notifications",
+    "NOT has_table_privilege('app_patient','public.product_analytics_events_recent','SELECT,INSERT')",
+  ]);
+  requireText(files.packageJson, loaded.packageJson, [
+    "rehearse:e1-patient-capabilities",
+    "rehearse-e1-patient-runtime-capabilities.mjs",
+  ]);
   requireText(files.overlay, loaded.overlay, [
     "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
-    "0195_e1_patient_maintenance_history.sql", "e1_webapp_runtime_role",
+    "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
+    "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
+    "0200_current_patient_product_analytics.sql", "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "REVOKE ALL PRIVILEGES ON FUNCTION",
@@ -155,6 +222,11 @@ function runChecks(overrides = {}) {
     "NOT pg_has_role(:'e1_webapp_runtime_role', 'app_owner', 'MEMBER')",
     "REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient",
     "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient",
+    "DO $capability_acl_scrub$", "e1_patient_capability_acl_exact",
+    "e1_patient_capability_no_direct_table_dml",
+    "app.record_current_patient_push_open(timestamptz,text,uuid)",
+    "GRANT USAGE ON SCHEMA app TO app_owner, app_patient",
+    "REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient",
   ]);
   forbidText(files.overlay, loaded.overlay, [
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')",
@@ -334,6 +406,14 @@ if (process.argv.includes("--self-test")) {
     ["history migration active enrollment", { historyMigration: read(files.historyMigration).replace("enrollment.status = 'active'", "true") }],
     ["history migration bound", { historyMigration: read(files.historyMigration).replace("LIMIT 100", "") }],
     ["history migration raw grant", { historyMigration: `${read(files.historyMigration)}\nGRANT SELECT ON TABLE public.be_appointments TO app_patient;\n` }],
+    ["booking capability unbounded", { bookingRowsMigration: read(files.bookingRowsMigration).replace("LIMIT 100", "") }],
+    ["booking capability raw projection", { bookingRowsMigration: read(files.bookingRowsMigration).replace("SELECT jsonb_build_object(", "SELECT * FROM public.patient_bookings; SELECT jsonb_build_object(") }],
+    ["analytics org attribution", { productAnalyticsMigration: read(files.productAnalyticsMigration).replaceAll("organization_id, occurred_at", "occurred_at") }],
+    ["analytics monotonic last seen", { productAnalyticsMigration: read(files.productAnalyticsMigration).replaceAll("GREATEST(public.product_analytics_user_hourly.last_seen_at, EXCLUDED.last_seen_at)", "EXCLUDED.last_seen_at") }],
+    ["push open org proof", { productAnalyticsMigration: read(files.productAnalyticsMigration).replace("push.organization_id = v_org", "true") }],
+    ["push open patient proof", { productAnalyticsMigration: read(files.productAnalyticsMigration).replace("push.user_id = v_patient", "true") }],
+    ["p0 raw analytics grant", { p05bOverlay: `${read(files.p05bOverlay)}\n('public', 'product_analytics_events_recent', 'SELECT, INSERT')\n` }],
+    ["capability rehearsal raw denial", { capabilityRehearsal: read(files.capabilityRehearsal).replace("NOT has_table_privilege('app_patient','public.product_analytics_events_recent','SELECT,INSERT')", "true") }],
     ["booking history attribution", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace('runWithWebappDbOperationFamily("patient_booking_history"', 'runWithWebappDbOperationFamily("patient_runtime_config"') }],
     ["booking history accessor", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace("SELECT * FROM app.read_current_patient_appointment_history()", "SELECT * FROM be_appointments") }],
     ["legacy booking callsite", { patientLayout: `${read(files.patientLayout)}\nvoid patientBooking.listMyBookings;\n` }],
@@ -354,7 +434,7 @@ if (process.argv.includes("--self-test")) {
     ["overlay effective source-table denial", { overlay: read(files.overlay).replace("'public.system_settings',\n    'SELECT'", "'public.system_settings',\n    'UPDATE'") }],
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
     ["overlay stale accessor grant option", { overlay: read(files.overlay).replaceAll("AND NOT privilege.is_grantable", "AND privilege.is_grantable") }],
-    ["patient capability stale grant option", { overlay: read(files.overlay).replace("FROM app_patient CASCADE", "FROM app_patient") }],
+    ["patient capability stale grant option", { overlay: read(files.overlay).replaceAll("FROM app_patient CASCADE", "FROM app_patient") }],
     ["patient capability arbitrary grantee scrub", { overlay: read(files.overlay).replace("DO $acl_scrub$", "DO $removed_acl_scrub$") }],
     ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (", "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee IN (") }],
     ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],

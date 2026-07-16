@@ -22,9 +22,10 @@ export function notifyPatientNotificationUnreadCountChanged() {
 }
 
 /** Бейдж непрочитанных для пациента (`/api/patient/messages/unread-count`). */
-export function usePatientSupportUnreadCount() {
+export function usePatientSupportUnreadCount(enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -49,7 +50,7 @@ export function usePatientSupportUnreadCount() {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener(PATIENT_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
-  }, []);
+  }, [enabled]);
   return count;
 }
 

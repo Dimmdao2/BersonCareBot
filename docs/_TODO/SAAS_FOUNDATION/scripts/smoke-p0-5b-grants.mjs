@@ -89,6 +89,21 @@ function psql(sql, { database = dbName } = {}) {
   run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", database], { input: sql });
 }
 
+function clusterRoleExists(roleName) {
+  const result = spawnSync(
+    "sudo",
+    [
+      "-n", "-u", "postgres", "psql", "-X", "-Atq", "-d", "postgres",
+      "-c", `SELECT 1 FROM pg_roles WHERE rolname='${roleName}'`,
+    ],
+    { cwd: repoRoot, encoding: "utf8" },
+  );
+  if (result.error || result.status !== 0) {
+    throw new Error(`failed to inspect pre-existing cluster role ${roleName}`);
+  }
+  return result.stdout.trim() === "1";
+}
+
 function readRepoFile(relPath) {
   return readFileSync(path.join(repoRoot, relPath), "utf8");
 }
@@ -683,8 +698,17 @@ RESET SESSION AUTHORIZATION;
 \echo 'P0.5b grants smoke: proof (i) CONFIRMED -- app_staff remains fully unrestricted.'
 `;
 
+const preExistingRoles = {
+  appPatient: clusterRoleExists("app_patient"),
+  appStaff: clusterRoleExists("app_staff"),
+};
+let databaseCreated = false;
+let executionError;
+const cleanupErrors = [];
+
 try {
   run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
+  databaseCreated = true;
 
   console.log("--- phase 1: p0-5b role split (app_staff/app_patient, real deploy script) ---");
   psql(roleSplitSql);
@@ -708,9 +732,40 @@ try {
   );
 
   console.log(`smoke-p0-5b-grants: OK (${dbName})`);
+} catch (error) {
+  executionError = error;
 } finally {
-  run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
-  run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
-    input: "DROP ROLE IF EXISTS app_patient;\nDROP ROLE IF EXISTS app_staff;\n",
-  });
+  if (databaseCreated) {
+    try {
+      run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  const rolesCreatedBySmoke = [
+    ...(!preExistingRoles.appPatient ? ["app_patient"] : []),
+    ...(!preExistingRoles.appStaff ? ["app_staff"] : []),
+  ];
+  if (rolesCreatedBySmoke.length > 0) {
+    try {
+      run("sudo", ["-n", "-u", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-d", "postgres"], {
+        input: rolesCreatedBySmoke.map((role) => `DROP ROLE IF EXISTS ${role};`).join("\n"),
+      });
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+}
+
+if (executionError && cleanupErrors.length > 0) {
+  throw new AggregateError(
+    [executionError, ...cleanupErrors],
+    "smoke-p0-5b-grants execution and cleanup failed",
+  );
+}
+if (executionError) {
+  throw executionError;
+}
+if (cleanupErrors.length > 0) {
+  throw new AggregateError(cleanupErrors, "smoke-p0-5b-grants cleanup failed");
 }

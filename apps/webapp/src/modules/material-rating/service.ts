@@ -113,14 +113,27 @@ export function createMaterialRatingService(deps: {
       /** Tier пациента для `requires_auth` страниц; для гостя — false. */
       canViewAuthOnlyContent: boolean;
     }): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }> {
+      let assignedProgramTarget = false;
       if (input.targetKind === "content_page") {
         const row = await loadContentPageOrThrow(input.targetId);
         assertContentPageReadableForPatientGet(row, input.canViewAuthOnlyContent);
       } else {
-        try {
-          await assertTargetExistsNonContent(input.targetKind, input.targetId);
-        } catch {
-          throw new MaterialRatingAccessError("not_found");
+        if (input.userId && input.programInstanceId && input.programStageItemId) {
+          const gate = await assertProgramStageItemMatchesTarget({
+            userId: input.userId,
+            instanceId: input.programInstanceId,
+            stageItemId: input.programStageItemId,
+            targetKind: input.targetKind,
+            targetId: input.targetId,
+          });
+          assignedProgramTarget = gate.ok;
+        }
+        if (!assignedProgramTarget) {
+          try {
+            await assertTargetExistsNonContent(input.targetKind, input.targetId);
+          } catch {
+            throw new MaterialRatingAccessError("not_found");
+          }
         }
       }
 
@@ -136,14 +149,7 @@ export function createMaterialRatingService(deps: {
         return { aggregate, myStars: null };
       }
       if (input.targetKind !== "content_page") {
-        const gate = await assertProgramStageItemMatchesTarget({
-          userId: input.userId,
-          instanceId: input.programInstanceId!,
-          stageItemId: input.programStageItemId!,
-          targetKind: input.targetKind,
-          targetId: input.targetId,
-        });
-        if (!gate.ok) {
+        if (!assignedProgramTarget) {
           return { aggregate, myStars: null };
         }
       }

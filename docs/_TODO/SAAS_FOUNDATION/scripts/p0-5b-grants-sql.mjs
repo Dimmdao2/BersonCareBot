@@ -479,10 +479,6 @@ const patientScopedPrivilegeOverrides = new Map([
   // own app.patient_user_id GUC). Tracked as a required B4-fanout pre-flip fix, not silently absorbed.
   ["public.treatment_program_events", "SELECT"],
 
-  // Analytics beacon: confirmed `/api/patient/analytics/events` (raw event ingestion). The hourly
-  // rollup (product_analytics_user_hourly) is a background-aggregation table, not patient-session
-  // written -- stays SELECT-only.
-  ["public.product_analytics_events_recent", "SELECT, INSERT"],
 ]);
 
 // Tables that are structurally patient-linked in the RLS descriptor model (they carry a
@@ -494,6 +490,10 @@ const patientScopedPrivilegeOverrides = new Map([
 // their patient-row-scoping (a staff query still resolves org via the patient FK) -- only the
 // app_patient GRANT (this file's own concern) is wrong to include them in.
 const appPatientTableExclusions = new Set([
+  // Patient analytics writes and push-open lookup go only through signed SECURITY DEFINER
+  // capabilities. Direct table access would bypass the closed event semantics and org proof.
+  "public.product_analytics_events_recent",
+  "public.product_push_notifications",
   // specialist_tasks: a SPECIALIST-owned task list (owner_user_id = the specialist), patient_user_id
   // is just an optional filter FK ("null = global task for the specialist" per the schema comment) --
   // not patient-owned data. 2026-07-11 gpt-5.6-sol audit rejected the SELECT grant this table

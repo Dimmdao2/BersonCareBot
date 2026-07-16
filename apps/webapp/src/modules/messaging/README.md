@@ -1,6 +1,11 @@
 # messaging (webapp)
 
-Чат поддержки пациента и врача: thread `webapp:platform:{userId}` в `support_conversations` / `support_conversation_messages`.
+Чат поддержки пациента и врача хранится в `support_conversations` / `support_conversation_messages`.
+При активном organization principal канонический thread принадлежит паре организация+пациент и получает ключ
+`webapp:organization:{organizationId}:platform:{userId}`. Legacy/pre-SaaS контекст без организации сохраняет
+`webapp:platform:{userId}`. Это не даёт общему пациенту Clinic A и Clinic B разделить одну tenant-owned строку.
+Signed M2M `admin-reply` пока не устанавливает доверенный organization principal, поэтому принимает только legacy
+`webapp:platform:*` и отклоняет org-scoped ключ с `organization_context_required`, не определяя tenant по пациенту.
 
 ## Inbox (рассылки, запись)
 

@@ -316,7 +316,7 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ booking: legacyRow("leg-1") }] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.branchServiceId).toBeNull();
@@ -324,26 +324,24 @@ describe("pgPatientBookingsPort", () => {
   });
 
   it("listUpcomingByUser maps v2 row with snapshots", async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [v2Row("v2-1")] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ booking: v2Row("v2-1") }] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     expect(rows[0]!.branchServiceId).toBe("bs1");
     expect(rows[0]!.cityCodeSnapshot).toBe("moscow");
   });
 
-  it("listUpcomingByUser filters stale creating duplicates against finalized rows", async () => {
+  it("listUpcomingByUser delegates filtering to the bounded signed-patient capability", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-    expect(sql).toContain("cancelled_at IS NULL");
-    expect(sql).toContain("status = 'creating'");
-    expect(sql).toContain("canonical_appointment_id IS NULL");
-    expect(sql).toContain("COALESCE(newer.category, '') = COALESCE(patient_bookings.category, '')");
+    expect(sql).toContain("app.read_current_patient_booking_rows('upcoming'");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["2026-01-01T00:00:00.000Z"]);
   });
 
   it("listHistoryByUser returns mixed legacy and v2 rows (dual-read history)", async () => {
     const leg = legacyRow("leg-h");
     const v2 = v2Row("v2-h");
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [v2, leg] });
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ booking: v2 }, { booking: leg }] });
     const rows = await pgPatientBookingsPort.listHistoryByUser("u1", "2026-06-01T00:00:00.000Z");
     expect(rows).toHaveLength(2);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));

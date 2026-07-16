@@ -74,7 +74,7 @@ export function PatientHeader({
   const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRightIds = hideRightIcons ? [] : nav.headerRightIcons;
-  const chatUnread = usePatientSupportUnreadCount();
+  const chatUnread = usePatientSupportUnreadCount(!hideHome);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 

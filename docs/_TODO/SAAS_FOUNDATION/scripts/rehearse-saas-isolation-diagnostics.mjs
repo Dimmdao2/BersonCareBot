@@ -118,6 +118,7 @@ RESET ROLE;
 SET ROLE app_staff;
 SELECT app.report_saas_isolation_event('rls_denial','webapp','patient_identity_exception_check','unexplained');
 SELECT app.report_saas_isolation_event('rls_denial','webapp','patient_booking_history','unexplained');
+SELECT app.report_saas_isolation_event('rls_denial','webapp','patient_product_analytics','unexplained');
 RESET ROLE;
 SET ROLE ${operatorRole};
 SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
@@ -126,6 +127,9 @@ SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
 SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
   WHERE source_service = 'webapp' AND source_operation = 'patient_booking_history') = 1)::int
   AS patient_booking_history_persisted_after_overlay;
+SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
+  WHERE source_service = 'webapp' AND source_operation = 'patient_product_analytics') = 1)::int
+  AS patient_product_analytics_persisted_after_overlay;
 RESET ROLE;
 SET ROLE app_staff;
 DO $unknown_family$ BEGIN
@@ -140,7 +144,7 @@ SELECT 1 AS unknown_webapp_family_denied;
 RESET ROLE;
 DELETE FROM public.saas_isolation_events
   WHERE source_service = 'webapp'
-    AND source_operation IN ('patient_identity_exception_check', 'patient_booking_history');
+    AND source_operation IN ('patient_identity_exception_check', 'patient_booking_history', 'patient_product_analytics');
 SET ROLE ${operatorRole};
 DO $scenario_guard$ BEGIN
   BEGIN

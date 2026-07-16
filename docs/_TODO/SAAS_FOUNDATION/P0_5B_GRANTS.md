@@ -86,14 +86,14 @@ grants only `USAGE` on schema `integrator` plus `SELECT` on `integrator.schema_m
 that same runtime login can select the ledger before restart. Do not broaden this P0.5b app DML grant set
 to include migration ledgers.
 
-## app_patient — curated patient-only surface (111 tables)
+## app_patient — curated patient-only surface (109 tables)
 
 **Not** mechanically derived. Candidate tables = the patient-owned SCOPED tables (union of
 `patientOwnedColumns` / `patientChainOwnedTables` / `patientConditionalOwnedColumns` /
 `patientConditionalChainOwnedTables` / `patientPolymorphicOwnedTables` in `rls-descriptor-model.mjs`),
 **minus an explicit exclusion list** (`appPatientTableExclusions` in the generator — tables that are
-structurally patient-linked via a `patient_user_id` FK but are not patient-facing at all; currently just
-`specialist_tasks`, see below), plus 9 BOOTSTRAP identity/settings tables the patient PWA reads/writes
+structurally patient-linked but must not be directly patient-readable/writable; currently
+`specialist_tasks`, `product_analytics_events_recent` and `product_push_notifications`), plus 9 BOOTSTRAP identity/settings tables the patient PWA reads/writes
 for its own account. SELECT is the default privilege; INSERT/UPDATE/DELETE were added **only** where a
 2026-07-11 code audit (plus a 2026-07-11 gpt-5.6-sol re-audit + general sweep, same day, taskdb #655)
 traced a confirmed patient-authenticated route or repo performing that write. Every override is
@@ -130,8 +130,9 @@ patient-writable):**
 - `program_action_log` (INSERT-only side-effect audit trail of the patient's own progress actions,
   confirmed `patient-program-actions.ts`/`progress-service.ts`). `treatment_program_events` is now
   column-restricted, see below.
-- `product_analytics_events_recent` (`/api/patient/analytics/events` beacon; the hourly rollup
-  `product_analytics_user_hourly` is a background aggregation, stays SELECT-only).
+- Analytics beacon and push-open writes go through signed, org-aware `app.*` capabilities. Direct
+  patient privileges on `product_analytics_events_recent` and `product_push_notifications` are excluded;
+  the hourly rollup `product_analytics_user_hourly` remains SELECT-only.
 - BOOTSTRAP: `user_pins` (SELECT+INSERT whole-table; UPDATE is column-restricted, see below),
   `user_notification_topics`/`user_notification_topic_channels` (own notification toggles),
   `user_web_push_subscriptions` (SELECT+INSERT+UPDATE+DELETE — own browser push subscription/device

@@ -49,3 +49,10 @@ The versioned source of truth is `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs` in
 The shared patient is enrolled in both organizations and has its own login. The fixture only provides the two
 organization refs; the live integration owner must prove the actual A/B context-selection behavior and locked
 read/write matrix. This document does not claim that downstream gate.
+
+## Global-admin visual handoff
+
+For a bounded System Health visual-review window, use the owner-only ordinary-login handoff in
+[`TEST_VISUAL_GLOBAL_ADMIN_SESSION.md`](TEST_VISUAL_GLOBAL_ADMIN_SESSION.md). It creates a separate non-renewable
+TEST cookie jar and never reads or copies the main product-smoke session packet. Dev-bypass and clinic-owner
+substitution remain forbidden.

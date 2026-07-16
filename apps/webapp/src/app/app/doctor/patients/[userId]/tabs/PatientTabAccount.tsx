@@ -361,11 +361,9 @@ function SecondaryPhones({
 
 /**
  * Смена email пациента. Врач НЕ может менять email (owner-правило) — эндпоинт admin-only.
- * Компонент сам определяет роль: GET /email-change возвращает 403 для врача (тогда ничего
- * не показываем) и 200 для админа.
+ * Родитель уже знает роль из SSR и монтирует компонент только для admin на активной вкладке.
  */
 function EmailChange({ userId }: { userId: string }) {
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [pending, setPending] = useState<{ email: string; expiresAt: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState("");
@@ -379,27 +377,15 @@ function EmailChange({ userId }: { userId: string }) {
     fetch(base, { credentials: "include" })
       .then(async (r) => {
         if (!alive) return;
-        if (r.status === 403) {
-          setIsAdmin(false);
-          return;
-        }
-        if (!r.ok) {
-          setIsAdmin(true);
-          return;
-        }
+        if (!r.ok) return;
         const d = (await r.json()) as { pending: { email: string; expiresAt: string } | null };
-        setIsAdmin(true);
         setPending(d.pending ?? null);
       })
-      .catch(() => {
-        if (alive) setIsAdmin(false);
-      });
+      .catch(() => undefined);
     return () => {
       alive = false;
     };
   }, [base]);
-
-  if (isAdmin !== true) return null;
 
   const submit = async () => {
     const email = input.trim();
@@ -752,7 +738,7 @@ export function PatientTabAccount({ userId, header, active = false, initialSuppl
             )}
 
             {/* Смена email — только админ, применяется после подтверждения кодом пациентом */}
-            <EmailChange userId={userId} />
+            {isAdmin && active ? <EmailChange userId={userId} /> : null}
 
             {/* PWA / App — скрыто до реализации backend (push/install status не отслеживается в текущей схеме) */}
           </div>

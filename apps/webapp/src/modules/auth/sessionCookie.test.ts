@@ -61,4 +61,41 @@ describe("sessionCookie sliding", () => {
     expect(decoded?.user.userId).toBe("u1");
     expect(decoded?.expiresAt).toBe(session.expiresAt);
   });
+
+  it("keeps a bounded TEST visual session non-renewable", () => {
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const expiresAt = issuedAt + 30 * 60;
+    const session: AppSession = {
+      ...makeSession(issuedAt, expiresAt),
+      user: {
+        ...makeSession(issuedAt, expiresAt).user,
+        role: "admin",
+      },
+      adminMode: true,
+      operatorSession: { purpose: "test_global_admin_visual", expiresAt },
+    };
+
+    const decoded = decodeSessionCookie(encodeSessionCookie(session));
+    expect(decoded?.operatorSession).toEqual({ purpose: "test_global_admin_visual", expiresAt });
+    expect(shouldRenewSession(session, issuedAt)).toBe(false);
+    expect(renewSessionIfActive(session)).toBe(session);
+  });
+
+  it("rejects a bounded marker whose expiry differs from the signed session expiry", () => {
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const session: AppSession = {
+      ...makeSession(issuedAt, issuedAt + 600),
+      operatorSession: { purpose: "test_global_admin_visual", expiresAt: issuedAt + 601 },
+    };
+    expect(decodeSessionCookie(encodeSessionCookie(session))).toBeNull();
+  });
+
+  it("rejects a malformed bounded marker without throwing", () => {
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const session: AppSession = {
+      ...makeSession(issuedAt, issuedAt + 600),
+      operatorSession: null as unknown as AppSession["operatorSession"],
+    };
+    expect(decodeSessionCookie(encodeSessionCookie(session))).toBeNull();
+  });
 });

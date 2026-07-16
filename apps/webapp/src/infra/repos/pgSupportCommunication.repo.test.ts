@@ -177,22 +177,118 @@ describe("createPgSupportCommunicationPort", () => {
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
     });
 
+    it("preserves the legacy global key when no organization principal exists", async () => {
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: "conv-global" }] });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(port.ensureWebappConversationForUser(patientUserId)).resolves.toEqual({
+        id: "conv-global",
+      });
+
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+        null,
+        patientUserId,
+        `webapp:platform:${patientUserId}`,
+      ]);
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+        null,
+        `webapp:platform:${patientUserId}`,
+        patientUserId,
+      ]);
+    });
+
     it("stamps ensured webapp conversations from current organization principal", async () => {
       const orgId = "10000000-0000-4000-8000-000000000001";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ id: "conv-webapp-1" }] });
 
       const port = createPgSupportCommunicationPort();
       const result = await runWithDbOrganizationPrincipal(orgId, () =>
-        port.ensureWebappConversationForUser("00000000-0000-4000-8000-000000000111"),
+        port.ensureWebappConversationForUser(patientUserId),
       );
 
       expect(result).toEqual({ id: "conv-webapp-1" });
       expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
+      const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(lookupSql).toContain("organization_id = $1::uuid");
+      expect(lookupSql).toContain("platform_user_id = $2::uuid");
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+        orgId,
+        patientUserId,
+        `webapp:organization:${orgId}:platform:${patientUserId}`,
+      ]);
       const insertSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
       expect(insertSql).toContain("organization_id");
       expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[0]).toBe(orgId);
+      expect(runWebappPgTextMock.mock.calls[1]?.[1]?.[1]).toBe(
+        `webapp:organization:${orgId}:platform:${patientUserId}`,
+      );
+    });
+
+    it("creates separate organization-scoped threads for a patient enrolled in Clinic A and Clinic B", async () => {
+      const clinicA = "10000000-0000-4000-8000-000000000001";
+      const clinicB = "20000000-0000-4000-8000-000000000002";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: "conv-clinic-a" }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: "conv-clinic-b" }] });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbOrganizationPrincipal(clinicA, () =>
+          port.ensureWebappConversationForUser(patientUserId),
+        ),
+      ).resolves.toEqual({ id: "conv-clinic-a" });
+      await expect(
+        runWithDbOrganizationPrincipal(clinicB, () =>
+          port.ensureWebappConversationForUser(patientUserId),
+        ),
+      ).resolves.toEqual({ id: "conv-clinic-b" });
+
+      const clinicALookup = runWebappPgTextMock.mock.calls[0]?.[1];
+      const clinicAInsert = runWebappPgTextMock.mock.calls[1]?.[1];
+      const clinicBLookup = runWebappPgTextMock.mock.calls[2]?.[1];
+      const clinicBInsert = runWebappPgTextMock.mock.calls[3]?.[1];
+      expect(clinicALookup).toEqual([
+        clinicA,
+        patientUserId,
+        `webapp:organization:${clinicA}:platform:${patientUserId}`,
+      ]);
+      expect(clinicBLookup).toEqual([
+        clinicB,
+        patientUserId,
+        `webapp:organization:${clinicB}:platform:${patientUserId}`,
+      ]);
+      expect(clinicAInsert?.[1]).not.toBe(clinicBInsert?.[1]);
+      expect(clinicAInsert?.[0]).toBe(clinicA);
+      expect(clinicBInsert?.[0]).toBe(clinicB);
+    });
+
+    it("reuses a legacy webapp thread only when it is visible in the current organization", async () => {
+      const orgId = "10000000-0000-4000-8000-000000000001";
+      const patientUserId = "00000000-0000-4000-8000-000000000111";
+      runWebappPgTextMock.mockResolvedValueOnce({
+        rows: [{ id: "legacy-current-org", organization_id: orgId }],
+      });
+
+      const port = createPgSupportCommunicationPort();
+      await expect(
+        runWithDbOrganizationPrincipal(orgId, () =>
+          port.ensureWebappConversationForUser(patientUserId),
+        ),
+      ).resolves.toEqual({ id: "legacy-current-org" });
+
+      expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+      expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
+        "WHERE organization_id = $1::uuid",
+      );
     });
 
     it("rejects ensured webapp conversation when existing organization differs from principal", async () => {
@@ -256,6 +352,21 @@ describe("createPgSupportCommunicationPort", () => {
   });
 
   describe("mergeLegacySupportConversationsForPlatformUser", () => {
+    it("does not merge another tenant's thread while an organization principal is active", async () => {
+      const port = createPgSupportCommunicationPort();
+
+      await expect(
+        runWithDbOrganizationPrincipal("10000000-0000-4000-8000-000000000001", () =>
+          port.mergeLegacySupportConversationsForPlatformUser!(
+            "00000000-0000-4000-8000-000000000111",
+          ),
+        ),
+      ).resolves.toEqual({ mergedConversationCount: 0, movedMessageCount: 0 });
+
+      expect(getPoolMock).not.toHaveBeenCalled();
+      expect(runMergeLegacySupportConversationsMock).not.toHaveBeenCalled();
+    });
+
     it("runs legacy merge in a shared transaction helper", async () => {
       const client = {
         query: vi.fn().mockResolvedValue({ rows: [] }),

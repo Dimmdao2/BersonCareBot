@@ -61,6 +61,19 @@ import { POST } from "./route";
 
 const patientUserId = "00000000-0000-4000-8000-000000000111";
 const orgId = "10000000-0000-4000-8000-000000000001";
+const secondOrgId = "20000000-0000-4000-8000-000000000002";
+
+const patientIdentity = {
+  userId: patientUserId,
+  displayName: "Patient",
+  phone: null,
+  bindings: {},
+  createdAt: null,
+  isBlocked: false,
+  blockedReason: null,
+  isArchived: false,
+  channelBindingDates: {},
+};
 
 function request(body: unknown) {
   return new Request("http://localhost/api/doctor/messages/conversations/ensure", {
@@ -112,34 +125,14 @@ describe("POST /api/doctor/messages/conversations/ensure", () => {
   });
 
   it("returns 500 when ensure conversation fails", async () => {
-    getClientIdentityForOrganizationMock.mockResolvedValue({
-      userId: patientUserId,
-      displayName: "Patient",
-      phone: null,
-      bindings: {},
-      createdAt: null,
-      isBlocked: false,
-      blockedReason: null,
-      isArchived: false,
-      channelBindingDates: {},
-    });
+    getClientIdentityForOrganizationMock.mockResolvedValue(patientIdentity);
     ensureMock.mockRejectedValue(new Error("db failed"));
     const res = await POST(request({ patientUserId }));
     expect(res.status).toBe(500);
   });
 
   it("returns ensured conversation with messages and unread count", async () => {
-    getClientIdentityForOrganizationMock.mockResolvedValue({
-      userId: patientUserId,
-      displayName: "Patient",
-      phone: null,
-      bindings: {},
-      createdAt: null,
-      isBlocked: false,
-      blockedReason: null,
-      isArchived: false,
-      channelBindingDates: {},
-    });
+    getClientIdentityForOrganizationMock.mockResolvedValue(patientIdentity);
     ensureMock.mockResolvedValue({
       conversationId: "00000000-0000-4000-8000-000000000222",
       unreadFromUserCount: 1,
@@ -172,6 +165,40 @@ describe("POST /api/doctor/messages/conversations/ensure", () => {
     expect(ensureMock).toHaveBeenCalledWith(patientUserId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: orgId }),
+      expect.any(Function),
+    );
+  });
+
+  it("ensures a shared patient's chat independently inside Clinic A and Clinic B principals", async () => {
+    requireDoctorWorkspaceApiContextMock
+      .mockResolvedValueOnce({
+        ok: true,
+        ctx: { organizationId: orgId, session: { user: { userId: "doctor-a", role: "doctor", bindings: {} } } },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        ctx: { organizationId: secondOrgId, session: { user: { userId: "doctor-b", role: "doctor", bindings: {} } } },
+      });
+    getClientIdentityForOrganizationMock.mockResolvedValue(patientIdentity);
+    ensureMock
+      .mockResolvedValueOnce({ conversationId: "conv-a", messages: [], unreadFromUserCount: 0 })
+      .mockResolvedValueOnce({ conversationId: "conv-b", messages: [], unreadFromUserCount: 0 });
+
+    const clinicAResponse = await POST(request({ patientUserId }));
+    const clinicBResponse = await POST(request({ patientUserId }));
+
+    expect(clinicAResponse.status).toBe(200);
+    expect(clinicBResponse.status).toBe(200);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenNthCalledWith(1, patientUserId, orgId);
+    expect(getClientIdentityForOrganizationMock).toHaveBeenNthCalledWith(2, patientUserId, secondOrgId);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ organizationId: orgId }),
+      expect.any(Function),
+    );
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ organizationId: secondOrgId }),
       expect.any(Function),
     );
   });

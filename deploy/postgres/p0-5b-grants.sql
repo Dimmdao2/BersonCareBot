@@ -11,7 +11,7 @@
 --   - app_staff: the reviewed P0.5b runtime DML surface -- 219 tables (SCOPED +
 --     BOOTSTRAP + INFRA + LEGACY + TELEMETRY, excluding migration bookkeeping and post-P0.5b tables
 --     whose dedicated overlays own their grants).
---   - app_patient: ONLY the patient-facing surface -- 111 tables (the patient-owned
+--   - app_patient: ONLY the patient-facing surface -- 109 tables (the patient-owned
 --     SCOPED set + a small confirmed BOOTSTRAP identity/settings subset). SELECT by default;
 --     INSERT/UPDATE/DELETE added only where a patient-authenticated route/repo confirms the write.
 --
@@ -361,9 +361,7 @@ VALUES
   ('public', 'patient_practice_completions', 'SELECT, INSERT'),
   ('public', 'platform_user_contacts', 'SELECT'),
   ('public', 'platform_users', 'SELECT'),
-  ('public', 'product_analytics_events_recent', 'SELECT, INSERT'),
   ('public', 'product_analytics_user_hourly', 'SELECT'),
-  ('public', 'product_push_notifications', 'SELECT'),
   ('public', 'program_action_log', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_messages', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_reads', 'SELECT, INSERT, UPDATE'),
@@ -549,5 +547,5 @@ SELECT (NOT pg_has_role('app_patient', 'app_staff', 'MEMBER'))::int AS p0_5b_gra
 SELECT 1 / 0 AS p0_5b_grants_abort;
 \endif
 
-\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 111 tables.'
+\echo 'P0.5b grants UP complete: app_staff 219 tables, app_patient 109 tables.'
 \endif

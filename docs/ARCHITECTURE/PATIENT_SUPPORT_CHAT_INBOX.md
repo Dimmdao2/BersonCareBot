@@ -2,6 +2,16 @@
 
 Канонический маршрут 1:1 чата: **`/app/patient/messages`**. Массовые рассылки и lifecycle-уведомления записи не показываются в чате пациента и врача; они читаются через колокольчик в верхнем меню пациента.
 
+Tenant identity thread: при активном organization principal 1:1 диалог канонизируется по паре
+`organization_id + platform_user_id` (`webapp:organization:{organizationId}:platform:{platformUserId}`). Старый
+`webapp:platform:{platformUserId}` остаётся только для legacy/pre-SaaS контекста без организации. Org-scoped
+ensure переиспользует видимый legacy webapp-thread своей клиники, но не запускает глобальный legacy merge: общий
+пациент, зачисленный в две клиники, получает два изолированных диалога, а не одну конфликтующую строку.
+
+Signed integrator `admin-reply` не устанавливает tenant principal. До появления доверенного organization context
+он отклоняет org-scoped conversation key с `organization_context_required`; legacy `webapp:platform:*` callback
+остаётся совместимым. Разрешать scoped callback только по извлечённому `platformUserId` запрещено.
+
 Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача), [`RUBITIME_BOOKING_PIPELINE.md`](RUBITIME_BOOKING_PIPELINE.md) (запись), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**), [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §patient Web Push.
 
 ## Что попадает в чат
@@ -63,7 +73,7 @@
 | Desktop: иконка «Сообщения» | тот же hook |
 | Desktop/header: колокольчик «Уведомления» | `usePatientNotificationUnreadCount()` → `GET /api/patient/notifications/inbox` |
 
-**Сброс прочитанного:** `POST /api/patient/messages/read` помечает входящие во **всех** диалогах пользователя (не только в текущем `conversationId`). Перед подсчётом — `mergeLegacySupportConversationsForPlatformUser`.
+**Сброс прочитанного:** `POST /api/patient/messages/read` помечает входящие во **всех видимых в текущем DB-principal контексте** диалогах пользователя (не только в текущем `conversationId`). Глобальный `mergeLegacySupportConversationsForPlatformUser` выполняется только вне organization principal и не поглощает tenant-owned threads общего пациента.
 
 **Мгновенное обновление UI:** после успешного read в [`PatientMessagesClient.tsx`](../../apps/webapp/src/app/app/patient/messages/PatientMessagesClient.tsx) (bootstrap и poll) — `notifyPatientSupportUnreadCountChanged()`; hook слушает событие `bersoncare:patient-support-unread-refresh`.
 

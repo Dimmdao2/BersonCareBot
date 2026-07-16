@@ -11,6 +11,10 @@ import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { withPoolTransaction } from "@/infra/db/withClient";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
+import {
+  webappOrganizationConversationId,
+  webappPlatformConversationId,
+} from "@/modules/messaging/supportConversationIds";
 
 export type SupportConversationRow = {
   id: string;
@@ -197,7 +201,7 @@ export type SupportCommunicationPort = {
   getConversationByIntegratorId(integratorConversationId: string): Promise<AdminConversationDetailRow | null>;
   listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
-  /** Один диалог webapp на пользователя: `integrator_conversation_id = webapp:platform:{uuid}`. */
+  /** Один диалог webapp на пару организация+пользователь; legacy global ID сохраняется без потери истории. */
   ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string }>;
   /**
    * Claims legacy pre-SaaS conversation rows before entering principal-scoped writes.
@@ -978,17 +982,33 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async ensureWebappConversationForUser(platformUserId) {
-      const integratorConversationId = `webapp:platform:${platformUserId}`;
       return runDrizzleMutationTransaction(async (tx) => {
+        const principalOrganizationId = currentWriteOrganizationId();
+        const integratorConversationId = principalOrganizationId
+          ? webappOrganizationConversationId(principalOrganizationId, platformUserId)
+          : webappPlatformConversationId(platformUserId);
         const existing = await runWebappPgText<{ id: string; organization_id: string | null }>(
-          `SELECT id, organization_id
-           FROM support_conversations
-           WHERE integrator_conversation_id = $1
-           LIMIT 1`,
-          [integratorConversationId],
+          principalOrganizationId
+            ? `SELECT id, organization_id
+               FROM support_conversations
+               WHERE organization_id = $1::uuid
+                 AND platform_user_id = $2::uuid
+                 AND source = 'webapp'
+                 AND admin_scope = 'support'
+               ORDER BY (integrator_conversation_id = $3) DESC, created_at ASC
+               LIMIT 1`
+            : `SELECT id, organization_id
+               FROM support_conversations
+               WHERE integrator_conversation_id = $3
+               LIMIT 1`,
+          [principalOrganizationId, platformUserId, integratorConversationId],
           tx,
         );
-        const organizationId = currentWriteOrganizationId(existing.rows[0]?.organization_id);
+        const existingRow = existing.rows[0];
+        if (existingRow) {
+          currentWriteOrganizationId(existingRow.organization_id);
+          return { id: existingRow.id };
+        }
         const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversations (
             organization_id, integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
@@ -999,7 +1019,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
             platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
             updated_at = now()
           RETURNING id`,
-          [organizationId, integratorConversationId, platformUserId],
+          [principalOrganizationId, integratorConversationId, platformUserId],
           tx,
         );
         return { id: r.rows[0]!.id };
@@ -1007,6 +1027,12 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async mergeLegacySupportConversationsForPlatformUser(platformUserId) {
+      // Organization-scoped threads are already canonical inside their tenant. The legacy merge
+      // targets the pre-SaaS global `webapp:platform:*` thread and must never absorb another
+      // organization's conversation for a shared patient.
+      if (getCurrentDbPrincipalOrganizationId()) {
+        return { mergedConversationCount: 0, movedMessageCount: 0 };
+      }
       const pool = getPool();
       return withPoolTransaction(pool, (client) =>
         runMergeLegacySupportConversations(client, platformUserId),

@@ -3,6 +3,38 @@ import { createIntegratorSupportBridge } from "./integratorSupportBridge";
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 
 describe("createIntegratorSupportBridge", () => {
+  it("syncUserMessage appends to the exact organization-scoped conversation returned by ensure", async () => {
+    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-current-org" });
+    const mergeLegacySupportConversationsForPlatformUser = vi.fn().mockResolvedValue({
+      mergedConversationCount: 0,
+      movedMessageCount: 0,
+    });
+    const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1", created: true });
+    const getConversationByIntegratorId = vi.fn();
+    const port = {
+      ensureWebappConversationForUser,
+      mergeLegacySupportConversationsForPlatformUser,
+      appendWebappMessage,
+      getConversationByIntegratorId,
+    } as unknown as SupportCommunicationPort;
+    const bridge = createIntegratorSupportBridge({ port });
+
+    await expect(
+      bridge.syncUserMessage({
+        platformUserId: "00000000-0000-4000-8000-000000000001",
+        integratorMessageId: "incoming-1",
+        text: "Сообщение",
+        source: "webapp",
+        createdAt: "2026-07-16T12:00:00.000Z",
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(appendWebappMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-current-org", integratorMessageId: "incoming-1" }),
+    );
+    expect(getConversationByIntegratorId).not.toHaveBeenCalled();
+  });
+
   it("applyAdminReply writes admin message for webapp platform conversation", async () => {
     const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-internal" });
     const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1", created: true });
@@ -30,6 +62,37 @@ describe("createIntegratorSupportBridge", () => {
         topicCode: "support_messages",
       }),
     );
+  });
+
+  it("applyAdminReply rejects organization-scoped conversation without trusted tenant context", async () => {
+    const ensureWebappConversationForUser = vi.fn();
+    const appendWebappMessage = vi.fn();
+    const notifyPatientOfDoctorReply = vi.fn();
+    const sendProgramNoteReply = vi.fn();
+    const port = {
+      ensureWebappConversationForUser,
+      appendWebappMessage,
+    } as unknown as SupportCommunicationPort;
+    const bridge = createIntegratorSupportBridge({
+      port,
+      notifyPatientOfDoctorReply,
+      sendProgramNoteReply,
+    });
+
+    await expect(
+      bridge.applyAdminReply({
+        integratorConversationId:
+          "webapp:organization:11111111-1111-4111-8111-111111111111:platform:00000000-0000-4000-8000-000000000001",
+        integratorMessageId: "webapp-msg:admin-scoped",
+        text: "Ответ врача",
+        createdAt: "2026-07-16T12:00:00.000Z",
+      }),
+    ).resolves.toEqual({ ok: false, error: "organization_context_required" });
+
+    expect(ensureWebappConversationForUser).not.toHaveBeenCalled();
+    expect(appendWebappMessage).not.toHaveBeenCalled();
+    expect(notifyPatientOfDoctorReply).not.toHaveBeenCalled();
+    expect(sendProgramNoteReply).not.toHaveBeenCalled();
   });
 
   it("applyAdminReply prefixes text when programNoteStageItemId is set", async () => {

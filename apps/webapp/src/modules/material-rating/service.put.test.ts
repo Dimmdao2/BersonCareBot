@@ -5,6 +5,56 @@ import type { MaterialRatingAggregate } from "./types";
 import type { TreatmentProgramInstancePort, TreatmentProgramItemRefValidationPort } from "@/modules/treatment-program/ports";
 
 describe("createMaterialRatingService putForPatient snapshot", () => {
+  it("uses the assigned program item as the patient read capability without probing the staff catalog", async () => {
+    const assertItemRefExists = vi.fn().mockRejectedValue(new Error("permission denied"));
+    const ratings: MaterialRatingPort = {
+      upsertRating: vi.fn(),
+      getMyRating: vi.fn().mockResolvedValue(null),
+      getAggregate: vi.fn().mockResolvedValue({
+        avg: null,
+        count: 0,
+        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      } satisfies MaterialRatingAggregate),
+      listAggregates: vi.fn(),
+      listDoctorSummary: vi.fn(),
+      getDoctorDetail: vi.fn(),
+    };
+    const svc = createMaterialRatingService({
+      ratings,
+      contentPages: { getById: vi.fn() },
+      itemRefs: { assertItemRefExists } as unknown as TreatmentProgramItemRefValidationPort,
+      instances: {
+        getInstanceForPatient: vi.fn().mockResolvedValue({
+          stages: [{
+            id: "stage-1",
+            sortOrder: 0,
+            status: "active",
+            items: [{
+              id: "550e8400-e29b-41d4-a716-446655440003",
+              stageId: "stage-1",
+              itemType: "exercise",
+              itemRefId: "550e8400-e29b-41d4-a716-446655440099",
+              status: "active",
+            }],
+          }],
+        }),
+      } as unknown as TreatmentProgramInstancePort,
+    });
+
+    const out = await svc.getForPatient({
+      userId: "550e8400-e29b-41d4-a716-446655440001",
+      targetKind: "lfk_exercise",
+      targetId: "550e8400-e29b-41d4-a716-446655440099",
+      programInstanceId: "550e8400-e29b-41d4-a716-446655440002",
+      programStageItemId: "550e8400-e29b-41d4-a716-446655440003",
+      canViewAuthOnlyContent: true,
+    });
+
+    expect(out).toEqual(expect.objectContaining({ myStars: null }));
+    expect(assertItemRefExists).not.toHaveBeenCalled();
+    expect(ratings.getAggregate).toHaveBeenCalledOnce();
+  });
+
   it("returns aggregate and myStars after content_page upsert", async () => {
     const ratings: MaterialRatingPort = {
       upsertRating: vi.fn().mockResolvedValue(undefined),

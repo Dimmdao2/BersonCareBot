@@ -1380,6 +1380,34 @@
       "when": 1792761600000,
       "tag": "0196_curated_system_health_media_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1792848000000,
+      "tag": "0197_patient_plan_opened_capability",
+      "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1792934400000,
+      "tag": "0198_patient_visible_catalog_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 199,
+      "version": "7",
+      "when": 1793020800000,
+      "tag": "0199_current_patient_booking_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 200,
+      "version": "7",
+      "when": 1793107200000,
+      "tag": "0200_current_patient_product_analytics",
+      "breakpoints": true
     }
   ]
 }

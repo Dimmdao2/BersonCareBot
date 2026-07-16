@@ -44,6 +44,17 @@ export function decodeSessionCookie(raw: string): AppSession | null {
   } catch {
     return null;
   }
+  const operatorSession = parsed.operatorSession;
+  if (
+    operatorSession !== undefined &&
+    (operatorSession === null ||
+      typeof operatorSession !== "object" ||
+      operatorSession.purpose !== "test_global_admin_visual" ||
+      !Number.isSafeInteger(operatorSession.expiresAt) ||
+      operatorSession.expiresAt !== parsed.expiresAt)
+  ) {
+    return null;
+  }
   const now = Math.floor(Date.now() / 1000);
   return parsed.expiresAt > now ? parsed : null;
 }
@@ -53,6 +64,7 @@ export function cookieMaxAgeSeconds(session: AppSession): number {
 }
 
 export function shouldRenewSession(session: AppSession, nowSec = Math.floor(Date.now() / 1000)): boolean {
+  if (session.operatorSession?.purpose === "test_global_admin_visual") return false;
   const ttl = sessionTtlSecondsForRole(session.user.role);
   const remaining = session.expiresAt - nowSec;
   if (remaining <= 0) return false;
@@ -61,6 +73,7 @@ export function shouldRenewSession(session: AppSession, nowSec = Math.floor(Date
 }
 
 export function renewSessionIfActive(session: AppSession): AppSession {
+  if (session.operatorSession?.purpose === "test_global_admin_visual") return session;
   const now = Math.floor(Date.now() / 1000);
   const ttl = sessionTtlSecondsForRole(session.user.role);
   return {

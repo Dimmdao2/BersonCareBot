@@ -5,7 +5,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -87,6 +86,7 @@ export const productAnalyticsEventsRecent = pgTable(
 export const productAnalyticsHourly = pgTable(
   "product_analytics_hourly",
   {
+    organizationId: uuid("organization_id"),
     bucketHour: timestamp("bucket_hour", { withTimezone: true, mode: "string" }).notNull(),
     eventType: text("event_type").notNull(),
     entryChannel: text("entry_channel").notNull(),
@@ -98,19 +98,19 @@ export const productAnalyticsHourly = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [
-        table.bucketHour,
-        table.eventType,
-        table.entryChannel,
-        table.pageKey,
-        table.topicCode,
-        table.pushKind,
-        table.warmupSloganKey,
-      ],
-      name: "product_analytics_hourly_pkey",
-    }),
+    uniqueIndex("product_analytics_hourly_global_unique")
+      .on(table.bucketHour, table.eventType, table.entryChannel, table.pageKey, table.topicCode, table.pushKind, table.warmupSloganKey)
+      .where(sql`${table.organizationId} IS NULL`),
+    uniqueIndex("product_analytics_hourly_org_unique")
+      .on(table.organizationId, table.bucketHour, table.eventType, table.entryChannel, table.pageKey, table.topicCode, table.pushKind, table.warmupSloganKey)
+      .where(sql`${table.organizationId} IS NOT NULL`),
+    index("idx_product_analytics_hourly_organization_id").on(table.organizationId),
     index("idx_product_analytics_hourly_bucket").on(table.bucketHour),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: "product_analytics_hourly_organization_id_fkey",
+    }).onDelete("cascade"),
   ],
 );
 
@@ -133,10 +133,12 @@ export const productAnalyticsUserHourly = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.bucketHour, table.userId, table.entryChannel, table.pageKey],
-      name: "product_analytics_user_hourly_pkey",
-    }),
+    uniqueIndex("product_analytics_user_hourly_global_unique")
+      .on(table.bucketHour, table.userId, table.entryChannel, table.pageKey)
+      .where(sql`${table.organizationId} IS NULL`),
+    uniqueIndex("product_analytics_user_hourly_org_unique")
+      .on(table.organizationId, table.bucketHour, table.userId, table.entryChannel, table.pageKey)
+      .where(sql`${table.organizationId} IS NOT NULL`),
     index("idx_product_analytics_user_hourly_organization_id").on(table.organizationId),
     index("idx_product_analytics_user_hourly_user_bucket").on(table.userId, table.bucketHour),
     foreignKey({

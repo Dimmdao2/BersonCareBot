@@ -101,11 +101,13 @@ async function main() {
     'app.read_saas_isolation_test_scenario_fixture_counts()',
     "('webapp','patient_identity_exception_check')",
     "('webapp','patient_booking_history')",
+    "('webapp','patient_product_analytics')",
   ])
     requireText(loaded.overlay, fragment, 'overlay');
   for (const fragment of [
     "('webapp','patient_identity_exception_check')",
     "('webapp','patient_booking_history')",
+    "('webapp','patient_product_analytics')",
   ])
     requireText(loaded.identityMigration, fragment, '0194 operation-family constraint');
   for (const service of ['webapp', 'integrator', 'worker', 'scheduler', 'media_worker', 'cron']) {
@@ -261,6 +263,7 @@ async function main() {
     '0194_e1_patient_identity_exception.sql',
     'patient_identity_exception_check_persisted_after_overlay',
     'patient_booking_history_persisted_after_overlay',
+    'patient_product_analytics_persisted_after_overlay',
     'unknown_webapp_family_denied',
   ])
     requireText(loaded.rehearsal, fragment, 'PostgreSQL rehearsal proof');
@@ -271,6 +274,7 @@ async function main() {
       'deploy/postgres/saas-isolation-telemetry.sql',
       'patient_identity_exception_check_persisted_after_overlay',
       'patient_booking_history_persisted_after_overlay',
+      'patient_product_analytics_persisted_after_overlay',
       'unknown_webapp_family_denied',
     ],
     '0194 then telemetry overlay operation-family persistence proof',
@@ -420,6 +424,11 @@ async function main() {
         loaded.overlay.replace("('webapp','patient_booking_history'),", ''),
         "('webapp','patient_booking_history')",
         'missing patient booking history operation family',
+      ],
+      [
+        loaded.overlay.replace("('webapp','patient_product_analytics'),", ''),
+        "('webapp','patient_product_analytics')",
+        'missing patient product analytics operation family',
       ],
       [
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),

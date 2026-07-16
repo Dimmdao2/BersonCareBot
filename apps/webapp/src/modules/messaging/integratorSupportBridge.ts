@@ -1,7 +1,6 @@
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import {
-  parsePlatformUserIdFromWebappConversationId,
-  webappPlatformConversationId,
+  parseWebappConversationId,
 } from "@/modules/messaging/supportConversationIds";
 import type { NotifyPatientDoctorReplyParams } from "@/modules/messaging/notifyPatientDoctorReply";
 import { NOTIFICATION_TOPIC_SUPPORT_MESSAGES } from "@/modules/patient-notifications/notificationTopicCodes";
@@ -45,19 +44,13 @@ export function createIntegratorSupportBridge(deps: {
       const platformUserId = input.platformUserId.trim();
       if (!platformUserId) return { ok: false, error: "missing_platform_user" };
 
-      await deps.port.ensureWebappConversationForUser(platformUserId);
+      const { id: conversationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
       await deps.port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
         console.error("[integratorSupportBridge] merge legacy conversations error:", err);
       });
-      const integratorConversationId = webappPlatformConversationId(platformUserId);
-      const conv = await deps.port.getConversationByIntegratorId(integratorConversationId);
-      if (!conv) return { ok: false, error: "conversation_missing" };
-
-      const internalId = conv.conversationId;
-      if (!internalId) return { ok: false, error: "conversation_missing" };
 
       await deps.port.appendWebappMessage({
-        conversationId: internalId,
+        conversationId,
         integratorMessageId: input.integratorMessageId,
         senderRole: "user",
         text: trimmed,
@@ -91,8 +84,15 @@ export function createIntegratorSupportBridge(deps: {
     async applyAdminReply(
       input: IntegratorSupportAdminReplyInput,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
-      const platformUserId = parsePlatformUserIdFromWebappConversationId(input.integratorConversationId);
-      if (!platformUserId) return { ok: false, error: "not_webapp_conversation" };
+      const parsedConversation = parseWebappConversationId(input.integratorConversationId);
+      if (!parsedConversation) return { ok: false, error: "not_webapp_conversation" };
+      // This bridge is called by a signed M2M route without a tenant principal. Until the
+      // callback contract carries trusted organization context, resolving a scoped key by
+      // patient alone could append Clinic B's reply to Clinic A's legacy conversation.
+      if (parsedConversation.scope === "organization") {
+        return { ok: false, error: "organization_context_required" };
+      }
+      const { platformUserId } = parsedConversation;
 
       const trimmed = input.text.trim();
       if (!trimmed) return { ok: false, error: "empty" };

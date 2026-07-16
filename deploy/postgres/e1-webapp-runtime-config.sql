@@ -10,6 +10,10 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
@@ -21,13 +25,60 @@ GRANT SELECT ON TABLE
   public.be_specialists,
   public.be_branches,
   public.be_rooms,
-  public.be_clinic_services
+  public.be_clinic_services,
+  public.patient_bookings,
+  public.treatment_program_instances,
+  public.product_analytics_events_recent,
+  public.product_analytics_hourly,
+  public.product_analytics_user_hourly,
+  public.product_push_notifications
+  TO app_owner;
+GRANT UPDATE ON TABLE public.treatment_program_instances TO app_owner;
+GRANT INSERT ON TABLE public.product_analytics_events_recent TO app_owner;
+GRANT INSERT, UPDATE ON TABLE
+  public.product_analytics_hourly,
+  public.product_analytics_user_hourly
   TO app_owner;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
 ALTER FUNCTION app.read_current_patient_appointment_history() OWNER TO app_owner;
+ALTER FUNCTION app.touch_current_patient_plan_last_opened(uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_current_patient_booking_rows(text,timestamptz) OWNER TO app_owner;
+ALTER FUNCTION app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb) OWNER TO app_owner;
+ALTER FUNCTION app.record_current_patient_push_open(timestamptz,text,uuid) OWNER TO app_owner;
+GRANT USAGE ON SCHEMA app TO app_owner, app_patient;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id()
+  TO app_owner;
+DO $capability_acl_scrub$
+DECLARE
+  v_function regprocedure;
+  v_grantee oid;
+  v_grantee_name text;
+BEGIN
+  FOREACH v_function IN ARRAY ARRAY[
+    'app.touch_current_patient_plan_last_opened(uuid)'::regprocedure,
+    'app.read_current_patient_booking_rows(text,timestamptz)'::regprocedure,
+    'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
+    'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure
+  ] LOOP
+    EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM PUBLIC CASCADE', v_function);
+    EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM app_patient CASCADE', v_function);
+    FOR v_grantee, v_grantee_name IN
+      SELECT DISTINCT privilege.grantee, role.rolname
+      FROM pg_proc procedure
+      CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+      LEFT JOIN pg_roles role ON role.oid = privilege.grantee
+      WHERE procedure.oid = v_function
+        AND privilege.grantee NOT IN (0, procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname='app_patient'))
+    LOOP
+      EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM %I CASCADE', v_function, v_grantee_name);
+    END LOOP;
+  END LOOP;
+END
+$capability_acl_scrub$;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
+REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"e1_webapp_runtime_role";
@@ -108,6 +159,48 @@ GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account()
   TO app_patient;
 GRANT EXECUTE ON FUNCTION app.read_current_patient_appointment_history()
   TO app_patient;
+GRANT EXECUTE ON FUNCTION app.touch_current_patient_plan_last_opened(uuid)
+  TO app_patient;
+GRANT EXECUTE ON FUNCTION app.read_current_patient_booking_rows(text,timestamptz)
+  TO app_patient;
+GRANT EXECUTE ON FUNCTION app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)
+  TO app_patient;
+GRANT EXECUTE ON FUNCTION app.record_current_patient_push_open(timestamptz,text,uuid)
+  TO app_patient;
+GRANT SELECT ON TABLE
+  public.patient_home_blocks,
+  public.patient_home_block_items,
+  public.content_sections,
+  public.content_section_slug_history
+  TO app_patient;
+
+SELECT 1 / (bool_and(
+  procedure.prosecdef
+  AND owner.rolname = 'app_owner'
+  AND has_function_privilege('app_patient', procedure.oid, 'EXECUTE')
+  AND NOT has_function_privilege('app_staff', procedure.oid, 'EXECUTE')
+  AND NOT EXISTS (
+    SELECT 1 FROM aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+    WHERE privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname='app_patient'))
+  )
+))::int AS e1_patient_capability_acl_exact
+FROM pg_proc procedure
+JOIN pg_roles owner ON owner.oid=procedure.proowner
+WHERE procedure.oid = ANY(ARRAY[
+  'app.touch_current_patient_plan_last_opened(uuid)'::regprocedure,
+  'app.read_current_patient_booking_rows(text,timestamptz)'::regprocedure,
+  'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
+  'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure
+]);
+
+SELECT 1 / (
+  NOT has_table_privilege('app_patient','public.patient_bookings','SELECT')
+  AND NOT has_table_privilege('app_patient','public.treatment_program_instances','UPDATE')
+  AND NOT has_table_privilege('app_patient','public.product_analytics_events_recent','SELECT,INSERT')
+  AND NOT has_table_privilege('app_patient','public.product_push_notifications','SELECT')
+  AND NOT has_table_privilege('app_patient','public.product_analytics_hourly','INSERT,UPDATE')
+  AND NOT has_table_privilege('app_patient','public.product_analytics_user_hourly','INSERT,UPDATE')
+)::int AS e1_patient_capability_no_direct_table_dml;
 
 SELECT 1 / (
   has_function_privilege(

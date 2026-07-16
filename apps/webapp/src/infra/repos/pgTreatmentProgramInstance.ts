@@ -1377,13 +1377,10 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     },
 
     async touchPatientPlanLastOpenedAt(patientUserId: string, instanceId: string): Promise<void> {
-      const now = new Date().toISOString();
-      await runDrizzleMutationTransaction(async (tx) => {
-        await tx
-          .update(instTable)
-          .set({ patientPlanLastOpenedAt: now, updatedAt: now })
-          .where(and(eq(instTable.id, instanceId), eq(instTable.patientUserId, patientUserId)));
-      });
+      void patientUserId;
+      await getDrizzle().execute(
+        sql`SELECT app.touch_current_patient_plan_last_opened(${instanceId}::uuid)`,
+      );
     },
 
     async markStageItemViewedIfNever(

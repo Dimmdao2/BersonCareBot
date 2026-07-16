@@ -48,4 +48,13 @@ describe("usePatientSupportUnreadCount", () => {
     await waitFor(() => expect(result.current).toBe(0));
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("does not poll the patient API when the surrounding shell is public", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    const { result } = renderHook(() => usePatientSupportUnreadCount(false));
+
+    expect(result.current).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
