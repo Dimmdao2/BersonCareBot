@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmodSync, chownSync, lstatSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const TEST_PATHS = {

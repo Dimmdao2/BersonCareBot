@@ -101,8 +101,8 @@ describe("pgDoctorAppointments cancellation rules", () => {
     const port = createPgDoctorAppointmentsPort();
     await port.listAppointmentsForSpecialist({ kind: "statsRange", range: "today" });
 
-    const [sql] = runWebappPgTextMock.mock.calls[0] ?? [];
-    const listSql = String(sql);
+    const listCall = runWebappPgTextMock.mock.calls.find(([sql]) => String(sql).includes("FROM appointment_records ar"));
+    const listSql = String(listCall?.[0]);
     expect(listSql).toContain("ar.record_at >= $1::timestamptz");
     expect(listSql).toContain("ar.record_at < $2::timestamptz");
     expect(listSql).not.toContain("ar.status != 'canceled'");
@@ -125,7 +125,8 @@ describe("pgDoctorAppointments cancellation rules", () => {
     const port = createPgDoctorAppointmentsPort();
     await port.listAppointmentsForSpecialist({ kind: "range", range: "today" }, { excludedUserIds: excluded });
 
-    const [sql, params] = runWebappPgTextMock.mock.calls[0] ?? [];
+    const [sql, params] =
+      runWebappPgTextMock.mock.calls.find(([query]) => String(query).includes("FROM appointment_records ar")) ?? [];
     expect(String(sql)).toContain("<> ALL($3::uuid[])");
     expect(params).toHaveLength(3);
     expect(params?.[2]).toEqual(excluded);
