@@ -23,6 +23,8 @@ const files = {
   deploy: "deploy/host/deploy-test-saas.sh",
   journal: "apps/webapp/db/drizzle-migrations/meta/_journal.json",
   dbRegression: "scripts/check-saas-db-regression.mjs",
+  migrateWrapper: "apps/webapp/scripts/run-webapp-drizzle-migrate.mjs",
+  packageJson: "package.json",
 };
 
 function read(path) { return readFileSync(path, "utf8"); }
@@ -45,23 +47,22 @@ function runChecks(overrides = {}) {
     "count(*) FILTER (WHERE NULLIF(btrim(value_json->>'value'), '') IS NOT NULL) = 5",
     "CREATE OR REPLACE FUNCTION public.sync_registered_app_runtime_setting()",
     "CREATE OR REPLACE FUNCTION app.read_public_runtime_setting(p_key text, p_scope text)",
-    "SECURITY DEFINER", "ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner",
-    "GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner",
+    "SECURITY DEFINER",
     "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC",
     "CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)",
     "setting.audience = 'server'",
     "setting.key IN ('debug_forward_to_admin', 'video_presign_ttl_seconds')",
-    "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM app_patient, app_staff",
-    "REVOKE ALL ON TABLE public.system_settings FROM app_patient",
     "Never provide a global fallback for a clinic-owned booking destination",
     "NEW.key = 'patient_booking_url'", "NEW.organization_id IS NULL",
-    "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient",
     "('webapp','public_auth_config')", "('webapp','patient_runtime_config')",
     "('webapp','public_booking_config')",
   ]);
   forbidText(files.migration, loaded.migration, [
     "GRANT SELECT ON TABLE public.system_settings TO app_patient",
     "GRANT SELECT ON TABLE public.system_settings TO PUBLIC",
+    "OWNER TO app_owner",
+    "FROM app_patient",
+    "TO app_patient",
   ]);
   requireText(files.overlay, loaded.overlay, [
     "0193_e1_safe_runtime_config.sql", "e1_webapp_runtime_role",
@@ -69,6 +70,10 @@ function runChecks(overrides = {}) {
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "NOT has_function_privilege(",
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.system_settings', 'SELECT')",
+    "ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner",
+    "ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner",
+    "REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient",
+    "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient",
   ]);
   requireText(files.runtime, loaded.runtime, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
@@ -162,11 +167,21 @@ function runChecks(overrides = {}) {
     '"docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"',
     '"--self-test"',
   ]);
+  requireText(files.migrateWrapper, loaded.migrateWrapper, [
+    "sanitizeMigrationFailureOutput", "Sanitized underlying diagnostics",
+    'query: [redacted]', 'params: [redacted]', "result.error?.message",
+    'process.argv.includes("--self-test")',
+  ]);
+  forbidText(files.migrateWrapper, loaded.migrateWrapper, ['stdio: "inherit"']);
+  requireText(files.packageJson, loaded.packageJson, [
+    "node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test",
+  ]);
 }
 
 if (process.argv.includes("--self-test")) {
   const cases = [
-    ["patient system_settings grant", { migration: read(files.migration).replace("REVOKE ALL ON TABLE public.system_settings FROM app_patient", "-- removed") }],
+    ["patient system_settings grant", { overlay: read(files.overlay).replace("REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient", "-- removed") }],
+    ["migration protected-owner coupling", { migration: `${read(files.migration)}\nALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;\n` }],
     ["oauth source cardinality", { migration: read(files.migration).replaceAll("count(*) FILTER (WHERE NULLIF(btrim(value_json->>'value'), '') IS NOT NULL) = 5", "true") }],
     ["public generic fallback", { adapter: read(files.adapter).replace("return envFallback;", "return getConfigBool(key, envFallback);") }],
     ["public OAuth secret read", { publicSnapshot: `${read(files.publicSnapshot)}\nvoid getGoogleClientSecret();\n` }],
@@ -179,6 +194,7 @@ if (process.argv.includes("--self-test")) {
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
+    ["migration diagnostics redaction", { migrateWrapper: read(files.migrateWrapper).replace('query: [redacted]', 'query: raw') }],
   ];
   let detected = 0;
   const missed = [];

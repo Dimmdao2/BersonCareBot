@@ -5,8 +5,10 @@ import { readFileSync } from "node:fs";
 const suffix = `${process.pid}_${Date.now()}`;
 const db = `bcb_saas_e1_config_scratch_${suffix}`;
 const publicRole = `bcb_e1_public_${suffix}`;
+const migrationOwner = `bcb_e1_owner_${suffix}`;
 if (!db.startsWith("bcb_saas_") || !db.includes("scratch")) throw new Error("unsafe scratch name");
 if (!/^bcb_e1_public_[0-9_]+$/.test(publicRole)) throw new Error("unsafe scratch role name");
+if (!/^bcb_e1_owner_[0-9_]+$/.test(migrationOwner)) throw new Error("unsafe scratch owner name");
 
 function run(args, input) {
   const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
@@ -91,17 +93,36 @@ SELECT 1 / ((SELECT value_json->>'value' FROM public.app_runtime_settings WHERE 
 RESET SESSION AUTHORIZATION;
 `;
 
+const runtimeAcl = `
+GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
+ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
+ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
+REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
+GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
+REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC, app_patient, app_staff;
+`;
+
+function asMigrationOwner(sql) {
+  return `SET ROLE ${migrationOwner};\n${sql}\nRESET ROLE;`;
+}
+
 try {
   run(["createuser", "--no-login", publicRole]);
-  run(["createdb", db]);
-  psql(setup);
-  psql(readFileSync("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8"));
-  psql(readFileSync("apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql", "utf8"));
-  psql(seed);
-  psql(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8"));
+  run(["createuser", "--no-login", migrationOwner]);
+  run(["createdb", "--owner", migrationOwner, db]);
+  psql(`SELECT 1 / (NOT pg_has_role('${migrationOwner}', 'app_owner', 'MEMBER'))::int;`);
+  psql(asMigrationOwner(setup));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql", "utf8")));
+  psql(asMigrationOwner(seed));
+  psql(`ALTER ROLE ${migrationOwner} BYPASSRLS;`);
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
+  psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
+  psql(runtimeAcl);
   psql(proof);
   console.log("smoke-e1-webapp-runtime-config: OK");
 } finally {
   run(["dropdb", "--if-exists", db]);
   run(["dropuser", "--if-exists", publicRole]);
+  run(["dropuser", "--if-exists", migrationOwner]);
 }

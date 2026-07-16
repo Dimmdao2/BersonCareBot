@@ -471,3 +471,20 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
 - Pool-level missing/setup/query/cleanup reports now resolve the E1 AsyncLocalStorage operation family at the actual
   failure site. Tests pin all three bounded families through an asynchronous pool failure, setup and cleanup paths,
   while an unwrapped query remains attributed to `webapp_db_request`.
+
+### 0193 fresh TEST migration-owner correction (`/root/ci_fix_review`)
+
+- The next fresh TEST rehearsal stopped in the webapp Drizzle migration step before strict closure or service
+  restart. Read-only catalog facts showed both the TEST database owner and the webapp migrator login were not
+  members of `app_owner`, while that protected role already existed. Migration `0193` incorrectly attempted
+  `ALTER FUNCTION ... OWNER TO app_owner` during the temporary database-owner migration window; PostgreSQL requires
+  membership in the target owner role and therefore rejected the transfer.
+- `0193` is now independent of protected runtime roles: it creates/backfills the projection and functions and
+  revokes PUBLIC function execution only. Function ownership plus app_owner/app_patient ACL closure moved to the
+  canonical E1 overlay, which runs as postgres after role split and protected-owner preparation.
+- The PostgreSQL 16 scratch now executes 0185/0186/0193 as a non-superuser database owner with temporary BYPASSRLS,
+  explicitly proves it is not an `app_owner` member, then applies the runtime ACL phase separately as postgres.
+  The proof passes. No manual TEST mutation, service action or PROD access was performed.
+- The Drizzle wrapper now captures failed child output and emits only bounded sanitized error/SQLSTATE diagnostics;
+  SQL/query values, parameters, DB URLs, tokens, email and phone-shaped values are redacted. Its self-test, E1
+  checker/mutations, webapp typecheck, full SaaS DB regression and hard-protocol family pass.

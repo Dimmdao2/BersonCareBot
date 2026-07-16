@@ -308,8 +308,6 @@ AS $function$
   LIMIT 1
 $function$;
 
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
-ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting(p_key text, p_scope text)
@@ -335,10 +333,4 @@ AS $function$
   LIMIT 1
 $function$;
 
-ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM app_patient, app_staff;
-
-REVOKE ALL ON TABLE public.system_settings FROM app_patient;
-REVOKE ALL ON TABLE public.system_settings_audit FROM app_patient;
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;

@@ -9,6 +9,11 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 
 \ir ../../apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql
 
+GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
+ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
+ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
+REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
+GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"e1_webapp_runtime_role";
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
