@@ -12,6 +12,30 @@ SELECT 1 / 0;
 BEGIN;
 
 \if :{?c4_web_push_reminder_down}
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM :"c4_web_push_reminder_login_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM app_web_push_reminder_discovery_definer CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM app_operational_web_push_reminder CASCADE;
 DROP POLICY IF EXISTS c4_web_push_reminder_status ON public.operator_job_status;
 DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.reminder_rules;
 DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.webapp_reminder_occurrences;
@@ -73,6 +97,36 @@ REVOKE ALL PRIVILEGES ON SCHEMA public, app FROM app_operational_web_push_remind
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_operational_web_push_reminder;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM app_operational_web_push_reminder;
 REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA app FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM :"c4_web_push_reminder_login_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM app_web_push_reminder_discovery_definer CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+FROM app_operational_web_push_reminder CASCADE;
+GRANT EXECUTE ON FUNCTION
+  app.is_staff(),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id()
+TO app_operational_web_push_reminder;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM app_web_push_reminder_discovery_definer;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_web_push_reminder_discovery_definer;
 GRANT USAGE ON SCHEMA public TO app_web_push_reminder_discovery_definer;
@@ -203,6 +257,45 @@ WHERE granted.rolname IN (:'c4_web_push_reminder_login_role', 'app_web_push_remi
 \gexec
 
 GRANT app_operational_web_push_reminder TO :"c4_web_push_reminder_login_role" WITH INHERIT FALSE, SET TRUE;
+
+-- Existing locked policies on the reminder/content/user tables may evaluate the complete
+-- protected-context helper bundle even when the C4 policy itself matches. Keep the bundle
+-- executable only by the terminal capability: never PUBLIC, the base LOGIN, or the discovery
+-- definer, and never WITH GRANT OPTION. All four helpers remain owned by app_owner.
+WITH helpers(routine_name) AS (VALUES
+  ('app.is_staff()'::regprocedure),
+  ('app.current_org_id()'::regprocedure),
+  ('app.current_patient_user_id()'::regprocedure),
+  ('app.current_integrator_user_id()'::regprocedure)
+), managed(role_name) AS (VALUES
+  (:'c4_web_push_reminder_login_role'),
+  ('app_operational_web_push_reminder'),
+  ('app_web_push_reminder_discovery_definer')
+), actual(routine_name, role_name, privilege_type, is_grantable) AS (
+  SELECT routine.oid::regprocedure, grantee.rolname, acl.privilege_type, acl.is_grantable
+  FROM pg_proc routine
+  JOIN helpers ON helpers.routine_name = routine.oid
+  CROSS JOIN LATERAL aclexplode(routine.proacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+), expected(routine_name, role_name, privilege_type, is_grantable) AS (
+  SELECT helpers.routine_name, 'app_operational_web_push_reminder', 'EXECUTE', false
+  FROM helpers
+)
+SELECT 1 / (
+  NOT EXISTS (
+    SELECT 1 FROM pg_proc routine JOIN helpers ON helpers.routine_name = routine.oid
+    WHERE pg_get_userbyid(routine.proowner) <> 'app_owner'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_proc routine
+    JOIN helpers ON helpers.routine_name = routine.oid
+    CROSS JOIN LATERAL aclexplode(routine.proacl) acl
+    WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+  )
+  AND NOT EXISTS ((SELECT * FROM actual EXCEPT SELECT * FROM expected))
+  AND NOT EXISTS ((SELECT * FROM expected EXCEPT SELECT * FROM actual))
+)::int AS c4_web_push_helper_acl_exact;
 
 COMMIT;
 \echo 'C4 Web Push reminder operational runtime overlay complete.'

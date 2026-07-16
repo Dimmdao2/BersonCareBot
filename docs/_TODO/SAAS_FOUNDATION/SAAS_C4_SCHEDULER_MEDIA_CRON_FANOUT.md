@@ -56,6 +56,12 @@ staff, patient, legacy `app_worker`, or sibling capabilities. The repeatable ope
 `deploy/postgres/c4-operational-runtime.sql`, plus `deploy/postgres/c4-web-push-reminder-runtime.sql` for the fifth
 webapp-owned contour. TEST deploy discovers login names from all five URLs, applies both overlays after required
 tables/helpers exist, and runs positive plus cross-contour readiness probes before restart.
+The Web Push capability alone receives `EXECUTE` on the complete locked-policy dependency bundle:
+`app.is_staff()`, `app.current_org_id()`, `app.current_patient_user_id()`, and
+`app.current_integrator_user_id()`. Existing strict policies may evaluate those helpers in addition to the dedicated
+C4 policy. Reapply removes PUBLIC, base-login, discovery-definer and grant-option drift for this bundle and asserts
+the helpers remain `app_owner`-owned; it does not widen staff/patient/table access. DOWN independently revokes the
+same helper ACL drift before dropping C4 roles and does not rely on a preceding successful UP/reapply.
 The overlays scrub current-database, direct, column, type, and default ACLs for all managed base logins and capabilities across
 non-system schemas, then rebuilds and catalog-asserts the exact allowlist. Managed roles are rejected if they own the
 current database, an independent enum/domain/composite/range/base type, or another object recorded by PostgreSQL owner

@@ -22,6 +22,7 @@ psql=("$PG_BINDIR/psql" -h "$SOCKET" -U postgres -d postgres -X -v ON_ERROR_STOP
 "${psql[@]}" <<'SQL'
 CREATE ROLE app_owner NOLOGIN;
 CREATE ROLE c4_webpush_smoke_login LOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE app_operational_web_push_reminder NOLOGIN NOINHERIT NOBYPASSRLS;
 CREATE ROLE c4_webpush_smoke_incoming NOLOGIN;
 CREATE ROLE c4_webpush_smoke_outgoing NOLOGIN;
 CREATE ROLE c4_webpush_smoke_cap_incoming NOLOGIN;
@@ -42,8 +43,21 @@ CREATE TABLE public.content_sections(organization_id uuid);
 CREATE TABLE public.content_pages(organization_id uuid);
 CREATE TABLE public.operator_job_status(job_family text, job_key text, last_status text);
 CREATE TABLE public.outside_contour(secret text);
+SET ROLE app_owner;
+CREATE FUNCTION app.current_org_id() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+  SELECT NULLIF(current_setting('app.org', true), '')::uuid
+$$;
+CREATE FUNCTION app.current_patient_user_id() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+  SELECT NULLIF(current_setting('app.patient_user_id', true), '')::uuid
+$$;
+CREATE FUNCTION app.current_integrator_user_id() RETURNS bigint LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
+  SELECT NULLIF(current_setting('app.integrator_user_id', true), '')::bigint
+$$;
+CREATE FUNCTION app.is_staff() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT false $$;
 CREATE FUNCTION app.get_web_push_vapid_public_key() RETURNS text LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$ SELECT 'public-key'::text $$;
-ALTER FUNCTION app.get_web_push_vapid_public_key() OWNER TO app_owner;
+RESET ROLE;
+REVOKE EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() FROM PUBLIC;
 DO $rls$
 DECLARE relation_name text;
 BEGIN
@@ -66,10 +80,41 @@ INSERT INTO public.reminder_rules VALUES
 INSERT INTO public.webapp_reminder_occurrences VALUES
  ('aaaaaaaa-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111'),
  ('bbbbbbbb-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222');
+GRANT USAGE ON SCHEMA public, app TO app_operational_web_push_reminder;
+GRANT SELECT ON public.webapp_reminder_occurrences TO app_operational_web_push_reminder;
+GRANT app_operational_web_push_reminder TO c4_webpush_smoke_login WITH INHERIT FALSE, SET TRUE;
+CREATE POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences
+  TO app_operational_web_push_reminder
+  USING (
+    (app.current_org_id() IS NULL
+      AND app.current_patient_user_id() IS NULL
+      AND app.current_integrator_user_id() IS NULL
+      AND NOT app.is_staff())
+    OR (app.is_staff() AND organization_id = app.current_org_id())
+  );
 SQL
+
+# Reproduce the fresh readiness failure with the actual base LOGIN, terminal capability and org.
+if "${psql[@]}" -U "$LOGIN_ROLE" -c \
+    "SET ROLE app_operational_web_push_reminder; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT count(*) FROM public.webapp_reminder_occurrences;" \
+    >"$ROOT/pre-overlay-helper.out" 2>&1; then
+  echo "FATAL: helper-dependent readiness unexpectedly passed before overlay grant" >&2
+  exit 1
+fi
+grep -Fq 'permission denied for function current_org_id' "$ROOT/pre-overlay-helper.out" || {
+  echo "FATAL: pre-overlay proof did not reproduce current_org_id permission denial" >&2
+  exit 1
+}
 
 "${psql[@]}" -v c4_web_push_reminder_login_role="$LOGIN_ROLE" \
   -f deploy/postgres/c4-web-push-reminder-runtime.sql >/dev/null
+
+post_overlay_helpers="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc \
+  "SET ROLE app_operational_web_push_reminder; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT app.current_org_id()::text || ':' || (app.current_patient_user_id() IS NULL)::int || ':' || (app.current_integrator_user_id() IS NULL)::int || ':' || app.is_staff()::int; SELECT count(*) FROM public.webapp_reminder_occurrences;")"
+[ "$post_overlay_helpers" = $'11111111-1111-4111-8111-111111111111\n11111111-1111-4111-8111-111111111111:1:1:0\n1' ] || {
+  echo "FATAL: helper-dependent readiness did not pass after overlay" >&2
+  exit 1
+}
 
 # Reapply must scrub both incoming and outgoing unexpected membership edges.
 "${psql[@]}" <<'SQL'
@@ -82,6 +127,14 @@ GRANT c4_webpush_smoke_definer_outgoing TO app_web_push_reminder_discovery_defin
 GRANT SELECT ON public.outside_contour TO c4_webpush_smoke_login;
 GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder;
 GRANT SELECT ON public.outside_contour TO app_web_push_reminder_discovery_definer;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO c4_webpush_smoke_login;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO app_web_push_reminder_discovery_definer;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO app_operational_web_push_reminder WITH GRANT OPTION;
 SQL
 injected_overgrants="$("${psql[@]}" -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='outside_contour' AND grantee IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer') AND privilege_type='SELECT'")"
 [ "$injected_overgrants" = "3" ] || { echo "FATAL: failed to inject overgrant rehearsal" >&2; exit 1; }
@@ -96,6 +149,8 @@ topology_edges="$("${psql[@]}" -Atc "SELECT count(*) FROM pg_auth_members member
 [ "$topology_edges" = "1" ] || { echo "FATAL: reapply did not restore exact role topology" >&2; exit 1; }
 remaining_overgrants="$("${psql[@]}" -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='outside_contour' AND grantee IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer') AND privilege_type='SELECT'")"
 [ "$remaining_overgrants" = "0" ] || { echo "FATAL: reapply retained injected overgrant" >&2; exit 1; }
+helper_acl="$("${psql[@]}" -Atc "WITH helpers(oid) AS (VALUES ('app.current_org_id()'::regprocedure),('app.current_patient_user_id()'::regprocedure),('app.current_integrator_user_id()'::regprocedure),('app.is_staff()'::regprocedure)) SELECT count(*)::text || ':' || count(*) FILTER (WHERE grantee.rolname='app_operational_web_push_reminder' AND acl.privilege_type='EXECUTE' AND NOT acl.is_grantable)::text || ':' || count(*) FILTER (WHERE acl.grantee=0 OR grantee.rolname IN ('$LOGIN_ROLE','app_web_push_reminder_discovery_definer'))::text FROM helpers JOIN pg_proc routine ON routine.oid=helpers.oid CROSS JOIN LATERAL aclexplode(routine.proacl) acl LEFT JOIN pg_roles grantee ON grantee.oid=acl.grantee WHERE acl.privilege_type='EXECUTE' AND (acl.grantee=0 OR grantee.rolname IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer'));")"
+[ "$helper_acl" = "4:4:0" ] || { echo "FATAL: reapply did not restore exact helper ACL" >&2; exit 1; }
 if "${psql[@]}" -U "$LOGIN_ROLE" -c \
   'SET ROLE app_operational_web_push_reminder; SELECT count(*) FROM public.outside_contour;' >/dev/null 2>&1; then
   echo "FATAL: reapply left the readiness-negative surface reachable" >&2
@@ -126,9 +181,24 @@ SQL
 expected=$'11111111-1111-4111-8111-111111111111,22222222-2222-4222-8222-222222222222\n11111111-1111-4111-8111-111111111111\n1\n1\n0\n0\n1:0:0\n0:0:0\n0:0:0'
 [ "$result" = "$expected" ] || { printf 'FATAL: unexpected proof output\n%s\n' "$result" >&2; exit 1; }
 
+"${psql[@]}" -c 'DROP POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences;'
+"${psql[@]}" <<'SQL'
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO c4_webpush_smoke_login;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO app_web_push_reminder_discovery_definer;
+GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id(),
+  app.current_integrator_user_id(), app.is_staff() TO app_operational_web_push_reminder WITH GRANT OPTION;
+SQL
 "${psql[@]}" -v c4_web_push_reminder_login_role="$LOGIN_ROLE" -v c4_web_push_reminder_down=1 \
   -f deploy/postgres/c4-web-push-reminder-runtime.sql >/dev/null
 cleanup_state="$("${psql[@]}" -Atc "SELECT (to_regrole('app_operational_web_push_reminder') IS NULL)::int || ':' || (to_regrole('app_web_push_reminder_discovery_definer') IS NULL)::int || ':' || (to_regrole('$LOGIN_ROLE') IS NOT NULL)::int || ':' || ((SELECT count(*) FROM pg_auth_members membership JOIN pg_roles granted ON granted.oid=membership.roleid JOIN pg_roles member ON member.oid=membership.member WHERE granted.rolname='$LOGIN_ROLE' OR member.rolname='$LOGIN_ROLE')=0)::int")"
 [ "$cleanup_state" = "1:1:1:1" ] || { echo "FATAL: overlay cleanup proof failed" >&2; exit 1; }
+if "${psql[@]}" -U "$LOGIN_ROLE" -c 'SELECT app.current_org_id();' >/dev/null 2>&1; then
+  echo "FATAL: DOWN retained base-login helper EXECUTE" >&2
+  exit 1
+fi
 
 echo "C4 Web Push reminder private PostgreSQL 16 proof: OK"

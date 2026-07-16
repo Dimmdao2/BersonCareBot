@@ -645,6 +645,11 @@ function assertOperationalSqlAndDeploy(loaded) {
     "reminders.web_push_only.tick",
     "web-push exact operator status write/read failed",
     "web-push operator status policy exposed or updated another key",
+    "SELECT set_config('app.org', '00000000-0000-4000-8000-000000000001', true)",
+    "app.is_staff()",
+    "app.current_org_id()",
+    "app.current_patient_user_id()",
+    "app.current_integrator_user_id()",
   ]);
   requireOccurrenceCountAtLeast(files.operationalReadinessScript, loaded.operationalReadinessScript, "expect_denied", 15);
   requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
@@ -755,7 +760,22 @@ function assertOperationalSqlAndDeploy(loaded) {
     "c4_web_push_reminder_down",
     "DROP ROLE IF EXISTS app_operational_web_push_reminder",
     "granted.rolname IN (:'c4_web_push_reminder_login_role'",
+    "app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()",
+    "REVOKE ALL PRIVILEGES ON FUNCTION\n  app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()\nFROM PUBLIC;",
+    'FROM :"c4_web_push_reminder_login_role" CASCADE',
+    "FROM app_web_push_reminder_discovery_definer CASCADE",
+    "FROM app_operational_web_push_reminder CASCADE",
+    "GRANT EXECUTE ON FUNCTION\n  app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()\nTO app_operational_web_push_reminder;",
+    "pg_get_userbyid(routine.proowner) <> 'app_owner'",
+    "acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'",
+    "SELECT * FROM actual EXCEPT SELECT * FROM expected",
+    "SELECT * FROM expected EXCEPT SELECT * FROM actual",
+    "c4_web_push_helper_acl_exact",
   ]);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, 'FROM :"c4_web_push_reminder_login_role" CASCADE', 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "FROM app_web_push_reminder_discovery_definer CASCADE", 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "FROM app_operational_web_push_reminder CASCADE", 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "app.current_integrator_user_id()\nFROM PUBLIC;", 2);
   requireFragments(files.webPushOperationalProof, loaded.webPushOperationalProof, [
     "failed to inject overgrant rehearsal",
     "reapply retained injected overgrant",
@@ -764,8 +784,23 @@ function assertOperationalSqlAndDeploy(loaded) {
     "GRANT SELECT ON public.outside_contour TO c4_webpush_smoke_login",
     "GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder",
     "GRANT SELECT ON public.outside_contour TO app_web_push_reminder_discovery_definer",
+    "helper-dependent readiness unexpectedly passed before overlay grant",
+    "CREATE POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences",
+    "SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT count(*) FROM public.webapp_reminder_occurrences;",
+    "permission denied for function current_org_id",
+    "helper-dependent readiness did not pass after overlay",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id()",
+    "TO PUBLIC",
+    "TO c4_webpush_smoke_login",
+    "TO app_web_push_reminder_discovery_definer",
+    "TO app_operational_web_push_reminder WITH GRANT OPTION",
+    'helper_acl" = "4:4:0"',
+    "reapply did not restore exact helper ACL",
+    "DOWN retained base-login helper EXECUTE",
     "C4 Web Push reminder private PostgreSQL 16 proof: OK",
   ]);
+  requireOccurrenceCountAtLeast(files.webPushOperationalProof, loaded.webPushOperationalProof, "app.current_integrator_user_id(), app.is_staff() TO PUBLIC;", 2);
+  requireOccurrenceCountAtLeast(files.webPushOperationalProof, loaded.webPushOperationalProof, "TO app_operational_web_push_reminder WITH GRANT OPTION", 2);
   requireFragments(files.webPushReminderCron, loaded.webPushReminderCron, [
     'JOB_NAME="bersoncarebot-test-web-push-only-reminders"',
     'node "$CRONPORT" set',
@@ -1002,6 +1037,34 @@ if (process.argv.includes("--self-test")) {
     "GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder;",
     "-- removed injected operational overgrant",
   );
+  const webPushOperationalSqlNoHelperGrant = read(files.webPushOperationalSql).replace(
+    "GRANT EXECUTE ON FUNCTION\n  app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()\nTO app_operational_web_push_reminder;",
+    "-- removed protected-context helper grant",
+  );
+  const webPushOperationalSqlPublicHelperOvergrant = read(files.webPushOperationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON FUNCTION\n  app.is_staff(),\n  app.current_org_id(),\n  app.current_patient_user_id(),\n  app.current_integrator_user_id()\nFROM PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id() TO PUBLIC;",
+  );
+  const webPushOperationalSqlNoHelperAclAssertion = read(files.webPushOperationalSql).replace(
+    "c4_web_push_helper_acl_exact",
+    "c4_web_push_helper_acl_removed",
+  );
+  const webPushOperationalProofNoBeforeGrantFailure = read(files.webPushOperationalProof).replace(
+    "permission denied for function current_org_id",
+    "pre-overlay helper failure proof removed",
+  );
+  const webPushOperationalProofNoLockedPolicy = read(files.webPushOperationalProof).replace(
+    "CREATE POLICY pre_overlay_locked_helper_dependency ON public.webapp_reminder_occurrences",
+    "-- removed locked helper dependency policy",
+  );
+  const webPushOperationalProofNoHelperOvergrant = read(files.webPushOperationalProof).replaceAll(
+    "TO app_operational_web_push_reminder WITH GRANT OPTION",
+    "helper grant-option rehearsal removed",
+  );
+  const operationalReadinessScriptNoWebPushHelperProbe = read(files.operationalReadinessScript).replace(
+    "SELECT set_config('app.org', '00000000-0000-4000-8000-000000000001', true)",
+    "SELECT 'web-push helper readiness removed'",
+  );
   const testDeployNoBootstrapProvisionCall = read(files.testDeploy).replace(
     "  bootstrap_and_provision_c4_operational_runtime\n",
     "  # removed bootstrap/provision call\n",
@@ -1085,6 +1148,13 @@ if (process.argv.includes("--self-test")) {
     { operationalSql: operationalSqlCategoryArrayFilter },
     { operationalSql: operationalSqlOpenReason },
     { webPushOperationalProof: webPushOperationalProofNoOvergrantRehearsal },
+    { webPushOperationalSql: webPushOperationalSqlNoHelperGrant },
+    { webPushOperationalSql: webPushOperationalSqlPublicHelperOvergrant },
+    { webPushOperationalSql: webPushOperationalSqlNoHelperAclAssertion },
+    { webPushOperationalProof: webPushOperationalProofNoBeforeGrantFailure },
+    { webPushOperationalProof: webPushOperationalProofNoLockedPolicy },
+    { webPushOperationalProof: webPushOperationalProofNoHelperOvergrant },
+    { operationalReadinessScript: operationalReadinessScriptNoWebPushHelperProbe },
     { testDeploy: testDeployNoBootstrapProvisionCall },
     { testDeploy: testDeployWrongPostMatrixOrder },
     { testDeploy: testDeployNoUnitEnvGate },
