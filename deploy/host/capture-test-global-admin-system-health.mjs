@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { deflateSync, inflateSync } from "node:zlib";
 
 const exactBase = "https://test.bersoncare.ru";
 const exactCookieHost = "test.bersoncare.ru";
@@ -24,6 +25,8 @@ const sessionCookieName = "bersoncare_webapp_session";
 const expectedPngName = /^i0_app_doctor_system_health_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.png$/;
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const maxPngBytes = 256 * 1024 * 1024;
+const maxDecodedPngBytes = 512 * 1024 * 1024;
+const maxPngDimension = 0x7fffffff;
 const pngCrcTable = Object.freeze(Array.from({ length: 256 }, (_, value) => {
   let crc = value;
   for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
@@ -147,14 +150,44 @@ function validateIhdr(contents, dataStart) {
   if (
     width < 1 ||
     height < 1 ||
+    width > maxPngDimension ||
+    height > maxPngDimension ||
     !validBitDepths.get(colorType)?.has(bitDepth) ||
     contents[dataStart + 10] !== 0 ||
     contents[dataStart + 11] !== 0 ||
-    ![0, 1].includes(contents[dataStart + 12])
+    contents[dataStart + 12] !== 0
   ) {
     fail("capture_png_content_invalid");
   }
-  return colorType;
+  const channels = new Map([[0, 1], [2, 3], [3, 1], [4, 2], [6, 4]]).get(colorType);
+  if (!channels) fail("capture_png_content_invalid");
+  const rowBytes = (BigInt(width) * BigInt(channels * bitDepth) + 7n) / 8n;
+  const decodedBytes = (rowBytes + 1n) * BigInt(height);
+  if (decodedBytes > BigInt(maxDecodedPngBytes) || decodedBytes > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail("capture_png_content_invalid");
+  }
+  return { colorType, decodedBytes: Number(decodedBytes), height, rowBytes: Number(rowBytes) };
+}
+
+function validateDecodedIdat(idatParts, idatBytes, ihdr) {
+  let inflated;
+  try {
+    inflated = inflateSync(Buffer.concat(idatParts, idatBytes), {
+      info: true,
+      maxOutputLength: ihdr.decodedBytes,
+    });
+  } catch {
+    fail("capture_png_content_invalid");
+  }
+  const decoded = inflated.buffer;
+  if (inflated.engine.bytesWritten !== idatBytes || decoded.length !== ihdr.decodedBytes) {
+    fail("capture_png_content_invalid");
+  }
+  const rowStride = ihdr.rowBytes + 1;
+  for (let row = 0; row < ihdr.height; row += 1) {
+    const rowOffset = row * rowStride;
+    if (decoded[rowOffset] > 4) fail("capture_png_content_invalid");
+  }
 }
 
 function validatePngContents(contents) {
@@ -168,10 +201,11 @@ function validatePngContents(contents) {
 
   let offset = pngSignature.length;
   let chunkIndex = 0;
-  let colorType;
+  let ihdr;
   let sawPalette = false;
   let sawIdat = false;
   let idatBytes = 0;
+  const idatParts = [];
   let idatSequenceEnded = false;
 
   while (offset < contents.length) {
@@ -201,22 +235,24 @@ function validatePngContents(contents) {
 
     if (chunkIndex === 0) {
       if (type !== "IHDR" || length !== 13) fail("capture_png_content_invalid");
-      colorType = validateIhdr(contents, dataStart);
+      ihdr = validateIhdr(contents, dataStart);
     } else if (type === "IHDR") {
       fail("capture_png_content_invalid");
     } else if (type === "PLTE") {
-      if (sawPalette || sawIdat || length === 0 || length % 3 !== 0 || length > 768 || colorType === 0 || colorType === 4) {
+      if (sawPalette || sawIdat || length === 0 || length % 3 !== 0 || length > 768 || ihdr.colorType === 0 || ihdr.colorType === 4) {
         fail("capture_png_content_invalid");
       }
       sawPalette = true;
     } else if (type === "IDAT") {
-      if (idatSequenceEnded || (colorType === 3 && !sawPalette)) fail("capture_png_content_invalid");
+      if (idatSequenceEnded || (ihdr.colorType === 3 && !sawPalette)) fail("capture_png_content_invalid");
       sawIdat = true;
       idatBytes += length;
+      idatParts.push(contents.subarray(dataStart, dataEnd));
     } else if (type === "IEND") {
       if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length) {
         fail("capture_png_content_invalid");
       }
+      validateDecodedIdat(idatParts, idatBytes, ihdr);
       return;
     } else {
       if (sawIdat) idatSequenceEnded = true;
@@ -386,6 +422,30 @@ function selfTest() {
     const idatLength = minimalPng.readUInt32BE(33);
     const validIdat = minimalPng.subarray(33, 33 + idatLength + 12);
     const validIend = minimalPng.subarray(minimalPng.length - 12);
+    const validIhdrData = minimalPng.subarray(16, 29);
+    const validIdatData = minimalPng.subarray(41, 41 + idatLength);
+    validatePngContents(Buffer.concat([
+      pngSignature,
+      validIhdr,
+      pngChunk("IDAT", validIdatData.subarray(0, 5)),
+      pngChunk("IDAT", validIdatData.subarray(5)),
+      validIend,
+    ]));
+    const chromiumStyleIhdrData = Buffer.from(validIhdrData);
+    chromiumStyleIhdrData.writeUInt32BE(2, 0);
+    chromiumStyleIhdrData.writeUInt32BE(2, 4);
+    chromiumStyleIhdrData[8] = 8;
+    chromiumStyleIhdrData[9] = 6;
+    const chromiumStyleRows = Buffer.from([
+      0, 255, 255, 255, 255, 0, 0, 0, 255,
+      4, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    validatePngContents(Buffer.concat([
+      pngSignature,
+      pngChunk("IHDR", chromiumStyleIhdrData),
+      pngChunk("IDAT", deflateSync(chromiumStyleRows)),
+      validIend,
+    ]));
     const crafted36BytePng = Buffer.alloc(36);
     pngSignature.copy(crafted36BytePng);
     crafted36BytePng.write("IHDR", 12, "ascii");
@@ -416,6 +476,42 @@ function selfTest() {
       pngSignature,
       validIdat,
       validIhdr,
+      validIend,
+    ]));
+    assertInvalidPng("invalid_zlib_stream", Buffer.concat([
+      pngSignature,
+      validIhdr,
+      pngChunk("IDAT", Buffer.from([0])),
+      validIend,
+    ]));
+    assertInvalidPng("wrong_decoded_length", Buffer.concat([
+      pngSignature,
+      validIhdr,
+      pngChunk("IDAT", deflateSync(Buffer.from([0, 0]))),
+      validIend,
+    ]));
+    assertInvalidPng("invalid_scanline_filter", Buffer.concat([
+      pngSignature,
+      validIhdr,
+      pngChunk("IDAT", deflateSync(Buffer.from([5, 0, 0]))),
+      validIend,
+    ]));
+    const oversizedIhdrData = Buffer.from(validIhdrData);
+    oversizedIhdrData.writeUInt32BE(0x80000000, 0);
+    assertInvalidPng("oversized_dimension", Buffer.concat([
+      pngSignature,
+      pngChunk("IHDR", oversizedIhdrData),
+      validIdat,
+      validIend,
+    ]));
+    const bombIhdrData = Buffer.from(validIhdrData);
+    bombIhdrData.writeUInt32BE(20_000, 0);
+    bombIhdrData.writeUInt32BE(20_000, 4);
+    bombIhdrData[9] = 6;
+    assertInvalidPng("decoded_resource_bomb", Buffer.concat([
+      pngSignature,
+      pngChunk("IHDR", bombIhdrData),
+      validIdat,
       validIend,
     ]));
 
