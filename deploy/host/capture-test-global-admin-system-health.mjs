@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -12,6 +21,9 @@ const screenshotRoot = "/home/dev/dev-projects/BersonCareBot/.claude/screenshots
 const shotEngine = "/home/dev/brain/host-orch/shot.mjs";
 const chromePath = "/home/dev/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome";
 const sessionCookieName = "bersoncare_webapp_session";
+const expectedPngName = /^i0_app_doctor_system_health_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.png$/;
+const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const pngIend = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
 
 function fail(code) {
   throw new Error(code);
@@ -85,12 +97,88 @@ function childEnvironment() {
   });
 }
 
+function prepareOutputDirectory(runId, dev) {
+  const rootMetadata = lstatSync(screenshotRoot);
+  if (
+    !rootMetadata.isDirectory() ||
+    rootMetadata.isSymbolicLink() ||
+    rootMetadata.uid !== dev.uid ||
+    rootMetadata.gid !== dev.gid ||
+    (rootMetadata.mode & 0o022) !== 0
+  ) {
+    fail("screenshot_root_metadata_invalid");
+  }
+  const runDirectory = path.join(screenshotRoot, runId);
+  const outputDirectory = path.join(runDirectory, "global-admin");
+  mkdirSync(runDirectory, { mode: 0o700 });
+  mkdirSync(outputDirectory, { mode: 0o700 });
+  return outputDirectory;
+}
+
+function removeArtifact(artifactPath) {
+  rmSync(artifactPath, { recursive: true, force: true });
+}
+
+function validatePng(filePath, dev) {
+  const metadata = lstatSync(filePath);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.uid !== dev.uid ||
+    metadata.gid !== dev.gid ||
+    metadata.size < 33
+  ) {
+    fail("capture_png_metadata_invalid");
+  }
+  const contents = readFileSync(filePath);
+  if (
+    !contents.subarray(0, pngSignature.length).equals(pngSignature) ||
+    contents.subarray(12, 16).toString("ascii") !== "IHDR" ||
+    contents.readUInt32BE(16) < 1 ||
+    contents.readUInt32BE(20) < 1 ||
+    !contents.subarray(-pngIend.length).equals(pngIend)
+  ) {
+    fail("capture_png_content_invalid");
+  }
+}
+
+function sanitizeAndValidateCapture(outputDirectory, dev) {
+  const directoryMetadata = lstatSync(outputDirectory);
+  if (
+    !directoryMetadata.isDirectory() ||
+    directoryMetadata.isSymbolicLink() ||
+    directoryMetadata.uid !== dev.uid ||
+    directoryMetadata.gid !== dev.gid ||
+    (directoryMetadata.mode & 0o077) !== 0
+  ) {
+    fail("capture_output_directory_metadata_invalid");
+  }
+
+  const expected = [];
+  for (const entry of readdirSync(outputDirectory, { withFileTypes: true })) {
+    const artifactPath = path.join(outputDirectory, entry.name);
+    if (!expectedPngName.test(entry.name)) {
+      removeArtifact(artifactPath);
+      continue;
+    }
+    try {
+      validatePng(artifactPath, dev);
+      expected.push(artifactPath);
+    } catch (error) {
+      removeArtifact(artifactPath);
+      throw error;
+    }
+  }
+  if (expected.length !== 1) fail("capture_png_missing_or_ambiguous");
+  return expected[0];
+}
+
 function capture() {
   const dev = resolveDevIdentity();
   if (process.getuid?.() !== dev.uid || process.getgid?.() !== dev.gid) fail("capture_requires_dev_identity");
   validateJar(exactJar, dev.gid);
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputDirectory = path.join(screenshotRoot, runId, "global-admin");
+  const outputDirectory = prepareOutputDirectory(runId, dev);
   const result = spawnSync(process.execPath, [shotEngine, exactJar, outputDirectory, exactRoute], {
     cwd: "/home/dev/brain/host-orch",
     env: childEnvironment(),
@@ -98,7 +186,14 @@ function capture() {
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 180_000,
   });
+  let artifactError;
+  try {
+    sanitizeAndValidateCapture(outputDirectory, dev);
+  } catch (error) {
+    artifactError = error;
+  }
   if (result.error || result.status !== 0) fail("fixed_test_capture_failed");
+  if (artifactError) throw artifactError;
   process.stdout.write(`TEST global-admin System Health capture complete\noutput=${outputDirectory}\n`);
 }
 
@@ -138,6 +233,48 @@ function selfTest() {
     }
     const safeOutput = "TEST global-admin System Health capture complete";
     if (safeOutput.includes("self-test-cookie-secret")) fail("self_test_stdout_secret_leak");
+
+    const dev = { uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 };
+    const falseSuccess = path.join(root, "false-success");
+    mkdirSync(falseSuccess, { mode: 0o700 });
+    writeFileSync(path.join(falseSuccess, "last-shot.json"), "protected engine report");
+    let falseSuccessRejected = false;
+    try {
+      sanitizeAndValidateCapture(falseSuccess, dev);
+    } catch (error) {
+      falseSuccessRejected = error instanceof Error && error.message === "capture_png_missing_or_ambiguous";
+    }
+    if (!falseSuccessRejected || readdirSync(falseSuccess).length !== 0) {
+      fail("self_test_false_success_accepted_or_report_retained");
+    }
+
+    const validCapture = path.join(root, "valid-capture");
+    mkdirSync(validCapture, { mode: 0o700 });
+    const validPngName = "i0_app_doctor_system_health_2026-07-16T12-34-56Z.png";
+    const minimalPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    writeFileSync(path.join(validCapture, validPngName), minimalPng, { mode: 0o600 });
+    writeFileSync(path.join(validCapture, "last-shot.json"), "protected engine report");
+    writeFileSync(path.join(validCapture, "unexpected.txt"), "unsafe artifact");
+    sanitizeAndValidateCapture(validCapture, dev);
+    if (readdirSync(validCapture).join("") !== validPngName) {
+      fail("self_test_engine_artifact_not_sanitized");
+    }
+
+    const symlinkCapture = path.join(root, "symlink-capture");
+    mkdirSync(symlinkCapture, { mode: 0o700 });
+    symlinkSync(path.join(validCapture, validPngName), path.join(symlinkCapture, validPngName));
+    let symlinkRejected = false;
+    try {
+      sanitizeAndValidateCapture(symlinkCapture, dev);
+    } catch {
+      symlinkRejected = true;
+    }
+    if (!symlinkRejected || readdirSync(symlinkCapture).length !== 0) {
+      fail("self_test_symlink_png_accepted");
+    }
     process.stdout.write("fixed TEST global-admin capture self-test: OK\n");
   } finally {
     rmSync(root, { recursive: true, force: true });

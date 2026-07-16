@@ -58,7 +58,10 @@ node deploy/host/capture-test-global-admin-system-health.mjs capture
 
 Direct invocation of `/home/dev/brain/host-orch/shot.mjs` with this global-admin jar is forbidden. In particular,
 never pass the jar to a caller-controlled `BASE`, route, or origin. The wrapper creates its own UTC run directory
-under `.claude/screenshots/SAAS-S3-TEST-WALKTHROUGH/` and prints only that path.
+under `.claude/screenshots/SAAS-S3-TEST-WALKTHROUGH/` and prints only that path. A zero exit from the underlying
+engine is not success by itself: the wrapper requires exactly one non-empty, structurally valid PNG with the fixed
+System Health filename in that exact directory. It removes the engine's `last-shot.json` and every unexpected
+artifact before reporting success, and fails closed if the PNG is missing, malformed, ambiguous, or a symlink.
 
 Do not copy `last-shot.json` into durable evidence: it may contain page text. Keep only sanitized findings/manifest
 and reviewed screenshots. Never print, `cat`, archive, commit, or send the jar.

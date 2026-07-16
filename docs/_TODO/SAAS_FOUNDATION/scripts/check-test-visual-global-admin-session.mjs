@@ -81,6 +81,12 @@ function validate(source) {
     'process.getuid?.() !== dev.uid',
     'spawnSync(process.execPath, [shotEngine, exactJar, outputDirectory, exactRoute]',
     'env: childEnvironment()',
+    '    sanitizeAndValidateCapture(outputDirectory, dev);',
+    'capture_png_missing_or_ambiguous',
+    'capture_png_content_invalid',
+    'self_test_false_success_accepted_or_report_retained',
+    'self_test_engine_artifact_not_sanitized',
+    'self_test_symlink_png_accepted',
     'if (extraArguments.length > 0) fail("arguments_forbidden")',
     '"NODE_OPTIONS" in env',
     'self_test_unsafe_cookie_scope_accepted',
@@ -146,12 +152,17 @@ function selfTest(source) {
     ],
     ["origin drift", 'const exactBase = "https://test.bersoncare.ru"', 'const exactBase = "https://evil.example"'],
     ["cookie exfiltration domain", 'const exactCookieHost = "test.bersoncare.ru"', 'const exactCookieHost = "evil.example"'],
+    [
+      "capture artifact validation bypassed",
+      "    sanitizeAndValidateCapture(outputDirectory, dev);",
+      "    void outputDirectory;",
+    ],
   ];
   for (const [label, before, after] of mutations) {
     const mutated = { ...source };
     const target = label === "renewable bounded session"
       ? "cookie"
-      : label === "origin drift" || label === "cookie exfiltration domain"
+      : label === "origin drift" || label === "cookie exfiltration domain" || label === "capture artifact validation bypassed"
         ? "capture"
         : "helper";
     mutated[target] = mutated[target].replace(before, after);
