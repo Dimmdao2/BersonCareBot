@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 /**
  * Canonical webapp DB migration entrypoint (used by `pnpm run migrate`).
- * Runs Drizzle migrations from `db/drizzle-migrations` via `drizzle-kit migrate`.
- *
- * Legacy SQL under `apps/webapp/migrations/` is not executed here; use `pnpm run migrate:legacy`
- * when you still need that path (e.g. fresh DB bootstrap before Drizzle was consolidated).
- *
- * Requires DATABASE_URL (from env or `.env.dev` / `.env` in apps/webapp).
+ * Runs the Drizzle ORM migrator directly so PostgreSQL failures retain their structured
+ * SQLSTATE/cause. Diagnostics expose only the migration tag, index and allowlisted category;
+ * SQL, parameters, connection strings and database data are never rendered.
  */
-import { spawnSync } from "node:child_process";
 import { config } from "dotenv";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webappRoot = path.join(__dirname, "..");
+const migrationsFolder = path.join(webappRoot, "db", "drizzle-migrations");
+const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
 
 const OBJECT_CONFLICT_SQLSTATES = new Set(["23505", "42701", "42710", "42P06", "42P07"]);
 const SCHEMA_MISMATCH_SQLSTATES = new Set(["3F000", "42703", "42883", "42P01"]);
@@ -50,9 +53,63 @@ export function classifyMigrationFailureOutput(raw) {
   return { reason, sqlstate };
 }
 
-export function renderMigrationFailureDiagnostic(raw) {
-  const diagnostic = classifyMigrationFailureOutput(raw);
-  return `[migrate] failure reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? "unknown"}`;
+function errorChain(error) {
+  const chain = [];
+  const seen = new Set();
+  let current = error;
+  while (current && typeof current === "object" && !seen.has(current) && chain.length < 8) {
+    seen.add(current);
+    chain.push(current);
+    current = current.cause;
+  }
+  return chain;
+}
+
+export function classifyStructuredMigrationFailure(error) {
+  const chain = errorChain(error);
+  const sqlstate = chain
+    .map((item) => item.code)
+    .find((code) => typeof code === "string" && /^[0-9A-Z]{5}$/i.test(code))
+    ?.toUpperCase() ?? null;
+  const membership = chain.some(
+    (item) => typeof item.message === "string" && /^must be member of role(?:\s+"?[a-z_][a-z0-9_]*"?)?$/i.test(item.message),
+  );
+  return classifyMigrationFailureOutput(
+    `${membership ? "PostgresError: must be member of role\n" : ""}${sqlstate ? `code: ${sqlstate}` : ""}`,
+  );
+}
+
+function normalizeStatement(value) {
+  return String(value ?? "").trim().replace(/;\s*$/, "").trim();
+}
+
+export function findMigrationIdentity(query, migrations, journalEntries) {
+  const normalizedQuery = normalizeStatement(query);
+  if (!normalizedQuery) return null;
+  const matches = migrations.filter((migration) =>
+    migration.sql.some((statement) => normalizeStatement(statement) === normalizedQuery),
+  );
+  // Repeated DDL exists in the historical chain. Never claim a migration identity when the
+  // failing statement is not unique; a safe `unknown` is better than a misleading tag.
+  if (matches.length !== 1) return null;
+  const migration = matches[0];
+  const journal = journalEntries.find((entry) => entry.when === migration.folderMillis);
+  if (!journal || !/^[0-9]{4}_[a-z0-9_]+$/.test(journal.tag) || !Number.isInteger(journal.idx)) {
+    return null;
+  }
+  return { idx: journal.idx, tag: journal.tag };
+}
+
+function queryFromError(error) {
+  return errorChain(error)
+    .map((item) => item.query)
+    .find((query) => typeof query === "string") ?? null;
+}
+
+export function renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries) {
+  const diagnostic = classifyStructuredMigrationFailure(error);
+  const identity = findMigrationIdentity(queryFromError(error), migrations, journalEntries);
+  return `[migrate] failure migration=${identity?.tag ?? "unknown"} idx=${identity?.idx ?? "unknown"} reason=${diagnostic.reason} sqlstate=${diagnostic.sqlstate ?? "unknown"}`;
 }
 
 if (process.argv.includes("--self-test")) {
@@ -61,34 +118,43 @@ if (process.argv.includes("--self-test")) {
     "code: 42501",
     "Error: Failed query: INSERT INTO private_table VALUES ('TOP_SECRET')",
     "params: +79991234567 user@example.test",
-    "detail: Key (token)=(hidden-query-value) already exists",
-    "DATABASE_URL=postgres://user:password@example.test/private",
-    "AUTH_TOKEN=raw-token-value",
-    "Bearer eyJhbGciOiJIUzI1NiJ9.raw.signature",
-    "plain phone 79991234567 and -79991234567",
-    "path /opt/private/patient-export.json",
-    "uuid 11111111-2222-4333-8444-555555555555",
-    "Error\n    at secretStack (/private/source.ts:10:2)",
   ].join("\n");
-  const rendered = renderMigrationFailureDiagnostic(sample);
-  if (rendered !== "[migrate] failure reason=role_membership_required sqlstate=42501") {
+  const renderedLegacy = classifyMigrationFailureOutput(sample);
+  if (renderedLegacy.reason !== "role_membership_required" || renderedLegacy.sqlstate !== "42501") {
     throw new Error("migration diagnostic self-test lost the allowlisted category or SQLSTATE");
   }
-  for (const forbidden of [
-    "TOP_SECRET", "INSERT INTO", "+79991234567", "79991234567", "user@example.test",
-    "hidden-query-value", "raw-token-value", "postgres://", "eyJhbGci", "/opt/private",
-    "11111111-2222-4333-8444-555555555555", "secretStack", "app_owner",
-  ]) {
+
+  const structuredError = Object.assign(new Error("Failed query: TOP_SECRET"), {
+    query: "SELECT 'TOP_SECRET'",
+    cause: Object.assign(new Error("function private.secret() does not exist"), { code: "42883" }),
+  });
+  const rendered = renderStructuredMigrationFailureDiagnostic(
+    structuredError,
+    [{ folderMillis: 123, sql: ["SELECT 'TOP_SECRET';"] }],
+    [{ idx: 198, when: 123, tag: "0198_patient_visible_catalog_reads" }],
+  );
+  if (rendered !== "[migrate] failure migration=0198_patient_visible_catalog_reads idx=198 reason=schema_mismatch sqlstate=42883") {
+    throw new Error("structured migration diagnostic self-test lost migration identity or SQLSTATE");
+  }
+  const ambiguous = renderStructuredMigrationFailureDiagnostic(
+    structuredError,
+    [
+      { folderMillis: 123, sql: ["SELECT 'TOP_SECRET';"] },
+      { folderMillis: 124, sql: ["SELECT 'TOP_SECRET';"] },
+    ],
+    [
+      { idx: 198, when: 123, tag: "0198_patient_visible_catalog_reads" },
+      { idx: 199, when: 124, tag: "0199_current_patient_booking_rows" },
+    ],
+  );
+  if (!ambiguous.includes("migration=unknown idx=unknown")) {
+    throw new Error("structured migration diagnostic self-test misattributed duplicate SQL");
+  }
+  for (const forbidden of ["TOP_SECRET", "SELECT", "private.secret", "app_owner", "+79991234567", "user@example.test"]) {
     if (rendered.includes(forbidden)) throw new Error(`migration diagnostic self-test leaked ${forbidden}`);
   }
-  if (renderMigrationFailureDiagnostic("code: 42501\ndetail: arbitrary") !== "[migrate] failure reason=permission_denied sqlstate=42501") {
-    throw new Error("migration diagnostic self-test failed permission classification");
-  }
-  if (renderMigrationFailureDiagnostic("unlabeled 42501 and arbitrary text") !== "[migrate] failure reason=migration_failed sqlstate=unknown") {
+  if (classifyMigrationFailureOutput("unlabeled 42501").sqlstate !== null) {
     throw new Error("migration diagnostic self-test accepted an unlabeled SQLSTATE");
-  }
-  if (renderMigrationFailureDiagnostic("query: SELECT 'code: 42501'") !== "[migrate] failure reason=migration_failed sqlstate=unknown") {
-    throw new Error("migration diagnostic self-test accepted a query-embedded SQLSTATE");
   }
   console.log("run-webapp-drizzle-migrate diagnostic self-test: OK");
   process.exit(0);
@@ -103,34 +169,18 @@ if (!url) {
   process.exit(1);
 }
 
-const result = spawnSync("pnpm", ["exec", "drizzle-kit", "migrate"], {
-  cwd: webappRoot,
-  stdio: ["inherit", "pipe", "pipe"],
-  encoding: "utf8",
-  maxBuffer: 4 * 1024 * 1024,
-  env: process.env,
-  shell: false,
-});
-
-const code = typeof result.status === "number" ? result.status : 1;
-if (code === 0) {
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
+const migrations = readMigrationFiles({ migrationsFolder });
+const journalEntries = JSON.parse(fs.readFileSync(journalPath, "utf8")).entries;
+const pool = new pg.Pool({ connectionString: url, max: 1 });
+let exitCode = 0;
+try {
+  await migrate(drizzle(pool), { migrationsFolder });
+  console.log(`[migrate] Drizzle migrations complete count=${migrations.length}`);
+} catch (error) {
+  exitCode = 1;
+  console.error(renderStructuredMigrationFailureDiagnostic(error, migrations, journalEntries));
+  console.error("[migrate] Drizzle migration failed; raw SQL and parameters suppressed");
+} finally {
+  await pool.end();
 }
-if (code !== 0) {
-  const diagnostic = renderMigrationFailureDiagnostic(
-    `${result.stderr ?? ""}\n${result.stdout ?? ""}\n${result.error?.message ?? ""}`,
-  );
-  console.error(diagnostic);
-  console.error(`
-[migrate] Drizzle migration failed (exit ${code}).
-
-If tables already exist but drizzle.__drizzle_migrations is empty (DDL applied outside drizzle-kit), repair metadata only:
-  pnpm --dir apps/webapp run db:seed-drizzle-meta
-  pnpm --dir apps/webapp run migrate
-
-If you need legacy SQL from apps/webapp/migrations (emergency/bootstrap only), run explicitly:
-  WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap pnpm --dir apps/webapp run migrate:legacy
-`);
-}
-process.exit(code);
+process.exit(exitCode);

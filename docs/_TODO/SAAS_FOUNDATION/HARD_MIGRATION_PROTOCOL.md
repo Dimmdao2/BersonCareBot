@@ -210,6 +210,7 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/organization-member-invites-rls.sql`,
   `deploy/postgres/store-p0-entitlements-rls.sql`,
   `deploy/postgres/patient-course-assignment-wall.sql`,
+  `deploy/postgres/patient-visible-catalog-rls.sql`,
   `deploy/postgres/specialist-signup-public-bootstrap-rls.sql`, and
   `deploy/postgres/specialist-owner-provisioning-rls.sql`. When P2-B is installed, also rehydrate
   `deploy/postgres/reference-catalog-rls.sql` and

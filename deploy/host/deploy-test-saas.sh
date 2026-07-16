@@ -39,6 +39,7 @@ PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql
 PUBLIC_BOOTSTRAP_RLS=deploy/postgres/specialist-signup-public-bootstrap-rls.sql
 SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
 REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
+PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql
 PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
 PUBLIC_BOOKING_BOOTSTRAP_RESOLVER=deploy/postgres/public-booking-bootstrap-resolver.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
@@ -375,6 +376,7 @@ rehydrate_post_restore_runtime_overlays(){
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$REFERENCE_CATALOG_RLS"
+    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VISIBLE_CATALOG_RLS"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"
   fi
@@ -924,7 +926,7 @@ assert_strict_closure_deploy_checkout_ready(){
   for required_path in \
     "$OVERRIDE" "$P0_5B_ROLES" "$P0_5B_GRANTS" "$P2_B_CONTEXT" \
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
-    "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" \
+    "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" "$C4_OPERATIONAL_RUNTIME" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
@@ -972,6 +974,7 @@ esac
 [ -r "$SRC_REPO/$PUBLIC_BOOTSTRAP_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOTSTRAP_RLS"; exit 1; }
 [ -r "$SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"; exit 1; }
 [ -r "$SRC_REPO/$REFERENCE_CATALOG_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$REFERENCE_CATALOG_RLS"; exit 1; }
+[ -r "$SRC_REPO/$PATIENT_VISIBLE_CATALOG_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VISIBLE_CATALOG_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_VAPID_ACCESSOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VAPID_ACCESSOR"; exit 1; }
 [ -r "$SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }

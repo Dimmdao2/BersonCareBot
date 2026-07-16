@@ -273,6 +273,7 @@ psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${p2_b_psql_file}"
 rm -f "${p2_b_psql_file}"
 p2_b_psql_file=""
 unset p2_b_signing_secret
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f deploy/postgres/patient-visible-catalog-rls.sql
 
 header "Step 6/6: consolidate specialist identity"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 <<'SQL'

@@ -7,6 +7,7 @@ const files = {
   historyMigration: "apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql",
   planOpenedMigration: "apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql",
   visibleCatalogMigration: "apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql",
+  visibleCatalogOverlay: "deploy/postgres/patient-visible-catalog-rls.sql",
   bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
@@ -34,6 +35,9 @@ const files = {
   poolProviderTest: "apps/webapp/src/infra/db/webappPoolProvider.test.ts",
   diagnostics: "apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts",
   deploy: "deploy/host/deploy-test-saas.sh",
+  deployProd: "deploy/host/deploy-prod.sh",
+  deployWebappProd: "deploy/host/deploy-webapp-prod.sh",
+  deploy667: "scripts/deploy-saas-667.sh",
   journal: "apps/webapp/db/drizzle-migrations/meta/_journal.json",
   dbRegression: "scripts/check-saas-db-regression.mjs",
   migrateWrapper: "apps/webapp/scripts/run-webapp-drizzle-migrate.mjs",
@@ -47,6 +51,14 @@ function read(path) { return readFileSync(path, "utf8"); }
 function fail(message) { throw new Error(message); }
 function requireText(label, text, fragments) {
   for (const fragment of fragments) if (!text.includes(fragment)) fail(`${label} missing: ${fragment}`);
+}
+function requireOrderedText(label, text, fragments) {
+  let cursor = 0;
+  for (const fragment of fragments) {
+    const index = text.indexOf(fragment, cursor);
+    if (index < 0) fail(`${label} missing ordered fragment: ${fragment}`);
+    cursor = index + fragment.length;
+  }
 }
 function forbidText(label, text, fragments) {
   for (const fragment of fragments) if (text.includes(fragment)) fail(`${label} forbidden: ${fragment}`);
@@ -372,21 +384,66 @@ function runChecks(overrides = {}) {
     '"idx": 194', '"tag": "0194_e1_patient_identity_exception"',
     '"idx": 195', '"tag": "0195_e1_patient_maintenance_history"',
   ]);
+  requireText(files.visibleCatalogMigration, loaded.visibleCatalogMigration, [
+    "to_regprocedure('app.current_org_id()') IS NULL",
+    "to_regprocedure('app.current_patient_user_id()') IS NULL",
+    "deferring patient catalog policies to post-P2-B overlay",
+  ]);
+  requireText(files.visibleCatalogOverlay, loaded.visibleCatalogOverlay, [
+    "patient_visible_catalog_principal_helpers_missing",
+    "CREATE POLICY patient_current_org_select ON public.patient_home_blocks",
+    "CREATE POLICY patient_current_org_select ON public.patient_home_block_items",
+    "CREATE POLICY patient_visible_current_org_select ON public.content_sections",
+    "CREATE POLICY patient_current_org_select ON public.content_section_slug_history",
+    "enrollment.status = 'active'",
+  ]);
+  requireText(files.deploy, loaded.deploy, [
+    "PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql",
+    '"$DEPLOY_REPO/$PATIENT_VISIBLE_CATALOG_RLS"',
+  ]);
+  requireText(files.deployProd, loaded.deployProd, [
+    "PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql",
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"',
+  ]);
+  requireText(files.deployWebappProd, loaded.deployWebappProd, [
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql"',
+  ]);
+  requireText(files.deploy667, loaded.deploy667, [
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f deploy/postgres/patient-visible-catalog-rls.sql',
+  ]);
+  requireOrderedText(`${files.deploy} post-P2-B order`, loaded.deploy, [
+    "  install_p2_b_protected_principal_context\n",
+    "  rehydrate_post_restore_runtime_overlays\n",
+  ]);
+  requireOrderedText(`${files.deployProd} post-migrate order`, loaded.deployProd, [
+    "pnpm --dir apps/webapp run migrate",
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"',
+  ]);
+  requireOrderedText(`${files.deployWebappProd} post-migrate order`, loaded.deployWebappProd, [
+    "pnpm --dir apps/webapp run migrate",
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql"',
+  ]);
+  requireOrderedText(`${files.deploy667} post-P2-B order`, loaded.deploy667, [
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${p2_b_psql_file}"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f deploy/postgres/patient-visible-catalog-rls.sql',
+  ]);
   requireText(files.dbRegression, loaded.dbRegression, [
     '"docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"',
     '"--self-test"',
   ]);
   requireText(files.migrateWrapper, loaded.migrateWrapper, [
-    "classifyMigrationFailureOutput", "renderMigrationFailureDiagnostic",
+    "classifyMigrationFailureOutput", "renderStructuredMigrationFailureDiagnostic",
+    "findMigrationIdentity", "classifyStructuredMigrationFailure",
     "OBJECT_CONFLICT_SQLSTATES", "SCHEMA_MISMATCH_SQLSTATES",
     "role_membership_required", "permission_denied", "migration_failed",
-    'sqlstate=${diagnostic.sqlstate ?? "unknown"}', "result.error?.message",
-    "console.error(diagnostic);",
+    'migration=${identity?.tag ?? "unknown"}', 'idx=${identity?.idx ?? "unknown"}',
+    'sqlstate=${diagnostic.sqlstate ?? "unknown"}',
+    "raw SQL and parameters suppressed",
     'process.argv.includes("--self-test")',
   ]);
   forbidText(files.migrateWrapper, loaded.migrateWrapper, [
     'stdio: "inherit"', "sanitizeMigrationFailureOutput", "Sanitized underlying diagnostics",
-    "console.error(`[migrate] ${line}`)",
+    "console.error(`[migrate] ${line}`)", "console.error(error)", "console.error(error.cause)",
   ]);
   requireText(files.packageJson, loaded.packageJson, [
     "node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test",
@@ -430,6 +487,15 @@ if (process.argv.includes("--self-test")) {
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
+    ["visible catalog fresh guard", { visibleCatalogMigration: read(files.visibleCatalogMigration).replace("to_regprocedure('app.current_patient_user_id()') IS NULL", "false") }],
+    ["visible catalog post-P2-B overlay", { visibleCatalogOverlay: read(files.visibleCatalogOverlay).replace("patient_visible_catalog_principal_helpers_missing", "removed") }],
+    ["visible catalog full prod wiring", { deployProd: read(files.deployProd).replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"', "# removed") }],
+    ["visible catalog webapp prod wiring", { deployWebappProd: read(files.deployWebappProd).replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql"', "# removed") }],
+    ["visible catalog disposable wiring", { deploy667: read(files.deploy667).replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f deploy/postgres/patient-visible-catalog-rls.sql', "# removed") }],
+    ["visible catalog TEST post-P2-B order", { deploy: read(files.deploy).replace("  install_p2_b_protected_principal_context\n", "  rehydrate_post_restore_runtime_overlays\n") }],
+    ["visible catalog full prod post-migrate order", { deployProd: read(files.deployProd).replace("pnpm --dir apps/webapp run migrate", "# removed migrate marker") }],
+    ["visible catalog webapp prod post-migrate order", { deployWebappProd: read(files.deployWebappProd).replace("pnpm --dir apps/webapp run migrate", "# removed migrate marker") }],
+    ["visible catalog disposable post-P2-B order", { deploy667: read(files.deploy667).replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${p2_b_psql_file}"', "# removed P2-B marker") }],
     ["overlay direct ACL closure", { overlay: read(files.overlay).replace("COALESCE(relation.relacl, acldefault('r', relation.relowner))", "relation.relacl") }],
     ["overlay effective source-table denial", { overlay: read(files.overlay).replace("'public.system_settings',\n    'SELECT'", "'public.system_settings',\n    'UPDATE'") }],
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
@@ -439,7 +505,7 @@ if (process.argv.includes("--self-test")) {
     ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (", "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee IN (") }],
     ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],
     ["patient capability adversarial smoke", { smoke: read(files.smoke).replace("TO app_patient WITH GRANT OPTION", "TO app_patient") }],
-    ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],
+    ["migration diagnostics allowlist", { migrateWrapper: `${read(files.migrateWrapper)}\nconsole.error(error);\n` }],
   ];
   let detected = 0;
   const missed = [];
