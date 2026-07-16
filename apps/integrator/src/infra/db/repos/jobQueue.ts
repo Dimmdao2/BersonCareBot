@@ -45,14 +45,14 @@ export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promi
   const res = await d.execute(sql`
     WITH due AS (
       SELECT id
-      FROM rubitime_create_retry_jobs
+      FROM integrator.rubitime_create_retry_jobs
       WHERE status = 'pending'
         AND next_try_at <= now()
       ORDER BY next_try_at ASC
       LIMIT ${lim}
       FOR UPDATE SKIP LOCKED
     )
-    UPDATE rubitime_create_retry_jobs j
+    UPDATE integrator.rubitime_create_retry_jobs j
     SET status = 'processing',
         updated_at = now()
     FROM due

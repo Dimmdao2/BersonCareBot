@@ -27,6 +27,9 @@ const files = {
   outgoingDeliveryWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
   schedulerOrganizationRepo: "apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts",
   schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
+  idempotencyKeys: "apps/integrator/src/infra/db/repos/idempotencyKeys.ts",
+  projectionOutbox: "apps/integrator/src/infra/db/repos/projectionOutbox.ts",
+  jobQueue: "apps/integrator/src/infra/db/repos/jobQueue.ts",
   mediaMain: "apps/media-worker/src/main.ts",
   mediaWorkerTick: "apps/media-worker/src/workerTick.ts",
   mediaClaim: "apps/media-worker/src/jobs/claim.ts",
@@ -323,6 +326,8 @@ function assertMediaWorker(loaded) {
     "j.organization_id AS job_organization_id",
     "mf.organization_id AS media_organization_id",
     "FOR UPDATE OF j SKIP LOCKED",
+    "j.next_attempt_at IS NULL",
+    "j.next_attempt_at <= now()",
     "row.job_organization_id !== row.media_organization_id",
     "organization_invariant_violation",
     "organizationId: job.organization_id",
@@ -409,6 +414,18 @@ function assertMediaWorker(loaded) {
 }
 
 function assertOperationalSqlAndDeploy(loaded) {
+  requireFragments(files.idempotencyKeys, loaded.idempotencyKeys, [
+    "INSERT INTO integrator.idempotency_keys",
+    "DELETE FROM integrator.idempotency_keys",
+  ]);
+  requireFragments(files.projectionOutbox, loaded.projectionOutbox, [
+    "FROM integrator.projection_outbox",
+    "UPDATE integrator.projection_outbox",
+  ]);
+  requireFragments(files.jobQueue, loaded.jobQueue, [
+    "FROM integrator.rubitime_create_retry_jobs",
+    "UPDATE integrator.rubitime_create_retry_jobs",
+  ]);
   requireFragments(files.operationalSql, loaded.operationalSql, [
     "WITH INHERIT FALSE, SET TRUE",
     "app_operational_diagnostic",
@@ -761,6 +778,22 @@ if (process.argv.includes("--self-test")) {
     "${recipientDigest}",
     "${recipientId}",
   );
+  const idempotencyKeysUnqualified = read(files.idempotencyKeys).replaceAll(
+    "integrator.idempotency_keys",
+    "idempotency_keys",
+  );
+  const projectionOutboxUnqualified = read(files.projectionOutbox).replaceAll(
+    "integrator.projection_outbox",
+    "projection_outbox",
+  );
+  const jobQueueUnqualified = read(files.jobQueue).replaceAll(
+    "integrator.rubitime_create_retry_jobs",
+    "rubitime_create_retry_jobs",
+  );
+  const mediaClaimAmbiguousRetry = read(files.mediaClaim).replaceAll(
+    "j.next_attempt_at",
+    "next_attempt_at",
+  );
   const cases = [
     { mediaProcess },
     { mediaClaim },
@@ -789,6 +822,10 @@ if (process.argv.includes("--self-test")) {
     { testDeploy: testDeployLegacyReadiness },
     { dispatchPort: dispatchPortNoFailedAudit },
     { reportOperatorFailure: reportOperatorFailureRawRecipient },
+    { idempotencyKeys: idempotencyKeysUnqualified },
+    { projectionOutbox: projectionOutboxUnqualified },
+    { jobQueue: jobQueueUnqualified },
+    { mediaClaim: mediaClaimAmbiguousRetry },
   ];
   let detected = 0;
   for (const testCase of cases) {

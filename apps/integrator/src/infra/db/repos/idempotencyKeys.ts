@@ -4,7 +4,7 @@ import type { IdempotencyPort } from '../../../kernel/contracts/index.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 
 /** Whitelist: gateway idempotency SQL may only touch this integrator table (static templates). */
-export const GATEWAY_IDEMPOTENCY_ALLOWED_TABLES = ['idempotency_keys'] as const;
+export const GATEWAY_IDEMPOTENCY_ALLOWED_TABLES = ['integrator.idempotency_keys'] as const;
 
 /**
  * Sentinel row for incoming webhook dedup (event gateway). Not an HTTP body hash;
@@ -37,7 +37,7 @@ export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
     async tryAcquire(key: string, ttlSec: number): Promise<boolean> {
       const res = await runIntegratorSql<{ key: string }>(
         db,
-        sql`INSERT INTO idempotency_keys (key, request_hash, status, response_body, expires_at)
+        sql`INSERT INTO integrator.idempotency_keys AS target (key, request_hash, status, response_body, expires_at)
             VALUES (
               ${key},
               ${GATEWAY_IDEM_REQUEST_HASH},
@@ -50,7 +50,7 @@ export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
               request_hash = EXCLUDED.request_hash,
               status = EXCLUDED.status,
               response_body = EXCLUDED.response_body
-            WHERE idempotency_keys.expires_at < now()
+            WHERE target.expires_at < now()
             RETURNING key`,
       );
       return (res.rowCount ?? 0) > 0;
@@ -58,7 +58,7 @@ export function createPostgresIdempotencyPort(db: DbPort): IdempotencyPort {
     async release(key: string): Promise<void> {
       await runIntegratorSql(
         db,
-        sql`DELETE FROM idempotency_keys WHERE key = ${key}`,
+        sql`DELETE FROM integrator.idempotency_keys WHERE key = ${key}`,
       );
     },
   };

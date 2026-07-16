@@ -54,7 +54,7 @@ export async function claimNextJob(pool: Pool, lockedBy: string): Promise<Claime
        FROM media_transcode_jobs AS j
        LEFT JOIN media_files AS mf ON mf.id = j.media_id
        WHERE j.status = 'pending'
-         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+         AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= now())
        ORDER BY j.created_at ASC
        FOR UPDATE OF j SKIP LOCKED
        LIMIT 1`,

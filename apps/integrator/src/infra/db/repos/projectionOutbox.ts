@@ -46,13 +46,13 @@ export async function claimDueProjectionEvents(
   const lim = Math.max(1, Math.trunc(limit));
   const res = await d.execute(sql`
     WITH due AS (
-       SELECT id FROM projection_outbox
+       SELECT id FROM integrator.projection_outbox
        WHERE status = 'pending' AND next_try_at <= now()
        ORDER BY next_try_at ASC
        LIMIT ${lim}
        FOR UPDATE SKIP LOCKED
      )
-     UPDATE projection_outbox o
+     UPDATE integrator.projection_outbox o
      SET status = 'processing', updated_at = now()
      FROM due WHERE o.id = due.id
      RETURNING
