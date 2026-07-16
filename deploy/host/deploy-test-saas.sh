@@ -790,10 +790,21 @@ assert_test_units_active(){
 install_and_assert_media_worker_test_unit(){
   sudo install -m 0644 "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT" /etc/systemd/system/bersoncarebot-media-worker-test.service
   sudo systemctl daemon-reload
-  local effective_environment_files
+  local effective_environment_files effective_working_directory effective_user effective_group
   effective_environment_files="$(systemctl show bersoncarebot-media-worker-test.service -p EnvironmentFiles --value)"
   [[ "$effective_environment_files" == *"$MEDIA_WORKER_ENV"* ]] || {
     echo "FATAL: bersoncarebot-media-worker-test.service does not use $MEDIA_WORKER_ENV" >&2
+    exit 1
+  }
+  effective_working_directory="$(systemctl show bersoncarebot-media-worker-test.service -p WorkingDirectory --value)"
+  [ "$effective_working_directory" = "$DEPLOY_REPO/apps/media-worker" ] || {
+    echo "FATAL: bersoncarebot-media-worker-test.service has unexpected WorkingDirectory" >&2
+    exit 1
+  }
+  effective_user="$(systemctl show bersoncarebot-media-worker-test.service -p User --value)"
+  effective_group="$(systemctl show bersoncarebot-media-worker-test.service -p Group --value)"
+  [ "$effective_user:$effective_group" = "deploy:deploy" ] || {
+    echo "FATAL: bersoncarebot-media-worker-test.service must run as deploy:deploy" >&2
     exit 1
   }
 }

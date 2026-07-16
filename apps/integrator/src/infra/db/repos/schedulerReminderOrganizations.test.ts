@@ -22,7 +22,7 @@ describe('listSchedulerReminderOrganizationIds', () => {
       'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     ]);
     expect(db.query).toHaveBeenCalledWith(
-      'SELECT organization_id::text AS organization_id FROM app.list_scheduler_reminder_organization_ids()',
+      'SELECT organization_id::text AS organization_id FROM app.list_scheduler_reminder_organization_ids() AS scheduler_organizations(organization_id)',
     );
   });
 

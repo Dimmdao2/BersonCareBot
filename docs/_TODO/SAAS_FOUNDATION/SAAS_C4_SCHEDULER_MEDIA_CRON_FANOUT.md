@@ -91,6 +91,10 @@ The project root is also locked to the canonical `/opt/projects/bersoncarebot-te
 bootstrap from running a stale or PROD artifact.
 The duplicated TEST readiness uses quiet tuple-only PostgreSQL output and integer `0/1` assertions for all four contours;
 it does not depend on command-tag or newline parsing.
+Scheduler discovery returns `SETOF uuid`, so runtime/readiness SQL must give the scalar function result an explicit
+`organization_id` column alias. The TEST media-worker unit is pinned to
+`/opt/projects/bersoncarebot-test/apps/media-worker`, runs as `deploy:deploy`, and the fresh wrapper verifies those
+effective systemd properties before restart.
 
 ## Webapp Internal Cron / Internal HTTP Jobs
 

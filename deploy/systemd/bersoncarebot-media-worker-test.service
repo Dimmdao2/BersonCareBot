@@ -4,7 +4,9 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/deploy/projects/bersoncarebot-test/apps/media-worker
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/projects/bersoncarebot-test/apps/media-worker
 EnvironmentFile=/opt/env/bersoncarebot/media-worker.test
 ExecStart=/usr/bin/node dist/main.js
 Restart=always

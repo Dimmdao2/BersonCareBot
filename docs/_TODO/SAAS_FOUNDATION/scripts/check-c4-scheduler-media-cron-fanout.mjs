@@ -42,6 +42,7 @@ const files = {
   operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
   testDeploy: "deploy/host/deploy-test-saas.sh",
+  mediaWorkerTestUnit: "deploy/systemd/bersoncarebot-media-worker-test.service",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
   mediaMultipartInit: "apps/webapp/src/app/api/media/multipart/init/route.ts",
@@ -290,9 +291,11 @@ function assertScheduler(loaded) {
     "assertSchedulerPoolReady",
     "BEGIN READ ONLY",
     "ROLLBACK",
+    "AS scheduler_organizations(organization_id) LIMIT 0",
   ]);
   requireFragments(files.schedulerOrganizationRepo, loaded.schedulerOrganizationRepo, [
     "app.list_scheduler_reminder_organization_ids()",
+    "AS scheduler_organizations(organization_id)",
     "returned an invalid organization id",
   ]);
   requireFragments(files.schedulerOrganizationTicks, loaded.schedulerOrganizationTicks, [
@@ -556,6 +559,16 @@ function assertOperationalSqlAndDeploy(loaded) {
     "writeProtected(mediaPath",
     "writeProtected(apiPath",
   ]);
+  requireFragments(files.mediaWorkerTestUnit, loaded.mediaWorkerTestUnit, [
+    "User=deploy",
+    "Group=deploy",
+    "WorkingDirectory=/opt/projects/bersoncarebot-test/apps/media-worker",
+    "EnvironmentFile=/opt/env/bersoncarebot/media-worker.test",
+  ]);
+  requireFragments(files.testDeploy, loaded.testDeploy, [
+    '[ "$effective_working_directory" = "$DEPLOY_REPO/apps/media-worker" ]',
+    '"deploy:deploy"',
+  ]);
 }
 
 function assertMediaPresignMatrix(loaded) {
@@ -690,6 +703,18 @@ if (process.argv.includes("--self-test")) {
     '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
     '[ -n "$PROJECT_ROOT" ]',
   );
+  const schedulerReadinessWithoutScalarAlias = read(files.operationalReadiness).replace(
+    " AS scheduler_organizations(organization_id)",
+    "",
+  );
+  const schedulerRepoWithoutScalarAlias = read(files.schedulerOrganizationRepo).replace(
+    " AS scheduler_organizations(organization_id)",
+    "",
+  );
+  const mediaWorkerTestUnitWrongRoot = read(files.mediaWorkerTestUnit).replace(
+    "/opt/projects/bersoncarebot-test/apps/media-worker",
+    "/home/deploy/projects/bersoncarebot-test/apps/media-worker",
+  );
   const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
@@ -733,6 +758,9 @@ if (process.argv.includes("--self-test")) {
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalProvisionScript: operationalProvisionNoBootstrap },
     { operationalProvisionScript: operationalProvisionOpenProjectRoot },
+    { operationalReadiness: schedulerReadinessWithoutScalarAlias },
+    { schedulerOrganizationRepo: schedulerRepoWithoutScalarAlias },
+    { mediaWorkerTestUnit: mediaWorkerTestUnitWrongRoot },
     { operationalReadiness: operationalReadinessNoBooleanGate },
     { operationalSql: operationalSqlNoTypeScrub },
     { operationalSql: operationalSqlCategoryArrayFilter },

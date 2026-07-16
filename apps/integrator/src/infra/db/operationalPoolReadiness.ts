@@ -35,6 +35,6 @@ export function assertDeliveryWorkerPoolReady(): Promise<void> {
 export function assertSchedulerPoolReady(): Promise<void> {
   return probeReadOnly('scheduler:handle-tick-event', [
     'SELECT 1 FROM integrator.idempotency_keys WHERE false',
-    'SELECT organization_id FROM app.list_scheduler_reminder_organization_ids() LIMIT 0',
+    'SELECT organization_id FROM app.list_scheduler_reminder_organization_ids() AS scheduler_organizations(organization_id) LIMIT 0',
   ]);
 }
