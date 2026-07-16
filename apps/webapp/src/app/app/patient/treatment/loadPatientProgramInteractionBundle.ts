@@ -3,29 +3,29 @@ import {
   patientProgramCommentsInteractionEnabled,
   patientProgramMediaInteractionEnabled,
 } from "@/modules/doctor-clients/patientProgramInteractionAccess";
-import { parseDoctorSupportDefaultEnabled } from "@/modules/doctor-clients/supportPolicy";
 
 export type PatientProgramInteractionBundle = {
   comments: { visible: boolean; enabled: boolean };
   media: { visible: boolean; enabled: boolean };
 };
 
-function parseAdminDiscussionFlag(valueJson: unknown): boolean {
-  return parseDoctorSupportDefaultEnabled(valueJson);
-}
-
 export async function loadPatientProgramInteractionBundle(
   deps: ReturnType<typeof buildAppDeps>,
   patientUserId: string,
+  organizationId: string,
   assignmentSource: string,
 ): Promise<PatientProgramInteractionBundle> {
-  const [policy, discussionUiSetting, mediaUiSetting] = await Promise.all([
-    deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId),
-    deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
-    deps.systemSettings.getSetting("patient_program_discussion_media_submission_enabled", "admin"),
+  const [policy, adminDiscussionUiEnabled, adminMediaSubmissionEnabled] = await Promise.all([
+    deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId, { organizationId }),
+    deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", {
+      patientUserId,
+      organizationId,
+    }),
+    deps.runtimeConfig.getBoolean("patient_program_discussion_media_submission_enabled", {
+      patientUserId,
+      organizationId,
+    }),
   ]);
-  const adminDiscussionUiEnabled = parseAdminDiscussionFlag(discussionUiSetting?.valueJson ?? null);
-  const adminMediaSubmissionEnabled = parseAdminDiscussionFlag(mediaUiSetting?.valueJson ?? null);
 
   return {
     comments: patientProgramCommentsInteractionEnabled({

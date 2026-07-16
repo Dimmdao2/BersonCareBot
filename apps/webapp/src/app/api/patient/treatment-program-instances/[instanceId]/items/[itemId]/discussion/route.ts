@@ -6,6 +6,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { exerciseTitleFromSnapshot } from "@/modules/messaging/programNoteReplyContext";
 import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 import { listDiscussionPageMerged } from "@/modules/program-item-discussion/listDiscussionPage";
+import { isPatientProgramDiscussionUiEnabled } from "@/modules/program-item-discussion/discussionFeatureGates";
 
 const directionSchema = z.enum(["backward", "forward"]);
 const postBodySchema = z.object({
@@ -19,14 +20,6 @@ const cursorPayloadSchema = z.object({
 
 type DiscussionDirection = z.infer<typeof directionSchema>;
 type CursorPayload = z.infer<typeof cursorPayloadSchema>;
-
-function parseFeatureEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
 
 function decodeCursor(raw: string): CursorPayload | null {
   try {
@@ -94,17 +87,15 @@ async function resolveItemContext(params: {
   }
   const item = detail.stages.flatMap((s) => s.items).find((x) => x.id === params.itemId) ?? null;
   if (!item) return { ok: false as const, error: "not_found" as const };
+  const organizationId = detail.organizationId?.trim();
+  if (!organizationId) return { ok: false as const, error: "not_found" as const };
   return {
     ok: true as const,
     deps,
+    organizationId,
     exerciseTitle: exerciseTitleFromSnapshot(item.snapshot),
     item,
   };
-}
-
-async function assertDiscussionUiEnabled(deps: ReturnType<typeof buildAppDeps>): Promise<boolean> {
-  const row = await deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin");
-  return parseFeatureEnabled(row?.valueJson ?? null);
 }
 
 export async function GET(
@@ -148,13 +139,17 @@ export async function GET(
     return NextResponse.json({ ok: false, error: itemContext.error }, { status });
   }
 
-  if (!(await assertDiscussionUiEnabled(itemContext.deps))) {
+  if (!(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
+    patientUserId: gate.session.user.userId,
+    organizationId: itemContext.organizationId,
+  }))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
   const supportGate = await assertPatientProgramCommentsAllowed(
     itemContext.deps,
     gate.session.user.userId,
+    { organizationId: itemContext.organizationId },
   );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
@@ -242,13 +237,17 @@ export async function POST(
     return NextResponse.json({ ok: false, error: itemContext.error }, { status });
   }
 
-  if (!(await assertDiscussionUiEnabled(itemContext.deps))) {
+  if (!(await isPatientProgramDiscussionUiEnabled(itemContext.deps, {
+    patientUserId: gate.session.user.userId,
+    organizationId: itemContext.organizationId,
+  }))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
   const supportGate = await assertPatientProgramCommentsAllowed(
     itemContext.deps,
     gate.session.user.userId,
+    { organizationId: itemContext.organizationId },
   );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });

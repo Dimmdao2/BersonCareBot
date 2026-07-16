@@ -4,20 +4,20 @@ const {
   gateMock,
   buildAppDepsMock,
   getConversationIfOwnedByUserMock,
-  getSettingMock,
+  getBooleanMock,
   listUnreadInboundMock,
   syncDiscussionReadMock,
   markInboundReadMock,
 } = vi.hoisted(() => {
   const getConversationIfOwnedByUserMockInner = vi.fn();
-  const getSettingMockInner = vi.fn();
+  const getBooleanMockInner = vi.fn();
   const listUnreadInboundMockInner = vi.fn();
   const syncDiscussionReadMockInner = vi.fn();
   const markInboundReadMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
     getConversationIfOwnedByUserMock: getConversationIfOwnedByUserMockInner,
-    getSettingMock: getSettingMockInner,
+    getBooleanMock: getBooleanMockInner,
     listUnreadInboundMock: listUnreadInboundMockInner,
     syncDiscussionReadMock: syncDiscussionReadMockInner,
     markInboundReadMock: markInboundReadMockInner,
@@ -26,7 +26,7 @@ const {
         getConversationIfOwnedByUser: getConversationIfOwnedByUserMockInner,
         listUnreadInboundAdminMessagesForUser: listUnreadInboundMockInner,
       },
-      systemSettings: { getSetting: getSettingMockInner },
+      runtimeConfig: { getBoolean: getBooleanMockInner },
       programItemDiscussion: {
         syncDiscussionReadFromSupportInboundMessages: syncDiscussionReadMockInner,
       },
@@ -56,7 +56,7 @@ describe("POST patient messages/read", () => {
   beforeEach(() => {
     gateMock.mockReset();
     getConversationIfOwnedByUserMock.mockReset();
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     listUnreadInboundMock.mockReset();
     syncDiscussionReadMock.mockReset();
     markInboundReadMock.mockReset();
@@ -72,8 +72,8 @@ describe("POST patient messages/read", () => {
         },
       },
     });
-    getConversationIfOwnedByUserMock.mockResolvedValue({ id: conversationId });
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getConversationIfOwnedByUserMock.mockResolvedValue({ id: conversationId, organizationId: "org-1" });
+    getBooleanMock.mockResolvedValue(true);
     listUnreadInboundMock.mockResolvedValue([{ id: supportMessageId, text: "Ответ..." }]);
     syncDiscussionReadMock.mockResolvedValue({ markedStageItemIds: ["33333333-3333-4333-8333-333333333333"], skippedAmbiguous: 0 });
     markInboundReadMock.mockResolvedValue(undefined);
@@ -97,7 +97,7 @@ describe("POST patient messages/read", () => {
   });
 
   it("skips discussion sync when feature disabled", async () => {
-    getSettingMock.mockResolvedValue({ valueJson: { value: false } });
+    getBooleanMock.mockResolvedValue(false);
     const res = await POST(
       new Request("http://localhost", {
         method: "POST",

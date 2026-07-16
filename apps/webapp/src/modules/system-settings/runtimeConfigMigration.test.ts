@@ -23,6 +23,13 @@ const patientCooldownPlaybackRuntime = readFileSync(
   ),
   "utf8",
 );
+const curatedPlaybackPatientRuntime = readFileSync(
+  new URL(
+    "../../../db/drizzle-migrations/0192_curated_playback_and_patient_program_runtime.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const patientPlaybackAccessors = readFileSync(
   new URL("../../../../../deploy/postgres/patient-media-playback-telemetry-accessors.sql", import.meta.url),
   "utf8",
@@ -136,6 +143,9 @@ describe("patient-safe support default runtime migration", () => {
     );
     expect(patientPlaybackAccessors).toContain("FROM app_staff");
     expect(patientPlaybackAccessors).toContain("TO app_patient");
+    expect(patientPlaybackAccessors).toContain(
+      "GRANT SELECT, INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner;",
+    );
     expect(patientPlaybackAccessors).not.toContain("TO app_staff");
     expect(patientPlaybackAccessors).not.toContain("public.be_organization_members");
     expect(patientPlaybackAccessors).not.toMatch(
@@ -151,5 +161,19 @@ describe("patient-safe support default runtime migration", () => {
     expect(patientPlaybackScratch).toContain("denied_contexts_created_no_extra_events");
     expect(patientPlaybackScratch).toContain("ROLLBACK;");
     expect(patientPlaybackScratch).not.toContain("COMMIT;");
+  });
+
+  it("projects patient discussion media config and keeps playback health curated", () => {
+    expect(curatedPlaybackPatientRuntime).toContain(
+      "'patient_program_discussion_media_submission_enabled'",
+    );
+    expect(curatedPlaybackPatientRuntime).toContain("'authenticated_client'");
+    expect(curatedPlaybackPatientRuntime).toContain("setting.organization_id IS NOT NULL");
+    expect(curatedPlaybackPatientRuntime).toContain("CREATE OR REPLACE FUNCTION app.read_curated_playback_health()");
+    expect(curatedPlaybackPatientRuntime).toContain("SECURITY DEFINER");
+    expect(curatedPlaybackPatientRuntime).toContain("SET search_path = pg_catalog");
+    expect(curatedPlaybackPatientRuntime).not.toContain(
+      "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    );
   });
 });

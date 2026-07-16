@@ -152,6 +152,26 @@ export const curatedSystemHealthSnapshotSchema = z
 
 export type CuratedSystemHealthSnapshot = z.infer<typeof curatedSystemHealthSnapshotSchema>;
 
+const curatedPlaybackHealthMetricsSchema = z
+  .object({
+    byDelivery: z
+      .object({ hls: nonNegativeNumber, mp4: nonNegativeNumber, file: nonNegativeNumber })
+      .strict(),
+    fallbackTotal: nonNegativeNumber,
+    totalResolutions: nonNegativeNumber,
+    uniquePlaybackPairsFirstSeenInWindow: nonNegativeNumber,
+  })
+  .strict();
+
+export const curatedPlaybackHealthSnapshotSchema = z
+  .object({
+    "24": curatedPlaybackHealthMetricsSchema,
+    "1": curatedPlaybackHealthMetricsSchema,
+  })
+  .strict();
+
+export type CuratedPlaybackHealthSnapshot = z.infer<typeof curatedPlaybackHealthSnapshotSchema>;
+
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
   const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown }>(
@@ -160,4 +180,14 @@ export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHe
   const row = result.rows[0];
   if (!row) throw new Error("curated_system_health_snapshot_missing");
   return curatedSystemHealthSnapshotSchema.parse(row.snapshot);
+}
+
+/** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */
+export async function loadCuratedPlaybackHealthSnapshot(): Promise<CuratedPlaybackHealthSnapshot> {
+  const result = await getSaasIsolationOperatorPool().query<{ snapshot: unknown }>(
+    "SELECT app.read_curated_playback_health() AS snapshot",
+  );
+  const row = result.rows[0];
+  if (!row) throw new Error("curated_playback_health_snapshot_missing");
+  return curatedPlaybackHealthSnapshotSchema.parse(row.snapshot);
 }

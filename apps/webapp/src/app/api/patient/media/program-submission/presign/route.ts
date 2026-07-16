@@ -37,9 +37,6 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  if (!(await isPatientProgramDiscussionMediaFlowEnabled(deps))) {
-    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
-  }
   const supportGate = await assertPatientProgramMediaAllowed(deps, gate.session.user.userId);
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
@@ -47,6 +44,12 @@ export async function POST(request: Request) {
   const organizationId = supportGate.policy.organizationId;
   if (!organizationId) {
     return NextResponse.json({ ok: false, error: "organization_context_required" }, { status: 403 });
+  }
+  if (!(await isPatientProgramDiscussionMediaFlowEnabled(deps, {
+    patientUserId: gate.session.user.userId,
+    organizationId,
+  }))) {
+    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
   let json: unknown;

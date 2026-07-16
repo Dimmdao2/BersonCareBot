@@ -4,7 +4,6 @@ import { logger } from "@/app-layer/logging/logger";
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
-  loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
 import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
 import {
@@ -57,7 +56,9 @@ import {
   type SaasIsolationHealthPayload,
 } from "@/modules/operator-health/saasIsolationDiagnostics";
 import {
+  loadCuratedPlaybackHealthSnapshot,
   loadCuratedSystemHealthSnapshot,
+  type CuratedPlaybackHealthSnapshot,
   type CuratedSystemHealthSnapshot,
 } from "@/infra/repos/pgCuratedSystemHealthDiagnostics";
 
@@ -612,12 +613,9 @@ async function probeVideoPlayback(playbackApiEnabled: boolean): Promise<ProbeRes
       };
     }
 
-    const [metrics24, metrics1] = await Promise.all([
-      loadAdminPlaybackHealthMetrics({
-        windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
-      }),
-      loadAdminPlaybackHealthMetrics({ windowHours: 1 }),
-    ]);
+    const metrics: CuratedPlaybackHealthSnapshot = await loadCuratedPlaybackHealthSnapshot();
+    const metrics24 = metrics["24"];
+    const metrics1 = metrics["1"];
 
     return {
       ok: true,

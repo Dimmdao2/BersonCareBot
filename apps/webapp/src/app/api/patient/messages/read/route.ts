@@ -11,14 +11,6 @@ const bodySchema = z.object({
   conversationId: z.string().uuid(),
 });
 
-function parseDiscussionUiEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
-
 export async function POST(request: Request) {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientMessages });
   if (!gate.ok) return gate.response;
@@ -37,11 +29,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const [discussionUiSetting, unreadInbound] = await Promise.all([
-    deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin"),
+  const organizationId = conv.organizationId?.trim();
+  const [discussionUiEnabled, unreadInbound] = await Promise.all([
+    organizationId
+      ? deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", {
+          patientUserId: userId,
+          organizationId,
+        })
+      : Promise.resolve(false),
     deps.supportCommunication.listUnreadInboundAdminMessagesForUser(userId),
   ]);
-  if (parseDiscussionUiEnabled(discussionUiSetting?.valueJson ?? null) && unreadInbound.length > 0) {
+  if (discussionUiEnabled && unreadInbound.length > 0) {
     await deps.programItemDiscussion.syncDiscussionReadFromSupportInboundMessages({
       patientUserId: userId,
       inboundAdminMessages: unreadInbound,

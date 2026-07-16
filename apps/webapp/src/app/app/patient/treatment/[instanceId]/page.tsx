@@ -76,6 +76,7 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const programInteraction = await loadPatientProgramInteractionBundle(
     deps,
     session.user.userId,
+    organizationId,
     detail.assignmentSource,
   );
 

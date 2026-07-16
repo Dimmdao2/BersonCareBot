@@ -42,10 +42,21 @@ export async function POST(
   if (detail.assignmentSource !== "doctor") {
     return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
   }
-  if (!(await isPatientProgramDiscussionUiEnabled(deps))) {
+  const organizationId = detail.organizationId?.trim();
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (!(await isPatientProgramDiscussionUiEnabled(deps, {
+    patientUserId: gate.session.user.userId,
+    organizationId,
+  }))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
-  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  const supportGate = await assertPatientProgramCommentsAllowed(
+    deps,
+    gate.session.user.userId,
+    { organizationId },
+  );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }

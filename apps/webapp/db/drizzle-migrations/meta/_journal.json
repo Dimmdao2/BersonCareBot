@@ -1345,6 +1345,13 @@
       "when": 1792329600000,
       "tag": "0191_integrator_server_runtime_config",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1792416000000,
+      "tag": "0192_curated_playback_and_patient_program_runtime",
+      "breakpoints": true
     }
   ]
 }

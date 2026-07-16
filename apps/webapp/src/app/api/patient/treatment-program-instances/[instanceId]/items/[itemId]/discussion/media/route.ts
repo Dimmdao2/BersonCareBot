@@ -30,7 +30,9 @@ async function resolveItemContext(params: {
   }
   const item = detail.stages.flatMap((s) => s.items).find((x) => x.id === params.itemId) ?? null;
   if (!item) return { ok: false as const, error: "not_found" as const };
-  return { ok: true as const, deps, item };
+  const organizationId = detail.organizationId?.trim();
+  if (!organizationId) return { ok: false as const, error: "not_found" as const };
+  return { ok: true as const, deps, item, organizationId };
 }
 
 async function listLatestDiscussionMessage(
@@ -80,13 +82,17 @@ export async function POST(
     return NextResponse.json({ ok: false, error: itemContext.error }, { status });
   }
 
-  if (!(await isPatientProgramDiscussionMediaFlowEnabled(itemContext.deps))) {
+  if (!(await isPatientProgramDiscussionMediaFlowEnabled(itemContext.deps, {
+    patientUserId: gate.session.user.userId,
+    organizationId: itemContext.organizationId,
+  }))) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
   }
 
   const supportGate = await assertPatientProgramMediaAllowed(
     itemContext.deps,
     gate.session.user.userId,
+    { organizationId: itemContext.organizationId },
   );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });

@@ -56,6 +56,7 @@ describe("POST observation-note", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
+      organizationId: "44444444-4444-4444-8444-444444444444",
       assignmentSource: "doctor",
     });
     appendNoteMock.mockResolvedValue(undefined);

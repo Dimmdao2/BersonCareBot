@@ -129,7 +129,7 @@ function runChecks(overrides = {}) {
 
   requireFragments(files.patientPlayback, loaded.patientPlayback, [
     "GRANT SELECT ON TABLE public.media_files TO app_owner",
-    "GRANT INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner",
+    "GRANT SELECT, INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner",
     "GRANT INSERT ON TABLE public.media_playback_resolution_events TO app_owner",
     "ALTER FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)",
     "ALTER FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)",

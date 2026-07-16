@@ -7,7 +7,9 @@ vi.mock("@/infra/db/saasIsolationTelemetry", () => ({
 }));
 
 import {
+  curatedPlaybackHealthSnapshotSchema,
   curatedSystemHealthSnapshotSchema,
+  loadCuratedPlaybackHealthSnapshot,
   loadCuratedSystemHealthSnapshot,
 } from "./pgCuratedSystemHealthDiagnostics";
 
@@ -119,6 +121,35 @@ describe("curated System Health diagnostics", () => {
     expect(() => curatedSystemHealthSnapshotSchema.parse({
       ...validSnapshot(),
       config: { ...validSnapshot().config, privateKey: "secret" },
+    })).toThrow();
+  });
+
+  it("reads playback metrics only through the protected aggregate function", async () => {
+    const metrics = {
+      byDelivery: { hls: 3, mp4: 2, file: 1 },
+      fallbackTotal: 1,
+      totalResolutions: 6,
+      uniquePlaybackPairsFirstSeenInWindow: 4,
+    };
+    queryMock.mockResolvedValue({ rows: [{ snapshot: { "24": metrics, "1": metrics } }] });
+
+    await expect(loadCuratedPlaybackHealthSnapshot()).resolves.toEqual({
+      "24": metrics,
+      "1": metrics,
+    });
+    expect(queryMock).toHaveBeenCalledWith("SELECT app.read_curated_playback_health() AS snapshot");
+  });
+
+  it("rejects raw playback rows and identifiers", () => {
+    const metrics = {
+      byDelivery: { hls: 0, mp4: 0, file: 0 },
+      fallbackTotal: 0,
+      totalResolutions: 0,
+      uniquePlaybackPairsFirstSeenInWindow: 0,
+    };
+    expect(() => curatedPlaybackHealthSnapshotSchema.parse({
+      "24": { ...metrics, rows: [{ userId: "not-allowed" }] },
+      "1": metrics,
     })).toThrow();
   });
 

@@ -22,7 +22,7 @@ function compareMsgs(a: Pick<DiscussionMsg, "createdAt" | "id">, b: Pick<Discuss
 const {
   gateMock,
   buildAppDepsMock,
-  getSettingMock,
+  getBooleanMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
   listMessagesPageMock,
@@ -38,7 +38,7 @@ const {
   getMaxLastReadAtForViewersMock,
 } = vi.hoisted(() => {
   const getPatientProgramInteractionPolicyMockInner = vi.fn();
-  const getSettingMockInner = vi.fn();
+  const getBooleanMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
   const listMessagesPageMockInner = vi.fn();
@@ -53,7 +53,7 @@ const {
   const getMaxLastReadAtForViewersMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
-    getSettingMock: getSettingMockInner,
+    getBooleanMock: getBooleanMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
     listMessagesPageMock: listMessagesPageMockInner,
@@ -68,7 +68,7 @@ const {
     listActiveStaffUserIdsMock: listActiveStaffUserIdsMockInner,
     getMaxLastReadAtForViewersMock: getMaxLastReadAtForViewersMockInner,
     buildAppDepsMock: vi.fn(() => ({
-      systemSettings: { getSetting: getSettingMockInner },
+      runtimeConfig: { getBoolean: getBooleanMockInner },
       doctorClients: {
         getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
       },
@@ -123,7 +123,7 @@ describe("patient item discussion route", () => {
   beforeEach(() => {
     gateMock.mockReset();
     buildAppDepsMock.mockClear();
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     getInstanceForPatientMock.mockReset();
     listMessagesForStageItemMock.mockReset();
     listMessagesPageMock.mockReset();
@@ -139,7 +139,7 @@ describe("patient item discussion route", () => {
     getMaxLastReadAtForViewersMock.mockReset();
 
     gateMock.mockResolvedValue(okGate());
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getBooleanMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: true,
       commentsAllowed: true,
@@ -147,6 +147,7 @@ describe("patient item discussion route", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
+      organizationId: "44444444-4444-4444-8444-444444444444",
       assignmentSource: "doctor",
       stages: [
         {

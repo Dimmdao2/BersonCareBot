@@ -14,7 +14,9 @@ END
 $preflight$;
 
 GRANT SELECT ON TABLE public.media_files TO app_owner;
-GRANT INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner;
+-- INSERT .. ON CONFLICT DO UPDATE reads the existing counters in the UPDATE
+-- expression, so PostgreSQL also requires SELECT for the protected definer.
+GRANT SELECT, INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner;
 GRANT INSERT ON TABLE public.media_playback_resolution_events TO app_owner;
 
 ALTER FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)

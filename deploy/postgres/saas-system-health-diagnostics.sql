@@ -15,6 +15,7 @@ SELECT 1 / (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'system_health_operator_runtime_role')
   AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saas_telemetry_operator')
   AND to_regprocedure('app.read_curated_system_health()') IS NOT NULL
+  AND to_regprocedure('app.read_curated_playback_health()') IS NOT NULL
 )::int AS curated_system_health_prerequisites_exist;
 
 DO $roles$
@@ -44,6 +45,9 @@ GRANT SELECT ON TABLE
   public.system_settings,
   public.media_files,
   public.media_transcode_jobs,
+  public.media_playback_resolution_events,
+  public.media_playback_stats_hourly,
+  public.media_playback_user_video_first_resolve,
   public.operator_job_status,
   public.operator_incidents,
   public.outgoing_delivery_queue,
@@ -58,15 +62,24 @@ GRANT SELECT ON TABLE
 TO saas_system_health_owner;
 
 ALTER FUNCTION app.read_curated_system_health() OWNER TO saas_system_health_owner;
+ALTER FUNCTION app.read_curated_playback_health() OWNER TO saas_system_health_owner;
 REVOKE ALL ON FUNCTION app.read_curated_system_health() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.read_curated_playback_health() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_curated_system_health()
+  FROM app_owner, app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_curated_playback_health()
   FROM app_owner, app_staff, app_patient, app_worker;
 SELECT format(
   'REVOKE ALL ON FUNCTION app.read_curated_system_health() FROM %I',
   :'system_health_operator_runtime_role'
 ) \gexec
+SELECT format(
+  'REVOKE ALL ON FUNCTION app.read_curated_playback_health() FROM %I',
+  :'system_health_operator_runtime_role'
+) \gexec
 
 GRANT EXECUTE ON FUNCTION app.read_curated_system_health() TO saas_telemetry_operator;
+GRANT EXECUTE ON FUNCTION app.read_curated_playback_health() TO saas_telemetry_operator;
 GRANT USAGE ON SCHEMA app TO saas_telemetry_operator;
 
 SELECT 1 / (
@@ -82,10 +95,17 @@ SELECT 1 / (
   AND has_function_privilege(
     :'system_health_operator_runtime_role', 'app.read_curated_system_health()', 'EXECUTE'
   )
+  AND has_function_privilege(
+    :'system_health_operator_runtime_role', 'app.read_curated_playback_health()', 'EXECUTE'
+  )
   AND NOT has_function_privilege('app_owner', 'app.read_curated_system_health()', 'EXECUTE')
   AND NOT has_function_privilege('app_staff', 'app.read_curated_system_health()', 'EXECUTE')
   AND NOT has_function_privilege('app_patient', 'app.read_curated_system_health()', 'EXECUTE')
   AND NOT has_function_privilege('app_worker', 'app.read_curated_system_health()', 'EXECUTE')
+  AND NOT has_function_privilege('app_owner', 'app.read_curated_playback_health()', 'EXECUTE')
+  AND NOT has_function_privilege('app_staff', 'app.read_curated_playback_health()', 'EXECUTE')
+  AND NOT has_function_privilege('app_patient', 'app.read_curated_playback_health()', 'EXECUTE')
+  AND NOT has_function_privilege('app_worker', 'app.read_curated_playback_health()', 'EXECUTE')
   AND NOT has_table_privilege(
     :'system_health_operator_runtime_role', 'public.operator_incidents', 'SELECT'
   )
@@ -94,4 +114,8 @@ SELECT 1 / (
   )
   AND has_table_privilege('saas_system_health_owner', 'public.operator_incidents', 'SELECT')
   AND has_table_privilege('saas_system_health_owner', 'public.notification_delivery_attempts', 'SELECT')
+  AND has_table_privilege('saas_system_health_owner', 'public.media_playback_stats_hourly', 'SELECT')
+  AND NOT has_table_privilege(
+    :'system_health_operator_runtime_role', 'public.media_playback_stats_hourly', 'SELECT'
+  )
 )::int AS curated_system_health_least_privilege_verified;

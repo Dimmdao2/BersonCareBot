@@ -83,6 +83,7 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
       loadPatientProgramInteractionBundle(
         deps,
         session.user.userId,
+        organizationId,
         detail.assignmentSource,
       ),
     ]);

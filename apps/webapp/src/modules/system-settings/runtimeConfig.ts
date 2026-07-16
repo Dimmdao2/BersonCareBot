@@ -9,6 +9,11 @@ export const RUNTIME_FLAG_DEFINITIONS = {
 export type RuntimeFlag = keyof typeof RUNTIME_FLAG_DEFINITIONS;
 export const RUNTIME_BOOLEAN_SETTING_DEFINITIONS = {
   ...RUNTIME_FLAG_DEFINITIONS,
+  patient_program_discussion_media_submission_enabled: {
+    key: "patient_program_discussion_media_submission_enabled",
+    scope: "admin",
+    defaultValue: false,
+  },
   doctor_patient_support_comments_without_support_default_enabled: {
     key: "doctor_patient_support_comments_without_support_default_enabled",
     scope: "doctor",

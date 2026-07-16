@@ -56,7 +56,7 @@ const {
   isS3MediaEnabledMock,
   poolQueryMock,
   getConfigBoolMock,
-  loadAdminPlaybackHealthMetricsMock,
+  loadCuratedPlaybackHealthSnapshotMock,
   loadAdminPlaybackClientHealthMetricsMock,
   loadAdminHlsProxyHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
@@ -84,7 +84,7 @@ const {
   isS3MediaEnabledMock: vi.fn(),
   poolQueryMock: vi.fn(),
   getConfigBoolMock: vi.fn(),
-  loadAdminPlaybackHealthMetricsMock: vi.fn(),
+  loadCuratedPlaybackHealthSnapshotMock: vi.fn(),
   loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
   loadAdminHlsProxyHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
@@ -164,7 +164,6 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 }));
 
 vi.mock("@/app-layer/media/adminPlaybackHealthMetrics", () => ({
-  loadAdminPlaybackHealthMetrics: loadAdminPlaybackHealthMetricsMock,
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS: 24,
 }));
 
@@ -199,6 +198,7 @@ vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
 
 vi.mock("@/infra/repos/pgCuratedSystemHealthDiagnostics", () => ({
   loadCuratedSystemHealthSnapshot: loadCuratedSystemHealthSnapshotMock,
+  loadCuratedPlaybackHealthSnapshot: loadCuratedPlaybackHealthSnapshotMock,
 }));
 
 import { GET } from "./route";
@@ -225,7 +225,11 @@ describe("GET /api/admin/system-health", () => {
     getConfigBoolMock.mockResolvedValue(false);
     poolQueryMock.mockReset();
     mockPoolPreviewOnly();
-    loadAdminPlaybackHealthMetricsMock.mockReset();
+    loadCuratedPlaybackHealthSnapshotMock.mockReset();
+    loadCuratedPlaybackHealthSnapshotMock.mockResolvedValue({
+      "24": zeroMetrics,
+      "1": zeroMetrics,
+    });
     loadAdminPlaybackClientHealthMetricsMock.mockReset();
     loadAdminPlaybackClientHealthMetricsMock.mockResolvedValue({
       windowHours: 24,
@@ -514,7 +518,7 @@ describe("GET /api/admin/system-health", () => {
       };
       fetchedAt: string;
     };
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
     expect(body.webappDb).toBe("up");
     expect(body.integratorApi).toEqual({ status: "ok", db: "up" });
     expect(body.projection.status).toBe("degraded");
@@ -592,7 +596,7 @@ describe("GET /api/admin/system-health", () => {
       expect.objectContaining({ probe: "integrator_api", status: "unreachable" }),
       "system_health_probe",
     );
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
   it("returns projection unreachable when proxy returns unreachable error", async () => {
@@ -619,22 +623,25 @@ describe("GET /api/admin/system-health", () => {
     const body = (await res.json()) as { projection: { status: string; snapshot?: unknown } };
     expect(body.projection.status).toBe("unreachable");
     expect(body.projection.snapshot).toBeUndefined();
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
-  it("loads videoPlayback via Drizzle metrics helper when playback API enabled", async () => {
+  it("loads videoPlayback through the protected curated aggregate when playback API enabled", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
-    loadAdminPlaybackHealthMetricsMock.mockResolvedValue({
-      ...zeroMetrics,
-      byDelivery: { hls: 3, mp4: 2, file: 1 },
-      fallbackTotal: 3,
-      totalResolutions: 6,
-      uniquePlaybackPairsFirstSeenInWindow: 4,
+    loadCuratedPlaybackHealthSnapshotMock.mockResolvedValue({
+      "24": {
+        ...zeroMetrics,
+        byDelivery: { hls: 3, mp4: 2, file: 1 },
+        fallbackTotal: 3,
+        totalResolutions: 6,
+        uniquePlaybackPairsFirstSeenInWindow: 4,
+      },
+      "1": zeroMetrics,
     });
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
@@ -665,9 +672,7 @@ describe("GET /api/admin/system-health", () => {
         uniquePlaybackPairsFirstSeenInWindow: number;
       };
     };
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalled();
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 24 });
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 1 });
+    expect(loadCuratedPlaybackHealthSnapshotMock).toHaveBeenCalledTimes(1);
     expect(body.videoPlayback.playbackApiEnabled).toBe(true);
     expect(body.videoPlayback.byDelivery).toEqual({ hls: 3, mp4: 2, file: 1 });
     expect(body.videoPlayback.totalResolutions).toBe(6);
@@ -675,14 +680,14 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoPlayback.uniquePlaybackPairsFirstSeenInWindow).toBe(4);
   });
 
-  it("returns videoPlayback error shell when Drizzle playback metrics loader fails", async () => {
+  it("returns videoPlayback error shell when curated playback aggregate fails", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
-    loadAdminPlaybackHealthMetricsMock.mockRejectedValue(new Error("drizzle_down"));
+    loadCuratedPlaybackHealthSnapshotMock.mockRejectedValue(new Error("aggregate_down"));
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
         status: 200,
