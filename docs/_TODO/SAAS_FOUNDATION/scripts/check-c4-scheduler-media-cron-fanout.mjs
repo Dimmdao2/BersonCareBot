@@ -43,6 +43,7 @@ const files = {
   mediaRuntimeConfig: "apps/media-worker/src/serverRuntimeConfig.ts",
   operationalSql: "deploy/postgres/c4-operational-runtime.sql",
   webPushOperationalSql: "deploy/postgres/c4-web-push-reminder-runtime.sql",
+  webPushOperationalProof: "deploy/postgres/smoke-c4-web-push-reminder-runtime.sh",
   operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
   operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
@@ -162,6 +163,15 @@ function requireFragmentBefore(label, text, before, after) {
   if (afterIndex < 0) fail(`${label} missing required fragment: ${after}`);
   if (beforeIndex > afterIndex) {
     fail(`${label} must contain ${before} before ${after}`);
+  }
+}
+
+function requireOrderedFragments(label, text, fragments) {
+  let cursor = 0;
+  for (const fragment of fragments) {
+    const index = text.indexOf(fragment, cursor);
+    if (index < 0) fail(`${label} missing or misordered required fragment: ${fragment}`);
+    cursor = index + fragment.length;
   }
 }
 
@@ -486,18 +496,67 @@ function assertOperationalSqlAndDeploy(loaded) {
     "scheduler reminder work contains rows without organization ownership",
   );
   requireFragments(files.testDeploy, loaded.testDeploy, [
-    "install_c4_operational_runtime_overlay",
+    "bootstrap_and_provision_c4_operational_runtime",
+    "reapply_c4_operational_runtime_overlays",
     "assert_c4_operational_runtime_ready",
+    "assert_webapp_test_operational_env_available",
+    "C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql",
+    "C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh",
+    "C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh",
+    'PROJECT_ROOT="$DEPLOY_REPO"',
+    'WEBAPP_ENV_FILE="$WEBAPP_ENV"',
+    'bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env',
     "DATABASE_URL_DIAGNOSTIC",
     "DATABASE_URL_DELIVERY_WORKER",
     "DATABASE_URL_SCHEDULER",
+    "DATABASE_URL_WEB_PUSH_REMINDER",
+    'sudo node "$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check',
+    'sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check',
+    'for env_file in "$API_ENV" "$WEBAPP_ENV"; do',
+    'if [ -e "$MEDIA_WORKER_ENV" ]; then',
     "MEDIA_WORKER_ENV",
-    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+    'c4_web_push_reminder_login_role="$web_push_reminder_role"',
+    '-f "$DEPLOY_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"',
+    'bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"',
+    'grep -Fxq "$WEBAPP_ENV (ignore_errors=no)"',
+    "C4 operational bootstrap/provision: OK (five isolated TEST contours)",
+    "C4 operational runtime overlays: OK (five isolated contours)",
+    "C4 operational runtime readiness: OK (five distinct URLs; positive + cross-contour negatives)",
+    "webapp TEST unit operational env: OK (DATABASE_URL_WEB_PUSH_REMINDER available)",
+    "--c4-operational-chain-self-test",
+    "run_c4_operational_chain_self_test",
+    'bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test',
+    'node "$C4_STATIC_CHECKER" --self-test',
+    "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)",
   ]);
-  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "-qAt -c", 4);
-  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "::int;", 4);
-  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "| tail -n 1", 4);
-  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, '= "1" ]', 4);
+  const strictClosure = loaded.testDeploy.slice(
+    loaded.testDeploy.indexOf("run_strict_post_migration_closure(){"),
+    loaded.testDeploy.indexOf("\nassert_strict_closure_deploy_checkout_ready(){"),
+  );
+  requireOrderedFragments(files.testDeploy, strictClosure, [
+    'log "strict closure: protected principal helpers"',
+    "install_p2_b_protected_principal_context",
+    'log "strict closure: reviewed runtime overlays"',
+    "rehydrate_post_restore_runtime_overlays",
+    'log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"',
+    "apply_test_strict_rls_finalizer",
+    'log "strict closure: C4 five-contour TEST env preflight + root provisioning"',
+    "bootstrap_and_provision_c4_operational_runtime",
+    'log "strict closure: owner-ready locked DB matrix (transactional)"',
+    "run_owner_ready_locked_db_matrix",
+    'log "strict closure: post-matrix exact strict + FORCE reassertion"',
+    "apply_test_strict_rls_finalizer",
+    "reapply_c4_operational_runtime_overlays",
+    "assert_c4_operational_runtime_ready",
+    'log "strict closure: restart locked TEST units"',
+    "install_and_assert_media_worker_test_unit",
+    "assert_webapp_test_operational_env_available",
+    "mark_e1_runtime_coverage_start",
+  ]);
+  forbidFragments(files.testDeploy, loaded.testDeploy, [
+    "four isolated contours",
+    "web-push-only-reminder-cron.sh install-test",
+  ]);
   requireFragments(files.outgoingDeliveryScope, loaded.outgoingDeliveryScope, [
     "app.resolve_outgoing_delivery_scope($1::uuid)",
     "app.operator_incident_alert_already_sent($1::uuid)",
@@ -566,7 +625,23 @@ function assertOperationalSqlAndDeploy(loaded) {
     "tail -n 1",
     "five contours must authenticate as five distinct PostgreSQL roles",
     "app_operational_web_push_reminder",
+    "expect_denied",
+    "diagnostic cross-contour reminder read",
+    "delivery cross-contour web-push read",
+    "scheduler cross-contour web-push read",
+    "media cross-contour web-push read",
+    "web-push base login direct table read",
+    "web-push cross-contour scheduler read",
+    "web-push cross-contour delivery read",
+    "web-push cross-contour media read",
+    "web-push staff/nonstaff business-table read",
+    "web-push noncanonical operator status key",
+    "web-push operator status delete",
+    "reminders.web_push_only.tick",
+    "web-push exact operator status write/read failed",
+    "web-push operator status policy exposed or updated another key",
   ]);
+  requireOccurrenceCountAtLeast(files.operationalReadinessScript, loaded.operationalReadinessScript, "expect_denied", 15);
   requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
     "run as root/DB administrator",
     "five operational URLs must use five distinct roles",
@@ -574,6 +649,9 @@ function assertOperationalSqlAndDeploy(loaded) {
     "validate_operational_endpoint",
     "127.0.0.1",
     "5432",
+    'validate_test_database "$database"',
+    "self-test accepted non-canonical TEST database",
+    "TEST operational URLs must target exact database bersoncarebot_test",
     "WEBAPP_ENV_FILE",
     "saas-c2-secret-preflight.mjs",
     '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
@@ -596,6 +674,12 @@ function assertOperationalSqlAndDeploy(loaded) {
     "writeProtected(apiPath",
     "writeProtected(webappPath",
     "DATABASE_URL_WEB_PUSH_REMINDER",
+    '!["--check", "--execute"].includes(process.argv[2])',
+    'write = process.argv[2] === "--execute"',
+    "C4 TEST env bootstrap preflight: OK (no files written; secrets redacted)",
+    "bootstrap accepted an unreadable source env",
+    "source validation failure created media-worker.test",
+    "source validation failure modified an existing env file",
   ]);
   requireFragments(files.webPushOperationalSql, loaded.webPushOperationalSql, [
     "app_operational_web_push_reminder",
@@ -609,6 +693,16 @@ function assertOperationalSqlAndDeploy(loaded) {
     "c4_web_push_reminder_down",
     "DROP ROLE IF EXISTS app_operational_web_push_reminder",
     "granted.rolname IN (:'c4_web_push_reminder_login_role'",
+  ]);
+  requireFragments(files.webPushOperationalProof, loaded.webPushOperationalProof, [
+    "failed to inject overgrant rehearsal",
+    "reapply retained injected overgrant",
+    "injected overgrant did not make the readiness-negative surface reachable",
+    "reapply left the readiness-negative surface reachable",
+    "GRANT SELECT ON public.outside_contour TO c4_webpush_smoke_login",
+    "GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder",
+    "GRANT SELECT ON public.outside_contour TO app_web_push_reminder_discovery_definer",
+    "C4 Web Push reminder private PostgreSQL 16 proof: OK",
   ]);
   requireFragments(files.webPushReminderCron, loaded.webPushReminderCron, [
     'JOB_NAME="bersoncarebot-test-web-push-only-reminders"',
@@ -770,6 +864,10 @@ if (process.argv.includes("--self-test")) {
     '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
     '[ -n "$PROJECT_ROOT" ]',
   );
+  const operationalProvisionOpenTestDatabase = read(files.operationalProvisionScript).replace(
+    'validate_test_database "$database"',
+    ': "$database"',
+  );
   const schedulerReadinessWithoutScalarAlias = read(files.operationalReadiness).replace(
     " AS scheduler_organizations(organization_id)",
     "",
@@ -794,6 +892,18 @@ if (process.argv.includes("--self-test")) {
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
   );
+  const operationalReadinessNoCrossContourDeny = read(files.operationalReadinessScript).replace(
+    'expect_denied "$web_push_reminder_url" "web-push cross-contour scheduler read"',
+    'probe "$web_push_reminder_url" "web-push cross-contour scheduler read"',
+  );
+  const operationalReadinessWrongStatusKey = read(files.operationalReadinessScript).replaceAll(
+    "reminders.web_push_only.tick",
+    "readiness.wrong-key",
+  );
+  const operationalReadinessNoStatusDeleteDeny = read(files.operationalReadinessScript).replace(
+    'expect_denied "$web_push_reminder_url" "web-push operator status delete"',
+    'probe "$web_push_reminder_url" "web-push operator status delete"',
+  );
   const operationalSqlNoTypeScrub = read(files.operationalSql).replaceAll(
     "REVOKE ALL PRIVILEGES ON TYPE",
     "REVOKE USAGE ON TYPE",
@@ -806,9 +916,30 @@ if (process.argv.includes("--self-test")) {
     "OR (p_status = 'failed' AND p_reason = 'provider_rejected')",
     "OR (p_status = 'failed' AND p_reason IS NOT NULL)",
   );
-  const testDeployLegacyReadiness = read(files.testDeploy)
-    .replaceAll("-qAt -c", "-tAc")
-    .replaceAll("::int;", "::text;");
+  const webPushOperationalProofNoOvergrantRehearsal = read(files.webPushOperationalProof).replace(
+    "GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder;",
+    "-- removed injected operational overgrant",
+  );
+  const testDeployNoBootstrapProvisionCall = read(files.testDeploy).replace(
+    "  bootstrap_and_provision_c4_operational_runtime\n",
+    "  # removed bootstrap/provision call\n",
+  );
+  const testDeployWrongPostMatrixOrder = read(files.testDeploy).replace(
+    "  reapply_c4_operational_runtime_overlays\n  assert_c4_operational_runtime_ready\n",
+    "  assert_c4_operational_runtime_ready\n  reapply_c4_operational_runtime_overlays\n",
+  );
+  const testDeployNoUnitEnvGate = read(files.testDeploy).replace(
+    "  assert_webapp_test_operational_env_available\n",
+    "  # removed webapp operational env gate\n",
+  );
+  const testDeployNoFiveContourOutput = read(files.testDeploy).replace(
+    "C4 operational runtime readiness: OK (five distinct URLs; positive + cross-contour negatives)",
+    "C4 operational runtime readiness: OK",
+  );
+  const testDeployNoBootstrapInputCheck = read(files.testDeploy).replace(
+    '  sudo node "$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check\n',
+    "  # removed missing-media bootstrap preflight\n",
+  );
   const dispatchPortNoFailedAudit = read(files.dispatchPort).replace(
     "'failed', 1, 'provider_rejected'",
     "'success', 1, 'provider_rejected'",
@@ -853,16 +984,25 @@ if (process.argv.includes("--self-test")) {
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalProvisionScript: operationalProvisionNoBootstrap },
     { operationalProvisionScript: operationalProvisionOpenProjectRoot },
+    { operationalProvisionScript: operationalProvisionOpenTestDatabase },
     { operationalReadiness: schedulerReadinessWithoutScalarAlias },
     { schedulerOrganizationRepo: schedulerRepoWithoutScalarAlias },
     { mediaWorkerTestUnit: mediaWorkerTestUnitWrongRoot },
     { mediaWorkerTestUnitAssertion: mediaWorkerAssertionOpenFragment },
     { mediaWorkerTestUnitAssertion: mediaWorkerAssertionSubstringEnv },
     { operationalReadiness: operationalReadinessNoBooleanGate },
+    { operationalReadinessScript: operationalReadinessNoCrossContourDeny },
+    { operationalReadinessScript: operationalReadinessWrongStatusKey },
+    { operationalReadinessScript: operationalReadinessNoStatusDeleteDeny },
     { operationalSql: operationalSqlNoTypeScrub },
     { operationalSql: operationalSqlCategoryArrayFilter },
     { operationalSql: operationalSqlOpenReason },
-    { testDeploy: testDeployLegacyReadiness },
+    { webPushOperationalProof: webPushOperationalProofNoOvergrantRehearsal },
+    { testDeploy: testDeployNoBootstrapProvisionCall },
+    { testDeploy: testDeployWrongPostMatrixOrder },
+    { testDeploy: testDeployNoUnitEnvGate },
+    { testDeploy: testDeployNoFiveContourOutput },
+    { testDeploy: testDeployNoBootstrapInputCheck },
     { dispatchPort: dispatchPortNoFailedAudit },
     { reportOperatorFailure: reportOperatorFailureRawRecipient },
     { idempotencyKeys: idempotencyKeysUnqualified },

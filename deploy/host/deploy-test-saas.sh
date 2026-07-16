@@ -51,6 +51,10 @@ SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sq
 INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
 E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
+C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql
+C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
+C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C4_STATIC_CHECKER=docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
@@ -451,32 +455,42 @@ discover_media_worker_runtime_role(){
   discover_database_role_from_env "media-worker.test" "$MEDIA_WORKER_ENV"
 }
 
-install_c4_operational_runtime_overlay(){
-  local diagnostic_role delivery_worker_role scheduler_role media_worker_role
+bootstrap_and_provision_c4_operational_runtime(){
+  sudo env \
+    PROJECT_ROOT="$DEPLOY_REPO" \
+    API_ENV_FILE="$API_ENV" \
+    WEBAPP_ENV_FILE="$WEBAPP_ENV" \
+    MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
+    bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env
+  echo "   C4 operational bootstrap/provision: OK (five isolated TEST contours)"
+}
+
+reapply_c4_operational_runtime_overlays(){
+  local diagnostic_role delivery_worker_role scheduler_role media_worker_role web_push_reminder_role
   diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
   delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
   scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
   media_worker_role="$(discover_media_worker_runtime_role)"
+  web_push_reminder_role="$(discover_database_role_from_env_key "webapp.test" "$WEBAPP_ENV" DATABASE_URL_WEB_PUSH_REMINDER)"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v c4_diagnostic_login_role="$diagnostic_role" \
     -v c4_delivery_worker_login_role="$delivery_worker_role" \
     -v c4_scheduler_login_role="$scheduler_role" \
     -v c4_media_worker_login_role="$media_worker_role" \
     -f "$DEPLOY_REPO/$C4_OPERATIONAL_RUNTIME"
-  echo "   C4 operational runtime roles: OK (four isolated contours)"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v c4_web_push_reminder_login_role="$web_push_reminder_role" \
+    -f "$DEPLOY_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"
+  echo "   C4 operational runtime overlays: OK (five isolated contours)"
 }
 
 assert_c4_operational_runtime_ready(){
-  local diagnostic_ok delivery_ok scheduler_ok media_ok
-  diagnostic_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_DIAGNOSTIC\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_diagnostic; SELECT (has_table_privilege(current_user, 'integrator.projection_outbox', 'SELECT') AND NOT has_table_privilege(current_user, 'integrator.projection_outbox', 'INSERT,UPDATE,DELETE') AND NOT has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT'))::int;\" | tail -n 1")"
-  delivery_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_DELIVERY_WORKER\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_delivery_worker; SELECT (has_table_privilege(current_user, 'integrator.projection_outbox', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'integrator.rubitime_create_retry_jobs', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT,UPDATE') AND has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE') AND NOT has_table_privilege(current_user, 'integrator.idempotency_keys', 'SELECT'))::int;\" | tail -n 1")"
-  scheduler_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_SCHEDULER\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_scheduler; SELECT (has_table_privilege(current_user, 'integrator.idempotency_keys', 'SELECT,INSERT,UPDATE,DELETE') AND NOT has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT') AND NOT has_table_privilege(current_user, 'public.media_transcode_jobs', 'SELECT'))::int;\" | tail -n 1")"
-  media_ok="$(sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_media_worker; SELECT (has_table_privilege(current_user, 'public.media_transcode_jobs', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'public.media_files', 'SELECT,UPDATE') AND NOT has_table_privilege(current_user, 'public.app_runtime_settings', 'SELECT') AND has_function_privilege(current_user, 'app.read_media_worker_runtime_setting(text)', 'EXECUTE') AND app.read_media_worker_runtime_setting('not_allowed') IS NULL)::int;\" | tail -n 1")"
-  [ "$diagnostic_ok" = "1" ] || { echo "FATAL: C4 diagnostic contour readiness failed" >&2; exit 1; }
-  [ "$delivery_ok" = "1" ] || { echo "FATAL: C4 delivery-worker contour readiness failed" >&2; exit 1; }
-  [ "$scheduler_ok" = "1" ] || { echo "FATAL: C4 scheduler contour readiness failed" >&2; exit 1; }
-  [ "$media_ok" = "1" ] || { echo "FATAL: C4 media-worker contour readiness failed" >&2; exit 1; }
-  echo "   C4 operational runtime readiness: OK (positive + cross-contour negatives)"
+  sudo -u deploy env \
+    API_ENV_FILE="$API_ENV" \
+    WEBAPP_ENV_FILE="$WEBAPP_ENV" \
+    MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV" \
+    bash "$DEPLOY_REPO/$C4_OPERATIONAL_READINESS"
+  echo "   C4 operational runtime readiness: OK (five distinct URLs; positive + cross-contour negatives)"
 }
 
 discover_webapp_staff_runtime_role(){
@@ -855,6 +869,21 @@ install_and_assert_media_worker_test_unit(){
     "$effective_user" "$effective_group"
 }
 
+assert_webapp_test_operational_env_available(){
+  local effective_environment_files
+  sudo -u deploy test -r "$WEBAPP_ENV" || {
+    echo "FATAL: deploy cannot read $WEBAPP_ENV before webapp TEST restart" >&2
+    exit 1
+  }
+  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && : \"\${DATABASE_URL_WEB_PUSH_REMINDER:?missing DATABASE_URL_WEB_PUSH_REMINDER}\""
+  effective_environment_files="$(systemctl show bersoncarebot-webapp-test.service -p EnvironmentFiles --value)"
+  printf '%s\n' "$effective_environment_files" | grep -Fxq "$WEBAPP_ENV (ignore_errors=no)" || {
+    echo "FATAL: webapp TEST unit does not load exact required env $WEBAPP_ENV" >&2
+    exit 1
+  }
+  echo "   webapp TEST unit operational env: OK (DATABASE_URL_WEB_PUSH_REMINDER available)"
+}
+
 assert_test_health_ok(){
   local health_response
   health_response="$(curl -fsk --max-time 10 https://test.bersoncare.ru/api/health)"
@@ -898,7 +927,8 @@ run_strict_post_migration_closure(){
 
   log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
   apply_test_strict_rls_finalizer
-  install_c4_operational_runtime_overlay
+  log "strict closure: C4 five-contour TEST env preflight + root provisioning"
+  bootstrap_and_provision_c4_operational_runtime
 
   log "strict closure: separate privileged fixture seed + cleanup"
   run_deploy_repo_with_test_db_owner_bypass \
@@ -912,12 +942,13 @@ run_strict_post_migration_closure(){
   run_owner_ready_locked_db_matrix
   log "strict closure: post-matrix exact strict + FORCE reassertion"
   apply_test_strict_rls_finalizer
-  install_c4_operational_runtime_overlay
+  reapply_c4_operational_runtime_overlays
   assert_c4_operational_runtime_ready
   assert_integrator_server_runtime_config_ready
 
   log "strict closure: restart locked TEST units"
   install_and_assert_media_worker_test_unit
+  assert_webapp_test_operational_env_available
   mark_e1_runtime_coverage_start
   for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
   sleep 4
@@ -942,7 +973,8 @@ assert_strict_closure_deploy_checkout_ready(){
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" "$C4_OPERATIONAL_RUNTIME" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
+    "$C4_OPERATIONAL_RUNTIME" "$C4_WEB_PUSH_REMINDER_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -950,15 +982,41 @@ assert_strict_closure_deploy_checkout_ready(){
       exit 1
     }
   done
-  for env_file in "$API_ENV" "$WEBAPP_ENV" "$MEDIA_WORKER_ENV"; do
+  sudo node "$DEPLOY_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check
+  for env_file in "$API_ENV" "$WEBAPP_ENV"; do
     sudo -u deploy test -r "$env_file" || { echo "FATAL: deploy cannot read required env file: $env_file" >&2; exit 1; }
   done
+  if [ -e "$MEDIA_WORKER_ENV" ]; then
+    sudo -u deploy test -r "$MEDIA_WORKER_ENV" || {
+      echo "FATAL: existing media-worker TEST env is not readable by deploy: $MEDIA_WORKER_ENV" >&2
+      exit 1
+    }
+  fi
   assert_test_runtime_mode_ready
   assert_saas_test_fixture_packet_ready
   assert_locked_product_smoke_fixture_ready
 }
 
+run_c4_operational_chain_self_test(){
+  bash -n "$SRC_REPO/deploy/host/deploy-test-saas.sh" \
+    "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
+    "$SRC_REPO/$C4_OPERATIONAL_READINESS"
+  bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
+  node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
+  node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
+  (
+    cd "$SRC_REPO"
+    node "$C4_STATIC_CHECKER"
+    node "$C4_STATIC_CHECKER" --self-test
+  )
+  echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
+}
+
 case "${1:-}" in
+  --c4-operational-chain-self-test)
+    run_c4_operational_chain_self_test
+    exit 0
+    ;;
   --strict-preflight)
     FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
     assert_strict_closure_deploy_checkout_ready
@@ -998,11 +1056,21 @@ esac
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
+[ -r "$SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"; exit 1; }
+[ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
+[ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
-for f in "$API_ENV" "$WEBAPP_ENV" "$MEDIA_WORKER_ENV"; do
+sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check
+for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
+if [ -e "$MEDIA_WORKER_ENV" ]; then
+  sudo -u deploy test -r "$MEDIA_WORKER_ENV" || {
+    echo "FATAL: existing media-worker TEST env is not readable by deploy: $MEDIA_WORKER_ENV" >&2
+    exit 1
+  }
+fi
 log "TEST runtime mode preflight"
 assert_test_runtime_mode_ready
 log "SaaS TEST fixture operator packet preflight"

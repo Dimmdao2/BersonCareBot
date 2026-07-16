@@ -7,6 +7,7 @@ WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
 WEB_PUSH_OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-web-push-reminder-runtime.sql"
+TEST_BOOTSTRAP=0
 
 validate_test_bootstrap_paths(){
   [ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ] || { echo "FATAL: TEST bootstrap requires canonical TEST project root" >&2; return 1; }
@@ -19,6 +20,13 @@ validate_operational_endpoint(){
   local host="$1" port="$2"
   [ "$host" = "127.0.0.1" ] && [ "$port" = "5432" ] || {
     echo "FATAL: operational URLs must target exact local PostgreSQL endpoint 127.0.0.1:5432" >&2
+    return 1
+  }
+}
+
+validate_test_database(){
+  [ "$1" = "bersoncarebot_test" ] || {
+    echo "FATAL: TEST operational URLs must target exact database bersoncarebot_test" >&2
     return 1
   }
 }
@@ -60,6 +68,11 @@ run_self_test(){
     echo "FATAL: self-test accepted non-canonical PostgreSQL port" >&2
     return 1
   fi
+  validate_test_database bersoncarebot_test >/dev/null
+  if validate_test_database bersoncarebot_prod >/dev/null 2>&1; then
+    echo "FATAL: self-test accepted non-canonical TEST database" >&2
+    return 1
+  fi
   echo "provision-c4-operational-runtime self-test: OK"
 }
 
@@ -74,6 +87,7 @@ fi
 if [ "${1:-}" = "--bootstrap-test-env" ]; then
   [ "$#" -eq 1 ] || { echo "FATAL: usage: $0 [--bootstrap-test-env|--self-test]" >&2; exit 2; }
   validate_test_bootstrap_paths
+  TEST_BOOTSTRAP=1
   node "$PROJECT_ROOT/deploy/host/bootstrap-c4-test-env.mjs" --execute
 elif [ "$#" -ne 0 ]; then
   echo "FATAL: usage: $0 [--bootstrap-test-env|--self-test]" >&2
@@ -150,6 +164,7 @@ for url in "${urls[@]}"; do
   roles+=("$role")
   passwords+=("$password")
 done
+[ "$TEST_BOOTSTRAP" != "1" ] || validate_test_database "$database"
 [ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 5 ] || {
   echo "FATAL: five operational URLs must use five distinct roles" >&2
   exit 1

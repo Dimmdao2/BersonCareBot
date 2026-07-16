@@ -115,7 +115,7 @@ function writeProtected(path, content, ownerUid, deployGid) {
   renameSync(temporary, path);
 }
 
-function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid }) {
+function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid, write = true }) {
   assertRegular(apiPath);
   assertRegular(webappPath);
   const mediaExists = assertRegular(mediaPath, true);
@@ -173,9 +173,11 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid }) 
     fail("media-worker.test principal contract must match api.test");
   }
 
-  writeProtected(mediaPath, mediaText, ownerUid, deployGid);
-  writeProtected(apiPath, upsertEnv(apiText, apiAdditions), ownerUid, deployGid);
-  writeProtected(webappPath, upsertEnv(webappText, webappAdditions), ownerUid, deployGid);
+  if (write) {
+    writeProtected(mediaPath, mediaText, ownerUid, deployGid);
+    writeProtected(apiPath, upsertEnv(apiText, apiAdditions), ownerUid, deployGid);
+    writeProtected(webappPath, upsertEnv(webappText, webappAdditions), ownerUid, deployGid);
+  }
 }
 
 function selfTest() {
@@ -200,6 +202,34 @@ function selfTest() {
     const s3 = "S3_ENDPOINT='http://s3.test'\nS3_ACCESS_KEY='access'\nS3_SECRET_KEY='secret'\nS3_PRIVATE_BUCKET='private'\n";
     writeFileSync(api, "DATABASE_URL='postgresql://base:base-secret@127.0.0.1:5432/bersoncarebot_test'\n" + common + s3);
     writeFileSync(webapp, common);
+    const apiBeforeCheck = readFileSync(api, "utf8");
+    const webappBeforeCheck = readFileSync(webapp, "utf8");
+    chmodSync(api, 0o000);
+    let unreadableRejected = false;
+    try {
+      bootstrap({ apiPath: api, webappPath: webapp, mediaPath: media, ownerUid: process.getuid(), deployGid: process.getgid() });
+    } catch {
+      unreadableRejected = true;
+    } finally {
+      chmodSync(api, 0o600);
+    }
+    if (!unreadableRejected) fail("bootstrap accepted an unreadable source env");
+    if (assertRegular(media, true)) fail("source validation failure created media-worker.test");
+    if (readFileSync(api, "utf8") !== apiBeforeCheck || readFileSync(webapp, "utf8") !== webappBeforeCheck) {
+      fail("source validation failure modified an existing env file");
+    }
+    bootstrap({
+      apiPath: api,
+      webappPath: webapp,
+      mediaPath: media,
+      ownerUid: process.getuid(),
+      deployGid: process.getgid(),
+      write: false,
+    });
+    if (assertRegular(media, true)) fail("--check created media-worker.test");
+    if (readFileSync(api, "utf8") !== apiBeforeCheck || readFileSync(webapp, "utf8") !== webappBeforeCheck) {
+      fail("--check modified an existing env file");
+    }
     bootstrap({ apiPath: api, webappPath: webapp, mediaPath: media, ownerUid: process.getuid(), deployGid: process.getgid() });
     const firstApi = parseEnv(readFileSync(api, "utf8"), "api.test");
     const firstMedia = parseEnv(readFileSync(media, "utf8"), "media-worker.test");
@@ -224,8 +254,13 @@ if (process.argv.includes("--self-test")) {
   selfTest();
 } else {
   if (process.getuid() !== 0) fail("run as root");
-  if (process.argv.length !== 3 || process.argv[2] !== "--execute") fail("usage: bootstrap-c4-test-env.mjs --execute");
+  if (process.argv.length !== 3 || !["--check", "--execute"].includes(process.argv[2])) {
+    fail("usage: bootstrap-c4-test-env.mjs --check|--execute");
+  }
   const deployGid = Number(execFileSync("id", ["-g", "deploy"], { encoding: "utf8" }).trim());
-  bootstrap({ apiPath: TEST_PATHS.api, webappPath: TEST_PATHS.webapp, mediaPath: TEST_PATHS.media, deployGid });
-  console.log("C4 TEST env bootstrap: OK (api.test, webapp.test, media-worker.test; root:deploy 0640; secrets redacted)");
+  const write = process.argv[2] === "--execute";
+  bootstrap({ apiPath: TEST_PATHS.api, webappPath: TEST_PATHS.webapp, mediaPath: TEST_PATHS.media, deployGid, write });
+  console.log(write
+    ? "C4 TEST env bootstrap: OK (api.test, webapp.test, media-worker.test; root:deploy 0640; secrets redacted)"
+    : "C4 TEST env bootstrap preflight: OK (no files written; secrets redacted)");
 }

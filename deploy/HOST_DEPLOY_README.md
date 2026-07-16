@@ -151,7 +151,7 @@ unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
-Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
+Первичное создание/нормализация пяти operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
 
 ```bash
@@ -169,17 +169,22 @@ MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
 bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
 ```
 
-Bootstrap атомарно добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
+Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
+добавляет пятый `DATABASE_URL_WEB_PUSH_REMINDER` в `webapp.test`,
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
 и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
 паролей и секретов не выводятся.
 Bootstrap дополнительно требует точный канонический checkout `/opt/projects/bersoncarebot-test`; запуск из
 PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
+Перед любым bootstrap wrapper запускает `bootstrap-c4-test-env.mjs --check`: обязательны только исходные
+`api.test`/`webapp.test`; отсутствующий `media-worker.test` допустим и детерминированно строится в памяти. Этот режим
+ничего не пишет. После per-file update общий C2 preflight уже требует и проверяет полный набор всех пяти URL.
 
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
 `api.prod`/`media-worker.prod`, передаёт `\password` через stdin, применяет
-`deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres` и запускает readiness. Обычный
+`deploy/postgres/c4-operational-runtime.sql` и `c4-web-push-reminder-runtime.sql` локально через системного `postgres`
+и запускает readiness всех пяти различных login. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
 контракт перед рестартом сервисов.
 
@@ -694,6 +699,20 @@ Hard wrapper останавливает writers, восстанавливает 
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
 fail-closed до restore, если защищённый TEST-only credential packet или обязательный product-smoke fixture не готов.
+После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
+после read-only source preflight атомарно заменяет каждый затронутый env-файл и добавляет/сохраняет пять отдельных
+local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capability/
+discovery-definer роли, применяет оба C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
+До рестарта отдельно проверяется, что systemd webapp читает точный `webapp.test` и в нём доступен
+`DATABASE_URL_WEB_PUSH_REMINDER`. Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
+сохраняются для безопасного повторного запуска. Fresh wrapper намеренно не ставит cron и не вызывает live tick:
+`web-push-only-reminder-cron.sh install-test` разрешён только отдельным шагом после успешного полного fresh rehearsal.
+Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
+`bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
+Readiness выполняет не только разрешённые операции: все четыре соседних capability обязаны получить отказ на
+Web Push surface, Web Push capability — на scheduler/delivery/media/business surfaces; base login не читает таблицы
+напрямую. Точный `operator_job_status` ключ `reminders.web_push_only.tick` проверяется write/read внутри rollback,
+чужие строки невидимы/не обновляются, другой ключ и DELETE обязаны завершиться отказом.
 Product-smoke fixture по умолчанию хранится в canonical external path
 `/run/bersoncarebot/saas-smoke.fixture`: строго `root:deploy 0640`, без symlink-файла или symlink-родителя и вне
 source/deploy repositories. Одна и та же проверка выполняется до restore и повторно непосредственно перед smoke.

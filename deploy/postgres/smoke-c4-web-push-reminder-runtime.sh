@@ -79,11 +79,28 @@ GRANT app_operational_web_push_reminder TO c4_webpush_smoke_cap_incoming;
 GRANT c4_webpush_smoke_cap_outgoing TO app_operational_web_push_reminder;
 GRANT app_web_push_reminder_discovery_definer TO c4_webpush_smoke_definer_incoming;
 GRANT c4_webpush_smoke_definer_outgoing TO app_web_push_reminder_discovery_definer;
+GRANT SELECT ON public.outside_contour TO c4_webpush_smoke_login;
+GRANT SELECT ON public.outside_contour TO app_operational_web_push_reminder;
+GRANT SELECT ON public.outside_contour TO app_web_push_reminder_discovery_definer;
 SQL
+injected_overgrants="$("${psql[@]}" -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='outside_contour' AND grantee IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer') AND privilege_type='SELECT'")"
+[ "$injected_overgrants" = "3" ] || { echo "FATAL: failed to inject overgrant rehearsal" >&2; exit 1; }
+"${psql[@]}" -U "$LOGIN_ROLE" -c \
+  'SET ROLE app_operational_web_push_reminder; SELECT count(*) FROM public.outside_contour;' >/dev/null || {
+  echo "FATAL: injected overgrant did not make the readiness-negative surface reachable" >&2
+  exit 1
+}
 "${psql[@]}" -v c4_web_push_reminder_login_role="$LOGIN_ROLE" \
   -f deploy/postgres/c4-web-push-reminder-runtime.sql >/dev/null
 topology_edges="$("${psql[@]}" -Atc "SELECT count(*) FROM pg_auth_members membership JOIN pg_roles granted ON granted.oid=membership.roleid JOIN pg_roles member ON member.oid=membership.member WHERE granted.rolname IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer') OR member.rolname IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer')")"
 [ "$topology_edges" = "1" ] || { echo "FATAL: reapply did not restore exact role topology" >&2; exit 1; }
+remaining_overgrants="$("${psql[@]}" -Atc "SELECT count(*) FROM information_schema.role_table_grants WHERE table_schema='public' AND table_name='outside_contour' AND grantee IN ('$LOGIN_ROLE','app_operational_web_push_reminder','app_web_push_reminder_discovery_definer') AND privilege_type='SELECT'")"
+[ "$remaining_overgrants" = "0" ] || { echo "FATAL: reapply retained injected overgrant" >&2; exit 1; }
+if "${psql[@]}" -U "$LOGIN_ROLE" -c \
+  'SET ROLE app_operational_web_push_reminder; SELECT count(*) FROM public.outside_contour;' >/dev/null 2>&1; then
+  echo "FATAL: reapply left the readiness-negative surface reachable" >&2
+  exit 1
+fi
 
 # Base LOGIN has no direct table access.
 if "${psql[@]}" -U "$LOGIN_ROLE" -c 'SELECT * FROM public.reminder_rules' >/dev/null 2>&1; then
