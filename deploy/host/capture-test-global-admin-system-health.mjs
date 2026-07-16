@@ -64,7 +64,80 @@ function validateCookieJarText(text, nowSec = Math.floor(Date.now() / 1000)) {
   }
   const expiresAt = Number(fields[4]);
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= nowSec) fail("handoff_cookie_expired");
-  return { expiresAt };
+  return { cookie: fields[6], expiresAt };
+}
+
+function normalizedDiagnosticPath(url) {
+  if (url.pathname === exactRoute || url.pathname === "/app/doctor" || url.pathname === "/app") {
+    return url.pathname;
+  }
+  return "/other";
+}
+
+function terminalNavigationCategory(status) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 401) return "auth_required";
+  if (status === 403) return "forbidden";
+  if (status >= 500) return "server_error";
+  if (status >= 300 && status < 400) return "redirect_unresolved";
+  return "http_error";
+}
+
+async function probeFixedNavigation(cookie, request = fetch) {
+  let current = new URL(exactRoute, exactBase);
+  let lastStatus = null;
+  const visited = new Set();
+  for (let redirectCount = 0; redirectCount <= 12; redirectCount += 1) {
+    if (visited.has(current.href)) {
+      return { origin: exactBase, path: normalizedDiagnosticPath(current), status: lastStatus, category: "redirect_loop" };
+    }
+    visited.add(current.href);
+    let response;
+    try {
+      response = await request(current, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(20_000),
+        headers: { Cookie: `${sessionCookieName}=${cookie}` },
+      });
+    } catch {
+      return { origin: exactBase, path: normalizedDiagnosticPath(current), status: null, category: "network_error" };
+    }
+    const status = response.status;
+    lastStatus = status;
+    if (status < 300 || status >= 400) {
+      return {
+        origin: exactBase,
+        path: normalizedDiagnosticPath(current),
+        status,
+        category: terminalNavigationCategory(status),
+      };
+    }
+    const location = response.headers.get("location");
+    if (!location) {
+      return { origin: exactBase, path: normalizedDiagnosticPath(current), status, category: "redirect_missing_location" };
+    }
+    let next;
+    try {
+      next = new URL(location, current);
+    } catch {
+      return { origin: exactBase, path: normalizedDiagnosticPath(current), status, category: "redirect_invalid_location" };
+    }
+    if (next.origin !== exactBase) {
+      return { origin: exactBase, path: normalizedDiagnosticPath(current), status, category: "cross_origin_redirect" };
+    }
+    next.search = "";
+    next.hash = "";
+    current = next;
+  }
+  return { origin: exactBase, path: normalizedDiagnosticPath(current), status: lastStatus, category: "redirect_limit" };
+}
+
+function printNavigationDiagnostic(diagnostic) {
+  const status = diagnostic.status === null ? "none" : String(diagnostic.status);
+  process.stdout.write(
+    `navigation origin=${diagnostic.origin} path=${diagnostic.path} status=${status} category=${diagnostic.category}\n`,
+  );
 }
 
 function validateJar(filePath, expectedGid, nowSec = Math.floor(Date.now() / 1000)) {
@@ -311,10 +384,15 @@ function sanitizeAndValidateCapture(outputDirectory, dev) {
   return expected[0];
 }
 
-function capture() {
+async function capture() {
   const dev = resolveDevIdentity();
   if (process.getuid?.() !== dev.uid || process.getgid?.() !== dev.gid) fail("capture_requires_dev_identity");
-  validateJar(exactJar, dev.gid);
+  const { cookie } = validateJar(exactJar, dev.gid);
+  const diagnostic = await probeFixedNavigation(cookie);
+  printNavigationDiagnostic(diagnostic);
+  if (diagnostic.category !== "ok" || diagnostic.status !== 200 || diagnostic.path !== exactRoute) {
+    fail(`fixed_navigation_${diagnostic.category}`);
+  }
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const outputDirectory = prepareOutputDirectory(runId, dev);
   const result = spawnSync(process.execPath, [shotEngine, exactJar, outputDirectory, exactRoute], {
@@ -335,7 +413,7 @@ function capture() {
   process.stdout.write(`TEST global-admin System Health capture complete\noutput=${outputDirectory}\n`);
 }
 
-function selfTest() {
+async function selfTest() {
   const root = mkdtempSync(path.join(tmpdir(), "bcb-fixed-test-capture-"));
   try {
     const now = Math.floor(Date.now() / 1000);
@@ -349,7 +427,8 @@ function selfTest() {
     if ((directoryMetadata.mode & 0o777) !== 0o700) fail("self_test_temp_mode_unexpected");
     // The parser's content contract is tested independently from root-owned runtime metadata.
     const validText = readFileSync(jar, "utf8");
-    validateCookieJarText(validText, now);
+    const parsedCookie = validateCookieJarText(validText, now);
+    if (parsedCookie.cookie !== "self-test-cookie-secret") fail("self_test_cookie_parse_failed");
     const cookieLine = validText.split(/\r?\n/).find((line) => line && !line.startsWith("#"));
     if (!cookieLine) fail("self_test_secure_domain_failed");
     for (const mutation of [
@@ -371,6 +450,30 @@ function selfTest() {
     }
     const safeOutput = "TEST global-admin System Health capture complete";
     if (safeOutput.includes("self-test-cookie-secret")) fail("self_test_stdout_secret_leak");
+
+    const response = (status, location) => ({
+      status,
+      headers: { get: (name) => name === "location" ? location ?? null : null },
+    });
+    const okProbe = await probeFixedNavigation("self-test-cookie-secret", async () => response(200));
+    if (okProbe.category !== "ok" || okProbe.path !== exactRoute || okProbe.status !== 200) {
+      fail("self_test_navigation_ok_failed");
+    }
+    const loopResponses = [response(307, "/app/doctor"), response(307, exactRoute)];
+    const loopProbe = await probeFixedNavigation("self-test-cookie-secret", async () => loopResponses.shift());
+    if (loopProbe.category !== "redirect_loop" || loopProbe.path !== exactRoute) {
+      fail("self_test_navigation_loop_failed");
+    }
+    const crossOriginProbe = await probeFixedNavigation(
+      "self-test-cookie-secret",
+      async () => response(307, "https://evil.example/path?secret=must-not-appear"),
+    );
+    if (crossOriginProbe.category !== "cross_origin_redirect" || crossOriginProbe.path !== exactRoute) {
+      fail("self_test_navigation_cross_origin_failed");
+    }
+    if (JSON.stringify(crossOriginProbe).includes("secret") || JSON.stringify(crossOriginProbe).includes("evil")) {
+      fail("self_test_navigation_diagnostic_leaked_location");
+    }
 
     const dev = { uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 };
     const falseSuccess = path.join(root, "false-success");
@@ -536,8 +639,8 @@ function selfTest() {
 const [command, ...extraArguments] = process.argv.slice(2);
 try {
   if (extraArguments.length > 0) fail("arguments_forbidden");
-  if (command === "capture") capture();
-  else if (command === "--self-test") selfTest();
+  if (command === "capture") await capture();
+  else if (command === "--self-test") await selfTest();
   else fail("usage: capture-test-global-admin-system-health.mjs capture | --self-test");
 } catch (error) {
   process.stderr.write(`TEST global-admin capture failed: ${error instanceof Error ? error.message : "unknown"}\n`);

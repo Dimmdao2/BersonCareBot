@@ -64,6 +64,10 @@
 | Запись → Интеграции (Rubitime catalog v2) | `/app/doctor/admin/booking/integrations` | **`RubitimeSection`** — справочник `booking_*` через `/api/admin/booking-catalog/*` (город → филиал → услуга → специалист → branch-service); inline PATCH услуг, форма «Создать услугу»; план [`.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md`](../../.cursor/plans/archive/rubitime_catalog_ux_fix.plan.md) |
 | Технические режимы | `/app/doctor/admin/technical` | |
 
+`/app/doctor/system-health` сохраняет URL кабинета, но рендерится через отдельный platform-operator layout:
+доступ по-прежнему требует `role=admin` и включённый admin mode, а membership конкретной клиники не требуется.
+Это соответствует глобальному характеру экрана и не даёт global admin tenant clinical access.
+
 Редиректы `?adminTab=` → см. `ADMIN_TAB_REDIRECTS` в `apps/webapp/src/app/app/settings/adminSettingsData.ts`.
 
 ## Агрегатные экраны — Расписание и Коммуникации

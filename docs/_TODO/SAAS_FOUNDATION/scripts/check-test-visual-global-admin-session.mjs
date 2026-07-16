@@ -7,6 +7,8 @@ const files = {
   cookie: "apps/webapp/src/modules/auth/sessionCookie.ts",
   cookieTest: "apps/webapp/src/modules/auth/sessionCookie.test.ts",
   types: "apps/webapp/src/shared/types/session.ts",
+  globalAdminLayout: "apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx",
+  globalAdminPage: "apps/webapp/src/app/app/(global-admin)/doctor/system-health/page.tsx",
   runbook: "docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/TEST_VISUAL_GLOBAL_ADMIN_SESSION.md",
   package: "package.json",
 };
@@ -116,6 +118,11 @@ function validate(source) {
     '"NODE_OPTIONS" in env',
     'self_test_unsafe_cookie_scope_accepted',
     'self_test_stdout_secret_leak',
+    'async function probeFixedNavigation(cookie, request = fetch)',
+    'next.origin !== exactBase',
+    'next.search = ""',
+    'category: "redirect_loop"',
+    'fixed_navigation_${diagnostic.category}',
   ]);
   for (const forbidden of [
     "process.env.BASE",
@@ -136,6 +143,18 @@ function validate(source) {
   requireFragments("types", source.types, [
     "operatorSession?:",
     'purpose: "test_global_admin_visual"',
+  ]);
+  requireFragments("global admin layout", source.globalAdminLayout, [
+    "requireGlobalAdminDoctorPage()",
+    "<DoctorWorkspaceShell",
+    "adminMode={true}",
+  ]);
+  if (source.globalAdminLayout.includes("requireDoctorWorkspaceContext")) {
+    throw new Error("global admin layout: tenant workspace dependency forbidden");
+  }
+  requireFragments("global admin page", source.globalAdminPage, [
+    "requireGlobalAdminDoctorPage()",
+    "<SystemHealthSection />",
   ]);
   requireFragments("tests", source.cookieTest, [
     "keeps a bounded TEST visual session non-renewable",
@@ -177,6 +196,7 @@ function selfTest(source) {
     ],
     ["origin drift", 'const exactBase = "https://test.bersoncare.ru"', 'const exactBase = "https://evil.example"'],
     ["cookie exfiltration domain", 'const exactCookieHost = "test.bersoncare.ru"', 'const exactCookieHost = "evil.example"'],
+    ["navigation probe cross-origin bypass", "next.origin !== exactBase", "false"],
     [
       "capture artifact validation bypassed",
       "    sanitizeAndValidateCapture(outputDirectory, dev);",
@@ -221,7 +241,7 @@ function selfTest(source) {
     const mutated = { ...source };
     const target = label === "renewable bounded session"
       ? "cookie"
-      : label === "origin drift" || label === "cookie exfiltration domain" || label.startsWith("capture artifact") || label.startsWith("PNG ")
+      : label === "origin drift" || label === "cookie exfiltration domain" || label.startsWith("navigation probe") || label.startsWith("capture artifact") || label.startsWith("PNG ")
         ? "capture"
         : "helper";
     mutated[target] = mutated[target].replace(before, after);
