@@ -23,7 +23,12 @@ const chromePath = "/home/dev/.cache/ms-playwright/chromium-1217/chrome-linux64/
 const sessionCookieName = "bersoncare_webapp_session";
 const expectedPngName = /^i0_app_doctor_system_health_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.png$/;
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const pngIend = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+const maxPngBytes = 256 * 1024 * 1024;
+const pngCrcTable = Object.freeze(Array.from({ length: 256 }, (_, value) => {
+  let crc = value;
+  for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) !== 0 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+  return crc >>> 0;
+}));
 
 function fail(code) {
   throw new Error(code);
@@ -119,6 +124,111 @@ function removeArtifact(artifactPath) {
   rmSync(artifactPath, { recursive: true, force: true });
 }
 
+function pngCrc32(contents, start, end) {
+  let crc = 0xffffffff;
+  for (let offset = start; offset < end; offset += 1) {
+    crc = pngCrcTable[(crc ^ contents[offset]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function validateIhdr(contents, dataStart) {
+  const width = contents.readUInt32BE(dataStart);
+  const height = contents.readUInt32BE(dataStart + 4);
+  const bitDepth = contents[dataStart + 8];
+  const colorType = contents[dataStart + 9];
+  const validBitDepths = new Map([
+    [0, new Set([1, 2, 4, 8, 16])],
+    [2, new Set([8, 16])],
+    [3, new Set([1, 2, 4, 8])],
+    [4, new Set([8, 16])],
+    [6, new Set([8, 16])],
+  ]);
+  if (
+    width < 1 ||
+    height < 1 ||
+    !validBitDepths.get(colorType)?.has(bitDepth) ||
+    contents[dataStart + 10] !== 0 ||
+    contents[dataStart + 11] !== 0 ||
+    ![0, 1].includes(contents[dataStart + 12])
+  ) {
+    fail("capture_png_content_invalid");
+  }
+  return colorType;
+}
+
+function validatePngContents(contents) {
+  if (
+    contents.length < 58 ||
+    contents.length > maxPngBytes ||
+    !contents.subarray(0, pngSignature.length).equals(pngSignature)
+  ) {
+    fail("capture_png_content_invalid");
+  }
+
+  let offset = pngSignature.length;
+  let chunkIndex = 0;
+  let colorType;
+  let sawPalette = false;
+  let sawIdat = false;
+  let idatBytes = 0;
+  let idatSequenceEnded = false;
+
+  while (offset < contents.length) {
+    if (contents.length - offset < 12) fail("capture_png_content_invalid");
+    const length = contents.readUInt32BE(offset);
+    const typeStart = offset + 4;
+    const dataStart = typeStart + 4;
+    const dataEnd = dataStart + length;
+    const chunkEnd = dataEnd + 4;
+    if (length > 0x7fffffff || dataEnd < dataStart || chunkEnd > contents.length) {
+      fail("capture_png_content_invalid");
+    }
+
+    const typeBytes = contents.subarray(typeStart, dataStart);
+    if (
+      typeBytes.length !== 4 ||
+      !typeBytes.every((byte) => (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)) ||
+      typeBytes[2] < 0x41 ||
+      typeBytes[2] > 0x5a
+    ) {
+      fail("capture_png_content_invalid");
+    }
+    const type = typeBytes.toString("ascii");
+    if (contents.readUInt32BE(dataEnd) !== pngCrc32(contents, typeStart, dataEnd)) {
+      fail("capture_png_content_invalid");
+    }
+
+    if (chunkIndex === 0) {
+      if (type !== "IHDR" || length !== 13) fail("capture_png_content_invalid");
+      colorType = validateIhdr(contents, dataStart);
+    } else if (type === "IHDR") {
+      fail("capture_png_content_invalid");
+    } else if (type === "PLTE") {
+      if (sawPalette || sawIdat || length === 0 || length % 3 !== 0 || length > 768 || colorType === 0 || colorType === 4) {
+        fail("capture_png_content_invalid");
+      }
+      sawPalette = true;
+    } else if (type === "IDAT") {
+      if (idatSequenceEnded || (colorType === 3 && !sawPalette)) fail("capture_png_content_invalid");
+      sawIdat = true;
+      idatBytes += length;
+    } else if (type === "IEND") {
+      if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length) {
+        fail("capture_png_content_invalid");
+      }
+      return;
+    } else {
+      if (sawIdat) idatSequenceEnded = true;
+      if (typeBytes[0] >= 0x41 && typeBytes[0] <= 0x5a) fail("capture_png_content_invalid");
+    }
+
+    offset = chunkEnd;
+    chunkIndex += 1;
+  }
+  fail("capture_png_content_invalid");
+}
+
 function validatePng(filePath, dev) {
   const metadata = lstatSync(filePath);
   if (
@@ -126,20 +236,12 @@ function validatePng(filePath, dev) {
     metadata.isSymbolicLink() ||
     metadata.uid !== dev.uid ||
     metadata.gid !== dev.gid ||
-    metadata.size < 33
+    metadata.size < 58 ||
+    metadata.size > maxPngBytes
   ) {
     fail("capture_png_metadata_invalid");
   }
-  const contents = readFileSync(filePath);
-  if (
-    !contents.subarray(0, pngSignature.length).equals(pngSignature) ||
-    contents.subarray(12, 16).toString("ascii") !== "IHDR" ||
-    contents.readUInt32BE(16) < 1 ||
-    contents.readUInt32BE(20) < 1 ||
-    !contents.subarray(-pngIend.length).equals(pngIend)
-  ) {
-    fail("capture_png_content_invalid");
-  }
+  validatePngContents(readFileSync(filePath));
 }
 
 function sanitizeAndValidateCapture(outputDirectory, dev) {
@@ -262,6 +364,60 @@ function selfTest() {
     if (readdirSync(validCapture).join("") !== validPngName) {
       fail("self_test_engine_artifact_not_sanitized");
     }
+
+    const assertInvalidPng = (label, contents) => {
+      let rejected = false;
+      try {
+        validatePngContents(contents);
+      } catch (error) {
+        rejected = error instanceof Error && error.message === "capture_png_content_invalid";
+      }
+      if (!rejected) fail(`self_test_invalid_png_accepted:${label}`);
+    };
+    const pngChunk = (type, data) => {
+      const chunk = Buffer.alloc(data.length + 12);
+      chunk.writeUInt32BE(data.length, 0);
+      chunk.write(type, 4, "ascii");
+      data.copy(chunk, 8);
+      chunk.writeUInt32BE(pngCrc32(chunk, 4, 8 + data.length), 8 + data.length);
+      return chunk;
+    };
+    const validIhdr = minimalPng.subarray(8, 33);
+    const idatLength = minimalPng.readUInt32BE(33);
+    const validIdat = minimalPng.subarray(33, 33 + idatLength + 12);
+    const validIend = minimalPng.subarray(minimalPng.length - 12);
+    const crafted36BytePng = Buffer.alloc(36);
+    pngSignature.copy(crafted36BytePng);
+    crafted36BytePng.write("IHDR", 12, "ascii");
+    crafted36BytePng.writeUInt32BE(1, 16);
+    crafted36BytePng.writeUInt32BE(1, 20);
+    Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]).copy(crafted36BytePng, 24);
+    assertInvalidPng("crafted_36_byte", crafted36BytePng);
+    const crcMismatch = Buffer.from(minimalPng);
+    crcMismatch[41] ^= 1;
+    assertInvalidPng("idat_crc_mismatch", crcMismatch);
+    assertInvalidPng("truncated", minimalPng.subarray(0, minimalPng.length - 1));
+    assertInvalidPng("trailing_data", Buffer.concat([minimalPng, Buffer.from([0])]));
+    assertInvalidPng("wrong_ihdr_length", Buffer.concat([
+      pngSignature,
+      pngChunk("IHDR", Buffer.alloc(12)),
+      validIdat,
+      validIend,
+    ]));
+    assertInvalidPng("missing_idat", Buffer.concat([pngSignature, validIhdr, validIend]));
+    assertInvalidPng("empty_idat", Buffer.concat([pngSignature, validIhdr, pngChunk("IDAT", Buffer.alloc(0)), validIend]));
+    assertInvalidPng("nonempty_iend", Buffer.concat([
+      pngSignature,
+      validIhdr,
+      validIdat,
+      pngChunk("IEND", Buffer.from([0])),
+    ]));
+    assertInvalidPng("ihdr_not_first", Buffer.concat([
+      pngSignature,
+      validIdat,
+      validIhdr,
+      validIend,
+    ]));
 
     const symlinkCapture = path.join(root, "symlink-capture");
     mkdirSync(symlinkCapture, { mode: 0o700 });

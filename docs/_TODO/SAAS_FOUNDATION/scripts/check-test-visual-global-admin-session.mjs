@@ -84,8 +84,21 @@ function validate(source) {
     '    sanitizeAndValidateCapture(outputDirectory, dev);',
     'capture_png_missing_or_ambiguous',
     'capture_png_content_invalid',
+    'contents.readUInt32BE(dataEnd) !== pngCrc32(contents, typeStart, dataEnd)',
+    'if (type !== "IHDR" || length !== 13)',
+    'if (idatSequenceEnded || (colorType === 3 && !sawPalette))',
+    'if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length)',
     'self_test_false_success_accepted_or_report_retained',
     'self_test_engine_artifact_not_sanitized',
+    'assertInvalidPng("crafted_36_byte", crafted36BytePng)',
+    'assertInvalidPng("idat_crc_mismatch", crcMismatch)',
+    'assertInvalidPng("truncated", minimalPng.subarray(0, minimalPng.length - 1))',
+    'assertInvalidPng("trailing_data", Buffer.concat([minimalPng, Buffer.from([0])]))',
+    'assertInvalidPng("wrong_ihdr_length", Buffer.concat([',
+    'assertInvalidPng("missing_idat", Buffer.concat([pngSignature, validIhdr, validIend]))',
+    'assertInvalidPng("empty_idat", Buffer.concat([pngSignature, validIhdr, pngChunk("IDAT", Buffer.alloc(0)), validIend]))',
+    'assertInvalidPng("nonempty_iend", Buffer.concat([',
+    'assertInvalidPng("ihdr_not_first", Buffer.concat([',
     'self_test_symlink_png_accepted',
     'if (extraArguments.length > 0) fail("arguments_forbidden")',
     '"NODE_OPTIONS" in env',
@@ -157,12 +170,32 @@ function selfTest(source) {
       "    sanitizeAndValidateCapture(outputDirectory, dev);",
       "    void outputDirectory;",
     ],
+    [
+      "PNG CRC validation bypassed",
+      "contents.readUInt32BE(dataEnd) !== pngCrc32(contents, typeStart, dataEnd)",
+      "false",
+    ],
+    [
+      "PNG first IHDR contract bypassed",
+      'if (type !== "IHDR" || length !== 13)',
+      'if (type !== "IHDR" && length !== 13)',
+    ],
+    [
+      "PNG IDAT requirement bypassed",
+      "if (length !== 0 || !sawIdat || idatBytes === 0 || chunkEnd !== contents.length)",
+      "if (length !== 0 || chunkEnd !== contents.length)",
+    ],
+    [
+      "PNG exact EOF bypassed",
+      "chunkEnd !== contents.length",
+      "chunkEnd > contents.length",
+    ],
   ];
   for (const [label, before, after] of mutations) {
     const mutated = { ...source };
     const target = label === "renewable bounded session"
       ? "cookie"
-      : label === "origin drift" || label === "cookie exfiltration domain" || label === "capture artifact validation bypassed"
+      : label === "origin drift" || label === "cookie exfiltration domain" || label.startsWith("capture artifact") || label.startsWith("PNG ")
         ? "capture"
         : "helper";
     mutated[target] = mutated[target].replace(before, after);
