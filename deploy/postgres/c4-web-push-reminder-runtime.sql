@@ -251,6 +251,13 @@ GRANT SELECT, INSERT, UPDATE ON public.operator_job_status TO app_operational_we
 -- P0.9 classifies operator_job_status as global INFRA and intentionally keeps its legacy PUBLIC
 -- permissive true policy for staff/owner operational writers. PostgreSQL ORs permissive policies,
 -- so this capability needs both its own allow policy and an exact-key restrictive policy.
+-- The 163-target phase4 strict artifact does not contain this INFRA table, so the narrow overlay
+-- must apply the exact generated P0.9 table contract instead of assuming an earlier deploy did it.
+ALTER TABLE public.operator_job_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operator_job_status FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS saas_enforce_default_deny_p0_9_1 ON public.operator_job_status;
+CREATE POLICY saas_enforce_default_deny_p0_9_1 ON public.operator_job_status
+FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 SELECT format('DROP POLICY %I ON public.operator_job_status', policy.polname)
 FROM pg_policy policy
 JOIN pg_roles capability ON capability.rolname = 'app_operational_web_push_reminder'
@@ -384,6 +391,7 @@ SELECT 1 / (
   AND NOT EXISTS ((SELECT * FROM expected EXCEPT SELECT * FROM actual))
 )::int AS c4_web_push_helper_acl_exact;
 
+CREATE TEMP TABLE c4_web_push_operator_status_diagnostics ON COMMIT DROP AS
 WITH capability AS (
   SELECT oid FROM pg_roles WHERE rolname = 'app_operational_web_push_reminder'
 ), managed AS (
@@ -418,32 +426,68 @@ WITH capability AS (
   FROM pg_policy policy
   WHERE policy.polrelid = 'public.operator_job_status'::regclass
 )
-SELECT 1 / (
-  NOT EXISTS ((SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl))
-  AND NOT EXISTS ((SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl))
-  AND NOT EXISTS (SELECT 1 FROM column_acl)
-  AND (SELECT count(*) FROM policy_inventory) = 3
-  AND EXISTS (
+SELECT
+  (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.operator_job_status'::regclass) AS rls_enabled,
+  (SELECT relforcerowsecurity FROM pg_class WHERE oid = 'public.operator_job_status'::regclass) AS rls_forced,
+  (
+    NOT EXISTS ((SELECT * FROM actual_acl EXCEPT SELECT * FROM expected_acl))
+    AND NOT EXISTS ((SELECT * FROM expected_acl EXCEPT SELECT * FROM actual_acl))
+  ) AS table_acl_exact,
+  NOT EXISTS (SELECT 1 FROM column_acl) AS column_acl_exact,
+  (SELECT count(*) FROM policy_inventory) = 3 AS policy_count_exact,
+  EXISTS (
     SELECT 1 FROM policy_inventory
     WHERE polname = 'saas_enforce_default_deny_p0_9_1'
       AND polpermissive AND polcmd = '*' AND polroles = ARRAY[0::oid]
       AND using_expression = 'true' AND check_expression = 'true'
-  )
-  AND EXISTS (
+  ) AS p0_9_policy_exact,
+  EXISTS (
     SELECT 1 FROM policy_inventory, capability
     WHERE polname = 'c4_web_push_reminder_status'
       AND polpermissive AND polcmd = '*' AND polroles = ARRAY[capability.oid]
       AND position('reminders.web_push_only.tick' IN using_expression) > 0
       AND position('reminders.web_push_only.tick' IN check_expression) > 0
-  )
-  AND EXISTS (
+  ) AS capability_allow_policy_exact,
+  EXISTS (
     SELECT 1 FROM policy_inventory, capability
     WHERE polname = 'c4_web_push_reminder_status_restrictive'
       AND NOT polpermissive AND polcmd = '*' AND polroles = ARRAY[capability.oid]
       AND position('reminders.web_push_only.tick' IN using_expression) > 0
       AND position('reminders.web_push_only.tick' IN check_expression) > 0
-  )
-)::int AS c4_web_push_operator_status_acl_policy_exact;
+  ) AS capability_restrictive_policy_exact
+;
+
+TABLE c4_web_push_operator_status_diagnostics;
+
+DO $operator_status_diagnostics$
+DECLARE diagnostics record;
+BEGIN
+  SELECT * INTO STRICT diagnostics FROM c4_web_push_operator_status_diagnostics;
+  IF NOT (
+    diagnostics.rls_enabled
+    AND diagnostics.rls_forced
+    AND diagnostics.table_acl_exact
+    AND diagnostics.column_acl_exact
+    AND diagnostics.policy_count_exact
+    AND diagnostics.p0_9_policy_exact
+    AND diagnostics.capability_allow_policy_exact
+    AND diagnostics.capability_restrictive_policy_exact
+  ) THEN
+    RAISE EXCEPTION USING
+      MESSAGE = format(
+        'c4_web_push_operator_status_inventory_mismatch rls_enabled=%s rls_forced=%s table_acl_exact=%s column_acl_exact=%s policy_count_exact=%s p0_9_policy_exact=%s capability_allow_policy_exact=%s capability_restrictive_policy_exact=%s',
+        diagnostics.rls_enabled,
+        diagnostics.rls_forced,
+        diagnostics.table_acl_exact,
+        diagnostics.column_acl_exact,
+        diagnostics.policy_count_exact,
+        diagnostics.p0_9_policy_exact,
+        diagnostics.capability_allow_policy_exact,
+        diagnostics.capability_restrictive_policy_exact
+      );
+  END IF;
+END
+$operator_status_diagnostics$;
 
 COMMIT;
 \echo 'C4 Web Push reminder operational runtime overlay complete.'

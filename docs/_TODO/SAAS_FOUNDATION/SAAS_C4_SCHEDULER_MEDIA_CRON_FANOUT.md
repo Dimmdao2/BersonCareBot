@@ -70,6 +70,9 @@ targeted directly at the Web Push capability and asserts the exact three-policy 
 without DELETE. It also removes and inventories table and column ACL drift for PUBLIC, the base LOGIN, the capability,
 and the discovery definer; a stale column-only grant therefore cannot bypass the key restriction. DOWN removes only
 the two C4 policies, preserves the canonical P0.9 policy, and is repeat-safe after its overlay-owned roles are absent.
+The generic 163-target phase4 artifact excludes this explicit-global INFRA table. Therefore this localized overlay
+materializes the canonical generated P0.9 `ENABLE` + `FORCE` + stable PUBLIC-true policy before adding the two C4
+policies, and reports each RLS/ACL/policy sub-invariant by name if the exact inventory does not converge.
 The overlays scrub current-database, direct, column, type, and default ACLs for all managed base logins and capabilities across
 non-system schemas, then rebuilds and catalog-asserts the exact allowlist. Managed roles are rejected if they own the
 current database, an independent enum/domain/composite/range/base type, or another object recorded by PostgreSQL owner

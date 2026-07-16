@@ -67,7 +67,7 @@ BEGIN
     'reminder_rules', 'platform_users', 'webapp_reminder_occurrences',
     'notification_delivery_attempts', 'product_push_notifications', 'product_analytics_hourly',
     'user_channel_preferences', 'user_notification_topic_channels', 'user_web_push_subscriptions',
-    'content_sections', 'content_pages', 'operator_job_status'
+    'content_sections', 'content_pages'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I OWNER TO app_owner', relation_name);
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', relation_name);
@@ -85,8 +85,6 @@ INSERT INTO public.webapp_reminder_occurrences VALUES
 INSERT INTO public.operator_job_status(job_key,job_family,last_status) VALUES
  ('reminders.web_push_only.tick','reminders','old'),
  ('health.other.tick','health','old');
-CREATE POLICY saas_enforce_default_deny_p0_9_1 ON public.operator_job_status
-  FOR ALL TO PUBLIC USING (true) WITH CHECK (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.operator_job_status TO app_staff;
 GRANT app_staff TO c4_webpush_smoke_operator WITH INHERIT FALSE, SET TRUE;
 GRANT USAGE ON SCHEMA public, app TO app_operational_web_push_reminder;
@@ -116,8 +114,10 @@ grep -Fq 'permission denied for function current_org_id' "$ROOT/pre-overlay-help
   exit 1
 }
 
-# The canonical P0.9 INFRA policy is permissive true. Before the restrictive C4 policy exists,
-# it OR-composes with any exact permissive policy and exposes another operator key.
+# The canonical 163-target strict artifact excludes this INFRA table. A fresh prod-copy therefore
+# reaches C4 with RLS/FORCE disabled and no policy; direct capability grants expose every key.
+pre_overlay_canonical_state="$("${psql[@]}" -Atc "SELECT relrowsecurity::int || ':' || relforcerowsecurity::int || ':' || (SELECT count(*) FROM pg_policy WHERE polrelid='public.operator_job_status'::regclass)::text FROM pg_class WHERE oid='public.operator_job_status'::regclass")"
+[ "$pre_overlay_canonical_state" = "0:0:0" ] || { echo "FATAL: synthetic fixture does not match canonical post-strict operator status state" >&2; exit 1; }
 pre_overlay_status="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc "SET ROLE app_operational_web_push_reminder; SELECT count(*) FROM public.operator_job_status; UPDATE public.operator_job_status SET last_status='pre-fix-exposed' WHERE job_key='health.other.tick'; SELECT last_status FROM public.operator_job_status WHERE job_key='health.other.tick';")"
 [ "$pre_overlay_status" = $'2\npre-fix-exposed' ] || {
   echo "FATAL: pre-overlay proof did not reproduce permissive operator status exposure" >&2
@@ -126,6 +126,9 @@ pre_overlay_status="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc "SET ROLE app_operation
 
 "${psql[@]}" -v c4_web_push_reminder_login_role="$LOGIN_ROLE" \
   -f deploy/postgres/c4-web-push-reminder-runtime.sql >/dev/null
+
+post_overlay_canonical_state="$("${psql[@]}" -Atc "SELECT relrowsecurity::int || ':' || relforcerowsecurity::int || ':' || (SELECT count(*) FROM pg_policy WHERE polrelid='public.operator_job_status'::regclass AND polname='saas_enforce_default_deny_p0_9_1')::text FROM pg_class WHERE oid='public.operator_job_status'::regclass")"
+[ "$post_overlay_canonical_state" = "1:1:1" ] || { echo "FATAL: overlay did not materialize canonical operator status P0.9 RLS/FORCE contract" >&2; exit 1; }
 
 post_overlay_helpers="$("${psql[@]}" -U "$LOGIN_ROLE" -Atc \
   "SET ROLE app_operational_web_push_reminder; SELECT set_config('app.org','11111111-1111-4111-8111-111111111111',false); SELECT app.current_org_id()::text || ':' || (app.current_patient_user_id() IS NULL)::int || ':' || (app.current_integrator_user_id() IS NULL)::int || ':' || app.is_staff()::int; SELECT count(*) FROM public.webapp_reminder_occurrences;")"

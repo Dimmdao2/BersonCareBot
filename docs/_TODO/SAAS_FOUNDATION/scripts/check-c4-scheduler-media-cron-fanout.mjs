@@ -787,6 +787,10 @@ function assertOperationalSqlAndDeploy(loaded) {
     "SELECT * FROM expected EXCEPT SELECT * FROM actual",
     "c4_web_push_helper_acl_exact",
     "saas_enforce_default_deny_p0_9_1",
+    "CREATE POLICY saas_enforce_default_deny_p0_9_1 ON public.operator_job_status",
+    "ALTER TABLE public.operator_job_status ENABLE ROW LEVEL SECURITY",
+    "ALTER TABLE public.operator_job_status FORCE ROW LEVEL SECURITY",
+    "FOR ALL TO PUBLIC USING (true) WITH CHECK (true)",
     "AS RESTRICTIVE TO app_operational_web_push_reminder",
     "capability.oid = ANY (policy.polroles)",
     "policy_inventory",
@@ -796,9 +800,16 @@ function assertOperationalSqlAndDeploy(loaded) {
     "('app_operational_web_push_reminder', 'UPDATE', false)",
     "NOT polpermissive AND polcmd = '*'",
     "CROSS JOIN LATERAL aclexplode(attribute.attacl) acl",
-    "AND NOT EXISTS (SELECT 1 FROM column_acl)",
+    "CREATE TEMP TABLE c4_web_push_operator_status_diagnostics ON COMMIT DROP",
+    "rls_enabled",
+    "rls_forced",
+    "column_acl_exact",
+    "policy_count_exact",
+    "p0_9_policy_exact",
+    "capability_allow_policy_exact",
+    "capability_restrictive_policy_exact",
+    "c4_web_push_operator_status_inventory_mismatch",
     "REVOKE ALL PRIVILEGES ON public.operator_job_status FROM PUBLIC",
-    "c4_web_push_operator_status_acl_policy_exact",
   ]);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, 'FROM :"c4_web_push_reminder_login_role" CASCADE', 2);
   requireOccurrenceCountAtLeast(files.webPushOperationalSql, loaded.webPushOperationalSql, "FROM app_web_push_reminder_discovery_definer CASCADE", 2);
@@ -828,7 +839,9 @@ function assertOperationalSqlAndDeploy(loaded) {
     "reapply did not restore exact helper ACL",
     "DOWN retained base-login helper EXECUTE",
     "pre-overlay proof did not reproduce permissive operator status exposure",
-    "CREATE POLICY saas_enforce_default_deny_p0_9_1",
+    'pre_overlay_canonical_state" = "0:0:0"',
+    'post_overlay_canonical_state" = "1:1:1"',
+    "overlay did not materialize canonical operator status P0.9 RLS/FORCE contract",
     "CREATE POLICY injected_c4_status_permissive",
     "GRANT UPDATE (last_status) ON public.operator_job_status TO c4_webpush_smoke_login",
     "GRANT SELECT (job_key) ON public.operator_job_status TO app_web_push_reminder_discovery_definer",
@@ -1133,8 +1146,16 @@ if (process.argv.includes("--self-test")) {
     "false",
   );
   const webPushOperationalSqlNoStatusInventory = read(files.webPushOperationalSql).replace(
-    "c4_web_push_operator_status_acl_policy_exact",
-    "c4_web_push_operator_status_acl_policy_removed",
+    "c4_web_push_operator_status_inventory_mismatch",
+    "c4_web_push_operator_status_inventory_removed",
+  );
+  const webPushOperationalSqlNoStatusRls = read(files.webPushOperationalSql).replace(
+    "ALTER TABLE public.operator_job_status ENABLE ROW LEVEL SECURITY;",
+    "-- removed operator status RLS enable",
+  );
+  const webPushOperationalSqlNoCanonicalP09 = read(files.webPushOperationalSql).replace(
+    "CREATE POLICY saas_enforce_default_deny_p0_9_1 ON public.operator_job_status",
+    "-- removed canonical P0.9 operator status policy",
   );
   const webPushOperationalSqlNoStatusColumnAcl = read(files.webPushOperationalSql).replaceAll(
     "CROSS JOIN LATERAL aclexplode(attribute.attacl) acl",
@@ -1265,6 +1286,8 @@ if (process.argv.includes("--self-test")) {
     { webPushOperationalSql: webPushOperationalSqlNoStatusRestriction },
     { webPushOperationalSql: webPushOperationalSqlNoTargetedPolicyScrub },
     { webPushOperationalSql: webPushOperationalSqlNoStatusInventory },
+    { webPushOperationalSql: webPushOperationalSqlNoStatusRls },
+    { webPushOperationalSql: webPushOperationalSqlNoCanonicalP09 },
     { webPushOperationalSql: webPushOperationalSqlNoStatusColumnAcl },
     { webPushOperationalProof: webPushOperationalProofNoStatusExposure },
     { webPushOperationalProof: webPushOperationalProofNoInjectedStatusPolicy },
