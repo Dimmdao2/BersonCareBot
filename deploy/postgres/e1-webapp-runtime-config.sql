@@ -31,8 +31,35 @@ SELECT 1 / (
     'app.read_public_runtime_setting(text,text)',
     'EXECUTE'
   )
-  AND NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')
-  AND NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.system_settings', 'SELECT')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_class AS relation
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(relation.relacl, acldefault('r', relation.relowner))
+    ) AS privilege
+    WHERE relation.oid IN (
+      'public.app_runtime_settings'::regclass,
+      'public.system_settings'::regclass
+    )
+      AND privilege.privilege_type = 'SELECT'
+      AND privilege.grantee IN (
+        0,
+        (SELECT oid FROM pg_roles WHERE rolname = :'e1_webapp_runtime_role')
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_class AS relation
+    WHERE relation.oid IN (
+      'public.app_runtime_settings'::regclass,
+      'public.system_settings'::regclass
+    )
+      AND pg_has_role(
+        :'e1_webapp_runtime_role',
+        relation.relowner,
+        'MEMBER'
+      )
+  )
   AND has_function_privilege(
     :'e1_webapp_runtime_role',
     'app.read_webapp_server_runtime_setting(text,text)',

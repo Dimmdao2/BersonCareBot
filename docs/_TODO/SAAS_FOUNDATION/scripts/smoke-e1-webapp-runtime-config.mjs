@@ -57,7 +57,34 @@ GRANT USAGE ON SCHEMA app TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${publicRole};
 SELECT 1 / (NOT has_table_privilege('${publicRole}','public.system_settings','SELECT'))::int;
-SELECT 1 / (NOT has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT'))::int;
+-- Reproduce the TEST pre-D3.4 state: the base login still inherits app_patient,
+-- so effective projection SELECT is expected even though E1 grants no table ACL directly.
+SELECT 1 / has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT')::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_class AS relation
+  CROSS JOIN LATERAL aclexplode(
+    COALESCE(relation.relacl, acldefault('r', relation.relowner))
+  ) AS privilege
+  WHERE relation.oid IN (
+    'public.app_runtime_settings'::regclass,
+    'public.system_settings'::regclass
+  )
+    AND privilege.privilege_type = 'SELECT'
+    AND privilege.grantee IN (
+      0,
+      (SELECT oid FROM pg_roles WHERE rolname = '${publicRole}')
+    )
+))::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_class AS relation
+  WHERE relation.oid IN (
+    'public.app_runtime_settings'::regclass,
+    'public.system_settings'::regclass
+  )
+    AND pg_has_role('${publicRole}', relation.relowner, 'MEMBER')
+))::int;
 SET SESSION AUTHORIZATION ${publicRole};
 SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin'))='{"value":true}'::jsonb)::int;
 SELECT 1 / ((SELECT count(*) FROM app.read_public_runtime_setting('debug_forward_to_admin','admin'))=0)::int;
@@ -99,6 +126,7 @@ ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
+REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings FROM ${publicRole};
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC, app_patient, app_staff;
 `;
 
@@ -119,6 +147,21 @@ try {
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);
+  psql(`
+    ALTER ROLE ${publicRole} INHERIT;
+    GRANT app_patient TO ${publicRole} WITH INHERIT TRUE, SET TRUE;
+    SELECT 1 / (EXISTS (
+      SELECT 1
+      FROM pg_auth_members AS membership
+      JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid
+      JOIN pg_roles AS member_role ON member_role.oid = membership.member
+      WHERE granted_role.rolname = 'app_patient'
+        AND member_role.rolname = '${publicRole}'
+        AND membership.inherit_option
+        AND membership.set_option
+        AND NOT membership.admin_option
+    ))::int;
+  `);
   psql(proof);
   console.log("smoke-e1-webapp-runtime-config: OK");
 } finally {
