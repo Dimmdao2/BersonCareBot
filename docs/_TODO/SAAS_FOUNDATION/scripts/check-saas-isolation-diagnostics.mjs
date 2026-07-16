@@ -121,6 +121,8 @@ async function main() {
   requireText(loaded.cli, 'state: enumValue(TEST_SCENARIOS', 'closed TEST scenario CLI');
   for (const fragment of [
     'post-runtime-gate',
+    'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+    'assertKnownOptions(args, ["--started-at", "--checks"])',
     'runSaasIsolationPostRuntimeGate',
     'saas_isolation_post_runtime_gate_ok',
     'coverage=complete active_unexplained=0',
@@ -398,6 +400,14 @@ async function main() {
         ),
         "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
         'pnpm argument separator regression',
+      ],
+      [
+        loaded.cli.replace(
+          'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+          'rawArgs',
+        ),
+        'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+        'diagnostics CLI pnpm argument separator regression',
       ],
       [
         scenarioProof.replace('"--execute --prove-cleanup-on-injected-failure"', '"--execute"'),
