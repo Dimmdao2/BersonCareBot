@@ -5,6 +5,7 @@ import {
   validateSaasTestFixturePacketMetadata,
 } from '../../../../../deploy/host/saas-test-fixture-packet.mjs';
 import {
+  assertAllowedFixtureDatabaseTarget,
   buildSaasTestFixturePlan,
   assertRequiredDatabaseName,
   isFixtureOwnedDiarySnapshot,
@@ -15,6 +16,7 @@ import {
   SAAS_TEST_FIXTURE_IDS,
   SAAS_TEST_FIXTURE_MANIFEST,
   SAAS_TEST_FIXTURE_OPERATOR_REFS,
+  SAAS_TEST_FIXTURE_PATIENT_PHONES,
 } from '../../../scripts/seed-saas-test-walkthrough-fixtures';
 
 const packetValues = {
@@ -126,12 +128,24 @@ describe('SaaS TEST walkthrough reconciliation', () => {
         /VALUES \('patient_program_discussion_ui_enabled', 'admin', '\{"value":true\}'::jsonb/g,
       ),
     ).toHaveLength(2);
+    expect(source.match(/VALUES \('test_account_identifiers', 'admin'/g)).toHaveLength(2);
+    expect(source.match(/"\+12025550101","\+12025550102"/g)).toHaveLength(2);
+    expect(source).not.toContain('+12025550103');
     expect(source).toContain(
       "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
     );
     expect(source).toContain(
-      "ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+      "ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
     );
+  });
+
+  it('uses an explicit schema for the integrator outbox send-safety proof', () => {
+    const source = readFileSync(
+      new URL('../../../scripts/seed-saas-test-walkthrough-fixtures.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).toContain('FROM integrator.projection_outbox');
+    expect(source).not.toMatch(/FROM projection_outbox\b/);
   });
 
   it('validates two distinct reserved-domain owner credentials', () => {
@@ -205,6 +219,15 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(plan.enrollments).toHaveLength(8);
     expect(plan.appointments).toHaveLength(16);
     expect(plan.patients.filter((row) => row.emailNormalized !== null)).toHaveLength(3);
+    expect(plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsA[0]))
+      .toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA });
+    expect(plan.patients.find((row) => row.id === SAAS_TEST_FIXTURE_IDS.patientsB[0]))
+      .toMatchObject({ phoneNormalized: SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB });
+    expect(plan.patients.filter((row) => row.phoneNormalized !== null).map((row) => row.phoneNormalized))
+      .toEqual([
+        SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA,
+        SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB,
+      ]);
     const sharedPatientId = SAAS_TEST_FIXTURE_IDS.sharedPatient;
     expect(plan.patients.find((row) => row.id === sharedPatientId)?.emailNormalized).toBe(
       'patient-shared@saas-fixture.test',
@@ -338,6 +361,41 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(() => assertRequiredDatabaseName('')).toThrow(
       'refusing_database_target:expected_bersoncarebot_test',
     );
+  });
+
+  it('allows rehearsal targets only with the explicit mode, guarded name and loopback URL', () => {
+    const safeInput = {
+      databaseName: 'bcb_saas_fixture_rehearsal_20260716',
+      databaseUrl: 'postgres://owner@127.0.0.1/bcb_saas_fixture_rehearsal_20260716',
+      attestedRehearsalDatabaseName: 'bcb_saas_fixture_rehearsal_20260716',
+      rehearsalMode: true,
+    };
+    expect(() => assertAllowedFixtureDatabaseTarget(safeInput)).not.toThrow();
+    for (const databaseName of [
+      'bcb_webapp_prod',
+      'bcb_webapp_dev',
+      'arbitrary_rehearsal',
+      'bcb_saas_prod_rehearsal_20260716',
+    ]) {
+      expect(() =>
+        assertAllowedFixtureDatabaseTarget({ ...safeInput, databaseName }),
+      ).toThrow('refusing_fixture_rehearsal_target');
+    }
+    expect(() =>
+      assertAllowedFixtureDatabaseTarget({
+        ...safeInput,
+        databaseUrl: 'postgres://owner@db.example.test/bcb_saas_fixture_rehearsal_20260716',
+      }),
+    ).toThrow('refusing_fixture_rehearsal_target');
+    expect(() =>
+      assertAllowedFixtureDatabaseTarget({
+        ...safeInput,
+        attestedRehearsalDatabaseName: 'bcb_saas_fixture_rehearsal_reused',
+      }),
+    ).toThrow('refusing_fixture_rehearsal_target');
+    expect(() =>
+      assertAllowedFixtureDatabaseTarget({ ...safeInput, rehearsalMode: false }),
+    ).toThrow('refusing_database_target:expected_bersoncarebot_test');
   });
 
   it('keeps all repo-reserved fixture IDs unique', () => {

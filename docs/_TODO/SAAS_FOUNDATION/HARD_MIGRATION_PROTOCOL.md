@@ -539,6 +539,21 @@ The wrapper owns the disposable sequence:
 9. run disposable DB-state checks through `run-phase4-prod-copy-rehearsal.mjs --mode=db-state`;
 10. leave TEST services, TEST env, production services, and production DB untouched.
 
+For a fresh walkthrough-fixture convergence proof, use the same wrapper with
+`--prove-test-fixture --drop-on-success`. This explicit mode accepts only a new local
+`bcb_saas_*_rehearsal_*` database, refuses `--replace-existing`, applies the canonical
+E1 patient-runtime capability overlay and TEST settings override inside that disposable
+database, runs the fixture double-seed,
+proves the exact public/integrator identifier mirror plus patient A=true, patient B=true
+and an unrelated patient=false, and always removes the disposable database and role.
+The ordinary TEST seeder target remains exact `bersoncarebot_test`; the rehearsal
+exception is fail-closed behind `SAAS_TEST_FIXTURE_REHEARSAL_MODE=1`, a guarded database
+name attested again through `SAAS_TEST_FIXTURE_REHEARSAL_DATABASE`, and a loopback database
+URL whose path must match that attestation. These values are supplied only by this wrapper.
+The dormant `#667` base intentionally does not grant the patient E1 capability; fixture proof
+therefore creates a separate disposable runtime role and rehydrates the same reviewed E1 overlay
+before the settings override, matching the strict TEST closure instead of adding an ad hoc grant.
+
 This wrapper closes the previous DEV/disposable dormant-wrapper gap. It does not touch TEST services and
 does not claim TEST deploy proof. Full disposable execution is restore+migration proof only after an
 owner-authorized executor runs `--execute` on a fresh dump and captures aggregate-only evidence.

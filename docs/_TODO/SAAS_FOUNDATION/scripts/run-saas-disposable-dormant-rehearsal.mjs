@@ -16,7 +16,11 @@ const superuserUrlEnv = "SAAS_DISPOSABLE_SUPERUSER_URL";
 const superuserSudoEnv = "SAAS_DISPOSABLE_SUPERUSER_SUDO_POSTGRES";
 const deploySuperuserSudoEnv = "SUPERUSER_SUDO_POSTGRES";
 const allowedHostsEnv = "SAAS_DISPOSABLE_ALLOWED_HOSTS";
+const fixtureSeederPath = "apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts";
+const e1WebappRuntimeConfigPath = "deploy/postgres/e1-webapp-runtime-config.sql";
+const testSettingsOverridePath = "deploy/postgres/test-settings-override.sql";
 const safeDbNamePattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
+const fixtureRehearsalDbNamePattern = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/;
 const unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
 const unsafeHostTokenPattern = /(^|[.-])(prod|production)([.-]|$)/;
 const forbiddenDbNames = new Set([
@@ -60,6 +64,7 @@ function usage() {
     `  node ${scriptPath} --dry-run [--dump=/path/fresh.dump] [--db=bcb_saas_dormant_rehearsal_<stamp>]`,
     `  ${superuserUrlEnv}=postgres://... node ${scriptPath} --execute --dump=/path/fresh.dump --db=bcb_saas_dormant_rehearsal_<stamp> [--replace-existing] [--drop-on-success]`,
     `  node ${scriptPath} --execute --superuser-sudo-postgres --dump=/path/fresh.dump --db=bcb_saas_dormant_rehearsal_<stamp> [--replace-existing] [--drop-on-success]`,
+    `  node ${scriptPath} --execute --superuser-sudo-postgres --dump=/path/fresh.dump --db=bcb_saas_fixture_rehearsal_<stamp> --prove-test-fixture --drop-on-success`,
     `  node ${scriptPath} --self-test`,
     "",
     "Purpose:",
@@ -86,6 +91,7 @@ function parseArgs(argv) {
     dryRun: true,
     dumpPath: null,
     execute: false,
+    proveTestFixture: false,
     replaceExisting: false,
     selfTest: false,
     superuserSudoPostgres: envFlag(superuserSudoEnv),
@@ -120,6 +126,10 @@ function parseArgs(argv) {
     }
     if (arg === "--replace-existing") {
       options.replaceExisting = true;
+      continue;
+    }
+    if (arg === "--prove-test-fixture") {
+      options.proveTestFixture = true;
       continue;
     }
     if (arg.startsWith("--dump=")) {
@@ -408,10 +418,61 @@ function buildPlan(options) {
     dbName: options.dbName,
     ownerPassword,
     ownerRole: options.dbName,
+    fixtureRuntimeRole: `${options.dbName}_runtime`,
     targetOwnerUrl,
     targetSuperuserUrl,
     transport: options.superuserSudoPostgres ? "sudo-postgres" : superuserUrl ? "url" : "none",
   };
+}
+
+function createFixtureRuntimeRole(plan) {
+  const exists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.fixtureRuntimeRole)})::int;`,
+    "check disposable fixture runtime role freshness",
+  );
+  if (exists === "1") throw new Error("disposable fixture runtime role already exists");
+  superuserPsqlExec(
+    plan,
+    "postgres",
+    `CREATE ROLE ${quoteIdent(plan.fixtureRuntimeRole)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;`,
+    "create disposable fixture runtime role",
+  );
+}
+
+function assertFixtureProofOptions(plan, options) {
+  if (!options.proveTestFixture) return;
+  if (options.replaceExisting) {
+    throw new Error("--prove-test-fixture requires a fresh, non-reused database name");
+  }
+  if (!fixtureRehearsalDbNamePattern.test(plan.dbName)) {
+    throw new Error("--prove-test-fixture requires a bcb_saas_*_rehearsal_* database name");
+  }
+  if (!options.dropOnSuccess) {
+    throw new Error("--prove-test-fixture requires --drop-on-success cleanup");
+  }
+  const hostname = plan.targetOwnerUrl ? new URL(plan.targetOwnerUrl).hostname.toLowerCase() : null;
+  if (!new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(hostname)) {
+    throw new Error("--prove-test-fixture requires a loopback PostgreSQL endpoint");
+  }
+  if (plan.fixtureRuntimeRole.length > 63) {
+    throw new Error("--prove-test-fixture target name is too long for its disposable runtime role");
+  }
+}
+
+function assertFixtureProofResourcesFresh(plan) {
+  const state = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT concat_ws('|',
+      EXISTS(SELECT 1 FROM pg_database WHERE datname=${quoteLiteral(plan.dbName)})::int,
+      EXISTS(SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.ownerRole)})::int,
+      EXISTS(SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.fixtureRuntimeRole)})::int
+    );`,
+    "assert disposable fixture resources are fresh",
+  );
+  if (state !== "0|0|0") throw new Error("disposable fixture DB or role name is already in use");
 }
 
 function printDryRun(plan, dumpInfo, options) {
@@ -421,6 +482,7 @@ function printDryRun(plan, dumpInfo, options) {
   console.log(`[saas-disposable] dump: ${dumpInfo.label}`);
   console.log(`[saas-disposable] replace existing DB: ${options.replaceExisting ? "yes" : "no"}`);
   console.log(`[saas-disposable] drop on success: ${options.dropOnSuccess ? "yes" : "no"}`);
+  console.log(`[saas-disposable] TEST fixture proof: ${options.proveTestFixture ? "yes" : "no"}`);
   console.log(`[saas-disposable] superuser transport: ${plan.transport}`);
   console.log("[saas-disposable] planned sequence:");
   console.log("  1. create guarded disposable owner role and database");
@@ -429,7 +491,12 @@ function printDryRun(plan, dumpInfo, options) {
   console.log(`  4. run ${deploySaas667Path} with sanitized DATABASE_URL and explicit superuser transport`);
   console.log("  5. assert migrator NOBYPASSRLS and no app_owner membership");
   console.log(`  6. run ${phase4RehearsalRunnerPath} --mode=db-state on the disposable DB`);
-  console.log("  7. preserve DB for audit unless --drop-on-success is set");
+  if (options.proveTestFixture) {
+    console.log("  7. apply canonical TEST settings override, double-seed fixtures, and prove A/B capability + mirror");
+    console.log("  8. always drop the disposable DB and owner role");
+  } else {
+    console.log("  7. preserve DB for audit unless --drop-on-success is set");
+  }
   if (plan.targetSuperuserUrl) {
     console.log(`[saas-disposable] target superuser URL: ${redactedUrl(plan.targetSuperuserUrl)}`);
     console.log(`[saas-disposable] target owner URL: ${redactedUrl(plan.targetOwnerUrl)}`);
@@ -604,6 +671,126 @@ function runDbStateCheck(plan) {
   });
 }
 
+function setFixtureProofElevation(plan, enabled) {
+  superuserPsqlExec(
+    plan,
+    plan.dbName,
+    enabled
+      ? `GRANT ${quoteIdent(plan.appOwnerRole)} TO ${quoteIdent(plan.ownerRole)}; ALTER ROLE ${quoteIdent(plan.ownerRole)} BYPASSRLS;`
+      : `ALTER ROLE ${quoteIdent(plan.ownerRole)} NOBYPASSRLS; REVOKE ${quoteIdent(plan.appOwnerRole)} FROM ${quoteIdent(plan.ownerRole)};`,
+    enabled ? "open disposable fixture reconciliation window" : "close disposable fixture reconciliation window",
+  );
+}
+
+function runFixtureProof(plan) {
+  createFixtureRuntimeRole(plan);
+  setFixtureProofElevation(plan, true);
+  try {
+    run(
+      "psql",
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        `e1_webapp_runtime_role=${plan.fixtureRuntimeRole}`,
+        "-d",
+        plan.targetOwnerUrl,
+        "-f",
+        e1WebappRuntimeConfigPath,
+      ],
+      {
+        env: sanitizedChildEnv({ PGOPTIONS: rolePgOptions(plan.ownerRole) }),
+        label: "apply canonical E1 patient runtime capability overlay to disposable rehearsal",
+        redact: true,
+      },
+    );
+    run(
+      "psql",
+      ["-X", "-v", "ON_ERROR_STOP=1", "-d", plan.targetOwnerUrl, "-f", testSettingsOverridePath],
+      {
+        env: sanitizedChildEnv({ PGOPTIONS: rolePgOptions(plan.ownerRole) }),
+        label: "apply canonical TEST settings override to disposable rehearsal",
+        redact: true,
+      },
+    );
+    run(
+      "pnpm",
+      ["--dir", "apps/webapp", "exec", "tsx", path.relative("apps/webapp", fixtureSeederPath)],
+      {
+        env: sanitizedChildEnv({
+          DATABASE_URL: plan.targetOwnerUrl,
+          PGOPTIONS: rolePgOptions(plan.ownerRole),
+          SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF: "1",
+          SAAS_TEST_FIXTURE_REHEARSAL_DATABASE: plan.dbName,
+          SAAS_TEST_FIXTURE_REHEARSAL_MODE: "1",
+        }),
+        label: "double-seed TEST walkthrough fixtures in disposable rehearsal",
+        redact: true,
+      },
+    );
+
+    const mirrorProof = superuserPsqlScalar(
+      plan,
+      plan.dbName,
+      `SELECT CASE WHEN public_setting.value_json = integrator_setting.value_json
+        AND public_setting.value_json = '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb
+        THEN 'ok' ELSE 'failed' END
+       FROM public.system_settings AS public_setting
+       JOIN integrator.system_settings AS integrator_setting
+         ON integrator_setting.key = public_setting.key
+        AND integrator_setting.scope = public_setting.scope
+        AND integrator_setting.organization_id IS NOT DISTINCT FROM public_setting.organization_id
+       WHERE public_setting.key = 'test_account_identifiers'
+         AND public_setting.scope = 'admin'
+         AND public_setting.organization_id IS NULL;`,
+      "prove public/integrator test-account mirror",
+    );
+    if (mirrorProof !== "ok") throw new Error("fixture mirror proof failed");
+
+    const capabilityProof = superuserPsqlScalar(
+      plan,
+      plan.dbName,
+      `BEGIN;
+       DO $proof$ DECLARE n text := 'fixture-proof-a-' || pg_backend_pid()::text; e bigint := floor(extract(epoch FROM clock_timestamp()))::bigint + 300; s text; h text; BEGIN
+         SELECT secret INTO STRICT s FROM app.context_signing_secrets WHERE id=true;
+         h := encode(app_ext.hmac(concat_ws('|','v1',n,pg_backend_pid()::text,e::text,'53000000-0000-4000-8000-0000000000a1','53000000-0000-4000-8000-00000000a101',''),s,'sha256'),'hex');
+         PERFORM app.install_signed_context(n,pg_backend_pid(),e,'53000000-0000-4000-8000-0000000000a1','53000000-0000-4000-8000-00000000a101',NULL,h);
+       END $proof$;
+       SET SESSION AUTHORIZATION app_patient;
+       SELECT app.is_current_patient_test_account()::text;
+       RESET SESSION AUTHORIZATION;
+       DO $proof$ BEGIN PERFORM app.reset_principal_context(); END $proof$;
+       DO $proof$ DECLARE n text := 'fixture-proof-b-' || pg_backend_pid()::text; e bigint := floor(extract(epoch FROM clock_timestamp()))::bigint + 300; s text; h text; BEGIN
+         SELECT secret INTO STRICT s FROM app.context_signing_secrets WHERE id=true;
+         h := encode(app_ext.hmac(concat_ws('|','v1',n,pg_backend_pid()::text,e::text,'53000000-0000-4000-8000-0000000000b1','53000000-0000-4000-8000-00000000a201',''),s,'sha256'),'hex');
+         PERFORM app.install_signed_context(n,pg_backend_pid(),e,'53000000-0000-4000-8000-0000000000b1','53000000-0000-4000-8000-00000000a201',NULL,h);
+       END $proof$;
+       SET SESSION AUTHORIZATION app_patient;
+       SELECT app.is_current_patient_test_account()::text;
+       RESET SESSION AUTHORIZATION;
+       DO $proof$ BEGIN PERFORM app.reset_principal_context(); END $proof$;
+       DO $proof$ DECLARE n text := 'fixture-proof-unrelated-' || pg_backend_pid()::text; e bigint := floor(extract(epoch FROM clock_timestamp()))::bigint + 300; s text; h text; BEGIN
+         SELECT secret INTO STRICT s FROM app.context_signing_secrets WHERE id=true;
+         h := encode(app_ext.hmac(concat_ws('|','v1',n,pg_backend_pid()::text,e::text,'53000000-0000-4000-8000-0000000000a1','53000000-0000-4000-8000-00000000a102',''),s,'sha256'),'hex');
+         PERFORM app.install_signed_context(n,pg_backend_pid(),e,'53000000-0000-4000-8000-0000000000a1','53000000-0000-4000-8000-00000000a102',NULL,h);
+       END $proof$;
+       SET SESSION AUTHORIZATION app_patient;
+       SELECT app.is_current_patient_test_account()::text;
+       RESET SESSION AUTHORIZATION;
+       ROLLBACK;`,
+      "prove patient A/B test-account capability and unrelated denial",
+    );
+    if (capabilityProof !== "true\ntrue\nfalse") {
+      throw new Error("fixture capability proof failed");
+    }
+    console.log("[saas-disposable] fixture proof OK: mirror=exact; patientA=true; patientB=true; unrelated=false");
+  } finally {
+    setFixtureProofElevation(plan, false);
+  }
+  assertCleanup(plan);
+}
+
 function dropOnSuccess(plan) {
   superuserPsqlExec(
     plan,
@@ -615,6 +802,86 @@ function dropOnSuccess(plan) {
   superuserPsqlExec(plan, "postgres", `DROP ROLE ${quoteIdent(plan.ownerRole)};`, "drop disposable owner role");
 }
 
+function dropFixtureProofResourcesIfPresent(plan) {
+  const ownerRoleExists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.ownerRole)})::int;`,
+    "check disposable fixture owner role before cleanup",
+  );
+  if (ownerRoleExists === "1") {
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `ALTER ROLE ${quoteIdent(plan.ownerRole)} NOBYPASSRLS;
+DO $cleanup$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.appOwnerRole)}) THEN
+    IF pg_has_role(${quoteLiteral(plan.ownerRole)}, ${quoteLiteral(plan.appOwnerRole)}, 'member') THEN
+      EXECUTE format('REVOKE %I FROM %I', ${quoteLiteral(plan.appOwnerRole)}, ${quoteLiteral(plan.ownerRole)});
+    END IF;
+  END IF;
+END
+$cleanup$;`,
+      "normalize disposable fixture owner before cleanup",
+    );
+  }
+  const databaseExists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname=${quoteLiteral(plan.dbName)})::int;`,
+    "check disposable fixture DB before cleanup",
+  );
+  if (databaseExists === "1") {
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ${quoteLiteral(plan.dbName)} AND pid <> pg_backend_pid();`,
+      "terminate disposable fixture DB sessions before cleanup",
+    );
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `DROP DATABASE ${quoteIdent(plan.dbName)};`,
+      "drop disposable fixture DB",
+    );
+  }
+  const roleExists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.ownerRole)})::int;`,
+    "check disposable fixture role before cleanup",
+  );
+  if (roleExists === "1") {
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `DROP ROLE ${quoteIdent(plan.ownerRole)};`,
+      "drop disposable fixture owner role",
+    );
+  }
+  const runtimeRoleExists = superuserPsqlScalar(
+    plan,
+    "postgres",
+    `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.fixtureRuntimeRole)})::int;`,
+    "check disposable fixture runtime role before cleanup",
+  );
+  if (runtimeRoleExists === "1") {
+    superuserPsqlExec(
+      plan,
+      "postgres",
+      `DROP ROLE ${quoteIdent(plan.fixtureRuntimeRole)};`,
+      "drop disposable fixture runtime role",
+    );
+  }
+}
+
+function cleanupModeAfterExecution({ created, dropOnSuccess: shouldDropOnSuccess, primaryError, proveTestFixture }) {
+  if (proveTestFixture) return "fixture";
+  if (created && shouldDropOnSuccess && !primaryError) return "ordinary";
+  return "none";
+}
+
 function runExecute(plan, options) {
   if (plan.transport === "none") {
     throw new Error(
@@ -622,18 +889,44 @@ function runExecute(plan, options) {
     );
   }
   if (!options.dumpPath) throw new Error("--dump is required in --execute mode");
+  assertFixtureProofOptions(plan, options);
+  if (options.proveTestFixture) assertFixtureProofResourcesFresh(plan);
   console.log(`[saas-disposable] executing guarded dormant rehearsal for ${plan.dbName}`);
-  createDisposableDatabase(plan, options);
-  restoreDump(plan, options.dumpPath);
-  assertOwnerState(plan);
-  runDeploy667(plan);
-  assertCleanup(plan);
-  runDbStateCheck(plan);
-  if (options.dropOnSuccess) {
-    dropOnSuccess(plan);
-  } else {
+  let created = false;
+  let primaryError = null;
+  try {
+    createDisposableDatabase(plan, options);
+    created = true;
+    restoreDump(plan, options.dumpPath);
+    assertOwnerState(plan);
+    runDeploy667(plan);
+    assertCleanup(plan);
+    runDbStateCheck(plan);
+    if (options.proveTestFixture) runFixtureProof(plan);
+  } catch (error) {
+    primaryError = error;
+  }
+  const cleanupMode = cleanupModeAfterExecution({
+    created,
+    dropOnSuccess: options.dropOnSuccess,
+    primaryError,
+    proveTestFixture: options.proveTestFixture,
+  });
+  if (cleanupMode !== "none") {
+    try {
+      if (cleanupMode === "fixture") {
+        dropFixtureProofResourcesIfPresent(plan);
+      } else {
+        dropOnSuccess(plan);
+      }
+    } catch (cleanupError) {
+      if (primaryError) throw new AggregateError([primaryError, cleanupError], "rehearsal failed and cleanup failed");
+      throw cleanupError;
+    }
+  } else if (!primaryError) {
     console.log(`[saas-disposable] preserved disposable DB for audit: ${plan.dbName}`);
   }
+  if (primaryError) throw primaryError;
 }
 
 function assertThrows(label, fn) {
@@ -683,6 +976,10 @@ function runSelfTest() {
     parseArgs(["--superuser-sudo-postgres", "--superuser-url=postgres://u:p@localhost/postgres"]),
   );
   assertThrows("self-test with extra flag", () => parseArgs(["--self-test", "--dry-run"]));
+  const fixtureProofOptions = parseArgs(["--execute", "--prove-test-fixture", "--drop-on-success"]);
+  if (!fixtureProofOptions.proveTestFixture) {
+    throw new Error("self-test expected explicit fixture proof mode");
+  }
 
   assertThrows("prod host", () => parsePostgresUrl("self-test", "postgres://u:p@135.106.162.170/postgres"));
   assertThrows("host override", () =>
@@ -701,6 +998,29 @@ function runSelfTest() {
     superuserSudoPostgres: true,
     superuserUrl: null,
   });
+  assertFixtureProofOptions(sudoPlan, fixtureProofOptions);
+  assertThrows("fixture proof without cleanup", () =>
+    assertFixtureProofOptions(sudoPlan, parseArgs(["--execute", "--prove-test-fixture"])),
+  );
+  assertThrows("fixture proof with reused DB", () =>
+    assertFixtureProofOptions(
+      sudoPlan,
+      parseArgs(["--execute", "--prove-test-fixture", "--drop-on-success", "--replace-existing"]),
+    ),
+  );
+  assertThrows("fixture proof with scratch DB name", () =>
+    assertFixtureProofOptions(
+      { ...sudoPlan, dbName: "bcb_saas_fixture_scratch_selftest" },
+      fixtureProofOptions,
+    ),
+  );
+  const remoteFixturePlan = {
+    ...plan,
+    targetOwnerUrl: "postgres://u:p@nonprod.example/bcb_saas_dormant_rehearsal_remote",
+  };
+  assertThrows("fixture proof on non-loopback endpoint", () =>
+    assertFixtureProofOptions(remoteFixturePlan, fixtureProofOptions),
+  );
   if (sudoPlan.transport !== "sudo-postgres") {
     throw new Error("self-test expected sudo-postgres plan transport");
   }
@@ -735,6 +1055,44 @@ function runSelfTest() {
     restoreSource.includes(rowCountWarningToken)
   ) {
     throw new Error("self-test expected pg_restore non-zero to be fatal, not warning-only");
+  }
+  const fixtureProofSource = runFixtureProof.toString();
+  if (
+    !fixtureProofSource.includes("e1WebappRuntimeConfigPath") ||
+    !fixtureProofSource.includes("app.install_signed_context") ||
+    fixtureProofSource.includes("INSERT INTO app.principal_context")
+  ) {
+    throw new Error("self-test expected fixture capability proof to use only signed principal context");
+  }
+  if (
+    cleanupModeAfterExecution({
+      created: true,
+      dropOnSuccess: true,
+      primaryError: new Error("failed ordinary rehearsal"),
+      proveTestFixture: false,
+    }) !== "none" ||
+    cleanupModeAfterExecution({
+      created: true,
+      dropOnSuccess: true,
+      primaryError: null,
+      proveTestFixture: false,
+    }) !== "ordinary" ||
+    cleanupModeAfterExecution({
+      created: false,
+      dropOnSuccess: true,
+      primaryError: new Error("failed before app_owner existed"),
+      proveTestFixture: true,
+    }) !== "fixture"
+  ) {
+    throw new Error("self-test expected failure-aware ordinary/fixture cleanup decisions");
+  }
+  const fixtureCleanupSource = dropFixtureProofResourcesIfPresent.toString();
+  if (
+    !fixtureCleanupSource.includes("ownerRoleExists") ||
+    !fixtureCleanupSource.includes("IF EXISTS (SELECT 1 FROM pg_roles") ||
+    fixtureCleanupSource.includes("setFixtureProofElevation(plan, false)")
+  ) {
+    throw new Error("self-test expected pre-app_owner fixture cleanup to remain fail-safe");
   }
 
   const originalEnv = {

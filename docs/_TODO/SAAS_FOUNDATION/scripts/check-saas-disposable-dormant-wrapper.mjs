@@ -87,6 +87,7 @@ function runChecks(overrides = {}) {
 
   requireFragments(files.wrapper, loaded.wrapper, [
     "safeDbNamePattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/",
+    "fixtureRehearsalDbNamePattern = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/",
     "unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/",
     "forbiddenDbNames",
     "\"bcb_webapp_prod\"",
@@ -135,6 +136,23 @@ function runChecks(overrides = {}) {
     "self-test expected pg_restore to fail closed without tolerateFailure",
     "self-test expected pg_restore non-zero to be fatal, not warning-only",
     "dropOnSuccess",
+    "--prove-test-fixture",
+    "e1WebappRuntimeConfigPath = \"deploy/postgres/e1-webapp-runtime-config.sql\"",
+    "apply canonical E1 patient runtime capability overlay to disposable rehearsal",
+    "fixtureRuntimeRole: `${options.dbName}_runtime`",
+    "createFixtureRuntimeRole(plan)",
+    "assertFixtureProofResourcesFresh(plan)",
+    "disposable fixture DB or role name is already in use",
+    "fixture proof with scratch DB name",
+    "normalize disposable fixture owner before cleanup",
+    "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.appOwnerRole)}) THEN",
+    "function cleanupModeAfterExecution",
+    "if (created && shouldDropOnSuccess && !primaryError) return \"ordinary\";",
+    "self-test expected failure-aware ordinary/fixture cleanup decisions",
+    "self-test expected pre-app_owner fixture cleanup to remain fail-safe",
+    "e1_webapp_runtime_role=${plan.fixtureRuntimeRole}",
+    "app.install_signed_context",
+    "self-test expected fixture capability proof to use only signed principal context",
     "--drop-on-success",
     "--replace-existing",
     "--dry-run",
@@ -230,6 +248,7 @@ function runChecks(overrides = {}) {
     "representative row-count assertions are",
     "must not turn a non-zero restore into a pass",
     "pnpm run check:saas-disposable-dormant-wrapper",
+    "The dormant `#667` base intentionally does not grant the patient E1 capability",
   ]);
 
   forbidFragments(files.protocol, loaded.protocol, [
@@ -311,6 +330,38 @@ function runSelfTest() {
     },
     {
       wrapper: wrapper.replaceAll("pg_has_role", "pgrole_missing"),
+    },
+    {
+      wrapper: replaceRequired(
+        "ordinary failed rehearsal must preserve evidence",
+        wrapper,
+        "if (created && shouldDropOnSuccess && !primaryError) return \"ordinary\";",
+        "if (created && shouldDropOnSuccess) return \"ordinary\";",
+      ),
+    },
+    {
+      wrapper: replaceRequired(
+        "fixture cleanup must tolerate missing app_owner",
+        wrapper,
+        "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=${quoteLiteral(plan.appOwnerRole)}) THEN",
+        "IF true THEN",
+      ),
+    },
+    {
+      wrapper: replaceRequired(
+        "fixture proof must reject scratch names before writes",
+        wrapper,
+        "fixtureRehearsalDbNamePattern = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/",
+        "fixtureRehearsalDbNamePattern = safeDbNamePattern",
+      ),
+    },
+    {
+      wrapper: replaceRequired(
+        "fixture proof must use canonical E1 runtime overlay",
+        wrapper,
+        'const e1WebappRuntimeConfigPath = "deploy/postgres/e1-webapp-runtime-config.sql";',
+        'const e1WebappRuntimeConfigPath = "deploy/postgres/ad-hoc-grant.sql";',
+      ),
     },
     {
       wrapper: replaceRequired(

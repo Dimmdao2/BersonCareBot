@@ -13,7 +13,17 @@ import * as schema from '../db/schema';
 
 const REQUIRED_DATABASE = 'bersoncarebot_test';
 const PACKET_PATH_ENV = 'SAAS_TEST_FIXTURE_ENV_FILE';
+const REHEARSAL_MODE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_MODE';
+const REHEARSAL_DATABASE_ENV = 'SAAS_TEST_FIXTURE_REHEARSAL_DATABASE';
+const REHEARSAL_DATABASE_PATTERN = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/;
+const UNSAFE_DATABASE_TOKEN_PATTERN = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Reserved NANP 555-01xx numbers: valid E.164, non-routable fictional TEST identities. */
+export const SAAS_TEST_FIXTURE_PATIENT_PHONES = Object.freeze({
+  patientA: '+12025550101',
+  patientB: '+12025550102',
+});
 
 const ids = {
   organizationA: '53000000-0000-4000-8000-0000000000a1',
@@ -371,6 +381,12 @@ export function buildSaasTestFixturePlan(now: Date) {
           : index === 0
             ? `patient-${clinic.key.toLowerCase()}@saas-fixture.test`
             : null,
+        phoneNormalized:
+          !isSharedPatient && index === 0
+            ? clinic.key === 'A'
+              ? SAAS_TEST_FIXTURE_PATIENT_PHONES.patientA
+              : SAAS_TEST_FIXTURE_PATIENT_PHONES.patientB
+            : null,
       };
     }),
   );
@@ -614,11 +630,62 @@ export function assertRequiredDatabaseName(databaseName: string): void {
     throw new Error(`refusing_database_target:expected_${REQUIRED_DATABASE}`);
 }
 
-async function assertExactTestDatabase(db: FixtureDb): Promise<void> {
+function isLoopbackDatabaseUrl(databaseUrl: string): boolean {
+  try {
+    const hostname = new URL(databaseUrl).hostname.toLowerCase();
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '[::1]'
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function assertAllowedFixtureDatabaseTarget(input: {
+  databaseName: string;
+  databaseUrl: string;
+  attestedRehearsalDatabaseName?: string;
+  rehearsalMode: boolean;
+}): void {
+  if (!input.rehearsalMode) {
+    assertRequiredDatabaseName(input.databaseName);
+    return;
+  }
+  if (
+    !REHEARSAL_DATABASE_PATTERN.test(input.databaseName) ||
+    UNSAFE_DATABASE_TOKEN_PATTERN.test(input.databaseName) ||
+    input.attestedRehearsalDatabaseName !== input.databaseName ||
+    (() => {
+      try {
+        return decodeURIComponent(new URL(input.databaseUrl).pathname.replace(/^\/+/, '')) !== input.databaseName;
+      } catch {
+        return true;
+      }
+    })() ||
+    !isLoopbackDatabaseUrl(input.databaseUrl)
+  ) {
+    throw new Error('refusing_fixture_rehearsal_target');
+  }
+}
+
+async function assertFixtureDatabaseTarget(
+  db: FixtureDb,
+  databaseUrl: string,
+  rehearsalMode: boolean,
+  attestedRehearsalDatabaseName?: string,
+): Promise<void> {
   const result = await db.execute<{ database_name: string }>(
     sql`SELECT current_database()::text AS database_name`,
   );
-  assertRequiredDatabaseName(result.rows[0]?.database_name ?? '');
+  assertAllowedFixtureDatabaseTarget({
+    databaseName: result.rows[0]?.database_name ?? '',
+    databaseUrl,
+    attestedRehearsalDatabaseName,
+    rehearsalMode,
+  });
 }
 
 async function hashIfChanged(existingHash: string | null, password: string): Promise<string> {
@@ -824,6 +891,8 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     };
     for (const person of [...staff, ...plan.patients, globalAdmin]) {
       const email = 'email' in person ? person.email : person.emailNormalized;
+      const fixturePatientPhone =
+        'phoneNormalized' in person ? person.phoneNormalized : undefined;
       if (email) {
         const collision = await tx
           .select({ id: schema.platformUsers.id })
@@ -847,7 +916,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         .insert(schema.platformUsers)
         .values({
           id: person.id,
-          phoneNormalized: null,
+          phoneNormalized: fixturePatientPhone ?? null,
           displayName: person.displayName,
           role,
           firstName: 'firstName' in person ? person.firstName : null,
@@ -868,6 +937,9 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: {
             displayName: person.displayName,
             role,
+            ...(fixturePatientPhone !== undefined
+              ? { phoneNormalized: fixturePatientPhone }
+              : {}),
             firstName: 'firstName' in person ? person.firstName : null,
             lastName: 'lastName' in person ? person.lastName : null,
             email: email ?? null,
@@ -1945,7 +2017,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           + (SELECT count(*) FROM integrator_push_outbox
             WHERE idempotency_key LIKE 'saas-fixture:%'
                OR payload::text LIKE '%saas_test_walkthrough%')
-          + (SELECT count(*) FROM projection_outbox
+          + (SELECT count(*) FROM integrator.projection_outbox
             WHERE idempotency_key LIKE 'saas-fixture:%'
                OR payload::text LIKE '%saas_test_walkthrough%')
         )::int AS fixture_outbox_count
@@ -1995,13 +2067,28 @@ async function proveDoubleSeedConvergence(
 }
 
 export async function runSaasTestFixtureSeeder(env: NodeJS.ProcessEnv): Promise<void> {
-  const packetPath = env[PACKET_PATH_ENV]?.trim() ?? '';
-  if (!packetPath) throw new Error('fixture_packet_path_required');
-  const packet = readSaasTestFixturePacket({
-    filePath: packetPath,
-    expectedGroupId: resolveDeployGroupId(),
-  });
-  const config = readSaasTestFixtureConfig(packet);
+  const rehearsalModeValue = env[REHEARSAL_MODE_ENV]?.trim() ?? '';
+  if (rehearsalModeValue !== '' && rehearsalModeValue !== '1') {
+    throw new Error('fixture_rehearsal_mode_must_be_exactly_1');
+  }
+  const rehearsalMode = rehearsalModeValue === '1';
+  const config = rehearsalMode
+    ? readSaasTestFixtureConfig({
+        SAAS_TEST_FIXTURE_CLINIC_A_EMAIL: 'rehearsal-clinic-a@saas-fixture.test',
+        SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD: 'disposable-rehearsal-a',
+        SAAS_TEST_FIXTURE_CLINIC_B_EMAIL: 'rehearsal-clinic-b@saas-fixture.test',
+        SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD: 'disposable-rehearsal-b',
+      })
+    : (() => {
+        const packetPath = env[PACKET_PATH_ENV]?.trim() ?? '';
+        if (!packetPath) throw new Error('fixture_packet_path_required');
+        return readSaasTestFixtureConfig(
+          readSaasTestFixturePacket({
+            filePath: packetPath,
+            expectedGroupId: resolveDeployGroupId(),
+          }),
+        );
+      })();
   const databaseUrl = env.DATABASE_URL?.trim() ?? '';
   if (!databaseUrl) throw new Error('fixture_database_url_required');
   const pgOptions = env.PGOPTIONS?.trim();
@@ -2011,7 +2098,12 @@ export async function runSaasTestFixtureSeeder(env: NodeJS.ProcessEnv): Promise<
   });
   const db = drizzle(pool, { schema });
   try {
-    await assertExactTestDatabase(db);
+    await assertFixtureDatabaseTarget(
+      db,
+      databaseUrl,
+      rehearsalMode,
+      env[REHEARSAL_DATABASE_ENV]?.trim(),
+    );
     if (env.SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF === '1') {
       await proveDoubleSeedConvergence(db, config);
     } else {

@@ -45,6 +45,11 @@ The versioned source of truth is `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs` in
 - Clinic A/B organization IDs, representative patient IDs and the shared patient's A/B enrollment IDs are under
   `operatorRefs.contexts`. Runtime smoke/walkthrough tooling should consume these refs rather than discover opaque
   IDs by hand.
+- Representative patients A/B use the reserved fictional NANP `+1 202-555-01xx` range (`+12025550101` and
+  `+12025550102`). The TEST override includes exactly these two fixture phones in the mirrored
+  `test_account_identifiers`, so maintenance mode does not hide their owner-ready patient screens. These values are
+  identity markers only: they are not added to delivery passthrough env, and TEST/DEV real-delivery isolation still
+  applies.
 
 The shared patient is enrolled in both organizations and has its own login. The fixture only provides the two
 organization refs; the live integration owner must prove the actual A/B context-selection behavior and locked

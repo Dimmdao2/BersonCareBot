@@ -46,9 +46,17 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 -- ── 4. test_account_identifiers (allowlist phones + Telegram/MAX IDs) ─────────
 -- Doctor/owner: +79643805480, Telegram 364943522
 -- Test user "Дмитрий Берсон": +79189000782, Telegram 7924656602, MAX 207278131
+-- Walkthrough representative patients A/B: reserved fictional NANP 555-01xx numbers.
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('test_account_identifiers', 'admin',
-        '{"value":{"phones":["+79643805480","+79189000782"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb,
+        '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb,
+        NOW(), NULL)
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+
+INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
+VALUES ('test_account_identifiers', 'admin',
+        '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb,
         NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
@@ -165,7 +173,7 @@ CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings
 CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK (integrator): system_settings key "%" is locked.', OLD.key
