@@ -9,6 +9,17 @@ WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
 
+if [ "${1:-}" = "--bootstrap-test-env" ]; then
+  [ "$#" -eq 1 ] || { echo "FATAL: usage: $0 [--bootstrap-test-env]" >&2; exit 2; }
+  [ "$API_ENV_FILE" = "/opt/env/bersoncarebot/api.test" ] || { echo "FATAL: TEST bootstrap requires canonical api.test path" >&2; exit 1; }
+  [ "$WEBAPP_ENV_FILE" = "/opt/env/bersoncarebot/webapp.test" ] || { echo "FATAL: TEST bootstrap requires canonical webapp.test path" >&2; exit 1; }
+  [ "$MEDIA_WORKER_ENV_FILE" = "/opt/env/bersoncarebot/media-worker.test" ] || { echo "FATAL: TEST bootstrap requires canonical media-worker.test path" >&2; exit 1; }
+  node "$PROJECT_ROOT/deploy/host/bootstrap-c4-test-env.mjs" --execute
+elif [ "$#" -ne 0 ]; then
+  echo "FATAL: usage: $0 [--bootstrap-test-env]" >&2
+  exit 2
+fi
+
 [ -r "$API_ENV_FILE" ] || { echo "FATAL: cannot read $API_ENV_FILE" >&2; exit 1; }
 [ -r "$WEBAPP_ENV_FILE" ] || { echo "FATAL: cannot read $WEBAPP_ENV_FILE" >&2; exit 1; }
 [ -r "$MEDIA_WORKER_ENV_FILE" ] || { echo "FATAL: cannot read $MEDIA_WORKER_ENV_FILE" >&2; exit 1; }

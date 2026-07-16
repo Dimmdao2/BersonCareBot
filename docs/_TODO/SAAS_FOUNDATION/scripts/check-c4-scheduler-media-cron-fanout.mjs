@@ -12,6 +12,7 @@ const files = {
   integratorPoolProvider: "apps/integrator/src/infra/db/integratorPoolProvider.ts",
   integratorWithClient: "apps/integrator/src/infra/db/withClient.ts",
   integratorWithClientTest: "apps/integrator/src/infra/db/withClient.test.ts",
+  dbPrincipal: "packages/db-principal/src/index.ts",
   operationalReadiness: "apps/integrator/src/infra/db/operationalPoolReadiness.ts",
   integratorDi: "apps/integrator/src/app/di.ts",
   workerMain: "apps/integrator/src/infra/runtime/worker/main.ts",
@@ -39,6 +40,7 @@ const files = {
   operationalSql: "deploy/postgres/c4-operational-runtime.sql",
   operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
   operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
+  operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
   testDeploy: "deploy/host/deploy-test-saas.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
@@ -276,7 +278,7 @@ function assertScheduler(loaded) {
     "app_operational_diagnostic",
     "app_operational_delivery_worker",
     "app_operational_scheduler",
-    "SET ROLE ${role}",
+    "setDbOperationalRuntimeRole(client, role)",
   ]);
   requireFragments(files.integratorWithClientTest, loaded.integratorWithClientTest, [
     "restores the outer capability after tenant work",
@@ -333,8 +335,15 @@ function assertMediaWorker(loaded) {
     "DB staff principal is not allowed on media-worker pool in locked mode",
     "DB integrator principal is not allowed on media-worker pool in locked mode",
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
-    "SET ROLE app_operational_media_worker",
+    'setDbOperationalRuntimeRole(client, "app_operational_media_worker")',
     "const client = await pool.connect();",
+  ]);
+  requireFragments(files.dbPrincipal, loaded.dbPrincipal, [
+    "export async function setDbOperationalRuntimeRole",
+    'statement = "SET ROLE app_operational_diagnostic"',
+    'statement = "SET ROLE app_operational_delivery_worker"',
+    'statement = "SET ROLE app_operational_media_worker"',
+    'statement = "SET ROLE app_operational_scheduler"',
   ]);
   requireFragmentBefore(
     files.mediaWithClient,
@@ -532,6 +541,16 @@ function assertOperationalSqlAndDeploy(loaded) {
     "sudo -u postgres psql",
     "\\password $role",
     "assert-c4-operational-runtime-ready.sh",
+    "--bootstrap-test-env",
+    "bootstrap-c4-test-env.mjs",
+  ]);
+  requireFragments(files.operationalTestEnvBootstrap, loaded.operationalTestEnvBootstrap, [
+    'media: "/opt/env/bersoncarebot/media-worker.test"',
+    'database !== "bersoncarebot_test"',
+    "randomBytes(32)",
+    "root:deploy 0640",
+    "writeProtected(mediaPath",
+    "writeProtected(apiPath",
   ]);
 }
 
@@ -659,6 +678,10 @@ if (process.argv.includes("--self-test")) {
     "saas-c2-secret-preflight.mjs",
     "saas-c2-secret-preflight-removed.mjs",
   );
+  const operationalProvisionNoBootstrap = read(files.operationalProvisionScript).replace(
+    "bootstrap-c4-test-env.mjs",
+    "bootstrap-c4-test-env-removed.mjs",
+  );
   const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
@@ -700,6 +723,7 @@ if (process.argv.includes("--self-test")) {
     { operationalSql: operationalSqlNoDatabaseScrub },
     { operationalSql: operationalSqlWrongAuditSchema },
     { operationalProvisionScript: operationalProvisionNoPreflight },
+    { operationalProvisionScript: operationalProvisionNoBootstrap },
     { operationalReadiness: operationalReadinessNoBooleanGate },
     { operationalSql: operationalSqlNoTypeScrub },
     { operationalSql: operationalSqlCategoryArrayFilter },

@@ -158,6 +158,22 @@ deploy, **от root/DB-admin**, после наличия актуальной �
 bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
 ```
 
+Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` и operational URL ещё отсутствуют,
+root сначала использует тот же скрипт в явном TEST-bootstrap режиме (PROD-пути в этом режиме запрещены):
+
+```bash
+PROJECT_ROOT=/opt/projects/bersoncarebot-test \
+API_ENV_FILE=/opt/env/bersoncarebot/api.test \
+WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test \
+MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
+bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
+```
+
+Bootstrap атомарно добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
+переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
+и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
+паролей и секретов не выводятся.
+
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
 `api.prod`/`media-worker.prod`, передаёт `\password` через stdin, применяет

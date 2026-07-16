@@ -83,6 +83,10 @@ First production rollout is a separate root/DB-admin operation:
 `deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
 root-owned webapp/API/media env files. It then creates or normalizes the four distinct LOGIN roles, sets their existing passwords without printing them, applies the overlay as PostgreSQL admin, and
 runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
+Fresh TEST may invoke the same root script with `--bootstrap-test-env` and the three canonical `.test` env paths.
+That explicit mode creates missing, distinct operational credentials and `media-worker.test` before the shared
+collision preflight, writes protected env files atomically as `root:deploy 0640`, never prints their values, and is
+idempotent. It is path-locked to TEST and cannot bootstrap PROD.
 The duplicated TEST readiness uses quiet tuple-only PostgreSQL output and integer `0/1` assertions for all four contours;
 it does not depend on command-tag or newline parsing.
 
