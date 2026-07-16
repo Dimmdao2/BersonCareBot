@@ -1,31 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getYandexOauthClientIdMock = vi.fn();
-const getYandexOauthClientSecretMock = vi.fn();
-const getYandexOauthRedirectUriMock = vi.fn();
-const getGoogleClientIdMock = vi.fn();
-const getGoogleClientSecretMock = vi.fn();
-const getGoogleOauthLoginRedirectUriMock = vi.fn();
-const getAppleOauthClientIdMock = vi.fn();
-const getAppleOauthRedirectUriMock = vi.fn();
-const getAppleOauthTeamIdMock = vi.fn();
-const getAppleOauthKeyIdMock = vi.fn();
-const getAppleOauthPrivateKeyMock = vi.fn();
-const getLoginAlternativesPublicConfigMock = vi.fn();
-const getSpecialistSignupEnabledMock = vi.fn();
+const { getPublicRuntimeBoolMock, getLoginAlternativesPublicConfigMock, getSpecialistSignupEnabledMock } =
+  vi.hoisted(() => ({
+    getPublicRuntimeBoolMock: vi.fn(),
+    getLoginAlternativesPublicConfigMock: vi.fn(),
+    getSpecialistSignupEnabledMock: vi.fn(),
+  }));
 
-vi.mock("@/modules/system-settings/integrationRuntime", () => ({
-  getYandexOauthClientId: () => getYandexOauthClientIdMock(),
-  getYandexOauthClientSecret: () => getYandexOauthClientSecretMock(),
-  getYandexOauthRedirectUri: () => getYandexOauthRedirectUriMock(),
-  getGoogleClientId: () => getGoogleClientIdMock(),
-  getGoogleClientSecret: () => getGoogleClientSecretMock(),
-  getGoogleOauthLoginRedirectUri: () => getGoogleOauthLoginRedirectUriMock(),
-  getAppleOauthClientId: () => getAppleOauthClientIdMock(),
-  getAppleOauthRedirectUri: () => getAppleOauthRedirectUriMock(),
-  getAppleOauthTeamId: () => getAppleOauthTeamIdMock(),
-  getAppleOauthKeyId: () => getAppleOauthKeyIdMock(),
-  getAppleOauthPrivateKey: () => getAppleOauthPrivateKeyMock(),
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getPublicRuntimeBool: (key: string) => getPublicRuntimeBoolMock(key),
 }));
 
 vi.mock("@/modules/auth/loginAlternativesConfig", () => ({
@@ -40,41 +23,28 @@ import { buildPrefetchedPublicAuthConfig } from "./publicAuthSnapshot";
 
 describe("buildPrefetchedPublicAuthConfig", () => {
   beforeEach(() => {
-    getYandexOauthClientIdMock.mockReset();
-    getYandexOauthClientSecretMock.mockReset();
-    getYandexOauthRedirectUriMock.mockReset();
-    getGoogleClientIdMock.mockReset();
-    getGoogleClientSecretMock.mockReset();
-    getGoogleOauthLoginRedirectUriMock.mockReset();
-    getAppleOauthClientIdMock.mockReset();
-    getAppleOauthRedirectUriMock.mockReset();
-    getAppleOauthTeamIdMock.mockReset();
-    getAppleOauthKeyIdMock.mockReset();
-    getAppleOauthPrivateKeyMock.mockReset();
+    getPublicRuntimeBoolMock.mockReset();
     getLoginAlternativesPublicConfigMock.mockReset();
     getSpecialistSignupEnabledMock.mockReset();
-
-    getYandexOauthClientIdMock.mockResolvedValue("");
-    getYandexOauthClientSecretMock.mockResolvedValue("");
-    getYandexOauthRedirectUriMock.mockResolvedValue("");
-    getGoogleClientIdMock.mockResolvedValue("");
-    getGoogleClientSecretMock.mockResolvedValue("");
-    getGoogleOauthLoginRedirectUriMock.mockResolvedValue("");
-    getAppleOauthClientIdMock.mockResolvedValue("");
-    getAppleOauthRedirectUriMock.mockResolvedValue("");
-    getAppleOauthTeamIdMock.mockResolvedValue("");
-    getAppleOauthKeyIdMock.mockResolvedValue("");
-    getAppleOauthPrivateKeyMock.mockResolvedValue("");
+    getPublicRuntimeBoolMock.mockImplementation(async (key: string) => key === "oauth_google_enabled");
     getLoginAlternativesPublicConfigMock.mockResolvedValue({
       telegramBotUsername: "test_bot",
       maxBotOpenUrl: "https://max.ru/test_bot",
+      vkWebLoginUrl: null,
+      smsFallbackEnabled: true,
     });
     getSpecialistSignupEnabledMock.mockResolvedValue(false);
   });
 
-  it("includes specialist signup rollout flag with safe false default", async () => {
+  it("uses only derived provider availability and includes the public alternatives snapshot", async () => {
     const result = await buildPrefetchedPublicAuthConfig();
 
+    expect(result.oauthProviders).toEqual({ yandex: false, google: true, apple: false });
+    expect(getPublicRuntimeBoolMock.mock.calls.map(([key]) => key)).toEqual([
+      "oauth_yandex_enabled",
+      "oauth_google_enabled",
+      "oauth_apple_enabled",
+    ]);
     expect(result.specialistSignupEnabled).toBe(false);
     expect(result.telegramBotUsername).toBe("test_bot");
     expect(result.maxBotOpenUrl).toBe("https://max.ru/test_bot");

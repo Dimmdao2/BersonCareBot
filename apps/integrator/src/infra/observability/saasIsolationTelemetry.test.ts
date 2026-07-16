@@ -99,4 +99,19 @@ describe('SaaS isolation telemetry transport', () => {
     expect(query.mock.calls.at(-1)).toEqual(['ROLLBACK']);
     expect(release).toHaveBeenCalledWith(rawFailure);
   });
+
+  it('destroys the failed client when the driver throws a non-Error value', async () => {
+    const release = vi.fn();
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('report_saas_isolation_event')) throw 'driver_non_error_failure';
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = { connect: vi.fn(async () => ({ query, release })) };
+
+    await expect(probeSaasIsolationTelemetryWriter(pool as never, source))
+      .rejects.toThrow('saas_isolation_telemetry_writer_probe_failed');
+    expect(release).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'driver_non_error_failure',
+    }));
+  });
 });

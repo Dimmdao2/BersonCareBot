@@ -13,6 +13,9 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
+    DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
+    DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
+    DATABASE_URL_SCHEDULER: z.string().optional().default(''),
     DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'shadow', 'locked']).optional().default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()
@@ -22,7 +25,6 @@ const parsed = z
     BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),
     CONTENT_ACCESS_HMAC_SECRET: z.string().optional().default(''),
-    APP_BASE_URL: z.string().url().optional(),
     INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),
     /** Secret for signing webapp-entry token (?t=). Prefer over INTEGRATOR_SHARED_SECRET when set. */
     INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(16).optional(),

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getStatusRowMock = vi.fn();
 const isReadyMock = vi.fn();
 const gateMock = vi.fn();
-const getSettingMock = vi.fn();
+const getBooleanMock = vi.fn();
 const getPatientProgramInteractionPolicyMock = vi.fn();
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
@@ -15,7 +15,7 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    systemSettings: { getSetting: getSettingMock },
+    runtimeConfig: { getBoolean: getBooleanMock },
     doctorClients: {
       getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMock,
     },
@@ -36,10 +36,11 @@ describe("GET /api/patient/media/program-submission/[mediaId]/status", () => {
     getStatusRowMock.mockReset();
     isReadyMock.mockReset();
     gateMock.mockReset();
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     getPatientProgramInteractionPolicyMock.mockReset();
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getBooleanMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       onSupport: true,
       commentsAllowed: true,
       mediaAllowed: true,

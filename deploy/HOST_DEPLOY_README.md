@@ -140,13 +140,48 @@ systemctl reset-failed
 Эффективная конфигурация:
 
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker`
-- `EnvironmentFile=/opt/env/bersoncarebot/webapp.prod`
+- `EnvironmentFile=/opt/env/bersoncarebot/media-worker.prod`
 - `ExecStart=/usr/bin/node dist/main.js`
 - Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
 
-`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии `webapp.prod` и проверяет `systemctl is-active`. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
+`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного
+`media-worker.prod` и проверяет `systemctl is-active`. Этот env использует только media operational login; повторное
+использование webapp/integrator credential запрещено. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого
+unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
+
+Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
+deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
+
+```bash
+bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
+```
+
+Для первого C4-прогона на свежем TEST, когда отдельный `media-worker.test` и operational URL ещё отсутствуют,
+root сначала использует тот же скрипт в явном TEST-bootstrap режиме (PROD-пути в этом режиме запрещены):
+
+```bash
+PROJECT_ROOT=/opt/projects/bersoncarebot-test \
+API_ENV_FILE=/opt/env/bersoncarebot/api.test \
+WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test \
+MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test \
+bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runtime.sh --bootstrap-test-env
+```
+
+Bootstrap атомарно добавляет три отдельные operational URL в `api.test`, создаёт отдельный media-worker URL,
+переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
+и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
+паролей и секретов не выводятся.
+Bootstrap дополнительно требует точный канонический checkout `/opt/projects/bersoncarebot-test`; запуск из
+PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
+
+Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
+повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
+`api.prod`/`media-worker.prod`, передаёт `\password` через stdin, применяет
+`deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres` и запускает readiness. Обычный
+`deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
+контракт перед рестартом сервисов.
 
 #### Webapp
 

@@ -9,6 +9,7 @@ import { createDbPort } from './client.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import {
   assertIntegratorLockedPrincipalClassified,
+  getCurrentIntegratorTechnicalRuntimeRole,
   withIntegratorPoolClient,
   withIntegratorPoolTransaction,
 } from './withClient.js';
@@ -153,6 +154,47 @@ describe('integrator DB client helpers', () => {
     expect(pool.connect).not.toHaveBeenCalled();
   });
 
+  it('maps only allowlisted operational sources and restores the outer capability after tenant work', async () => {
+    await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, async () => {
+      expect(getCurrentIntegratorTechnicalRuntimeRole()).toBe('app_operational_delivery_worker');
+      await runWithDbOrganizationPrincipal('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', async () => {
+        expect(getCurrentIntegratorTechnicalRuntimeRole()).toBeUndefined();
+      });
+      expect(getCurrentIntegratorTechnicalRuntimeRole()).toBe('app_operational_delivery_worker');
+    });
+    await runWithDbInfraPrincipal({ source: 'scheduler:handle-tick-event' }, async () => {
+      expect(getCurrentIntegratorTechnicalRuntimeRole()).toBe('app_operational_scheduler');
+    });
+    await runWithDbInfraPrincipal({ source: 'integrator-projection-health' }, async () => {
+      expect(getCurrentIntegratorTechnicalRuntimeRole()).toBe('app_operational_diagnostic');
+    });
+    await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, async () => {
+      expect(getCurrentIntegratorTechnicalRuntimeRole()).toBeUndefined();
+    });
+  });
+
+  it('sets and restores the delivery-worker capability around locked SQL', async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+    const release = vi.fn();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = { connect: vi.fn(async () => client) };
+
+    await runWithDbInfraPrincipal({ source: 'worker:projection-outbox-tick' }, () =>
+      withIntegratorPoolClient(pool as never, async () => 'ok'),
+    );
+
+    expect(query.mock.calls.slice(0, 3)).toEqual([
+      ['SELECT app.release_principal_context()'],
+      ['RESET ROLE'],
+      ['SET ROLE app_operational_delivery_worker'],
+    ]);
+    expect(query.mock.calls.at(-2)).toEqual(['SELECT app.release_principal_context()']);
+    expect(query.mock.calls.at(-1)).toEqual(['RESET ROLE']);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it('allows explicitly listed bootstrap principals in locked mode', async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
     process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
@@ -178,7 +220,11 @@ describe('integrator DB client helpers', () => {
       mode: 'locked' as const,
       signer: { secret: 'test-db-principal-signing-secret' },
     };
-    for (const source of ['integrator-user-org-resolution', 'integrator-deployment-org-resolution']) {
+    for (const source of [
+      'integrator-user-org-resolution',
+      'integrator-deployment-org-resolution',
+      'integrator-server-runtime-config',
+    ]) {
       expect(() => runWithDbBootstrapPrincipal({ source }, () =>
         assertIntegratorLockedPrincipalClassified(locked),
       )).not.toThrow();
@@ -391,7 +437,7 @@ describe('integrator DB client helpers', () => {
     const connect = vi.spyOn(Pool.prototype, 'connect');
     const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
 
-    await expect(pool.query('SELECT ok')).rejects.toThrow('DB_PRINCIPAL_SIGNING_SECRET is required');
+    expect(() => pool.query('SELECT ok')).toThrow('DB_PRINCIPAL_SIGNING_SECRET is required');
     await pool.end();
 
 		expect(connect).not.toHaveBeenCalled();
@@ -406,6 +452,21 @@ describe('integrator DB client helpers', () => {
 		await expect(pool.query('SELECT ok')).rejects.toThrow(
 			'DB principal context is required before integrator scoped DB access in locked mode',
 		);
+		await pool.end();
+
+		expect(connect).not.toHaveBeenCalled();
+	});
+
+	it('rejects a locked operational source before request-pool checkout when its URL is missing', async () => {
+		process.env.DB_PRINCIPAL_CONTEXT_MODE = 'locked';
+		process.env.DB_PRINCIPAL_SIGNING_SECRET = 'test-db-principal-signing-secret';
+		const connect = vi.spyOn(Pool.prototype, 'connect');
+		vi.spyOn(Pool.prototype, 'end').mockResolvedValue(undefined);
+		const pool = createIntegratorPoolProvider({ connectionString: 'postgres://example/test' });
+
+		expect(() =>
+			runWithDbInfraPrincipal({ source: 'worker:projection-outbox-tick' }, () => pool.connect()),
+		).toThrow('DATABASE_URL_DELIVERY_WORKER is required');
 		await pool.end();
 
 		expect(connect).not.toHaveBeenCalled();

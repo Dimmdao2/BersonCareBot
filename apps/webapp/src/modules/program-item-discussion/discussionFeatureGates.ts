@@ -1,48 +1,40 @@
+import type { RuntimeConfigContext } from "@/modules/system-settings/runtimeConfig";
+
 type DiscussionSettingKey =
   | "patient_program_discussion_ui_enabled"
   | "patient_program_discussion_media_submission_enabled";
 
 export type DiscussionFeatureGateDeps = {
-  systemSettings: {
-    getSetting: (
-      key: DiscussionSettingKey,
-      scope: "admin",
-    ) => Promise<{ valueJson: unknown } | null | undefined>;
+  runtimeConfig: {
+    getBoolean: (key: DiscussionSettingKey, context: RuntimeConfigContext) => Promise<boolean>;
   };
 };
 
-export function parseDiscussionFeatureEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
-
 export async function isPatientProgramDiscussionUiEnabled(
   deps: DiscussionFeatureGateDeps,
+  context: RuntimeConfigContext,
 ): Promise<boolean> {
-  const row = await deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin");
-  return parseDiscussionFeatureEnabled(row?.valueJson ?? null);
+  return deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", context);
 }
 
 export async function isPatientProgramDiscussionMediaSubmissionEnabled(
   deps: DiscussionFeatureGateDeps,
+  context: RuntimeConfigContext,
 ): Promise<boolean> {
-  const row = await deps.systemSettings.getSetting(
+  return deps.runtimeConfig.getBoolean(
     "patient_program_discussion_media_submission_enabled",
-    "admin",
+    context,
   );
-  return parseDiscussionFeatureEnabled(row?.valueJson ?? null);
 }
 
 /** Media upload + attach require both rollout flags (P23). */
 export async function isPatientProgramDiscussionMediaFlowEnabled(
   deps: DiscussionFeatureGateDeps,
+  context: RuntimeConfigContext,
 ): Promise<boolean> {
   const [ui, media] = await Promise.all([
-    isPatientProgramDiscussionUiEnabled(deps),
-    isPatientProgramDiscussionMediaSubmissionEnabled(deps),
+    isPatientProgramDiscussionUiEnabled(deps, context),
+    isPatientProgramDiscussionMediaSubmissionEnabled(deps, context),
   ]);
   return ui && media;
 }

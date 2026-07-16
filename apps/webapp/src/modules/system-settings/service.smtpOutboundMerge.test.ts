@@ -55,6 +55,7 @@ describe("createSystemSettingsService smtp_outbound merge", () => {
       getByKey,
       getByScope: vi.fn(),
       getWebPushVapidPublicKeyOnly: vi.fn(),
+      isCurrentPatientTestAccount: vi.fn(),
       upsertManyInTransaction: vi.fn(),
       upsert,
     };

@@ -18,6 +18,8 @@ import {
   reportWorkerProjectionIsolationFailure,
   reportWorkerQueueIsolationFailure,
 } from '../../observability/saasIsolationTelemetry.js';
+import { assertDeliveryWorkerPoolReady } from '../../db/operationalPoolReadiness.js';
+import { createOperatorAwareDeliveryAttemptWritePort } from './operatorDeliveryAttemptWritePort.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,9 +27,19 @@ async function sleep(ms: number): Promise<void> {
 
 async function startWorker(): Promise<void> {
   await assertWorkerIsolationTelemetryWriterReady();
-  const { buildDeps } = await import('../../../app/di.js');
-  const deps = buildDeps();
+  await assertDeliveryWorkerPoolReady();
   const projectionDb = createDbPort();
+  await getAppBaseUrl(projectionDb);
+  const deliveryDb = createDbPort();
+  const deliveryReadPort = createDbReadPort({ db: deliveryDb });
+  const deliveryWritePort = createDbWritePort({ db: deliveryDb, readPort: deliveryReadPort });
+  const { buildDeps } = await import('../../../app/di.js');
+  const deps = buildDeps({
+    dispatchAttemptWritePort: createOperatorAwareDeliveryAttemptWritePort({
+      db: deliveryDb,
+      tenantWritePort: deliveryWritePort,
+    }),
+  });
   const webappEvents = createWebappEventsPort({
     getAppBaseUrl: () => getAppBaseUrl(projectionDb),
   });
@@ -36,9 +48,6 @@ async function startWorker(): Promise<void> {
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
-  const deliveryDb = createDbPort();
-  const deliveryReadPort = createDbReadPort({ db: deliveryDb });
-  const deliveryWritePort = createDbWritePort({ db: deliveryDb, readPort: deliveryReadPort });
 
   logger.info('Runtime worker started');
 

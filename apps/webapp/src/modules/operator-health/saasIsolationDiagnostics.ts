@@ -26,6 +26,11 @@ export type SaasIsolationSourceService = (typeof SAAS_ISOLATION_SOURCE_SERVICES)
 export const SAAS_ISOLATION_SOURCE_OPERATIONS = [
   "webapp_db_request",
   "webapp_admin_system_health",
+  "public_auth_config",
+  "patient_runtime_config",
+  "public_booking_config",
+  "patient_identity_exception_check",
+  "patient_booking_history",
   "integrator_http_request",
   "integrator_projection",
   "worker_queue_drain",
@@ -43,7 +48,15 @@ export const SAAS_ISOLATION_SOURCE_OPERATIONS = [
 export type SaasIsolationSourceOperation = (typeof SAAS_ISOLATION_SOURCE_OPERATIONS)[number];
 
 const OPERATIONS_BY_SERVICE: Readonly<Record<SaasIsolationSourceService, readonly SaasIsolationSourceOperation[]>> = {
-  webapp: ["webapp_db_request", "webapp_admin_system_health"],
+  webapp: [
+    "webapp_db_request",
+    "webapp_admin_system_health",
+    "public_auth_config",
+    "patient_runtime_config",
+    "public_booking_config",
+    "patient_identity_exception_check",
+    "patient_booking_history",
+  ],
   integrator: ["integrator_http_request", "integrator_projection"],
   worker: ["worker_queue_drain", "worker_projection_delivery", "worker_outgoing_delivery"],
   scheduler: ["scheduler_lock", "scheduler_dispatch_tick"],

@@ -5,6 +5,7 @@ import {
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   getCurrentDbPrincipal,
+  setDbOperationalRuntimeRole,
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
@@ -52,6 +53,9 @@ async function prepareMediaWorkerClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
+  if (options.mode === "locked") {
+    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+  }
 }
 
 async function prepareMediaWorkerTransactionClient(
@@ -59,6 +63,9 @@ async function prepareMediaWorkerTransactionClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
+  if (options.mode === "locked") {
+    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+  }
 }
 
 function toReleaseError(err: unknown): Error {

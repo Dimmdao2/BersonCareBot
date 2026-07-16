@@ -9,7 +9,7 @@ import {
 } from "./rls-descriptor-model.mjs";
 
 const expectedTierCounts = new Map([
-  ["BOOTSTRAP", 27],
+  ["BOOTSTRAP", 28],
   ["INFRA", 25],
   ["LEGACY", 16],
   ["SCOPED", 159],
@@ -25,6 +25,10 @@ const expectedBootstrapHybridTables = new Set([
 const expectedBootstrapHybridOrgGatedTables = new Set([
   "public.platform_user_contacts",
   "public.user_phone_history",
+]);
+
+const expectedBootstrapRuntimeAudienceTables = new Set([
+  "public.app_runtime_settings",
 ]);
 
 const expectedScopedFkPathTables = new Set([
@@ -80,8 +84,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(", ")}`);
 }
 
-if (tierRows.length !== 232) {
-  fail(`Expected 232 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 233) {
+  fail(`Expected 233 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {
@@ -100,6 +104,7 @@ if (!sameSet(descriptorTables, tierTables)) {
 const actualTierCounts = new Map();
 const actualBootstrapHybridTables = new Set();
 const actualBootstrapHybridOrgGatedTables = new Set();
+const actualBootstrapRuntimeAudienceTables = new Set();
 const actualScopedFkPathTables = new Set();
 const actualP083ParentCopyHolds = new Set();
 let publicDirectOrgPolicyTargetCount = 0;
@@ -178,6 +183,17 @@ for (const [table, descriptor] of descriptors.entries()) {
       if (descriptor.predicateTemplate !== "org_gated_null_bootstrap") {
         fail(`BOOTSTRAP org-gated hybrid descriptor ${table} must use org_gated_null_bootstrap`);
       }
+    } else if (descriptor.scopingKind === "bootstrap_runtime_audience") {
+      actualBootstrapRuntimeAudienceTables.add(table);
+
+      if (
+        descriptor.orgColumn !== "organization_id" ||
+        descriptor.audienceColumn !== "audience" ||
+        descriptor.predicateTemplate !== "safe_audience_global_or_tenant_row" ||
+        JSON.stringify(descriptor.safeAudiences) !== JSON.stringify(["public", "authenticated_client"])
+      ) {
+        fail(`BOOTSTRAP runtime-audience descriptor ${table} must preserve safe audience and org semantics`);
+      }
     } else if (descriptor.scopingKind !== "bootstrap_global") {
       fail(`Invalid BOOTSTRAP scoping kind for ${table}: ${descriptor.scopingKind}`);
     }
@@ -210,6 +226,12 @@ if (!sameSet(actualBootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGate
   );
 }
 
+if (!sameSet(actualBootstrapRuntimeAudienceTables, expectedBootstrapRuntimeAudienceTables)) {
+  fail(
+    `Unexpected BOOTSTRAP runtime-audience set. Missing: ${setDiff(expectedBootstrapRuntimeAudienceTables, actualBootstrapRuntimeAudienceTables).join(", ")}. Extra: ${setDiff(actualBootstrapRuntimeAudienceTables, expectedBootstrapRuntimeAudienceTables).join(", ")}`,
+  );
+}
+
 if (!sameSet(actualScopedFkPathTables, expectedScopedFkPathTables)) {
   fail(
     `Unexpected SCOPED FK-path set. Missing: ${setDiff(expectedScopedFkPathTables, actualScopedFkPathTables).join(", ")}. Extra: ${setDiff(actualScopedFkPathTables, expectedScopedFkPathTables).join(", ")}`,
@@ -228,7 +250,7 @@ if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
   );
 }
 
-console.log("P0.8.1 RLS descriptor model OK: 232 descriptors cover tiers-218.tsv exactly once.");
+console.log("P0.8.1 RLS descriptor model OK: 233 descriptors cover tiers-218.tsv exactly once.");
 console.log(
   Array.from(actualTierCounts.entries())
     .sort(([left], [right]) => left.localeCompare(right))

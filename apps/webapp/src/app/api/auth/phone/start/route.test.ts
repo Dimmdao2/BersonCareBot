@@ -2,6 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const startPhoneAuth = vi.fn();
 const findByPhone = vi.fn();
+const getPublicRuntimeBool = vi.hoisted(() => vi.fn());
+
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getPublicRuntimeBool,
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -21,6 +26,8 @@ describe("POST /api/auth/phone/start", () => {
   beforeEach(() => {
     startPhoneAuth.mockReset();
     findByPhone.mockReset();
+    getPublicRuntimeBool.mockReset();
+    getPublicRuntimeBool.mockResolvedValue(true);
     findByPhone.mockResolvedValue(null);
     startPhoneAuth.mockResolvedValue({
       ok: true as const,
@@ -68,6 +75,26 @@ describe("POST /api/auth/phone/start", () => {
     const data = (await res.json()) as { ok: boolean; error?: string; message?: string };
     expect(data.ok).toBe(false);
     expect(data.error).toBe("sms_disabled_web");
+    expect(startPhoneAuth).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the projected public SMS policy is disabled", async () => {
+    getPublicRuntimeBool.mockResolvedValue(false);
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: "+79991234567",
+          channel: "telegram",
+          chatId: "tg-1",
+          deliveryChannel: "sms",
+        }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toMatchObject({ error: "sms_disabled_by_policy" });
+    expect(getPublicRuntimeBool).toHaveBeenCalledWith("public_sms_fallback_enabled");
     expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 

@@ -49,11 +49,11 @@ vi.mock("@/infra/repos/pgClientMediaFolders", () => ({
   pgEnsureClientPatientFolder: (...a: unknown[]) => ensurePatientFolderMock(...a),
 }));
 
-const getSettingMock = vi.fn();
+const getBooleanMock = vi.fn();
 const getPatientProgramInteractionPolicyMock = vi.fn();
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    systemSettings: { getSetting: getSettingMock },
+    runtimeConfig: { getBoolean: getBooleanMock },
     doctorClients: {
       getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMock,
     },
@@ -84,10 +84,10 @@ describe("POST /api/patient/media/program-submission/presign", () => {
       patientUserId: "00000000-0000-4000-8000-000000000001",
       createdAt: "2026-01-01T00:00:00.000Z",
     });
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     getPatientProgramInteractionPolicyMock.mockReset();
     gateMock.mockReset();
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getBooleanMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       organizationId: ORG_ID,
       onSupport: true,
@@ -117,7 +117,7 @@ describe("POST /api/patient/media/program-submission/presign", () => {
   });
 
   it("returns 403 when feature disabled", async () => {
-    getSettingMock.mockResolvedValue({ valueJson: { value: false } });
+    getBooleanMock.mockResolvedValue(false);
     const res = await POST(
       new Request("http://localhost/api/patient/media/program-submission/presign", {
         method: "POST",

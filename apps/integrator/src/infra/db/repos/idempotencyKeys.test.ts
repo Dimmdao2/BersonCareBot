@@ -38,6 +38,6 @@ describe('createPostgresIdempotencyPort', () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     const port = createPostgresIdempotencyPort(makeDb(query));
     await port.release!('evt-1');
-    expect(String(query.mock.calls[0]?.[0])).toContain('DELETE FROM idempotency_keys');
+    expect(String(query.mock.calls[0]?.[0])).toContain('DELETE FROM integrator.idempotency_keys');
   });
 });

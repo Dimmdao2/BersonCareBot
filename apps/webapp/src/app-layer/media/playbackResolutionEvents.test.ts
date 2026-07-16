@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getDrizzleMock, insertMock, valuesMock, loggerErrorMock } = vi.hoisted(() => ({
-  getDrizzleMock: vi.fn(),
-  insertMock: vi.fn(),
-  valuesMock: vi.fn(),
+const { insertPlaybackResolutionEventMock, loggerErrorMock } = vi.hoisted(() => ({
+  insertPlaybackResolutionEventMock: vi.fn(() => Promise.resolve()),
   loggerErrorMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
-  getDrizzle: getDrizzleMock,
+vi.mock("@/infra/repos/pgPlaybackResolutionEvents", () => ({
+  insertPlaybackResolutionEvent: insertPlaybackResolutionEventMock,
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({
@@ -22,13 +20,9 @@ const mid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 describe("recordPlaybackResolutionEvent", () => {
   beforeEach(() => {
-    getDrizzleMock.mockReset();
-    insertMock.mockReset();
-    valuesMock.mockReset();
+    insertPlaybackResolutionEventMock.mockReset();
     loggerErrorMock.mockReset();
-    valuesMock.mockResolvedValue(undefined);
-    insertMock.mockReturnValue({ values: valuesMock });
-    getDrizzleMock.mockReturnValue({ insert: insertMock });
+    insertPlaybackResolutionEventMock.mockResolvedValue(undefined);
   });
 
   it("skips invalid ids", async () => {
@@ -38,29 +32,27 @@ describe("recordPlaybackResolutionEvent", () => {
       delivery: "mp4",
       fallbackUsed: false,
     });
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(insertPlaybackResolutionEventMock).not.toHaveBeenCalled();
   });
 
-  it("inserts event for valid ids", async () => {
+  it("records valid ids through the narrow playback telemetry accessor", async () => {
     await recordPlaybackResolutionEvent({
       userId: uid,
       mediaId: mid,
       delivery: "hls",
       fallbackUsed: true,
     });
-    expect(valuesMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: uid,
-        mediaId: mid,
-        delivery: "hls",
-        fallbackUsed: true,
-      }),
-    );
+    expect(insertPlaybackResolutionEventMock).toHaveBeenCalledWith({
+      userId: uid,
+      mediaId: mid,
+      delivery: "hls",
+      fallbackUsed: true,
+    });
   });
 
-  it("logs and swallows insert errors", async () => {
+  it("logs and swallows accessor errors", async () => {
     const err = new Error("db_down");
-    valuesMock.mockRejectedValue(err);
+    insertPlaybackResolutionEventMock.mockRejectedValue(err);
     await expect(
       recordPlaybackResolutionEvent({
         userId: uid,

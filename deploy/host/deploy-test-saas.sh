@@ -20,6 +20,9 @@ DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="${1:-auto/code-pg-delta}"
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
+MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
+MEDIA_WORKER_TEST_UNIT=deploy/systemd/bersoncarebot-media-worker-test.service
+MEDIA_WORKER_TEST_UNIT_ASSERTION=deploy/host/assert-media-worker-test-unit-properties.sh
 SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
@@ -42,6 +45,10 @@ D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
+SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
+INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
+E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
+C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
@@ -358,6 +365,9 @@ SQL
 }
 
 rehydrate_post_restore_runtime_overlays(){
+  local e1_runtime_role
+  e1_runtime_role="$(discover_webapp_bootstrap_base_role)"
+  validate_pg_identifier "webapp.test E1 runtime role" "$e1_runtime_role"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS"
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_COURSE_WALL"
@@ -368,19 +378,23 @@ rehydrate_post_restore_runtime_overlays(){
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"
   fi
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v e1_webapp_runtime_role="$e1_runtime_role" \
+    -f "$DEPLOY_REPO/$E1_WEBAPP_RUNTIME_CONFIG"
   echo "   post-restore runtime overlays: OK"
 }
 
 assert_api_runtime_can_release_principal_context(){
   local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
+  sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT app.release_principal_context();\" >/dev/null"
+  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.reset_principal_context()', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.current_org_id()', 'EXECUTE'))::text;\"")"
   [ "$ok" = "true" ] || { echo "FATAL: api.test runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
-  echo "   app.release_principal_context: OK (visible + executable by api.test runtime)"
+  echo "   app.release_principal_context: OK (actual base-login call; install/reset/current remain denied)"
 }
 
 assert_media_worker_runtime_can_release_principal_context(){
   local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
+  ok="$(sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
   [ "$ok" = "true" ] || { echo "FATAL: media-worker TEST runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
   echo "   app.release_principal_context: OK (visible + executable through media-worker DATABASE_URL)"
 }
@@ -413,13 +427,53 @@ discover_database_role_from_env(){
   printf '%s\n' "$role_name"
 }
 
+discover_database_role_from_env_key(){
+  local label="$1"
+  local env_file="$2"
+  local env_key="$3"
+  local identity role_name database_name
+  identity="$(sudo -u deploy bash -lc "set -a && . '$env_file' && set +a && env_key='$env_key' && db_url=\"\${!env_key:-}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
+  role_name="${identity%%|*}"
+  database_name="${identity#*|}"
+  validate_pg_identifier "$label $env_key role" "$role_name"
+  [ "$database_name" = "$DB" ] || { echo "FATAL: $label $env_key points to '$database_name', expected '$DB'"; exit 1; }
+  printf '%s\n' "$role_name"
+}
+
 discover_webapp_migrator_role(){
   discover_database_role_from_env "webapp.test" "$WEBAPP_ENV"
 }
 
 discover_media_worker_runtime_role(){
-  # The TEST media-worker systemd unit consumes webapp.test and its DATABASE_URL.
-  discover_database_role_from_env "webapp.test media-worker" "$WEBAPP_ENV"
+  discover_database_role_from_env "media-worker.test" "$MEDIA_WORKER_ENV"
+}
+
+install_c4_operational_runtime_overlay(){
+  local diagnostic_role delivery_worker_role scheduler_role media_worker_role
+  diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
+  delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
+  scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
+  media_worker_role="$(discover_media_worker_runtime_role)"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v c4_diagnostic_login_role="$diagnostic_role" \
+    -v c4_delivery_worker_login_role="$delivery_worker_role" \
+    -v c4_scheduler_login_role="$scheduler_role" \
+    -v c4_media_worker_login_role="$media_worker_role" \
+    -f "$DEPLOY_REPO/$C4_OPERATIONAL_RUNTIME"
+  echo "   C4 operational runtime roles: OK (four isolated contours)"
+}
+
+assert_c4_operational_runtime_ready(){
+  local diagnostic_ok delivery_ok scheduler_ok media_ok
+  diagnostic_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_DIAGNOSTIC\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_diagnostic; SELECT (has_table_privilege(current_user, 'integrator.projection_outbox', 'SELECT') AND NOT has_table_privilege(current_user, 'integrator.projection_outbox', 'INSERT,UPDATE,DELETE') AND NOT has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT'))::int;\" | tail -n 1")"
+  delivery_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_DELIVERY_WORKER\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_delivery_worker; SELECT (has_table_privilege(current_user, 'integrator.projection_outbox', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'integrator.rubitime_create_retry_jobs', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT,UPDATE') AND has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE') AND NOT has_table_privilege(current_user, 'integrator.idempotency_keys', 'SELECT'))::int;\" | tail -n 1")"
+  scheduler_ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL_SCHEDULER\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_scheduler; SELECT (has_table_privilege(current_user, 'integrator.idempotency_keys', 'SELECT,INSERT,UPDATE,DELETE') AND NOT has_table_privilege(current_user, 'public.outgoing_delivery_queue', 'SELECT') AND NOT has_table_privilege(current_user, 'public.media_transcode_jobs', 'SELECT'))::int;\" | tail -n 1")"
+  media_ok="$(sudo -u deploy bash -lc "set -a && . '$MEDIA_WORKER_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -qAt -c \"SELECT app.release_principal_context(); SET ROLE app_operational_media_worker; SELECT (has_table_privilege(current_user, 'public.media_transcode_jobs', 'SELECT,UPDATE') AND has_table_privilege(current_user, 'public.media_files', 'SELECT,UPDATE') AND NOT has_table_privilege(current_user, 'public.app_runtime_settings', 'SELECT') AND has_function_privilege(current_user, 'app.read_media_worker_runtime_setting(text)', 'EXECUTE') AND app.read_media_worker_runtime_setting('not_allowed') IS NULL)::int;\" | tail -n 1")"
+  [ "$diagnostic_ok" = "1" ] || { echo "FATAL: C4 diagnostic contour readiness failed" >&2; exit 1; }
+  [ "$delivery_ok" = "1" ] || { echo "FATAL: C4 delivery-worker contour readiness failed" >&2; exit 1; }
+  [ "$scheduler_ok" = "1" ] || { echo "FATAL: C4 scheduler contour readiness failed" >&2; exit 1; }
+  [ "$media_ok" = "1" ] || { echo "FATAL: C4 media-worker contour readiness failed" >&2; exit 1; }
+  echo "   C4 operational runtime readiness: OK (positive + cross-contour negatives)"
 }
 
 discover_webapp_staff_runtime_role(){
@@ -481,13 +535,47 @@ assert_api_runtime_can_read_migration_ledger(){
 }
 
 grant_webapp_bootstrap_base_login_d3_4(){
-  local role_name media_worker_role staff_role
+  local role_name media_worker_role staff_role migrator_role api_runtime_role
+  local diagnostic_role delivery_worker_role scheduler_role operator_role role_safe protected_role
   role_name="$(discover_webapp_bootstrap_base_role)"
   media_worker_role="$(discover_media_worker_runtime_role)"
   staff_role="$(discover_webapp_staff_runtime_role)"
+  migrator_role="$(discover_webapp_migrator_role)"
+  api_runtime_role="$(discover_api_runtime_role)"
+  diagnostic_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DIAGNOSTIC)"
+  delivery_worker_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_DELIVERY_WORKER)"
+  scheduler_role="$(discover_database_role_from_env_key "api.test" "$API_ENV" DATABASE_URL_SCHEDULER)"
+  operator_role="$(discover_saas_isolation_operator_role)"
   validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
   validate_pg_identifier "webapp.test media-worker DATABASE_URL role" "$media_worker_role"
   validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$staff_role"
+  [ "$role_name" != "$staff_role" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases staff role '$staff_role'; refusing D3.4 mutation" >&2
+    exit 1
+  }
+  [ "$role_name" != "$media_worker_role" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases media role '$media_worker_role'; refusing D3.4 mutation" >&2
+    exit 1
+  }
+  for protected_role in \
+    "$migrator_role" \
+    "$api_runtime_role" \
+    "$diagnostic_role" \
+    "$delivery_worker_role" \
+    "$scheduler_role" \
+    "$operator_role" \
+    "$DBROLE" \
+    app_owner app_staff app_patient app_worker; do
+    [ "$role_name" != "$protected_role" ] || {
+      echo "FATAL: webapp nonstaff/bootstrap role '$role_name' aliases protected role '$protected_role'; refusing D3.4 mutation" >&2
+      exit 1
+    }
+  done
+  role_safe="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -qAt -c "SELECT (count(*) = 1 AND bool_and(rolcanlogin AND NOT rolsuper))::int FROM pg_roles WHERE rolname = '$role_name';")"
+  [ "$role_safe" = "1" ] || {
+    echo "FATAL: webapp nonstaff/bootstrap role '$role_name' is not a unique LOGIN NOSUPERUSER role; refusing D3.4 mutation" >&2
+    exit 1
+  }
   sudo -u deploy test -r "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" || {
     echo "FATAL: deploy cannot read SQL file: $DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" >&2
     exit 1
@@ -517,6 +605,33 @@ install_saas_isolation_telemetry_overlay(){
     -v telemetry_operator_runtime_role="$operator_runtime_role" \
     -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY"
   echo "   SaaS isolation telemetry closed API: OK"
+}
+
+install_saas_system_health_diagnostics_overlay(){
+  local operator_runtime_role
+  operator_runtime_role="$(discover_saas_isolation_operator_role)"
+  validate_pg_identifier "webapp.test System Health operator role" "$operator_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v system_health_operator_runtime_role="$operator_runtime_role" \
+    -f "$DEPLOY_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"
+  echo "   curated System Health diagnostic API: OK"
+}
+
+install_integrator_server_runtime_config_overlay(){
+  local api_runtime_role
+  api_runtime_role="$(discover_api_runtime_role)"
+  validate_pg_identifier "api.test server-runtime config role" "$api_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v integrator_runtime_config_role="$api_runtime_role" \
+    -f "$DEPLOY_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"
+  echo "   integrator server-runtime config API: OK"
+}
+
+assert_integrator_server_runtime_config_ready(){
+  local ok
+  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user) AND 3 = (SELECT count(*) FROM pg_auth_members membership JOIN pg_roles member_role ON member_role.oid = membership.member JOIN pg_roles granted_role ON granted_role.oid = membership.roleid WHERE member_role.rolname = current_user AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker') AND NOT membership.inherit_option AND membership.set_option) AND has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND NOT EXISTS (SELECT 1 FROM pg_class relation CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND privilege.privilege_type = 'SELECT' AND privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))) AND NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')) AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
+  [ "$ok" = "true" ] || { echo "FATAL: integrator DB-backed app_base_url accessor is not ready" >&2; exit 1; }
+  echo "   integrator DB-backed app_base_url: OK (closed accessor, no table SELECT)"
 }
 
 run_saas_isolation_test_scenario_proof(){
@@ -714,6 +829,20 @@ assert_test_units_active(){
   done
 }
 
+install_and_assert_media_worker_test_unit(){
+  sudo install -m 0644 "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT" /etc/systemd/system/bersoncarebot-media-worker-test.service
+  sudo systemctl daemon-reload
+  local effective_fragment_path effective_environment_files effective_working_directory effective_user effective_group
+  effective_fragment_path="$(systemctl show bersoncarebot-media-worker-test.service -p FragmentPath --value)"
+  effective_environment_files="$(systemctl show bersoncarebot-media-worker-test.service -p EnvironmentFiles --value)"
+  effective_working_directory="$(systemctl show bersoncarebot-media-worker-test.service -p WorkingDirectory --value)"
+  effective_user="$(systemctl show bersoncarebot-media-worker-test.service -p User --value)"
+  effective_group="$(systemctl show bersoncarebot-media-worker-test.service -p Group --value)"
+  bash "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" --validate \
+    "$effective_fragment_path" "$effective_environment_files" "$effective_working_directory" \
+    "$effective_user" "$effective_group"
+}
+
 assert_test_health_ok(){
   local health_response
   health_response="$(curl -fsk --max-time 10 https://test.bersoncare.ru/api/health)"
@@ -740,6 +869,8 @@ run_strict_post_migration_closure(){
   log "strict closure: SaaS isolation telemetry privilege overlay"
   provision_saas_isolation_operator_login
   install_saas_isolation_telemetry_overlay
+  install_saas_system_health_diagnostics_overlay
+  install_integrator_server_runtime_config_overlay
   log "strict closure: reversible SaaS isolation TEST scenario proof"
   run_saas_isolation_test_scenario_proof
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
@@ -755,6 +886,7 @@ run_strict_post_migration_closure(){
 
   log "strict closure: base policies -> safe specialized overlays -> exact FORCE assertions"
   apply_test_strict_rls_finalizer
+  install_c4_operational_runtime_overlay
 
   log "strict closure: separate privileged fixture seed + cleanup"
   run_deploy_repo_with_test_db_owner_bypass \
@@ -765,8 +897,12 @@ run_strict_post_migration_closure(){
   run_owner_ready_locked_db_matrix
   log "strict closure: post-matrix exact strict + FORCE reassertion"
   apply_test_strict_rls_finalizer
+  install_c4_operational_runtime_overlay
+  assert_c4_operational_runtime_ready
+  assert_integrator_server_runtime_config_ready
 
   log "strict closure: restart locked TEST units"
+  install_and_assert_media_worker_test_unit
   mark_e1_runtime_coverage_start
   for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
   sleep 4
@@ -790,14 +926,15 @@ assert_strict_closure_deploy_checkout_ready(){
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" "$C4_OPERATIONAL_RUNTIME" \
+    "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read strict closure artifact: $DEPLOY_REPO/$required_path" >&2
       exit 1
     }
   done
-  for env_file in "$API_ENV" "$WEBAPP_ENV"; do
+  for env_file in "$API_ENV" "$WEBAPP_ENV" "$MEDIA_WORKER_ENV"; do
     sudo -u deploy test -r "$env_file" || { echo "FATAL: deploy cannot read required env file: $env_file" >&2; exit 1; }
   done
   assert_test_runtime_mode_ready
@@ -840,8 +977,12 @@ esac
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
+[ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
+[ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
+[ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
-for f in "$API_ENV" "$WEBAPP_ENV"; do
+for f in "$API_ENV" "$WEBAPP_ENV" "$MEDIA_WORKER_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }
 done
 log "TEST runtime mode preflight"

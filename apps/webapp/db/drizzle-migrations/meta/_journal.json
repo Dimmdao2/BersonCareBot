@@ -1317,6 +1317,69 @@
       "when": 1791984000000,
       "tag": "0187_patient_support_runtime_defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1792070400000,
+      "tag": "0188_media_worker_runtime_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1792156800000,
+      "tag": "0189_patient_runtime_cooldown_playback_accessors",
+      "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1792243200000,
+      "tag": "0190_curated_system_health_diagnostics",
+      "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1792329600000,
+      "tag": "0191_integrator_server_runtime_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1792416000000,
+      "tag": "0192_curated_playback_and_patient_program_runtime",
+      "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1792502400000,
+      "tag": "0193_e1_safe_runtime_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1792588800000,
+      "tag": "0194_e1_patient_identity_exception",
+      "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1792675200000,
+      "tag": "0195_e1_patient_maintenance_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1792761600000,
+      "tag": "0196_curated_system_health_media_upgrade",
+      "breakpoints": true
     }
   ]
 }

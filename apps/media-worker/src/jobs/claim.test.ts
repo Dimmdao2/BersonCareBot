@@ -65,6 +65,8 @@ describe("claimNextJob", () => {
     });
     const selectSql = String(client.query.mock.calls[1]?.[0] ?? "");
     expect(selectSql).toContain("LEFT JOIN media_files");
+    expect(selectSql).toContain("j.next_attempt_at IS NULL");
+    expect(selectSql).toContain("j.next_attempt_at <= now()");
     expect(selectSql).toContain("FOR UPDATE OF j SKIP LOCKED");
     const updateSql = String(client.query.mock.calls[2]?.[0] ?? "");
     expect(updateSql).not.toContain("COALESCE");

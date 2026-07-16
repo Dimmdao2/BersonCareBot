@@ -3,43 +3,41 @@ import {
   isPatientProgramDiscussionMediaFlowEnabled,
   isPatientProgramDiscussionMediaSubmissionEnabled,
   isPatientProgramDiscussionUiEnabled,
-  parseDiscussionFeatureEnabled,
 } from "./discussionFeatureGates";
 
 describe("discussionFeatureGates", () => {
-  it("parseDiscussionFeatureEnabled reads value flag", () => {
-    expect(parseDiscussionFeatureEnabled({ value: true })).toBe(true);
-    expect(parseDiscussionFeatureEnabled({ value: false })).toBe(false);
-    expect(parseDiscussionFeatureEnabled(null)).toBe(false);
-  });
-
   it("media flow requires both ui and media flags", async () => {
-    const getSetting = vi.fn(async (key: string) => {
+    const getBoolean = vi.fn(async (key: string) => {
       if (key === "patient_program_discussion_ui_enabled") {
-        return { valueJson: { value: true } };
+        return true;
       }
       if (key === "patient_program_discussion_media_submission_enabled") {
-        return { valueJson: { value: false } };
+        return false;
       }
-      return null;
+      return false;
     });
-    const deps = { systemSettings: { getSetting } } satisfies Parameters<
+    const deps = { runtimeConfig: { getBoolean } } satisfies Parameters<
       typeof isPatientProgramDiscussionMediaFlowEnabled
     >[0];
+    const context = { patientUserId: "patient-1", organizationId: "org-1" };
 
-    expect(await isPatientProgramDiscussionUiEnabled(deps)).toBe(true);
-    expect(await isPatientProgramDiscussionMediaSubmissionEnabled(deps)).toBe(false);
-    expect(await isPatientProgramDiscussionMediaFlowEnabled(deps)).toBe(false);
+    expect(await isPatientProgramDiscussionUiEnabled(deps, context)).toBe(true);
+    expect(await isPatientProgramDiscussionMediaSubmissionEnabled(deps, context)).toBe(false);
+    expect(await isPatientProgramDiscussionMediaFlowEnabled(deps, context)).toBe(false);
 
-    getSetting.mockImplementation(async (key: string) => {
+    getBoolean.mockImplementation(async (key: string) => {
       if (key === "patient_program_discussion_ui_enabled") {
-        return { valueJson: { value: true } };
+        return true;
       }
       if (key === "patient_program_discussion_media_submission_enabled") {
-        return { valueJson: { value: true } };
+        return true;
       }
-      return null;
+      return false;
     });
-    expect(await isPatientProgramDiscussionMediaFlowEnabled(deps)).toBe(true);
+    expect(await isPatientProgramDiscussionMediaFlowEnabled(deps, context)).toBe(true);
+    expect(getBoolean).toHaveBeenCalledWith(
+      "patient_program_discussion_media_submission_enabled",
+      context,
+    );
   });
 });

@@ -1,11 +1,11 @@
 /**
- * Публичный origin веб-приложения (HTTPS): `system_settings.app_base_url` (admin), fallback `APP_BASE_URL` в env.
+ * Публичный origin веб-приложения (HTTPS): DB-backed runtime setting `app_base_url`.
  * Должен совпадать с webapp и с URL мини-приложения в кабинете мессенджера.
  */
 import type { DbPort } from '../kernel/contracts/index.js';
-import { env } from './env.js';
 import { logger } from '../infra/observability/logger.js';
-import { readPublicSystemSettingString } from '../infra/db/publicSystemSettings.js';
+import { readGlobalServerRuntimeString } from '../infra/db/publicRuntimeSettings.js';
+import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
 
 const KEY = 'app_base_url';
 const TTL_MS = 60_000;
@@ -27,45 +27,54 @@ function normalizeBase(s: string): string {
 }
 
 /**
- * Резолвит базовый URL вебаппа из `public.system_settings` с кэшем 60s, иначе env.
+ * Резолвит базовый URL вебаппа из server-runtime store с кэшем 60s.
+ * Missing, invalid, or inaccessible DB config is a startup/runtime error; no env fallback exists.
  */
 export async function getAppBaseUrl(db: DbPort): Promise<string> {
-  const envFallback = normalizeBase(env.APP_BASE_URL ?? '');
   const now = Date.now();
   if (cache && cache.expiresAt > now) {
-    return cache.url || envFallback;
+    return cache.url;
   }
 
-  let dbValue: string | null = null;
   try {
-    const raw = await readPublicSystemSettingString(db, KEY);
-    if (raw != null && raw !== '' && isValidHttpUrl(raw)) {
-      dbValue = normalizeBase(raw);
-    } else if (raw != null && raw !== '') {
-      logger.warn({ raw, key: KEY }, '[appBaseUrl] invalid URL in system_settings, using env fallback');
+    const raw = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () => readGlobalServerRuntimeString(db, KEY),
+    );
+    if (raw == null || raw === '') {
+      throw new Error('app_base_url_runtime_setting_missing');
     }
+    if (!isValidHttpUrl(raw)) {
+      throw new Error('app_base_url_runtime_setting_invalid');
+    }
+    const resolved = normalizeBase(raw);
+    cache = { url: resolved, expiresAt: now + TTL_MS };
+    return resolved;
   } catch (err) {
-    logger.warn({ err, key: KEY }, '[appBaseUrl] query failed, using env fallback');
+    logger.error({ err, key: KEY }, '[appBaseUrl] DB-backed runtime setting unavailable');
+    throw err;
   }
-
-  const resolved = dbValue || envFallback;
-  cache = { url: resolved, expiresAt: now + TTL_MS };
-  return resolved;
 }
 
 /**
- * Синхронное чтение последнего закэшированного значения или env (до первого async `getAppBaseUrl`).
+ * Синхронное чтение последнего успешного DB-backed значения.
+ * Startup preflight must populate the cache before synchronous consumers are used.
  */
 export function getAppBaseUrlSync(): string {
-  const envFallback = normalizeBase(env.APP_BASE_URL ?? '');
-  const now = Date.now();
-  if (cache && cache.expiresAt > now && cache.url) {
+  if (cache?.url) {
     return cache.url;
   }
-  return envFallback;
+  throw new Error('app_base_url_runtime_setting_not_initialized');
 }
 
-/** Сброс кэша (например после синка настроек из webapp). */
+/** Помечает async-кэш устаревшим, сохраняя последнее проверенное значение для sync-потребителей. */
 export function invalidateAppBaseUrlCache(): void {
+  if (cache) {
+    cache = { ...cache, expiresAt: 0 };
+  }
+}
+
+/** Полный сброс состояния между тестами. */
+export function resetAppBaseUrlCacheForTests(): void {
   cache = null;
 }

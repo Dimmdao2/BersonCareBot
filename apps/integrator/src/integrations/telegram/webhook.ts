@@ -129,7 +129,7 @@ export type TelegramWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
-  /** Публичный origin вебаппа (admin `app_base_url` / env); для ссылок в кнопках WebApp. */
+  /** Публичный origin вебаппа (DB-backed runtime `app_base_url`); для ссылок в кнопках WebApp. */
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;

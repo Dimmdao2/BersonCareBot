@@ -40,6 +40,10 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return typeof pk === "string" && pk.trim() ? pk.trim() : null;
     },
 
+    async isCurrentPatientTestAccount(): Promise<boolean> {
+      return false;
+    },
+
     async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {
       const organizationId = normalizeOrganizationId(options.organizationId);
       const rows = Array.from(store.values()).filter(

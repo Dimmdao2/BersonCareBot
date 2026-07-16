@@ -24,7 +24,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
-  getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
+  getPatientRuntimeBool: (...a: unknown[]) => getConfigBoolMock(...a),
 }));
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({

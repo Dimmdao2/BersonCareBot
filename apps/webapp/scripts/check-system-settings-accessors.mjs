@@ -14,8 +14,6 @@ const scanRoots = [
 const allowedFiles = new Set([
   "apps/webapp/src/infra/repos/pgSystemSettings.ts",
   "apps/integrator/src/infra/db/publicSystemSettings.ts",
-  "apps/media-worker/src/pipelineEnabled.ts",
-  "apps/media-worker/src/watermarkEnabled.ts",
 ]);
 
 function listTsFiles(dir) {

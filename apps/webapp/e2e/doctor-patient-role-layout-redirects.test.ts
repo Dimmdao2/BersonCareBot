@@ -13,6 +13,7 @@ const redirectMock = vi.fn((url: string) => {
 });
 
 const getCurrentSessionMock = vi.fn();
+const resolveOrganizationForUserMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -25,6 +26,17 @@ vi.mock("@/modules/auth/service", async (importOriginal) => {
     getCurrentSession: getCurrentSessionMock,
   };
 });
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    organizationMembership: {
+      resolveOrganizationForUser: resolveOrganizationForUserMock,
+    },
+    systemSettings: {
+      listSettingsByScope: vi.fn(async () => []),
+    },
+  }),
+}));
 
 vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
   DoctorWorkspaceShell: ({ children }: { children: ReactNode }) => children,
@@ -70,6 +82,18 @@ describe("staff layout role redirects", () => {
   beforeEach(() => {
     redirectMock.mockClear();
     getCurrentSessionMock.mockReset();
+    resolveOrganizationForUserMock.mockReset();
+    resolveOrganizationForUserMock.mockResolvedValue({
+      ok: true,
+      context: {
+        organizationId: "11111111-1111-4111-8111-111111111111",
+        membershipId: "22222222-2222-4222-8222-222222222222",
+        role: "specialist",
+        specialistId: "33333333-3333-4333-8333-333333333333",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
   });
 
   it("settings layout redirects client to patient hub with access-denied toast flag", async () => {

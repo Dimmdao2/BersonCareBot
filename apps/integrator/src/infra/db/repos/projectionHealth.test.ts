@@ -75,6 +75,7 @@ describe('projectionHealth', () => {
       retriesOverThreshold: 1,
     });
     expect(query).toHaveBeenCalledTimes(5);
+    expect(query.mock.calls.every((call) => String(call[0]).includes('FROM integrator.projection_outbox'))).toBe(true);
     expect(query.mock.calls[0]![0]).toContain("status IN ('pending', 'processing', 'dead', 'cancelled')");
     expect(query.mock.calls[1]![0]).toContain("status = 'pending'");
     expect(query.mock.calls[2]![0]).toContain("attempts_done");

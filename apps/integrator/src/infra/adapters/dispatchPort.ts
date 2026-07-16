@@ -237,7 +237,22 @@ export function createDefaultDispatchPort(deps: {
       const intentForChannel = withChannel(safeIntent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
-      const sendResult = await adapter.send(intentForChannel);
+      let sendResult: DeliverySendResult | void;
+      try {
+        sendResult = await adapter.send(intentForChannel);
+      } catch (providerError) {
+        if (intent.type === 'message.send') {
+          try {
+            await logDeliveryAttempt(deps.writePort, intent, channel, 'failed', 1, 'provider_rejected');
+          } catch {
+            logger.error(
+              { channel, intentType: intent.type },
+              'Delivery provider failed and its attempt audit could not be persisted',
+            );
+          }
+        }
+        throw providerError;
+      }
       if (intent.type === 'message.send') {
         await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
       }

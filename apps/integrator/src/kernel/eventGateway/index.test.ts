@@ -25,6 +25,35 @@ describe('eventGateway', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it('runs only the pipeline body through the supplied principal handoff', async () => {
+    const { createEventGateway } = await import('./index.js');
+    const order: string[] = [];
+    const gateway = createEventGateway({
+      idempotencyPort: {
+        tryAcquire: vi.fn(async () => {
+          order.push('idempotency');
+          return true;
+        }),
+      },
+      pipeline: {
+        run: vi.fn(async () => {
+          order.push('pipeline');
+        }),
+      },
+    });
+
+    const result = await gateway.handleIncomingEvent(baseEvent, {
+      runPipeline: async (run) => {
+        order.push('handoff-enter');
+        await run();
+        order.push('handoff-exit');
+      },
+    });
+
+    expect(result.status).toBe('accepted');
+    expect(order).toEqual(['idempotency', 'handoff-enter', 'pipeline', 'handoff-exit']);
+  });
+
   it('does not run pipeline when event is dropped', async () => {
     const { createEventGateway } = await import('./index.js');
     const run = vi.fn().mockResolvedValue(undefined);

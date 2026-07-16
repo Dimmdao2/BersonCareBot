@@ -8,6 +8,9 @@ const getConfigValueMock = vi.fn();
 const getRowMock = vi.fn();
 const getAccessRowMock = vi.fn();
 const presignMock = vi.fn();
+const recordPlaybackResolutionStatMock = vi.fn((..._args: unknown[]) => Promise.resolve());
+const recordPlaybackResolutionEventMock = vi.fn((..._args: unknown[]) => Promise.resolve());
+const recordPlaybackUserVideoFirstResolveMock = vi.fn((..._args: unknown[]) => Promise.resolve(false));
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://x/bersoncarebot_test" },
@@ -18,8 +21,8 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
-  getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
-  getConfigValue: (...a: unknown[]) => getConfigValueMock(...a),
+  getPatientRuntimeBool: (...a: unknown[]) => getConfigBoolMock(...a),
+  getPatientRuntimeValue: (...a: unknown[]) => getConfigValueMock(...a),
 }));
 
 vi.mock("@/app-layer/media/videoPresignTtl", () => ({
@@ -36,15 +39,15 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 vi.mock("@/app-layer/media/playbackStatsHourly", () => ({
-  recordPlaybackResolutionStat: vi.fn(() => Promise.resolve()),
+  recordPlaybackResolutionStat: (...a: unknown[]) => recordPlaybackResolutionStatMock(...a),
 }));
 
 vi.mock("@/app-layer/media/playbackResolutionEvents", () => ({
-  recordPlaybackResolutionEvent: vi.fn(() => Promise.resolve()),
+  recordPlaybackResolutionEvent: (...a: unknown[]) => recordPlaybackResolutionEventMock(...a),
 }));
 
 vi.mock("@/app-layer/media/playbackUserVideoFirstResolve", () => ({
-  recordPlaybackUserVideoFirstResolve: vi.fn(() => Promise.resolve(false)),
+  recordPlaybackUserVideoFirstResolve: (...a: unknown[]) => recordPlaybackUserVideoFirstResolveMock(...a),
 }));
 
 import { GET } from "./route";
@@ -80,6 +83,9 @@ describe("GET /api/media/[id]/playback", () => {
     getRowMock.mockReset();
     getAccessRowMock.mockReset();
     presignMock.mockReset();
+    recordPlaybackResolutionStatMock.mockClear();
+    recordPlaybackResolutionEventMock.mockClear();
+    recordPlaybackUserVideoFirstResolveMock.mockClear();
     getSessionMock.mockResolvedValue(patientSession);
     getAccessRowMock.mockResolvedValue({
       usage_purpose: null,
@@ -219,6 +225,14 @@ describe("GET /api/media/[id]/playback", () => {
     expect(b.hls?.masterUrl).toBe(`/api/media/${mid}/hls/master.m3u8`);
     expect(b.posterUrl).toBe("https://signed.example/poster.jpg");
     expect(presignMock).toHaveBeenCalledTimes(1);
+    expect(recordPlaybackResolutionStatMock).toHaveBeenCalledWith({
+      userId: "u1",
+      mediaId: mid,
+      delivery: "hls",
+      fallbackUsed: false,
+    });
+    expect(recordPlaybackResolutionEventMock).toHaveBeenCalledTimes(1);
+    expect(recordPlaybackUserVideoFirstResolveMock).toHaveBeenCalledTimes(1);
   });
 
   it("presign uses TTL from getVideoPresignTtlSeconds for poster only", async () => {
@@ -277,5 +291,8 @@ describe("GET /api/media/[id]/playback", () => {
     expect(res.status).toBe(200);
     const b = (await res.json()) as { delivery?: string };
     expect(b.delivery).toBe("hls");
+    expect(recordPlaybackResolutionStatMock).not.toHaveBeenCalled();
+    expect(recordPlaybackResolutionEventMock).not.toHaveBeenCalled();
+    expect(recordPlaybackUserVideoFirstResolveMock).not.toHaveBeenCalled();
   });
 });

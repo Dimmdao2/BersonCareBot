@@ -71,6 +71,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     reminders: {
       listRulesByUser: vi.fn(async () => []),
     },
+    runtimeConfig: {
+      getBoolean: vi.fn(async () => false),
+      getInteger: vi.fn(async () => 0),
+    },
     systemSettings: {
       getSetting: vi.fn(async () => null),
     },
@@ -108,6 +112,7 @@ function minimalActiveDetail(templateId: string | null): TreatmentProgramInstanc
   const stageId = "22222222-2222-4222-8222-222222222222";
   return {
     id: "11111111-1111-4111-8111-111111111111",
+    organizationId: "55555555-5555-4555-8555-555555555555",
     patientUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     templateId,
     assignedBy: null,

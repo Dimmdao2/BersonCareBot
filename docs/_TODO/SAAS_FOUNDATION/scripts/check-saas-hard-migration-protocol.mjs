@@ -1068,7 +1068,7 @@ function runSelfTest() {
       ),
     },
     {
-      deployTestSaas: read(files.deployTestSaas).replace(
+      deployTestSaas: read(files.deployTestSaas).replaceAll(
         'api_runtime_role="$(discover_api_runtime_role)"',
         'api_runtime_role="$(discover_webapp_bootstrap_base_role)"',
       ),

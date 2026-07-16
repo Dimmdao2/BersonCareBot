@@ -19,6 +19,7 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
     getByKey: vi.fn().mockResolvedValue(null),
     getByScope: vi.fn().mockResolvedValue([]),
     getWebPushVapidPublicKeyOnly: vi.fn().mockResolvedValue(null),
+    isCurrentPatientTestAccount: vi.fn().mockResolvedValue(false),
     upsert: vi.fn().mockImplementation(
       async (key, scope, valueJson, updatedBy, options): Promise<SystemSetting> => ({
         key,
@@ -360,27 +361,13 @@ describe("SystemSettingsService", () => {
     expect(ctx.testAccounts?.telegramIds).toEqual(["9"]);
   });
 
-  it("isTestPatientSession — совпадение по телефону", async () => {
+  it("isCurrentPatientTestAccount — delegates to the boolean-only capability", async () => {
     const port = makePort({
-      getByKey: vi.fn().mockImplementation(async (key) => {
-        if (key === "test_account_identifiers")
-          return {
-            key: "test_account_identifiers",
-            scope: "admin",
-            valueJson: { value: { phones: ["+79990000001"], telegramIds: [], maxIds: [] } },
-            updatedAt: "",
-            updatedBy: null,
-          };
-        return null;
-      }),
+      isCurrentPatientTestAccount: vi.fn().mockResolvedValue(true),
     });
     const service = createSystemSettingsService(port);
-    expect(await service.isTestPatientSession({ phone: "+7 999 000 00 01" })).toBe(true);
-  });
-
-  it("isTestPatientSession — ключ отсутствует → false", async () => {
-    const port = makePort({ getByKey: vi.fn().mockResolvedValue(null) });
-    const service = createSystemSettingsService(port);
-    expect(await service.isTestPatientSession({ phone: "+79990000001" })).toBe(false);
+    await expect(service.isCurrentPatientTestAccount()).resolves.toBe(true);
+    expect(port.isCurrentPatientTestAccount).toHaveBeenCalledWith();
+    expect(port.getByKey).not.toHaveBeenCalled();
   });
 });

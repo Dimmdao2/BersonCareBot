@@ -1,13 +1,11 @@
-import { env } from "@/config/env";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
 
 /**
  * Публичный username бота без `@` для Login Widget и `https://t.me/…`.
- * Не числовой id бота; канон — `telegram_login_bot_username` в БД, иначе fallback `env.TELEGRAM_BOT_USERNAME`.
+ * Не числовой id бота; public path читает только безопасную runtime-проекцию.
  */
 export async function getTelegramLoginBotUsername(): Promise<string> {
-  const fallback = env.TELEGRAM_BOT_USERNAME.replace(/^@/, "").trim() || "bersoncare_bot";
-  const raw = await getConfigValue("telegram_login_bot_username", fallback);
+  const raw = await getPublicRuntimeValue("telegram_login_bot_username");
   const s = typeof raw === "string" ? raw.trim().replace(/^@/, "") : "";
-  return s.length > 0 ? s : fallback;
+  return s;
 }

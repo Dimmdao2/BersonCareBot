@@ -76,6 +76,7 @@ try {
   postgres(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-c", `GRANT saas_telemetry_operator TO ${staleOperatorRole}`]);
   psql("CREATE SCHEMA app;");
   psql(await readFile("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8"));
+  psql(await readFile("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8"));
   psql(`\\set telemetry_webapp_runtime_role app_staff
 \\set telemetry_api_runtime_role app_worker
 \\set telemetry_operator_runtime_role ${operatorRole}
@@ -113,6 +114,34 @@ RESET ROLE;
 SET ROLE ${operatorRole};
 SELECT 1 / ((SELECT count(*) FROM app.read_saas_isolation_events() WHERE occurrence_count = 1) = 6)::int AS all_six_classes_exact_plus_one;
 SELECT 1 / ((SELECT count(DISTINCT event_class) FROM app.read_saas_isolation_events()) = 6)::int AS all_six_classes_distinct;
+RESET ROLE;
+SET ROLE app_staff;
+SELECT app.report_saas_isolation_event('rls_denial','webapp','patient_identity_exception_check','unexplained');
+SELECT app.report_saas_isolation_event('rls_denial','webapp','patient_booking_history','unexplained');
+RESET ROLE;
+SET ROLE ${operatorRole};
+SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
+  WHERE source_service = 'webapp' AND source_operation = 'patient_identity_exception_check') = 1)::int
+  AS patient_identity_exception_check_persisted_after_overlay;
+SELECT 1 / ((SELECT occurrence_count FROM app.read_saas_isolation_events()
+  WHERE source_service = 'webapp' AND source_operation = 'patient_booking_history') = 1)::int
+  AS patient_booking_history_persisted_after_overlay;
+RESET ROLE;
+SET ROLE app_staff;
+DO $unknown_family$ BEGIN
+  BEGIN
+    PERFORM app.report_saas_isolation_event('rls_denial','webapp','unknown_webapp_family','unexplained');
+    RAISE EXCEPTION 'unknown_webapp_family_allowed';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    IF SQLERRM <> 'invalid_saas_isolation_service_operation' THEN RAISE; END IF;
+  END;
+END $unknown_family$;
+SELECT 1 AS unknown_webapp_family_denied;
+RESET ROLE;
+DELETE FROM public.saas_isolation_events
+  WHERE source_service = 'webapp'
+    AND source_operation IN ('patient_identity_exception_check', 'patient_booking_history');
+SET ROLE ${operatorRole};
 DO $scenario_guard$ BEGIN
   BEGIN
     PERFORM app.set_saas_isolation_test_scenario('critical');

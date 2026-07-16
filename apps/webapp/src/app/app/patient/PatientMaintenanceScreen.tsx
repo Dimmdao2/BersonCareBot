@@ -1,27 +1,57 @@
 import Link from "next/link";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import type { SessionUser } from "@/shared/types/session";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { PatientMaintenanceAppointment } from "@/modules/patient-booking/maintenanceHistory";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
 import {
   patientMutedTextClass,
   patientSurfaceNeutralClass,
   patientPrimaryActionClass,
 } from "@/shared/ui/patient/patientVisual";
-import { DEFAULT_PATIENT_BOOKING_URL } from "@/modules/system-settings/patientMaintenance";
 
 export type PatientMaintenanceScreenProps = {
   user: SessionUser | null;
   message: string;
   /** Already normalized; still validated at render for safety. */
-  bookingUrl: string;
-  bookings: PatientBookingRecord[];
+  bookingUrl: string | null;
+  bookings: PatientMaintenanceBooking[];
   appDisplayTimeZone: string;
 };
+
+export type PatientMaintenanceBooking = {
+  id: string;
+  startAt: string;
+  status: string;
+  subtitle: string;
+};
+
+const ACTIVE_UPCOMING_STATUSES = new Set([
+  "created",
+  "awaiting_payment",
+  "paid",
+  "confirmed",
+  "rescheduled",
+  "manual_review_required",
+]);
+
+export function selectMaintenanceUpcomingBookings(
+  rows: PatientMaintenanceAppointment[],
+  now: Date = new Date(),
+): PatientMaintenanceBooking[] {
+  const threshold = now.getTime();
+  return rows
+    .filter((row) => ACTIVE_UPCOMING_STATUSES.has(row.status) && Date.parse(row.startAt) >= threshold)
+    .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt))
+    .map(({ id, startAt, status, subtitle }) => ({
+      id,
+      startAt,
+      status,
+      subtitle,
+    }));
+}
 
 /**
  * Standalone server-friendly экран режима техработ: без primary patient nav / bottom nav.
@@ -33,8 +63,7 @@ export function PatientMaintenanceScreen({
   bookings,
   appDisplayTimeZone,
 }: PatientMaintenanceScreenProps) {
-  const hrefCandidate = bookingUrl.trim() || DEFAULT_PATIENT_BOOKING_URL;
-  const safeExternal = isSafeExternalHref(hrefCandidate) ? hrefCandidate : DEFAULT_PATIENT_BOOKING_URL;
+  const safeExternal = bookingUrl && isSafeExternalHref(bookingUrl) ? bookingUrl : null;
 
   return (
     <PatientAppShell
@@ -51,19 +80,21 @@ export function PatientMaintenanceScreen({
           <p className="whitespace-pre-wrap text-sm text-[var(--patient-text-primary)]">{message}</p>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Link
-            href={safeExternal}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(buttonVariants({ variant: "default", size: "default" }), patientPrimaryActionClass, "w-full text-center")}
-          >
-            Записаться на приём
-          </Link>
-          <p className={cn(patientMutedTextClass, "text-center text-xs")}>
-            Внешняя страница записи откроется в новой вкладке.
-          </p>
-        </div>
+        {safeExternal ? (
+          <div className="flex flex-col gap-2">
+            <Link
+              href={safeExternal}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "default", size: "default" }), patientPrimaryActionClass, "w-full text-center")}
+            >
+              Записаться на приём
+            </Link>
+            <p className={cn(patientMutedTextClass, "text-center text-xs")}>
+              Внешняя страница записи откроется в новой вкладке.
+            </p>
+          </div>
+        ) : null}
 
         <section className="flex flex-col gap-2">
           <h3 className="text-base font-semibold text-[var(--patient-text-primary)]">Ближайшие записи</h3>
@@ -80,11 +111,10 @@ export function PatientMaintenanceScreen({
                   )}
                 >
                   <p className="font-medium text-[var(--patient-text-primary)]">
-                    {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
+                    {formatBookingDateTimeMediumRu(row.startAt, appDisplayTimeZone)}
                   </p>
                   <p className={cn(patientMutedTextClass, "mt-1 truncate text-xs")}>
-                    {bookingProvenancePrefix(row)}
-                    {nativeBookingSubtitle(row)}
+                    {row.subtitle}
                   </p>
                 </li>
               ))}

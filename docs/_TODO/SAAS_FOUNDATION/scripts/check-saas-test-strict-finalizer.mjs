@@ -8,8 +8,11 @@ const files = {
   invites: "deploy/postgres/organization-member-invites-rls.sql",
   courses: "deploy/postgres/patient-course-assignment-wall.sql",
   appWorker: "deploy/postgres/phase4-app-worker-narrow-rls.sql",
+  patientPlayback: "deploy/postgres/patient-media-playback-telemetry-accessors.sql",
   hard: "deploy/host/deploy-test-saas.sh",
   codeOnly: "deploy/host/deploy-test.sh",
+  prod: "deploy/host/deploy-prod.sh",
+  webappProd: "deploy/host/deploy-webapp-prod.sh",
   fixtureValidator: "deploy/host/validate-saas-product-smoke-fixture.sh",
   protocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   patientTestResults: "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
@@ -63,6 +66,7 @@ function runChecks(overrides = {}) {
     "\\ir organization-member-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
+    "\\ir patient-media-playback-telemetry-accessors.sql",
     "\\ir phase4-force-rls-cutover.sql",
     "test_strict_specialized_policy_assertions",
     "test_strict_courses_assignment_policy_missing",
@@ -75,6 +79,7 @@ function runChecks(overrides = {}) {
     "\\ir organization-member-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
+    "\\ir patient-media-playback-telemetry-accessors.sql",
     "\\ir phase4-force-rls-cutover.sql",
     "test_strict_specialized_policy_assertions",
   ]);
@@ -121,6 +126,43 @@ function runChecks(overrides = {}) {
       fail(`${files.appWorker} contains forbidden privilege expansion: ${forbidden}`);
     }
   }
+
+  requireFragments(files.patientPlayback, loaded.patientPlayback, [
+    "GRANT SELECT ON TABLE public.media_files TO app_owner",
+    "GRANT SELECT, INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner",
+    "GRANT INSERT ON TABLE public.media_playback_resolution_events TO app_owner",
+    "ALTER FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)",
+    "ALTER FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)",
+    "OWNER TO app_owner",
+    "FROM app_staff",
+    "TO app_patient",
+  ]);
+  if (loaded.patientPlayback.includes("TO app_staff")) {
+    fail(`${files.patientPlayback} still grants telemetry accessor execution to app_staff`);
+  }
+  if (/GRANT\s+(?:INSERT|UPDATE|DELETE)[^;]*\bTO\s+app_(?:staff|patient)\b/i.test(loaded.patientPlayback)) {
+    fail(`${files.patientPlayback} grants runtime roles direct playback telemetry DML`);
+  }
+
+  requireFragments(files.prod, loaded.prod, [
+    "PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql",
+    'require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"',
+  ]);
+  requireOrdered(files.prod, loaded.prod, [
+    "pnpm --dir apps/webapp run migrate",
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"',
+    "webapp-post-migrate-schema-check.sh",
+  ]);
+  requireFragments(files.webappProd, loaded.webappProd, [
+    'require_file "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql" "Patient media playback telemetry accessor overlay"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"',
+  ]);
+  requireOrdered(files.webappProd, loaded.webappProd, [
+    "pnpm --dir apps/webapp run migrate",
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"',
+    "webapp-post-migrate-schema-check.sh",
+  ]);
 
   requireFragments(files.force, loaded.force, [
     "v_expected_count <> 163",
@@ -240,11 +282,16 @@ function runSelfTest() {
     { appWorker: baseline.appWorker.replaceAll("pg_has_role(current_user, 'app_worker', 'member')", "FALSE") },
     { appWorker: baseline.appWorker.replace("GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;", "") },
     { appWorker: `${baseline.appWorker}\nGRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker;\n` },
+    { finalizer: baseline.finalizer.replace("\\ir patient-media-playback-telemetry-accessors.sql", "") },
+    { patientPlayback: `${baseline.patientPlayback}\nGRANT INSERT ON public.media_playback_stats_hourly TO app_patient;\n` },
+    { patientPlayback: `${baseline.patientPlayback}\nGRANT EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean) TO app_staff;\n` },
+    { prod: baseline.prod.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"', "") },
+    { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"', "") },
     { force: baseline.force.replace("v_expected_count <> 163", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
     { hard: baseline.hard.replace('webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"', 'webapp_runtime_role="$(discover_webapp_migrator_role)"') },
-    { hard: baseline.hard.replace('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },
+    { hard: baseline.hard.replaceAll('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },
     { hard: baseline.hard.replace("  assert_locked_product_smoke_fixture_ready\n  fixture_path=", "  fixture_path=") },
     { fixtureValidator: baseline.fixtureValidator.replace('[ "$fixture_path" = "$canonical_fixture" ]', "true") },
     { fixtureValidator: baseline.fixtureValidator.replace('"$canonical_source"|"$canonical_source"/*|"$canonical_deploy"|"$canonical_deploy"/*)', '"$canonical_source-never")') },

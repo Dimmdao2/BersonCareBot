@@ -3,6 +3,7 @@ BOOTSTRAP|integrator.system_settings
 BOOTSTRAP|integrator.telegram_state
 BOOTSTRAP|integrator.telegram_users
 BOOTSTRAP|integrator.users
+BOOTSTRAP|public.app_runtime_settings
 BOOTSTRAP|public.be_organization_members
 BOOTSTRAP|public.channel_link_secrets
 BOOTSTRAP|public.email_challenges

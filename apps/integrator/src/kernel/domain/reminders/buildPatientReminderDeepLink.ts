@@ -1,6 +1,6 @@
 /**
  * Patient deep links for integrator reminder sends (STAGE_1 S1.T07).
- * Mirrors webapp `buildReminderDeepLink` paths; base URL from admin `app_base_url` or env.
+ * Mirrors webapp `buildReminderDeepLink` paths; base URL comes from DB-backed runtime `app_base_url`.
  */
 import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 

@@ -19,6 +19,7 @@ import {
   readAdminSystemSettingString,
   readSystemSettingInnerValueByScopes,
 } from "./pgSystemSettings";
+import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,21 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(sql).toContain("key = $1 AND scope = $2");
     expect(sql).toContain("organization_id IS NULL");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", "admin"]);
+  });
+
+  it("checks the current patient exception through a boolean-only accessor", async () => {
+    runWebappPgTextMock.mockImplementationOnce(async () => {
+      expect(getCurrentWebappDbOperationFamily()).toBe("patient_identity_exception_check");
+      return { rows: [{ allowed: true }] };
+    });
+    const port = createPgSystemSettingsPort();
+
+    await expect(port.isCurrentPatientTestAccount()).resolves.toBe(true);
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("app.is_current_patient_test_account()");
+    expect(sql).not.toContain("test_account_identifiers");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toBeUndefined();
+    expect(getCurrentWebappDbOperationFamily()).toBeUndefined();
   });
 
   it("upsertManyInTransaction uses runWebappTransaction", async () => {

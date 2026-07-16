@@ -29,7 +29,10 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
 
   return {
     /** Принимает event-конверт, выполняет технические проверки и возвращает статус gateway. */
-    async handleIncomingEvent(event: IncomingEvent): Promise<GatewayResult> {
+    async handleIncomingEvent(
+      event: IncomingEvent,
+      options?: { runPipeline?: (run: () => Promise<void>) => Promise<void> },
+    ): Promise<GatewayResult> {
       try {
         incomingEventSchema.parse(event);
       } catch {
@@ -59,7 +62,8 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
 
       if (pipeline) {
         try {
-          await pipeline.run(event);
+          const runPipeline = () => pipeline.run(event);
+          await (options?.runPipeline ? options.runPipeline(runPipeline) : runPipeline());
         } catch (error) {
           const release = idempotencyPort?.release;
           if (release) {

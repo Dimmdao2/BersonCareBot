@@ -1,19 +1,7 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
-import {
-  getYandexOauthClientId,
-  getYandexOauthClientSecret,
-  getYandexOauthRedirectUri,
-  getGoogleClientId,
-  getGoogleClientSecret,
-  getGoogleOauthLoginRedirectUri,
-  getAppleOauthClientId,
-  getAppleOauthRedirectUri,
-  getAppleOauthTeamId,
-  getAppleOauthKeyId,
-  getAppleOauthPrivateKey,
-} from "@/modules/system-settings/integrationRuntime";
+import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 
 /**
  * GET /api/auth/oauth/providers — какие провайдеры настроены (без секретов).
@@ -23,30 +11,11 @@ const ROUTE = "auth/oauth/providers";
 export async function GET(request: Request) {
   stampBootstrapPrincipal("api/auth/oauth/providers:GET");
   const startedAt = Date.now();
-  const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem] = await Promise.all([
-    getYandexOauthClientId(),
-    getYandexOauthClientSecret(),
-    getYandexOauthRedirectUri(),
-    getGoogleClientId(),
-    getGoogleClientSecret(),
-    getGoogleOauthLoginRedirectUri(),
-    getAppleOauthClientId(),
-    getAppleOauthRedirectUri(),
-    getAppleOauthTeamId(),
-    getAppleOauthKeyId(),
-    getAppleOauthPrivateKey(),
+  const [yandex, google, apple] = await Promise.all([
+    getPublicRuntimeBool("oauth_yandex_enabled"),
+    getPublicRuntimeBool("oauth_google_enabled"),
+    getPublicRuntimeBool("oauth_apple_enabled"),
   ]);
-
-  const yandex =
-    yId.trim().length > 0 && ySec.trim().length > 0 && yRedir.trim().length > 0;
-  const google =
-    gId.trim().length > 0 && gSec.trim().length > 0 && gLogin.trim().length > 0;
-  const apple =
-    aId.trim().length > 0 &&
-    aRedir.trim().length > 0 &&
-    aTeam.trim().length > 0 &&
-    aKid.trim().length > 0 &&
-    aPem.trim().length > 0;
 
   const res = NextResponse.json({ ok: true, yandex, google, apple });
   res.headers.set("Cache-Control", "private, no-store");

@@ -1,4 +1,4 @@
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 
 /**
@@ -6,5 +6,5 @@ import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportCo
  * Читается из `system_settings.support_contact_url` (admin scope) с TTL-кэшем configAdapter.
  */
 export async function getSupportContactUrl(): Promise<string> {
-  return getConfigValue("support_contact_url", DEFAULT_SUPPORT_CONTACT_URL);
+  return (await getPublicRuntimeValue("support_contact_url", "public_booking_config")) || DEFAULT_SUPPORT_CONTACT_URL;
 }

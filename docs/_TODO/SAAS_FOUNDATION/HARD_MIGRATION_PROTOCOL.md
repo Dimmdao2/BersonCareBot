@@ -238,6 +238,15 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   touching the DB in `shadow|locked`;
 - discover the integrator runtime role from `api.test` `DATABASE_URL`;
 - assert that the URL points to the TEST DB and that the discovered role name is a simple PostgreSQL identifier;
+- apply `deploy/postgres/integrator-server-runtime-config.sql`: normalize that API base-login to `NOINHERIT` and,
+  for PostgreSQL 16, normalize its three existing runtime membership edges to `INHERIT FALSE, SET TRUE`,
+  revoke any direct SELECT residue on `public.app_runtime_settings` / `public.system_settings`, and grant only
+  EXECUTE on `app.read_global_server_runtime_setting(text)` plus idempotent `app.release_principal_context()` needed
+  by bootstrap/infra cleanup before any role switch. Ambient `install_signed_context`, reset/current helpers and
+  identity maintenance remain denied; scoped install/release stays behind classified `SET ROLE`. Membership needed
+  for classified locked `SET ROLE` remains intact; ambient base-login access through inherited role ACLs is
+  forbidden. Final readiness must make an actual base-login release call and prove helper denials, `NOINHERIT`, both
+  table denials, accessor EXECUTE and a valid redacted HTTP(S)-shape result before services restart;
 - grant only `USAGE` on schema `integrator` and `SELECT` on table `integrator.schema_migrations` to that role;
 - verify through the `api.test` runtime `DATABASE_URL` that `SELECT count(*) FROM integrator.schema_migrations`
   succeeds and returns at least one row.
@@ -245,7 +254,7 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` to the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role, falling back to `DATABASE_URL` only when dual-pool URLs are absent, before any TEST
   service restart or product smoke. The same invocation must discover the actual media-worker login from the
-  `webapp.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
+  separate `media-worker.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
   `app.release_principal_context()` is visible and executable. After the final helper recreation/grants, it must also
   use the actual `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF` paths to prove that only the staff runtime can call
   `app.staff_user_has_password_credentials(uuid)`; the probe uses a synthetic UUID and emits no returned value.
@@ -253,7 +262,36 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   read surface plus the composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth
   email/invite/signup accessors.
   It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
-  base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
+  base login. Before restart the overlay must normalize only that nonstaff login to `LOGIN NOINHERIT NOBYPASSRLS`,
+  remove every unexpected direct membership, and rebuild exactly one direct `app_patient` edge with
+  `ADMIN FALSE, INHERIT FALSE, SET TRUE`; the separate staff-pool login is not passed to or changed by this step.
+  Before invoking the mutating SQL, the TEST wrapper must discover the exact staff, media, migrator, API,
+  operational, diagnostic, and operator logins and reject any equality with the nonstaff login; it must also reject
+  a missing, non-login, or superuser target. These identity checks are read-only and must finish before `psql -f`.
+  Final catalog proof must reject every transitive role other than `app_patient`, protected-table owner membership,
+  effective reads of both `public.system_settings` and `public.app_runtime_settings`, and PUBLIC execution of the E1
+  accessors, while preserving direct base-login EXECUTE on the public/server accessors and the explicit
+  `SET ROLE app_patient` lifecycle. The narrow SECURITY DEFINER
+  `app.resolve_public_booking_organization(uuid,uuid,uuid)` is the third direct bootstrap accessor: it resolves one
+  tenant before tenant-owned reads, retains the intentional `app_patient` EXECUTE, and must not add table grants.
+  All three accessor ACLs must first revoke stale base-login privileges and grant options, then restore plain
+  EXECUTE; the final three direct base-login rows have `is_grantable=false`, PUBLIC is absent, and only the booking
+  resolver may additionally retain `app_patient`. It is not final D3.4 PASS until the owner-authorized locked TEST
+  product smoke reruns.
+- after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
+  logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,
+  `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict
+  finalizer that recreates the media policies. Before restart, each base login must call release directly, then
+  `SET ROLE` only its own SET-only capability; positive exact-surface probes and cross-contour negatives must pass.
+  On the first production rollout, root/DB-admin must run
+  `deploy/host/provision-c4-operational-runtime.sh` after the schema is current and the root-owned API/media env files
+  contain the four distinct operational URLs. The script must run the shared C2 preflight against
+  `webapp.prod`/`api.prod`/`media-worker.prod` before any role/password mutation, rejecting reuse of any ambient or
+  operator login. Ordinary `deploy-prod.sh` remains readiness-only: it must not create
+  roles, set passwords, or gain broader sudo. The overlay must scrub stale direct/column/type/default ACLs catalog-wide,
+  reject managed-role ownership including independent types and other owner dependencies, exclude only structurally
+  autogenerated array types (never user domains over arrays), rebuild the exact allowlist, and pass its catalog
+  assertion before restart.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
   `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the

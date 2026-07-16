@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   gateMock,
   buildAppDepsMock,
-  getSettingMock,
+  getBooleanMock,
   getInstanceForPatientMock,
   listMessagesForStageItemMock,
   appendDiscussionMediaMock,
   getMediaRowMock,
   getPatientProgramInteractionPolicyMock,
 } = vi.hoisted(() => {
-  const getSettingMockInner = vi.fn();
+  const getBooleanMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const listMessagesForStageItemMockInner = vi.fn();
   const appendDiscussionMediaMockInner = vi.fn();
@@ -18,14 +18,14 @@ const {
   const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
-    getSettingMock: getSettingMockInner,
+    getBooleanMock: getBooleanMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     listMessagesForStageItemMock: listMessagesForStageItemMockInner,
     appendDiscussionMediaMock: appendDiscussionMediaMockInner,
     getMediaRowMock: getMediaRowMockInner,
     getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
-      systemSettings: { getSetting: getSettingMockInner },
+      runtimeConfig: { getBoolean: getBooleanMockInner },
       doctorClients: {
         getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
       },
@@ -75,7 +75,7 @@ describe("POST .../discussion/media", () => {
   beforeEach(() => {
     gateMock.mockReset();
     buildAppDepsMock.mockClear();
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     getInstanceForPatientMock.mockReset();
     listMessagesForStageItemMock.mockReset();
     appendDiscussionMediaMock.mockReset();
@@ -83,7 +83,7 @@ describe("POST .../discussion/media", () => {
     getPatientProgramInteractionPolicyMock.mockReset();
 
     gateMock.mockResolvedValue(okGate());
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getBooleanMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: true,
       commentsAllowed: true,
@@ -91,6 +91,7 @@ describe("POST .../discussion/media", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
+      organizationId: "44444444-4444-4444-8444-444444444444",
       assignmentSource: "doctor",
       stages: [
         {
@@ -117,7 +118,7 @@ describe("POST .../discussion/media", () => {
   });
 
   it("returns 403 when media flow disabled", async () => {
-    getSettingMock.mockResolvedValue({ valueJson: { value: false } });
+    getBooleanMock.mockResolvedValue(false);
     const res = await POST(
       new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/media`, {
         method: "POST",

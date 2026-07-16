@@ -71,18 +71,12 @@ type SystemHealthPayload = {
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   };
-  /** Открытые операторские инциденты (интеграции / пробы). */
-  operatorIncidentsOpen?: Array<{
-    id: string;
-    dedupKey: string;
-    direction: string;
-    integration: string;
-    errorClass: string;
-    errorDetail: string | null;
-    openedAt: string;
-    lastSeenAt: string;
+  /** Cross-tenant redacted aggregate; raw incident rows stay server-side. */
+  operatorIncidents?: {
+    openCount: number;
     occurrenceCount: number;
-  }>;
+    lastSeenAt: string | null;
+  };
   backupJobs?: Record<
     string,
     {
@@ -126,7 +120,7 @@ type SystemHealthPayload = {
   };
   webPush?: {
     windowHours: number;
-    status: "ok" | "degraded" | "not_configured" | "no_data";
+    status: "ok" | "degraded" | "not_configured" | "no_data" | "error";
     vapidConfigured: boolean;
     activeSubscriptionsCount: number;
     usersWithSubscriptionCount: number;
@@ -190,16 +184,7 @@ type SystemHealthPayload = {
         lastErrorMessage: string | null;
       }
     >;
-    recentIssues: Array<{
-      createdAt: string;
-      channel: string;
-      status: string;
-      reason: string | null;
-      topicCode: string | null;
-      recipientRef: string | null;
-      userId: string | null;
-      errorMessage: string | null;
-    }>;
+    recentIssues: [];
   };
   /** VIDEO_HLS_DELIVERY: hourly playback aggregates (UTC), rolling window. */
   videoPlayback: {
@@ -556,18 +541,6 @@ function NotificationDeliveryChannelBlock({
   );
 }
 
-function formatNotificationDeliveryIssueLine(issue: {
-  createdAt: string;
-  channel: string;
-  status: string;
-  reason: string | null;
-}): string {
-  const t = new Date(issue.createdAt);
-  const hh = String(t.getHours()).padStart(2, "0");
-  const mm = String(t.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm} ${issue.channel} ${issue.status}: ${issue.reason ?? "—"}`;
-}
-
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3">
@@ -699,13 +672,6 @@ function operatorIncidentSynopsisHuman(errorClass: string): string {
   return "смотрите код ошибки в технической диагностике карточки";
 }
 
-function operatorIncidentDirectionHuman(direction: string): string {
-  const d = direction.trim().toLowerCase();
-  if (d === "outbound") return "исходящий запрос к интеграции";
-  if (d === "inbound" || d === "inbound_webhook") return "входящий вебхук";
-  return direction;
-}
-
 /** Подписи канала доставки в health (ключи произвольные из integrator queue). */
 const NOTIFICATION_DELIVERY_CHANNEL_ORDER = ["telegram", "max", "web_push", "email"] as const;
 
@@ -715,15 +681,6 @@ function notificationDeliveryChannelHuman(channel: string): string {
   if (channel === "web_push") return "Web Push";
   if (channel === "email") return "Email";
   return channel;
-}
-
-function shortRecipientRef(issue: {
-  recipientRef: string | null;
-  userId: string | null;
-}): string {
-  if (issue.recipientRef?.trim()) return issue.recipientRef.trim();
-  if (issue.userId) return `user …${issue.userId.slice(-6)}`;
-  return "—";
 }
 
 function outgoingDeliveryChannelHuman(channel: string): string {
@@ -805,6 +762,11 @@ const SAAS_ISOLATION_SERVICE_LABEL: Record<SaasIsolationSourceService, string> =
 const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, string> = {
   webapp_db_request: "запрос webapp к БД",
   webapp_admin_system_health: "страница здоровья системы",
+  public_auth_config: "публичная конфигурация входа",
+  patient_runtime_config: "конфигурация кабинета пациента",
+  public_booking_config: "публичная конфигурация записи",
+  patient_identity_exception_check: "проверка тестового пациента",
+  patient_booking_history: "история записей пациента",
   integrator_http_request: "HTTP-запрос integrator",
   integrator_projection: "проекция integrator",
   worker_queue_drain: "очередь заданий worker",
@@ -916,7 +878,11 @@ export function SystemHealthSection() {
   const lastSuccess = projection?.lastSuccessAt ?? null;
   const oldestPending = projection?.oldestPendingAt ?? null;
   const queueEmpty = queuePending === 0 && queueProcessing === 0;
-  const openOperatorIncidents = data?.operatorIncidentsOpen ?? [];
+  const openOperatorIncidents = data?.operatorIncidents ?? {
+    openCount: 0,
+    occurrenceCount: 0,
+    lastSeenAt: null,
+  };
   const backupJobEntries = Object.entries(data?.backupJobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
   const cronJobRows = data?.cronJobs?.jobs ?? [];
   const cronJobsAccordionStatus = data?.cronJobs?.status ?? "no_data";
@@ -1576,35 +1542,19 @@ export function SystemHealthSection() {
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
             <HealthAccordionItem
-              name={`Открытые инциденты (${openOperatorIncidents.length})`}
+              name={`Открытые инциденты (${openOperatorIncidents.openCount})`}
               status={data?.meta?.probes?.operatorIncidents?.status ?? "error"}
             >
-              {openOperatorIncidents.length === 0 ? (
+              {openOperatorIncidents.openCount === 0 ? (
                 <DetailRow label="Итог" value="открытых нет" />
               ) : (
-                <DetailRow label="Итог" value={`есть открытые (${openOperatorIncidents.length})`} />
+                <DetailRow label="Итог" value={`есть открытые (${openOperatorIncidents.openCount})`} />
               )}
               <ProbeInfo probe={data?.meta?.probes?.operatorIncidents} />
-              {openOperatorIncidents.length === 0 ? null : (
-                <div className="space-y-2">
-                  {openOperatorIncidents.map((row) => (
-                    <div key={row.id} className="rounded border border-border/50 p-2 text-[11px] leading-snug">
-                      <DetailRow label="Интеграция" value={operatorIncidentIntegrationHuman(row.integration)} />
-                      <DetailRow label="Тип ошибки" value={operatorIncidentSynopsisHuman(row.errorClass)} />
-                      <DetailRow label="Направление" value={operatorIncidentDirectionHuman(row.direction)} />
-                      <DetailRow label="Повторов зафиксировано" value={String(row.occurrenceCount)} />
-                      <DetailRow label="Последнее срабатывание" value={formatDateTime(row.lastSeenAt)} />
-                      {row.errorDetail ? <p className="mt-2 break-all text-muted-foreground">{row.errorDetail}</p> : null}
-                      <TechDiagBlock>
-                        <DetailRow label="Код интеграции (БД)" value={row.integration} />
-                        <DetailRow label="Класс ошибки (БД)" value={row.errorClass} />
-                        <DetailRow label="dedup_key" value={row.dedupKey} />
-                      </TechDiagBlock>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {openOperatorIncidents.length > 0 ? (
+              <DetailRow label="Срабатываний суммарно" value={String(openOperatorIncidents.occurrenceCount)} />
+              <DetailRow label="Последнее срабатывание" value={formatDateTime(openOperatorIncidents.lastSeenAt)} />
+              <DetailRow label="Детализация" value="Сырые строки и тексты ошибок не выдаются через System Health" />
+              {openOperatorIncidents.openCount > 0 ? (
                 <div className="pt-3">
                   <Button
                     type="button"
@@ -1769,22 +1719,7 @@ export function SystemHealthSection() {
                   <NotificationDeliveryChannelBlock key={ch} channel={ch} agg={agg} />
                 );
               })}
-              <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Последние проблемы доставки
-              </p>
-              {(data?.notificationDelivery?.recentIssues?.length ?? 0) === 0 ? (
-                <DetailRow label="Список" value="нет за окно" />
-              ) : (
-                <ul className="list-inside list-disc space-y-0.5 font-mono text-[11px]">
-                  {data!.notificationDelivery!.recentIssues.map((issue, i) => (
-                    <li key={`${issue.createdAt}-${issue.channel}-${i}`}>
-                      {formatNotificationDeliveryIssueLine(issue)}
-                      {issue.topicCode ? ` · ${issue.topicCode}` : ""}
-                      {shortRecipientRef(issue) !== "—" ? ` · ${shortRecipientRef(issue)}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <DetailRow label="Детализация" value="только обезличенные агрегаты" />
             </HealthAccordionItem>
 
             <HealthAccordionItem

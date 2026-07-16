@@ -11,6 +11,7 @@ const files = {
   integratorPublicReader: "apps/integrator/src/infra/db/publicSystemSettings.ts",
   mediaPipeline: "apps/media-worker/src/pipelineEnabled.ts",
   mediaWatermark: "apps/media-worker/src/watermarkEnabled.ts",
+  mediaServerRuntime: "apps/media-worker/src/serverRuntimeConfig.ts",
   accessorGuard: "apps/webapp/scripts/check-system-settings-accessors.mjs",
 };
 
@@ -24,6 +25,12 @@ function assertContains(name, text, needle) {
   }
 }
 
+function assertNotContains(name, text, needle) {
+  if (text.includes(needle)) {
+    throw new Error(`${name} contains forbidden text: ${needle}`);
+  }
+}
+
 function runChecks(overrides = {}) {
   const ports = overrides.ports ?? read(files.ports);
   const service = overrides.service ?? read(files.service);
@@ -31,6 +38,7 @@ function runChecks(overrides = {}) {
   const integratorPublicReader = overrides.integratorPublicReader ?? read(files.integratorPublicReader);
   const mediaPipeline = overrides.mediaPipeline ?? read(files.mediaPipeline);
   const mediaWatermark = overrides.mediaWatermark ?? read(files.mediaWatermark);
+  const mediaServerRuntime = overrides.mediaServerRuntime ?? read(files.mediaServerRuntime);
   const accessorGuard = overrides.accessorGuard ?? read(files.accessorGuard);
 
   assertContains(files.ports, ports, "export type SystemSettingsReadOptions");
@@ -57,21 +65,27 @@ function runChecks(overrides = {}) {
   assertContains(files.integratorPublicReader, integratorPublicReader, "organization_id = ${organizationId}::uuid OR organization_id IS NULL");
   assertContains(files.integratorPublicReader, integratorPublicReader, "ORDER BY organization_id IS NULL ASC");
 
-  assertContains(files.mediaPipeline, mediaPipeline, "organization_id IS NULL");
-  assertContains(files.mediaWatermark, mediaWatermark, "organization_id IS NULL");
-  assertContains(files.accessorGuard, accessorGuard, "apps/media-worker/src/pipelineEnabled.ts");
-  assertContains(files.accessorGuard, accessorGuard, "apps/media-worker/src/watermarkEnabled.ts");
+  assertContains(files.mediaPipeline, mediaPipeline, "readServerRuntimeBoolean");
+  assertContains(files.mediaWatermark, mediaWatermark, "readServerRuntimeBoolean");
+  assertContains(files.mediaServerRuntime, mediaServerRuntime, "app.read_media_worker_runtime_setting($1)");
+  assertContains(files.mediaServerRuntime, mediaServerRuntime, "[key]");
+  assertNotContains(files.mediaServerRuntime, mediaServerRuntime, "public.app_runtime_settings");
+  assertNotContains(files.mediaServerRuntime, mediaServerRuntime, "public.system_settings");
+  assertContains(files.accessorGuard, accessorGuard, '"apps/media-worker/src"');
 }
 
 if (process.argv.includes("--self-test")) {
-  const webappRepo = read(files.webappRepo).replace("SELECT DISTINCT ON (key)", "SELECT key");
+  const mediaServerRuntime = read(files.mediaServerRuntime).replace(
+    "app.read_media_worker_runtime_setting($1)",
+    "public.app_runtime_settings",
+  );
   try {
-    runChecks({ webappRepo });
+    runChecks({ mediaServerRuntime });
   } catch {
     console.log("check-p0-11-system-settings-read-path self-test: OK");
     process.exit(0);
   }
-  throw new Error("self-test did not detect missing getByScope merge query");
+  throw new Error("self-test did not detect a direct media-worker runtime table read");
 }
 
 try {

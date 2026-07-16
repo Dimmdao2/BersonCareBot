@@ -42,8 +42,11 @@ The preflight:
 - requires `DB_PRINCIPAL_SIGNING_SECRET` to be at least 32 bytes in each process;
 - compares signing secrets by SHA-256 fingerprint prefix only;
 - requires all three webapp URLs to exist and the operator URL to differ from both ambient URLs;
+- compares PostgreSQL usernames across every webapp, integrator, operator, scheduler, delivery, diagnostic, and media URL,
+  and rejects any cross-process role reuse even when the credential-bearing URLs differ;
 - prints URL shape only, never credential-bearing URLs;
-- self-tests that fingerprint mismatches fail and that output does not contain fixture secrets.
+- self-tests fingerprint mismatch, webapp-to-operational and operational-to-operational username collisions, and that
+  output does not contain fixture secrets.
 
 ## Restart And Rollback
 

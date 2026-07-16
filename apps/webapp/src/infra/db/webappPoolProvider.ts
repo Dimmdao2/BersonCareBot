@@ -9,6 +9,11 @@ import {
 } from "@bersoncare/db-principal";
 import { reportSaasIsolationEventBestEffort } from "@/infra/saasIsolationReporterRuntime";
 import { classifyPostgresIsolationDenial } from "@/infra/db/saasIsolationDbFailureReporting";
+import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+
+function currentWebappDbSourceOperation() {
+  return getCurrentWebappDbOperationFamily() ?? "webapp_db_request";
+}
 
 type WebappPoolProviderConfig = {
   connectionString?: string;
@@ -68,7 +73,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
       void reportSaasIsolationEventBestEffort({
         eventClass: "missing_principal",
         sourceService: "webapp",
-        sourceOperation: "webapp_db_request",
+        sourceOperation: currentWebappDbSourceOperation(),
       });
       throw error;
     }
@@ -80,7 +85,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
         await reportSaasIsolationEventBestEffort({
           eventClass: "invalid_signature_or_install",
           sourceService: "webapp",
-          sourceOperation: "webapp_db_request",
+          sourceOperation: currentWebappDbSourceOperation(),
         });
         throw error;
       }
@@ -93,7 +98,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
           await reportSaasIsolationEventBestEffort({
             eventClass,
             sourceService: "webapp",
-            sourceOperation: "webapp_db_request",
+            sourceOperation: currentWebappDbSourceOperation(),
           });
         }
         throw error;
@@ -107,7 +112,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
         await reportSaasIsolationEventBestEffort({
           eventClass: "cleanup_failure",
           sourceService: "webapp",
-          sourceOperation: "webapp_db_request",
+          sourceOperation: currentWebappDbSourceOperation(),
         });
         throw err;
       } finally {
@@ -154,7 +159,7 @@ function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): W
     void reportSaasIsolationEventBestEffort({
       eventClass: "role_pool_mismatch",
       sourceService: "webapp",
-      sourceOperation: "webapp_db_request",
+      sourceOperation: currentWebappDbSourceOperation(),
     });
   }
 
@@ -172,7 +177,7 @@ function assertRoutedWebappPoolCheckoutAllowed(metrics: WebappPoolRoutingMetrics
       void reportSaasIsolationEventBestEffort({
         eventClass: "missing_principal",
         sourceService: "webapp",
-        sourceOperation: "webapp_db_request",
+        sourceOperation: currentWebappDbSourceOperation(),
       });
     } else if (principal.kind === "infra") {
       metrics.infraSelections += 1;

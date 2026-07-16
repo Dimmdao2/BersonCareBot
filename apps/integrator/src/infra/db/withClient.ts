@@ -5,6 +5,7 @@ import {
 	buildDbPrincipalApplyOptionsFromEnv,
 	clearDbPrincipalFromConnection,
 	getCurrentDbPrincipal,
+	setDbOperationalRuntimeRole,
 	type DbPrincipal,
 	type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
@@ -12,6 +13,7 @@ import {
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
 const allowedLockedBootstrapSources = new Set([
 	'integrator-deployment-org-resolution',
+	'integrator-server-runtime-config',
 	'integrator-user-org-resolution',
 	'max-webhook:pre-routing',
 	'max-webhook:unresolved-org',
@@ -33,6 +35,42 @@ const allowedLockedInfraSources = new Set([
 	'worker:outgoing-delivery-tick',
 	'worker:projection-outbox-tick',
 ]);
+
+export type IntegratorTechnicalRuntimeRole =
+	| 'app_operational_diagnostic'
+	| 'app_operational_delivery_worker'
+	| 'app_operational_scheduler';
+
+const diagnosticInfraSources = new Set(['integrator-projection-health']);
+const workerInfraSources = new Set([
+	'worker:job-queue-drain',
+	'worker:outgoing-delivery-tick',
+	'worker:projection-outbox-tick',
+]);
+const schedulerInfraSources = new Set([
+	'scheduler:acquire-lock',
+	'scheduler:claim-due-jobs',
+	'scheduler:handle-tick-event',
+]);
+
+export function getCurrentIntegratorTechnicalRuntimeRole(): IntegratorTechnicalRuntimeRole | undefined {
+	const principal = getCurrentDbPrincipal();
+	if (principal?.kind !== 'infra') return undefined;
+	const source = principal.source ?? '';
+	if (diagnosticInfraSources.has(source)) return 'app_operational_diagnostic';
+	if (workerInfraSources.has(source)) return 'app_operational_delivery_worker';
+	if (schedulerInfraSources.has(source)) return 'app_operational_scheduler';
+	return undefined;
+}
+
+export async function prepareIntegratorTechnicalPoolClient(
+	client: PoolClient,
+	options: DbPrincipalApplyOptions,
+): Promise<void> {
+	if (options.mode !== 'locked') return;
+	const role = getCurrentIntegratorTechnicalRuntimeRole();
+	if (role !== undefined) await setDbOperationalRuntimeRole(client, role);
+}
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
@@ -80,6 +118,7 @@ async function prepareIntegratorClient(
 	options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
+  await prepareIntegratorTechnicalPoolClient(client, options);
   rememberPreparedClient(client, options);
 }
 
@@ -88,6 +127,7 @@ export async function prepareIntegratorTransactionClient(
   options: DbPrincipalApplyOptions = getPreparedClientOptions(client),
 ): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
+  await prepareIntegratorTechnicalPoolClient(client, options);
 }
 
 export async function releasePreparedIntegratorClient(

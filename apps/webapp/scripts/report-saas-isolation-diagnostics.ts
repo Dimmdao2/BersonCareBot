@@ -30,6 +30,26 @@ function option(args: string[], name: string): string {
   return value;
 }
 
+function assertKnownOptions(
+  args: string[],
+  valueOptions: readonly string[],
+  flagOptions: readonly string[] = [],
+): void {
+  const values = new Set(valueOptions);
+  const flags = new Set(flagOptions);
+  const seen = new Set<string>();
+  for (let index = 1; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if ((!values.has(argument) && !flags.has(argument)) || seen.has(argument)) {
+      throw new Error("usage: event|coverage|scenario|post-runtime-gate|read");
+    }
+    seen.add(argument);
+    if (values.has(argument) && args[index + 1] && !args[index + 1]!.startsWith("--")) {
+      index += 1;
+    }
+  }
+}
+
 function enumValue<T extends string>(values: readonly T[], value: string, errorCode: string): T {
   const match = values.find((item) => item === value);
   if (!match) throw new Error(errorCode);
@@ -55,16 +75,22 @@ function uuid(value: string): string {
   return value;
 }
 
-export function parseSaasIsolationDiagnosticsCommand(args: string[]): Command {
+export function parseSaasIsolationDiagnosticsCommand(rawArgs: string[]): Command {
+  const args = rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs;
   const command = args[0];
-  if (command === "read") return { kind: "read" };
+  if (command === "read") {
+    assertKnownOptions(args, []);
+    return { kind: "read" };
+  }
   if (command === "scenario") {
+    assertKnownOptions(args, ["--state"]);
     return {
       kind: "scenario",
       state: enumValue(TEST_SCENARIOS, option(args, "--state"), "invalid_test_scenario"),
     };
   }
   if (command === "post-runtime-gate") {
+    assertKnownOptions(args, ["--started-at", "--checks"]);
     return {
       kind: "post-runtime-gate",
       startedAt: iso(option(args, "--started-at"), "invalid_started_at"),
@@ -72,6 +98,7 @@ export function parseSaasIsolationDiagnosticsCommand(args: string[]): Command {
     };
   }
   if (command === "event") {
+    assertKnownOptions(args, ["--class", "--service", "--operation"], ["--explained"]);
     return {
       kind: "event",
       input: {
@@ -87,6 +114,15 @@ export function parseSaasIsolationDiagnosticsCommand(args: string[]): Command {
     };
   }
   if (command === "coverage") {
+    assertKnownOptions(args, [
+      "--id",
+      "--status",
+      "--started-at",
+      "--finished-at",
+      "--services",
+      "--checks",
+      "--unexpected",
+    ]);
     const services = option(args, "--services")
       .split(",")
       .map((value) => enumValue(SAAS_ISOLATION_SOURCE_SERVICES, value, "invalid_service"));
@@ -107,7 +143,7 @@ export function parseSaasIsolationDiagnosticsCommand(args: string[]): Command {
       },
     };
   }
-  throw new Error("usage: event|coverage|scenario|read");
+  throw new Error("usage: event|coverage|scenario|post-runtime-gate|read");
 }
 
 async function main(): Promise<void> {

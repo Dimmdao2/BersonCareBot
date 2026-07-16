@@ -11,7 +11,6 @@ import {
 import {
   normalizeTestAccountIdentifiersValue,
   relayRecipientAllowedInDevMode,
-  sessionMatchesTestAccountIdentifiers,
   type TestAccountIdentifiers,
 } from "./testAccounts";
 import { mergeBookingPaymentProvidersSecretsRetain } from "@/modules/payments/bookingPaymentSettings";
@@ -221,7 +220,7 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
     /**
      * Dev-mode guard для relay-outbound: при `dev_mode` сравниваются `channel` и `recipient` с `test_account_identifiers`
      * (`telegramIds` / `maxIds` через `relayRecipientAllowedInDevMode`). Поле `phones` в том же ключе используется для
-     * bypass техработ пациента (`isTestPatientSession`), не для этого метода, пока нет phone-based relay-вызовов.
+     * allowlist доставки relay; bypass техработ пациента проверяется отдельной boolean-only DB capability.
      */
     async shouldDispatchRelayToRecipient(ctx: { channel: string; recipient: string }): Promise<boolean> {
       const { devMode, testAccounts } = await readRelayDevContext();
@@ -239,21 +238,8 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
      * Тестовый пациентский аккаунт для bypass техработ: совпадение по телефону (E.164) или Telegram/Max ID из сессии.
      * Fail-closed при отсутствии или некорректном `test_account_identifiers`.
      */
-    async isTestPatientSession(session: {
-      phone?: string | null;
-      telegramId?: string | null;
-      maxId?: string | null;
-    }): Promise<boolean> {
-      const spec = await readTestAccountIdentifiersFromPort(port);
-      if (spec === null) return false;
-      return sessionMatchesTestAccountIdentifiers(
-        {
-          phone: session.phone ?? undefined,
-          telegramId: session.telegramId ?? undefined,
-          maxId: session.maxId ?? undefined,
-        },
-        spec,
-      );
+    async isCurrentPatientTestAccount(): Promise<boolean> {
+      return port.isCurrentPatientTestAccount();
     },
 
     /**

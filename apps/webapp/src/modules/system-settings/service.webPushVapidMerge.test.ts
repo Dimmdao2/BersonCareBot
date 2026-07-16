@@ -47,6 +47,7 @@ describe("createSystemSettingsService web_push_vapid merge", () => {
       getByKey,
       getByScope: vi.fn(),
       getWebPushVapidPublicKeyOnly: vi.fn(),
+      isCurrentPatientTestAccount: vi.fn(),
       upsertManyInTransaction: vi.fn(),
       upsert,
     };

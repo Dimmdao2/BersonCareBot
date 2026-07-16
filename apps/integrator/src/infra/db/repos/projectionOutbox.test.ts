@@ -87,7 +87,10 @@ describe('projectionOutbox', () => {
 
     expect(result).toHaveLength(1);
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(drizzleSqlNodeToText(execute.mock.calls[0]![0])).toMatch(/FOR UPDATE SKIP LOCKED/i);
+    const claimSql = drizzleSqlNodeToText(execute.mock.calls[0]![0]);
+    expect(claimSql).toMatch(/FOR UPDATE SKIP LOCKED/i);
+    expect(claimSql).toContain('FROM integrator.projection_outbox');
+    expect(claimSql).toContain('UPDATE integrator.projection_outbox');
   });
 
   it('completeProjectionEvent sets status to done', async () => {

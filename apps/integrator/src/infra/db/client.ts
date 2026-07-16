@@ -37,7 +37,12 @@ function databaseUrlDiagnostics(): {
 }
 
 /** Общий пул подключений к PostgreSQL. */
-export const db = createIntegratorPoolProvider({ connectionString: env.DATABASE_URL });
+export const db = createIntegratorPoolProvider({
+	connectionString: env.DATABASE_URL,
+	diagnosticConnectionString: env.DATABASE_URL_DIAGNOSTIC,
+	deliveryWorkerConnectionString: env.DATABASE_URL_DELIVERY_WORKER,
+	schedulerConnectionString: env.DATABASE_URL_SCHEDULER,
+});
 
 db.on('error', (err) => {
 	const dbDiag = databaseUrlDiagnostics();

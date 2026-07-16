@@ -15,8 +15,13 @@ import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
+  resolvePatientMaintenanceOrganizationId,
 } from "@/modules/system-settings/patientMaintenance";
-import { PatientMaintenanceScreen } from "./PatientMaintenanceScreen";
+import {
+  PatientMaintenanceScreen,
+  selectMaintenanceUpcomingBookings,
+  type PatientMaintenanceBooking,
+} from "./PatientMaintenanceScreen";
 import { PatientClientLayout } from "./PatientClientLayout";
 
 /**
@@ -51,7 +56,12 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   if (session.user.role === "client") {
-    const maintenance = await getPatientMaintenanceConfig();
+    const deps = buildAppDeps();
+    const patientOrganizationId = await resolvePatientMaintenanceOrganizationId(
+      deps.patientOrganization,
+      session.user.userId,
+    );
+    const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,
       gate,
@@ -59,16 +69,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       sessionPhoneTrimmed: session.user.phone?.trim(),
     });
 
-    let deps: ReturnType<typeof buildAppDeps> | null = null;
     let isTestAccount = false;
     if (maintenance.enabled && !skipMaintenance) {
-      deps = buildAppDeps();
       try {
-        isTestAccount = await deps.systemSettings.isTestPatientSession({
-          phone: session.user.phone,
-          telegramId: session.user.bindings?.telegramId,
-          maxId: session.user.bindings?.maxId,
-        });
+        isTestAccount = await deps.systemSettings.isCurrentPatientTestAccount();
       } catch (err) {
         logger.warn({
           scope: "patient_layout",
@@ -80,11 +84,10 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
 
     if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
-      const bookingDeps = deps ?? buildAppDeps();
-      let upcoming: Awaited<ReturnType<typeof bookingDeps.patientBooking.listMyBookings>>["upcoming"] = [];
+      let upcoming: PatientMaintenanceBooking[] = [];
       try {
-        const records = await bookingDeps.patientBooking.listMyBookings(session.user.userId);
-        upcoming = records.upcoming;
+        const records = await deps.patientMaintenanceHistory.listCurrentPatientHistory();
+        upcoming = selectMaintenanceUpcomingBookings(records);
       } catch (err) {
         logger.warn({
           scope: "patient_layout",

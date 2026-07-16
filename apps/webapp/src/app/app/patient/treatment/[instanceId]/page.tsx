@@ -16,7 +16,6 @@ import { PatientTreatmentProgramDetailClient } from "../PatientTreatmentProgramD
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { resolveCalendarDayIanaForPatient } from "@/modules/system-settings/calendarIana";
 import { formatExercisesTodayTrainingStatus } from "@/modules/reminders/summarizeReminderForCalendarDay";
-import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { loadPatientProgramInteractionBundle } from "@/app/app/patient/treatment/loadPatientProgramInteractionBundle";
 
 type Props = { params: Promise<{ instanceId: string }>; searchParams: Promise<{ tab?: string | string[] }> };
@@ -60,21 +59,24 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
 
   const appTz = await getAppDisplayTimeZone();
 
-  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemCooldownSetting] =
+  const organizationId = detail.organizationId?.trim();
+  if (!organizationId) notFound();
+
+  const [initialTestResults, initialProgramEvents, patientIana, rules, planItemDoneRepeatCooldownMinutes] =
     await Promise.all([
       deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
       deps.treatmentProgramInstance.listProgramEvents(instanceId),
       deps.patientCalendarTimezone.getIanaForUser(session.user.userId),
       deps.reminders.listRulesByUser(session.user.userId),
-      deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
+      deps.runtimeConfig.getInteger(
+        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        { patientUserId: session.user.userId, organizationId },
+      ),
     ]);
-
-  const planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
-    planItemCooldownSetting?.valueJson ?? null,
-  );
   const programInteraction = await loadPatientProgramInteractionBundle(
     deps,
     session.user.userId,
+    organizationId,
     detail.assignmentSource,
   );
 

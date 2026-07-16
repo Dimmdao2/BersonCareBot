@@ -4,10 +4,14 @@ set -euo pipefail
 PROJECT_ROOT=/opt/projects/bersoncarebot
 ENV_FILE=/opt/env/bersoncarebot/api.prod
 WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
+MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.prod
+C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
+C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
 REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
+PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
@@ -75,9 +79,13 @@ bash deploy/host/bootstrap-systemd-prod.sh
 
 require_file "${ENV_FILE}" "Production environment file"
 require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
+require_file "${MEDIA_WORKER_ENV_FILE}" "Media-worker environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
+require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_RUNTIME}" "C4 operational runtime contract"
+require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readiness probe"
 require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
 require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
+require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
@@ -138,9 +146,11 @@ pnpm --dir apps/webapp run migrate
 # created organization receives its catalog snapshot in the organization-creation transaction.
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
+bash "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}"
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
@@ -166,12 +176,12 @@ if [ "${chunk_ok}" != "1" ]; then
   fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
 fi
 
-if [ -e "/etc/systemd/system/${MEDIA_WORKER_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
+if [ -e "/etc/systemd/system/${MEDIA_WORKER_SERVICE}" ]; then
   sudo -n /bin/systemctl restart "${MEDIA_WORKER_SERVICE}"
   if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
     echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
     sudo -n journalctl -u "${MEDIA_WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
-    fail "${MEDIA_WORKER_SERVICE} failed to start (ensure webapp.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
+    fail "${MEDIA_WORKER_SERVICE} failed to start (ensure media-worker.prod has DATABASE_URL, S3_*, FFMPEG_PATH; apps/media-worker built)."
   fi
 fi
 

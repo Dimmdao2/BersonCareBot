@@ -25,6 +25,7 @@ describe("runtime config provider", () => {
       scope: "admin",
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
   });
 
@@ -67,6 +68,138 @@ describe("runtime config provider", () => {
       scope: "doctor",
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
+  });
+
+  it("resolves the bounded patient treatment cooldown without reading restricted settings", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+      scope: "admin",
+      organizationId: context.organizationId,
+      audience: "authenticated_client",
+      valueJson: { value: 75 },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getInteger(
+        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        context,
+      ),
+    ).resolves.toBe(75);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+      scope: "admin",
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
+    });
+  });
+
+  it("clamps legacy cooldown values and uses the default for a missing row", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce({
+        key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        scope: "admin",
+        organizationId: null,
+        audience: "authenticated_client",
+        valueJson: { value: 181 },
+      })
+      .mockResolvedValueOnce(null);
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getInteger("patient_treatment_plan_item_done_repeat_cooldown_minutes", context),
+    ).resolves.toBe(180);
+    await expect(
+      provider.getInteger("patient_treatment_plan_item_done_repeat_cooldown_minutes", context),
+    ).resolves.toBe(60);
+  });
+
+  it("uses the closed public operation and fails safe on a DB error", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockRejectedValue(new Error("permission denied"));
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getPublicBoolean("oauth_google_enabled", "public_auth_config"),
+    ).resolves.toBe(false);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "oauth_google_enabled",
+      scope: "admin",
+      organizationId: null,
+      allowedAudiences: ["public"],
+      operationFamily: "public_auth_config",
+    });
+  });
+
+  it("fails closed for missing or denied public SMS policy", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("permission denied"));
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getPublicBoolean("public_sms_fallback_enabled")).resolves.toBe(false);
+    await expect(provider.getPublicBoolean("public_sms_fallback_enabled")).resolves.toBe(false);
+  });
+
+  it("keeps patient booking resolution scoped to the active organization", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "patient_booking_url",
+      scope: "admin",
+      organizationId: context.organizationId,
+      audience: "authenticated_client",
+      valueJson: { value: "https://booking.example.test" },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getAuthenticatedString("patient_booking_url", context.organizationId),
+    ).resolves.toBe("https://booking.example.test");
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "patient_booking_url",
+      scope: "admin",
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
+      allowGlobalFallback: false,
+    });
+  });
+
+  it("reads server-only auth observability without exposing it as public", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "debug_forward_to_admin",
+      scope: "admin",
+      organizationId: null,
+      audience: "server",
+      valueJson: { value: true },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getServerBoolean("debug_forward_to_admin")).resolves.toBe(true);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "debug_forward_to_admin",
+      scope: "admin",
+      organizationId: null,
+      allowedAudiences: ["server"],
+      operationFamily: "public_auth_config",
+    });
+  });
+
+  it("bounds server-only presign TTL and defaults on denial", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce({
+        key: "video_presign_ttl_seconds",
+        scope: "admin",
+        organizationId: null,
+        audience: "server",
+        valueJson: { value: 999999 },
+      })
+      .mockRejectedValueOnce(new Error("permission denied"));
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getServerInteger("video_presign_ttl_seconds")).resolves.toBe(604800);
+    await expect(provider.getServerInteger("video_presign_ttl_seconds")).resolves.toBe(3600);
   });
 });

@@ -4,13 +4,20 @@ import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 
 const grantTiers = new Set(["SCOPED", "BOOTSTRAP"]);
 
+// This runtime store has role-specific grants (patient/staff/worker/integrator accessor) and an
+// audience-aware policy. Granting it to the generic legacy app role would bypass that split.
+export const p05DedicatedRoleTables = new Set(["public.app_runtime_settings"]);
+
 function sqlString(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
 export function getP05AppGrantTables({ descriptors = buildRlsDescriptors() } = {}) {
   return Array.from(descriptors.values())
-    .filter((descriptor) => grantTiers.has(descriptor.tier))
+    .filter(
+      (descriptor) =>
+        grantTiers.has(descriptor.tier) && !p05DedicatedRoleTables.has(descriptor.table),
+    )
     .map((descriptor) => {
       const [schemaName, tableName, extra] = descriptor.table.split(".");
 

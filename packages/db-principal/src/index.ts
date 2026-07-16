@@ -14,6 +14,12 @@ export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
 export const DB_PRINCIPAL_STAFF_ROLE = "app_staff";
 export const DB_PRINCIPAL_PATIENT_ROLE = "app_patient";
 
+export type DbOperationalRuntimeRole =
+  | "app_operational_diagnostic"
+  | "app_operational_delivery_worker"
+  | "app_operational_media_worker"
+  | "app_operational_scheduler";
+
 export type DbPrincipalKind =
   | "organization"
   | "staff"
@@ -107,6 +113,30 @@ type DbPrincipalContextCell = {
 type DbPrincipalQueryable = {
   query(sql: string, values?: readonly unknown[]): Promise<{ rows?: readonly Record<string, unknown>[] } | unknown>;
 };
+
+export async function setDbOperationalRuntimeRole(
+  client: DbPrincipalQueryable,
+  role: DbOperationalRuntimeRole,
+): Promise<void> {
+  let statement: string;
+  switch (role) {
+    case "app_operational_diagnostic":
+      statement = "SET ROLE app_operational_diagnostic";
+      break;
+    case "app_operational_delivery_worker":
+      statement = "SET ROLE app_operational_delivery_worker";
+      break;
+    case "app_operational_media_worker":
+      statement = "SET ROLE app_operational_media_worker";
+      break;
+    case "app_operational_scheduler":
+      statement = "SET ROLE app_operational_scheduler";
+      break;
+    default:
+      throw new Error("Unsupported DB operational runtime role");
+  }
+  await client.query(statement);
+}
 
 export type DbPrincipalSigner = {
   secret: string;

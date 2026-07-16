@@ -78,7 +78,7 @@ function healthJsonWithDead(outDead: number, ipoDead: number, projectionDead = 0
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoTranscode: videoTranscodeShell,
-    operatorIncidentsOpen: [],
+    operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     backupJobs: {},
     outgoingDelivery: {
       dueBacklog: 0,

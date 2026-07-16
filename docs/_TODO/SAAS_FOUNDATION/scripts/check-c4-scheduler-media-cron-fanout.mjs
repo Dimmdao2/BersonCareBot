@@ -9,6 +9,28 @@ const files = {
   roadmap: "docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md",
   t0Checklist: "docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md",
   scheduler: "apps/integrator/src/infra/runtime/scheduler/main.ts",
+  integratorPoolProvider: "apps/integrator/src/infra/db/integratorPoolProvider.ts",
+  integratorWithClient: "apps/integrator/src/infra/db/withClient.ts",
+  integratorWithClientTest: "apps/integrator/src/infra/db/withClient.test.ts",
+  dbPrincipal: "packages/db-principal/src/index.ts",
+  operationalReadiness: "apps/integrator/src/infra/db/operationalPoolReadiness.ts",
+  integratorDi: "apps/integrator/src/app/di.ts",
+  workerMain: "apps/integrator/src/infra/runtime/worker/main.ts",
+  outgoingDeliveryScope: "apps/integrator/src/infra/db/repos/outgoingDeliveryScope.ts",
+  operatorDeliveryAttempts: "apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts",
+  operatorAttemptWritePort: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.ts",
+  operatorAttemptWritePortTest: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts",
+  dispatchPort: "apps/integrator/src/infra/adapters/dispatchPort.ts",
+  dispatchPortTest: "apps/integrator/src/infra/adapters/dispatchPort.test.ts",
+  reportOperatorFailure: "apps/integrator/src/infra/operatorIncident/reportOperatorFailure.ts",
+  reportOperatorFailureTest: "apps/integrator/src/infra/operatorIncident/reportOperatorFailure.test.ts",
+  outgoingDeliveryWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
+  schedulerOrganizationRepo: "apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts",
+  schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
+  idempotencyKeys: "apps/integrator/src/infra/db/repos/idempotencyKeys.ts",
+  projectionOutbox: "apps/integrator/src/infra/db/repos/projectionOutbox.ts",
+  projectionHealthCore: "apps/integrator/src/infra/db/repos/projectionHealthCore.ts",
+  jobQueue: "apps/integrator/src/infra/db/repos/jobQueue.ts",
   mediaMain: "apps/media-worker/src/main.ts",
   mediaWorkerTick: "apps/media-worker/src/workerTick.ts",
   mediaClaim: "apps/media-worker/src/jobs/claim.ts",
@@ -18,6 +40,14 @@ const files = {
   mediaSql: "apps/media-worker/src/runMediaWorkerSql.ts",
   mediaPrincipalTest: "apps/media-worker/src/processTranscodeJob.principal.test.ts",
   mediaWithClientTest: "apps/media-worker/src/withClient.test.ts",
+  mediaRuntimeConfig: "apps/media-worker/src/serverRuntimeConfig.ts",
+  operationalSql: "deploy/postgres/c4-operational-runtime.sql",
+  operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
+  operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
+  operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
+  testDeploy: "deploy/host/deploy-test-saas.sh",
+  mediaWorkerTestUnit: "deploy/systemd/bersoncarebot-media-worker-test.service",
+  mediaWorkerTestUnitAssertion: "deploy/host/assert-media-worker-test-unit-properties.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
   mediaMultipartInit: "apps/webapp/src/app/api/media/multipart/init/route.ts",
@@ -133,6 +163,11 @@ function requireFragmentBefore(label, text, before, after) {
   }
 }
 
+function requireOccurrenceCountAtLeast(label, text, fragment, minCount) {
+  const count = text.split(fragment).length - 1;
+  if (count < minCount) fail(`${label} must contain ${fragment} at least ${minCount} times, found ${count}`);
+}
+
 function listRouteFiles(rootRelativePath) {
   const root = join(repoRoot, rootRelativePath);
   const out = [];
@@ -228,8 +263,7 @@ function assertScheduler(loaded) {
   requireFragments(files.scheduler, loaded.scheduler, [
     "runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }",
     "tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY)",
-    "runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }",
-    "type: 'schedule.tick'",
+    "runSchedulerOrganizationTicks",
   ]);
   requireFragmentBefore(files.scheduler, loaded.scheduler, "runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }", "const { buildDeps }");
   requireFragments(files.doc, loaded.doc, [
@@ -237,6 +271,43 @@ function assertScheduler(loaded) {
     "`scheduler-tick`",
     "`scheduler:acquire-lock`",
     "`scheduler:handle-tick-event`",
+  ]);
+  requireFragments(files.integratorPoolProvider, loaded.integratorPoolProvider, [
+    "DATABASE_URL_DIAGNOSTIC",
+    "diagnosticConnectionString",
+    "deliveryWorkerConnectionString",
+    "schedulerConnectionString",
+    "getCurrentIntegratorTechnicalRuntimeRole",
+    "prepareIntegratorTechnicalPoolClient",
+  ]);
+  requireFragments(files.integratorWithClient, loaded.integratorWithClient, [
+    "app_operational_diagnostic",
+    "app_operational_delivery_worker",
+    "app_operational_scheduler",
+    "setDbOperationalRuntimeRole(client, role)",
+  ]);
+  requireFragments(files.integratorWithClientTest, loaded.integratorWithClientTest, [
+    "restores the outer capability after tenant work",
+    "app_operational_delivery_worker",
+  ]);
+  requireFragments(files.operationalReadiness, loaded.operationalReadiness, [
+    "assertIntegratorDiagnosticPoolReady",
+    "assertDeliveryWorkerPoolReady",
+    "assertSchedulerPoolReady",
+    "BEGIN READ ONLY",
+    "ROLLBACK",
+    "AS scheduler_organizations(organization_id) LIMIT 0",
+  ]);
+  requireFragments(files.schedulerOrganizationRepo, loaded.schedulerOrganizationRepo, [
+    "app.list_scheduler_reminder_organization_ids()",
+    "AS scheduler_organizations(organization_id)",
+    "returned an invalid organization id",
+  ]);
+  requireFragments(files.schedulerOrganizationTicks, loaded.schedulerOrganizationTicks, [
+    "scheduler:claim-due-jobs",
+    "scheduler:handle-tick-event",
+    "runWithOrganizationPrincipal(organizationId, run)",
+    "sch:${organizationId}:${deps.newEventId()}",
   ]);
 }
 
@@ -256,6 +327,8 @@ function assertMediaWorker(loaded) {
     "j.organization_id AS job_organization_id",
     "mf.organization_id AS media_organization_id",
     "FOR UPDATE OF j SKIP LOCKED",
+    "j.next_attempt_at IS NULL",
+    "j.next_attempt_at <= now()",
     "row.job_organization_id !== row.media_organization_id",
     "organization_invariant_violation",
     "organizationId: job.organization_id",
@@ -272,7 +345,15 @@ function assertMediaWorker(loaded) {
     "DB staff principal is not allowed on media-worker pool in locked mode",
     "DB integrator principal is not allowed on media-worker pool in locked mode",
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
+    'setDbOperationalRuntimeRole(client, "app_operational_media_worker")',
     "const client = await pool.connect();",
+  ]);
+  requireFragments(files.dbPrincipal, loaded.dbPrincipal, [
+    "export async function setDbOperationalRuntimeRole",
+    'statement = "SET ROLE app_operational_diagnostic"',
+    'statement = "SET ROLE app_operational_delivery_worker"',
+    'statement = "SET ROLE app_operational_media_worker"',
+    'statement = "SET ROLE app_operational_scheduler"',
   ]);
   requireFragmentBefore(
     files.mediaWithClient,
@@ -319,15 +400,209 @@ function assertMediaWorker(loaded) {
     "expect(pool.connect).not.toHaveBeenCalled();",
     "expect(connect).not.toHaveBeenCalled();",
   ]);
+  requireFragments(files.mediaRuntimeConfig, loaded.mediaRuntimeConfig, [
+    "app.read_media_worker_runtime_setting($1)",
+  ]);
   requireFragments(files.doc, loaded.doc, [
     "`media-worker-process`",
     "organization_invariant_violation",
-    "tenant-agnostic dispatcher",
-    "not a tenant principal and not a bypass",
-    "separate operational DB login/pool/grants contract",
+    "app_operational_media_worker",
+    "Operational Login / Capability Contract",
   ]);
   forbidFragments(files.doc, loaded.doc, [
     "media-worker post-claim business updates run under the claimed job organization",
+  ]);
+}
+
+function assertOperationalSqlAndDeploy(loaded) {
+  requireFragments(files.idempotencyKeys, loaded.idempotencyKeys, [
+    "INSERT INTO integrator.idempotency_keys",
+    "DELETE FROM integrator.idempotency_keys",
+  ]);
+  requireFragments(files.projectionOutbox, loaded.projectionOutbox, [
+    "FROM integrator.projection_outbox",
+    "UPDATE integrator.projection_outbox",
+  ]);
+  requireOccurrenceCountAtLeast(
+    files.projectionHealthCore,
+    loaded.projectionHealthCore,
+    "FROM integrator.projection_outbox",
+    5,
+  );
+  requireFragments(files.jobQueue, loaded.jobQueue, [
+    "FROM integrator.rubitime_create_retry_jobs",
+    "UPDATE integrator.rubitime_create_retry_jobs",
+  ]);
+  requireFragments(files.operationalSql, loaded.operationalSql, [
+    "WITH INHERIT FALSE, SET TRUE",
+    "app_operational_diagnostic",
+    "app_operational_delivery_worker",
+    "app_operational_scheduler",
+    "app_operational_media_worker",
+    "GRANT SELECT ON TABLE integrator.projection_outbox TO app_operational_diagnostic",
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app_operational_scheduler",
+    "CREATE OR REPLACE FUNCTION app.read_media_worker_runtime_setting",
+    "CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids",
+    "CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope",
+    "CREATE OR REPLACE FUNCTION app.operator_incident_alert_already_sent",
+    "CREATE OR REPLACE FUNCTION app.mark_operator_incident_alert_sent",
+    "CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt",
+    "operator delivery attempt has no exact queue source",
+    "p_status = 'success' AND (p_reason IS NULL OR p_reason = 'dev_redirect_suppressed')",
+    "p_status = 'failed' AND p_reason = 'provider_rejected'",
+    ") IS NOT TRUE",
+    "integrator.delivery_attempt_logs",
+    "integrator.delivery_attempt_logs_id_seq",
+    "scheduler reminder work contains conflicting organization ownership",
+    "REVOKE ALL PRIVILEGES ON DATABASE",
+    "pg_database object",
+    "pg_type object",
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
+    "pg_shdepend dependency",
+    "REVOKE ALL PRIVILEGES ON TYPE",
+    "'T'",
+    "scheduler reminder work contains rows without organization ownership",
+    "REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA",
+    "ALTER DEFAULT PRIVILEGES FOR ROLE",
+    "c4_catalog_exact_acl_surface_verified",
+    "c4_operational_cross_contour_verified",
+  ]);
+  requireOccurrenceCountAtLeast(
+    files.operationalSql,
+    loaded.operationalSql,
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
+    5,
+  );
+  requireFragmentBefore(
+    files.operationalSql,
+    loaded.operationalSql,
+    "scheduler reminder work contains conflicting organization ownership",
+    "scheduler reminder work contains rows without organization ownership",
+  );
+  requireFragments(files.testDeploy, loaded.testDeploy, [
+    "install_c4_operational_runtime_overlay",
+    "assert_c4_operational_runtime_ready",
+    "DATABASE_URL_DIAGNOSTIC",
+    "DATABASE_URL_DELIVERY_WORKER",
+    "DATABASE_URL_SCHEDULER",
+    "MEDIA_WORKER_ENV",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+  ]);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "-qAt -c", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "::int;", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "| tail -n 1", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, '= "1" ]', 4);
+  requireFragments(files.outgoingDeliveryScope, loaded.outgoingDeliveryScope, [
+    "app.resolve_outgoing_delivery_scope($1::uuid)",
+    "app.operator_incident_alert_already_sent($1::uuid)",
+    "app.mark_operator_incident_alert_sent($1::uuid)",
+  ]);
+  requireFragments(files.outgoingDeliveryWorker, loaded.outgoingDeliveryWorker, [
+    "processClaimedOutgoingDeliveryRow",
+    "resolveOutgoingDeliveryScope(deps.db, row.id)",
+    "TENANT_SCOPE_QUEUE_KIND_MISMATCH",
+    "runWithOrganizationPrincipal(scope.organizationId",
+    "runWithDeliveryQueueCapability",
+  ]);
+  requireFragments(files.operatorDeliveryAttempts, loaded.operatorDeliveryAttempts, [
+    "mutation.type !== 'delivery.attempt.log'",
+    "app.record_operator_delivery_attempt($1, $2, $3, $4, $5)",
+  ]);
+  requireFragments(files.operatorAttemptWritePort, loaded.operatorAttemptWritePort, [
+    "principal?.kind === 'infra'",
+    "principal.source === 'worker:outgoing-delivery-tick'",
+    "recordOperatorDeliveryAttempt(input.db, mutation)",
+    "input.tenantWritePort.writeDb(mutation)",
+  ]);
+  requireFragments(files.operatorAttemptWritePortTest, loaded.operatorAttemptWritePortTest, [
+    "uses the real dispatch chain and narrow operational audit function after provider success",
+    "audits a dev-suppressed send without reaching an adapter or tenant transaction",
+    "rejects another infra source and delegates an organization principal",
+    "sensitive operator alert text",
+    "records a redacted failed attempt and rethrows the original provider error",
+    "keeps the original provider error when failed-attempt audit persistence also fails",
+  ]);
+  requireFragments(files.dispatchPort, loaded.dispatchPort, [
+    "'failed', 1, 'provider_rejected'",
+    "throw providerError",
+    "Delivery provider failed and its attempt audit could not be persisted",
+  ]);
+  requireFragments(files.dispatchPortTest, loaded.dispatchPortTest, [
+    "does not mask the provider rejection when failed-attempt audit also fails",
+    "params: expect.objectContaining({ status: 'failed', reason: 'provider_rejected' })",
+  ]);
+  requireFragments(files.reportOperatorFailure, loaded.reportOperatorFailure, [
+    "createHmac('sha256', key)",
+    "DB_PRINCIPAL_SIGNING_SECRET is required for operator recipient pseudonymization",
+    "buildRecipientDigest('telegram', recipientId)",
+    "buildRecipientDigest('max', recipientId)",
+    "${recipientDigest}",
+  ]);
+  requireFragments(files.reportOperatorFailureTest, loaded.reportOperatorFailureTest, [
+    "keeps raw recipient ids out of queue and audit event identifiers",
+    "contains only a recipient digest",
+  ]);
+  requireFragments(files.integratorDi, loaded.integratorDi, [
+    "dispatchAttemptWritePort?: DbWritePort",
+    "writePort: input.dispatchAttemptWritePort ?? dbWritePort",
+  ]);
+  requireFragments(files.workerMain, loaded.workerMain, [
+    "createOperatorAwareDeliveryAttemptWritePort",
+    "dispatchAttemptWritePort:",
+  ]);
+  requireFragments(files.operationalReadiness, loaded.operationalReadiness, [
+    "SELECT 1 / has_function_privilege",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+  ]);
+  requireFragments(files.operationalReadinessScript, loaded.operationalReadinessScript, [
+    "SELECT 1 / has_function_privilege",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+    "tail -n 1",
+    "four contours must authenticate as four distinct PostgreSQL roles",
+  ]);
+  requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
+    "run as root/DB administrator",
+    "four operational URLs must use four distinct roles",
+    "WEBAPP_ENV_FILE",
+    "saas-c2-secret-preflight.mjs",
+    '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
+    "sudo -u postgres psql",
+    '-f - < "$OVERLAY"',
+    "\\password $role",
+    "assert-c4-operational-runtime-ready.sh",
+    "--bootstrap-test-env",
+    "--self-test",
+    "bootstrap-c4-test-env.mjs",
+    '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
+    "provision-c4-operational-runtime self-test: OK",
+  ]);
+  requireFragments(files.operationalTestEnvBootstrap, loaded.operationalTestEnvBootstrap, [
+    'media: "/opt/env/bersoncarebot/media-worker.test"',
+    'database !== "bersoncarebot_test"',
+    "randomBytes(32)",
+    "root:deploy 0640",
+    "writeProtected(mediaPath",
+    "writeProtected(apiPath",
+  ]);
+  requireFragments(files.mediaWorkerTestUnit, loaded.mediaWorkerTestUnit, [
+    "User=deploy",
+    "Group=deploy",
+    "WorkingDirectory=/opt/projects/bersoncarebot-test/apps/media-worker",
+    "EnvironmentFile=/opt/env/bersoncarebot/media-worker.test",
+  ]);
+  requireFragments(files.testDeploy, loaded.testDeploy, [
+    "-p FragmentPath --value",
+    "-p EnvironmentFiles --value",
+    'bash "$DEPLOY_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" --validate',
+  ]);
+  requireFragments(files.mediaWorkerTestUnitAssertion, loaded.mediaWorkerTestUnitAssertion, [
+    "EXPECTED_FRAGMENT_PATH=/etc/systemd/system/bersoncarebot-media-worker-test.service",
+    "EXPECTED_ENV_FILE=/opt/env/bersoncarebot/media-worker.test",
+    '[ "$fragment_path" = "$EXPECTED_FRAGMENT_PATH" ]',
+    "^/opt/env/bersoncarebot/media-worker\\.test[[:space:]]+\\(ignore_errors=(yes|no)\\)$",
+    "$EXPECTED_ENV_FILE.bak",
+    "/opt/env/bersoncarebot/extra.test",
+    "assert-media-worker-test-unit-properties self-test: OK",
   ]);
 }
 
@@ -387,13 +662,14 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.doc, loaded.doc, [
     "# C4 scheduler, media-worker and cron/internal-job fanout",
-    "No live DB/S3/TEST/PROD execution",
+    "No TEST/PROD/S3 execution",
     "This is not the final C4 exit",
     "Remaining C4 Gates",
   ]);
 
   assertScheduler(loaded);
   assertMediaWorker(loaded);
+  assertOperationalSqlAndDeploy(loaded);
   assertWebappInternalRoutesCovered(loaded);
   assertMediaPresignMatrix(loaded);
 
@@ -429,6 +705,106 @@ if (process.argv.includes("--self-test")) {
     'source: "api/internal/reminders/web-push-only/tick-missing:POST"',
   );
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
+  const operationalSql = read(files.operationalSql).replaceAll("WITH INHERIT FALSE, SET TRUE", "WITH INHERIT TRUE, SET TRUE");
+  const operationalSqlNoConflictGate = read(files.operationalSql).replace(
+    "scheduler reminder work contains conflicting organization ownership",
+    "scheduler reminder conflict gate removed",
+  );
+  const operationalSqlNoOperatorAudit = read(files.operationalSql).replace(
+    "operator delivery attempt has no exact queue source",
+    "operator delivery attempt source gate removed",
+  );
+  const operationalSqlNoCatalogScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA",
+    "REVOKE SELECT ON ALL ROUTINES IN SCHEMA",
+  );
+  const operationalSqlNoDatabaseScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON DATABASE",
+    "REVOKE CONNECT ON DATABASE",
+  );
+  const operationalSqlWrongAuditSchema = read(files.operationalSql).replaceAll(
+    "integrator.delivery_attempt_logs",
+    "public.delivery_attempt_logs",
+  );
+  const operationalProvisionNoPreflight = read(files.operationalProvisionScript).replace(
+    "saas-c2-secret-preflight.mjs",
+    "saas-c2-secret-preflight-removed.mjs",
+  );
+  const operationalProvisionNoBootstrap = read(files.operationalProvisionScript).replace(
+    "bootstrap-c4-test-env.mjs",
+    "bootstrap-c4-test-env-removed.mjs",
+  );
+  const operationalProvisionOpenProjectRoot = read(files.operationalProvisionScript).replace(
+    '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
+    '[ -n "$PROJECT_ROOT" ]',
+  );
+  const schedulerReadinessWithoutScalarAlias = read(files.operationalReadiness).replace(
+    " AS scheduler_organizations(organization_id)",
+    "",
+  );
+  const schedulerRepoWithoutScalarAlias = read(files.schedulerOrganizationRepo).replace(
+    " AS scheduler_organizations(organization_id)",
+    "",
+  );
+  const mediaWorkerTestUnitWrongRoot = read(files.mediaWorkerTestUnit).replace(
+    "/opt/projects/bersoncarebot-test/apps/media-worker",
+    "/home/deploy/projects/bersoncarebot-test/apps/media-worker",
+  );
+  const mediaWorkerAssertionOpenFragment = read(files.mediaWorkerTestUnitAssertion).replace(
+    '[ "$fragment_path" = "$EXPECTED_FRAGMENT_PATH" ]',
+    '[ -n "$fragment_path" ]',
+  );
+  const mediaWorkerAssertionSubstringEnv = read(files.mediaWorkerTestUnitAssertion).replace(
+    "[[ \"$environment_files\" =~ ^/opt/env/bersoncarebot/media-worker\\.test[[:space:]]+\\(ignore_errors=(yes|no)\\)$ ]]",
+    '[[ "$environment_files" == *"$EXPECTED_ENV_FILE"* ]]',
+  );
+  const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
+    "SELECT 1 / has_function_privilege",
+    "SELECT has_function_privilege",
+  );
+  const operationalSqlNoTypeScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON TYPE",
+    "REVOKE USAGE ON TYPE",
+  );
+  const operationalSqlCategoryArrayFilter = read(files.operationalSql).replaceAll(
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
+    "object.typcategory <> 'A'",
+  );
+  const operationalSqlOpenReason = read(files.operationalSql).replace(
+    "OR (p_status = 'failed' AND p_reason = 'provider_rejected')",
+    "OR (p_status = 'failed' AND p_reason IS NOT NULL)",
+  );
+  const testDeployLegacyReadiness = read(files.testDeploy)
+    .replaceAll("-qAt -c", "-tAc")
+    .replaceAll("::int;", "::text;");
+  const dispatchPortNoFailedAudit = read(files.dispatchPort).replace(
+    "'failed', 1, 'provider_rejected'",
+    "'success', 1, 'provider_rejected'",
+  );
+  const reportOperatorFailureRawRecipient = read(files.reportOperatorFailure).replaceAll(
+    "${recipientDigest}",
+    "${recipientId}",
+  );
+  const idempotencyKeysUnqualified = read(files.idempotencyKeys).replaceAll(
+    "integrator.idempotency_keys",
+    "idempotency_keys",
+  );
+  const projectionOutboxUnqualified = read(files.projectionOutbox).replaceAll(
+    "integrator.projection_outbox",
+    "projection_outbox",
+  );
+  const projectionHealthCoreUnqualified = read(files.projectionHealthCore).replaceAll(
+    "integrator.projection_outbox",
+    "projection_outbox",
+  );
+  const jobQueueUnqualified = read(files.jobQueue).replaceAll(
+    "integrator.rubitime_create_retry_jobs",
+    "rubitime_create_retry_jobs",
+  );
+  const mediaClaimAmbiguousRetry = read(files.mediaClaim).replaceAll(
+    "j.next_attempt_at",
+    "next_attempt_at",
+  );
   const cases = [
     { mediaProcess },
     { mediaClaim },
@@ -436,6 +812,32 @@ if (process.argv.includes("--self-test")) {
     { mediaWithClient },
     { "apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts": webpushRoute },
     { doc },
+    { operationalSql },
+    { operationalSql: operationalSqlNoConflictGate },
+    { operationalSql: operationalSqlNoOperatorAudit },
+    { operationalSql: operationalSqlNoCatalogScrub },
+    { operationalSql: operationalSqlNoDatabaseScrub },
+    { operationalSql: operationalSqlWrongAuditSchema },
+    { operationalProvisionScript: operationalProvisionNoPreflight },
+    { operationalProvisionScript: operationalProvisionNoBootstrap },
+    { operationalProvisionScript: operationalProvisionOpenProjectRoot },
+    { operationalReadiness: schedulerReadinessWithoutScalarAlias },
+    { schedulerOrganizationRepo: schedulerRepoWithoutScalarAlias },
+    { mediaWorkerTestUnit: mediaWorkerTestUnitWrongRoot },
+    { mediaWorkerTestUnitAssertion: mediaWorkerAssertionOpenFragment },
+    { mediaWorkerTestUnitAssertion: mediaWorkerAssertionSubstringEnv },
+    { operationalReadiness: operationalReadinessNoBooleanGate },
+    { operationalSql: operationalSqlNoTypeScrub },
+    { operationalSql: operationalSqlCategoryArrayFilter },
+    { operationalSql: operationalSqlOpenReason },
+    { testDeploy: testDeployLegacyReadiness },
+    { dispatchPort: dispatchPortNoFailedAudit },
+    { reportOperatorFailure: reportOperatorFailureRawRecipient },
+    { idempotencyKeys: idempotencyKeysUnqualified },
+    { projectionOutbox: projectionOutboxUnqualified },
+    { projectionHealthCore: projectionHealthCoreUnqualified },
+    { jobQueue: jobQueueUnqualified },
+    { mediaClaim: mediaClaimAmbiguousRetry },
   ];
   let detected = 0;
   for (const testCase of cases) {

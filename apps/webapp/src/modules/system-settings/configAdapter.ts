@@ -8,9 +8,18 @@
 import {
   readAdminSystemSettingString,
   readPublicConfigBoolean,
-  readSystemSettingInnerValueByScopes,
-  systemSettingInnerValueToString,
 } from "@/infra/repos/pgSystemSettings";
+import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
+import {
+  createRuntimeConfigProvider,
+  type AuthenticatedRuntimeBooleanKey,
+  type AuthenticatedRuntimeStringKey,
+  type PublicRuntimeBooleanKey,
+  type PublicRuntimeStringKey,
+  type RuntimeConfigOperationFamily,
+  type ServerRuntimeBooleanKey,
+  type ServerRuntimeIntegerKey,
+} from "./runtimeConfig";
 
 const TTL_MS = 60_000;
 
@@ -20,6 +29,40 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
+const safeRuntimeConfig = createRuntimeConfigProvider(createPgAppRuntimeSettingsPort());
+
+export function getPublicRuntimeBool(
+  key: PublicRuntimeBooleanKey,
+  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+): Promise<boolean> {
+  return safeRuntimeConfig.getPublicBoolean(key, operationFamily);
+}
+
+export function getPublicRuntimeValue(
+  key: PublicRuntimeStringKey,
+  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+): Promise<string> {
+  return safeRuntimeConfig.getPublicString(key, operationFamily);
+}
+
+export function getPatientRuntimeBool(key: AuthenticatedRuntimeBooleanKey): Promise<boolean> {
+  return safeRuntimeConfig.getAuthenticatedBoolean(key);
+}
+
+export function getPatientRuntimeValue(
+  key: AuthenticatedRuntimeStringKey,
+  organizationId: string | null = null,
+): Promise<string> {
+  return safeRuntimeConfig.getAuthenticatedString(key, organizationId);
+}
+
+export function getServerRuntimeBool(key: ServerRuntimeBooleanKey): Promise<boolean> {
+  return safeRuntimeConfig.getServerBoolean(key);
+}
+
+export function getServerRuntimeInteger(key: ServerRuntimeIntegerKey): Promise<number> {
+  return safeRuntimeConfig.getServerInteger(key);
+}
 
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
 export function invalidateConfigCache(): void {
@@ -89,8 +132,8 @@ export async function getConfigBool(key: string, envFallback: boolean): Promise<
 }
 
 /**
- * Public/pre-session boolean config read through a whitelisted SECURITY DEFINER accessor.
- * Falls back to the regular system_settings reader for staff contexts or before the accessor is deployed.
+ * Legacy public/pre-session boolean read through its whitelisted SECURITY DEFINER accessor.
+ * New public reads use the typed app_runtime_settings projection helpers above.
  */
 export async function getPublicConfigBool(key: string, envFallback: boolean): Promise<boolean> {
   const dbValue = await fetchPublicConfigBoolFromDb(key);
@@ -99,7 +142,7 @@ export async function getPublicConfigBool(key: string, envFallback: boolean): Pr
     cache.set(key, { value: dbValue ? "true" : "false", fetchedAt: now });
     return dbValue;
   }
-  return getConfigBool(key, envFallback);
+  return envFallback;
 }
 
 /**
@@ -116,24 +159,4 @@ export async function getConfigPositiveInt(
     return defaultValue;
   }
   return Math.min(opts.max, Math.max(opts.min, n));
-}
-
-/**
- * SMS fallback для OTP / записи: ключ `sms_fallback_enabled` в `system_settings`;
- * приоритет строки `doctor`, затем `admin` (сид из миграций).
- * Реализация здесь — рядом с {@link getConfigValue} (тот же allowlist `no-restricted-imports` для адаптера).
- */
-export async function getSmsFallbackEnabled(): Promise<boolean> {
-  try {
-    const value = await readSystemSettingInnerValueByScopes(
-      "sms_fallback_enabled",
-      ["doctor", "admin"],
-    );
-    const normalized = systemSettingInnerValueToString(value);
-    if (normalized === "true" || normalized === "1") return true;
-    if (normalized === "false" || normalized === "0") return false;
-    return true;
-  } catch {
-    return true;
-  }
 }

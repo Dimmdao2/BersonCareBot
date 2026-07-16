@@ -4,6 +4,8 @@ import { createMediaWorkerPoolProvider } from "./poolProvider.js";
 import { createS3Client } from "./s3.js";
 import { runMediaWorkerTick } from "./workerTick.js";
 import { createMediaWorkerIsolationReporter } from "./saasIsolationTelemetry.js";
+import { runWithMediaWorkerInfraPrincipal } from "./runMediaWorkerSql.js";
+import { startMediaWorkerTransaction } from "./withClient.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -13,6 +15,24 @@ async function main() {
   const env = loadMediaWorkerEnv();
   const log = createLogger(env);
   const pool = createMediaWorkerPoolProvider({ connectionString: env.DATABASE_URL });
+  await runWithMediaWorkerInfraPrincipal("media-worker:tick", async () => {
+    const tx = await startMediaWorkerTransaction(pool);
+    try {
+      await tx.client.query("SELECT 1 FROM public.media_transcode_jobs WHERE false");
+      await tx.client.query("SELECT 1 FROM public.media_files WHERE false");
+      await tx.client.query("SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled')");
+      await tx.rollback();
+    } catch (error) {
+      try {
+        await tx.rollback();
+      } catch {
+        // Preserve the readiness failure; client cleanup below still destroys on cleanup failure.
+      }
+      throw error;
+    } finally {
+      await tx.release();
+    }
+  });
   const isolationTelemetry = createMediaWorkerIsolationReporter(env.DATABASE_URL);
   const s3Client = createS3Client({
     endpoint: env.S3_ENDPOINT,

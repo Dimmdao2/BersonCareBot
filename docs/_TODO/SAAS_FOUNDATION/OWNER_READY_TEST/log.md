@@ -340,3 +340,152 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   integrator Vitest `165 passed / 1 skipped; 1225 passed / 2 skipped`, E1/C3/C4 static checkers plus self-tests, and
   `git diff --check`. No live deploy/full CI. Independent child audit could not start because its selected model was
   at capacity; the root orchestrator will assign the required independent review after this checkpoint.
+
+### Integrator DB-backed server runtime bootstrap (`/root/integrator_runtime_bootstrap`)
+
+- Закрыт startup-gap: API, worker и scheduler до построения зависимостей загружают `app_base_url` через узкий
+  SECURITY DEFINER accessor из `app_runtime_settings`; прямого чтения `system_settings` и env fallback больше нет.
+- Миграция `0191` переносит существующее глобальное значение в server-runtime root и создаёт generic accessor.
+  Deploy overlay выдаёт API runtime-роли только EXECUTE, оставляя обе таблицы закрытыми, а финальный readiness gate
+  проверяет доступ и корректный HTTP(S) результат без вывода самого значения.
+- Проверки PASS: focused Vitest `4 files / 118 tests`, integrator typecheck, integrator lint, Drizzle journal sync,
+  новый static checker и его self-test, `bash -n deploy/host/deploy-test-saas.sh`, `git diff --check`.
+- Общий `check:saas-db-regression` останавливается раньше нового checker на параллельно изменяемом
+  `playbackResolutionEvents.ts` (`check-db-chokepoint`, `3x layer SQL signal`); этот чужой scope здесь не менялся.
+  Live TEST/PROD deploy не выполнялся.
+
+### Integrator runtime bootstrap follow-up (`/root/integrator_runtime_bootstrap`)
+
+- Устранён прямой `.connect()` из telemetry consumer: checkout/release перенесены в канонический
+  `integratorPoolProvider`, отдельный global telemetry pool не получает request-principal, а failed client по-прежнему
+  уничтожается исходной ошибкой до её редактирования наружу.
+- Invalidation `app_base_url` теперь оставляет последнее успешно проверенное DB-значение синхронным reminder-paths,
+  но помечает async TTL устаревшим; следующий async read перечитывает БД. Добавлен regression sync-after-invalidate.
+- PASS: targeted Vitest `3 files / 13 tests`, integrator typecheck/lint, runtime-config checker+self-test,
+  DB chokepoint guard и его self-test. Полный `check:saas-db-regression` проходит chokepoint и останавливается на
+  предсуществующем inventory-gap миграции `0186`: `public.app_runtime_settings` отсутствует в `tiers-218.tsv`.
+  Автоматически относить таблицу к стандартному BOOTSTRAP-hybrid нельзя: generic policy не учитывает `audience='server'`.
+  Live TEST/PROD не затрагивались.
+
+- Re-review LOW закрыт: telemetry checkout нормализует любое defined non-Error failure в `Error` перед
+  `client.release(error)`, поэтому строка/объект больше не возвращают потенциально испорченное соединение в пул;
+  наружный redacted probe error не изменён. PASS: focused Vitest `1 file / 5 tests`, typecheck, lint,
+  DB chokepoint guard+self-test.
+
+### 0191 live TEST readiness fail-closed correction (`/root/integrator_runtime_bootstrap`)
+
+- Fresh TEST at pre-service readiness correctly stopped with services inactive. Redacted live facts proved the
+  accessor itself healthy (`EXECUTE` and HTTP(S)-shape result true), while the API base-login ambiently inherited
+  SELECT on both runtime/restricted settings tables through its three classified runtime memberships.
+- Root cause has two PostgreSQL 16 layers: the login was `INHERIT`; additionally, existing membership rows retained
+  per-edge `inherit_option=true`, so `ALTER ROLE ... NOINHERIT` alone did not close ambient ACL inheritance.
+- Repo overlay now requires the exact three non-admin memberships only, normalizes the login to `NOINHERIT` and the
+  existing edges to `INHERIT FALSE, SET TRUE`, removes direct table SELECT residue, and keeps accessor EXECUTE.
+  Readiness checks role + edge state, direct/PUBLIC ACL, owner-membership absence and the redacted accessor result.
+- Exact disposable PostgreSQL 16 proof PASS: the real overlay converted an initially inheriting three-role login;
+  ambient SELECT on both tables was denied, accessor read succeeded, and explicit `SET ROLE app_worker` still worked.
+  Canonical C0 scratch smoke also PASS. Targeted Vitest `3 files / 24 tests`, integrator typecheck/lint, runtime-config
+  checker+self-test, hard-migration protocol family and D3.4 checker+self-test PASS.
+- Recovery decision is not discretionary: `HARD_MIGRATION_PROTOCOL.md` Failure policy requires a fresh restore/fresh
+  disposable rerun after a failed gate. `--post-migration-closure` is an internal shared wrapper mode, not an
+  authorized stage-resume for acceptance of this failed fresh rehearsal. No TEST mutation/restart/cleanup or PROD
+  action was performed during diagnosis.
+
+### 0191 base-login principal cleanup correction (`/root/integrator_runtime_bootstrap`)
+
+- The second fresh TEST rehearsal stopped before service activation because the exact API base login could not call
+  `app.release_principal_context()`. Redacted readiness facts confirmed that install/reset/current-context helpers
+  remained denied and that the login/membership `NOINHERIT` normalization from the preceding correction was active.
+- Root cause: the shared API/worker/scheduler lifecycle releases stale principal state before its first `SET ROLE`
+  and again during cleanup. Therefore the unclassified base login needs direct EXECUTE on the idempotent release
+  function; it must not receive direct install/reset/current-context/staff privileges.
+- The runtime overlay now grants only that cleanup capability alongside the server-runtime config accessor, revokes
+  ambient helper residue, and asserts that scoped `app_staff`/`app_patient` install+release grants remain intact.
+  TEST readiness performs the real base-login release call and separately pins the negative helper permissions.
+- Exact disposable PostgreSQL 16 proof PASS with the real P2-B, `0191`, and runtime-overlay SQL: base release and
+  config read succeeded; base install/reset/current helper and direct table access stayed denied; after explicit
+  `SET ROLE app_patient`, signed install/current/release worked; after `SET ROLE app_worker`, the classified table
+  read worked. The static checker and mutation self-tests also pin both the required release grant and the forbidden
+  direct install grant.
+- Targeted validation PASS: runtime-config checker+self-test, hard-migration protocol family, D3.4 base-login
+  checker+self-test, deploy shell syntax, integrator Vitest `3 files / 24 tests`, integrator typecheck/lint, and
+  `git diff --check`.
+- Recovery remains a fresh full TEST rehearsal under the documented failure policy; post-migration closure is not a
+  stage-resume acceptance path. No live TEST mutation/restart/cleanup or PROD action occurred during this fix.
+
+### D3.4 media-worker membership-shape correction (`/root/ci_fix_review`)
+
+- The next fresh TEST rehearsal stopped inside the D3.4 bootstrap grant preflight, before the C4 overlay, FORCE and
+  service activation. Read-only redacted catalog facts showed the media-worker login was already in the canonical C4
+  shape: `NOINHERIT`, no `app_worker`, and one non-admin `INHERIT FALSE, SET TRUE` edge to
+  `app_operational_media_worker`. This was not a missing-privilege regression; the D3.4 predicate still required the
+  legacy `app_worker` membership unconditionally.
+- D3.4 now accepts exactly two mutually exclusive direct-membership shapes across all `pg_auth_members`: legacy is an
+  `INHERIT` login with exactly one non-admin `INHERIT TRUE, SET TRUE` edge to `app_worker`; C4 is a `NOINHERIT` login
+  with exactly one non-admin `INHERIT FALSE, SET TRUE` edge to `app_operational_media_worker`. Any extra arbitrary,
+  staff, patient, sibling-operational or mixed legacy+C4 edge fails closed.
+- The first correction commit `a243a6cce` was rejected in review because it counted only `app_operational_%` edges
+  and could therefore miss an unrelated direct membership. The corrected invariant counts every direct membership.
+  Its PostgreSQL 16 scratch proof covers both positive shapes and rejects legacy+staff, legacy+arbitrary,
+  C4+unrelated, mixed `app_worker`+C4 and sibling-operational cases. Checker mutation tests pin the exact edge count
+  and membership options.
+- Recovery requires another fresh full `deploy-test-saas` restore/rehearsal under the hard-protocol failure policy.
+  `--post-migration-closure` is not an acceptance shortcut. Diagnosis made no TEST mutation, restart or cleanup and
+  did not access PROD.
+
+### E1 webapp safe runtime-config closure (`/root/ci_fix_review`)
+
+- Read-only live TEST forensics found 25 PostgreSQL `42501` denials in one bounded burst for the non-staff base
+  login. Every denial had the same global `system_settings` SELECT shape; the affected webapp families were public
+  auth/login, patient maintenance/playback, and public booking/config. No setting values or credentials were
+  captured in the evidence.
+- Migration `0193` projects only reviewed public/authenticated scalar settings plus derived OAuth/SMS availability
+  booleans into `app_runtime_settings`. Raw OAuth identifiers, redirect values and secrets remain exclusively in
+  restricted `system_settings`; `app_patient` receives no access to that table. Per-clinic patient booking reads use
+  the active patient organization and do not select an arbitrary first clinic.
+- These reads now carry closed diagnostics attribution (`public_auth_config`, `patient_runtime_config`,
+  `public_booking_config`). Admin writes remain canonical `system_settings` writes and refresh the safe projection
+  through the registered projection trigger, including derived availability recomputation.
+- Disposable PostgreSQL 16 smoke proof PASS: restricted-table denial, safe projection access, no secret material in
+  projections, initial OAuth derivation, trigger-driven invalidation, and organization-scoped patient booking.
+  Live TEST was not mutated by this implementation step.
+- Targeted validation PASS: webapp Vitest `9 files / 46 tests`, webapp typecheck and targeted ESLint, E1 checker plus
+  mutation self-test, isolation diagnostics/D3.4/hard-protocol checker families, full `check:saas-db-regression`,
+  deploy shell syntax, and `git diff --check`. Full application CI was not repeated.
+
+### E1 independent-review closure (`/root/ci_fix_review`)
+
+- Patient maintenance booking is now fail-closed to one explicit active enrollment organization. Zero enrollments,
+  multiple organizations, missing/invalid org URLs and missing settings omit the booking CTA; there is no global or
+  hardcoded Rubitime fallback and no arbitrary first-organization selection.
+- Public phone-start consumes only the derived `public_sms_fallback_enabled` projection. Missing rows, malformed
+  values and DB denial default to disabled. The legacy raw `system_settings` SMS helper is removed.
+- `debug_forward_to_admin` and `video_presign_ttl_seconds` are global `audience='server'` runtime rows. A narrow
+  allowlisted SECURITY DEFINER accessor is executable only by the exact webapp base login; patient/staff roles and
+  the public accessor cannot read server values. Server reads deliberately enter a bootstrap DB principal so a
+  patient request never needs server-accessor privilege. TTL remains bounded to `60..604800`, default `3600`.
+- PostgreSQL 16 scratch proof PASS for table/function ACLs, audience isolation, trigger refresh of SMS/debug/TTL,
+  absence of a global booking projection and exact organization booking. Targeted Vitest `8 files / 42 tests`,
+  webapp typecheck/ESLint, E1 checker+self-test, full SaaS DB regression and hard/isolation/D3.4 gates PASS. No live
+  TEST mutation and no full application CI.
+- Pool-level missing/setup/query/cleanup reports now resolve the E1 AsyncLocalStorage operation family at the actual
+  failure site. Tests pin all three bounded families through an asynchronous pool failure, setup and cleanup paths,
+  while an unwrapped query remains attributed to `webapp_db_request`.
+
+### 0193 fresh TEST migration-owner correction (`/root/ci_fix_review`)
+
+- The next fresh TEST rehearsal stopped in the webapp Drizzle migration step before strict closure or service
+  restart. Read-only catalog facts showed both the TEST database owner and the webapp migrator login were not
+  members of `app_owner`, while that protected role already existed. Migration `0193` incorrectly attempted
+  `ALTER FUNCTION ... OWNER TO app_owner` during the temporary database-owner migration window; PostgreSQL requires
+  membership in the target owner role and therefore rejected the transfer.
+- `0193` is now independent of protected runtime roles: it creates/backfills the projection and functions and
+  revokes PUBLIC function execution only. Function ownership plus app_owner/app_patient ACL closure moved to the
+  canonical E1 overlay, which runs as postgres after role split and protected-owner preparation.
+- The PostgreSQL 16 scratch now executes 0185/0186/0193 as a non-superuser database owner with temporary BYPASSRLS,
+  explicitly proves it is not an `app_owner` member, then applies the runtime ACL phase separately as postgres.
+  The proof passes. No manual TEST mutation, service action or PROD access was performed.
+- The Drizzle wrapper now classifies failed child output internally and emits only a fixed allowlisted reason enum
+  plus a validated labeled SQLSTATE. It never forwards child message/detail/query/params/stack or other original
+  text. Adversarial self-tests cover URLs/paths, bearer/JWT/token material, signed/plain phone shapes, UUIDs, email,
+  query values and stack text. E1 checker/mutations, webapp typecheck, SaaS DB regression and hard gates pass.

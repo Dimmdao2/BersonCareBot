@@ -36,7 +36,7 @@ function healthyShell(overrides: Partial<SystemHealthResponse> = {}): SystemHeal
     videoPlaybackClient: { status: "error" } as SystemHealthResponse["videoPlaybackClient"],
     videoHlsProxy: { status: "ok" } as SystemHealthResponse["videoHlsProxy"],
     videoTranscode: { status: "ok" } as SystemHealthResponse["videoTranscode"],
-    operatorIncidentsOpen: [],
+    operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     backupJobs: {},
     outgoingDelivery: {
       deadTotal: 0,

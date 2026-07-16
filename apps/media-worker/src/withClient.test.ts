@@ -310,6 +310,7 @@ describe("media-worker DB client helpers", () => {
     await pool.end();
 
     expect(query.mock.calls).toContainEqual(["SELECT ok"]);
+    expect(query.mock.calls).toContainEqual(["SET ROLE app_operational_media_worker"]);
     expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
     expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);

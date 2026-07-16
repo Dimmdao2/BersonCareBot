@@ -42,7 +42,7 @@ function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBa
     backupJobs,
     probeConsecutiveFailRuns: s.probeOutbound?.consecutiveFailRuns ?? 0,
     videoTranscodeStatus: s.videoTranscode.status,
-    operatorIncidentsOpenCount: s.operatorIncidentsOpen.length,
+    operatorIncidentsOpenCount: s.operatorIncidents.openCount,
   };
 }
 

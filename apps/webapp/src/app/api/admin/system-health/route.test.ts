@@ -7,6 +7,16 @@ const zeroMetrics = {
   uniquePlaybackPairsFirstSeenInWindow: 0,
 };
 
+const zeroHlsProxyMetrics = {
+  windowHours: 24 as const,
+  errorsTotal24h: 0,
+  errorsTotal1h: 0,
+  byReason: {} as Record<string, number>,
+  byReasonLast1h: {} as Record<string, number>,
+  degraded: false,
+  recent: [] as [],
+};
+
 const zeroTranscodeMetrics = {
   pendingCount: 0,
   processingCount: 0,
@@ -56,12 +66,8 @@ const {
   isS3MediaEnabledMock,
   poolQueryMock,
   getConfigBoolMock,
-  loadAdminPlaybackHealthMetricsMock,
-  loadAdminPlaybackClientHealthMetricsMock,
-  loadAdminHlsProxyHealthMetricsMock,
+  loadCuratedPlaybackHealthSnapshotMock,
   loadAdminTranscodeHealthMetricsMock,
-  loadAdminMediaPreviewGroupedCountsMock,
-  loadAdminMediaPreviewStalePendingCountMock,
   listOpenIncidentsMock,
   listBackupJobStatusMock,
   getOutgoingDeliveryQueueHealthMock,
@@ -69,6 +75,7 @@ const {
   getOperatorJobStatusMock,
   listIntegrationWebhookLastStatusMock,
   loadAdminReminderPipelineMetricsMock,
+  loadCuratedSystemHealthSnapshotMock,
   readSaasIsolationHealthMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
@@ -83,12 +90,8 @@ const {
   isS3MediaEnabledMock: vi.fn(),
   poolQueryMock: vi.fn(),
   getConfigBoolMock: vi.fn(),
-  loadAdminPlaybackHealthMetricsMock: vi.fn(),
-  loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
-  loadAdminHlsProxyHealthMetricsMock: vi.fn(),
+  loadCuratedPlaybackHealthSnapshotMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
-  loadAdminMediaPreviewGroupedCountsMock: vi.fn(),
-  loadAdminMediaPreviewStalePendingCountMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
@@ -96,6 +99,7 @@ const {
   getOperatorJobStatusMock: vi.fn(),
   listIntegrationWebhookLastStatusMock: vi.fn(),
   loadAdminReminderPipelineMetricsMock: vi.fn(),
+  loadCuratedSystemHealthSnapshotMock: vi.fn(),
   readSaasIsolationHealthMock: vi.fn(),
 }));
 
@@ -162,26 +166,15 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 }));
 
 vi.mock("@/app-layer/media/adminPlaybackHealthMetrics", () => ({
-  loadAdminPlaybackHealthMetrics: loadAdminPlaybackHealthMetricsMock,
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS: 24,
 }));
 
-vi.mock("@/app-layer/media/playbackClientEvents", () => ({
-  loadAdminPlaybackClientHealthMetrics: loadAdminPlaybackClientHealthMetricsMock,
-}));
-
 vi.mock("@/app-layer/media/adminHlsProxyHealthMetrics", () => ({
-  loadAdminHlsProxyHealthMetrics: loadAdminHlsProxyHealthMetricsMock,
   ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS: 24,
 }));
 
 vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
-}));
-
-vi.mock("@/infra/repos/pgAdminMediaPreviewHealth", () => ({
-  loadAdminMediaPreviewGroupedCounts: loadAdminMediaPreviewGroupedCountsMock,
-  loadAdminMediaPreviewStalePendingCount: loadAdminMediaPreviewStalePendingCountMock,
 }));
 
 vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
@@ -193,6 +186,11 @@ vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
     deliveryEvents: { sent: 0, failed: 0 },
     patientReminderM2mIdempotencyKeysActive: 0,
   }),
+}));
+
+vi.mock("@/infra/repos/pgCuratedSystemHealthDiagnostics", () => ({
+  loadCuratedSystemHealthSnapshot: loadCuratedSystemHealthSnapshotMock,
+  loadCuratedPlaybackHealthSnapshot: loadCuratedPlaybackHealthSnapshotMock,
 }));
 
 import { GET } from "./route";
@@ -219,54 +217,21 @@ describe("GET /api/admin/system-health", () => {
     getConfigBoolMock.mockResolvedValue(false);
     poolQueryMock.mockReset();
     mockPoolPreviewOnly();
-    loadAdminPlaybackHealthMetricsMock.mockReset();
-    loadAdminPlaybackClientHealthMetricsMock.mockReset();
-    loadAdminPlaybackClientHealthMetricsMock.mockResolvedValue({
-      windowHours: 24,
-      totalErrors: 0,
-      totalErrorsLast1h: 0,
-      byEvent: {
-        hls_fatal: 0,
-        video_error: 0,
-        hls_import_failed: 0,
-        playback_refetch_failed: 0,
-        playback_refetch_exception: 0,
-        hls_js_unsupported: 0,
-      },
-      byEventLast1h: {
-        hls_fatal: 0,
-        video_error: 0,
-        hls_import_failed: 0,
-        playback_refetch_failed: 0,
-        playback_refetch_exception: 0,
-        hls_js_unsupported: 0,
-      },
-      byDelivery: { hls: 0, mp4: 0, file: 0 },
-      likelyLooping: false,
-      recent: [],
-    });
-    loadAdminHlsProxyHealthMetricsMock.mockReset();
-    loadAdminHlsProxyHealthMetricsMock.mockResolvedValue({
-      windowHours: 24,
-      errorsTotal24h: 0,
-      errorsTotal1h: 0,
-      byReason: {},
-      byReasonLast1h: {},
-      degraded: false,
-      recent: [],
+    loadCuratedPlaybackHealthSnapshotMock.mockReset();
+    loadCuratedPlaybackHealthSnapshotMock.mockResolvedValue({
+      "24": zeroMetrics,
+      "1": zeroMetrics,
+      hlsProxy: zeroHlsProxyMetrics,
     });
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
-    loadAdminMediaPreviewGroupedCountsMock.mockReset();
-    loadAdminMediaPreviewGroupedCountsMock.mockResolvedValue([]);
-    loadAdminMediaPreviewStalePendingCountMock.mockReset();
-    loadAdminMediaPreviewStalePendingCountMock.mockResolvedValue(0);
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
     getOutgoingDeliveryQueueHealthMock.mockReset();
     getIntegratorPushOutboxHealthMock.mockReset();
     getOperatorJobStatusMock.mockReset();
     loadAdminReminderPipelineMetricsMock.mockReset();
+    loadCuratedSystemHealthSnapshotMock.mockReset();
     readSaasIsolationHealthMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
@@ -283,6 +248,143 @@ describe("GET /api/admin/system-health", () => {
         deliveryEvents: { sent: 0, failed: 0 },
         patientReminderM2mIdempotencyKeysActive: 0,
       },
+    });
+    loadCuratedSystemHealthSnapshotMock.mockImplementation(async () => {
+      const [transcode, incidents, backups, outgoing, pushOutbox, reminderResult] = await Promise.all([
+        loadAdminTranscodeHealthMetricsMock(),
+        listOpenIncidentsMock(20),
+        listBackupJobStatusMock(),
+        getOutgoingDeliveryQueueHealthMock(),
+        getIntegratorPushOutboxHealthMock(),
+        loadAdminReminderPipelineMetricsMock(zeroOutgoingSnapshot),
+      ]);
+      const requestedJobs = [
+        [OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY],
+        [OPERATOR_REMINDERS_JOB_FAMILY, OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY],
+      ] as const;
+      const jobs = (await Promise.all(
+        requestedJobs.map(([family, key]) => getOperatorJobStatusMock(family, key)),
+      )).filter((row): row is NonNullable<typeof row> => row != null);
+      const pipelineEnabled = Boolean(await getConfigBoolMock("video_hls_pipeline_enabled", false));
+      const reconcileEnabled = Boolean(await getConfigBoolMock("video_hls_reconcile_enabled", false));
+      const playbackEnabled = Boolean(await getConfigBoolMock("video_playback_api_enabled", false));
+      return {
+        schemaVersion: 1,
+        config: {
+          pipelineEnabled,
+          reconcileEnabled,
+          playbackEnabled,
+          vapidConfigured: false,
+          smtpConfigured: false,
+        },
+        videoTranscode: transcode,
+        mediaPreview: {
+          stalePendingCount: 0,
+          byMimeAndStatus: {
+            "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+            "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+            "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          },
+        },
+        videoPlaybackClient: {
+          windowHours: 24,
+          totalErrors: 0,
+          totalErrorsLast1h: 0,
+          byEvent: {
+            hls_fatal: 0,
+            video_error: 0,
+            hls_import_failed: 0,
+            playback_refetch_failed: 0,
+            playback_refetch_exception: 0,
+            hls_js_unsupported: 0,
+          },
+          byEventLast1h: {
+            hls_fatal: 0,
+            video_error: 0,
+            hls_import_failed: 0,
+            playback_refetch_failed: 0,
+            playback_refetch_exception: 0,
+            hls_js_unsupported: 0,
+          },
+          byDelivery: { hls: 0, mp4: 0, file: 0 },
+          likelyLooping: false,
+          recent: [],
+        },
+        operatorJobs: [
+          ...jobs.map((job) => ({
+            jobKey: job.jobKey,
+            jobFamily: job.jobFamily,
+            lastStatus: job.lastStatus,
+            lastFinishedAt: job.lastFinishedAt ?? null,
+            lastSuccessAt: job.lastSuccessAt ?? null,
+            lastFailureAt: job.lastFailureAt ?? null,
+            lastDurationMs: job.lastDurationMs ?? null,
+            safeMeta: job.metaJson ?? {},
+          })),
+          ...backups.map((job: {
+            jobKey: string;
+            jobFamily: string;
+            lastStatus: string;
+            lastFinishedAt?: string | null;
+            lastSuccessAt?: string | null;
+            lastFailureAt?: string | null;
+            lastDurationMs?: number | null;
+          }) => ({
+            jobKey: job.jobKey,
+            jobFamily: job.jobFamily,
+            lastStatus: job.lastStatus,
+            lastFinishedAt: job.lastFinishedAt ?? null,
+            lastSuccessAt: job.lastSuccessAt ?? null,
+            lastFailureAt: job.lastFailureAt ?? null,
+            lastDurationMs: job.lastDurationMs ?? null,
+            safeMeta: {},
+          })),
+        ],
+        operatorIncidents: {
+          openCount: incidents.length,
+          occurrenceCount: incidents.reduce(
+            (sum: number, row: { occurrenceCount?: number }) => sum + (row.occurrenceCount ?? 0),
+            0,
+          ),
+          lastSeenAt: incidents[0]?.lastSeenAt ?? null,
+        },
+        outgoingDelivery: { ...outgoing, reminderProcessingCount: 0 },
+        integratorPushOutbox: pushOutbox,
+        remindersPipeline: reminderResult.ok
+          ? reminderResult.value
+          : {
+              windowHours: 24,
+              outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+              occurrenceHistory: { sent: 0, failed: 0 },
+              deliveryEvents: { sent: 0, failed: 0 },
+              patientReminderM2mIdempotencyKeysActive: 0,
+            },
+        webPush: {
+          windowHours: 24,
+          activeSubscriptionsCount: 0,
+          usersWithSubscriptionCount: 0,
+          subscriptionsTouchedLast24h: 0,
+        },
+        notificationDelivery: {
+          windowHours: 24,
+          totalAttempts24h: 0,
+          byChannel: Object.fromEntries(
+            ["telegram", "max", "web_push", "email"].map((channel) => [channel, {
+              successCount: 0,
+              failedCount: 0,
+              skippedCount: 0,
+              lastAttemptAt: null,
+              lastSuccessAt: null,
+              lastErrorAt: null,
+              lastErrorReason: null,
+              lastErrorMessage: null,
+            }]),
+          ),
+          recentIssues: [],
+        },
+        integrationWebhookStatus: [],
+        operatorHealthDigestLastSentAt: null,
+      };
     });
     readSaasIsolationHealthMock.mockResolvedValue({
       schemaVersion: 3,
@@ -329,6 +431,7 @@ describe("GET /api/admin/system-health", () => {
 
     const res = await GET();
     expect(res.status).toBe(403);
+    expect(loadCuratedSystemHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
   it("returns normalized healthy payload with projection degraded", async () => {
@@ -372,7 +475,7 @@ describe("GET /api/admin/system-health", () => {
         status: string;
         pendingCount: number;
       };
-      operatorIncidentsOpen: unknown[];
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, unknown>;
       outgoingDelivery: typeof zeroOutgoingSnapshot;
       integratorPushOutbox: typeof zeroIntegratorPushOutboxSnapshot;
@@ -401,7 +504,7 @@ describe("GET /api/admin/system-health", () => {
       };
       fetchedAt: string;
     };
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
     expect(body.webappDb).toBe("up");
     expect(body.integratorApi).toEqual({ status: "ok", db: "up" });
     expect(body.projection.status).toBe("degraded");
@@ -421,7 +524,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoTranscode.status).toBe("ok");
     expect(body.videoTranscode.pendingCount).toBe(0);
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
-    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
     expect(body.backupJobs).toEqual({});
     expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
     expect(body.integratorPushOutbox).toEqual(zeroIntegratorPushOutboxSnapshot);
@@ -479,7 +582,7 @@ describe("GET /api/admin/system-health", () => {
       expect.objectContaining({ probe: "integrator_api", status: "unreachable" }),
       "system_health_probe",
     );
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
   it("returns projection unreachable when proxy returns unreachable error", async () => {
@@ -506,22 +609,32 @@ describe("GET /api/admin/system-health", () => {
     const body = (await res.json()) as { projection: { status: string; snapshot?: unknown } };
     expect(body.projection.status).toBe("unreachable");
     expect(body.projection.snapshot).toBeUndefined();
-    expect(loadAdminPlaybackHealthMetricsMock).not.toHaveBeenCalled();
+    expect(loadCuratedPlaybackHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
-  it("loads videoPlayback via Drizzle metrics helper when playback API enabled", async () => {
+  it("loads videoPlayback through the protected curated aggregate when playback API enabled", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
-    loadAdminPlaybackHealthMetricsMock.mockResolvedValue({
-      ...zeroMetrics,
-      byDelivery: { hls: 3, mp4: 2, file: 1 },
-      fallbackTotal: 3,
-      totalResolutions: 6,
-      uniquePlaybackPairsFirstSeenInWindow: 4,
+    loadCuratedPlaybackHealthSnapshotMock.mockResolvedValue({
+      "24": {
+        ...zeroMetrics,
+        byDelivery: { hls: 3, mp4: 2, file: 1 },
+        fallbackTotal: 3,
+        totalResolutions: 6,
+        uniquePlaybackPairsFirstSeenInWindow: 4,
+      },
+      "1": zeroMetrics,
+      hlsProxy: {
+        ...zeroHlsProxyMetrics,
+        errorsTotal24h: 2,
+        errorsTotal1h: 1,
+        byReason: { missing_object: 2 },
+        byReasonLast1h: { missing_object: 1 },
+      },
     });
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
@@ -551,25 +664,25 @@ describe("GET /api/admin/system-health", () => {
         playbackApiEnabled: boolean;
         uniquePlaybackPairsFirstSeenInWindow: number;
       };
+      videoHlsProxy: { errorsTotal24h: number; errorsTotal1h: number };
     };
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalled();
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 24 });
-    expect(loadAdminPlaybackHealthMetricsMock).toHaveBeenCalledWith({ windowHours: 1 });
+    expect(loadCuratedPlaybackHealthSnapshotMock).toHaveBeenCalledTimes(1);
     expect(body.videoPlayback.playbackApiEnabled).toBe(true);
     expect(body.videoPlayback.byDelivery).toEqual({ hls: 3, mp4: 2, file: 1 });
     expect(body.videoPlayback.totalResolutions).toBe(6);
     expect(body.videoPlayback.fallbackTotal).toBe(3);
     expect(body.videoPlayback.uniquePlaybackPairsFirstSeenInWindow).toBe(4);
+    expect(body.videoHlsProxy).toMatchObject({ errorsTotal24h: 2, errorsTotal1h: 1 });
   });
 
-  it("returns videoPlayback error shell when Drizzle playback metrics loader fails", async () => {
+  it("returns videoPlayback error shell when curated playback aggregate fails", async () => {
     requireAdminModeSessionMock.mockResolvedValue({
       ok: true,
       session: { user: { userId: "a1", role: "admin" }, adminMode: true },
     });
     checkDbHealthMock.mockResolvedValue(true);
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_playback_api_enabled");
-    loadAdminPlaybackHealthMetricsMock.mockRejectedValue(new Error("drizzle_down"));
+    loadCuratedPlaybackHealthSnapshotMock.mockRejectedValue(new Error("aggregate_down"));
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
         status: 200,
@@ -644,12 +757,12 @@ describe("GET /api/admin/system-health", () => {
       meta?: { probes?: { videoTranscode?: { status?: string; errorCode?: string } } };
     };
     expect(body.videoTranscode.status).toBe("error");
-    expect(body.videoTranscode.pipelineEnabled).toBe(true);
-    expect(body.videoTranscode.reconcileEnabled).toBe(true);
+    expect(body.videoTranscode.pipelineEnabled).toBe(false);
+    expect(body.videoTranscode.reconcileEnabled).toBe(false);
     expect(body.videoTranscode.pendingCount).toBe(0);
-    expect(body.meta?.probes?.videoTranscode?.errorCode).toBe("video_transcode_probe_failed");
+    expect(body.meta?.probes?.videoTranscode?.errorCode).toBe("curated_system_health_read_failed");
     expect(loggerWarnMock).toHaveBeenCalledWith(
-      expect.objectContaining({ probe: "video_transcode", errorCode: "video_transcode_probe_failed" }),
+      expect.objectContaining({ probe: "video_transcode", errorCode: "curated_system_health_read_failed" }),
       "system_health_probe",
     );
   });
@@ -707,12 +820,15 @@ describe("GET /api/admin/system-health", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      operatorIncidentsOpen: Array<{ id: string; integration: string }>;
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, { lastStatus: string }>;
       meta?: { probes?: { operatorIncidents?: { status: string }; operatorBackupJobs?: { status: string } } };
     };
-    expect(body.operatorIncidentsOpen).toHaveLength(1);
-    expect(body.operatorIncidentsOpen[0]!.integration).toBe("max");
+    expect(body.operatorIncidents).toEqual({
+      openCount: 1,
+      occurrenceCount: 3,
+      lastSeenAt: "2026-04-16T10:05:00.000Z",
+    });
     expect(body.backupJobs["backup.hourly"]?.lastStatus).toBe("failure");
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("degraded");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("degraded");
@@ -746,7 +862,7 @@ describe("GET /api/admin/system-health", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      operatorIncidentsOpen: unknown[];
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, unknown>;
       meta?: {
         probes?: {
@@ -755,10 +871,10 @@ describe("GET /api/admin/system-health", () => {
         };
       };
     };
-    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
     expect(body.backupJobs).toEqual({});
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("error");
-    expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("operator_health_read_failed");
+    expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("curated_system_health_read_failed");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("error");
   });
 

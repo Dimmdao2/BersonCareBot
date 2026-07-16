@@ -6,6 +6,11 @@ import { basename } from "node:path";
 const REQUIRED_PROCESS_NAMES = new Set(["webapp", "integrator", "media-worker"]);
 const REQUIRED_SHARED_KEYS = ["DB_PRINCIPAL_CONTEXT_MODE", "DB_PRINCIPAL_SIGNING_SECRET"];
 const WEBAPP_DATABASE_URL_KEYS = ["DATABASE_URL_STAFF", "DATABASE_URL_NONSTAFF", "SAAS_ISOLATION_OPERATOR_DATABASE_URL"];
+const INTEGRATOR_OPERATIONAL_URL_KEYS = [
+  "DATABASE_URL_DIAGNOSTIC",
+  "DATABASE_URL_DELIVERY_WORKER",
+  "DATABASE_URL_SCHEDULER",
+];
 const MIN_SECRET_BYTES = 32;
 
 function fail(message) {
@@ -22,8 +27,10 @@ function parseArgs(argv) {
       options.selfTest = true;
       continue;
     }
-    if (arg.startsWith("--env-file=")) {
-      options.envFiles.push(arg.slice("--env-file=".length));
+    // `--env-file` is a Node.js runtime flag, including when it appears after the script path.
+    // Keep this application option distinct so Node does not consume it before this parser runs.
+    if (arg.startsWith("--process-env-file=")) {
+      options.envFiles.push(arg.slice("--process-env-file=".length));
       continue;
     }
     fail(`unknown argument: ${arg}`);
@@ -34,12 +41,12 @@ function parseArgs(argv) {
 function parseEnvFileSpec(spec) {
   const separator = spec.indexOf(":");
   if (separator <= 0 || separator === spec.length - 1) {
-    fail(`invalid --env-file spec, expected process:/path: ${spec}`);
+    fail(`invalid --process-env-file spec, expected process:/path: ${spec}`);
   }
   const processName = spec.slice(0, separator);
   const path = spec.slice(separator + 1);
   if (!REQUIRED_PROCESS_NAMES.has(processName)) {
-    fail(`unsupported process in --env-file: ${processName}`);
+    fail(`unsupported process in --process-env-file: ${processName}`);
   }
   if (!path.startsWith("/")) {
     fail(`env file path must be absolute for ${processName}`);
@@ -101,6 +108,16 @@ function fingerprintUrlHost(value) {
   }
 }
 
+function databaseUrlUsername(value, label) {
+  try {
+    const username = decodeURIComponent(new URL(value).username);
+    if (!username) fail(`${label} must include a PostgreSQL username`);
+    return username;
+  } catch {
+    fail(`${label} must be a valid PostgreSQL URL`);
+  }
+}
+
 function defaultPortForProtocol(protocol) {
   if (protocol === "postgresql:" || protocol === "postgres:") return "5432";
   return "";
@@ -108,7 +125,7 @@ function defaultPortForProtocol(protocol) {
 
 function assertNoSecretLeak(output, loadedFiles) {
   for (const file of loadedFiles) {
-    for (const key of ["DB_PRINCIPAL_SIGNING_SECRET", ...WEBAPP_DATABASE_URL_KEYS]) {
+    for (const key of ["DB_PRINCIPAL_SIGNING_SECRET", "DATABASE_URL", ...WEBAPP_DATABASE_URL_KEYS, ...INTEGRATOR_OPERATIONAL_URL_KEYS]) {
       const value = file.values.get(key);
       if (value && output.includes(value)) {
         fail(`preflight output leaked ${key} from ${file.processName}`);
@@ -173,11 +190,49 @@ function validateLoadedFiles(loadedFiles) {
     fail("webapp SAAS_ISOLATION_OPERATOR_DATABASE_URL must use a separate operator login");
   }
 
+  const integrator = seen.get("integrator");
+  const mediaWorker = seen.get("media-worker");
+  const operationalUrls = INTEGRATOR_OPERATIONAL_URL_KEYS.map((key) => {
+    const value = integrator?.values.get(key)?.trim() ?? "";
+    if (!value) fail(`integrator missing ${key}`);
+    if (!/^postgres(?:ql)?:\/\//.test(value)) fail(`integrator ${key} must be a PostgreSQL URL`);
+    return [key, value];
+  });
+  const integratorBaseUrl = integrator?.values.get("DATABASE_URL")?.trim() ?? "";
+  const mediaWorkerUrl = mediaWorker?.values.get("DATABASE_URL")?.trim() ?? "";
+  if (!/^postgres(?:ql)?:\/\//.test(integratorBaseUrl)) fail("integrator DATABASE_URL must be a PostgreSQL URL");
+  if (!/^postgres(?:ql)?:\/\//.test(mediaWorkerUrl)) fail("media-worker DATABASE_URL must be a PostgreSQL URL");
+  const runtimeUrls = [integratorBaseUrl, mediaWorkerUrl, ...operationalUrls.map(([, value]) => value)];
+  if (new Set(runtimeUrls).size !== runtimeUrls.length) {
+    fail("integrator and media-worker operational DATABASE_URL values must use distinct login credentials");
+  }
+  const runtimeUsernames = [
+    databaseUrlUsername(integratorBaseUrl, "integrator DATABASE_URL"),
+    databaseUrlUsername(mediaWorkerUrl, "media-worker DATABASE_URL"),
+    ...operationalUrls.map(([key, value]) => databaseUrlUsername(value, `integrator ${key}`)),
+  ];
+  if (new Set(runtimeUsernames).size !== runtimeUsernames.length) {
+    fail("integrator and media-worker operational DATABASE_URL values must use distinct PostgreSQL login roles");
+  }
+  const allRuntimeUsernames = [
+    ...WEBAPP_DATABASE_URL_KEYS.map((key) =>
+      databaseUrlUsername(webapp?.values.get(key) ?? "", `webapp ${key}`),
+    ),
+    ...runtimeUsernames,
+  ];
+  if (new Set(allRuntimeUsernames).size !== allRuntimeUsernames.length) {
+    fail("all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles");
+  }
+
   return {
     signingFingerprint: [...uniqueSigningFingerprints][0],
     webappStaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_STAFF") ?? ""),
     webappNonstaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_NONSTAFF") ?? ""),
     webappOperatorUrlShape: fingerprintUrlHost(webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL") ?? ""),
+    integratorOperationalUrlShapes: Object.fromEntries(
+      operationalUrls.map(([key, value]) => [key, fingerprintUrlHost(value)]),
+    ),
+    mediaWorkerUrlShape: fingerprintUrlHost(mediaWorkerUrl),
   };
 }
 
@@ -188,6 +243,8 @@ function renderReport(loadedFiles, summary) {
     `webapp_DATABASE_URL_STAFF_shape=${summary.webappStaffUrlShape}`,
     `webapp_DATABASE_URL_NONSTAFF_shape=${summary.webappNonstaffUrlShape}`,
     `webapp_SAAS_ISOLATION_OPERATOR_DATABASE_URL_shape=${summary.webappOperatorUrlShape}`,
+    ...Object.entries(summary.integratorOperationalUrlShapes).map(([key, value]) => `integrator_${key}_shape=${value}`),
+    `media-worker_DATABASE_URL_shape=${summary.mediaWorkerUrlShape}`,
     "restart_order=webapp integrator worker scheduler media-worker",
     "rollback_order=restore previous root-managed env files, restart same units, rerun this preflight",
   ];
@@ -228,6 +285,9 @@ SAAS_ISOLATION_OPERATOR_DATABASE_URL=postgres://saas_operator:operator-secret@12
 DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET=${sharedSecret}
 DATABASE_URL=postgres://integrator:secret@127.0.0.1:5432/bersoncarebot_test
+DATABASE_URL_DIAGNOSTIC=postgres://diagnostic:secret@127.0.0.1:5432/bersoncarebot_test
+DATABASE_URL_DELIVERY_WORKER=postgres://delivery:secret@127.0.0.1:5432/bersoncarebot_test
+DATABASE_URL_SCHEDULER=postgres://scheduler:secret@127.0.0.1:5432/bersoncarebot_test
 `),
     },
     {
@@ -245,7 +305,7 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
   const output = renderReport(fixtureFiles, summary);
   assertNoSecretLeak(output, fixtureFiles);
 
-  const broken = fixtureFiles.map((file) =>
+  const brokenSecret = fixtureFiles.map((file) =>
     file.processName === "integrator"
       ? {
           ...file,
@@ -253,13 +313,38 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
         }
       : file,
   );
-  try {
-    validateLoadedFiles(broken);
-  } catch {
-    console.log("saas-c2-secret-preflight self-test: OK");
-    return;
+  const brokenCrossProcessUsername = fixtureFiles.map((file) =>
+    file.processName === "integrator"
+      ? {
+          ...file,
+          values: new Map(file.values).set(
+            "DATABASE_URL_DIAGNOSTIC",
+            "postgres://staff:different-secret@127.0.0.1:5432/bersoncarebot_test",
+          ),
+        }
+      : file,
+  );
+  const brokenOperationalUsername = fixtureFiles.map((file) =>
+    file.processName === "integrator"
+      ? {
+          ...file,
+          values: new Map(file.values).set(
+            "DATABASE_URL_SCHEDULER",
+            "postgres://delivery:different-secret@127.0.0.1:5432/bersoncarebot_test",
+          ),
+        }
+      : file,
+  );
+  let detected = 0;
+  for (const broken of [brokenSecret, brokenCrossProcessUsername, brokenOperationalUsername]) {
+    try {
+      validateLoadedFiles(broken);
+    } catch {
+      detected += 1;
+    }
   }
-  fail("self-test did not detect signing secret fingerprint mismatch");
+  if (detected !== 3) fail("self-test did not detect all secret/login collision regressions");
+  console.log("saas-c2-secret-preflight self-test: OK");
 }
 
 try {

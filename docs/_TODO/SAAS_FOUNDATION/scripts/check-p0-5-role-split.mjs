@@ -3,7 +3,11 @@
 import { readFileSync } from "node:fs";
 
 import { buildRlsDescriptors, readTierRows } from "./rls-descriptor-model.mjs";
-import { getP05AppGrantTables, renderP05RoleSplitSql } from "./p0-5-role-split-sql.mjs";
+import {
+  getP05AppGrantTables,
+  p05DedicatedRoleTables,
+  renderP05RoleSplitSql,
+} from "./p0-5-role-split-sql.mjs";
 
 const docPath = "docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT.md";
 const proofPath = "docs/_TODO/SAAS_FOUNDATION/P0_5_DB_ROLE_SPLIT_PROOF.sql";
@@ -58,12 +62,26 @@ function countByTier(tables) {
 }
 
 function assertGrantSetMatchesTiers() {
+  if (
+    p05DedicatedRoleTables.size !== 1 ||
+    !p05DedicatedRoleTables.has("public.app_runtime_settings")
+  ) {
+    fail("P0.5 dedicated-role exclusion must contain only public.app_runtime_settings");
+  }
+
   const grantTables = getP05AppGrantTables();
   const grantTableNames = new Set(grantTables.map((table) => table.qualifiedName));
   const tierRows = readTierRows();
   const expectedTables = new Set(
-    tierRows.filter((row) => row.tier === "SCOPED" || row.tier === "BOOTSTRAP").map((row) => row.table),
+    tierRows
+      .filter((row) => row.tier === "SCOPED" || row.tier === "BOOTSTRAP")
+      .map((row) => row.table)
+      .filter((table) => !p05DedicatedRoleTables.has(table)),
   );
+
+  if (grantTableNames.has("public.app_runtime_settings")) {
+    fail("P0.5 generic app role must not receive app_runtime_settings; it uses dedicated audience-aware roles");
+  }
 
   if (grantTableNames.size !== expectedTables.size) {
     fail(`Expected ${expectedTables.size} P0.5 app grant tables, got ${grantTableNames.size}`);

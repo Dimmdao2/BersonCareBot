@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const files = {
   migration: 'apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql',
+  identityMigration: 'apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql',
   overlay: 'deploy/postgres/saas-isolation-telemetry.sql',
   model: 'apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts',
   repository: 'apps/webapp/src/infra/repos/pgSaasIsolationDiagnostics.ts',
@@ -98,8 +99,15 @@ async function main() {
     'hourly.bucket_start <= bounds.current_hour',
     "date_trunc('day', as_of AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",
     'app.read_saas_isolation_test_scenario_fixture_counts()',
+    "('webapp','patient_identity_exception_check')",
+    "('webapp','patient_booking_history')",
   ])
     requireText(loaded.overlay, fragment, 'overlay');
+  for (const fragment of [
+    "('webapp','patient_identity_exception_check')",
+    "('webapp','patient_booking_history')",
+  ])
+    requireText(loaded.identityMigration, fragment, '0194 operation-family constraint');
   for (const service of ['webapp', 'integrator', 'worker', 'scheduler', 'media_worker', 'cron']) {
     requireText(loaded.model, `"${service}"`, 'required service inventory');
   }
@@ -121,6 +129,8 @@ async function main() {
   requireText(loaded.cli, 'state: enumValue(TEST_SCENARIOS', 'closed TEST scenario CLI');
   for (const fragment of [
     'post-runtime-gate',
+    'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+    'assertKnownOptions(args, ["--started-at", "--checks"])',
     'runSaasIsolationPostRuntimeGate',
     'saas_isolation_post_runtime_gate_ok',
     'coverage=complete active_unexplained=0',
@@ -248,8 +258,23 @@ async function main() {
     'trend_boundary_future_exclusion_and_exact_utc_dates',
     'non_test_scenario_allowed',
     'non_test_scenario_counts_allowed',
+    '0194_e1_patient_identity_exception.sql',
+    'patient_identity_exception_check_persisted_after_overlay',
+    'patient_booking_history_persisted_after_overlay',
+    'unknown_webapp_family_denied',
   ])
     requireText(loaded.rehearsal, fragment, 'PostgreSQL rehearsal proof');
+  requireOrder(
+    loaded.rehearsal,
+    [
+      '0194_e1_patient_identity_exception.sql',
+      'deploy/postgres/saas-isolation-telemetry.sql',
+      'patient_identity_exception_check_persisted_after_overlay',
+      'patient_booking_history_persisted_after_overlay',
+      'unknown_webapp_family_denied',
+    ],
+    '0194 then telemetry overlay operation-family persistence proof',
+  );
   for (const [family, fragment] of [
     ['integrator', 'reportIntegratorIsolationFailure'],
     ['worker', 'reportWorkerQueueIsolationFailure'],
@@ -387,6 +412,16 @@ async function main() {
         'future trend bucket',
       ],
       [
+        loaded.overlay.replace("('webapp','patient_identity_exception_check'),", ''),
+        "('webapp','patient_identity_exception_check')",
+        'missing patient identity exception operation family',
+      ],
+      [
+        loaded.overlay.replace("('webapp','patient_booking_history'),", ''),
+        "('webapp','patient_booking_history')",
+        'missing patient booking history operation family',
+      ],
+      [
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),
         'finally {',
         'missing scenario cleanup finally',
@@ -398,6 +433,14 @@ async function main() {
         ),
         "rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs",
         'pnpm argument separator regression',
+      ],
+      [
+        loaded.cli.replace(
+          'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+          'rawArgs',
+        ),
+        'rawArgs[0] === "--" ? rawArgs.slice(1) : rawArgs',
+        'diagnostics CLI pnpm argument separator regression',
       ],
       [
         scenarioProof.replace('"--execute --prove-cleanup-on-injected-failure"', '"--execute"'),

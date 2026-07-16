@@ -79,7 +79,7 @@ export type MessengerWebappEntryIdentityDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
-  /** Публичный origin вебаппа (`system_settings.app_base_url` / env). */
+  /** Публичный origin вебаппа (DB-backed runtime `app_base_url`). */
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
@@ -114,6 +114,7 @@ export type MaxRoutesRegistrar = (
 export type BuildDepsInput = {
   dbReadPort?: DbReadPort;
   dbWritePort?: DbWritePort;
+  dispatchAttemptWritePort?: DbWritePort;
   queuePort?: QueuePort;
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
@@ -168,7 +169,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const communicationReadsPort = createCommunicationReadsPort({ db: dbPort });
   /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
   const dispatchPortForReminders: { current?: DispatchPort } = {};
-  /** Without webhook secret, reminder product reads stay on integrator DB (safe fallback). Base URL: DB `app_base_url` or env. */
+  /** Without webhook secret, reminder product reads stay on integrator DB (safe fallback). Base URL is DB-backed. */
   const remindersReadsPort =
     integratorWebhookSecret().length >= 16
       ? createRemindersReadsPort({
@@ -243,7 +244,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createDefaultDispatchPort({
       adapters,
       readPort: dbReadPort,
-      writePort: dbWritePort,
+      writePort: input.dispatchAttemptWritePort ?? dbWritePort,
     });
 
   dispatchPortRef.current = dispatchPort;
@@ -291,8 +292,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     maxConfig.enabled
       ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
       : undefined;
-
-  void getAppBaseUrl(dbPort).catch(() => {});
 
   return {
     healthCheckDb,

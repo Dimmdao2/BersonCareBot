@@ -5,14 +5,6 @@ import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole"
 import { routePaths } from "@/app-layer/routes/paths";
 import { assertPatientProgramCommentsAllowed } from "@/modules/doctor-clients/assertPatientProgramInteraction";
 
-function parseFeatureEnabled(valueJson: unknown): boolean {
-  return (
-    valueJson !== null &&
-    typeof valueJson === "object" &&
-    (valueJson as Record<string, unknown>).value === true
-  );
-}
-
 export async function POST(
   _request: Request,
   context: { params: Promise<{ instanceId: string; itemId: string }> },
@@ -26,11 +18,6 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const featureRow = await deps.systemSettings.getSetting("patient_program_discussion_ui_enabled", "admin");
-  if (!parseFeatureEnabled(featureRow?.valueJson ?? null)) {
-    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
-  }
-
   const detail = await deps.treatmentProgramInstance.getInstanceForPatient(gate.session.user.userId, instanceId);
   if (!detail) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
@@ -38,12 +25,26 @@ export async function POST(
   if (detail.assignmentSource !== "doctor") {
     return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
   }
+  const organizationId = detail.organizationId?.trim();
+  if (!organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (!(await deps.runtimeConfig.getBoolean("patient_program_discussion_ui_enabled", {
+    patientUserId: gate.session.user.userId,
+    organizationId,
+  }))) {
+    return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 403 });
+  }
   const hasItem = detail.stages.some((stage) => stage.items.some((item) => item.id === itemId));
   if (!hasItem) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  const supportGate = await assertPatientProgramCommentsAllowed(
+    deps,
+    gate.session.user.userId,
+    { organizationId },
+  );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }

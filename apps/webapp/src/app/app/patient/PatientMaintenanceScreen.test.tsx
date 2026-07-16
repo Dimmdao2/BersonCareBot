@@ -2,8 +2,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { PatientMaintenanceScreen } from "./PatientMaintenanceScreen";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import {
+  PatientMaintenanceScreen,
+  selectMaintenanceUpcomingBookings,
+  type PatientMaintenanceBooking,
+} from "./PatientMaintenanceScreen";
+import type { PatientMaintenanceAppointment } from "@/modules/patient-booking/maintenanceHistory";
 import type { SessionUser } from "@/shared/types/session";
 
 vi.mock("next/navigation", () => ({
@@ -28,43 +32,11 @@ const testUser: SessionUser = {
   bindings: {},
 };
 
-const baseRow: PatientBookingRecord = {
+const baseRow: PatientMaintenanceBooking = {
   id: "b1",
-  userId: "u1",
-  bookingType: "online",
-  city: null,
-  category: "general",
-  slotStart: "2026-06-01T10:00:00.000Z",
-  slotEnd: "2026-06-01T11:00:00.000Z",
+  startAt: "2026-06-01T10:00:00.000Z",
   status: "confirmed",
-  cancelledAt: null,
-  cancelReason: null,
-  rubitimeId: "r1",
-  gcalEventId: null,
-  contactPhone: "+1",
-  contactEmail: null,
-  contactName: "A",
-  reminder24hSent: false,
-  reminder2hSent: false,
-  createdAt: "2026-05-01T00:00:00.000Z",
-  updatedAt: "2026-05-01T00:00:00.000Z",
-  branchServiceId: null,
-  branchId: null,
-  serviceId: null,
-  cityCodeSnapshot: null,
-  branchTitleSnapshot: "Филиал",
-  serviceTitleSnapshot: "Услуга",
-  durationMinutesSnapshot: 60,
-  priceMinorSnapshot: null,
-  rubitimeBranchIdSnapshot: null,
-  rubitimeCooperatorIdSnapshot: null,
-  rubitimeServiceIdSnapshot: null,
-  rubitimeManageUrl: "https://rubitime.example/m",
-  canonicalAppointmentId: null,
-  bookingSource: "native",
-  compatQuality: null,
-  provenanceCreatedBy: null,
-  provenanceUpdatedBy: null,
+  subtitle: "Услуга · Филиал",
 };
 
 describe("PatientMaintenanceScreen", () => {
@@ -73,14 +45,14 @@ describe("PatientMaintenanceScreen", () => {
       <PatientMaintenanceScreen
         user={testUser}
         message="Hello maintenance"
-        bookingUrl="https://dmitryberson.rubitime.ru"
+        bookingUrl="https://booking.example.test"
         bookings={[]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
     expect(screen.getByText("Hello maintenance")).toBeTruthy();
     const link = screen.getByRole("link", { name: /Записаться на приём/i });
-    expect(link.getAttribute("href")).toMatch(/dmitryberson\.rubitime\.ru/);
+    expect(link.getAttribute("href")).toBe("https://booking.example.test");
   });
 
   it("shows empty bookings state", () => {
@@ -96,19 +68,17 @@ describe("PatientMaintenanceScreen", () => {
     expect(screen.getByText(/Нет предстоящих записей/i)).toBeTruthy();
   });
 
-  it("falls back to default booking href when URL is not a safe external https link", () => {
+  it("omits the booking CTA when there is no single organization URL", () => {
     render(
       <PatientMaintenanceScreen
         user={null}
         message="x"
-        bookingUrl="javascript:alert(1)"
+        bookingUrl={null}
         bookings={[]}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
-    const link = screen.getByRole("link", { name: /Записаться на приём/i });
-    expect(link.getAttribute("href")).toMatch(/^https:\/\//);
-    expect(link.getAttribute("href")).toContain("dmitryberson.rubitime.ru");
+    expect(screen.queryByRole("link", { name: /Записаться на приём/i })).toBeNull();
   });
 
   it("lists upcoming bookings", () => {
@@ -125,5 +95,33 @@ describe("PatientMaintenanceScreen", () => {
     expect(section).toBeTruthy();
     const withinSection = within(section!);
     expect(withinSection.getAllByRole("listitem").length).toBe(1);
+    expect(withinSection.getByText("Услуга · Филиал")).toBeTruthy();
+  });
+
+  it("selects canonical active future visits and sorts them ascending", () => {
+    const visit = (overrides: Partial<PatientMaintenanceAppointment>): PatientMaintenanceAppointment => ({
+      id: "visit",
+      startAt: "2026-07-20T10:00:00.000Z",
+      endAt: "2026-07-20T11:00:00.000Z",
+      status: "confirmed",
+      subtitle: "Приём",
+      specialistName: null,
+      branchTitle: null,
+      roomTitle: null,
+      serviceTitle: null,
+      ...overrides,
+    });
+
+    expect(
+      selectMaintenanceUpcomingBookings(
+        [
+          visit({ id: "later", startAt: "2026-07-21T10:00:00.000Z" }),
+          visit({ id: "cancelled", status: "cancelled" }),
+          visit({ id: "past", startAt: "2026-07-10T10:00:00.000Z" }),
+          visit({ id: "earlier", startAt: "2026-07-20T10:00:00.000Z" }),
+        ],
+        new Date("2026-07-16T00:00:00.000Z"),
+      ).map((row) => row.id),
+    ).toEqual(["earlier", "later"]);
   });
 });

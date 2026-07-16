@@ -1,18 +1,38 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
-  getTelegramLoginBotUsername: () => Promise.resolve("my_public_bot"),
+const { getPublicRuntimeBoolMock, getPublicRuntimeValueMock } = vi.hoisted(() => ({
+  getPublicRuntimeBoolMock: vi.fn(),
+  getPublicRuntimeValueMock: vi.fn(),
+}));
+
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getPublicRuntimeBool: (key: string) => getPublicRuntimeBoolMock(key),
+  getPublicRuntimeValue: (key: string) => getPublicRuntimeValueMock(key),
 }));
 
 import { getLoginAlternativesPublicConfig } from "./loginAlternativesConfig";
 
-describe("getLoginAlternativesPublicConfig — public snapshot does not expose Telegram Login", () => {
+describe("getLoginAlternativesPublicConfig", () => {
   beforeEach(() => {
-    vi.resetModules();
+    getPublicRuntimeBoolMock.mockReset();
+    getPublicRuntimeValueMock.mockReset();
+    getPublicRuntimeBoolMock.mockResolvedValue(true);
+    getPublicRuntimeValueMock.mockImplementation(async (key: string) => {
+      if (key === "max_login_bot_nickname") return "my_public_bot";
+      if (key === "vk_web_login_url") return "https://vk.com/example";
+      return "";
+    });
   });
 
-  it("returns telegramBotUsername as null regardless of system setting", async () => {
+  it("uses safe projections and does not expose Telegram Login", async () => {
     const cfg = await getLoginAlternativesPublicConfig();
-    expect(cfg.telegramBotUsername).toBeNull();
+
+    expect(cfg).toEqual({
+      telegramBotUsername: null,
+      maxBotOpenUrl: "https://max.ru/my_public_bot",
+      vkWebLoginUrl: "https://vk.com/example",
+      smsFallbackEnabled: true,
+    });
+    expect(getPublicRuntimeBoolMock).toHaveBeenCalledWith("public_sms_fallback_enabled");
   });
 });

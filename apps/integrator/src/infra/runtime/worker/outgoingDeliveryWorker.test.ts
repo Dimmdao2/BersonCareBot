@@ -1,3 +1,4 @@
+import { getCurrentDbPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 
@@ -25,8 +26,14 @@ vi.mock('../../db/repos/operatorHealthDrizzle.js', () => ({
   markOperatorIncidentAlertSent: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../db/repos/outgoingDeliveryScope.js', () => ({
+  resolveOutgoingDeliveryScope: vi.fn(),
+  operatorIncidentAlertAlreadySent: vi.fn().mockResolvedValue(false),
+  markOperatorIncidentAlertSent: vi.fn().mockResolvedValue(undefined),
+}));
+
 import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
-import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
+import { processClaimedOutgoingDeliveryRow, processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 import { markOutgoingDeliveryDead, markOutgoingDeliverySent } from '../../db/repos/outgoingDeliveryQueue.js';
 import { RecipientBlockedBotError } from '../../delivery/recipientBotBlocked.js';
 import * as doctorBroadcastIntentMenu from './doctorBroadcastIntentMenu.js';
@@ -34,6 +41,7 @@ import { drizzleSqlFragmentToApproximateSql } from '../../db/drizzleSqlDebugText
 import { runIntegratorSql } from '../../db/runIntegratorSql.js';
 import { clearUserChannelBotBlocked } from '../../db/repos/userChannelBotBlocked.js';
 import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
+import { resolveOutgoingDeliveryScope } from '../../db/repos/outgoingDeliveryScope.js';
 
 function baseRow(overrides: Partial<OutgoingDeliveryQueueRow>): OutgoingDeliveryQueueRow {
   return {
@@ -61,6 +69,77 @@ function makeTxDb(): DbPort {
   ) as DbPort['tx'];
   return { query, tx } as DbPort;
 }
+
+describe('claimed row tenant handoff', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
+  });
+
+  it('runs delivery/business work under organization and queue finalization back under delivery capability', async () => {
+    const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
+      kind: 'tenant',
+      queueKind: 'reminder_dispatch',
+      organizationId,
+    });
+    const dispatchPrincipals: unknown[] = [];
+    const queuePrincipals: unknown[] = [];
+    vi.mocked(markOutgoingDeliverySent).mockImplementation(async () => {
+      queuePrincipals.push(getCurrentDbPrincipal());
+    });
+    const row = baseRow({
+      id: '11111111-1111-4111-8111-111111111111',
+      payloadJson: {
+        occurrenceId: '22222222-2222-4222-8222-222222222222',
+        channel: 'max',
+        deliveryLogId: 'delivery-log',
+        externalId: '200',
+        logText: 'test',
+        intent: {
+          type: 'message.send',
+          meta: { eventId: 'event', occurredAt: '2026-07-16T10:00:00.000Z', source: 'max' },
+          payload: { recipient: { chatId: 200 } },
+        },
+      },
+    });
+
+    await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      processClaimedOutgoingDeliveryRow(row, {
+        db: {} as DbPort,
+        writePort: { writeDb: vi.fn().mockResolvedValue(undefined) } as never,
+        dispatchOutgoing: vi.fn(async () => {
+          dispatchPrincipals.push(getCurrentDbPrincipal());
+          return { maxMessageId: 'message-id' };
+        }),
+      }),
+    );
+
+    expect(dispatchPrincipals).toEqual([{ kind: 'organization', organizationId }]);
+    expect(queuePrincipals).toEqual([{ kind: 'infra', source: 'worker:outgoing-delivery-tick' }]);
+  });
+
+  it('quarantines unresolved tenant work before any external send', async () => {
+    vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
+      kind: 'invalid',
+      queueKind: 'reminder_dispatch',
+      reason: 'organization_missing',
+    });
+    const dispatchOutgoing = vi.fn();
+    await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      processClaimedOutgoingDeliveryRow(
+        baseRow({ id: '11111111-1111-4111-8111-111111111111' }),
+        { db: {} as DbPort, writePort: {} as never, dispatchOutgoing },
+      ),
+    );
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+    expect(markOutgoingDeliveryDead).toHaveBeenCalledWith(
+      expect.anything(),
+      '11111111-1111-4111-8111-111111111111',
+      'TENANT_SCOPE_ORGANIZATION_MISSING',
+    );
+  });
+});
 
 describe('reminder_dispatch outgoing delivery row', () => {
   beforeEach(() => {
@@ -648,7 +727,7 @@ describe('operator_alert outgoing delivery row', () => {
     vi.mocked(runIntegratorSql).mockResolvedValue({ rows: [{ status: 'queued' }] });
   });
 
-  it('success clears messenger blocked marker before mark sent', async () => {
+  it('success uses only global operator accessors and does not touch tenant channel markers', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue({});
     const db = {};
     await processOutgoingDeliveryRow(
@@ -676,10 +755,7 @@ describe('operator_alert outgoing delivery row', () => {
       { db: db as never, writePort: { writeDb: vi.fn() } as never, dispatchOutgoing },
     );
     expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
-    expect(clearUserChannelBotBlocked).toHaveBeenCalledWith(
-      db,
-      expect.objectContaining({ channel: 'telegram', platformUserId: 'u1' }),
-    );
+    expect(clearUserChannelBotBlocked).not.toHaveBeenCalled();
     expect(markOutgoingDeliverySent).toHaveBeenCalled();
   });
 });

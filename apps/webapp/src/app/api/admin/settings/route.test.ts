@@ -652,6 +652,7 @@ describe("PATCH /api/admin/settings", () => {
       getByKey: vi.fn(async (key) => (key === "smtp_outbound" ? prevStored : null)),
       getByScope: vi.fn(),
       getWebPushVapidPublicKeyOnly: vi.fn(),
+      isCurrentPatientTestAccount: vi.fn(),
       upsertManyInTransaction: vi.fn(),
       upsert: upsertSpy,
     };

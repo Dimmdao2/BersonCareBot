@@ -39,7 +39,7 @@ function bindingsToLookupItem(
   return null;
 }
 
-/** Optional resolver for webapp base URL (admin `app_base_url` or env). Used as fallback for booking item links when RubiTime does not provide one. */
+/** Optional resolver for DB-backed webapp base URL. Used as fallback for booking item links when RubiTime does not provide one. */
 export type ContextQueryPortInput = {
   readPort: DbReadPort;
   getWebappBaseUrl?: () => Promise<string | null>;

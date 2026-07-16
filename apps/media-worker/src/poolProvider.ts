@@ -4,6 +4,7 @@ import {
   applyCurrentDbPrincipalToConnection,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
+  setDbOperationalRuntimeRole,
 } from "@bersoncare/db-principal";
 import { assertMediaWorkerLockedPrincipalClassified } from "./withClient.js";
 
@@ -39,6 +40,9 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     let queryError: unknown;
     try {
       await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
+      if (principalApplyOptions.mode === "locked") {
+        await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
+      }
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
       result = await query(...args);
     } catch (err) {

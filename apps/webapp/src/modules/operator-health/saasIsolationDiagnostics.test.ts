@@ -108,6 +108,45 @@ describe("E1 SaaS isolation diagnostics contract", () => {
       .toThrow("invalid_test_scenario");
   });
 
+  it("accepts exactly one conventional pnpm separator for the post-runtime gate", () => {
+    const expected = {
+      kind: "post-runtime-gate",
+      startedAt: "2026-07-16T01:00:00.000Z",
+      checksCount: 9,
+    };
+    expect(parseSaasIsolationDiagnosticsCommand([
+      "post-runtime-gate",
+      "--started-at",
+      "2026-07-16T01:00:00.000Z",
+      "--checks",
+      "9",
+    ])).toEqual(expected);
+    expect(parseSaasIsolationDiagnosticsCommand([
+      "--",
+      "post-runtime-gate",
+      "--started-at",
+      "2026-07-16T01:00:00.000Z",
+      "--checks",
+      "9",
+    ])).toEqual(expected);
+  });
+
+  it("keeps diagnostics CLI command and argument validation closed", () => {
+    expect(() => parseSaasIsolationDiagnosticsCommand(["--", "--", "read"]))
+      .toThrow("usage:");
+    expect(() => parseSaasIsolationDiagnosticsCommand(["read", "--unexpected"]))
+      .toThrow("usage:");
+    expect(() => parseSaasIsolationDiagnosticsCommand([
+      "--",
+      "post-runtime-gate",
+      "--started-at",
+      "2026-07-16T01:00:00.000Z",
+      "--checks",
+      "9",
+      "--unexpected",
+    ])).toThrow("usage:");
+  });
+
   it("refuses empty or partial coverage claiming complete", () => {
     expect(() => validateSaasIsolationCoverageInput(coverage({ servicesChecked: [], checksCount: 0 })))
       .toThrow("invalid_saas_isolation_complete_coverage");

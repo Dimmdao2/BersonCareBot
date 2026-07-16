@@ -2,10 +2,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
-import {
-  DEFAULT_PATIENT_BOOKING_URL,
-  DEFAULT_PATIENT_MAINTENANCE_MESSAGE,
-} from "@/modules/system-settings/patientMaintenance";
+import { DEFAULT_PATIENT_MAINTENANCE_MESSAGE } from "@/modules/system-settings/patientMaintenance";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { normalizeTestAccountIdentifiersValue } from "@/modules/system-settings/testAccounts";
 import {
@@ -292,7 +289,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
     patientBookingUrl: (() => {
       const raw = getValueJson(adminSettingsList.find((x) => x.key === "patient_booking_url")?.valueJson, "");
       const s = typeof raw === "string" ? raw.trim() : "";
-      return s.length > 0 ? s : DEFAULT_PATIENT_BOOKING_URL;
+      return s;
     })(),
     operatorHealthAlertsConfig: mergeOperatorHealthAlertConfigFromLegacy(
       adminSettingsList.find((x) => x.key === "operator_health_alert_config")?.valueJson ?? null,

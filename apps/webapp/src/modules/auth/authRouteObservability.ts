@@ -1,5 +1,5 @@
 import { logger } from "@/infra/logging/logger";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getServerRuntimeBool } from "@/modules/system-settings/configAdapter";
 
 /**
  * Server-side auth route latency / outcome (no secrets, no raw tokens).
@@ -18,7 +18,7 @@ export function logAuthRouteTiming(input: {
   const correlationId = input.request.headers.get("x-bc-auth-correlation-id");
   const elapsedMs = Date.now() - input.startedAt;
   void (async () => {
-    if (!(await getConfigBool("debug_forward_to_admin", false))) return;
+    if (!(await getServerRuntimeBool("debug_forward_to_admin"))) return;
     logger.info(
       {
         scope: "auth_route",

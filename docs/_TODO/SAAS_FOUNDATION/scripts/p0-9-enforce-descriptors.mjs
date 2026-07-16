@@ -5,6 +5,7 @@ import {
   hasAnyPatientOwnership,
   renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
+  renderBootstrapRuntimeAudiencePredicate,
   renderCreatePolicy,
   renderDropPolicy,
   renderEnableRowLevelSecurity,
@@ -24,6 +25,7 @@ export const p09EnforceActions = new Set([
   "scoped_pending_default_deny",
   "bootstrap_hybrid",
   "bootstrap_hybrid_org_gated",
+  "bootstrap_runtime_audience",
   "bootstrap_global_read",
   "explicit_global",
   "legacy_frozen_deny",
@@ -36,6 +38,7 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   scoped_pending_default_deny: 1,
   bootstrap_hybrid: 3,
   bootstrap_hybrid_org_gated: 2,
+  bootstrap_runtime_audience: 1,
   bootstrap_global_read: 22,
   explicit_global: 30,
   legacy_frozen_deny: 16,
@@ -135,6 +138,18 @@ export function buildP09EnforceDescriptor(descriptor) {
       };
     }
 
+    if (descriptor.scopingKind === "bootstrap_runtime_audience") {
+      return {
+        ...base,
+        predicateTemplate: "safe_audience_global_or_tenant_row",
+        enforceMode: {
+          ...base.enforceMode,
+          action: "bootstrap_runtime_audience",
+          reason: "runtime_rows_require_safe_audience_and_global_or_matching_org",
+        },
+      };
+    }
+
     if (descriptor.scopingKind === "bootstrap_global") {
       return {
         ...base,
@@ -212,8 +227,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 232) {
-    throw new Error(`Expected 232 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 233) {
+    throw new Error(`Expected 233 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
@@ -283,6 +298,14 @@ export function renderP09EnforcePredicate(descriptor) {
 
   if (action === "bootstrap_hybrid_org_gated") {
     return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
+  }
+
+  if (action === "bootstrap_runtime_audience") {
+    return renderBootstrapRuntimeAudiencePredicate({
+      orgColumn: descriptor.orgColumn,
+      audienceColumn: descriptor.audienceColumn,
+      safeAudiences: descriptor.safeAudiences,
+    });
   }
 
   if (action === "bootstrap_global_read" || action === "explicit_global") {

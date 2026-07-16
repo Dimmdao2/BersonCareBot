@@ -31,25 +31,20 @@ SELECT 1 / 0 AS d3_4_media_worker_runtime_role_missing;
 
 SELECT 1 / (
   length(:'d3_4_bootstrap_base_role') > 0
-  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'d3_4_bootstrap_base_role')
-)::int AS d3_4_bootstrap_base_role_exists;
-
-SELECT 1 / (
-  EXISTS (
+  AND EXISTS (
     SELECT 1
     FROM pg_roles
     WHERE rolname = :'d3_4_bootstrap_base_role'
-      AND rolbypassrls = false
+      AND rolcanlogin
+      AND NOT rolsuper
   )
-)::int AS d3_4_bootstrap_base_role_no_rls_bypass;
+)::int AS d3_4_bootstrap_base_role_exists;
 
 SELECT 1 / (
-  NOT pg_has_role(:'d3_4_bootstrap_base_role', 'app_staff', 'MEMBER')
-)::int AS d3_4_bootstrap_base_role_not_staff_member;
-
-SELECT 1 / (
-  pg_has_role(:'d3_4_bootstrap_base_role', 'app_patient', 'MEMBER')
-)::int AS d3_4_bootstrap_base_role_is_patient_member;
+  to_regprocedure('app.read_public_runtime_setting(text,text)') IS NOT NULL
+  AND to_regprocedure('app.read_webapp_server_runtime_setting(text,text)') IS NOT NULL
+  AND to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL
+)::int AS d3_4_webapp_runtime_accessors_exist;
 
 SELECT 1 / (
   length(:'d3_4_media_worker_runtime_role') > 0
@@ -61,6 +56,51 @@ SELECT 1 / (
       AND rolbypassrls = false
   )
 )::int AS d3_4_media_worker_runtime_role_is_restricted;
+
+-- D3.4 precedes the C4 overlay and therefore has to accept both supported media
+-- runtime shapes. A legacy deployment reaches the media surface through
+-- app_worker. A C4-provisioned deployment is deliberately detached from that
+-- role and may SET ROLE only into its dedicated terminal capability.
+-- Refuse a mixed shape: it would hide stale authority instead of preserving compatibility.
+WITH media_login AS (
+  SELECT oid, rolinherit
+  FROM pg_roles
+  WHERE rolname = :'d3_4_media_worker_runtime_role'
+), direct_memberships AS (
+  SELECT
+    count(membership.roleid) AS direct_membership_count,
+    count(*) FILTER (
+      WHERE granted.rolname = 'app_worker'
+        AND membership.admin_option = false
+        AND membership.inherit_option = true
+        AND membership.set_option = true
+    ) AS exact_legacy_worker_edge_count,
+    count(*) FILTER (
+      WHERE granted.rolname = 'app_operational_media_worker'
+        AND membership.admin_option = false
+        AND membership.inherit_option = false
+        AND membership.set_option = true
+    ) AS exact_media_set_only_edge_count
+  FROM media_login
+  LEFT JOIN pg_auth_members membership ON membership.member = media_login.oid
+  LEFT JOIN pg_roles granted ON granted.oid = membership.roleid
+)
+SELECT 1 / (
+  NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')
+  AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')
+  AND (
+    (
+      (SELECT rolinherit = true FROM media_login)
+      AND (SELECT direct_membership_count = 1 FROM direct_memberships)
+      AND (SELECT exact_legacy_worker_edge_count = 1 FROM direct_memberships)
+    )
+    OR (
+      (SELECT rolinherit = false FROM media_login)
+      AND (SELECT direct_membership_count = 1 FROM direct_memberships)
+      AND (SELECT exact_media_set_only_edge_count = 1 FROM direct_memberships)
+    )
+  )
+)::int AS d3_4_media_worker_runtime_role_has_exact_supported_capability;
 
 -- P2-B owns the protected principal-context helper bundle. The TEST wrapper may
 -- intentionally skip P2-B in legacy-guc mode, so D3.4 accepts either the complete
@@ -140,6 +180,7 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM :"d
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :"d3_4_bootstrap_base_role";
 
 REVOKE SELECT ON TABLE public.be_organization_members FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.platform_users FROM :"d3_4_bootstrap_base_role";
@@ -152,6 +193,7 @@ REVOKE SELECT ON TABLE public.be_specialists FROM :"d3_4_bootstrap_base_role";
 
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.user_phone_history FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts FROM :"d3_4_bootstrap_base_role";
+REVOKE SELECT ON TABLE public.app_runtime_settings FROM :"d3_4_media_worker_runtime_role";
 
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_bootstrap_base_role";
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_media_worker_runtime_role";
@@ -159,6 +201,78 @@ REVOKE USAGE ON SCHEMA public FROM :"d3_4_bootstrap_base_role";
 \echo 'D3.4 bootstrap/base-login grants DOWN complete.'
 \quit
 \endif
+
+-- Normalize only the discovered nonstaff/bootstrap login. The separate staff pool is not
+-- passed to this artifact and its topology remains untouched. Strip every stale direct edge,
+-- then rebuild the single SET-only patient lifecycle used by classified requests.
+ALTER ROLE :"d3_4_bootstrap_base_role"
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+SELECT format(
+  'REVOKE %I FROM %I',
+  granted_role.rolname,
+  member_role.rolname
+)
+FROM pg_auth_members membership
+JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+JOIN pg_roles member_role ON member_role.oid = membership.member
+WHERE member_role.rolname = :'d3_4_bootstrap_base_role'
+  AND granted_role.rolname <> 'app_patient'
+ORDER BY granted_role.rolname
+\gexec
+REVOKE ADMIN OPTION FOR app_patient FROM :"d3_4_bootstrap_base_role";
+GRANT app_patient TO :"d3_4_bootstrap_base_role"
+  WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
+  FROM :"d3_4_bootstrap_base_role";
+
+-- Rebuild the three bootstrap accessor ACLs from an exact closed set. REVOKE on the base first
+-- removes any stale WITH GRANT OPTION before the plain EXECUTE grants are restored.
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_public_runtime_setting(text, text)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;
+SELECT format(
+  'REVOKE ALL PRIVILEGES ON FUNCTION %s FROM %I CASCADE',
+  procedure.oid::regprocedure,
+  pg_get_userbyid(privilege.grantee)
+)
+FROM pg_proc procedure
+CROSS JOIN LATERAL aclexplode(
+  COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+) privilege
+WHERE procedure.oid IN (
+    'app.read_public_runtime_setting(text,text)'::regprocedure,
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+  )
+  AND privilege.privilege_type = 'EXECUTE'
+  AND privilege.grantee NOT IN (
+    0,
+    procedure.proowner,
+    (SELECT oid FROM pg_roles WHERE rolname = :'d3_4_bootstrap_base_role')
+  )
+  AND NOT (
+    procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+  )
+ORDER BY procedure.oid::regprocedure::text, privilege.grantee
+\gexec
+GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)
+  TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
+  TO :"d3_4_bootstrap_base_role";
+
+-- Public booking must resolve its organization before a tenant principal can be installed.
+-- D3.4 makes app_patient SET-only, so inherited EXECUTE is deliberately unavailable at this
+-- bootstrap point. Restore only this SECURITY DEFINER resolver directly; its overlay owns the
+-- app_patient grant and the backing tables remain hidden from app_patient.
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :"d3_4_bootstrap_base_role";
 
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
 GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";
@@ -182,6 +296,10 @@ GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :"d3_4_bo
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_media_worker_runtime_role";
 \endif
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_bootstrap_base_role";
+
+-- Generic server-audience runtime config only. RLS in 0188 exposes global server rows to
+-- app_worker members and hides authenticated-client rows; restricted system_settings stays denied.
+GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";
 
 -- Narrow SECURITY DEFINER pre-auth surface. These functions own their validation and expose only
 -- the bootstrap operations used by email auth, invite acceptance, and specialist signup. Direct
@@ -232,5 +350,146 @@ GRANT SELECT ON TABLE public.be_specialists TO :"d3_4_bootstrap_base_role";
 -- D2 FB#1 phone/contact write surface, composed here intentionally.
 GRANT SELECT, INSERT, UPDATE ON TABLE public.user_phone_history TO :"d3_4_bootstrap_base_role";
 GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts TO :"d3_4_bootstrap_base_role";
+
+WITH RECURSIVE bootstrap_role AS (
+  SELECT
+    oid,
+    rolcanlogin,
+    rolsuper,
+    rolcreatedb,
+    rolcreaterole,
+    rolinherit,
+    rolreplication,
+    rolbypassrls
+  FROM pg_roles
+  WHERE rolname = :'d3_4_bootstrap_base_role'
+), direct_memberships AS (
+  SELECT membership.*
+  FROM pg_auth_members membership
+  JOIN bootstrap_role ON bootstrap_role.oid = membership.member
+), reachable_roles(roleid) AS (
+  SELECT roleid FROM direct_memberships
+  UNION
+  SELECT membership.roleid
+  FROM pg_auth_members membership
+  JOIN reachable_roles reachable ON reachable.roleid = membership.member
+), protected_tables AS (
+  SELECT relation.relowner
+  FROM pg_class relation
+  WHERE relation.oid IN (
+    'public.app_runtime_settings'::regclass,
+    'public.system_settings'::regclass
+  )
+), runtime_accessors AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl
+  FROM pg_proc procedure
+  WHERE procedure.oid IN (
+    'app.read_public_runtime_setting(text,text)'::regprocedure,
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+  )
+)
+SELECT 1 / (
+  (
+    SELECT
+      rolcanlogin
+      AND NOT rolsuper
+      AND NOT rolcreatedb
+      AND NOT rolcreaterole
+      AND NOT rolinherit
+      AND NOT rolreplication
+      AND NOT rolbypassrls
+    FROM bootstrap_role
+  )
+  AND (SELECT count(*) = 1 FROM direct_memberships)
+  AND EXISTS (
+    SELECT 1
+    FROM direct_memberships membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    WHERE granted_role.rolname = 'app_patient'
+      AND NOT membership.admin_option
+      AND NOT membership.inherit_option
+      AND membership.set_option
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM reachable_roles reachable
+    JOIN pg_roles granted_role ON granted_role.oid = reachable.roleid
+    WHERE granted_role.rolname <> 'app_patient'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM protected_tables protected
+    CROSS JOIN bootstrap_role
+    WHERE pg_has_role(bootstrap_role.oid, protected.relowner, 'MEMBER')
+  )
+  AND NOT has_table_privilege(
+    :'d3_4_bootstrap_base_role', 'public.app_runtime_settings', 'SELECT'
+  )
+  AND NOT has_table_privilege(
+    :'d3_4_bootstrap_base_role', 'public.system_settings', 'SELECT'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.read_public_runtime_setting(text,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.read_webapp_server_runtime_setting(text,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
+    WHERE pg_has_role(bootstrap_role.oid, accessor.proowner, 'MEMBER')
+  )
+  AND 3 = (
+    SELECT count(*)
+    FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
+    ) privilege
+    WHERE privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = bootstrap_role.oid
+      AND NOT privilege.is_grantable
+  )
+  AND 1 = (
+    SELECT count(*)
+    FROM runtime_accessors accessor
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
+    ) privilege
+    WHERE accessor.oid =
+        'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+      AND privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+      AND NOT privilege.is_grantable
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
+    ) privilege
+    WHERE privilege.privilege_type <> 'EXECUTE'
+      OR privilege.is_grantable
+      OR (
+        privilege.grantee NOT IN (accessor.proowner, bootstrap_role.oid)
+        AND NOT (
+          accessor.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+          AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+        )
+      )
+  )
+)::int AS d3_4_bootstrap_base_role_exact_topology_verified;
 
 \echo 'D3.4 bootstrap/base-login grants UP complete.'

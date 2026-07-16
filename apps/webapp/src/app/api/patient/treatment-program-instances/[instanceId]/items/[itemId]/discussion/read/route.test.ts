@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   gateMock,
   buildAppDepsMock,
-  getSettingMock,
+  getBooleanMock,
   getInstanceForPatientMock,
   markReadMock,
   listLinkedSupportMessageIdsForStageItemMock,
   markInboundMessagesReadForUserMock,
   getPatientProgramInteractionPolicyMock,
 } = vi.hoisted(() => {
-  const getSettingMockInner = vi.fn();
+  const getBooleanMockInner = vi.fn();
   const getInstanceForPatientMockInner = vi.fn();
   const markReadMockInner = vi.fn();
   const listLinkedSupportMessageIdsForStageItemMockInner = vi.fn();
@@ -18,14 +18,14 @@ const {
   const getPatientProgramInteractionPolicyMockInner = vi.fn();
   return {
     gateMock: vi.fn(),
-    getSettingMock: getSettingMockInner,
+    getBooleanMock: getBooleanMockInner,
     getInstanceForPatientMock: getInstanceForPatientMockInner,
     markReadMock: markReadMockInner,
     listLinkedSupportMessageIdsForStageItemMock: listLinkedSupportMessageIdsForStageItemMockInner,
     markInboundMessagesReadForUserMock: markInboundMessagesReadForUserMockInner,
     getPatientProgramInteractionPolicyMock: getPatientProgramInteractionPolicyMockInner,
     buildAppDepsMock: vi.fn(() => ({
-      systemSettings: { getSetting: getSettingMockInner },
+      runtimeConfig: { getBoolean: getBooleanMockInner },
       doctorClients: {
         getPatientProgramInteractionPolicy: getPatientProgramInteractionPolicyMockInner,
       },
@@ -57,7 +57,7 @@ const patientUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 describe("POST discussion/read", () => {
   beforeEach(() => {
     gateMock.mockReset();
-    getSettingMock.mockReset();
+    getBooleanMock.mockReset();
     getInstanceForPatientMock.mockReset();
     markReadMock.mockReset();
     listLinkedSupportMessageIdsForStageItemMock.mockReset();
@@ -75,7 +75,7 @@ describe("POST discussion/read", () => {
         },
       },
     });
-    getSettingMock.mockResolvedValue({ valueJson: { value: true } });
+    getBooleanMock.mockResolvedValue(true);
     getPatientProgramInteractionPolicyMock.mockResolvedValue({
       onSupport: true,
       commentsAllowed: true,
@@ -83,6 +83,7 @@ describe("POST discussion/read", () => {
     });
     getInstanceForPatientMock.mockResolvedValue({
       id: instanceId,
+      organizationId: "44444444-4444-4444-8444-444444444444",
       assignmentSource: "doctor",
       stages: [{ items: [{ id: itemId }] }],
     });
@@ -124,7 +125,7 @@ describe("POST discussion/read", () => {
   });
 
   it("returns 403 when feature disabled", async () => {
-    getSettingMock.mockResolvedValue({ valueJson: { value: false } });
+    getBooleanMock.mockResolvedValue(false);
     const res = await POST(
       new Request(
         `http://localhost/api/patient/treatment-program-instances/${instanceId}/items/${itemId}/discussion/read`,

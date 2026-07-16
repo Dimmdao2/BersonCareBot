@@ -4,14 +4,8 @@ import { logger } from "@/app-layer/logging/logger";
 import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
-  loadAdminPlaybackHealthMetrics,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
-import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
-import {
-  ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
-  loadAdminHlsProxyHealthMetrics,
-} from "@/app-layer/media/adminHlsProxyHealthMetrics";
-import { loadAdminTranscodeHealthMetrics } from "@/app-layer/media/adminTranscodeHealthMetrics";
+import { ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS } from "@/app-layer/media/adminHlsProxyHealthMetrics";
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -27,46 +21,38 @@ import {
 } from "@/modules/operator-health/integrationHealthSnapshot";
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { classifyWebPushOnlyReminderTickSystemHealthStatus } from "@/modules/operator-health/adminHealthThresholds";
-import { getPool } from "@/app-layer/db/client";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
 import type {
   IntegratorPushOutboxHealthSnapshot,
-  OperatorIncidentOpenRow,
   OperatorJobStatusTickRow,
 } from "@/modules/operator-health/ports";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "@/modules/operator-health/integratorPushOutboxHealth";
-import { getLastAuditLogDetailsField, writeAuditLog } from "@/infra/adminAuditLog";
 import { collectCronJobsHealth, type CronJobsHealthPayload } from "@/app-layer/health/collectCronJobsHealth";
 import {
   ADMIN_DELIVERY_DUE_BACKLOG_WARNING,
   classifyVideoTranscodeSystemHealthStatus,
 } from "@/modules/operator-health/adminHealthThresholds";
+import type { RemindersPipelineHealthPayload } from "@/app-layer/health/adminReminderPipelineMetrics";
 import {
-  emptyRemindersPipelineHealthPayload,
-  loadAdminReminderPipelineMetrics,
-  type RemindersPipelineHealthPayload,
-} from "@/app-layer/health/adminReminderPipelineMetrics";
-import {
-  emptyWebPushHealthPayload,
-  loadAdminWebPushHealthMetrics,
+  classifyWebPushSystemHealthStatus,
   type WebPushHealthPayload,
 } from "@/app-layer/health/adminWebPushHealthMetrics";
 import {
+  classifyNotificationDeliverySystemHealthStatus,
   emptyNotificationDeliveryHealthPayload,
-  loadAdminNotificationDeliveryHealthMetrics,
   type NotificationDeliveryHealthPayload,
 } from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
-import { getOperatorAlertDedupPort } from "@/modules/operator-alerts/operatorAlertRuntime";
-import {
-  loadAdminMediaPreviewGroupedCounts,
-  loadAdminMediaPreviewStalePendingCount,
-} from "@/infra/repos/pgAdminMediaPreviewHealth";
 import {
   SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
   emptySaasIsolationTrend,
   type SaasIsolationHealthPayload,
 } from "@/modules/operator-health/saasIsolationDiagnostics";
+import {
+  loadCuratedPlaybackHealthSnapshot,
+  loadCuratedSystemHealthSnapshot,
+  type CuratedPlaybackHealthSnapshot,
+  type CuratedSystemHealthSnapshot,
+} from "@/infra/repos/pgCuratedSystemHealthDiagnostics";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -92,7 +78,6 @@ type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
 
 const PREVIEW_STATUSES: PreviewStatus[] = ["pending", "ready", "failed", "skipped"];
 const PREVIEW_MIMES: PreviewMime[] = ["video/quicktime", "image/heic", "image/heif"];
-const STALE_PENDING_MINUTES = 30;
 
 type VideoPlaybackHealthStatus = "ok" | "error";
 type VideoPlaybackClientHealthStatus = "ok" | "degraded" | "error";
@@ -264,8 +249,12 @@ export type SystemHealthResponse = {
   videoHlsProxy: VideoHlsProxyHealthPayload;
   /** VIDEO_HLS: transcode queue metrics from DB (not systemd liveness). */
   videoTranscode: VideoTranscodeHealthPayload;
-  /** Открытые строки `operator_incidents` (resolved_at IS NULL), последние по last_seen_at. */
-  operatorIncidentsOpen: OperatorIncidentOpenRow[];
+  /** Redacted aggregate of open operator incidents; never raw rows, IDs or error text. */
+  operatorIncidents: {
+    openCount: number;
+    occurrenceCount: number;
+    lastSeenAt: string | null;
+  };
   /** Статусы backup job (`job_family = backup`), ключи `backup.hourly`, `backup.daily`, … */
   backupJobs: Record<string, OperatorBackupJobPayload>;
   /** Очередь исходящей доставки уведомлений (`public.outgoing_delivery_queue`). */
@@ -463,7 +452,7 @@ export function computeMediaPreviewStatus(
   const failedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].failed, 0);
   // #53: «pending» (preview ещё генерируется) и «skipped» (генерация осознанно
   // пропущена) — это НОРМАЛЬНАЯ асинхронная работа, не деградация. Деградацию даёт
-  // только ЗАСТРЯВШИЙ pending (> STALE_PENDING_MINUTES, отдельный запрос ниже);
+  // только ЗАСТРЯВШИЙ pending (> 30 минут, считается внутри curated-агрегата);
   // реальный сбой генерации (failed) — это error. Иначе любая свежезагруженная
   // картинка с pending-превью ложно красила всю панель в «degraded».
   if (failedCount > 0) return "error";
@@ -471,23 +460,18 @@ export function computeMediaPreviewStatus(
   return "ok";
 }
 
-async function probeMediaPreview(): Promise<
+async function probeMediaPreview(snapshot: CuratedSystemHealthSnapshot): Promise<
   ProbeResult<{ status: MediaPreviewStatus; stalePendingCount: number; byMimeAndStatus: MediaPreviewCounters }>
 > {
   const startedAt = Date.now();
   try {
-    const [grouped, stale] = await Promise.all([
-      loadAdminMediaPreviewGroupedCounts(PREVIEW_MIMES),
-      loadAdminMediaPreviewStalePendingCount(PREVIEW_MIMES, STALE_PENDING_MINUTES),
-    ]);
-
     const counters = initMediaPreviewCounters();
-    for (const row of grouped) {
-      const mime = PREVIEW_MIMES.find((m) => m === row.mime_type);
-      const status = PREVIEW_STATUSES.find((s) => s === row.preview_status);
-      if (!mime || !status) continue;
-      counters[mime][status] = Number.parseInt(row.cnt, 10) || 0;
+    for (const mime of PREVIEW_MIMES) {
+      for (const status of PREVIEW_STATUSES) {
+        counters[mime][status] = snapshot.mediaPreview.byMimeAndStatus[mime][status];
+      }
     }
+    const stale = snapshot.mediaPreview.stalePendingCount;
     return {
       ok: true,
       value: {
@@ -592,10 +576,12 @@ function emptyVideoTranscodePayload(
   };
 }
 
-async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayload>> {
+async function probeVideoPlayback(
+  playbackApiEnabled: boolean,
+  curatedPlayback: Promise<CuratedPlaybackHealthSnapshot> | null,
+): Promise<ProbeResult<VideoPlaybackHealthPayload>> {
   const startedAt = Date.now();
   try {
-    const playbackApiEnabled = await getConfigBool("video_playback_api_enabled", false);
     if (!playbackApiEnabled) {
       return {
         ok: true,
@@ -616,12 +602,10 @@ async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayl
       };
     }
 
-    const [metrics24, metrics1] = await Promise.all([
-      loadAdminPlaybackHealthMetrics({
-        windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
-      }),
-      loadAdminPlaybackHealthMetrics({ windowHours: 1 }),
-    ]);
+    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    const metrics = await curatedPlayback;
+    const metrics24 = metrics["24"];
+    const metrics1 = metrics["1"];
 
     return {
       ok: true,
@@ -650,12 +634,12 @@ async function probeVideoPlayback(): Promise<ProbeResult<VideoPlaybackHealthPayl
   }
 }
 
-async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClientHealthPayload>> {
+async function probeVideoPlaybackClient(
+  snapshot: CuratedSystemHealthSnapshot,
+): Promise<ProbeResult<VideoPlaybackClientHealthPayload>> {
   const startedAt = Date.now();
   try {
-    const m = await loadAdminPlaybackClientHealthMetrics({
-      windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
-    });
+    const m = snapshot.videoPlaybackClient;
     const status: VideoPlaybackClientHealthStatus =
       m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? "degraded" : "ok";
     return {
@@ -683,10 +667,12 @@ async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClie
   }
 }
 
-async function probeVideoHlsProxy(): Promise<ProbeResult<VideoHlsProxyHealthPayload>> {
+async function probeVideoHlsProxy(
+  playbackApiEnabled: boolean,
+  curatedPlayback: Promise<CuratedPlaybackHealthSnapshot> | null,
+): Promise<ProbeResult<VideoHlsProxyHealthPayload>> {
   const startedAt = Date.now();
   try {
-    const playbackApiEnabled = await getConfigBool("video_playback_api_enabled", false);
     if (!playbackApiEnabled) {
       return {
         ok: true,
@@ -695,9 +681,8 @@ async function probeVideoHlsProxy(): Promise<ProbeResult<VideoHlsProxyHealthPayl
       };
     }
 
-    const m = await loadAdminHlsProxyHealthMetrics({
-      windowHours: ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
-    });
+    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    const m = (await curatedPlayback).hlsProxy;
     const status: VideoHlsProxyHealthStatus = m.degraded ? "degraded" : "ok";
     return {
       ok: true,
@@ -723,61 +708,7 @@ async function probeVideoHlsProxy(): Promise<ProbeResult<VideoHlsProxyHealthPayl
   }
 }
 
-async function probeVideoTranscode(): Promise<ProbeResult<VideoTranscodeHealthPayload>> {
-  const startedAt = Date.now();
-  let pipelineEnabled = false;
-  let reconcileEnabled = false;
-  try {
-    pipelineEnabled = await getConfigBool("video_hls_pipeline_enabled", false);
-    reconcileEnabled = await getConfigBool("video_hls_reconcile_enabled", false);
-    const read = buildAppDeps().operatorHealthRead;
-    const [m, tickRow] = await Promise.all([
-      loadAdminTranscodeHealthMetrics(),
-      read.getOperatorJobStatus(OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY),
-    ]);
-    const lastReconcileTick: VideoTranscodeLastReconcileTickPayload | null = tickRow
-      ? operatorJobStatusRowToTickPayload(tickRow)
-      : null;
-    const transcodeHealthStatus = classifyVideoTranscodeSystemHealthStatus({
-      pipelineEnabled,
-      reconcileEnabled,
-      pendingCount: m.pendingCount,
-      oldestPendingAgeSeconds: m.oldestPendingAgeSeconds,
-      failedLastHour: m.failedLastHour,
-      failedLast24h: m.failedLast24h,
-      reconcileLastStatus: tickRow?.lastStatus ?? null,
-    });
-    return {
-      ok: true,
-      value: {
-        status: transcodeHealthStatus,
-        pipelineEnabled,
-        reconcileEnabled,
-        pendingCount: m.pendingCount,
-        processingCount: m.processingCount,
-        doneLastHour: m.doneLastHour,
-        failedLastHour: m.failedLastHour,
-        doneLast24h: m.doneLast24h,
-        failedLast24h: m.failedLast24h,
-        doneLifetime: m.doneLifetime,
-        failedLifetime: m.failedLifetime,
-        avgProcessingMsDoneLastHour: m.avgProcessingMsDoneLastHour,
-        oldestPendingAgeSeconds: m.oldestPendingAgeSeconds,
-        legacyReconcileCandidateCountWithinSizeCap: m.legacyReconcileCandidateCountWithinSizeCap,
-        readableVideoReadyWithHlsCount: m.readableVideoReadyWithHlsCount,
-        lastReconcileTick,
-      },
-      durationMs: elapsedMs(startedAt),
-    };
-  } catch {
-    return {
-      ok: false,
-      status: "error",
-      errorCode: "video_transcode_probe_failed",
-      durationMs: elapsedMs(startedAt),
-    };
-  }
-}
+type CuratedOperatorJob = CuratedSystemHealthSnapshot["operatorJobs"][number];
 
 function operatorJobStatusRowToTickPayload(tickRow: OperatorJobStatusTickRow): OperatorJobStatusTickPayload {
   return {
@@ -793,115 +724,42 @@ function operatorJobStatusRowToTickPayload(tickRow: OperatorJobStatusTickRow): O
   };
 }
 
-async function probeWebPushOnlyReminderTick(): Promise<
-  ProbeResult<{
-    status: "ok" | "degraded" | "error" | "no_data";
-    lastTick: OperatorJobStatusTickPayload | null;
-  }>
-> {
-  const startedAt = Date.now();
-  try {
-    const tickRow = await buildAppDeps().operatorHealthRead.getOperatorJobStatus(
-      OPERATOR_REMINDERS_JOB_FAMILY,
-      OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
-    );
-    const lastTick = tickRow ? operatorJobStatusRowToTickPayload(tickRow) : null;
-    const status = classifyWebPushOnlyReminderTickSystemHealthStatus({
-      lastStatus: tickRow?.lastStatus ?? null,
-      lastSuccessAt: tickRow?.lastSuccessAt ?? null,
-      lastFailureAt: tickRow?.lastFailureAt ?? null,
-      metaJson: tickRow?.metaJson ?? {},
-    });
-    return {
-      ok: true,
-      value: { status, lastTick },
-      durationMs: elapsedMs(startedAt),
-    };
-  } catch {
-    return {
-      ok: false,
-      status: "error",
-      errorCode: "web_push_only_reminder_tick_probe_failed",
-      durationMs: elapsedMs(startedAt),
-    };
-  }
+function curatedJobToTickPayload(job: CuratedOperatorJob): OperatorJobStatusTickPayload {
+  return operatorJobStatusRowToTickPayload({
+    jobKey: job.jobKey,
+    jobFamily: job.jobFamily,
+    lastStatus: job.lastStatus,
+    lastStartedAt: null,
+    lastFinishedAt: job.lastFinishedAt,
+    lastSuccessAt: job.lastSuccessAt,
+    lastFailureAt: job.lastFailureAt,
+    lastDurationMs: job.lastDurationMs,
+    lastError: null,
+    metaJson: job.safeMeta,
+  });
 }
 
-async function probeOperatorHealthData(): Promise<
-  ProbeResult<{
-    incidents: OperatorIncidentOpenRow[];
-    backupJobs: Record<string, OperatorBackupJobPayload>;
-    outgoingDelivery: OutgoingDeliveryHealthPayload;
-    integratorPushOutbox: IntegratorPushOutboxHealthPayload;
-    probeOutboundConsecutiveFailRuns: number;
-    integrations: IntegrationsHealthSnapshot;
-  }>
-> {
+function findCuratedJob(
+  snapshot: CuratedSystemHealthSnapshot,
+  jobFamily: string,
+  jobKey: string,
+): CuratedOperatorJob | undefined {
+  return snapshot.operatorJobs.find((job) => job.jobFamily === jobFamily && job.jobKey === jobKey);
+}
+
+async function probeCuratedSystemHealth(): Promise<ProbeResult<CuratedSystemHealthSnapshot>> {
   const startedAt = Date.now();
   try {
-    const read = buildAppDeps().operatorHealthRead;
-    const [incidents, jobRows, outgoingSnapshot, ipoSnapshot, probeJob, webhookLastStatus] = await Promise.all([
-      read.listOpenIncidents(20),
-      read.listBackupJobStatus(),
-      read.getOutgoingDeliveryQueueHealth(),
-      read.getIntegratorPushOutboxHealth(),
-      read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
-      read.listIntegrationWebhookLastStatus(),
-    ]);
-    const backupJobs: Record<string, OperatorBackupJobPayload> = {};
-    for (const r of jobRows) {
-      backupJobs[r.jobKey] = {
-        lastStatus: r.lastStatus,
-        lastStartedAt: r.lastStartedAt,
-        lastFinishedAt: r.lastFinishedAt,
-        lastSuccessAt: r.lastSuccessAt,
-        lastFailureAt: r.lastFailureAt,
-        lastDurationMs: r.lastDurationMs,
-        lastError: r.lastError,
-      };
-    }
-    const outgoingDelivery: OutgoingDeliveryHealthPayload = {
-      dueBacklog: outgoingSnapshot.dueBacklog,
-      deadTotal: outgoingSnapshot.deadTotal,
-      blockedRecipientTotal: outgoingSnapshot.blockedRecipientTotal,
-      oldestDueAgeSeconds: outgoingSnapshot.oldestDueAgeSeconds,
-      dueByChannel: outgoingSnapshot.dueByChannel,
-      dueByKind: outgoingSnapshot.dueByKind,
-      deadByKind: outgoingSnapshot.deadByKind,
-      processingCount: outgoingSnapshot.processingCount,
-      lastSentAt: outgoingSnapshot.lastSentAt,
-      lastQueueActivityAt: outgoingSnapshot.lastQueueActivityAt,
-    };
     return {
       ok: true,
-      value: {
-        incidents,
-        backupJobs,
-        outgoingDelivery,
-        integratorPushOutbox: {
-          dueBacklog: ipoSnapshot.dueBacklog,
-          deadTotal: ipoSnapshot.deadTotal,
-          oldestDueAgeSeconds: ipoSnapshot.oldestDueAgeSeconds,
-          dueByKind: ipoSnapshot.dueByKind,
-          deadByKind: ipoSnapshot.deadByKind,
-          processingCount: ipoSnapshot.processingCount,
-          oldestProcessingAgeSeconds: ipoSnapshot.oldestProcessingAgeSeconds,
-          lastQueueActivityAt: ipoSnapshot.lastQueueActivityAt,
-        },
-        probeOutboundConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.metaJson),
-        integrations: buildIntegrationsHealthSnapshot({
-          probeMetaJson: probeJob?.metaJson,
-          probeLastFinishedAt: probeJob?.lastFinishedAt ?? null,
-          webhookLastStatus,
-        }),
-      },
+      value: await loadCuratedSystemHealthSnapshot(),
       durationMs: elapsedMs(startedAt),
     };
   } catch {
     return {
       ok: false,
       status: "error",
-      errorCode: "operator_health_read_failed",
+      errorCode: "curated_system_health_read_failed",
       durationMs: elapsedMs(startedAt),
     };
   }
@@ -1003,21 +861,15 @@ const emptySaasIsolationHealthPayload = (): SaasIsolationHealthPayload => ({
 });
 
 export async function collectAdminSystemHealthData(): Promise<SystemHealthResponse> {
-  let playbackApiEnabledFallback = false;
-  try {
-    playbackApiEnabledFallback = await getConfigBool("video_playback_api_enabled", false);
-  } catch {
-    /* ignore — videoPlayback payload will still return error shell if probe fails */
-  }
-
-  let pipelineEnabledFallback = false;
-  let reconcileEnabledFallback = false;
-  try {
-    pipelineEnabledFallback = await getConfigBool("video_hls_pipeline_enabled", false);
-    reconcileEnabledFallback = await getConfigBool("video_hls_reconcile_enabled", false);
-  } catch {
-    /* ignore — videoTranscode shell uses these flags when probe fails */
-  }
+  const curatedResult = await probeCuratedSystemHealth();
+  const playbackEnabled = curatedResult.ok ? curatedResult.value.config.playbackEnabled : false;
+  const curatedFailureStatus = curatedResult.ok ? "error" as const : curatedResult.status;
+  const curatedFailureCode = curatedResult.ok
+    ? "curated_system_health_unavailable"
+    : curatedResult.errorCode;
+  const curatedPlayback = curatedResult.ok && playbackEnabled
+    ? loadCuratedPlaybackHealthSnapshot()
+    : null;
 
   const [
     webappDb,
@@ -1027,20 +879,48 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     videoPlayback,
     videoPlaybackClient,
     videoHlsProxy,
-    videoTranscode,
-    operatorHealth,
     saasIsolation,
   ] =
     await Promise.allSettled([
       probeWebappDb(),
       probeIntegratorApi(),
       probeProjection(),
-      probeMediaPreview(),
-      probeVideoPlayback(),
-      probeVideoPlaybackClient(),
-      probeVideoHlsProxy(),
-      probeVideoTranscode(),
-      probeOperatorHealthData(),
+      curatedResult.ok
+        ? probeMediaPreview(curatedResult.value)
+        : Promise.resolve<ProbeResult<{
+            status: MediaPreviewStatus;
+            stalePendingCount: number;
+            byMimeAndStatus: MediaPreviewCounters;
+          }>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_system_health_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
+      curatedResult.ok
+        ? probeVideoPlayback(playbackEnabled, curatedPlayback)
+        : Promise.resolve<ProbeResult<VideoPlaybackHealthPayload>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_config_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
+      curatedResult.ok
+        ? probeVideoPlaybackClient(curatedResult.value)
+        : Promise.resolve<ProbeResult<VideoPlaybackClientHealthPayload>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_system_health_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
+      curatedResult.ok
+        ? probeVideoHlsProxy(playbackEnabled, curatedPlayback)
+        : Promise.resolve<ProbeResult<VideoHlsProxyHealthPayload>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_config_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
       probeSaasIsolation(),
     ]);
 
@@ -1074,7 +954,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
 
   const videoPlaybackPayload: VideoPlaybackHealthPayload = videoPlaybackResult.ok
     ? videoPlaybackResult.value
-    : emptyVideoPlaybackPayload("error", playbackApiEnabledFallback);
+    : emptyVideoPlaybackPayload("error", playbackEnabled);
 
   const videoPlaybackClientResult: ProbeResult<VideoPlaybackClientHealthPayload> =
     videoPlaybackClient.status === "fulfilled"
@@ -1094,26 +974,55 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     ? videoHlsProxyResult.value
     : emptyVideoHlsProxyPayload("error");
 
-  const videoTranscodeResult: ProbeResult<VideoTranscodeHealthPayload> =
-    videoTranscode.status === "fulfilled"
-      ? videoTranscode.value
-      : { ok: false, status: "error", errorCode: "video_transcode_probe_rejected", durationMs: 0 };
+  const curatedSnapshot = curatedResult.ok ? curatedResult.value : null;
+  const curatedJobRows: OperatorJobStatusTickRow[] = curatedSnapshot
+    ? curatedSnapshot.operatorJobs.map((job) => ({
+        jobKey: job.jobKey,
+        jobFamily: job.jobFamily,
+        lastStatus: job.lastStatus,
+        lastStartedAt: null,
+        lastFinishedAt: job.lastFinishedAt,
+        lastSuccessAt: job.lastSuccessAt,
+        lastFailureAt: job.lastFailureAt,
+        lastDurationMs: job.lastDurationMs,
+        lastError: null,
+        metaJson: job.safeMeta,
+      }))
+    : [];
+
+  const reconcileJob = curatedSnapshot
+    ? findCuratedJob(curatedSnapshot, OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY)
+    : undefined;
+  const videoTranscodeResult: ProbeResult<VideoTranscodeHealthPayload> = curatedSnapshot
+    ? {
+        ok: true,
+        durationMs: curatedResult.durationMs,
+        value: {
+          status: classifyVideoTranscodeSystemHealthStatus({
+            pipelineEnabled: curatedSnapshot.config.pipelineEnabled,
+            reconcileEnabled: curatedSnapshot.config.reconcileEnabled,
+            pendingCount: curatedSnapshot.videoTranscode.pendingCount,
+            oldestPendingAgeSeconds: curatedSnapshot.videoTranscode.oldestPendingAgeSeconds,
+            failedLastHour: curatedSnapshot.videoTranscode.failedLastHour,
+            failedLast24h: curatedSnapshot.videoTranscode.failedLast24h,
+            reconcileLastStatus: reconcileJob?.lastStatus ?? null,
+          }),
+          pipelineEnabled: curatedSnapshot.config.pipelineEnabled,
+          reconcileEnabled: curatedSnapshot.config.reconcileEnabled,
+          ...curatedSnapshot.videoTranscode,
+          lastReconcileTick: reconcileJob ? curatedJobToTickPayload(reconcileJob) : null,
+        },
+      }
+    : {
+        ok: false,
+        status: curatedFailureStatus,
+        errorCode: curatedFailureCode,
+        durationMs: curatedResult.durationMs,
+      };
 
   const videoTranscodePayload: VideoTranscodeHealthPayload = videoTranscodeResult.ok
     ? videoTranscodeResult.value
-    : emptyVideoTranscodePayload("error", pipelineEnabledFallback, reconcileEnabledFallback);
-
-  const operatorHealthResult: ProbeResult<{
-    incidents: OperatorIncidentOpenRow[];
-    backupJobs: Record<string, OperatorBackupJobPayload>;
-    outgoingDelivery: OutgoingDeliveryHealthPayload;
-    integratorPushOutbox: IntegratorPushOutboxHealthPayload;
-    probeOutboundConsecutiveFailRuns: number;
-    integrations: IntegrationsHealthSnapshot;
-  }> =
-    operatorHealth.status === "fulfilled"
-      ? operatorHealth.value
-      : { ok: false, status: "error", errorCode: "operator_health_probe_rejected", durationMs: 0 };
+    : emptyVideoTranscodePayload("error", false, false);
 
   const saasIsolationResult: ProbeResult<SaasIsolationHealthPayload> =
     saasIsolation.status === "fulfilled"
@@ -1123,39 +1032,137 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     ? saasIsolationResult.value
     : emptySaasIsolationHealthPayload();
 
-  const operatorIncidentsOpen = operatorHealthResult.ok ? operatorHealthResult.value.incidents : [];
-  const backupJobs = operatorHealthResult.ok ? operatorHealthResult.value.backupJobs : {};
-  const outgoingDeliveryPayload: OutgoingDeliveryHealthPayload = operatorHealthResult.ok
-    ? operatorHealthResult.value.outgoingDelivery
+  const operatorIncidents = curatedSnapshot?.operatorIncidents ?? {
+    openCount: 0,
+    occurrenceCount: 0,
+    lastSeenAt: null,
+  };
+  const backupJobs: Record<string, OperatorBackupJobPayload> = {};
+  for (const job of curatedSnapshot?.operatorJobs ?? []) {
+    if (job.jobFamily !== "backup") continue;
+    backupJobs[job.jobKey] = {
+      lastStatus: job.lastStatus,
+      lastStartedAt: null,
+      lastFinishedAt: job.lastFinishedAt,
+      lastSuccessAt: job.lastSuccessAt,
+      lastFailureAt: job.lastFailureAt,
+      lastDurationMs: job.lastDurationMs,
+      lastError: null,
+    };
+  }
+
+  const outgoingDeliveryPayload: OutgoingDeliveryHealthPayload = curatedSnapshot
+    ? {
+        dueBacklog: curatedSnapshot.outgoingDelivery.dueBacklog,
+        deadTotal: curatedSnapshot.outgoingDelivery.deadTotal,
+        blockedRecipientTotal: curatedSnapshot.outgoingDelivery.blockedRecipientTotal ?? 0,
+        oldestDueAgeSeconds: curatedSnapshot.outgoingDelivery.oldestDueAgeSeconds,
+        dueByChannel: curatedSnapshot.outgoingDelivery.dueByChannel ?? {},
+        dueByKind: curatedSnapshot.outgoingDelivery.dueByKind,
+        deadByKind: curatedSnapshot.outgoingDelivery.deadByKind,
+        processingCount: curatedSnapshot.outgoingDelivery.processingCount,
+        lastSentAt: curatedSnapshot.outgoingDelivery.lastSentAt ?? null,
+        lastQueueActivityAt: curatedSnapshot.outgoingDelivery.lastQueueActivityAt,
+      }
     : emptyOutgoingDeliveryHealthPayload();
 
-  const integratorPushOutboxPayload: IntegratorPushOutboxHealthPayload = operatorHealthResult.ok
-    ? operatorHealthResult.value.integratorPushOutbox
+  const integratorPushOutboxPayload: IntegratorPushOutboxHealthPayload = curatedSnapshot
+    ? {
+        dueBacklog: curatedSnapshot.integratorPushOutbox.dueBacklog,
+        deadTotal: curatedSnapshot.integratorPushOutbox.deadTotal,
+        oldestDueAgeSeconds: curatedSnapshot.integratorPushOutbox.oldestDueAgeSeconds,
+        dueByKind: curatedSnapshot.integratorPushOutbox.dueByKind,
+        deadByKind: curatedSnapshot.integratorPushOutbox.deadByKind,
+        processingCount: curatedSnapshot.integratorPushOutbox.processingCount,
+        oldestProcessingAgeSeconds:
+          curatedSnapshot.integratorPushOutbox.oldestProcessingAgeSeconds ?? null,
+        lastQueueActivityAt: curatedSnapshot.integratorPushOutbox.lastQueueActivityAt,
+      }
     : emptyIntegratorPushOutboxHealthPayload();
 
-  const probeOutboundConsecutiveFailRuns = operatorHealthResult.ok
-    ? operatorHealthResult.value.probeOutboundConsecutiveFailRuns
-    : 0;
-
-  const integrationsPayload: IntegrationsHealthSnapshot = operatorHealthResult.ok
-    ? operatorHealthResult.value.integrations
+  const outboundProbeJob = curatedSnapshot
+    ? findCuratedJob(curatedSnapshot, OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY)
+    : undefined;
+  const probeOutboundConsecutiveFailRuns = readProbeConsecutiveFailRuns(outboundProbeJob?.safeMeta);
+  const integrationsPayload: IntegrationsHealthSnapshot = curatedSnapshot
+    ? buildIntegrationsHealthSnapshot({
+        probeMetaJson: outboundProbeJob?.safeMeta,
+        probeLastFinishedAt: outboundProbeJob?.lastFinishedAt ?? null,
+        webhookLastStatus: curatedSnapshot.integrationWebhookStatus.map((row) => ({
+          source: row.source,
+          receivedAt: row.receivedAt,
+          processedOk: row.processedOk ? 1 : 0,
+          errorClass: null,
+          httpStatusReturned: row.httpStatusReturned,
+          detail: null,
+        })),
+      })
     : emptyIntegrationsHealthSnapshot();
 
-  const remindersPipelineStartedAt = Date.now();
-  const remindersPipelineResult = await loadAdminReminderPipelineMetrics(outgoingDeliveryPayload);
-  const remindersPipelinePayload: RemindersPipelineHealthPayload = remindersPipelineResult.ok
-    ? remindersPipelineResult.value
-    : emptyRemindersPipelineHealthPayload();
-  const remindersPipelineDurationMs = elapsedMs(remindersPipelineStartedAt);
+  const remindersPipelinePayload: RemindersPipelineHealthPayload = curatedSnapshot
+    ? curatedSnapshot.remindersPipeline
+    : {
+        windowHours: 24,
+        outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+        occurrenceHistory: { sent: 0, failed: 0 },
+        deliveryEvents: { sent: 0, failed: 0 },
+        patientReminderM2mIdempotencyKeysActive: 0,
+      };
+  const remindersPipelineResult = curatedResult.ok
+    ? { ok: true as const, value: remindersPipelinePayload }
+    : { ok: false as const, errorCode: curatedResult.errorCode };
+  const remindersPipelineDurationMs = curatedResult.durationMs;
 
-  const webPushStartedAt = Date.now();
-  const webPushResult = await loadAdminWebPushHealthMetrics();
-  const webPushPayload: WebPushHealthPayload = webPushResult.ok
-    ? webPushResult.value
-    : emptyWebPushHealthPayload("no_data");
-  const webPushDurationMs = elapsedMs(webPushStartedAt);
+  const webPushPayload: WebPushHealthPayload = curatedSnapshot
+    ? {
+        ...curatedSnapshot.webPush,
+        status: classifyWebPushSystemHealthStatus({
+          vapidConfigured: curatedSnapshot.config.vapidConfigured,
+          activeSubscriptionsCount: curatedSnapshot.webPush.activeSubscriptionsCount,
+        }),
+        vapidConfigured: curatedSnapshot.config.vapidConfigured,
+        deliveryMetricsInDb: true,
+      }
+    : {
+        windowHours: 24,
+        status: "error",
+        vapidConfigured: false,
+        activeSubscriptionsCount: 0,
+        usersWithSubscriptionCount: 0,
+        subscriptionsTouchedLast24h: 0,
+        deliveryMetricsInDb: true,
+      };
+  const webPushResult = curatedResult.ok
+    ? { ok: true as const, value: webPushPayload }
+    : { ok: false as const, errorCode: curatedResult.errorCode };
+  const webPushDurationMs = curatedResult.durationMs;
 
-  const webPushOnlyReminderTickResult = await probeWebPushOnlyReminderTick();
+  const webPushTickJob = curatedSnapshot
+    ? findCuratedJob(curatedSnapshot, OPERATOR_REMINDERS_JOB_FAMILY, OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY)
+    : undefined;
+  const webPushOnlyReminderTickResult: ProbeResult<{
+    status: "ok" | "degraded" | "error" | "no_data";
+    lastTick: OperatorJobStatusTickPayload | null;
+  }> = curatedSnapshot
+    ? {
+        ok: true,
+        durationMs: curatedResult.durationMs,
+        value: {
+          status: classifyWebPushOnlyReminderTickSystemHealthStatus({
+            lastStatus: webPushTickJob?.lastStatus ?? null,
+            lastSuccessAt: webPushTickJob?.lastSuccessAt ?? null,
+            lastFailureAt: webPushTickJob?.lastFailureAt ?? null,
+            metaJson: webPushTickJob?.safeMeta ?? {},
+          }),
+          lastTick: webPushTickJob ? curatedJobToTickPayload(webPushTickJob) : null,
+        },
+      }
+    : {
+        ok: false,
+        status: curatedFailureStatus,
+        errorCode: curatedFailureCode,
+        durationMs: curatedResult.durationMs,
+      };
   const webPushOnlyReminderTickPayload = webPushOnlyReminderTickResult.ok
     ? webPushOnlyReminderTickResult.value
     : { status: "error" as const, lastTick: null };
@@ -1163,7 +1170,9 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const cronJobsStartedAt = Date.now();
   let cronJobsPayload: CronJobsHealthPayload = { status: "no_data", jobs: [] };
   try {
-    cronJobsPayload = await collectCronJobsHealth({ backupJobs });
+    cronJobsPayload = curatedSnapshot
+      ? await collectCronJobsHealth({ backupJobs, jobRows: curatedJobRows })
+      : { status: "error", jobs: [] };
   } catch {
     cronJobsPayload = { status: "error", jobs: [] };
   }
@@ -1171,81 +1180,55 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const cronJobsProbeStatus =
     cronJobsPayload.status === "no_data" && cronJobsPayload.jobs.length === 0 ? "no_data" : cronJobsPayload.status;
 
-  const notificationDeliveryStartedAt = Date.now();
-  const notificationDeliveryResult = await loadAdminNotificationDeliveryHealthMetrics();
-  const notificationDeliveryPayload: NotificationDeliveryHealthPayload = notificationDeliveryResult.ok
-    ? notificationDeliveryResult.value
-    : emptyNotificationDeliveryHealthPayload("no_data");
-  const notificationDeliveryDurationMs = elapsedMs(notificationDeliveryStartedAt);
+  const notificationDeliveryPayload: NotificationDeliveryHealthPayload = curatedSnapshot
+    ? {
+        ...curatedSnapshot.notificationDelivery,
+        status: classifyNotificationDeliverySystemHealthStatus({
+          totalAttempts24h: curatedSnapshot.notificationDelivery.totalAttempts24h,
+          byChannel: curatedSnapshot.notificationDelivery.byChannel,
+          recentIssues: [],
+          vapidConfigured: curatedSnapshot.config.vapidConfigured,
+          smtpConfigured: curatedSnapshot.config.smtpConfigured,
+        }),
+        vapidConfigured: curatedSnapshot.config.vapidConfigured,
+        smtpConfigured: curatedSnapshot.config.smtpConfigured,
+      }
+    : emptyNotificationDeliveryHealthPayload("error");
+  const notificationDeliveryResult = curatedResult.ok
+    ? { ok: true as const, value: notificationDeliveryPayload }
+    : { ok: false as const, errorCode: curatedResult.errorCode };
+  const notificationDeliveryDurationMs = curatedResult.durationMs;
 
   const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(integratorPushOutboxPayload);
 
-  if (operatorHealthResult.ok) {
-    const prevIpoStatus = await getLastAuditLogDetailsField(
-      getPool(),
-      "system_health_integrator_push_outbox",
-      "status",
-    );
-    if (prevIpoStatus != null && prevIpoStatus !== integratorPushOutboxClassified) {
-      void writeAuditLog(getPool(), {
-        actorId: null,
-        action: "system_health_integrator_push_outbox",
-        details: {
-          status: integratorPushOutboxClassified,
-          previousStatus: prevIpoStatus,
-          dueBacklog: integratorPushOutboxPayload.dueBacklog,
-          deadTotal: integratorPushOutboxPayload.deadTotal,
-          processingCount: integratorPushOutboxPayload.processingCount,
-          oldestDueAgeSeconds: integratorPushOutboxPayload.oldestDueAgeSeconds,
-          oldestProcessingAgeSeconds: integratorPushOutboxPayload.oldestProcessingAgeSeconds,
-          fetchedAt: nowIso(),
-        },
-        status:
-          integratorPushOutboxClassified === "error"
-            ? "error"
-            : integratorPushOutboxClassified === "ok"
-              ? "ok"
-              : "partial_failure",
-      });
-    }
-  }
-
-  const operatorIncidentsProbeStatus = !operatorHealthResult.ok
-    ? operatorHealthResult.status
-    : operatorIncidentsOpen.length > 0
+  const operatorIncidentsProbeStatus = !curatedResult.ok
+    ? curatedResult.status
+    : operatorIncidents.openCount > 0
       ? "degraded"
       : "ok";
 
-  const backupJobsProbeStatus = !operatorHealthResult.ok
-    ? operatorHealthResult.status
+  const backupJobsProbeStatus = !curatedResult.ok
+    ? curatedResult.status
     : Object.values(backupJobs).some((j) => j.lastStatus === "failure")
       ? "degraded"
       : "ok";
 
-  const outgoingDeliveryProbeStatus = !operatorHealthResult.ok
-    ? operatorHealthResult.status
+  const outgoingDeliveryProbeStatus = !curatedResult.ok
+    ? curatedResult.status
     : outgoingDeliveryPayload.deadTotal > 0
       || outgoingDeliveryPayload.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
       ? "degraded"
       : "ok";
 
-  const integratorPushOutboxProbeStatus = !operatorHealthResult.ok
-    ? operatorHealthResult.status
+  const integratorPushOutboxProbeStatus = !curatedResult.ok
+    ? curatedResult.status
     : integratorPushOutboxClassified === "error"
       ? "error"
       : integratorPushOutboxClassified === "degraded"
         ? "degraded"
         : "ok";
 
-  let operatorHealthDigestLastSentAt: string | null = null;
-  try {
-    const dedupPort = getOperatorAlertDedupPort();
-    if (dedupPort) {
-      operatorHealthDigestLastSentAt = await dedupPort.getLatestSentAtByDedupKeyPrefix("digest:");
-    }
-  } catch {
-    operatorHealthDigestLastSentAt = null;
-  }
+  const operatorHealthDigestLastSentAt = curatedSnapshot?.operatorHealthDigestLastSentAt ?? null;
 
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
@@ -1272,7 +1255,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     videoPlaybackClient: videoPlaybackClientPayload,
     videoHlsProxy: videoHlsProxyPayload,
     videoTranscode: videoTranscodePayload,
-    operatorIncidentsOpen,
+    operatorIncidents,
     backupJobs,
     outgoingDelivery: outgoingDeliveryPayload,
     integratorPushOutbox: integratorPushOutboxPayload,
@@ -1331,23 +1314,23 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         },
         operatorIncidents: {
           status: operatorIncidentsProbeStatus,
-          durationMs: operatorHealthResult.durationMs,
-          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+          durationMs: curatedResult.durationMs,
+          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         operatorBackupJobs: {
           status: backupJobsProbeStatus,
-          durationMs: operatorHealthResult.durationMs,
-          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+          durationMs: curatedResult.durationMs,
+          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         outgoingDelivery: {
           status: outgoingDeliveryProbeStatus,
-          durationMs: operatorHealthResult.durationMs,
-          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+          durationMs: curatedResult.durationMs,
+          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         integratorPushOutbox: {
           status: integratorPushOutboxProbeStatus,
-          durationMs: operatorHealthResult.durationMs,
-          ...(!operatorHealthResult.ok ? { errorCode: operatorHealthResult.errorCode } : {}),
+          durationMs: curatedResult.durationMs,
+          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         remindersPipeline: {
           status: remindersPipelineResult.ok ? "ok" : "error",
@@ -1374,6 +1357,7 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         cronJobs: {
           status: cronJobsProbeStatus,
           durationMs: cronJobsDurationMs,
+          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
         saasIsolation: {
           status: saasIsolationResult.ok ? saasIsolationPayload.status : saasIsolationResult.status,
@@ -1393,10 +1377,10 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe("video_playback_client", videoPlaybackClientResult, response.videoPlaybackClient.status);
   logProbe("video_hls_proxy", videoHlsProxyResult, response.videoHlsProxy.status);
   logProbe("video_transcode", videoTranscodeResult, response.videoTranscode.status);
-  logProbe("operator_incidents", operatorHealthResult, operatorIncidentsProbeStatus);
-  logProbe("operator_backup_jobs", operatorHealthResult, backupJobsProbeStatus);
-  logProbe("outgoing_delivery", operatorHealthResult, outgoingDeliveryProbeStatus);
-  logProbe("integrator_push_outbox", operatorHealthResult, integratorPushOutboxProbeStatus);
+  logProbe("operator_incidents", curatedResult, operatorIncidentsProbeStatus);
+  logProbe("operator_backup_jobs", curatedResult, backupJobsProbeStatus);
+  logProbe("outgoing_delivery", curatedResult, outgoingDeliveryProbeStatus);
+  logProbe("integrator_push_outbox", curatedResult, integratorPushOutboxProbeStatus);
   logProbe(
     "reminders_pipeline",
     remindersPipelineResult.ok
@@ -1422,7 +1406,14 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe("web_push_only_reminder_tick", webPushOnlyReminderTickResult, webPushOnlyReminderTickPayload.status);
   logProbe(
     "cron_jobs",
-    { ok: true, value: cronJobsPayload, durationMs: cronJobsDurationMs },
+    curatedResult.ok
+      ? { ok: true, value: cronJobsPayload, durationMs: cronJobsDurationMs }
+      : {
+          ok: false,
+          status: "error",
+          errorCode: curatedResult.errorCode,
+          durationMs: cronJobsDurationMs,
+        },
     cronJobsProbeStatus,
   );
   logProbe(

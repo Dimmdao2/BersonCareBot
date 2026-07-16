@@ -2,48 +2,19 @@
  * Серверный снимок публичных конфигов входа для `/app` без лишних client fetch.
  * Логика совпадает с GET `/api/auth/oauth/providers`, `/api/auth/telegram-login/config`, `/api/auth/login/alternatives-config`.
  */
-import {
-  getAppleOauthClientId,
-  getAppleOauthKeyId,
-  getAppleOauthPrivateKey,
-  getAppleOauthRedirectUri,
-  getAppleOauthTeamId,
-  getGoogleClientId,
-  getGoogleClientSecret,
-  getGoogleOauthLoginRedirectUri,
-  getYandexOauthClientId,
-  getYandexOauthClientSecret,
-  getYandexOauthRedirectUri,
-} from "@/modules/system-settings/integrationRuntime";
+import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { getLoginAlternativesPublicConfig } from "@/modules/auth/loginAlternativesConfig";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import type { PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
 
 export async function buildPrefetchedPublicAuthConfig(): Promise<PrefetchedPublicAuthConfig> {
-  const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem, alt, specialistSignupEnabled] = await Promise.all([
-    getYandexOauthClientId(),
-    getYandexOauthClientSecret(),
-    getYandexOauthRedirectUri(),
-    getGoogleClientId(),
-    getGoogleClientSecret(),
-    getGoogleOauthLoginRedirectUri(),
-    getAppleOauthClientId(),
-    getAppleOauthRedirectUri(),
-    getAppleOauthTeamId(),
-    getAppleOauthKeyId(),
-    getAppleOauthPrivateKey(),
+  const [yandex, google, apple, alt, specialistSignupEnabled] = await Promise.all([
+    getPublicRuntimeBool("oauth_yandex_enabled"),
+    getPublicRuntimeBool("oauth_google_enabled"),
+    getPublicRuntimeBool("oauth_apple_enabled"),
     getLoginAlternativesPublicConfig(),
     getSpecialistSignupEnabled(),
   ]);
-
-  const yandex = yId.trim().length > 0 && ySec.trim().length > 0 && yRedir.trim().length > 0;
-  const google = gId.trim().length > 0 && gSec.trim().length > 0 && gLogin.trim().length > 0;
-  const apple =
-    aId.trim().length > 0 &&
-    aRedir.trim().length > 0 &&
-    aTeam.trim().length > 0 &&
-    aKid.trim().length > 0 &&
-    aPem.trim().length > 0;
 
   return {
     oauthProviders: { yandex, google, apple },

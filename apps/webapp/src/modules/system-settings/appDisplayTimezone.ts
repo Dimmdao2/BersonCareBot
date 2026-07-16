@@ -1,4 +1,4 @@
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
 import {
   DEFAULT_APP_DISPLAY_TIMEZONE,
   normalizeAppDisplayTimeZone,
@@ -16,6 +16,6 @@ export {
  * Хранится в `system_settings.app_display_timezone` (admin), фолбэк — MSK.
  */
 export async function getAppDisplayTimeZone(): Promise<string> {
-  const raw = await getConfigValue("app_display_timezone", DEFAULT_APP_DISPLAY_TIMEZONE);
+  const raw = await getPublicRuntimeValue("app_display_timezone", "public_booking_config");
   return normalizeAppDisplayTimeZone(raw);
 }

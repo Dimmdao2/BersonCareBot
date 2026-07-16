@@ -30,9 +30,7 @@ export const SYSTEM_SETTINGS_ORG_SCOPE: Readonly<Record<SystemSettingKey, System
   integrator_linked_phone_source: "global",
 
   // --- Doctor-scope clinic settings (scope="doctor") ---
-  // AMBIGUOUS, kept GLOBAL: read on the pre-org-context OTP/login fallback path (auth/loginAlternativesConfig.ts,
-  // configAdapter.getSmsFallbackEnabled reads scopes ["doctor","admin"] with no org) — no clean org resolution
-  // point before a session/membership exists. Flag for owner review if per-clinic SMS fallback is wanted later.
+  // GLOBAL: pre-session auth reads only the derived public runtime boolean; the restricted authoring row stays here.
   sms_fallback_enabled: "global",
   patient_label: "per_org", // clinic terminology ("Пациенты" vs "Клиенты") — client/patient display setting.
   doctor_patient_support_comments_without_support_default_enabled: "per_org",
