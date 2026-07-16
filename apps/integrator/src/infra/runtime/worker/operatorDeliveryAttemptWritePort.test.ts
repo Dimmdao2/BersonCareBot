@@ -9,7 +9,11 @@ const originalTelegramAdminId = process.env.TELEGRAM_ADMIN_ID;
 
 const intent: OutgoingIntent = {
   type: 'message.send',
-  meta: { eventId: 'op-inc:test:9001', occurredAt: '2026-07-16T00:00:00.000Z', source: 'telegram' },
+  meta: {
+    eventId: 'op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca',
+    occurredAt: '2026-07-16T00:00:00.000Z',
+    source: 'telegram',
+  },
   payload: {
     recipient: { chatId: 9001 },
     message: { text: 'sensitive operator alert text' },
@@ -17,10 +21,12 @@ const intent: OutgoingIntent = {
   },
 };
 
-function buildHarness() {
-  const query = vi.fn().mockResolvedValue({ rows: [{ record_operator_delivery_attempt: 1 }], rowCount: 1 });
+function buildHarness(input: { providerError?: Error; auditError?: Error } = {}) {
+  const query = input.auditError
+    ? vi.fn().mockRejectedValue(input.auditError)
+    : vi.fn().mockResolvedValue({ rows: [{ record_operator_delivery_attempt: null }], rowCount: 1 });
   const tenantWrite = vi.fn().mockResolvedValue(undefined);
-  const send = vi.fn().mockResolvedValue({});
+  const send = input.providerError ? vi.fn().mockRejectedValue(input.providerError) : vi.fn().mockResolvedValue({});
   const adapter: DeliveryAdapter = { canHandle: () => true, send };
   const writePort = createOperatorAwareDeliveryAttemptWritePort({
     db: { query } as never,
@@ -53,10 +59,11 @@ describe('operator delivery attempt production wiring', () => {
     expect(harness.tenantWrite).not.toHaveBeenCalled();
     expect(harness.query).toHaveBeenCalledWith(
       'SELECT app.record_operator_delivery_attempt($1, $2, $3, $4, $5)',
-      ['op-inc:test:9001', 'telegram', 'success', 1, null],
+      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'success', 1, null],
     );
-    expect(JSON.stringify(harness.query.mock.calls)).not.toContain('sensitive operator alert text');
-    expect(JSON.stringify(harness.query.mock.calls)).not.toContain('9001}');
+    const auditCall = JSON.stringify(harness.query.mock.calls);
+    expect(auditCall).not.toContain('sensitive operator alert text');
+    expect(auditCall).not.toContain('9001');
   });
 
   it('audits a dev-suppressed send without reaching an adapter or tenant transaction', async () => {
@@ -71,8 +78,40 @@ describe('operator delivery attempt production wiring', () => {
     expect(harness.send).not.toHaveBeenCalled();
     expect(harness.tenantWrite).not.toHaveBeenCalled();
     expect(harness.query.mock.calls[0]?.[1]).toEqual([
-      'op-inc:test:9001', 'telegram', 'success', 1, 'dev_redirect_suppressed',
+      'op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'success', 1, 'dev_redirect_suppressed',
     ]);
+  });
+
+  it('records a redacted failed attempt and rethrows the original provider error', async () => {
+    process.env.NODE_ENV = 'production';
+    _resetDevRedirectActiveCache();
+    const providerError = new Error('provider exposed recipient 9001 and body');
+    const harness = buildHarness({ providerError });
+
+    await expect(runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      harness.dispatch.dispatchOutgoing(intent),
+    )).rejects.toBe(providerError);
+
+    expect(harness.query).toHaveBeenCalledWith(
+      'SELECT app.record_operator_delivery_attempt($1, $2, $3, $4, $5)',
+      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'failed', 1, 'provider_rejected'],
+    );
+    const auditCall = JSON.stringify(harness.query.mock.calls);
+    expect(auditCall).not.toContain('9001');
+    expect(auditCall).not.toContain('provider exposed');
+    expect(auditCall).not.toContain('sensitive operator alert text');
+  });
+
+  it('keeps the original provider error when failed-attempt audit persistence also fails', async () => {
+    process.env.NODE_ENV = 'production';
+    _resetDevRedirectActiveCache();
+    const providerError = new Error('provider rejection');
+    const harness = buildHarness({ providerError, auditError: new Error('audit unavailable') });
+
+    await expect(runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+      harness.dispatch.dispatchOutgoing(intent),
+    )).rejects.toBe(providerError);
+    expect(harness.query).toHaveBeenCalledTimes(1);
   });
 
   it('rejects another infra source and delegates an organization principal', async () => {

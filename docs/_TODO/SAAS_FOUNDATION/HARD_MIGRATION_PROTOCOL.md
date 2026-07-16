@@ -273,8 +273,9 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   contain the four distinct operational URLs. The script must run the shared C2 preflight against
   `webapp.prod`/`api.prod`/`media-worker.prod` before any role/password mutation, rejecting reuse of any ambient or
   operator login. Ordinary `deploy-prod.sh` remains readiness-only: it must not create
-  roles, set passwords, or gain broader sudo. The overlay must scrub stale direct/column/default ACLs catalog-wide,
-  reject managed-role ownership, rebuild the exact allowlist, and pass its catalog assertion before restart.
+  roles, set passwords, or gain broader sudo. The overlay must scrub stale direct/column/type/default ACLs catalog-wide,
+  reject managed-role ownership including independent types and other owner dependencies, exclude internal table
+  row/array types from independent handling, rebuild the exact allowlist, and pass its catalog assertion before restart.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
   `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the

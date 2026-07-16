@@ -25,8 +25,11 @@ vi.mock('../../integrations/max/config.js', () => ({
 
 import { reportOperatorFailure } from './reportOperatorFailure.js';
 
+const originalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
+
 describe('reportOperatorFailure', () => {
   beforeEach(() => {
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = 'operator-recipient-test-signing-secret-32-bytes';
     vi.clearAllMocks();
     openOrTouchMock.mockResolvedValue({ id: 'incident-uuid-1', occurrenceCount: 1 });
     enqueueMock.mockResolvedValue(true);
@@ -41,7 +44,12 @@ describe('reportOperatorFailure', () => {
     loadListsMock.mockResolvedValue({ telegram: ['4242', '5252'], max: [] });
   });
 
-  it('enqueues telegram delivery with incident uuid, not recipient id', async () => {
+  afterEach(() => {
+    if (originalSigningSecret === undefined) delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
+    else process.env.DB_PRINCIPAL_SIGNING_SECRET = originalSigningSecret;
+  });
+
+  it('keeps raw recipient ids out of queue and audit event identifiers', async () => {
     await reportOperatorFailure({
       direction: 'outbound',
       integration: 'max',
@@ -56,9 +64,27 @@ describe('reportOperatorFailure', () => {
         payloadJson: expect.objectContaining({ incidentId: 'incident-uuid-1' }),
       }),
     );
-    const firstPayload = enqueueMock.mock.calls[0]![1] as { payloadJson: { incidentId: string } };
+    const firstPayload = enqueueMock.mock.calls[0]![1] as {
+      eventId: string;
+      payloadJson: { incidentId: string; intent: { meta: { eventId: string } } };
+    };
     expect(firstPayload.payloadJson.incidentId).toBe('incident-uuid-1');
     expect(firstPayload.payloadJson.incidentId).not.toBe('4242');
+    expect(firstPayload.eventId).not.toContain('4242');
+    expect(firstPayload.payloadJson.intent.meta.eventId).not.toContain('4242');
+    expect(firstPayload.payloadJson.intent.meta.eventId).toMatch(/^op-inc:outbound:max:max_send_failed:[a-f0-9]{32}$/);
+  });
+
+  it('fails closed before enqueue when the protected HMAC key is unavailable', async () => {
+    delete process.env.DB_PRINCIPAL_SIGNING_SECRET;
+
+    await expect(reportOperatorFailure({
+      direction: 'outbound',
+      integration: 'max',
+      errorClass: 'max_send_failed',
+      alertLines: ['send failed'],
+    })).rejects.toThrow('required for operator recipient pseudonymization');
+    expect(enqueueMock).not.toHaveBeenCalled();
   });
 
   it('does not enqueue for probe error classes (3-strike policy)', async () => {
@@ -217,7 +243,7 @@ describe('reportOperatorFailure', () => {
       expect(enqueueMock).not.toHaveBeenCalled();
     });
 
-    it('eventId is clipped to 240 chars and includes recipient id', async () => {
+    it('eventId is clipped to 240 chars and contains only a recipient digest', async () => {
       loadListsMock.mockResolvedValue({ telegram: [], max: ['42'] });
 
       await reportOperatorFailure({
@@ -228,8 +254,13 @@ describe('reportOperatorFailure', () => {
       });
 
       expect(enqueueMock).toHaveBeenCalledTimes(1);
-      const call = enqueueMock.mock.calls[0]![1] as { eventId: string };
-      expect(call.eventId).toContain('42');
+      const call = enqueueMock.mock.calls[0]![1] as {
+        eventId: string;
+        payloadJson: { intent: { meta: { eventId: string } } };
+      };
+      expect(call.eventId).not.toContain(':42:');
+      expect(call.payloadJson.intent.meta.eventId).not.toContain(':42');
+      expect(call.payloadJson.intent.meta.eventId).toMatch(/[a-f0-9]{32}$/);
       expect(call.eventId.length).toBeLessThanOrEqual(240);
     });
   });

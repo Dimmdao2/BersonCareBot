@@ -54,9 +54,11 @@ membership. Base logins have no target-table privileges. Capability roles are te
 staff, patient, legacy `app_worker`, or sibling capabilities. The repeatable operator overlay is
 `deploy/postgres/c4-operational-runtime.sql`; TEST deploy discovers login names from the four URLs, applies the
 overlay after strict-policy installation, and runs positive plus cross-contour readiness probes before restart.
-The overlay first scrubs current-database, direct, column, and default ACLs for all four base logins and all four capabilities across
+The overlay first scrubs current-database, direct, column, type, and default ACLs for all four base logins and all four capabilities across
 non-system schemas, then rebuilds and catalog-asserts the exact allowlist. Managed roles are rejected if they own the
-current database or another managed object. Reapply removes injected stale database/table/sequence/function/column/default ACLs; DOWN scrubs the same catalog before
+current database, an independent enum/domain/composite/range/base type, or another object recorded by PostgreSQL owner
+dependencies. Internal table row and array types are excluded from independent type handling. Reapply removes injected
+stale database/table/sequence/function/column/type/default ACLs; DOWN scrubs the same catalog before
 dropping capabilities.
 
 Scheduler uses a narrow SECURITY DEFINER discovery function that returns only organization IDs and rejects enabled/due
@@ -70,12 +72,18 @@ principal; temporary returns to the delivery capability are limited to queue boo
 two dedicated incident accessors and never receive raw incident-table ACL.
 Their dispatch attempt audit uses a separate narrow function that accepts only an exact queued `operator_alert`
 event/channel pair and stores fixed redacted metadata; the delivery capability has no direct INSERT on the audit table.
-Provider-success and development-suppression tests exercise the real dispatch chain without real delivery.
+The event key contains a stable HMAC-SHA-256 recipient digest keyed by the protected C2 signing secret, never the raw
+Telegram/MAX identifier. The SQL privilege boundary accepts only `success/NULL`,
+`success/dev_redirect_suppressed`, or `failed/provider_rejected`; arbitrary reason text is rejected. Provider success,
+provider rejection, audit-write failure, and development suppression exercise the real dispatch chain: rejection writes
+only `failed/provider_rejected`, then rethrows the original provider error, while audit failure cannot mask it.
 
 First production rollout is a separate root/DB-admin operation:
 `deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
 root-owned webapp/API/media env files. It then creates or normalizes the four distinct LOGIN roles, sets their existing passwords without printing them, applies the overlay as PostgreSQL admin, and
 runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
+The duplicated TEST readiness uses quiet tuple-only PostgreSQL output and integer `0/1` assertions for all four contours;
+it does not depend on command-tag or newline parsing.
 
 ## Webapp Internal Cron / Internal HTTP Jobs
 

@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { maxConfig } from '../../integrations/max/config.js';
 import { logger } from '../observability/logger.js';
@@ -22,6 +23,14 @@ export type ReportOperatorFailureInput = {
 
 function buildDedupKey(direction: string, integration: string, errorClass: string): string {
   return `${direction}:${integration}:${errorClass}`;
+}
+
+function buildRecipientDigest(channel: 'telegram' | 'max', recipientId: string): string {
+  const key = process.env.DB_PRINCIPAL_SIGNING_SECRET;
+  if (!key || Buffer.byteLength(key, 'utf8') < 32) {
+    throw new Error('DB_PRINCIPAL_SIGNING_SECRET is required for operator recipient pseudonymization');
+  }
+  return createHmac('sha256', key).update(`${channel}\0${recipientId}`, 'utf8').digest('hex').slice(0, 32);
 }
 
 /** Probe fails: incident only; critical push — после 3-strike в webapp critical tick (SCOPE P7). */
@@ -84,11 +93,12 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
     for (const recipientId of lists.telegram) {
       const chatId = Number(recipientId);
       if (!Number.isFinite(chatId)) continue;
-      const eventId = `op-alert:${incidentId}:${recipientId}:${dedupKey}`.slice(0, 240);
+      const recipientDigest = buildRecipientDigest('telegram', recipientId);
+      const eventId = `op-alert:${incidentId}:${recipientDigest}:${dedupKey}`.slice(0, 240);
       const intent: OutgoingIntent = {
         type: 'message.send',
         meta: {
-          eventId: `op-inc:${dedupKey}:${recipientId}`.slice(0, 240),
+          eventId: `op-inc:${dedupKey}:${recipientDigest}`.slice(0, 240),
           occurredAt: new Date().toISOString(),
           source: 'telegram',
         },
@@ -117,11 +127,12 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
     for (const recipientId of lists.max) {
       const userId = Number(recipientId);
       if (!Number.isFinite(userId)) continue;
-      const eventId = `op-alert:${incidentId}:${recipientId}:${dedupKey}`.slice(0, 240);
+      const recipientDigest = buildRecipientDigest('max', recipientId);
+      const eventId = `op-alert:${incidentId}:${recipientDigest}:${dedupKey}`.slice(0, 240);
       const intent: OutgoingIntent = {
         type: 'message.send',
         meta: {
-          eventId: `op-inc:${dedupKey}:${recipientId}`.slice(0, 240),
+          eventId: `op-inc:${dedupKey}:${recipientDigest}`.slice(0, 240),
           occurredAt: new Date().toISOString(),
           source: 'max',
         },

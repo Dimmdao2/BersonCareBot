@@ -59,6 +59,23 @@ SELECT 1 / (NOT EXISTS (
     WHERE object.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
   UNION ALL
   SELECT 1 FROM pg_proc object JOIN managed_oids role_state ON role_state.oid = object.proowner
+  UNION ALL
+  SELECT 1
+  FROM pg_type object
+  JOIN pg_namespace namespace ON namespace.oid = object.typnamespace
+  LEFT JOIN pg_class composite_relation ON composite_relation.oid = object.typrelid
+  JOIN managed_oids role_state ON role_state.oid = object.typowner
+  WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+    AND object.typisdefined AND object.typcategory <> 'A'
+    AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
+  UNION ALL
+  SELECT 1
+  FROM pg_shdepend dependency
+  JOIN managed_oids role_state ON role_state.oid = dependency.refobjid
+  WHERE dependency.refclassid = 'pg_authid'::regclass
+    AND dependency.deptype = 'o'
+    AND dependency.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))
 ))::int AS c4_down_managed_roles_own_no_objects;
 WITH managed(role_name) AS (VALUES
   (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
@@ -102,11 +119,32 @@ WITH managed(role_name) AS (VALUES
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
+SELECT format('REVOKE ALL PRIVILEGES ON TYPE %I.%I FROM %I',
+  namespace.nspname, object.typname, managed.role_name)
+FROM pg_type object
+JOIN pg_namespace namespace ON namespace.oid = object.typnamespace
+LEFT JOIN pg_class composite_relation ON composite_relation.oid = object.typrelid
+CROSS JOIN LATERAL aclexplode(object.typacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee
+JOIN managed ON managed.role_name = grantee.rolname
+WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+  AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+  AND object.typisdefined AND object.typcategory <> 'A'
+  AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
+\gexec
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
 SELECT DISTINCT format(
   'ALTER DEFAULT PRIVILEGES FOR ROLE %I%s REVOKE ALL PRIVILEGES ON %s FROM %I',
   owner_role.rolname,
   CASE WHEN namespace.oid IS NULL THEN '' ELSE format(' IN SCHEMA %I', namespace.nspname) END,
-  CASE defaults.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' ELSE 'ROUTINES' END,
+  CASE defaults.defaclobjtype
+    WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'ROUTINES' ELSE 'TYPES'
+  END,
   managed.role_name
 )
 FROM pg_default_acl defaults
@@ -115,7 +153,7 @@ LEFT JOIN pg_namespace namespace ON namespace.oid = defaults.defaclnamespace
 CROSS JOIN managed
 CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
 JOIN pg_roles grantee ON grantee.oid = acl.grantee AND grantee.rolname = managed.role_name
-WHERE defaults.defaclobjtype IN ('r', 'S', 'f')
+WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 \gexec
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
@@ -221,6 +259,23 @@ SELECT 1 / (NOT EXISTS (
     WHERE object.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
   UNION ALL
   SELECT 1 FROM pg_proc object JOIN managed_oids role_state ON role_state.oid = object.proowner
+  UNION ALL
+  SELECT 1
+  FROM pg_type object
+  JOIN pg_namespace namespace ON namespace.oid = object.typnamespace
+  LEFT JOIN pg_class composite_relation ON composite_relation.oid = object.typrelid
+  JOIN managed_oids role_state ON role_state.oid = object.typowner
+  WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+    AND object.typisdefined AND object.typcategory <> 'A'
+    AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
+  UNION ALL
+  SELECT 1
+  FROM pg_shdepend dependency
+  JOIN managed_oids role_state ON role_state.oid = dependency.refobjid
+  WHERE dependency.refclassid = 'pg_authid'::regclass
+    AND dependency.deptype = 'o'
+    AND dependency.dbid IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))
 ))::int AS c4_managed_roles_own_no_objects;
 
 -- Catalog-wide direct/default ACL scrub. Exact grants are rebuilt below.
@@ -268,11 +323,33 @@ WITH managed(role_name) AS (VALUES
   ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
   ('app_operational_scheduler'), ('app_operational_media_worker')
 )
+SELECT format('REVOKE ALL PRIVILEGES ON TYPE %I.%I FROM %I',
+  namespace.nspname, object.typname, managed.role_name)
+FROM pg_type object
+JOIN pg_namespace namespace ON namespace.oid = object.typnamespace
+LEFT JOIN pg_class composite_relation ON composite_relation.oid = object.typrelid
+CROSS JOIN LATERAL aclexplode(object.typacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee
+JOIN managed ON managed.role_name = grantee.rolname
+WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+  AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+  AND object.typisdefined AND object.typcategory <> 'A'
+  AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
+\gexec
+
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
 SELECT DISTINCT format(
   'ALTER DEFAULT PRIVILEGES FOR ROLE %I%s REVOKE ALL PRIVILEGES ON %s FROM %I',
   owner_role.rolname,
   CASE WHEN namespace.oid IS NULL THEN '' ELSE format(' IN SCHEMA %I', namespace.nspname) END,
-  CASE defaults.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' ELSE 'ROUTINES' END,
+  CASE defaults.defaclobjtype
+    WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' WHEN 'f' THEN 'ROUTINES' ELSE 'TYPES'
+  END,
   managed.role_name
 )
 FROM pg_default_acl defaults
@@ -281,7 +358,7 @@ LEFT JOIN pg_namespace namespace ON namespace.oid = defaults.defaclnamespace
 CROSS JOIN managed
 CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
 JOIN pg_roles grantee ON grantee.oid = acl.grantee AND grantee.rolname = managed.role_name
-WHERE defaults.defaclobjtype IN ('r', 'S', 'f')
+WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 \gexec
 
 -- Each capability may have exactly one member: its expected operator-provisioned base login.
@@ -538,6 +615,10 @@ BEGIN
     OR p_status NOT IN ('success', 'failed')
     OR p_attempt NOT BETWEEN 1 AND 100
     OR length(COALESCE(p_reason, '')) > 500
+    OR (
+      (p_status = 'success' AND (p_reason IS NULL OR p_reason = 'dev_redirect_suppressed'))
+      OR (p_status = 'failed' AND p_reason = 'provider_rejected')
+    ) IS NOT TRUE
   THEN
     RAISE EXCEPTION 'invalid operator delivery attempt audit input' USING ERRCODE = '23514';
   END IF;
@@ -883,6 +964,19 @@ WITH managed(role_name) AS (VALUES
   JOIN pg_roles grantee ON grantee.oid = acl.grantee
   JOIN managed ON managed.role_name = grantee.rolname
   WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+  UNION ALL
+  SELECT 'type', namespace.nspname || '.' || object.typname,
+    acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_type object
+  JOIN pg_namespace namespace ON namespace.oid = object.typnamespace
+  LEFT JOIN pg_class composite_relation ON composite_relation.oid = object.typrelid
+  CROSS JOIN LATERAL aclexplode(object.typacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+  WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+    AND object.typisdefined AND object.typcategory <> 'A'
+    AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
   UNION ALL
   SELECT 'function', routine.oid::regprocedure::text, acl.privilege_type, grantee.rolname, acl.is_grantable
   FROM pg_proc routine

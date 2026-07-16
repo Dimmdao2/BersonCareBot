@@ -19,6 +19,10 @@ const files = {
   operatorDeliveryAttempts: "apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts",
   operatorAttemptWritePort: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.ts",
   operatorAttemptWritePortTest: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts",
+  dispatchPort: "apps/integrator/src/infra/adapters/dispatchPort.ts",
+  dispatchPortTest: "apps/integrator/src/infra/adapters/dispatchPort.test.ts",
+  reportOperatorFailure: "apps/integrator/src/infra/operatorIncident/reportOperatorFailure.ts",
+  reportOperatorFailureTest: "apps/integrator/src/infra/operatorIncident/reportOperatorFailure.test.ts",
   outgoingDeliveryWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
   schedulerOrganizationRepo: "apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts",
   schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
@@ -149,6 +153,11 @@ function requireFragmentBefore(label, text, before, after) {
   if (beforeIndex > afterIndex) {
     fail(`${label} must contain ${before} before ${after}`);
   }
+}
+
+function requireOccurrenceCountAtLeast(label, text, fragment, minCount) {
+  const count = text.split(fragment).length - 1;
+  if (count < minCount) fail(`${label} must contain ${fragment} at least ${minCount} times, found ${count}`);
 }
 
 function listRouteFiles(rootRelativePath) {
@@ -402,11 +411,19 @@ function assertOperationalSqlAndDeploy(loaded) {
     "CREATE OR REPLACE FUNCTION app.mark_operator_incident_alert_sent",
     "CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt",
     "operator delivery attempt has no exact queue source",
+    "p_status = 'success' AND (p_reason IS NULL OR p_reason = 'dev_redirect_suppressed')",
+    "p_status = 'failed' AND p_reason = 'provider_rejected'",
+    ") IS NOT TRUE",
     "integrator.delivery_attempt_logs",
     "integrator.delivery_attempt_logs_id_seq",
     "scheduler reminder work contains conflicting organization ownership",
     "REVOKE ALL PRIVILEGES ON DATABASE",
     "pg_database object",
+    "pg_type object",
+    "object.typcategory <> 'A'",
+    "pg_shdepend dependency",
+    "REVOKE ALL PRIVILEGES ON TYPE",
+    "'T'",
     "scheduler reminder work contains rows without organization ownership",
     "REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA",
     "ALTER DEFAULT PRIVILEGES FOR ROLE",
@@ -426,7 +443,12 @@ function assertOperationalSqlAndDeploy(loaded) {
     "DATABASE_URL_DELIVERY_WORKER",
     "DATABASE_URL_SCHEDULER",
     "MEDIA_WORKER_ENV",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
   ]);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "-qAt -c", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "::int;", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, "| tail -n 1", 4);
+  requireOccurrenceCountAtLeast(files.testDeploy, loaded.testDeploy, '= "1" ]', 4);
   requireFragments(files.outgoingDeliveryScope, loaded.outgoingDeliveryScope, [
     "app.resolve_outgoing_delivery_scope($1::uuid)",
     "app.operator_incident_alert_already_sent($1::uuid)",
@@ -454,6 +476,28 @@ function assertOperationalSqlAndDeploy(loaded) {
     "audits a dev-suppressed send without reaching an adapter or tenant transaction",
     "rejects another infra source and delegates an organization principal",
     "sensitive operator alert text",
+    "records a redacted failed attempt and rethrows the original provider error",
+    "keeps the original provider error when failed-attempt audit persistence also fails",
+  ]);
+  requireFragments(files.dispatchPort, loaded.dispatchPort, [
+    "'failed', 1, 'provider_rejected'",
+    "throw providerError",
+    "Delivery provider failed and its attempt audit could not be persisted",
+  ]);
+  requireFragments(files.dispatchPortTest, loaded.dispatchPortTest, [
+    "does not mask the provider rejection when failed-attempt audit also fails",
+    "params: expect.objectContaining({ status: 'failed', reason: 'provider_rejected' })",
+  ]);
+  requireFragments(files.reportOperatorFailure, loaded.reportOperatorFailure, [
+    "createHmac('sha256', key)",
+    "DB_PRINCIPAL_SIGNING_SECRET is required for operator recipient pseudonymization",
+    "buildRecipientDigest('telegram', recipientId)",
+    "buildRecipientDigest('max', recipientId)",
+    "${recipientDigest}",
+  ]);
+  requireFragments(files.reportOperatorFailureTest, loaded.reportOperatorFailureTest, [
+    "keeps raw recipient ids out of queue and audit event identifiers",
+    "contains only a recipient digest",
   ]);
   requireFragments(files.integratorDi, loaded.integratorDi, [
     "dispatchAttemptWritePort?: DbWritePort",
@@ -613,6 +657,25 @@ if (process.argv.includes("--self-test")) {
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
   );
+  const operationalSqlNoTypeScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON TYPE",
+    "REVOKE USAGE ON TYPE",
+  );
+  const operationalSqlOpenReason = read(files.operationalSql).replace(
+    "OR (p_status = 'failed' AND p_reason = 'provider_rejected')",
+    "OR (p_status = 'failed' AND p_reason IS NOT NULL)",
+  );
+  const testDeployLegacyReadiness = read(files.testDeploy)
+    .replaceAll("-qAt -c", "-tAc")
+    .replaceAll("::int;", "::text;");
+  const dispatchPortNoFailedAudit = read(files.dispatchPort).replace(
+    "'failed', 1, 'provider_rejected'",
+    "'success', 1, 'provider_rejected'",
+  );
+  const reportOperatorFailureRawRecipient = read(files.reportOperatorFailure).replaceAll(
+    "${recipientDigest}",
+    "${recipientId}",
+  );
   const cases = [
     { mediaProcess },
     { mediaClaim },
@@ -628,6 +691,11 @@ if (process.argv.includes("--self-test")) {
     { operationalSql: operationalSqlWrongAuditSchema },
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalReadiness: operationalReadinessNoBooleanGate },
+    { operationalSql: operationalSqlNoTypeScrub },
+    { operationalSql: operationalSqlOpenReason },
+    { testDeploy: testDeployLegacyReadiness },
+    { dispatchPort: dispatchPortNoFailedAudit },
+    { reportOperatorFailure: reportOperatorFailureRawRecipient },
   ];
   let detected = 0;
   for (const testCase of cases) {

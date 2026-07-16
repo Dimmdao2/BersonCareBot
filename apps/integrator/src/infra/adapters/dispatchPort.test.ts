@@ -68,7 +68,8 @@ describe('createDefaultDispatchPort', () => {
   });
 
   it('does not fallback after primary failure', async () => {
-    sendPrimaryMock.mockRejectedValueOnce(new Error('adapter down'));
+    const providerError = new Error('adapter down with recipient +79990001122');
+    sendPrimaryMock.mockRejectedValueOnce(providerError);
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
     const intent: OutgoingIntent = {
@@ -81,10 +82,33 @@ describe('createDefaultDispatchPort', () => {
       },
     };
 
-    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toThrow('adapter down');
+    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toBe(providerError);
     expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
     expect(sendSecondaryMock).toHaveBeenCalledTimes(0);
-    expect(writeDb).toHaveBeenCalledTimes(0);
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'delivery.attempt.log',
+      params: expect.objectContaining({ status: 'failed', reason: 'provider_rejected' }),
+    }));
+    expect(JSON.stringify(writeDb.mock.calls)).not.toContain('adapter down');
+  });
+
+  it('does not mask the provider rejection when failed-attempt audit also fails', async () => {
+    const providerError = new Error('provider rejection');
+    sendPrimaryMock.mockRejectedValueOnce(providerError);
+    const writeDb = vi.fn().mockRejectedValue(new Error('audit unavailable'));
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-failed-audit', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { chatId: 17 },
+        message: { text: 'sensitive body' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toBe(providerError);
+    expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
   it('sends secondary when first channel is secondary', async () => {
