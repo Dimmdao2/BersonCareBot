@@ -261,6 +261,11 @@ assertIncludes(
 );
 assertIncludes(
   runtimeAudienceSql,
+  `NOT pg_has_role(current_user, 'app_worker', 'member')`,
+  "P0.9 runtime config client-safe branch must remain unavailable to app_worker",
+);
+assertIncludes(
+  runtimeAudienceSql,
   `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
   "P0.9 runtime config tenant rows must require matching protected organization context",
 );

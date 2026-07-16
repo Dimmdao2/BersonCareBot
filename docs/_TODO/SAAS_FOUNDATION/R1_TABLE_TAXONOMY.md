@@ -34,8 +34,8 @@ available before an organization is selected, while organization overrides requi
 `system_settings`, the table contains only registry-approved non-secret runtime values, but its `audience='server'`
 rows are not client-readable. Therefore it is deliberately excluded from the generic P0.5 app-role grant and the
 generic P0.8.6 bootstrap-hybrid target set. Its descriptor permits only `public|authenticated_client` rows through
-the generic bootstrap read predicate; worker/staff/integrator capabilities remain the dedicated grants/accessors
-defined by the runtime-settings migrations and overlays.
+the generic bootstrap read predicate and explicitly excludes `app_worker`; worker/staff/integrator capabilities
+remain the dedicated grants/accessors defined by the runtime-settings migrations and overlays.
 
 ## Declared FK tenant paths
 

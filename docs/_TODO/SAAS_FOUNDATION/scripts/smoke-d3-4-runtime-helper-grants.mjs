@@ -2,6 +2,10 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import {
+  getP09EnforceDescriptorByTable,
+  renderP09EnforcePolicyStatements,
+} from "./p0-9-enforce-descriptors.mjs";
 
 const repoRoot = process.cwd();
 const artifactPath = "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql";
@@ -59,6 +63,9 @@ const artifact = sourceArtifact
   .replaceAll("app_worker", workerRole);
 const appWorkerArtifact = readFileSync(appWorkerArtifactPath, "utf8")
   .replaceAll("app_worker", workerRole);
+const runtimeAudiencePolicy = renderP09EnforcePolicyStatements(
+  getP09EnforceDescriptorByTable("public.app_runtime_settings"),
+).join("\n").replaceAll("app_worker", workerRole);
 
 function createFunctionSql(signature) {
   if (signature === "app.is_staff()") {
@@ -94,7 +101,38 @@ const setupSql = [
   ...functionSignatures.map(createFunctionSql),
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
-  ...tableNames.map((table) => `CREATE TABLE ${table} (id integer);`),
+  ...tableNames
+    .filter((table) => table !== "public.app_runtime_settings")
+    .map((table) => `CREATE TABLE ${table} (id integer);`),
+  `CREATE TABLE public.app_runtime_settings (
+    key text NOT NULL,
+    scope text NOT NULL,
+    organization_id uuid,
+    audience text NOT NULL,
+    value_json jsonb NOT NULL
+  );`,
+  `INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json) VALUES
+    ('client_public_global', 'admin', NULL, 'public', '{"value":true}'),
+    ('client_authenticated_global', 'admin', NULL, 'authenticated_client', '{"value":true}'),
+    ('worker_server_global', 'admin', NULL, 'server', '{"value":true}'),
+    ('worker_server_org', 'admin', '00000000-0000-4000-8000-000000000020', 'server', '{"value":true}');`,
+  "ALTER TABLE public.app_runtime_settings ENABLE ROW LEVEL SECURITY;",
+  "ALTER TABLE public.app_runtime_settings FORCE ROW LEVEL SECURITY;",
+  `CREATE POLICY app_runtime_settings_safe_read ON public.app_runtime_settings
+    FOR SELECT USING (
+      (
+        audience IN ('public', 'authenticated_client')
+        AND NOT pg_has_role(current_user, ${quoteLiteral(workerRole)}, 'member')
+        AND organization_id IS NULL
+      )
+      OR (
+        audience = 'server'
+        AND organization_id IS NULL
+        AND pg_has_role(current_user, ${quoteLiteral(workerRole)}, 'member')
+        AND app.current_org_id() IS NULL
+        AND app.current_patient_user_id() IS NULL
+      )
+    );`,
   "CREATE TABLE public.system_settings (id integer);",
   `CREATE TABLE public.media_files (
     id uuid PRIMARY KEY,
@@ -140,6 +178,7 @@ const applySql = [
   `\\set d3_4_media_worker_runtime_role ${mediaRole}`,
   artifact,
   appWorkerArtifact,
+  runtimeAudiencePolicy,
 ].join("\n");
 
 const proofSql = `
@@ -157,6 +196,20 @@ SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.current_
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.close_active_user_phone_history(uuid)', 'EXECUTE'))::int;
 SELECT 1 / has_table_privilege(${quoteLiteral(mediaRole)}, 'public.app_runtime_settings', 'SELECT')::int;
 SELECT 1 / (NOT has_table_privilege(${quoteLiteral(mediaRole)}, 'public.system_settings', 'SELECT'))::int;
+-- The 0188 worker policy and the generic P0.9 policy coexist permissively (OR). The P0.9 branch
+-- must exclude worker membership, otherwise these two client-safe global rows reopen to media.
+SET SESSION AUTHORIZATION ${mediaIdent};
+SELECT 1 / (count(*) = 1)::int FROM public.app_runtime_settings;
+SELECT 1 / (count(*) = 1)::int
+FROM public.app_runtime_settings
+WHERE key = 'worker_server_global'
+  AND audience = 'server'
+  AND organization_id IS NULL;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1 FROM public.app_runtime_settings
+  WHERE audience <> 'server' OR organization_id IS NOT NULL
+))::int;
+RESET SESSION AUTHORIZATION;
 SELECT 1 / (NOT EXISTS (
   SELECT 1
   FROM pg_proc proc

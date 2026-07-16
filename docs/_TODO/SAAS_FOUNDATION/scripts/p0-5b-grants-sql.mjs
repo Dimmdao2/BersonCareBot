@@ -71,6 +71,7 @@ const migrationOnlyTables = new Set([
 //   the receipt-backed seed helper; staff edits the per-organization category/item copies instead.
 // - SaaS isolation diagnostics are true-global tables behind their own SECURITY DEFINER writer/operator overlay;
 //   ambient app_staff must never receive direct table grants from this broad bootstrap batch.
+// - app_runtime_settings uses dedicated audience-aware patient/staff/worker/integrator grants and policies.
 const overlayManagedAppStaffTables = new Set([
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
@@ -81,6 +82,7 @@ const overlayManagedAppStaffTables = new Set([
   "public.saas_isolation_coverage_runs",
   "public.saas_isolation_event_hourly",
   "public.saas_isolation_events",
+  "public.app_runtime_settings",
 ]);
 
 const appStaffGrantTiers = new Set(["SCOPED", "BOOTSTRAP", "INFRA", "LEGACY", "TELEMETRY"]);

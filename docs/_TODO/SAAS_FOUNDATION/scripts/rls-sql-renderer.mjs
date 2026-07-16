@@ -524,7 +524,7 @@ export function renderBootstrapRuntimeAudiencePredicate({
   const safeAudienceSql = safeAudiences.map(quoteSqlLiteral).join(", ");
   const orgPredicate = renderBootstrapHybridPredicate({ orgColumn });
 
-  return `(${audienceSql} IN (${safeAudienceSql}) AND ${orgPredicate})`;
+  return `(NOT pg_has_role(current_user, 'app_worker', 'member') AND ${audienceSql} IN (${safeAudienceSql}) AND ${orgPredicate})`;
 }
 
 export function renderPolicyTarget(table) {

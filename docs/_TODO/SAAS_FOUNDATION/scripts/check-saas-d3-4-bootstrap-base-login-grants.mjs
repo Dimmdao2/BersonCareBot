@@ -77,6 +77,7 @@ const overlayManagedAppStaffTables = [
   "public.saas_org_entitlement_overrides",
   "public.saas_tariffs",
   "public.specialist_signup_intents",
+  "public.app_runtime_settings",
 ];
 
 function fail(message) {
@@ -322,6 +323,9 @@ function runChecks(overrides = {}) {
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_password_credentials"\s+TO\s+app_patient/i,
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_oauth_bindings"\s+TO\s+app_patient/i,
   ]);
+  forbidFragments(files.p05bGrantSql, loaded.p05bGrantSql, [
+    "public.app_runtime_settings",
+  ]);
 
   requireFragments(files.organizationMemberInvitesSql, loaded.organizationMemberInvitesSql, [
     "R1 clinic member invites RLS/grants overlay",
@@ -405,6 +409,9 @@ function runChecks(overrides = {}) {
     "public.app_runtime_settings",
     "public.system_settings",
     "has_table_privilege",
+    "runtimeAudiencePolicy",
+    "count(*) = 1",
+    "audience <> 'server' OR organization_id IS NOT NULL",
   ]);
   forbidRegex(files.platformAccessRepo, loaded.platformAccessRepo, [
     /FROM\s+(?:public\.)?user_password_credentials\b/i,
@@ -624,6 +631,9 @@ if (process.argv.includes("--self-test")) {
       p05bGrantSql: `${read(files.p05bGrantSql)}\n-- generated drift\n`,
     },
     {
+      p05bGrantSql: `${read(files.p05bGrantSql)}\nGRANT SELECT ON TABLE public.app_runtime_settings TO app_staff;\n`,
+    },
+    {
       publicBootstrapSql: read(files.publicBootstrapSql).replace(
         "CREATE OR REPLACE FUNCTION app.current_patient_has_password_credentials()",
         "CREATE OR REPLACE FUNCTION app.missing_patient_password_accessor()",
@@ -657,6 +667,12 @@ if (process.argv.includes("--self-test")) {
       runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
         "UPDATE public.media_transcode_jobs",
         "UPDATE public.missing_media_transcode_jobs",
+      ),
+    },
+    {
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
+        "audience <> 'server' OR organization_id IS NOT NULL",
+        "false",
       ),
     },
     {
