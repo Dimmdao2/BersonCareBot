@@ -1,7 +1,7 @@
 # UX-04 — Entry, invite, activation and install journeys
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Предыдущий PASS остаётся
-историческим pre-ruling baseline.
+**Статус:** latest owner clarifications integrated; awaiting full independent audit. Предыдущий
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` PASS остаётся историческим baseline до этих уточнений.
 **Authority:** производный journey contract; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
 **Дата:** 2026-07-15.
 **Scope:** acquisition, trusted entry, identity activation, organization enrollment, first workspace, install и recovery.
@@ -13,7 +13,7 @@ journey отдельно указаны:
 
 - подтверждённое текущее поведение;
 - целевой UX-контракт;
-- current owner classification или безопасная граница только для реально оставшегося deferred sub-decision;
+- current owner classification, engineering policy или non-blocking future backlog;
 - текущий implementation gap.
 
 Три класса состояния нельзя смешивать:
@@ -504,8 +504,8 @@ post-booking organization access as a target contract, not a current guarantee.
 
 ### Resolved launch behavior
 
-- Last active + visible switcher in platform app; chooser when preference is unusable. Future organization-specific
-  installed app is pinned to its organization without a switcher; its technology remains unresolved.
+- Last active + visible switcher in platform app; chooser when preference is unusable. Future generated branded PWA
+  is pinned to its organization without a switcher; separate native org app is outside current scope.
 - **Current gap:** organization enrollment resolution exists, but target switcher/selection contract is not complete;
   current Patient Today also has documented `organization_principal_required` failure in DEV.
 
@@ -559,7 +559,7 @@ After a successful relationship mutation, destination is selected from server-ap
 | Clinic specialist | Own clinical Today | Organization management without capability |
 | Admin without specialist binding | Organization overview | Doctor Today |
 | Admin with binding | OM-1 selected management/clinical destination | A route that infers access from UI mode |
-| Assistant | Not applicable in initial release; future destination/grants unresolved | Any launch workspace or doctor-route shortcut |
+| Assistant | Not applicable in initial release; future reservation outside current scope | Any launch workspace or doctor-route shortcut |
 | New patient by invite | Invite organization Today/appointment/program or relationship success state | Global mixed clinical feed |
 | New patient by booking | Exact appointment in booking organization | Generic install page before value |
 | Multi-org returning patient | Verified target or chosen/last-active organization | Silent organization selected from Host/query |
@@ -580,16 +580,26 @@ Install card may be dismissed. Already-installed suppresses repeat prompts; unsu
 5. Notification open resolves target object server-side and rechecks current enrollment. Revoked/foreign target gives
    neutral recovery; service-worker caches, badges, counts and message copy cannot leak prior-organization content.
 
-## 13. Current deferred product detail and implementation policies
+## 13. Non-blocking future backlog and implementation policies
 
-The only journey-related open product detail here is exact future assistant grants/first workspace; it is not launch
-scope. Future clinic communication topology and future org-app technology/timing are tracked in their own contracts.
+Future assistant grants/first workspace and clinic communication topology are outside current design/development
+scope. They remain architecture reservations, not open owner gates. Future generated organization PWA is tracked in
+the branding contract; separate organization native apps remain research backlog and do not block this journey.
 
 Suspended relationship presentation, staff security factors/grace, portal identity matching/conflict handling,
-additive-persona recovery copy, booking activation-channel selection and invite TTL/resend timing are explicit
+additive-persona recovery copy, booking activation-channel selection and invite lifecycle timing are explicit
 security/data/UX implementation policies. They require review and fail-closed behavior, but they are **not extra
 pending owner rulings** and do not reopen resolved UX08 outcomes. SMS remains transport-only and is not a standalone
-launch identity path.
+launch identity path. Custom-sender retry/expiry/retention uses the standards-backed configurable policy in
+`BRANDING_DOMAIN_CONTRACT.md` §7.1.
+
+That policy is channel-exact: a configured organization custom email provider disables platform-email fallback for
+all patient/user email, and a configured organization custom SMS provider disables platform-SMS fallback for all
+patient/user SMS. `1m/5m/15m` is only BersonCare pre-acceptance application submission retry where applicable;
+direct SMTP MTA cadence is separate and still capped by business `expires_at`. Provider-accepted delivery is never
+resubmitted; callbacks/provider IDs dedupe, and ambiguous SMTP disconnect after `DATA` stays `unknown` pending
+reconciliation. The owner receives an in-app sender incident plus platform service email with no patient content,
+at most daily reminder and recovery notice.
 
 ## 14. Current implementation reuse and gaps
 

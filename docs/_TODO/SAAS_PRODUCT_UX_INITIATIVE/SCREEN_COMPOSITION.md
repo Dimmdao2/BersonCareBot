@@ -1,6 +1,6 @@
 # UX-06 — Target screen composition
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Canonical registry remains
+**Статус:** latest owner clarifications integrated; awaiting full independent audit. Canonical registry remains
 `57/57`; previous UX-06 PASS is a historical pre-ruling baseline.
 **Authority:** производная composition; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
 **Contract:** screen specifications below are logical compositions. Target route names are migration candidates, not
@@ -55,7 +55,7 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 | `MGMT-INVITE` → MGMT-02 | Historical future-staff invite shorthand | Deferred; no initial states | Reserved for a later clinic contract; no role/grant is frozen |
 | `CLIN-PAT-INVITE` → CLIN-02/CLIN-03 | Create card/relationship + scheduled or walk-in visit; optional email-first portal invite and SMS attempt; link verified identity later | created/not-activated/invited/linked; delivery remains independent from proof; duplicate/conflict/revoke/resend | Manual relationship exists before portal activation; delivery never implies proof/access |
 | `ACC-FIRST` → ACC-02 | Password, factor enroll/verify, recovery codes, sessions and step-up | factor unavailable/lost, cooldown, replacement, recovery | Staff target requires complete 2FA mechanics; patient remains passwordless OTP per owner ruling |
-| `PAT-INSTALL` → PAT-11 | First useful org screen → contextual install education → browser-specific steps → push prompt later | already installed, unsupported, denied, iOS/browser instructions, subscription degraded | Initial release uses platform app; future org-specific PWA/APK/native path awaits feasibility |
+| `PAT-INSTALL` → PAT-11 | First useful org screen → contextual install education → browser-specific steps → push prompt later | already installed, unsupported, denied, iOS/browser instructions, subscription degraded | Initial release uses platform app; future branded org PWA may be generated from verified origin/name/logo settings; separate native org app is out of scope |
 
 ## 4. Platform administration screens
 
@@ -80,7 +80,7 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 | MGMT-03 `/app/manage/booking/**` | Services, locations, availability/work plan, public form, payments and attribution | no service/location, invalid schedule, integration fallback, payment degraded | Split current schedule setup + admin booking tabs |
 | MGMT-04 `/app/manage/public` | Brand/public profile draft, assets, preview, publish/version history | draft, validation fail, unpublished, published, stale preview | Current patient-home/content preview patterns + new publication object |
 | MGMT-05 `/app/manage/domains` | Hostname base list/detail; proof/TLS/routing/base readiness; per-surface bindings; remove/quarantine | every UX-05 base/binding pending/fail/degraded state; canonical fallback always shown | New contract; no current UI claimed as complete |
-| MGMT-06 `/app/manage/senders` | Email sender identity/readiness, SMS presentation, push identity and per-attempt effective sender | proof/provider/alignment/bounce fail, fallback/hold under BD-3 | New org surface; platform transport settings remain PLAT-05 |
+| MGMT-06 `/app/manage/senders` | Email sender identity/readiness, SMS presentation, push identity and per-attempt effective sender | proof/provider/alignment/bounce fail; hold/retry/expire and owner incident under BD-3, with no configured-channel platform fallback | New org surface; platform transport settings remain PLAT-05 |
 | MGMT-07 `/app/manage/integrations` | Org calendar and delivery integrations; health and reconnect | disconnected, degraded, revoked, fallback | Split current global integration UI from org connection state |
 | MGMT-08 `/app/manage/plan` | Plan, usage, seats, invoices, upgrade/recovery | grace/read-only/blocked, payment fail, owner-only action | SaaS billing/entitlement data; preserve access to recovery |
 | MGMT-09 `/app/manage/settings` | Organization profile, terminology, timezone, patient home/care defaults, permission policy | validation, inherited/default, save conflict, permission denied | Split current clinic/settings and mixed `/app/settings` fields |
@@ -118,7 +118,7 @@ The screen shell uses the owner-approved one organization card and visit-based s
 | OPS-01 `/app/ops` | Reserved future operations home | Not initial release |
 | OPS-02 `/app/ops/schedule` | Reserved future schedule | Not initial release |
 | OPS-03 `/app/ops/intake` | Reserved future intake/contact | Not initial release |
-| OPS-04 `/app/ops/messages` | Reserved future configurable routing | Not initial release; topology unresolved |
+| OPS-04 `/app/ops/messages` | Reserved future configurable routing | Not initial release; no current design or pending owner gate |
 
 ## 8. Patient screens
 
@@ -143,7 +143,7 @@ The screen shell uses the owner-approved one organization card and visit-based s
 | ACC-01 `/app/account/profile` | Name, contact and locale/timezone personal fields | Never stores organization defaults |
 | ACC-02 `/app/account/security` | Password, factors, recovery, sessions and high-risk step-up | Shared across staff surfaces; server-authorized |
 | ACC-03 `/app/account/notifications` | Personal staff channels/topics | Organization delivery defaults remain MGMT-09 |
-| ACC-04 `/app/account/install` | Staff PWA status/instructions | Platform staff app by safe BD-4 default |
+| ACC-04 `/app/account/install` | Staff PWA status/instructions | Platform staff app at launch; future branded org PWA keeps shared layout/design |
 
 ## 10. Cross-screen state checklist
 
@@ -157,7 +157,7 @@ Every implementation spec derived from this document must explicitly select and 
 | Entitlement | enabled, grace, read-only, blocked/upgrade, recovery owner unavailable |
 | Invite | created, delivery pending/sent/failed, proof pending/verified, accepted, expired/revoked/replayed/wrong-recipient |
 | Future clinic another-specialist visit | Not a launch state; define ordinary appointment states only after future clinic scope approval |
-| Domain/sender | proof/TLS/routing/binding readiness, safe domain entry fallback, custom-sender hold/retry only within TTL, removal/quarantine |
+| Domain/sender | proof/TLS/routing/binding readiness, safe domain entry fallback, configured custom email/SMS channel has no same-channel platform fallback, bounded retry only within `expires_at`, owner in-app/service-email incident without patient content, removal/quarantine |
 | Install/push | unsupported, installable, installed, permission default/denied/granted, subscribed/degraded/revoked |
 
 ## 11. UX-07 prototype handoff

@@ -1272,3 +1272,362 @@ adjacent semantic drift was found; the five unresolved areas remain correctly de
 **ИЗМЕНИЛ:** appended this full independent PASS record and promoted only the five existing current-status documents
 listed above from `awaiting audit` to independently audited. No product semantics, application/runtime state,
 historical audit verdict, commit or push was changed.
+
+## 2026-07-16 — taskdb #802: remaining launch gates closed; integrated clarification pass awaiting audit
+
+**Run ID:** `SAAS-UX-OWNER-CLARIFICATION-INTEGRATED-20260716-802-01`
+
+**Роль:** integrated documentation correction owner.
+**Статус:** correction complete; **awaiting one full independent audit**. Historical
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` PASS and every earlier audit banner remain unchanged evidence
+for the versions they inspected; they are not a seal for this clarification pass.
+
+### Owner clarification integrated
+
+1. **Launch gate register:** solo-first roadmap now has `0` pending owner product decisions. The previous “exactly
+   five open areas” record immediately above is historical and superseded by this dated clarification; it was not
+   rewritten because audit/history records remain immutable.
+2. **Paid full branding:** future branded organization surface uses either the organization's own domain or a
+   platform subdomain. Organization name/logo replace product-facing platform branding on that surface. The common
+   application layout/theme/design is retained; per-clinic design customization is not planned. BersonCare remains
+   the platform/personal brand outside a paid fully branded org surface, and legal/support/security disclosure stays
+   where required without inventing exact legal copy.
+3. **Generated organization PWA:** initial clinic/staff product is the platform web app and may be installable as a
+   desktop PWA. A later branded/business tier may automatically generate a pinned organization PWA manifest/name/
+   icons from verified domain or subdomain plus org name/logo settings. A separate organization-branded native app
+   is outside current scope; store publication, developer-account ownership, cost/time and the broader native-client
+   direction are non-blocking research backlog.
+4. **Custom sender engineering policy:** no patient/user message falls back to the platform sender after a custom
+   provider is configured. SMTP enhanced `4xx` is transient and `5xx` permanent; HTTP/SMS retries timeout, `429`
+   with `Retry-After`, and `500/502/503/504`. Defaults are bounded `1m/5m/15m` submission retries with jitter, stable
+   `delivery_id`/dedupe, unhealthy circuit after three systemic failures (or immediately for permanent
+   config/auth failure), one owner alert, at most daily reminder and recovery notice. Every attempt is bounded by
+   class-specific `expires_at`; expired never sends. Defaults: OTP 10m one-use, magic link 30m, invite email delivery
+   24h/token 7d, appointment/reminder no later than the relevant slot or appointment, marketing 24h/campaign window,
+   delivery metadata without clinical content 90d subject to legal/contract override. Standards versus product
+   defaults are explicitly separated in `BRANDING_DOMAIN_CONTRACT.md` §7.1 with official RFC/NIST/Twilio/AWS/Azure
+   sources.
+5. **Excluded future clinic design:** assistant/receptionist grants and clinic communication topology are only
+   architecture reservations/backlog. They are not current questions, current development scope or launch gates.
+
+### Existing files changed in one integrated pass
+
+- `OWNER_RULINGS_2026-07-16.md`, `OWNER_DECISION_PACKET.md`, `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`,
+  `IMPLEMENTATION_ROADMAP.md`;
+- `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, `ENTRY_AND_INVITE_JOURNEYS.md`, `UX04_SCREEN_STATE_LIST.md`;
+- `BRANDING_DOMAIN_CONTRACT.md`, `BRANDING_CAPABILITY_MATRIX.md`;
+- `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `SCREEN_INVENTORY_PATIENT_PUBLIC.md`, `ROUTE_MIGRATION_MAP.md`;
+- this existing `LOG.md`.
+
+No new document, application code, schema, DB, runtime, TEST/prod, commit or push action was created by this pass.
+
+### Mechanical validation before independent audit
+
+- owner rulings/packet: `12/12` dated decisions, launch pending owner gates `0`;
+- canonical target registry/composition: `57/57`, missing `0`;
+- current route allocation: `150 actual = 150 references = 150 unique`, missing/stale `0`;
+- implementation stages: `19 × 14 = 266/266` required fields;
+- normative dependency registry: `19/19`, unknown dependencies `0`, cycle `0`;
+- initiative local Markdown links: `47`, missing `0`;
+- focused active-contract search: no current “five owner decisions open”, unresolved paid-brand depth,
+  PWA/APK/native choice, assistant grant gate or clinic-communications gate; historical audit/research text remains
+  intentionally source-bound;
+- `git diff --check`: PASS.
+
+App tests, lint, typecheck, build, DB smoke and full CI were not run: this is documentation-only product/engineering
+policy reconciliation. The next valid action is one independent full cross-contract re-audit, not implementation.
+
+### Residual non-blocking future research
+
+- separate organization-branded native app feasibility: stores, publisher/developer-account ownership, cost/time and
+  public distribution;
+- future clinic assistant/receptionist role and permissions, only when clinic product scope is activated;
+- future multi-specialist clinic communication topology, only when that product scope is activated.
+
+These items do not block the solo-first roadmap and are not waiting for an owner answer now. Their future product
+design is deliberately not claimed complete.
+
+**НАШЁЛ:** the previous final response incorrectly presented five non-launch items as questions still requiring
+owner answers. Three are now resolved contracts/policies (brand boundary, generated PWA direction, sender
+engineering defaults), while assistant/clinic communications and native-org-app details are explicitly out of
+current scope.
+
+**ИЗМЕНИЛ:** removed that false current gate register across the existing canon, preserved 12-ruling history and
+prior audit evidence, kept all numeric registries/DAG intact, and set the current initiative status to awaiting a
+new independent audit.
+
+## 2026-07-16 — taskdb #802: full independent clarification audit
+
+**Run ID:** `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-01`
+
+**Input correction:** `SAAS-UX-OWNER-CLARIFICATION-INTEGRATED-20260716-802-01`.
+
+**Role:** independent full cross-contract auditor; not the author of the integrated correction.
+
+**Verdict:** **FAIL**. The clarification pass correctly closes the false five-question launch register and preserves
+the original discovery deliverables, but the current contract still contains three related semantic drifts and one
+stale provenance wording cluster. Current status surfaces must remain `awaiting full independent audit`; this run is
+not an implementation seal and authorizes no application, schema, DB, runtime, DEV/TEST/PROD, delivery, deploy,
+commit or push action.
+
+### Full acceptance result
+
+| Requirement | Result |
+|---|---|
+| Original planning objective and runtime boundary | **PASS:** UX-04…09 outputs, owner packet and implementation roadmap remain complete as planning artifacts; every current status surface still says implementation has not started. |
+| Solo-first owner gate register | **PASS:** `UX08-01…12` remain 12 unique dated outcomes and current launch pending owner product gates are `0`. Assistant grants, clinic communications and native-org-app details are non-launch backlog, not launch acceptance dependencies. |
+| Paid organization branding — selected scope | **PARTIAL / FAIL:** own domain **or** platform subdomain, org name/logo replacing product-facing branding and shared layout/design are consistent. However several current contracts additionally freeze visible platform/operator/legal/support/security disclosure on the fully branded surface although the owner did not rule that presentation; see F1. |
+| Generated organization PWA | **PARTIAL / FAIL:** future paid generated manifest/name/icons, organization pinning, platform-web-first launch and native-org-app research-only scope are present. Three active phrases still describe the approved web capability as awaiting feasibility/separate approval; see F2. |
+| Custom-sender failure policy | **PARTIAL / FAIL:** no platform fallback, expiry terminality, SMTP/HTTP classification, bounded jitter/idempotency, `1m/5m/15m`, circuit threshold `3`, class TTLs and 90-day metadata default are present and standards are distinguished from configurable product defaults. Cross-surface fallback/alert wording and the direct-SMTP retry layer remain ambiguous; see F3. |
+| Earlier 12 outcomes | **PASS:** one org card, visit-based specialist visibility, own-first authorized history, no primary/care-team/handoff lifecycle, one-login management, last-org switcher, landing/profile/booking/join, no patient-level global-admin repair, manual patient+scheduled/walk-in visit, later identity linking and unchanged solo chat are preserved. |
+| Historical audit/status discipline | **PASS with F4 wording correction required:** `FULL-03` remains clearly historical and current surfaces await this audit. Historical options/audits are retained, but several packet provenance lines still use present-tense `pending/open` labels for decisions now ruled. |
+| Roadmap independence from future backlog | **PASS:** U10 depends only on launch-included audited stages; `U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C` are absent optional nodes and cannot block initial acceptance. |
+| Mechanical registries and repository relation | **PASS:** `12/12`; canonical composition `57/57`; current pages `150 actual = 150 referenced = 150 unique`, missing/stale/duplicate `0`; 19 unique stages with the established 14-field synonym contract; dependency registry `19/19`, unknown/cycle `0`; 47 local Markdown links, missing `0`; `git diff --check` PASS. Integration and work3 both currently enumerate the same 150 page paths; the four orchestration canon files have no work3 delta from their shared merge base. |
+
+### Consolidated correction brief
+
+#### F1 — invented visible platform/legal disclosure freeze on a fully branded organization surface
+
+The owner selected complete replacement of **product-facing** brand identity on the paid org surface and explicitly
+said not to customize layout/design. The clarification did not decide which operator name/logo must be visibly shown
+inside legal, support or security UI. Current text promotes an auditor/planner assumption into the owner ruling:
+
+- `OWNER_RULINGS_2026-07-16.md` UX08-07 says legal/support/security disclosure is preserved;
+- `OWNER_DECISION_PACKET.md` UX08-07 and its upstream registry repeat required disclosure as the selected result;
+- `BRANDING_DOMAIN_CONTRACT.md` §§2, 5, 5.1, 8 and its surface tables require platform attribution/identity/operator
+  disclosure on the full branded origin;
+- `BRANDING_CAPABILITY_MATRIX.md` full-brand rows promise legal/platform identity disclosure;
+- `REQUIREMENTS.md`, `TARGET_IA.md`, `SCREEN_COMPOSITION.md` and `ROUTE_MIGRATION_MAP.md` inherit that visible-brand
+  constraint.
+
+**Required integrated correction:** preserve reachable account recovery, technical support and legally required
+information as functions/invariants, but do not claim an owner ruling that BersonCare/platform branding must be
+visibly retained on the paid fully branded surface. Mark controller/operator wording and exact disclosure/presentation
+as later legal/compliance implementation work. Do not weaken security/recovery availability and do not invent exact
+legal copy.
+
+#### F2 — approved generated PWA is still phrased as unresolved feasibility/separate approval
+
+The owner approved a future paid organization PWA that may be generated from verified domain/subdomain, org name,
+logo and manifest settings; it is post-launch work, not an unresolved product feasibility question. Active text still
+says otherwise:
+
+- `TARGET_IA.md` published-organization section says custom-domain app depth “waits for feasibility”;
+- `ROUTE_MIGRATION_MAP.md` migration order says to defer custom-domain app depth “pending feasibility”;
+- `BRANDING_DOMAIN_CONTRACT.md` §5.5 says the future org-specific patient app applies “if separately approved”.
+
+**Required integrated correction:** replace those phrases with `approved future capability; absent until future
+commercial/implementation activation and readiness`. Keep separate organization-native mobile application feasibility
+(stores, publisher accounts, publication, cost/time) as research-only and outside the roadmap.
+
+#### F3 — sender policy is not yet one unambiguous cross-surface contract
+
+The central email/SMS sections correctly prohibit user-message platform fallback after custom-provider configuration,
+but adjacent active text is weaker or ambiguous:
+
+1. `BRANDING_DOMAIN_CONTRACT.md` §5 SMS surface still gives canonical fallback as `Platform sender or no-send per
+   policy`; it must explicitly say platform sender is unavailable once the organization custom provider is
+   configured. The capability matrix should use the same conditional wording.
+2. Operational incident routing is explicit only for registered owner/solo account email. The management UI exposes
+   status/remediation, but the contract does not explicitly require the corresponding in-app incident/status alert.
+   State both account-email and in-app management notification, with one initial alert, at most daily reminder and
+   recovery notice.
+3. `1m/5m/15m` is called a submission default immediately after SMTP `4xx` classification. RFC 5321 recommends a
+   materially longer MTA destination retry cadence. Clarify that `1m/5m/15m` is the BersonCare application→provider
+   **pre-acceptance/API submission** schedule. A direct SMTP `4xx`/MTA queue must use the configured SMTP/provider
+   cadence (RFC guidance by default), still capped by the business `expires_at`. Provider-accepted delivery is never
+   resubmitted; the existing stable delivery id/provider-id dedupe rule remains.
+
+The source audit supports the remaining mechanics: RFC 3463 classifies `4.x.x` as persistent transient and `5.x.x`
+as permanent; RFC 5321 §4.5.4.1 distinguishes configurable SMTP queue retry/give-up timing; Twilio documents retryable
+`429` with backoff/`Retry-After`, `500/502/503/504`, and terminal queued-message validity; AWS supports bounded
+backoff+jitter/idempotency; Azure supports thresholded circuit states; NIST supports one-use authentication within
+10 minutes. The numeric `1m/5m/15m`, threshold `3`, non-OTP TTLs and 90-day metadata retention remain explicitly
+configurable product defaults, not standards mandates.
+
+#### F4 — present-tense historical provenance can look like a reopened gate
+
+`OWNER_DECISION_PACKET.md` correctly preserves all original questions/options, but UX08-07/08 still cite `pending
+BD-*` and UX08-09 says the fallback policy “осталась открытой” without an immediate historical qualifier. These
+phrases conflict with the current zero-gate result when read outside the surrounding chronology.
+
+**Required integrated correction:** keep the 12 alternatives intact, but label those source lines explicitly
+`historical pre-ruling basis (superseded)`. Do not rewrite or delete historical audit bodies in `LOG.md` or the prior
+independent audit files.
+
+### Files and evidence inspected
+
+All 17 changed files were read against the latest owner clarification and the previous `FULL-03`/correction history:
+
+- `BRANDING_CAPABILITY_MATRIX.md`, `BRANDING_DOMAIN_CONTRACT.md`, `ENTRY_AND_INVITE_JOURNEYS.md`,
+  `IMPLEMENTATION_ROADMAP.md`, `LOG.md`, `OPERATING_MODEL.md`, `OWNER_DECISION_PACKET.md`,
+  `OWNER_RULINGS_2026-07-16.md`, `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `ROLE_CAPABILITY_MATRIX.md`,
+  `ROUTE_MIGRATION_MAP.md`, `SCREEN_COMPOSITION.md`, `SCREEN_INVENTORY_PATIENT_PUBLIC.md`, `TARGET_IA.md`,
+  `UX04_SCREEN_STATE_LIST.md`.
+
+Primary-source verification: RFC 3463, RFC 5321 §4.5.4.1, Twilio REST retry/error and Message
+`validity_period` documentation, AWS Well-Architected retry guidance, Azure Circuit Breaker and NIST SP 800-63B.
+Commands/checks: current `git diff`/`git diff --check`; focused contradiction searches; independent Node registry,
+route, stage and local-link checks; integration/work3 page-path comparison and orchestration-canon diff check.
+
+App tests, lint, typecheck, build, DB smoke and full CI were not run because this is a documentation-only audit.
+
+### Residual non-blocking backlog after correction
+
+- separate organization-branded native application feasibility: stores, publisher/developer-account ownership,
+  publication model, cost and time;
+- future assistant/receptionist role and grants only when clinic product scope is activated;
+- future multi-specialist clinic communication topology only when that product scope is activated.
+
+These are neither current owner questions nor initial-launch dependencies. No application/runtime work should begin
+from this audit; first perform one integrated documentation correction for F1–F4, then one full independent re-audit
+of the whole current contract.
+
+**НАШЁЛ:** three connected contract drifts plus one stale provenance cluster; no registry/DAG/route/link regression
+and no loss of the earlier 12 owner outcomes.
+
+**ИЗМЕНИЛ:** appended this FAIL record to the existing log only. No current PASS/awaiting status surface, product
+contract, application/runtime file, task state, commit or remote branch was changed.
+
+## 2026-07-16 — taskdb #802: integrated correction after full clarification audit
+
+**Run ID:** `SAAS-UX-OWNER-CLARIFICATION-CORRECTION-20260716-802-02`.
+
+**Input audit:** `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-01` (**FAIL**).
+
+**Status:** F1–F4 correction complete; the initiative remains `awaiting full independent audit`. This correction is
+not a PASS seal and authorizes no implementation, schema, DB, runtime, DEV/TEST/PROD, delivery, deploy, commit or
+push action.
+
+### Integrated corrections
+
+- **F1 — fully branded presentation:** removed the invented requirement to keep visible BersonCare/platform brand
+  inside a paid fully branded organization surface. Account recovery, support and legally/security-required
+  information remain reachable functions; exact controller/operator identity, copy and visible presentation are
+  deferred to applicable legal, contract and security review.
+- **F2 — generated organization PWA:** recorded it consistently as an approved post-launch capability generated
+  from verified organization domain/subdomain, name, logo and manifest settings after commercial activation and
+  technical readiness. Only a separate organization-branded native application remains research-only.
+- **F3 — custom sender:** made the no-fallback rule channel-exact: configured custom email forbids platform email,
+  and configured custom SMS forbids platform SMS, for patient/user delivery. The contract now separates
+  application-to-provider pre-acceptance `1m/5m/15m` retries from direct SMTP/MTA cadence, caps both with business
+  `expires_at`, forbids resubmitting provider-accepted delivery, records ambiguous post-`DATA` SMTP outcome as
+  `unknown`, deduplicates callbacks/provider IDs, and requires an in-app plus platform service-email owner incident
+  without patient content, with at most daily reminder and recovery notice.
+- **F4 — provenance:** retained every original question, option and prior audit, but labeled old `pending/open` and
+  `UX-09 до ответа` wording as historical pre-ruling material (`superseded`) so it cannot be read as a current gate.
+
+### Existing files reconciled
+
+The correction stays within the same 17 initiative files: `BRANDING_CAPABILITY_MATRIX.md`,
+`BRANDING_DOMAIN_CONTRACT.md`, `ENTRY_AND_INVITE_JOURNEYS.md`, `IMPLEMENTATION_ROADMAP.md`, this `LOG.md`,
+`OPERATING_MODEL.md`, `OWNER_DECISION_PACKET.md`, `OWNER_RULINGS_2026-07-16.md`, `README.md`, `REQUIREMENTS.md`,
+`ROADMAP.md`, `ROLE_CAPABILITY_MATRIX.md`, `ROUTE_MIGRATION_MAP.md`, `SCREEN_COMPOSITION.md`,
+`SCREEN_INVENTORY_PATIENT_PUBLIC.md`, `TARGET_IA.md` and `UX04_SCREEN_STATE_LIST.md`. No new document was created.
+
+### Validation before independent re-audit
+
+- owner decision packet: `12/12` unique outcomes, duplicates `0`, current launch owner gates `0`;
+- canonical screen composition: `57/57`, duplicates `0`;
+- current route allocation: `150 actual = 150 references`, missing/stale `0`;
+- implementation roadmap: `19/19` stages and `266/266` required fields;
+- dependency registry: `19/19`, unknown dependencies `0`, cycle `0`;
+- initiative local Markdown links: `47`, missing `0`;
+- focused current-contract searches found no active unresolved generated-PWA feasibility wording, no mandatory
+  visible platform brand on a fully branded surface, no unqualified reopened `pending/open` owner gate and no
+  ambiguous generic custom-sender fallback phrase; historical FAIL/audit wording remains preserved in this log;
+- `git diff --check`: PASS.
+
+Application tests, lint, typecheck, build, DB smoke and full CI were not run because this is a documentation-only
+contract correction. The next valid action is one independent full cross-contract re-audit of the entire current
+package.
+
+**НАШЁЛ:** the failed audit identified four real cross-document consistency defects, not missing owner answers or an
+application defect.
+
+**ИЗМЕНИЛ:** reconciled F1–F4 across the existing product, IA, journey, branding and implementation contracts while
+preserving the audit trail and all numeric registries. Current status remains awaiting independent re-audit.
+
+## 2026-07-16 — taskdb #802: full independent re-audit after clarification correction
+
+**Run ID:** `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02`.
+
+**Input correction:** `SAAS-UX-OWNER-CLARIFICATION-CORRECTION-20260716-802-02`.
+
+**Verdict:** **PASS**. The complete current owner message, all 17 changed initiative documents, the dated ruling
+registry, implementation roadmap, sender policy and previous FAIL/correction trail were re-read as one contract.
+F1–F4 are closed without adding a new owner decision. Solo-first launch has `0` pending owner product decisions.
+This is a documentation/planning seal only: implementation has not started, and this run authorizes no application,
+schema, DB, runtime, DEV/TEST/PROD, delivery, deploy, commit or push action.
+
+### Closure of the previous findings
+
+| Finding | Independent result |
+|---|---|
+| F1 — visible platform/legal disclosure freeze | **CLOSED:** fully branded organization surfaces no longer promise mandatory visible BersonCare/platform branding. Recovery/support and legally/security-required information remain reachable functions; exact parties, copy and presentation are left to later applicable legal/contract/security review. |
+| F2 — generated organization PWA treated as unresolved | **CLOSED:** generated organization PWA is consistently an approved post-launch capability activated after future commercial/implementation readiness. Only the separate organization-branded native application remains research-only. |
+| F3 — custom-sender ambiguity | **CLOSED:** custom email and custom SMS each prohibit same-channel platform fallback for patient/user delivery; owner incident is in-app plus platform service email without patient content; application-to-provider pre-acceptance retry is separated from direct SMTP/MTA cadence; `expires_at`, provider-acceptance non-resubmission, post-`DATA` `unknown` reconciliation and callback/provider-ID dedupe are explicit. |
+| F4 — historical `pending/open` wording | **CLOSED:** original questions/options remain intact, but their pre-ruling `pending/open` and `UX-09 до ответа` labels are explicitly historical and `superseded`, so they cannot reopen a current gate. |
+
+### Full contract acceptance
+
+- `UX08-01…12`: `12/12` unique dated outcomes; duplicates `0`; current launch owner gates `0`.
+- Earlier product decisions remain intact: one organization card, visit-based specialist visibility, own-events
+  default with authorized history filters, no primary/care-team/handoff lifecycle, one-login management, last-used
+  organization plus switcher, landing/profile/booking/join, no global-admin patient browsing/repair, manual
+  patient/card plus scheduled or walk-in visit before optional portal activation, and unchanged solo chat.
+- Solo-first boundary is explicit. Assistant/receptionist, multi-specialist clinic coordination and clinic
+  communication topology are future-only reservations, not launch UI, implementation scope or owner gates.
+- Paid branding is consistently own domain or platform subdomain plus organization name/logo on a shared product
+  layout. Platform web comes first; generated organization PWA is post-launch; native organization app is outside
+  the roadmap.
+- Sender transport rules remain engineering configuration rather than invented owner decisions. RFC 3463 supports
+  transient `4.x.x` versus permanent `5.x.x`; RFC 5321 §4.5.4.1 supports a separately configurable SMTP queue
+  cadence; Twilio supports bounded retry for `429`/`Retry-After` and selected `5xx` plus terminal validity; AWS and
+  Azure support bounded backoff/idempotency and circuit-breaker patterns; NIST supports one-use authentication
+  within ten minutes. Numeric `1m/5m/15m`, threshold `3`, non-OTP TTLs and 90-day delivery-metadata retention remain
+  explicitly labelled configurable BersonCare defaults, not standards mandates.
+- Roadmap execution remains independent of deferred nodes: `U3A`, `U5C`, `U5D`, `U8A`, `U8B` and `U8C` are absent
+  optional nodes and are not U10 dependencies.
+
+### Mechanical and repository evidence
+
+| Check | Result |
+|---|---|
+| Owner decisions | `12/12`, unique `12`, duplicate `0` |
+| Target screen registry/composition | `57/57`, missing `0` |
+| Current route allocation | `150 actual = 150 referenced = 150 unique`; missing/stale/duplicate `0` |
+| Implementation stage contract | `19 × 14 = 266/266`; missing fields `0` |
+| Normative dependency registry | `19/19`; unknown dependencies `0`; cycles `0` |
+| Initiative-local Markdown links | `47`; missing `0` |
+| Whitespace/patch integrity | `git diff --check` PASS |
+| Scope | exactly 17 changed files, all under this initiative; no application, migration, DB, runtime or orchestration-canon delta |
+| Integration relation | work3 and `origin/feat/doctor-ui-rebuild` enumerate the same 150 `page.tsx` paths; `AGENTS.md`, `CLAUDE.md`, `docs/AGENT_AUTORUN_SCHEME.md` and `docs/ORCHESTRATION_BINDINGS.md` have no work3 delta from the shared merge base |
+
+Application tests, lint, typecheck, build, DB smoke and full CI were not run because this was a documentation-only
+independent audit. The relevant validation is the complete contract/registry/link/DAG/diff suite above.
+
+### Status surfaces updated after PASS
+
+- `OWNER_RULINGS_2026-07-16.md`;
+- `OWNER_DECISION_PACKET.md`;
+- `README.md`;
+- `ROADMAP.md` for UX-03/04/05/06/08/09 and the final initiative gate;
+- `IMPLEMENTATION_ROADMAP.md`.
+
+No new document was created. Existing historical audit records were not rewritten.
+
+### Residual non-blocking backlog
+
+- separate organization-branded native application research: stores, publisher/developer-account ownership,
+  publication model, cost and time;
+- future assistant/receptionist grants only after a separate clinic product scope is activated;
+- future multi-specialist clinic communication topology only after that separate product scope is activated.
+
+These items are neither unanswered launch questions nor dependencies of the current solo-first implementation plan.
+
+**НАШЁЛ:** F1–F4 are fully closed; no new contradiction, missing decision, route/screen/stage/link regression or
+integration-canon drift remains.
+
+**ИЗМЕНИЛ:** appended this independent PASS record and promoted only the agreed current status surfaces to PASS.
+No code, DB, runtime, task state, commit or remote branch was changed.

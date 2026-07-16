@@ -41,7 +41,7 @@ screen/state acceptance requirement, and exact future clinic roles/grants are no
 | PIN-04 | Patient passwordless identity | request/verify OTP; resend/cooldown/abuse; inaccessible channel recovery without invite consumption; wrong account; canonical conflict/recovery; current password/OAuth compatibility only |
 | PIN-05 | Link portal identity to existing card | organization summary; match by verified email/phone plus conflict recovery; consent if required; canonical recipient re-check; idempotent convergence; unavailable org; no duplicate patient card |
 | PIN-06 | Activation success/first value | appointment; active program/task; empty relationship with next action |
-| PIN-07 | Install offer (deferred channel decision) | eligible prompt after value; manual iOS instructions; already installed; repeat suppressed; dismissed; unsupported; browser continues; exact PWA/APK/native mix remains unresolved |
+| PIN-07 | Install offer | eligible prompt after value; manual iOS instructions; already installed; repeat suppressed; dismissed; unsupported; browser continues; launch uses platform app; future generated org PWA is separate and native org app is out of scope |
 | PIN-08 | First installed launch (future channel contract) | valid session; missing/expired session → passwordless OTP; no invite re-consumption; org-specific branded app remains pinned to its organization; platform app restores last used organization and offers a switcher; remembered org invalid → recovery |
 | PIN-09 | Push education/permission/subscription | not asked; explicit request after auth/context; granted; dismissed/default; denied/revoked; unsupported; expired/rotated subscription; device replacement; settings recovery; deep-link enrollment recheck |
 

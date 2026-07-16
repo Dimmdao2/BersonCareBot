@@ -27,11 +27,11 @@ links → compatibility redirects → observed deep-link sunset. No redirect is 
 |---:|---|---|---|---|
 | P01 | `apps/webapp/src/app/page.tsx` | split | PUB-01 platform landing | Replace patient-first hero with specialist acquisition; patient entry secondary |
 | P02 | `apps/webapp/src/app/app/page.tsx`<br>`apps/webapp/src/app/app/auth/email-setup/page.tsx`<br>`apps/webapp/src/app/app/contact-support/page.tsx`<br>`apps/webapp/src/app/app/tg/page.tsx`<br>`apps/webapp/src/app/app/max/page.tsx` | split / merge | PUB-03 registration state, PUB-04 login/recovery, ORG-PUB-03 join, PAT-10 account recovery | `/app?view=registration` is the confirmed specialist-registration view and maps to PUB-03/ACQ-01…05 without adding a second page-file allocation; reuse identity/miniapp entry mechanics and preserve persona safety, token exchange and neutral error states |
-| P03 | `apps/webapp/src/app/legal/privacy/page.tsx`<br>`apps/webapp/src/app/legal/terms/page.tsx` | keep | PUB-05 platform legal | Add organization disclosures on relevant org surfaces without hiding platform operator |
+| P03 | `apps/webapp/src/app/legal/privacy/page.tsx`<br>`apps/webapp/src/app/legal/terms/page.tsx` | keep | PUB-05 platform legal | Platform-default pages remain; fully branded org legal identity/copy/presentation requires later legal/contract review and does not mandate visible BersonCare |
 | P04 | `apps/webapp/src/app/book/page.tsx`<br>`apps/webapp/src/app/book/new/page.tsx`<br>`apps/webapp/src/app/book/new/service/page.tsx`<br>`apps/webapp/src/app/book/new/slot/page.tsx`<br>`apps/webapp/src/app/book/new/confirm/page.tsx` | keep / move | ORG-PUB-02 canonical public booking | Reuse wizard; organization projection and identity/enrollment boundary explicit |
 | P05 | `apps/webapp/src/app/book/service/page.tsx`<br>`apps/webapp/src/app/book/slot/page.tsx`<br>`apps/webapp/src/app/book/confirm/page.tsx`<br>`apps/webapp/src/app/book/done/page.tsx` | retire | ORG-PUB-02 compatibility redirects | Sunset only after external link census |
 | P06 | `apps/webapp/src/app/book/pay/page.tsx` | merge | ORG-PUB-02 booking payment state | Preserve idempotent continuation and organization ownership |
-| P07 | `apps/webapp/src/app/book/product/[token]/page.tsx`<br>`apps/webapp/src/app/book/product/[token]/pay/page.tsx` | split / needs-decision | ORG-PUB-02 product booking/payment or PAT-07 benefits | Trusted product token exchange; exact public product launch scope/data ownership unresolved |
+| P07 | `apps/webapp/src/app/book/product/[token]/page.tsx`<br>`apps/webapp/src/app/book/product/[token]/pay/page.tsx` | split / future-contract | ORG-PUB-02 product booking/payment or PAT-07 benefits | Trusted product token exchange; future product publication and data ownership require implementation contract, not an owner launch gate |
 
 ## 3. Staff and platform allocation — 81 files
 
@@ -140,7 +140,8 @@ Cross-family dependency order:
 2. classify platform/org/private ownership for catalogs, content, media, settings and analytics;
 3. establish platform, management, operations and account shells while preserving the current clinical/patient shells;
 4. implement optional portal identity linking and invite/join/context objects without making patient registration a
-   prerequisite for staff-created cards or visits; defer custom-domain app depth pending feasibility;
+   prerequisite for staff-created cards or visits; defer approved custom-domain/generated-PWA work until future
+   commercial/implementation activation and readiness;
 5. move canonical internal links and APIs to target ownership paths;
 6. keep old routes as guarded compatibility entries, observe inbound links and only then retire aliases;
 7. run role × route × direct-object × list/count/search/export acceptance for every migrated family.

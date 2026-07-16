@@ -1,8 +1,8 @@
 # UX-09 — implementation roadmap
 
-**Статус:** owner rulings 2026-07-16 integrated; full independent audit
-`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Previous UX-09 PASS remains a historical
-pre-ruling baseline; implementation ещё не начиналась.
+**Статус:** latest owner clarifications integrated; full independent re-audit
+`SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation ещё не начиналась;
+solo-first launch has `0` pending owner product decisions.
 **Authority:** dated `OWNER_RULINGS_2026-07-16.md` имеет приоритет над всеми производными UX stage contracts;
 Foundation canon остаётся выше только в foundation/tenant/enforcement scope.
 **Тип документа:** decision-gated plan, не разрешение на implementation, deploy, DB changes или rollout.  
@@ -22,7 +22,7 @@ clinical work, operations, patient и public journeys; старые маршру
 - проектирует таблицы, поля, enum или migration SQL;
 - запускает код, БД, внешнюю доставку, TEST/prod deploy либо merge в основной workstream;
 - заменяет `SAAS_FOUNDATION/SEQUENCE.md`, `SAAS_ENFORCE_ROADMAP.md` или их TEST acceptance;
-- обещает public launch, unapproved brand depth, custom domain, custom sender или organization-specific app.
+- обещает public launch, custom-domain/PWA rollout, custom sender или separate native organization app.
 
 Канон результата: `57/57` target screen IDs из `TARGET_IA.md`, семь UX-04 journey families и `150/150` current
 `page.tsx` из `ROUTE_MIGRATION_MAP.md` имеют один непротиворечивый implementation destination, guard, compatibility
@@ -114,23 +114,24 @@ states, aliases и shared account surfaces остаются ровно таки�
 
 ## 5. Decision gates
 
-Все двенадцать ответов классифицированы в dated rulings artifact. `Resolved future` не означает initial scope, а
-`unresolved` не разрешает условную ветку.
+Все двенадцать ответов классифицированы в dated rulings artifact. Для solo-first launch pending owner gates = `0`.
+`Resolved future capability` не означает initial scope; engineering configuration и research backlog не являются
+owner decisions.
 
-| Decision | Current classification | Initial-release execution | Remaining open detail |
+| Decision | Current classification | Initial-release execution | Implementation policy / non-blocking backlog |
 |---|---|---|---|
 | UX08-01 card/history/`Мои` | resolved launch | U5B implements one org card, visit relation and own-events default | Record-class authorization policy, not a product decision gate |
 | UX08-02 transfer premise | rejected premise | No transfer lifecycle stage; solo/manual visit path stays in U3B/U5B | Another-specialist booking belongs only to a future clinic extension |
-| UX08-03 assistant scope | resolved launch absence | No role/workspace/grants implemented at launch | Exact future grants remain deferred |
+| UX08-03 assistant scope | resolved launch absence | No role/workspace/grants implemented at launch | Future clinic design is outside current scope; no owner gate |
 | UX08-04 dual-role navigation | resolved launch | U2 provides one login and a simple management destination | Menu entry versus explicit mode switch is implementation choice |
 | UX08-05 patient neutral start | resolved launch | U5A restores last active org and shows switcher | None beyond normal implementation design |
 | UX08-06 public launch scope | resolved launch | U6A/U6B include landing/profile/booking/join; directory absent | Directory is future-deferred, not blocked launch work |
-| UX08-07 brand depth | explicitly deferred | U7 implements only core org identity and conservative platform presentation | Plain-language paid-brand/platform-brand depth |
-| UX08-08 domain/org-app direction | resolved future deferred | U8A/B absent from initial DAG; platform origin/app first | Technology, effort, order and timing |
-| UX08-09 custom-sender failure | resolved direction, future feature | If U8C is later built: custom-provider retry within TTL, expiry and owner alerts; never platform fallback | Exact retry cadence, TTL, attempt and retention values |
+| UX08-07 brand depth | resolved future capability | U7 implements core org identity/shared layout; full org brand waits for U8 origin | Own domain or platform subdomain + org name/logo; no per-clinic design fork |
+| UX08-08 domain/org-app direction | resolved staged future capability | U8A/B absent from initial DAG; platform web app first | Generated org PWA later; separate native org app is research backlog only |
+| UX08-09 custom-sender failure | resolved direction, future feature | If U8C is later built: standards-backed bounded retry within `expires_at`, expiry and owner alerts; never platform fallback | Configurable engineering defaults, not owner gate |
 | UX08-10 global-admin patient workflow | rejected premise | U9 implements diagnostics/reports only; no patient workflow branch | None |
 | UX08-11 patient relationship premise | rejected old invite-first premise; replacement resolved launch | U3B creates card + scheduled/walk-in visit, then links verified portal identity | Detailed matching/conflict policy |
-| UX08-12 communication topology | resolved launch + future deferred | Existing solo chat is unchanged; no clinic communication stage in launch | Future clinic topology |
+| UX08-12 communication topology | resolved launch; future scope excluded | Existing solo chat is unchanged; no clinic communication stage in launch | Architecture reservation only; no owner gate |
 
 Ответ владельца переносится в предусмотренный roadmap датированный rulings artifact; только после этого gate в этом
 файле обновляется ссылкой на источник. Recommendation из packet нельзя переносить как ruling.
@@ -140,7 +141,7 @@ states, aliases и shared account surfaces остаются ровно таки�
 Полный registry находится в `OWNER_DECISION_PACKET.md` §«Полная сверка upstream-решений». Execution использует его
 как обязательный gate, а не перечитывает молчаливо candidate text как policy:
 
-- `UX08-01…12` — dated owner outcomes: resolved launch, resolved future, deferred/unresolved or rejected premise;
+- `UX08-01…12` — dated owner outcomes: resolved launch, resolved future capability, excluded future scope or rejected premise;
 - tenant/identity, one-org staff, patient multi-org authorization, no persona overwrite, exactly-once, raw-token
   handling, sender truthfulness and permission-before-filter — architecture/security invariants from UX-03…05;
 - one signup path with optional practice-shape question, no SMS-only launch and strongest already-trusted booking
@@ -225,7 +226,7 @@ or authentication policies into one object.
 | P3 — solo clinical policy | One card/history, manual/scheduled/walk-in visit relation; existing solo chat unchanged | U5B | Solo launch path proven; full CI after U5B |
 | P4 — public acquisition | Platform entry и org profile/booking/join | U6A, U6B | Published projection/trusted continuation; full CI after U6B |
 | P5 — core presentation and platform operations | Base brand plus core PLAT shell/config/reliability/org ops | U7, U9 | One sanctioned platform ops/config path; full CI after U9 |
-| P6 — deferred future branches | Staff/team invite, multi-specialist visit coordination, clinic communications, domain/app/sender work; all absent from initial release | U3A, U5C, U5D, U8A, U8B, U8C | Not a launch dependency; each needs a future scope/feasibility contract and its own audit |
+| P6 — deferred future branches | Staff/team invite, multi-specialist visit coordination, clinic communications, domain/PWA/sender work; all absent from initial release | U3A, U5C, U5D, U8A, U8B, U8C | Not a launch dependency; approved domain/generated-PWA work needs future commercial/implementation activation, readiness and audit; native org app remains research-only |
 | P7 — final convergence | Route, responsive, visual and acceptance consolidation | U10 | 57/57, 150/150 and final full CI after U10 |
 
 Не объединять U0–U10 в один megastage и не дробить stage на двухстрочные fixes. Один worker получает весь stage и
@@ -265,9 +266,9 @@ Timeout или недостаток контекста не считаются s
   table names alone.
 - **Boundaries:** every clinical/patient/staff object has direct org or documented scoped-parent path; global catalogs
   require evidence; identity and relationship remain separate.
-- **Decision gates:** no owner outcome is reopened. Inventory records resolved launch/rejected outcomes and only the
-  five real deferred sub-decisions: brand depth, future app feasibility/technology/timing, sender retry/TTL values,
-  future assistant grants and clinic communication topology.
+- **Decision gates:** no owner outcome is reopened. Inventory records `0` pending launch owner decisions; generated
+  org PWA and custom origin are future capability, native org app/assistant/clinic communications are non-blocking
+  backlog, and sender timing/retention is engineering configuration.
 - **Dependencies:** current foundation artifacts and route inventories readable; no deploy dependency.
 - **Workstreams:** data — ownership/writer/backfill questions; API — sanctioned ports and policy parity; UI — route/
   screen component reuse; ops — feature/foundation evidence split.
@@ -434,7 +435,8 @@ DAG and cannot block patient activation, public launch or U10.
 - **Forbidden:** implementing assistant/reception roles, team seats, staff invite UI or first-workspace routing as
   launch work.
 - **Boundaries:** registry reservation grants no membership capability or destination.
-- **Owner ruling:** solo-first release must not wait for clinic staffing; exact future assistant grants remain open.
+- **Owner ruling:** solo-first release must not wait for clinic staffing; assistant grants are outside current scope
+  and are not a pending owner gate.
 - **Dependencies:** future activation may consume U0/U1/U2; there is no launch edge.
 - **Workstreams:** deferred; no data/API/UI/delivery work is specified now.
 - **Migration/compat:** none in initial release.
@@ -581,19 +583,20 @@ solo-specialist chat unchanged and has no U5D implementation or acceptance depen
 
 - **Screens/flows:** reserved future `OPS-04` and future clinic variants of `PAT-05`/`CLIN-07`; no launch changes.
 - **Reuse/gaps:** future design may reuse current message objects, but no clinic inbox/thread/routing model is assumed.
-- **Scope:** none for initial release. Exact future routing could vary by clinic and remains undecided.
+- **Scope:** none for initial release. Exact future routing may be designed later under a separate clinic scope.
 - **Forbidden:** implementing an organization-wide inbox, specialist threads, receptionist/owner routing, delegated
   grants or message migration before the future topology decision.
 - **Boundaries:** existing solo authorization and recipient behavior remain unchanged; registry reservation grants
   no new visibility.
-- **Owner ruling:** solo chat stays as-is; clinic communication topology is future-deferred.
+- **Owner ruling:** solo chat stays as-is; clinic communication topology is outside current scope and does not await
+  an owner answer now.
 - **Dependencies:** future activation may consume U1/U5A/U5B; there is no launch edge.
 - **Workstreams:** deferred; no data/API/UI/delivery/migration work is specified now.
 - **Migration/compat:** none in initial release; current conversations are untouched.
 - **Validation:** initial acceptance proves no clinic/OPS communication surface or routing change was introduced.
   Future validation waits for the future contract.
 - **Rollback/degradation:** not applicable while absent; existing solo chat remains the baseline.
-- **Completion:** [ ] future topology approved; [ ] future implementation independently audited. These boxes are not
+- **Completion:** [ ] future clinic scope activated; [ ] future implementation independently audited. These boxes are not
   launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U10 launch dependencies.
 
@@ -658,7 +661,7 @@ context while canonical platform URLs and recovery always work.
   audit/version; [ ] directory absent; [ ] full audit PASS.
 - **Merge dependency:** U2/U4; public rollout separately gated.
 
-### U7 — core organization identity and optional brand presentation
+### U7 — core organization identity and shared-layout brand presentation
 
 **Outcome:** every org-scoped surface shows trustworthy organization context, while optional logo/color/content
 presentation can change without affecting access, routing or recovery.
@@ -669,14 +672,16 @@ presentation can change without affecting access, routing or recovery.
 - **Reuse/gaps:** existing settings/assets/content preview and UI tokens; no unified resolver/payload/fallback across
   surfaces.
 - **Scope:** minimum core org identity; brand asset/token validation; surface capability matrix; preview/publish;
-  platform disclosure/legal/support; fallback and inaccessible-asset behavior; one design-token consumption path.
-- **Forbidden:** promising paid brand concealment/rebrand depth, hiding required operator/legal/security identity,
-  authz by brand config, copied branded-app components, domain/sender/app infrastructure.
+  reachable legal/support/security functions with exact presentation deferred to applicable review; fallback and
+  inaccessible-asset behavior; one design-token consumption path.
+- **Forbidden:** per-clinic layout/theme fork, omitting information/functions later required by legal/contract/security review, authz by brand config,
+  copied branded-app components, domain/sender/app infrastructure.
 - **Boundaries:** core org context always available after trusted resolution; paid brand presentation is entitlement-
   checked after authz; asset ownership and public safety are explicit.
-- **Decision gate:** UX08-07 remains explicitly unresolved because the original terminology/options were not
-  understood. Initial work is only core org identity on the BersonCare platform plus conservative optional
-  logo/color/contact presentation; no promise about hiding BersonCare or rebranding staff workspace.
+- **Decision gate:** UX08-07 is resolved: paid full branding uses own domain or platform subdomain and org name/logo
+  across product-facing surfaces while preserving the shared product layout/design. U7 implements the common brand
+  resolver on platform surfaces; full origin presentation remains a later U8 capability. Exact legal copy is not
+  invented here.
 - **Dependencies:** U2 management/publication shell, U6B projection, settings-root/asset ownership foundation.
 - **Workstreams:** data — brand/public asset ownership requirements; API — resolved presentation payload; UI — tokens,
   preview and fallbacks; QA — surface×tier matrix.
@@ -688,8 +693,8 @@ presentation can change without affecting access, routing or recovery.
 - **Rollback/degradation:** disable paid visuals while preserving org name/context, canonical navigation and recovery;
   no blank or misleading brand.
 - **Completion:** [ ] core/presentation payload consistent; [ ] entitlement cannot grant access; [ ] fallbacks;
-  [ ] no unapproved brand-depth promise; [ ] visual/accessibility seal; [ ] full audit PASS.
-- **Merge dependency:** U2/U6B; deeper paid-brand work is absent until a new plain-language owner decision.
+  [ ] shared layout/no per-clinic design fork; [ ] visual/accessibility seal; [ ] full audit PASS.
+- **Merge dependency:** U2/U6B; full custom-origin brand remains absent until U8 readiness/activation.
 
 ### U9 — global administration and bounded support
 
@@ -726,18 +731,21 @@ system identity diagnostics from a dedicated shell without patient browsing or p
   diagnostics purpose/audit; [ ] one optional-adapter extension path; [ ] no patient workflow/repair; [ ] full audit PASS.
 - **Merge dependency:** U1/U7 and ownership classification. UX08-10 is rejected and creates no pending branch.
 
-### Deferred commercial capability family U8 — custom domain, sender and organization-specific app
+### Deferred commercial capability family U8 — custom domain, sender and generated organization PWA
 
-U8 is post-launch and must not delay the solo platform product. U8A/B require a separate feasibility/order decision;
-U8B also requires choosing PWA/APK/native iOS delivery. U8C has a resolved failure-policy direction but remains a
-future custom-provider feature. Each stage consumes U9's sanctioned path and never creates a second platform
-settings/incident/org-support model. Initial release omits all U8 branches and proceeds from U9 to U10.
+U8 is post-launch and must not delay the solo platform product. U8A/B implement an already approved future path:
+custom domain or platform subdomain plus a generated organization PWA from verified name/logo/manifest settings.
+Separate native organization apps are outside this roadmap and remain research backlog. U8C has a resolved
+failure-policy direction plus engineering defaults, but remains a future custom-provider feature. Each stage
+consumes U9's sanctioned path and never creates a second platform settings/incident/org-support model. Initial
+release omits all U8 branches and proceeds from U9 to U10.
 
 #### U8A — hostname base and surface bindings
 
 - **Outcome:** verified custom hostname can serve only explicitly approved surfaces while canonical platform URLs
   remain available.
-- **Screens/flows:** `MGMT-05`; conditional bindings for `ORG-PUB-01…03`, later auth/PWA only if approved.
+- **Screens/flows:** `MGMT-05`; conditional bindings for `ORG-PUB-01…03`; approved later auth/PWA activates only
+  when its future implementation stage and readiness gates are enabled.
 - **Reuse/gaps:** stable platform alias and UX-05 lifecycle contract; no current UI is treated as a complete base/
   binding implementation.
 - **Scope:** ownership proof, TLS/routing base readiness, stable platform alias, independent per-surface lifecycle,
@@ -746,8 +754,8 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
   readiness stage, direct DNS/provider secret exposure.
 - **Boundaries:** hostname selects a published presentation entry only; authenticated principal/object policy remains
   server-resolved independently; base readiness and each surface binding are separate.
-- **Future gate:** owner direction includes custom entry/auth/app eventually, but timing/effort remains deferred.
-  Initial release keeps every custom binding disabled.
+- **Future gate:** owner direction includes custom entry/auth/PWA eventually; activation requires implementation
+  readiness and commercial scheduling, not another product answer. Initial release keeps every custom binding disabled.
 - **Dependencies:** U6B/U7/U9 core platform ops/configuration surface; infrastructure/security readiness and separate
   deploy authorization.
 - **Workstreams:** data — base/binding lifecycle contract; API — verification/readiness/resolution; UI — MGMT-05;
@@ -759,11 +767,11 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
   TEST setup; screenshots; accumulated P6 full CI if U8A is the last included optional stage.
 - **Rollback/degradation:** disable one binding and return canonical platform URL; base or another surface need not be
   removed.
-- **Completion:** [ ] future feasibility/order activation approved; [ ] base≠binding; [ ] one-way fallback; [ ] selective decommission;
+- **Completion:** [ ] future implementation activation approved; [ ] base≠binding; [ ] one-way fallback; [ ] selective decommission;
   [ ] canonical URL always works; [ ] full audit PASS.
 - **Merge dependency:** U6B/U7/U9 plus approved infrastructure handoff; merge cannot imply DNS/TLS rollout.
 
-#### U8B — deferred organization-specific auth and installed/mobile app
+#### U8B — deferred organization-specific auth and generated PWA
 
 - **Outcome:** an explicitly approved origin can support auth/install/push without cloning the app or weakening
   identity and organization resolution; platform PWA remains stable.
@@ -771,16 +779,16 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
   and recovery states.
 - **Reuse/gaps:** platform PWA/install/push and U8A verified origin; per-origin manifest/session/support contract is
   not considered present.
-- **Scope:** only owner-approved origins; origin-bound manifest/name/icons/install/push; session handoff/re-auth;
+- **Scope:** only verified, organization-configured origins; origin-bound manifest/name/icons/install/push; session handoff/re-auth;
   OAuth/cookie/CSRF/service-worker scope and support/recovery matrix; subscription rotation.
 - **Forbidden:** cloning patient/staff app, cross-origin token replay, service-worker scope leakage, using hostname to
   select tenant after auth, breaking stable platform PWA.
 - **Boundaries:** verified origin is presentation/delivery scope, never tenant authority; invite/object/enrollment
   remains trusted source; session and push subscription are origin-bound.
-- **Future gate:** organization-specific auth/app is intended later; feasibility must choose PWA/APK/native and
-  approve effort/timing. Initial release is platform auth/app only.
+- **Future gate:** organization-specific auth/generated PWA is intended later and uses verified origin/name/logo/
+  manifest settings. Initial release is platform auth/app only; separate native org app is outside roadmap.
 - **Dependencies:** U8A, U3B/U5A/U7/U9; security architecture review. Deferred clinic staffing is not required for
-  an organization-pinned patient app feasibility branch.
+  the approved organization-pinned generated-PWA branch.
 - **Workstreams:** data — origin/PWA binding and subscription ownership contract; API — session/re-auth/manifest/push;
   UI — install/recovery; ops — origin/browser/support matrix.
 - **Migration/compat:** platform PWA remains default; subscriptions/manifests are not silently reassigned across
@@ -790,9 +798,9 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
   accumulated P6 full CI if U8B is the last included optional stage.
 - **Rollback/degradation:** disable origin binding; platform PWA and platform re-auth recovery remain available;
   subscription failure does not remove browser access.
-- **Completion:** [ ] owner scope; [ ] platform PWA intact; [ ] no cross-origin authority; [ ] origin matrix;
+- **Completion:** [ ] future activation; [ ] platform PWA intact; [ ] generated manifest/name/icons; [ ] no cross-origin authority; [ ] origin matrix;
   [ ] recovery/support; [ ] full security + visual audits PASS.
-- **Merge dependency:** U3B/U5A/U7/U8A/U9 and explicit future activation of UX08-08 technology/timing scope; no
+- **Merge dependency:** U3B/U5A/U7/U8A/U9 and explicit future commercial/implementation activation; no
   independent per-origin rollout.
 
 #### U8C — organization sender readiness and delivery policy
@@ -802,16 +810,22 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
 - **Screens/flows:** future `MGMT-06` plus delivery/recovery states in `CLIN-02/03`, `ORG-PUB-03`;
   PIN/SMS delivery branches. Future team/STF surfaces are not required.
 - **Reuse/gaps:** U3B immutable delivery attempts and platform sender; complete organization email identity and
-  class-specific fallback policy are missing.
+  configured-channel no-fallback policy are missing.
 - **Scope:** authenticated email identity readiness, SMS/push presentation, message-class eligibility, effective
-  sender audit, bounce/complaint/provider health, retry/hold/fallback state and operator recovery.
+  sender audit, bounce/complaint/provider health, retry/hold/expiry state and operator recovery.
 - **Forbidden:** spoofing org sender, new integration secrets in env, treating display name as authenticated sender,
-  any platform-sender fallback for user messages when custom provider is configured, conflating sender health with invite acceptance.
+  platform-email delivery after custom email configuration or platform-SMS delivery after custom SMS configuration
+  for patient/user messages, conflating sender health with invite acceptance.
 - **Boundaries:** authorization and invite lifecycle precede delivery; effective sender is presentation/transport;
   credentials remain server-owned and org configuration remains DB-backed/mirrored.
-- **Owner ruling:** no platform fallback for custom-provider user messages. Retry only through custom provider within
-  TTL, then expire; send periodic operational failure alerts to solo specialist/clinic owner account email. Exact
-  intervals/TTL/attempts/retention are later policy.
+- **Owner ruling/policy:** channel-exact no fallback: configured custom email forbids platform-email delivery and
+  configured custom SMS forbids platform-SMS delivery for all patient/user messages. Apply standards-backed
+  `expires_at`, stable delivery id/provider-callback dedupe and configurable `1m/5m/15m` jittered BersonCare
+  pre-acceptance application submission retries; direct SMTP `4xx`/MTA cadence remains separate and is also capped
+  by `expires_at`. Accepted provider submission is never resubmitted; ambiguous SMTP disconnect after `DATA` stays
+  `unknown` for reconciliation. After three systemic failures (or immediate permanent auth/config failure), open the
+  unhealthy circuit and send an in-app + platform service email incident without patient content, at most daily
+  reminder and recovery notice. Metadata default is 90 days; values are engineering configuration, not owner gates.
 - **Dependencies:** U3B delivery model, U7 identity, U9 platform ops/configuration surface, sanctioned DB
   settings/integrator mirror. DNS/provider readiness is engineering invariant, not owner choice.
 - **Workstreams:** data — sender/readiness/message-class contract; API — verify/status/effective policy; UI — MGMT-06
@@ -821,7 +835,8 @@ settings/incident/org-support model. Initial release omits all U8 branches and p
 - **Validation:** SPF/DKIM/DMARC/envelope/Reply-To/provider states, bounce/complaint, class policy, per-attempt audit,
   send-safe mock/integration only, no secrets/PII logs, typecheck/lint/build, screenshots; accumulated P6 full CI when
   U8C is the last included optional stage (otherwise after the actual last included U8 stage).
-- **Rollback/degradation:** hold within TTL, retry custom provider, expire without sending, and alert account owner;
+- **Rollback/degradation:** hold within `expires_at`, retry only the configured custom provider, expire without
+  sending, and alert account owner in-app + platform service email without patient content;
   existing accepted relationship is not undone by delivery degradation.
 - **Completion:** [ ] UX08-09 linked; [ ] readiness complete; [ ] class policy exact; [ ] effective identity audited;
   [ ] no spoof/secret leak; [ ] full audit PASS.
@@ -896,7 +911,8 @@ Additional gates:
 - U2 has no assistant launch branch; one-login management composition is an implementation choice.
 - U5A uses last active + switcher, with chooser for invalid preference.
 - U6A/U6B include landing/profile/booking/join; directory is deferred.
-- Paid branding depth remains unresolved. U8A/B are post-launch feasibility branches; U8C uses no platform fallback.
+- Paid branding is resolved (domain/subdomain + org name/logo, shared design). U8A/B are post-launch
+  custom-origin/generated-PWA branches; native org app is outside roadmap; U8C uses no platform fallback.
 - U9 contains no patient-level support workflow.
 - U3B must include manual patient card, scheduled/walk-in visit and later verified identity linking.
 - U9 core PLAT/config/reliability/org operations precedes every included U8 adapter. An absent U8 branch is not a

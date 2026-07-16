@@ -1,7 +1,8 @@
 # Решения владельца по SaaS Product UX — 2026-07-16
 
-**Статус:** решения интегрированы в канон инициативы и подтверждены полным независимым аудитом
-`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`; implementation не начиналась.
+**Статус:** уточнения владельца от 2026-07-16 интегрированы и подтверждены полным независимым re-audit
+`SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation не начиналась; для
+solo-first launch осталось `0` pending owner product decisions.
 
 **Приоритет:** это высший product/UX authority внутри `SAAS_PRODUCT_UX_INITIATIVE` и он побеждает более старые
 requirements, operating models, journeys, branding candidates, IA, prototypes и audits. Foundation owner rulings
@@ -51,9 +52,10 @@ blocker. Пользователь без specialist binding не получае�
 
 В общем platform app нейтральный вход открывает последнюю успешно использованную доступную организацию и всегда
 показывает заметный switcher; при отсутствии валидного выбора открывается chooser. Trusted link по-прежнему ведёт
-только в подтверждённый контекст. Будущее платное organization-branded приложение на собственном origin закреплено
-за одной организацией и не показывает org switcher. Platform app и отдельные установленные приложения организаций
-могут сосуществовать. Технология PWA/APK/native этим решением не выбрана.
+только в подтверждённый контекст. Будущее платное organization-branded PWA на собственном origin закреплено за
+одной организацией и не показывает org switcher. Platform app и такие PWA могут сосуществовать; manifest/name/icons
+могут генерироваться из verified domain/subdomain + org name/logo settings. Separate native organization app вне
+текущего scope.
 
 ## UX08-06 — resolved launch
 
@@ -61,28 +63,37 @@ blocker. Пользователь без specialist binding не получае�
 каталог/поиск организаций переносится на потом. Это product scope; конкретный rollout всё равно проходит отдельный
 release/deploy gate.
 
-## UX08-07 — explicitly deferred
+## UX08-07 — resolved future capability
 
-Термин `white-label` не был понятен владельцу, поэтому варианты 1–3 не выбраны. Подтверждено только следующее:
-BersonCare — личный/platform brand владельца; платный брендинг организации и custom-domain product предполагаются
-позже. Насколько platform brand виден на клиентских поверхностях и нужно ли менять staff workspace, надо заново
-сформулировать простым языком. До этого нельзя обещать скрытие BersonCare или полный rebrand.
+Для платного полного брендирования организация использует собственный домен либо субдомен платформы, задаёт своё
+название и логотип и полностью заменяет product-facing branding на закреплённой за ней поверхности. Отдельный
+layout, theme или bespoke design под каждую клинику не планируется: меняются identity/brand assets, но не базовая
+композиция продукта. Вне такой платной org-поверхности BersonCare остаётся platform/personal brand владельца.
+Это решение не требует видимого BersonCare/platform brand внутри fully branded org surface. Какие сведения и
+контакты должны быть доступны в legal/support/security flows и как они представлены, определяется позднее по
+применимому праву, договорам и security/recovery contract; точная disclosure/copy здесь не выбрана.
 
-## UX08-08 — resolved future deferred
+## UX08-08 — resolved staged future capability
 
-Целевое будущее направление ближе к варианту 3: платный custom domain организации включает собственный entry/auth и
-organization-specific установленный/mobile app experience, а не общий platform app с переключением организаций.
-Это **не initial release**: сначала выпускается работающий platform/unbranded product. PWA против APK/native iOS,
-стоимость реализации и точная очередь требуют отдельного feasibility study; ни технология, ни срок сейчас не
-зафиксированы.
+Сначала выпускается работающий platform web product; clinic/staff product остаётся web app и может быть
+устанавливаемым desktop PWA. При покупке branded/business tier организация позже может получить собственный домен
+или platform subdomain и автоматически сформированный organization PWA: manifest/name/icons берутся из её
+проверенных domain/brand settings. Такой PWA закреплён за одной организацией и не является копией codebase.
+
+Отдельное organization-branded native mobile приложение явно не входит в текущий scope. Store publication,
+developer-account ownership, стоимость и сроки остаются research backlog, а не owner gate запуска или текущего
+roadmap. Общее направление native/mobile клиента также отдельно от per-organization branding.
 
 ## UX08-09 — resolved launch
 
-При настроенном custom provider пользовательские сообщения не переходят на sender платформы. Они удерживаются,
-повторно отправляются через custom provider только в пределах срока годности и после истечения TTL никогда не
-отправляются. Операционные уведомления о неисправности периодически уходят на зарегистрированный account email solo
-specialist или owner клиники. Точные интервалы retry, TTL, число попыток и retention — последующая инженерная/
-продуктовая policy, а не часть этого решения.
+После настройки organization custom email provider ни одно patient/user email не переходит на platform email
+sender; после настройки organization custom SMS provider ни одно patient/user SMS не переходит на platform SMS
+sender. Они удерживаются и повторяются только через custom provider соответствующего канала в пределах
+`expires_at`; expired никогда не отправляется. Operational sender-health incident не содержит patient content:
+зарегистрированный solo specialist/clinic owner получает in-app management alert и platform service email на
+account email, затем не чаще одного reminder в сутки и recovery notice. Классификация ошибок, bounded
+retry/backoff, TTL по классу сообщения, deduplication и retention — конфигурируемая инженерная policy, а не вопросы
+владельцу; defaults зафиксированы в `BRANDING_DOMAIN_CONTRACT.md` §7.1.
 
 ## UX08-10 — rejected premise
 
@@ -107,11 +118,11 @@ Patient-level global-admin workflow не нужен ни для launch, ни к�
 маршрутизация receptionist/assistant или маршрутизация owner — в зависимости от клиники. Архитектура не должна
 блокировать эти варианты, но ни один из них не входит в initial scope.
 
-## Что остаётся открытым
+## Текущий decision status
 
-- понятная продуктовая формулировка глубины paid organization branding и видимости platform brand;
-- feasibility, технология, порядок и сроки organization-specific installed/mobile app и custom-domain/auth ветки:
-  PWA, APK и/или native iOS;
-- точные retry/TTL/retention значения custom sender;
-- будущие права receptionist/assistant;
-- будущая конфигурация clinic communications.
+Для solo-first launch осталось **0 product decisions владельца**. Полный paid brand, organization PWA и custom
+origin являются согласованными будущими capability, а не условием первого выпуска. Sender retry/TTL/retention —
+engineering configuration. Права future assistant/receptionist, clinic communication topology и отдельное
+organization-branded native app сохраняются только как non-blocking architecture/research backlog; текущий продукт
+их не проектирует и не ждёт нового ответа владельца. Это не означает, что весь будущий clinic/native product уже
+спроектирован.

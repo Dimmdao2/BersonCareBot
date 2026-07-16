@@ -1,7 +1,7 @@
 # UX-05 — Branding capability and entitlement matrix
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Предыдущий UX-05 PASS остаётся
-историческим pre-ruling baseline.
+**Статус:** latest owner clarifications integrated; awaiting full independent audit. Предыдущий UX-05 PASS остаётся
+историческим baseline до этих уточнений.
 **Authority:** производная matrix; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
 **Связанный контракт:** [`BRANDING_DOMAIN_CONTRACT.md`](./BRANDING_DOMAIN_CONTRACT.md).
 
@@ -24,9 +24,10 @@ actor relationship
 - **Presentation tier** — что фактически увидит пользователь на конкретной surface.
 
 `Core organization context` проверяется как часть trusted relationship/object or published projection and remains
-available without `branding`: canonical display name, minimum attribution and required platform disclosure.
-`Brand presentation` is a paid/published layer (logo, colors, assets, branded copy/header, optional contacts and
-templates). Disabling it replaces visuals/content with platform presentation but never hides required organization
+available without `branding`: canonical display name and minimum organization attribution. Platform-default surfaces
+use BersonCare presentation; a fully branded org surface does not inherit a mandatory visible platform brand.
+`Brand presentation` is a paid/published layer (organization name/logo, branded copy/header, optional contacts and
+templates) within the shared platform layout/design. Disabling it replaces visuals/content with platform presentation but never hides required organization
 identity from a valid invite, booking, shell or transactional message.
 
 Ни entitlement, ни readiness не расширяют membership/enrollment/clinical authorization.
@@ -41,35 +42,36 @@ backward-compatible default. Это не доказывает готовност
 |---|---|---|---|---|
 | Platform landing/auth/legal/support | Always | none | Platform publication/health | Нельзя выключить org-тарифом |
 | Org name as context | Always for authorized/published context | none/core | Trusted org relation/projection | Не считается paid branding |
-| Logo/colors/org public presentation | Platform fallback | `branding` | Brand revision valid + published | O tier |
+| Org name/logo/public presentation | Platform fallback | `branding` | Brand revision valid + published | O tier; shared platform layout/theme |
 | Neutral org identification in transactional email/SMS/push | Platform channel + core context | none/core | Trusted message object + privacy/channel eligibility | Не зависит от paid branding |
 | Branded email/SMS/push presentation | Platform fallback + core context | `branding` | Published template/assets/contact + channel readiness | Sender identity технически отдельна |
 | Custom public/booking/join hostname binding | Stable platform alias URL | `custom_domain`; `branding` only changes visuals | HostnameBase ready + individual binding active | C tier; siblings independent |
 | Custom auth origin binding | Canonical platform auth | `custom_domain` | HostnameBase ready + `auth` binding cookies/CSRF/OAuth/callback audit | Не включать только DNS success; public siblings независимы |
 | Custom org email sender | No platform fallback for user messages once custom provider is configured | **future separate mechanic** | DKIM/SPF/DMARC/provider + Reply-To + TTL/retry/owner alerts | Не выводить автоматически из `custom_domain` |
-| Registered org SMS sender | Platform sender/no-send | **future absent mechanic** | Provider/region registration if ever activated | Not a launch product gate; never infer from email/web domain |
-| Organization-specific installed/mobile app | Platform patient/staff app in initial release | **future separate mechanic** | Feasibility + selected PWA/APK/native contract | Future direction; technology/timing deferred |
-| Legal/support org presentation | Platform legal/support | `branding` for presentation only | Validated published contacts/legal revision | Platform fallback mandatory |
+| Registered org SMS sender | Platform SMS only until org custom SMS provider is configured; never fallback afterward | **future absent mechanic** | Provider/region registration if ever activated | Not a launch product gate; never infer from email/web domain |
+| Organization-specific PWA | Platform patient/staff app in initial release | **future separate mechanic** | Verified origin + generated manifest/name/icons + web readiness | Future capability; separate native org app outside current scope |
+| Legal/support org presentation | Platform legal/support on platform-default surfaces | `branding` for presentation only | Validated contacts + later legal/contract/security review | Reachable functions required; exact visible identity/copy not selected here |
 
 Packaging is a later commercial/implementation policy, not an open UX08 owner ruling. Initial implementation includes only platform/core organization
-identity plus conservative optional presentation. Custom sender and an organization-specific installed/mobile app
-remain separate future candidates; neither is a selected paid-brand tier.
+identity plus optional presentation. Full paid branding on a custom domain or platform subdomain replaces
+product-facing name/logo without a per-clinic layout/theme fork. Custom sender and generated organization PWA remain
+separate future mechanics; separate native organization apps are outside current scope.
 
 ## 3. Actor × management capability
 
 The names below are target capability semantics, not claims that these exact flags already exist.
 
-| Actor | View effective brand/status | Edit org draft | Publish org brand/public projection | Manage domain proof/routing | Activate sender/PWA | Platform fallback/legal |
+| Actor | View effective brand/status | Edit org draft | Publish org brand/public projection | Manage domain proof/routing | Activate sender/PWA | Recovery/legal boundary |
 |---|---|---|---|---|---|---|
 | Global admin — platform config | Platform + aggregate org health | No ordinary org edit | Platform brand/fallback only | Restricted ops/repair, audited | Restricted platform readiness | Yes |
 | Global admin — support | Aggregate/org/platform diagnostic view | No org draft edit | No org publish | Platform/integration diagnostics only | System/code repair only; no patient-record repair | No patient browsing or impersonation |
 | Organization owner | Yes, own org | Yes | Yes, subject to validation/capability | Request/verify/remove own hostname | Request/activate own ready objects; irreversible contract actions owner-only candidate | Cannot edit platform fallback/legal operator |
 | Organization admin | Yes, own org | Yes if delegated | Yes if delegated | Manage if delegated; ownership/contract removal may remain owner-only | Manage if delegated | Cannot edit platform fallback |
 | Owner/admin + specialist | Same as management capability in management surface | Same | Same | Same | Same | Clinical mode gives no extra brand power |
-| Specialist | Consume effective brand | No by default | No | No | Personal install/push only, not org PWA publication | Platform recovery visible |
-| Assistant — future | No initial-release actor/surface | No | No | No | Not applicable | Exact future grants and presentation unresolved |
-| Patient | Consume published active org context | No | No | No | Own install/push consent only | Platform legal/account support visible |
-| Public | Consume explicit public projection | No | No | No | Install prompt only after authorized/useful flow | Platform legal/support visible |
+| Specialist | Consume effective brand | No by default | No | No | Personal install/push only, not org PWA publication | Recovery reachable; visible brand follows active surface |
+| Assistant — future reservation | No initial-release actor/surface | No | No | No | Not applicable | No current grants or pending owner gate; future clinic backlog only |
+| Patient | Consume published active org context | No | No | No | Own install/push consent only | Legal/account recovery reachable; exact branded presentation follows later review |
+| Public | Consume explicit public projection | No | No | No | Install prompt only after authorized/useful flow | Legal/support function reachable; no mandatory visible BersonCare on full brand |
 
 Every organization mutation targets the actor's server-resolved single active membership organization. A global admin
 diagnostic target is explicit and audited; `adminMode`, Host, route slug and client organization id are insufficient.
@@ -91,33 +93,33 @@ diagnostic target is explicit and audited; `adminMode`, Host, route slug and cli
 | Make HostnameBase ready | `domain.manage` own org | `custom_domain` enabled + ownership/TLS/routing/base lifecycle ready | Stable platform alias URLs | Exact pending/failed/degraded base state | Proof/TLS/routing/base/actor |
 | Activate hostname surface binding | `domain.manage` + relevant surface publish capability | Base ready + this binding's publication/config/origin audit | Equivalent stable platform alias route | Failed binding falls back without disabling siblings | Binding/status/evidence/actor |
 | Suspend/remove hostname or binding | owner or delegated irreversible capability | Object exists; dependency, retention and quarantine contract | Stable platform alias route | Block unsafe base removal; allow safe selective binding suspension | Base/binding removal + quarantine + dependencies |
-| Activate custom email sender | `sender.manage` target candidate | Sender-specific entitlement gate + provider + From/envelope/DKIM/SPF/DMARC alignment + Reply-To + bounce/complaint readiness + template eligibility | Hold/retry through custom provider within TTL, then expire; alert account owner | Never spoof or use platform fallback for custom-provider user messages | Actual identity/provider/template/TTL/attempt outcome per attempt |
-| Activate SMS sender | `sender.manage` | Sender-specific entitlement + provider/region ready | Platform/no-send policy | Never invent sender id | Registration/status/effective sender |
-| Publish organization-specific app | Future publish capability | Selected PWA/APK/native contract + applicable origin/store/readiness checks | Platform app remains initial/default product | Publish blocked until feasibility and explicit future stage | App revision/origin/store/test evidence |
-| Change org legal/support | `legal_support.edit` | Validated content; branding entitlement must not hide mandatory disclosure | Platform legal/support | Invalid contacts block org publication | Revision/effective time/actor |
+| Activate custom email sender | `sender.manage` target candidate | Sender-specific entitlement gate + provider + From/envelope/DKIM/SPF/DMARC alignment + Reply-To + bounce/complaint readiness + template eligibility | Bounded retry through custom provider within `expires_at`, then expire; alert account owner | Never spoof or use platform fallback for custom-provider user messages | Actual identity/provider/template/expiry/attempt outcome per attempt |
+| Activate SMS sender | `sender.manage` | Sender-specific entitlement + provider/region ready | Platform SMS only while no org custom SMS provider is configured; otherwise bounded custom-provider retry within `expires_at`, then expire | Never invent sender id or fall back to platform SMS after custom-provider configuration | Registration/status/effective sender |
+| Publish organization-specific PWA | Future publish capability | Generated manifest/name/icons + applicable origin/web readiness checks | Platform app remains initial/default product | Publish blocked until explicit future stage and readiness | PWA revision/origin/browser/test evidence |
+| Change org legal/support | `legal_support.edit` | Validated content + later legal/contract/security review | Safe reachable legal/support route | Invalid contacts block org publication; no owner ruling about visible BersonCare | Revision/effective time/actor |
 | Personal install/push | Authenticated user for private app; public install flow where allowed | Browser/origin ready; explicit consent | Browser use + other channels | Permission recovery; no nag loop | Subscription/consent, no clinical payload |
 
-## 5. Launch presentation and deferred future candidate by surface
+## 5. Launch presentation and approved future capability by surface
 
-Only `P` and conservative `O` are normative for initial implementation. `C` is a future custom-domain direction and
-`F` is candidate-only analysis for an organization-specific app/presentation; neither column is a launch promise or
-a selected paid-brand depth.
+Only `P` and conservative `O` are normative for initial implementation. `C`/`F` describe the owner-approved future
+full branded organization surface: own domain or platform subdomain, org name/logo, shared product layout/design.
+They are not launch promises and do not include a separate native organization app.
 
-| Surface | P — Platform default | O — Organization identity (`branding`) | C — future custom domain | F — deferred org-specific candidate |
+| Surface | P — Platform default | O — Organization identity (`branding`) | C — future custom domain/subdomain | F — future full branded org surface |
 |---|---|---|---|---|
 | Platform landing/signup | Full | Same | Same | Same; separate from org acquisition |
-| Org public/profile | Platform + core org context | Paid logo/colors/content | Active `public_profile` binding | Org-first + legal disclosure |
+| Org public/profile | Platform + core org context | Paid name/logo/content in shared design | Active `public_profile` binding | Org-first; legal information follows later applicable review |
 | Booking | Stable platform alias + core context | O visuals | Active `booking` binding | Org-first flow |
 | Join | Platform trust, then core context after lookup | O visuals after token lookup | Active `join` binding | Org-first, token org wins |
-| Auth/recovery | Platform; core context only after trusted resolution | Paid org skin | Active `auth` binding only | Org skin + platform identity/recovery |
-| Patient shell | Platform app + core active-org context | Conservative logo/colors/header within unresolved depth | No launch change | Candidate org-pinned app; technology/depth deferred |
-| Staff shell | Platform app + core membership-org context | Conservative presentation only | No launch change | Not approved; staff rebrand depth unresolved |
-| Manifest/install | Stable patient/staff | Same | No launch change | Candidate per-origin identity after future decision |
-| Email/SMS | Platform sender + neutral core org identification where required | Branded template/content | Web domain changes nothing | Custom sender only after complete separate readiness |
+| Auth/recovery | Platform; core context only after trusted resolution | Paid org skin | Active `auth` binding only | Org skin; recovery function reachable without prescribed visible platform brand |
+| Patient shell | Platform app + core active-org context | Logo/name/assets on platform surface | No launch change | Org-pinned PWA identity; same layout/design |
+| Staff shell | Platform app + core membership-org context | Logo/name/assets on platform surface | No launch change | Org-pinned web/PWA identity; same layout/design |
+| Manifest/install | Stable patient/staff | Same | No launch change | Generated per-origin PWA identity from verified brand/domain settings |
+| Email/SMS | Platform sender + neutral core org identification only while that channel has no configured custom provider | Branded template/content | Web domain changes nothing | Custom sender only after complete separate readiness; after configuration there is no same-channel platform fallback |
 | Push | Platform installed identity + privacy-safe core org context | Paid presentation within privacy limits | Web domain changes nothing by itself | Per-origin subscription/app identity |
-| Legal/support | Platform operator/recovery + responsible core org context where required | Paid org presentation/contact | Same | Assigned disclosure + platform recovery |
+| Legal/support | Platform information on platform-default surface | Paid org presentation/contact | Same | Required information/function per later legal/contract/security review; no mandatory visible platform brand inferred |
 
-`C` is separated from the `F` candidate: a verified public hostname does not automatically make auth, sender, manifest, service
+`C` is separated from the `F` capability: a verified public hostname does not automatically make auth, sender, manifest, service
 worker or push ready.
 
 ## 6. Readiness tuples
@@ -138,8 +140,8 @@ An effective surface is published only if every required dimension is ready.
 
 The effective presentation resolver returns one of:
 
-- `organization_presentation_ready` for the approved organization identity/assets on that surface; this does not
-  promise hidden platform branding or any selected deep-brand tier;
+- `organization_presentation_ready` for the approved organization identity/assets on that surface; on a ready fully
+  branded org surface this replaces product-facing platform branding while preserving shared layout/design;
 - `platform_fallback` with machine-readable reason;
 - `hold` for a policy that forbids fallback;
 - `blocked` for unsafe business action;
@@ -164,8 +166,8 @@ template eligibility. A passing DKIM signature alone cannot activate a DMARC-una
 | `custom_domain` disabled | Canonical platform URLs | Custom Host suspended/decommission flow | Canonical surfaces and domain removal |
 | One hostname binding degraded | One-way fallback for that surface; ready siblings unaffected | Per-binding health/error/recheck | Stable alias route for affected surface |
 | HostnameBase degraded | One-way stable-alias fallback for every binding on that base | Base health/error/recheck | Auth/recovery and active invites via platform origin |
-| Sender capability disabled/degraded | Hold/retry custom-provider user messages within TTL, then expire | Exact identity/alignment/bounce remediation + periodic account-owner alert; no spoof/fallback | Account recovery and unsent-message status |
-| Future org-specific app disabled/degraded | Platform app/browser | Read-only app readiness + recovery | Canonical platform access |
+| Sender capability disabled/degraded | Hold/bounded retry custom-provider user messages within `expires_at`, then expire | Exact failure/circuit remediation + in-app incident and platform service email without patient content; daily reminder at most; recovery notice; no email/SMS platform fallback for a configured custom channel | Account recovery and unsent-message status |
+| Future org-specific PWA disabled/degraded | Platform app/browser | Read-only PWA readiness + recovery | Canonical platform access |
 
 Tariff loss never deletes brand/domain/sender configuration immediately. It changes effective use and starts an
 audited grace/decommission path. Data retention and hostname quarantine are separate policies.
@@ -188,9 +190,9 @@ These are observations, not authorization to implement inside discovery:
 
 1. No evidenced org-brand/public-projection schema and publish lifecycle.
 2. No evidenced verified-host registry, TLS/routing state model, quarantine or domain resolver.
-3. Current patient/staff manifests are platform-static; there is no approved per-origin org-app publication.
+3. Current patient/staff manifests are platform-static; approved future generated per-origin org-PWA publication is not implemented.
 4. Current platform SMTP/VAPID/settings do not establish org custom sender identities.
-5. Existing `branding`/`custom_domain` mechanics are too coarse for independent sender and future org-app packaging.
+5. Existing `branding`/`custom_domain` mechanics are too coarse for independent sender and future generated org-PWA packaging.
 6. Current legal/support surfaces are platform-oriented; responsibility split and org support validation need design.
 7. No proven surface-specific effective-presentation resolver across public, booking, join/auth, shells and delivery.
 8. No evidenced stable platform alias/version/redirect/quarantine lifecycle.
@@ -211,9 +213,12 @@ readiness jobs, role/capability enforcement and surface adoption into independen
 - Stable platform aliases normalize, reject collision/reserved names, preserve rename redirects and prevent silent
   reuse after suspension/removal/quarantine.
 - Canonical fallback is one-way and loop-safe; raw token/open redirect are excluded.
-- `branding`, `custom_domain`, custom sender and future org app are not treated as one readiness flag.
-- Custom email `active` proves From/envelope/DKIM/SPF/DMARC alignment/provider/Reply-To/bounce readiness; configured
-  custom-provider user messages never use platform fallback and instead retry within TTL, expire, and alert owner.
+- `branding`, `custom_domain`, custom sender and future generated org PWA are not treated as one readiness flag.
+- Custom email `active` proves From/envelope/DKIM/SPF/DMARC alignment/provider/Reply-To/bounce readiness. For each
+  configured custom email/SMS channel, patient/user messages never use that channel's platform sender: bounded
+  pre-acceptance retry stays within `expires_at`, accepted provider submission is not resubmitted, callbacks dedupe,
+  and sender-health alert uses in-app + platform service email without patient content.
 - Staff and patient manifest identities stay stable on platform origin.
-- Platform legal/account recovery remains reachable under every future org-specific presentation and failure state.
-- BD-1/4 remain unresolved, BD-2/5 future/deferred, and BD-3/6 ruled with dated provenance.
+- Legal/account recovery functions remain reachable under every future org-specific presentation and failure state;
+  exact visible identity/copy follows later legal/contract/security review.
+- BD-1/4 and BD-3/6 are ruled; BD-2/5 are non-launch future custom-origin/generated-PWA capabilities with dated provenance.

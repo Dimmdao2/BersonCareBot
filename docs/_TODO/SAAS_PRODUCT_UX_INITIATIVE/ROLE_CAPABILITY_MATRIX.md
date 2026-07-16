@@ -1,6 +1,6 @@
 # UX-03 — Role × screen × capability matrix
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit.
+**Статус:** latest owner clarifications integrated; awaiting full independent audit.
 **Authority:** производная matrix; `OWNER_RULINGS_2026-07-16.md` имеет приоритет над прежними capability candidates.
 **Правило:** product outcomes имеют только dated classifications из `OWNER_RULINGS_2026-07-16.md`. Статусы
 `implementation_policy` и `implementation_contract` ниже обозначают engineering/security work, а не новый owner
@@ -51,7 +51,7 @@ enforcement point.
 | Specialist / history | `clinical_history.view_shared` + entry visibility | Read authorized organization history | `Вся доступная` / specialist X on demand after permission | Packaging cannot grant permission | Control absent/forbidden; private classes remain hidden | Shared export/read policy | approved product direction; exact record-class policy is engineering/security work |
 | Specialist / history write | Binding + patient relation + write capability | Create/amend clinical entry | Author fixed to actor; filter does not impersonate | Relevant clinical mechanic/grant | Read-only/forbidden; never write as selected specialist | Author, object, amendment trail | implementation_policy; no impersonation |
 | Owner/admin without binding / patient | Membership + explicit operational capability | Demographics/schedule/billing sections | No clinical history by role alone | Section mechanic separate | Clinical sections/direct exports forbidden | Sensitive operational writes | implementation_policy; minimum operational fields only until reviewed |
-| Assistant / operations | Future membership/capability only | Future clinic operations | None in launch | Not applicable to launch | No OPS surface in initial release | Future audit contract | deferred future; exact grants unresolved |
+| Assistant / operations | Future membership/capability reservation only | Future clinic scope | None in launch | Not applicable to launch | No OPS surface in initial release | Future audit contract | outside current design; no pending owner gate |
 | Assistant / clinical | Future membership/capability only | No launch capability | None | Not applicable to launch | No clinical surface in initial release | Future denied-attempt policy | deferred future; no implicit clinical access |
 | Patient / global account | Patient tier | Identity/security, organizations, global consent/support | Global, no clinical aggregation | N/A | Recovery without exposing org data | Security/consent changes | approved |
 | Patient / one enrollment | Patient tier + active enrollment | Organization Today/program/visits/messages | Org visible; picker collapsed | Org mechanic may change action state, not enrollment validity | Suspended/revoked organization-specific recovery | Clinical action/message audit | implementation_contract |

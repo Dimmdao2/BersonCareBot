@@ -126,28 +126,33 @@ Record-class visibility и authorization всё равно проектирую�
 
 1. Главный platform landing продаёт продукт специалисту/клинике. Пациент не проходит обычную свободную регистрацию с hero; он входит по приглашению, через запись или отдельную компактную точку входа.
 2. Patient invite ведёт не на абстрактную инструкцию установки, а на organization-scoped join page: проверка токена → identity activation → подтверждение связи с организацией → первый полезный экран → предложение установить PWA.
-3. Email — основной транспорт приглашения; SMS используется как fallback/дополнительный канал. Web Push становится основным только после установки и подписки.
+3. Email — основной транспорт приглашения; SMS используется как дополнительный/fallback channel only when its
+   channel policy allows it. После настройки organization custom email/SMS provider patient/user delivery никогда
+   не переходит на platform sender того же канала. Web Push становится основным только после установки и подписки.
 4. Пациент выбирает организацию, а не «логинится к каждому врачу». Внутри организации конкретный специалист отображается в записи, программе и диалоге.
-5. Branding имеет уровни: platform brand и organization identity; глубина будущего paid organization branding
-   остаётся unresolved. Custom domain не является authorization.
+5. Branding имеет уровни: platform brand и paid organization branding. Полное платное брендирование заменяет
+   product-facing name/logo на собственном домене или platform subdomain, но не создаёт per-clinic layout/theme.
+   Custom domain и branding не являются authorization.
 6. Кабинет global admin должен быть отдельной IA-поверхностью, а не растущим cluster внутри doctor sidebar.
 
 ## 5. Обязательные вопросы, которые должен закрыть discovery
 
 - Solo specialist и clinic: один onboarding или две развилки одного onboarding?
 - Что именно создаётся при self-signup и какой минимальный first-run checklist?
-- Какие capabilities у future assistant/receptionist? Это не launch blocker и не initial scope.
+- Future assistant/receptionist сохраняется только как architecture reservation; его capabilities не проектируются
+  и не являются текущим вопросом владельцу.
 - Как owner/admin переключается между management и clinical work без второй авторизации?
 - Какие различия UI обязательны между solo specialist и специалистом клиники, а какие должны оставаться одной
   композицией с capability-driven actions?
 - Для future clinic реализовать уже выбранную модель: одна карточка; связь специалиста через visit; own events по
   умолчанию; вся доступная история/конкретный специалист только по праву.
 - Как выглядит patient context switch при нескольких организациях?
-- Какая configurable clinic communication topology понадобится позже: per-specialist, receptionist/assistant или
-  owner routing? Launch сохраняет текущий solo chat.
+- Clinic communication topology остаётся future backlog вне текущего discovery; launch сохраняет текущий solo chat.
 - Кто считается отправителем email/SMS/push при разных branding tiers?
-- Какие данные бренда видны на landing, join, auth, PWA, email, booking и внутри patient shell?
-- Какая технология нужна будущему organization-specific installed/mobile experience: PWA, APK и/или native iOS?
+- Как единый resolved brand contract применяется на landing, join, auth, PWA, email, booking и patient/staff shell:
+  org name/logo on branded origin, без custom layout/theme и без ослабления legal/support/security recovery?
+- Как автоматически генерируется branded organization PWA из domain/subdomain + org name/logo/manifest settings?
+  Отдельное native org app исключено из текущего scope и остаётся research backlog.
 - Какие custom-domain сценарии поддерживаются: public page, booking, join, PWA; какой canonical redirect contract?
 - Что происходит при истёкшей, повторно использованной или отправленной не тому email invite-ссылке?
 - Как portal identity безопасно связывается с уже созданной staff карточкой/визитом без дубля identity/relationship?

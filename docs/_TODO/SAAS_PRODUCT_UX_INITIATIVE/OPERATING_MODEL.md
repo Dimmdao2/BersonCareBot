@@ -1,6 +1,6 @@
 # UX-03 — Product operating model
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit.
+**Статус:** latest owner clarifications integrated; awaiting full independent audit.
 **Authority:** производный contract; `OWNER_RULINGS_2026-07-16.md` побеждает старые candidates этого документа.
 **Дата:** 2026-07-15.
 **Scope:** actor/context model, solo/clinic composition, patient record/history, visit coordination и entitlement boundaries.
@@ -149,8 +149,9 @@ stateDiagram-v2
 - Default to last successfully used active organization with a persistent visible switcher. A trusted invite/booking deep link may override only for
   that journey and must visibly show the context change. If preference is invalid, show the chooser.
 
-Owner ruling 2026-07-16: a future paid organization-branded/custom-origin installed app is pinned to that
-organization and has no org switcher. It may coexist with the platform app. PWA/APK/native technology remains open.
+Owner ruling 2026-07-16: a future paid organization-branded/custom-origin PWA is pinned to that organization and has
+no org switcher. It may coexist with the platform app and may be generated from verified domain/subdomain + org
+name/logo/manifest settings. Separate organization native apps are outside current scope.
 
 ## 6. Patient card and clinic history
 
@@ -220,10 +221,10 @@ recovery states in UX-06; it must not delay identity-safe UX-04 flows.
 
 ## 9. Current owner-outcome registry
 
-| Status | Decision | Current contract | Remaining open detail |
+| Status | Decision | Current contract | Implementation policy / future backlog |
 |---|---|---|---|
 | Resolved launch | Patient card/history/`Мои` | One org card; visit relationship; own-events default; authorized history on demand | Record-class implementation policy only |
-| Resolved launch absence | Assistant at launch | No role, workspace or grants | Exact future grants deferred |
+| Resolved launch absence | Assistant at launch | No role, workspace or grants | Future clinic design outside current scope; no owner gate |
 | Rejected premise | Patient transfer lifecycle | No transfer object; ordinary future visit concept only | None for launch |
 | Resolved launch | Owner/admin clinical composition | One login; simple distinct management surface | Menu versus mode switch is implementation choice |
 | Resolved launch | Patient multi-org default | Last active with persistent switcher; explicit deep-link context | None |
@@ -231,22 +232,20 @@ recovery states in UX-06; it must not delay identity-safe UX-04 flows.
 
 Current downstream contract: manual patient/card/visit creation precedes optional portal activation; assistant and
 multi-specialist clinic surfaces remain future-only; last-active patient organization and one-card/visit-based
-history are ruled. Custom-domain application technology/timing remains future-deferred and must not delay solo launch;
-entitlement degradation is an engineering/commercial policy, not an unresolved UX08 decision.
+history are ruled. Full paid branding uses own domain or platform subdomain and org name/logo without a custom
+layout/theme. Generated organization PWA remains post-launch; separate native org app is outside scope.
 
-Owner/admin section authorization, record-class policy and entitlement degradation remain engineering/data-policy
-contracts, not additional open product rulings. The only unresolved product sub-decisions are those enumerated in
-`OWNER_RULINGS_2026-07-16.md`: brand depth, future app feasibility/technology/timing, sender retry/TTL values, future
-assistant grants and clinic communication topology.
+Owner/admin section authorization, record-class policy, entitlement degradation and sender retry/TTL/retention
+remain engineering/data-policy contracts, not open product rulings. Solo-first launch has `0` pending owner product
+decisions. Assistant/clinic communications and separate native org app are non-blocking future backlog.
 
 ## 10. Acceptance criteria for the independent critic
 
-- Every owner-approved outcome cites the dated ruling; remaining candidates are explicitly unresolved or future.
+- Every owner-approved outcome cites the dated ruling; remaining research is explicitly non-blocking future backlog.
 - No allow path relies on UI filter, route, Host, client organization or entitlement alone.
 - Solo and clinic share one account model but do not show identical irrelevant UI.
 - Owner/admin with and without specialist binding lead to different safe surfaces.
 - One active staff organization and patient multi-org contexts are not conflated.
 - Patient list, direct read, counts, search and export use the same permitted scope.
 - No rejected transfer/hierarchy lifecycle leaks back into the target contract.
-- Every engineering-policy row is distinguished from the five true deferred product sub-decisions and has safe
-  fail-closed/read-only behavior.
+- Every engineering-policy row is distinguished from owner product decisions and has safe fail-closed/read-only behavior.

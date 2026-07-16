@@ -1,7 +1,8 @@
 # SaaS Product UX Initiative
 
-**Статус:** owner rulings 2026-07-16 integrated across UX contracts and implementation roadmap; full independent
-audit `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Implementation has not started.
+**Статус:** latest owner clarifications integrated across UX contracts and implementation roadmap; full independent
+re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation has not started;
+solo-first launch has `0` pending owner product decisions.
 **Рабочая ветка:** `feat/saas-interface-work3`.  
 **Taskdb:** `#787`.
 
@@ -18,7 +19,9 @@ audit `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Impleme
 - как устроены публичный лендинг, публичные страницы организаций, брендинг и custom domains;
 - как будущая IA переиспользует текущие экраны без параллельных копий.
 
-Итог инициативы — проверяемая product/UX specification и implementation backlog. Реализация экранов начинается только после закрытия decision gates и сверки с текущим SaaS-планом.
+Итог инициативы — проверяемая product/UX specification и implementation backlog. Owner product gates для
+solo-first launch закрыты; реализация всё равно начинается только после implementation/foundation readiness и
+сверки с текущим SaaS-планом.
 
 ## Граница с текущим SAAS_FOUNDATION
 

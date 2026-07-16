@@ -1,6 +1,6 @@
 # UX-06 — Target information architecture
 
-**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Registry remains `57/57` and
+**Статус:** latest owner clarifications integrated; awaiting full independent audit. Registry remains `57/57` and
 current-route allocation remains `150/150`; previous UX-06 PASS is a historical pre-ruling baseline.
 **Authority:** производная IA; `OWNER_RULINGS_2026-07-16.md` побеждает прежние candidate/prototype assumptions.
 **Scope:** logical IA and navigation contract; this is not an implementation route freeze.
@@ -49,7 +49,7 @@ Authenticated staff workspace — one organization
 └── Account                   every staff identity
 
 Reserved future clinic workspace IDs (not launch navigation)
-└── Operations                possible assistant/receptionist capability; grants/topology unresolved
+└── Operations                future assistant/receptionist reservation; outside current scope
 
 Patient app — one global identity
 ├── Organization context resolver / chooser
@@ -162,14 +162,15 @@ specific surfaces do not replace it.
 
 | ID | Surface | Composition | Context and fallback |
 |---|---|---|---|
-| ORG-PUB-01 | Organization profile | Identity, services, specialists, locations, contacts, legal disclosures | Published projection by stable platform slug; custom domain is an alias |
+| ORG-PUB-01 | Organization profile | Identity, services, specialists, locations, contacts and legally reviewed information | Published projection by stable platform slug; custom domain is an alias |
 | ORG-PUB-02 | Booking | Organization identity → service → optional specialist/location → slot → identity proof → confirmation | Organization comes from published service/booking objects, not client input; canonical platform URL always works |
 | ORG-PUB-03 | Join | Neutral token exchange → organization summary → recipient proof → relationship confirmation | No private data before proof; expired/revoked/wrong-recipient use neutral recovery |
 | State: unavailable projection | State of the affected ORG-PUB-01/02/03 screen, not a fourth screen | Unpublished/suspended/domain-degraded state | Canonical fallback, support/recovery owner and no cross-organization leakage |
 
 Initial public composition: profile + booking + join on the stable platform alias; directory later. Future custom
-domain includes entry/auth/org-specific app direction, but it is post-launch and waits for feasibility; no custom
-origin/app is assumed in initial release.
+domain/subdomain entry/auth/generated org PWA is an approved post-launch capability; it waits only for future
+commercial/implementation activation and readiness, not another owner product decision. No custom origin/PWA is
+assumed in initial release.
 
 ## 5. Platform administration IA
 
@@ -244,7 +245,7 @@ registry only to prevent future route duplication; they are not launch surfaces 
 
 | ID | Screen | Safe composition before ruling |
 |---|---|---|
-| OPS-01 | Future operations home | Deferred; exact clinic product/grants unresolved |
+| OPS-01 | Future operations home | Deferred architecture reservation; no current product/grants design |
 | OPS-02 | Future schedule | Deferred |
 | OPS-03 | Future intake and patient contact | Deferred |
 | OPS-04 | Future messages | Deferred; future topology is configurable |
@@ -271,8 +272,8 @@ not shown as teasers. Upgrade states are used only for entitled mechanics after 
 
 Platform app opens the last active organization with a visible switcher; invalid preference uses the chooser. A
 trusted invite/booking deep link visibly enters its verified organization. Initial release uses one platform app.
-Future paid organization-specific app is pinned to one organization without a switcher; PWA/APK/native technology is
-not yet selected.
+Future paid organization PWA is pinned to one organization without a switcher and may be generated from verified
+origin/name/logo/manifest settings. Separate organization native app is outside current scope.
 
 ## 10. Navigation contract
 
@@ -302,8 +303,9 @@ not yet selected.
   a trusted join link enters ORG-PUB-03 directly and does not expose a public patient directory.
 - Booking preserves visible organization context across ORG-PUB-02 service, specialist/location, slot, identity,
   review and result states. Back navigation restores safe selections without permitting another organization.
-- Platform operator/legal/support remains visible in footer/recovery. On a custom domain, the stable platform alias
-  is shown as the canonical fallback in degraded/unavailable states and is never hidden by organization branding.
+- Legal/support/recovery functions remain reachable. On a custom domain, degraded/unavailable recovery may offer the
+  stable platform alias; the fully branded surface does not thereby promise visible BersonCare/platform branding.
+  Exact legal/support/security identity, copy and placement follow later applicable law/contracts/security review.
 
 ### Published organization surface — mobile
 
@@ -312,7 +314,8 @@ not yet selected.
 - Sticky booking CTA may shorten presentation but cannot omit organization, selected service/time, privacy/legal or
   recovery facts. Token exchange, recipient proof and canonical fallback are identical to desktop.
 - Custom-domain failure offers one-way custom → stable platform recovery without forwarding a raw bearer or creating
-  a redirect loop. Platform legal/support remains reachable from every error/terminal state.
+  a redirect loop. Legal/support/recovery functions remain reachable from every error/terminal state; visible brand
+  on the fully branded surface is not prescribed here.
 
 ### Desktop staff
 
@@ -362,17 +365,18 @@ Every target screen specification in `SCREEN_COMPOSITION.md` declares applicable
 | Suspended organization | Relationship exists but business actions are unavailable | Retained data/read policy, billing/support recovery; domain cannot bypass |
 | Error | Operation failed without a safer classified state | Retry with correlation/support path; preserve entered non-secret data |
 
-## 12. Current owner outcomes and remaining open details
+## 12. Current owner outcomes and non-blocking future backlog
 
 | Decision area | Current composition | Excluded or still-open detail |
 |---|---|---|
 | Owner/admin navigation — resolved launch | One login; simple distinct management surface | Menu versus switch remains implementation choice; no duplicate account |
-| Assistant — resolved launch absence | No OPS launch surfaces | Exact future grants remain deferred |
+| Assistant — resolved launch absence | No OPS launch surfaces | Future grants outside current scope; no pending owner gate |
 | Patient multi-org — resolved launch | Last active + visible switcher; chooser if invalid | No silent substitution or organization merge |
 | Card/history — resolved launch | One card; visit relation; own events default; authorized history/specialist filter | Record-class enforcement remains implementation policy |
 | Transfer premise — rejected | No lifecycle or launch navigation; ordinary another-specialist visit is future clinic scope | No separate transfer hierarchy or cross-org movement |
 | Entitlement degradation — implementation policy | Core context visible; each mechanic declares degradation | Not an unresolved UX08 decision |
-| Branding/domain | Initial platform app; profile+booking+join, directory later; future org-specific direction | Brand depth and future technology/timing/feasibility remain deferred; no unapproved launch promise |
+| Branding/domain | Initial platform app; profile+booking+join, directory later; future full branded origin uses own domain or platform subdomain + org name/logo with shared layout/design | Generated org PWA is post-launch; separate native org app remains non-blocking research backlog |
 
 These are outputs of the dated owner rulings, not pending inputs. Historical UX-07 prototype alternatives are
-superseded wherever they conflict; future/deferred details remain absent until separately approved.
+superseded wherever they conflict. Solo-first launch owner gates = `0`; future clinic/native research remains absent
+without implying that future product design is complete.
