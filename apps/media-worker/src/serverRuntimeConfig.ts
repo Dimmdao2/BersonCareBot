@@ -13,13 +13,7 @@ export async function readServerRuntimeBoolean(
 ): Promise<boolean> {
   const result = await runMediaWorkerPgText<{ value_json: unknown }>(
     pool,
-    `SELECT value_json
-       FROM public.app_runtime_settings
-      WHERE key = $1
-        AND scope = 'admin'
-        AND audience = 'server'
-        AND organization_id IS NULL
-      LIMIT 1`,
+    `SELECT app.read_media_worker_runtime_setting($1) AS value_json`,
     [key],
   );
   return parseSystemSettingBoolean(result.rows[0]?.value_json ?? null);

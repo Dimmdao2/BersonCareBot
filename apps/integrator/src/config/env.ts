@@ -13,6 +13,9 @@ const parsed = z
     LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
+    DATABASE_URL_DIAGNOSTIC: z.string().optional().default(''),
+    DATABASE_URL_DELIVERY_WORKER: z.string().optional().default(''),
+    DATABASE_URL_SCHEDULER: z.string().optional().default(''),
     DB_PRINCIPAL_CONTEXT_MODE: z.enum(['legacy-guc', 'shadow', 'locked']).optional().default('legacy-guc'),
     DB_PRINCIPAL_SIGNING_SECRET: z
       .string()

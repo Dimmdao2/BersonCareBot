@@ -19,6 +19,7 @@ const files = {
   runtimeHelperSmoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs",
   mediaRuntimeMigration: "apps/webapp/db/drizzle-migrations/0188_media_worker_runtime_flags.sql",
   mediaRuntimeReader: "apps/media-worker/src/serverRuntimeConfig.ts",
+  c4OperationalSql: "deploy/postgres/c4-operational-runtime.sql",
   mediaPipelineReader: "apps/media-worker/src/pipelineEnabled.ts",
   mediaWatermarkReader: "apps/media-worker/src/watermarkEnabled.ts",
   packageJson: "package.json",
@@ -245,13 +246,18 @@ function runChecks(overrides = {}) {
     "CREATE FUNCTION",
   ]);
   requireFragments(files.mediaRuntimeReader, loaded.mediaRuntimeReader, [
-    "FROM public.app_runtime_settings",
-    "key = $1",
-    "audience = 'server'",
-    "organization_id IS NULL",
+    "app.read_media_worker_runtime_setting($1)",
   ]);
   forbidFragments(files.mediaRuntimeReader, loaded.mediaRuntimeReader, [
     "FROM public.system_settings",
+    "FROM public.app_runtime_settings",
+  ]);
+  requireFragments(files.c4OperationalSql, loaded.c4OperationalSql, [
+    "CREATE OR REPLACE FUNCTION app.read_media_worker_runtime_setting(p_key text)",
+    "p_key IN ('video_hls_pipeline_enabled', 'video_watermark_enabled')",
+    "setting.audience = 'server'",
+    "setting.organization_id IS NULL",
+    "GRANT EXECUTE ON FUNCTION app.read_media_worker_runtime_setting(text) TO app_operational_media_worker",
   ]);
   requireFragments(files.mediaPipelineReader, loaded.mediaPipelineReader, [
     'readServerRuntimeBoolean(pool, "video_hls_pipeline_enabled")',
@@ -563,8 +569,8 @@ if (process.argv.includes("--self-test")) {
     },
     {
       mediaRuntimeReader: read(files.mediaRuntimeReader).replace(
-        "FROM public.app_runtime_settings",
-        "FROM public.system_settings",
+        "app.read_media_worker_runtime_setting($1)",
+        "app.read_unrestricted_runtime_setting($1)",
       ),
     },
     {

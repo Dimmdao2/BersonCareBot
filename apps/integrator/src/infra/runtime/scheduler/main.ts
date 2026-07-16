@@ -11,6 +11,9 @@ import {
   reportSchedulerDispatchIsolationFailure,
   reportSchedulerLockIsolationFailure,
 } from '../../observability/saasIsolationTelemetry.js';
+import { assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
+import { listSchedulerReminderOrganizationIds } from '../../db/repos/schedulerReminderOrganizations.js';
+import { runSchedulerOrganizationTicks } from './organizationTicks.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -20,6 +23,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function startScheduler(): Promise<void> {
   await assertSchedulerIsolationTelemetryWriterReady();
+  await assertSchedulerPoolReady();
   // Advisory lock acquisition happens before any staff/patient/org context exists (pre-buildDeps);
   // when DB_PRINCIPAL_CONTEXT_MODE is locked, the connection layer requires SOME principal to be set
   // before it will touch the DB at all (even for a pg_try_advisory_lock, which isn't RLS-governed
@@ -45,6 +49,7 @@ async function startScheduler(): Promise<void> {
   const { buildDeps } = await import('../../../app/di.js');
   await getAppBaseUrl(createDbPort());
   const deps = buildDeps();
+  const schedulerDb = createDbPort();
 
   logger.info('Scheduler lock acquired, starting scheduler loop');
 
@@ -65,23 +70,12 @@ async function startScheduler(): Promise<void> {
 
   while (true) {
     try {
-      // handleIncomingEvent does idempotency-key bookkeeping (tenant-agnostic) before routing to the
-      // schedule.tick handler chain (which already installs its own infra principal further down via
-      // scheduler.ts's runSchedulerTick). schedule.tick itself is the only event type this process
-      // ever raises, so wrapping the whole call here is safe and matches the lock-acquisition wrap above.
-      await runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }, () =>
-        deps.eventGateway.handleIncomingEvent({
-          type: 'schedule.tick',
-          meta: {
-            eventId: `sch:${randomUUID()}`,
-            occurredAt: new Date().toISOString(),
-            source: 'scheduler',
-          },
-          payload: {
-            trigger: 'schedule.tick',
-          },
-        }),
-      );
+      await runSchedulerOrganizationTicks({
+        eventGateway: deps.eventGateway,
+        listOrganizationIds: () => listSchedulerReminderOrganizationIds(schedulerDb),
+        nowIso: () => new Date().toISOString(),
+        newEventId: randomUUID,
+      });
     } catch (err) {
       reportSchedulerDispatchIsolationFailure(err);
       logger.error({ err }, 'Runtime scheduler tick failed');

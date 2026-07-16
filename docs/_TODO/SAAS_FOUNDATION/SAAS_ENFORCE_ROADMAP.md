@@ -290,7 +290,7 @@ org, cross-org/blank-context fixtures are denied, and no outbound delivery occur
   partition by org rather than acquire ambient global visibility.
 - [ ] Prove media claim/transcode metadata flow and webapp S3 presign/upload/playback authorization under locked
   context using fake/local object storage; verify cross-org object keys cannot be presigned.
-- [ ] Give any unavoidable infra pool its own NOLOGIN/login contract, narrow grants, call-site allowlist, and audit
+- [x] Give any unavoidable infra pool its own NOLOGIN/login contract, narrow grants, call-site allowlist, and audit
   record; never silently reuse owner/BYPASSRLS.
 
 Exit: scheduler tick, media claim/complete, internal cron fixtures, and presign allow/deny matrix exit 0 under FORCE;
@@ -714,7 +714,7 @@ PASS, and the final D3 17/17 smoke remains absent.
 | C1 | repo-artifact-only | `pnpm run check:saas-c1-webapp-dual-pool-fanout` | App-level shadow/locked smoke proving role/helper cleanup and concurrency. |
 | C2 | repo-artifact-only | `pnpm run check:saas-c2-secrets-deployment-plumbing` | Real secret installation/fingerprint/redaction audit in disposable environment. |
 | C3 | repo-artifact-only | `pnpm run check:saas-c3-integrator-fanout-inventory` | Controlled queued fixtures under strict roles with send-safe/no-delivery proof. |
-| C4 | repo-artifact-only (checker not trusted as chain proof) | Inventory/checker artifacts exist, but `check:saas-c4-scheduler-media-cron-fanout` is bypassable: an org principal may wrap a no-op while real DB/S3 work runs after infra-principal restoration and the checker still exits 0. | Engineering repair of the checker; then strict+FORCE scheduler/media/internal cron fixtures, fake/local object storage proof, and infra pool/grants decision. |
+| C4 | repo-artifact-only | Four independent operational login/capability contours, pre-checkout pool routing, explicit locked `SET ROLE`, narrow grants/accessor, startup probes, mutation-sensitive checker, and isolated PostgreSQL 16 positive/negative proof. | Owner-authorized strict+FORCE scheduler/media/internal cron fixtures and fake/local object-storage proof; no live credential flip has occurred. |
 | D1 | repo-artifact-only | `pnpm run check:saas-d1-664-with-check-reverify` | Owner-authorized strict+FORCE/live re-verification if required by the phase gate. |
 | D2 | repo-artifact-only | `pnpm run check:saas-d2-fb1-bootstrap-phone-write` | TEST-topology strict+FORCE application smoke for FB#1 and isolation negatives. |
 | D3 | blocked | `check:saas-product-smoke-contract` and `check:saas-d3-4-bootstrap-base-login-grants` exit 0 as static/repo checks; progression is 4/17 → 13/17 → 16/17, without a final 17/17 artifact. `SEQUENCE.md:72-80` records the visible discussion-summary block on mixed `system_settings`. | Engineering implementation for the settings-root split, then an operator-managed locked TEST read matrix with expected non-empty facts and 17/17; do not infer PASS from log prose or static checks. |

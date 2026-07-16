@@ -1,6 +1,7 @@
 # C4 scheduler, media-worker and cron/internal-job fanout
 
-Status: Phase C4 repo-side package. No live DB/S3/TEST/PROD execution and no runtime credential flip.
+Status: Phase C4 repo-side operational-login package implemented and locally verified. No live DB/S3/TEST/PROD execution
+and no runtime credential flip.
 
 ## Scope
 
@@ -8,7 +9,7 @@ This stage covers the repo-side portion of `SAAS_ENFORCE_ROADMAP.md` Phase C4:
 
 - map scheduler and webapp internal cron entrypoints to their explicit principal/infra operation, and keep the media-worker as a narrow infra dispatcher;
 - keep batch jobs from silently acquiring ambient global visibility by making infra sources named and statically checked;
-- prove, with local/fake tests only, the media-worker owner model: enqueue is tenant-filtered, claim requires non-null equal job/media organizations, and dispatch runs as narrow infra `app_worker` (not a tenant principal and not a bypass);
+- prove, with local/fake tests only, the media-worker owner model: enqueue is tenant-filtered, claim requires non-null equal job/media organizations, and dispatch runs through its dedicated operational capability (not a tenant principal and not a bypass);
 - document the fake/local proof boundary for webapp media presign/upload/playback and the remaining live gates.
 
 This is not the final C4 exit from the roadmap. The final exit still requires owner-authorized disposable/TEST
@@ -19,8 +20,8 @@ matrix against fake/local object storage.
 
 | ID | Entrypoint | Source file | Principal source | DB surfaces | Locked-mode posture | Repo-side proof |
 |---|---|---|---|---|---|---|
-| `scheduler-lock` | Runtime scheduler leader lock | `apps/integrator/src/infra/runtime/scheduler/main.ts` | `infra`, source `scheduler:acquire-lock` | advisory lock via `tryAcquireSchedulerLock` | Explicit infra source before DB access. C3 integrator chokepoint allowlists this source. | Static checker verifies the source and pre-`buildDeps` wrapper. |
-| `scheduler-tick` | `schedule.tick` event loop | `apps/integrator/src/infra/runtime/scheduler/main.ts` | `infra`, source `scheduler:handle-tick-event` | idempotency/event gateway, then scheduler handler chain | Explicit infra source for the synthetic tick. Org partitioning inside reminder planning/dispatch remains a strict runtime fixture gate. | Static checker verifies only `schedule.tick` is raised and the wrapper is present. |
+| `scheduler-lock` | Runtime scheduler leader lock | `apps/integrator/src/infra/runtime/scheduler/main.ts` | `infra`, source `scheduler:acquire-lock` | advisory lock via `tryAcquireSchedulerLock` | Pre-checkout routing selects `DATABASE_URL_SCHEDULER`; locked checkout executes `SET ROLE app_operational_scheduler`. | Static checker and focused lifecycle tests. |
+| `scheduler-tick` | `schedule.tick` event loop | `apps/integrator/src/infra/runtime/scheduler/main.ts` | `infra`, source `scheduler:handle-tick-event` | `integrator.idempotency_keys` (`SELECT/INSERT/UPDATE/DELETE`), then tenant-scoped handler chain | Same scheduler capability; nested organization principal routes back to the request pool and ALS restores the outer capability after the nested call. | Static checker and focused routing/restoration tests. |
 
 Remaining gate: run scheduler fixtures under strict roles/FORCE and prove due work is partitioned by organization,
 with missing-org/cross-org rows denied and counted.
@@ -30,13 +31,38 @@ with missing-org/cross-org rows denied and counted.
 | ID | Entrypoint | Source file | Principal source | DB surfaces | Locked-mode posture | Repo-side proof |
 |---|---|---|---|---|---|---|
 | `media-worker-main` | systemd process loop | `apps/media-worker/src/main.ts` | delegates to tick | `media_transcode_jobs`, `media_files`, S3 object operations | No direct DB call in `main.ts`; pool provider is principal-aware. | Static checker verifies main delegates to `runMediaWorkerTick`. |
-| `media-worker-tick` | pipeline flag, stale reclaim, claim | `apps/media-worker/src/workerTick.ts` | `infra`, source `media-worker:tick` | `system_settings`, stale processing reclaim, pending job claim | Explicit infra source. Media-worker pool allowlist accepts only `media-worker:tick` as infra in locked mode. | Static checker + focused media-worker tests. |
+| `media-worker-tick` | pipeline flag, stale reclaim, claim | `apps/media-worker/src/workerTick.ts` | `infra`, source `media-worker:tick` | restricted runtime-setting accessor, stale processing reclaim, pending job claim | Dedicated `media-worker.prod/test` credential; locked checkout executes `SET ROLE app_operational_media_worker`. Direct `app_runtime_settings` access is denied. | Static checker + focused media-worker tests. |
 | `media-worker-claim` | `FOR UPDATE SKIP LOCKED` claim | `apps/media-worker/src/jobs/claim.ts` | tick infra source | `media_transcode_jobs`, `media_files` | Claim requires both job/media organization IDs to be non-null and equal; violations are terminally quarantined with `organization_invariant_violation`. | Existing claim tests + C4 checker verify equality and quarantine. |
-| `media-worker-process` | transcode metadata updates and terminal state | `apps/media-worker/src/processTranscodeJob.ts` | narrow infra/`app_worker`, nested under tick | `media_files`, `media_transcode_jobs`, fake/local S3 in tests | Tenant-filtered enqueue plus the claim invariant establish ownership. Processing is a tenant-agnostic dispatcher, not a tenant principal, and has no tenant bypass; job organization remains audit metadata. | Focused principal tests verify infra/tick context. |
+| `media-worker-process` | transcode metadata updates and terminal state | `apps/media-worker/src/processTranscodeJob.ts` | `app_operational_media_worker`, nested under tick | `media_files`, `media_transcode_jobs`, fake/local S3 in tests | Exact `SELECT/UPDATE` grants only. The capability cannot become staff, patient, legacy worker, or another operational capability. | Focused principal tests verify infra/tick context. |
 | `media-worker-sql` | media-worker SQL chokepoint | `apps/media-worker/src/runMediaWorkerSql.ts`, `withClient.ts`, `poolProvider.ts` | current ALS principal | all media-worker SQL | Locked mode accepts only allowlisted `infra` source `media-worker:tick` and rejects organization, missing, bootstrap, patient, staff, integrator, and unknown infra sources before checkout; cleanup uses principal release/reset. | Static checker verifies pre-checkout guard and allowlist. |
 
 Remaining gate: strict+FORCE fixture must claim and complete a real fake-S3 media job once, then prove a missing-org
 job fails closed and surfaces in metrics.
+
+## Operational Login / Capability Contract
+
+| Process contour | Env URL | SET-only capability | Exact DB surface |
+|---|---|---|---|
+| API diagnostic | `DATABASE_URL_DIAGNOSTIC` | `app_operational_diagnostic` | `integrator.projection_outbox`: `SELECT` |
+| Delivery worker | `DATABASE_URL_DELIVERY_WORKER` | `app_operational_delivery_worker` | `integrator.projection_outbox`, `integrator.rubitime_create_retry_jobs`, `public.outgoing_delivery_queue`: `SELECT/UPDATE` |
+| Scheduler | `DATABASE_URL_SCHEDULER` | `app_operational_scheduler` | `integrator.idempotency_keys`: `SELECT/INSERT/UPDATE/DELETE`; PostgreSQL advisory lock |
+| Media worker | `DATABASE_URL` in `media-worker.prod/test` | `app_operational_media_worker` | `public.media_transcode_jobs`, `public.media_files`: `SELECT/UPDATE`; two-key SECURITY DEFINER runtime accessor |
+
+All four base logins are `LOGIN NOINHERIT NOBYPASSRLS`; each has exactly one `WITH INHERIT FALSE, SET TRUE`
+membership. Base logins have no target-table privileges. Capability roles are terminal leaves and cannot become
+staff, patient, legacy `app_worker`, or sibling capabilities. The repeatable operator overlay is
+`deploy/postgres/c4-operational-runtime.sql`; TEST deploy discovers login names from the four URLs, applies the
+overlay after strict-policy installation, and runs positive plus cross-contour readiness probes before restart.
+
+Scheduler uses a narrow SECURITY DEFINER discovery function that returns only organization IDs and rejects enabled/due
+reminder rows without ownership. Advisory lock, discovery, and idempotency stay in the scheduler contour; the reminder
+pipeline runs once per returned organization through the request pool and organization principal.
+
+Delivery claim/reset/final queue bookkeeping stays in the delivery contour. A narrow resolver determines the trusted
+organization from reminder occurrence/rule or broadcast audit before any external send. Missing, conflicting, malformed,
+or mismatched ownership is quarantined without delivery. Tenant business reads/writes then run under that organization
+principal; temporary returns to the delivery capability are limited to queue bookkeeping. Global operator alerts use
+two dedicated incident accessors and never receive raw incident-table ACL.
 
 ## Webapp Internal Cron / Internal HTTP Jobs
 
@@ -77,18 +103,21 @@ inventory/checker coverage fails `pnpm run check:saas-c4-scheduler-media-cron-fa
 ## Implemented Artifacts
 
 - [`../../../apps/integrator/src/infra/runtime/scheduler/main.ts`](../../../apps/integrator/src/infra/runtime/scheduler/main.ts)
+- [`../../../apps/integrator/src/infra/db/integratorPoolProvider.ts`](../../../apps/integrator/src/infra/db/integratorPoolProvider.ts)
+- [`../../../apps/integrator/src/infra/db/operationalPoolReadiness.ts`](../../../apps/integrator/src/infra/db/operationalPoolReadiness.ts)
 - [`../../../apps/media-worker/src/withClient.ts`](../../../apps/media-worker/src/withClient.ts)
 - [`../../../apps/media-worker/src/poolProvider.ts`](../../../apps/media-worker/src/poolProvider.ts)
+- [`../../../apps/media-worker/src/serverRuntimeConfig.ts`](../../../apps/media-worker/src/serverRuntimeConfig.ts)
 - [`../../../apps/media-worker/src/processTranscodeJob.ts`](../../../apps/media-worker/src/processTranscodeJob.ts)
 - [`../../../apps/media-worker/src/processTranscodeJob.principal.test.ts`](../../../apps/media-worker/src/processTranscodeJob.principal.test.ts)
 - webapp internal route files under [`../../../apps/webapp/src/app/api/internal`](../../../apps/webapp/src/app/api/internal)
 - [`scripts/check-c4-scheduler-media-cron-fanout.mjs`](scripts/check-c4-scheduler-media-cron-fanout.mjs)
+- [`../../../deploy/postgres/c4-operational-runtime.sql`](../../../deploy/postgres/c4-operational-runtime.sql)
 
 ## Remaining C4 Gates
 
 Not closed by this repo-only stage:
 
-- separate operational DB login/pool/grants contract for unavoidable infra jobs;
 - strict+FORCE disposable/TEST scheduler tick fixture with org partitioning;
 - strict+FORCE media claim/complete fixture against fake/local object storage;
 - webapp media presign/upload/playback allow/deny matrix against fake/local object storage;

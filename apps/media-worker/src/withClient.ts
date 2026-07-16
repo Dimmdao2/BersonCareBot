@@ -52,6 +52,9 @@ async function prepareMediaWorkerClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
+  if (options.mode === "locked") {
+    await client.query("SET ROLE app_operational_media_worker");
+  }
 }
 
 async function prepareMediaWorkerTransactionClient(
@@ -59,6 +62,9 @@ async function prepareMediaWorkerTransactionClient(
   options: DbPrincipalApplyOptions,
 ): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
+  if (options.mode === "locked") {
+    await client.query("SET ROLE app_operational_media_worker");
+  }
 }
 
 function toReleaseError(err: unknown): Error {

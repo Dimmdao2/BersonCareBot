@@ -39,6 +39,9 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     let queryError: unknown;
     try {
       await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
+      if (principalApplyOptions.mode === "locked") {
+        await client.query("SET ROLE app_operational_media_worker");
+      }
       const query = client.query.bind(client) as unknown as (...innerArgs: Parameters<Pool["query"]>) => ReturnType<Pool["query"]>;
       result = await query(...args);
     } catch (err) {

@@ -13,9 +13,10 @@ import {
 } from '../../delivery/recipientBotBlocked.js';
 import { logger } from '../../observability/logger.js';
 import {
-  getOperatorIncidentAlertState,
   markOperatorIncidentAlertSent,
-} from '../../db/repos/operatorHealthDrizzle.js';
+  operatorIncidentAlertAlreadySent,
+  resolveOutgoingDeliveryScope,
+} from '../../db/repos/outgoingDeliveryScope.js';
 import {
   claimDueOutgoingDeliveries,
   markOutgoingDeliveryDead,
@@ -49,6 +50,31 @@ export type OutgoingDeliveryWorkerDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
+
+function runWithDeliveryQueueCapability<T>(fn: () => T): T {
+  return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, fn);
+}
+
+function queueMarkDead(
+  db: DbPort,
+  id: string,
+  error: string,
+  failureClass?: string,
+): Promise<void> {
+  return runWithDeliveryQueueCapability(() =>
+    failureClass === undefined
+      ? markOutgoingDeliveryDead(db, id, error)
+      : markOutgoingDeliveryDead(db, id, error, failureClass),
+  );
+}
+
+function queueMarkSent(db: DbPort, id: string): Promise<void> {
+  return runWithDeliveryQueueCapability(() => markOutgoingDeliverySent(db, id));
+}
+
+function queueReschedule(db: DbPort, id: string, delaySeconds: number, error: string): Promise<void> {
+  return runWithDeliveryQueueCapability(() => rescheduleOutgoingDeliveryRetry(db, id, delaySeconds, error));
+}
 
 function asChatIdFromRecipient(recipient: unknown): number | null {
   if (!recipient || typeof recipient !== 'object') return null;
@@ -184,11 +210,6 @@ async function maybeClearMessengerBotBlockedMarker(
   });
 }
 
-async function readOperatorAlertAlreadySent(incidentId: string): Promise<boolean> {
-  const row = await getOperatorIncidentAlertState(incidentId);
-  return Boolean(row?.alertSentAt);
-}
-
 async function readReminderOccurrenceStatus(db: DbPort, occurrenceId: string): Promise<string | null> {
   const res = await runIntegratorSql<{ status: string }>(
     db,
@@ -224,7 +245,7 @@ async function finalizeOutgoingDeliveryDead(
   safeError: string,
   writePort: DbWritePort,
 ): Promise<void> {
-  await markOutgoingDeliveryDead(db, row.id, safeError);
+  await queueMarkDead(db, row.id, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const auditId = typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : '';
@@ -351,7 +372,7 @@ async function finalizeRecipientBlockedBotDelivery(
     reason: 'recipient_blocked_bot',
     errorMessage: safeError,
   });
-  await markOutgoingDeliveryDead(db, row.id, safeError, RECIPIENT_BLOCKED_BOT_FAILURE_CLASS);
+  await queueMarkDead(db, row.id, safeError, RECIPIENT_BLOCKED_BOT_FAILURE_CLASS);
   await incrementBroadcastAuditBlockedIfDoctorBroadcast(db, row);
 
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
@@ -425,7 +446,7 @@ async function handleDispatchFailure(
   writePort: DbWritePort,
   intent?: OutgoingIntent,
 ): Promise<void> {
-  if (intent && (row.channel === 'telegram' || row.channel === 'max')) {
+  if (row.kind !== 'operator_alert' && intent && (row.channel === 'telegram' || row.channel === 'max')) {
     const blocked = classifyRecipientBlockedBotError(err, row.channel);
     if (blocked) {
       await finalizeRecipientBlockedBotDelivery(
@@ -443,7 +464,7 @@ async function handleDispatchFailure(
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
-    if (intent && (row.channel === 'telegram' || row.channel === 'max')) {
+    if (row.kind !== 'operator_alert' && intent && (row.channel === 'telegram' || row.channel === 'max')) {
       await recordMessengerQueueDeliveryAttempt(db, row, intent, {
         status: 'failed',
         reason: retryable ? 'delivery_dead' : 'provider_error',
@@ -454,7 +475,7 @@ async function handleDispatchFailure(
     return;
   }
   const delay = retryDelaySecondsAfterFailure(attempts);
-  await rescheduleOutgoingDeliveryRetry(db, row.id, delay, safe);
+  await queueReschedule(db, row.id, delay, safe);
 }
 
 export async function processOutgoingDeliveryRow(
@@ -464,7 +485,7 @@ export async function processOutgoingDeliveryRow(
   const { db, writePort, dispatchOutgoing, doctorBroadcastMenu } = deps;
   const intent = parseIntentFromPayload(row.payloadJson);
   if (!intent) {
-    await markOutgoingDeliveryDead(db, row.id, 'BAD_PAYLOAD');
+    await queueMarkDead(db, row.id, 'BAD_PAYLOAD');
     await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
     return;
   }
@@ -472,18 +493,21 @@ export async function processOutgoingDeliveryRow(
   if (row.kind === 'operator_alert') {
     const incidentId = typeof row.payloadJson.incidentId === 'string' ? row.payloadJson.incidentId : null;
     if (!incidentId) {
-      await markOutgoingDeliveryDead(db, row.id, 'MISSING_INCIDENT_ID');
+      await queueMarkDead(db, row.id, 'MISSING_INCIDENT_ID');
       return;
     }
-    if (await readOperatorAlertAlreadySent(incidentId)) {
-      await markOutgoingDeliverySent(db, row.id);
+    if (await operatorIncidentAlertAlreadySent(db, incidentId)) {
+      await queueMarkSent(db, row.id);
       return;
     }
     try {
       await dispatchOutgoing(intent);
-      await markOperatorIncidentAlertSent(incidentId);
-      await maybeClearMessengerBotBlockedMarker(db, row, intent);
-      await markOutgoingDeliverySent(db, row.id);
+      await queueMarkSent(db, row.id);
+      try {
+        await markOperatorIncidentAlertSent(db, incidentId);
+      } catch (error) {
+        logger.error({ error, incidentId, rowId: row.id }, 'operator_alert_mark_sent_failed_after_delivery');
+      }
     } catch (err) {
       await handleDispatchFailure(db, row, err, writePort, intent);
     }
@@ -498,12 +522,12 @@ export async function processOutgoingDeliveryRow(
     const externalId = typeof p.externalId === 'string' ? p.externalId : '';
     const text = typeof p.logText === 'string' ? p.logText : '';
     if (!occurrenceId || !channel || !deliveryLogId) {
-      await markOutgoingDeliveryDead(db, row.id, 'MISSING_REMINDER_FIELDS');
+      await queueMarkDead(db, row.id, 'MISSING_REMINDER_FIELDS');
       return;
     }
     const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
     if (occStatus === 'sent' || occStatus === 'skipped' || occStatus === 'failed') {
-      await markOutgoingDeliverySent(db, row.id);
+      await queueMarkSent(db, row.id);
       return;
     }
     try {
@@ -598,7 +622,7 @@ export async function processOutgoingDeliveryRow(
       });
       await recordMessengerQueueDeliveryAttempt(db, row, intent, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
-      await markOutgoingDeliverySent(db, row.id);
+      await queueMarkSent(db, row.id);
     } catch (err) {
       await handleDispatchFailure(db, row, err, writePort, intent);
     }
@@ -609,7 +633,7 @@ export async function processOutgoingDeliveryRow(
     const broadcastAuditId =
       typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
     if (!broadcastAuditId) {
-      await markOutgoingDeliveryDead(db, row.id, 'MISSING_BROADCAST_AUDIT_ID');
+      await queueMarkDead(db, row.id, 'MISSING_BROADCAST_AUDIT_ID');
       return;
     }
     const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
@@ -627,7 +651,7 @@ export async function processOutgoingDeliveryRow(
       await dispatchOutgoing(toSend);
       await recordMessengerQueueDeliveryAttempt(db, row, toSend, { status: 'success' });
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
-      await markOutgoingDeliverySent(db, row.id);
+      await queueMarkSent(db, row.id);
       await runWithBroadcastAuditOrganization(
         db,
         broadcastAuditId,
@@ -670,7 +694,32 @@ export async function processOutgoingDeliveryRow(
     return;
   }
 
-  await markOutgoingDeliveryDead(db, row.id, `UNKNOWN_KIND:${row.kind}`);
+  await queueMarkDead(db, row.id, `UNKNOWN_KIND:${row.kind}`);
+}
+
+export async function processClaimedOutgoingDeliveryRow(
+  row: OutgoingDeliveryQueueRow,
+  deps: OutgoingDeliveryWorkerDeps,
+): Promise<void> {
+  const scope = await resolveOutgoingDeliveryScope(deps.db, row.id);
+  if (scope.queueKind !== row.kind) {
+    await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
+    // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
+    logger.error({ rowId: row.id, eventId: row.eventId, claimedKind: row.kind, resolvedKind: scope.queueKind }, 'outgoing_delivery_scope_quarantined');
+    return;
+  }
+  if (scope.kind === 'invalid') {
+    const reason = truncateDeliveryErrorMessage(`TENANT_SCOPE_${scope.reason.toUpperCase()}`);
+    await queueMarkDead(deps.db, row.id, reason);
+    // eslint-disable-next-line no-secrets/no-secrets -- stable event name, not a credential
+    logger.error({ rowId: row.id, eventId: row.eventId, queueKind: row.kind, reason: scope.reason }, 'outgoing_delivery_scope_quarantined');
+    return;
+  }
+  if (scope.kind === 'operator') {
+    await processOutgoingDeliveryRow(row, deps);
+    return;
+  }
+  await runWithOrganizationPrincipal(scope.organizationId, () => processOutgoingDeliveryRow(row, deps));
 }
 
 export async function runOutgoingDeliveryWorkerTick(input: {
@@ -699,7 +748,7 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   let errors = 0;
   for (const row of rows) {
     try {
-      await processOutgoingDeliveryRow(row, {
+      await processClaimedOutgoingDeliveryRow(row, {
         db: input.db,
         writePort: input.writePort,
         dispatchOutgoing: input.dispatchOutgoing,

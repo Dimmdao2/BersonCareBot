@@ -254,7 +254,7 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` to the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role, falling back to `DATABASE_URL` only when dual-pool URLs are absent, before any TEST
   service restart or product smoke. The same invocation must discover the actual media-worker login from the
-  `webapp.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
+  separate `media-worker.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
   `app.release_principal_context()` is visible and executable. After the final helper recreation/grants, it must also
   use the actual `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF` paths to prove that only the staff runtime can call
   `app.staff_user_has_password_credentials(uuid)`; the probe uses a synthetic UUID and emits no returned value.
@@ -263,6 +263,11 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   email/invite/signup accessors.
   It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
   base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
+- after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
+  logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,
+  `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict
+  finalizer that recreates the media policies. Before restart, each base login must call release directly, then
+  `SET ROLE` only its own SET-only capability; positive exact-surface probes and cross-contour negatives must pass.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
   `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the

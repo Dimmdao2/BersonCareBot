@@ -178,10 +178,13 @@ Telegram заблокирован из РФ на гос-уровне; прод-�
 
 - Unit: `bersoncarebot-media-worker-prod.service`
 - WorkingDirectory: `/opt/projects/bersoncarebot/apps/media-worker`
-- EnvironmentFile: `/opt/env/bersoncarebot/webapp.prod`
+- EnvironmentFile: `/opt/env/bersoncarebot/media-worker.prod`
 - ExecStart: `/usr/bin/node dist/main.js` (после `pnpm --dir apps/media-worker build` на хосте)
 - Public port: нет  
-Шаблон юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service`; установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
+Шаблоны юнита: `deploy/systemd/bersoncarebot-media-worker-prod.service` и
+`deploy/systemd/bersoncarebot-media-worker-test.service`; media-worker использует отдельный NOINHERIT/NOBYPASSRLS
+operational login, не webapp credential. TEST env: `/opt/env/bersoncarebot/media-worker.test`.
+Установка и restart — `deploy/host/deploy-prod.sh`. Подробнее: [`deploy/HOST_DEPLOY_README.md`](../../deploy/HOST_DEPLOY_README.md).
 
 ### Ports
 

@@ -140,11 +140,14 @@ systemctl reset-failed
 Эффективная конфигурация:
 
 - `WorkingDirectory=/opt/projects/bersoncarebot/apps/media-worker`
-- `EnvironmentFile=/opt/env/bersoncarebot/webapp.prod`
+- `EnvironmentFile=/opt/env/bersoncarebot/media-worker.prod`
 - `ExecStart=/usr/bin/node dist/main.js`
 - Публичного порта нет (только исходящие к БД / S3 / `ffmpeg`).
 
-`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии `webapp.prod` и проверяет `systemctl is-active`. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
+`deploy-prod.sh` устанавливает unit, собирает `apps/media-worker`, перезапускает сервис при наличии отдельного
+`media-worker.prod` и проверяет `systemctl is-active`. Этот env использует только media operational login; повторное
+использование webapp/integrator credential запрещено. Пользователю **`deploy`** нужен `NOPASSWD` на `install` этого
+unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](../sudoers-deploy.example).
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 

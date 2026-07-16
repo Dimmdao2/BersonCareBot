@@ -349,7 +349,12 @@ export type Orchestrator = {
 
 /** Единая входная точка ядра для нормализованных входящих событий. */
 export type EventGateway = {
-  handleIncomingEvent(event: IncomingEvent): Promise<GatewayResult>;
+  handleIncomingEvent(
+    event: IncomingEvent,
+    options?: {
+      runPipeline?: (run: () => Promise<void>) => Promise<void>;
+    },
+  ): Promise<GatewayResult>;
 };
 
 /** Итог работы eventGateway над одним событием. */

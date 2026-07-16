@@ -18,6 +18,7 @@ import {
   reportWorkerProjectionIsolationFailure,
   reportWorkerQueueIsolationFailure,
 } from '../../observability/saasIsolationTelemetry.js';
+import { assertDeliveryWorkerPoolReady } from '../../db/operationalPoolReadiness.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,6 +26,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function startWorker(): Promise<void> {
   await assertWorkerIsolationTelemetryWriterReady();
+  await assertDeliveryWorkerPoolReady();
   const projectionDb = createDbPort();
   await getAppBaseUrl(projectionDb);
   const { buildDeps } = await import('../../../app/di.js');

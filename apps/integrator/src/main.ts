@@ -14,6 +14,7 @@ async function start() {
     reportIntegratorIsolationFailure,
   } = await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
+  const { assertIntegratorDiagnosticPoolReady } = await import('./infra/db/operationalPoolReadiness.js');
   const { createDbPort } = await import('./infra/db/client.js');
   const { getAppBaseUrl } = await import('./config/appBaseUrl.js');
   const { buildApp } = await import('./app/index.js');
@@ -22,6 +23,7 @@ async function start() {
 
   await runStartupMigrationGate();
   await assertApiIsolationTelemetryWriterReady();
+  await assertIntegratorDiagnosticPoolReady();
   await getAppBaseUrl(createDbPort());
 
   const app = await buildApp();

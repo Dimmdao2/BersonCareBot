@@ -24,6 +24,9 @@
 - `HOST=127.0.0.1`
 - `PORT=3200`
 - `DATABASE_URL='...'`
+- `DATABASE_URL_DIAGNOSTIC='...'` — отдельный NOINHERIT/NOBYPASSRLS login только для read-only projection health
+- `DATABASE_URL_DELIVERY_WORKER='...'` — отдельный login integrator worker; только claim/bookkeeping очередей
+- `DATABASE_URL_SCHEDULER='...'` — отдельный login scheduler; advisory lock + idempotency bookkeeping
 - `BOOKING_URL=https://...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - глобальная DB-настройка `app_base_url` должна быть заполнена; integrator читает её через закрытый server-runtime accessor и не использует env fallback; TEST deploy нормализует точный API base-login и его PostgreSQL 16 membership edges в `NOINHERIT` / `INHERIT FALSE, SET TRUE`, оставляя classified `SET ROLE`, запрещая ambient table ACL и выдавая напрямую только закрытый config accessor плюс idempotent principal-context release для bootstrap/infra cleanup
@@ -66,6 +69,18 @@ sudo systemctl restart bersoncarebot-worker-prod.service
 sudo systemctl restart bersoncarebot-scheduler-prod.service
 curl -s http://127.0.0.1:3200/health
 ```
+
+---
+
+### `media-worker.prod`
+
+**Путь на хосте:** `/opt/env/bersoncarebot/media-worker.prod`
+
+Используется только `bersoncarebot-media-worker-prod.service`. `DATABASE_URL` обязан содержать отдельный
+NOINHERIT/NOBYPASSRLS login, связанный только с `app_operational_media_worker`; повторное использование
+`webapp.prod` или integrator worker/scheduler credential запрещено. Runtime-флаги читаются через закрытый
+двухключевой accessor, без прямого SELECT `app_runtime_settings`. Остальные media/S3/ffmpeg ключи сохраняются по
+контракту `apps/media-worker/src/env.ts`; значения в репозиторий не записываются.
 
 ---
 

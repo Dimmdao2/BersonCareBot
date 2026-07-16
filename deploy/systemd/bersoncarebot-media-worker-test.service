@@ -1,0 +1,13 @@
+[Unit]
+Description=BersonCareBot HLS media-worker (Test)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/deploy/projects/bersoncarebot-test/apps/media-worker
+EnvironmentFile=/opt/env/bersoncarebot/media-worker.test
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

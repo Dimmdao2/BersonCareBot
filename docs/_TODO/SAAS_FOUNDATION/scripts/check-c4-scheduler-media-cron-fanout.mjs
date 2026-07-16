@@ -9,6 +9,14 @@ const files = {
   roadmap: "docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md",
   t0Checklist: "docs/_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md",
   scheduler: "apps/integrator/src/infra/runtime/scheduler/main.ts",
+  integratorPoolProvider: "apps/integrator/src/infra/db/integratorPoolProvider.ts",
+  integratorWithClient: "apps/integrator/src/infra/db/withClient.ts",
+  integratorWithClientTest: "apps/integrator/src/infra/db/withClient.test.ts",
+  operationalReadiness: "apps/integrator/src/infra/db/operationalPoolReadiness.ts",
+  outgoingDeliveryScope: "apps/integrator/src/infra/db/repos/outgoingDeliveryScope.ts",
+  outgoingDeliveryWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
+  schedulerOrganizationRepo: "apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts",
+  schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
   mediaMain: "apps/media-worker/src/main.ts",
   mediaWorkerTick: "apps/media-worker/src/workerTick.ts",
   mediaClaim: "apps/media-worker/src/jobs/claim.ts",
@@ -18,6 +26,9 @@ const files = {
   mediaSql: "apps/media-worker/src/runMediaWorkerSql.ts",
   mediaPrincipalTest: "apps/media-worker/src/processTranscodeJob.principal.test.ts",
   mediaWithClientTest: "apps/media-worker/src/withClient.test.ts",
+  mediaRuntimeConfig: "apps/media-worker/src/serverRuntimeConfig.ts",
+  operationalSql: "deploy/postgres/c4-operational-runtime.sql",
+  testDeploy: "deploy/host/deploy-test-saas.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
   mediaMultipartInit: "apps/webapp/src/app/api/media/multipart/init/route.ts",
@@ -228,8 +239,7 @@ function assertScheduler(loaded) {
   requireFragments(files.scheduler, loaded.scheduler, [
     "runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }",
     "tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY)",
-    "runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' }",
-    "type: 'schedule.tick'",
+    "runSchedulerOrganizationTicks",
   ]);
   requireFragmentBefore(files.scheduler, loaded.scheduler, "runWithInfraPrincipal({ source: 'scheduler:acquire-lock' }", "const { buildDeps }");
   requireFragments(files.doc, loaded.doc, [
@@ -237,6 +247,41 @@ function assertScheduler(loaded) {
     "`scheduler-tick`",
     "`scheduler:acquire-lock`",
     "`scheduler:handle-tick-event`",
+  ]);
+  requireFragments(files.integratorPoolProvider, loaded.integratorPoolProvider, [
+    "DATABASE_URL_DIAGNOSTIC",
+    "diagnosticConnectionString",
+    "deliveryWorkerConnectionString",
+    "schedulerConnectionString",
+    "getCurrentIntegratorTechnicalRuntimeRole",
+    "prepareIntegratorTechnicalPoolClient",
+  ]);
+  requireFragments(files.integratorWithClient, loaded.integratorWithClient, [
+    "app_operational_diagnostic",
+    "app_operational_delivery_worker",
+    "app_operational_scheduler",
+    "SET ROLE ${role}",
+  ]);
+  requireFragments(files.integratorWithClientTest, loaded.integratorWithClientTest, [
+    "restores the outer capability after tenant work",
+    "app_operational_delivery_worker",
+  ]);
+  requireFragments(files.operationalReadiness, loaded.operationalReadiness, [
+    "assertIntegratorDiagnosticPoolReady",
+    "assertDeliveryWorkerPoolReady",
+    "assertSchedulerPoolReady",
+    "BEGIN READ ONLY",
+    "ROLLBACK",
+  ]);
+  requireFragments(files.schedulerOrganizationRepo, loaded.schedulerOrganizationRepo, [
+    "app.list_scheduler_reminder_organization_ids()",
+    "returned an invalid organization id",
+  ]);
+  requireFragments(files.schedulerOrganizationTicks, loaded.schedulerOrganizationTicks, [
+    "scheduler:claim-due-jobs",
+    "scheduler:handle-tick-event",
+    "runWithOrganizationPrincipal(organizationId, run)",
+    "sch:${organizationId}:${deps.newEventId()}",
   ]);
 }
 
@@ -272,6 +317,7 @@ function assertMediaWorker(loaded) {
     "DB staff principal is not allowed on media-worker pool in locked mode",
     "DB integrator principal is not allowed on media-worker pool in locked mode",
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
+    "SET ROLE app_operational_media_worker",
     "const client = await pool.connect();",
   ]);
   requireFragmentBefore(
@@ -319,15 +365,56 @@ function assertMediaWorker(loaded) {
     "expect(pool.connect).not.toHaveBeenCalled();",
     "expect(connect).not.toHaveBeenCalled();",
   ]);
+  requireFragments(files.mediaRuntimeConfig, loaded.mediaRuntimeConfig, [
+    "app.read_media_worker_runtime_setting($1)",
+  ]);
   requireFragments(files.doc, loaded.doc, [
     "`media-worker-process`",
     "organization_invariant_violation",
-    "tenant-agnostic dispatcher",
-    "not a tenant principal and not a bypass",
-    "separate operational DB login/pool/grants contract",
+    "app_operational_media_worker",
+    "Operational Login / Capability Contract",
   ]);
   forbidFragments(files.doc, loaded.doc, [
     "media-worker post-claim business updates run under the claimed job organization",
+  ]);
+}
+
+function assertOperationalSqlAndDeploy(loaded) {
+  requireFragments(files.operationalSql, loaded.operationalSql, [
+    "WITH INHERIT FALSE, SET TRUE",
+    "app_operational_diagnostic",
+    "app_operational_delivery_worker",
+    "app_operational_scheduler",
+    "app_operational_media_worker",
+    "GRANT SELECT ON TABLE integrator.projection_outbox TO app_operational_diagnostic",
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app_operational_scheduler",
+    "CREATE OR REPLACE FUNCTION app.read_media_worker_runtime_setting",
+    "CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids",
+    "CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope",
+    "CREATE OR REPLACE FUNCTION app.operator_incident_alert_already_sent",
+    "CREATE OR REPLACE FUNCTION app.mark_operator_incident_alert_sent",
+    "scheduler reminder work contains rows without organization ownership",
+    "c4_operational_cross_contour_verified",
+  ]);
+  requireFragments(files.testDeploy, loaded.testDeploy, [
+    "install_c4_operational_runtime_overlay",
+    "assert_c4_operational_runtime_ready",
+    "DATABASE_URL_DIAGNOSTIC",
+    "DATABASE_URL_DELIVERY_WORKER",
+    "DATABASE_URL_SCHEDULER",
+    "MEDIA_WORKER_ENV",
+  ]);
+  requireFragments(files.outgoingDeliveryScope, loaded.outgoingDeliveryScope, [
+    "app.resolve_outgoing_delivery_scope($1::uuid)",
+    "app.operator_incident_alert_already_sent($1::uuid)",
+    "app.mark_operator_incident_alert_sent($1::uuid)",
+  ]);
+  requireFragments(files.outgoingDeliveryWorker, loaded.outgoingDeliveryWorker, [
+    "processClaimedOutgoingDeliveryRow",
+    "resolveOutgoingDeliveryScope(deps.db, row.id)",
+    "TENANT_SCOPE_QUEUE_KIND_MISMATCH",
+    "runWithOrganizationPrincipal(scope.organizationId",
+    "runWithDeliveryQueueCapability",
   ]);
 }
 
@@ -394,6 +481,7 @@ function runChecks(overrides = {}) {
 
   assertScheduler(loaded);
   assertMediaWorker(loaded);
+  assertOperationalSqlAndDeploy(loaded);
   assertWebappInternalRoutesCovered(loaded);
   assertMediaPresignMatrix(loaded);
 
@@ -429,6 +517,7 @@ if (process.argv.includes("--self-test")) {
     'source: "api/internal/reminders/web-push-only/tick-missing:POST"',
   );
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
+  const operationalSql = read(files.operationalSql).replaceAll("WITH INHERIT FALSE, SET TRUE", "WITH INHERIT TRUE, SET TRUE");
   const cases = [
     { mediaProcess },
     { mediaClaim },
@@ -436,6 +525,7 @@ if (process.argv.includes("--self-test")) {
     { mediaWithClient },
     { "apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts": webpushRoute },
     { doc },
+    { operationalSql },
   ];
   let detected = 0;
   for (const testCase of cases) {
