@@ -28,6 +28,7 @@ export function assertDeliveryWorkerPoolReady(): Promise<void> {
     'SELECT 1 FROM public.outgoing_delivery_queue WHERE false',
     "SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid)",
     "SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid)",
+    "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
   ]);
 }
 

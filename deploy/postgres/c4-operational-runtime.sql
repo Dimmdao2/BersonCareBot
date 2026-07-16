@@ -41,6 +41,82 @@ REVOKE app_operational_diagnostic FROM :"c4_diagnostic_login_role";
 REVOKE app_operational_delivery_worker FROM :"c4_delivery_worker_login_role";
 REVOKE app_operational_scheduler FROM :"c4_scheduler_login_role";
 REVOKE app_operational_media_worker FROM :"c4_media_worker_login_role";
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+), managed_oids AS (
+  SELECT role_state.oid FROM managed JOIN pg_roles role_state ON role_state.rolname = managed.role_name
+)
+SELECT 1 / (NOT EXISTS (
+  SELECT 1 FROM pg_namespace object JOIN managed_oids role_state ON role_state.oid = object.nspowner
+  UNION ALL
+  SELECT 1 FROM pg_database object JOIN managed_oids role_state ON role_state.oid = object.datdba
+    WHERE object.datname = current_database()
+  UNION ALL
+  SELECT 1 FROM pg_class object JOIN managed_oids role_state ON role_state.oid = object.relowner
+    WHERE object.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+  UNION ALL
+  SELECT 1 FROM pg_proc object JOIN managed_oids role_state ON role_state.oid = object.proowner
+))::int AS c4_down_managed_roles_own_no_objects;
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+), schemas(schema_name) AS (
+  SELECT nspname FROM pg_namespace
+  WHERE nspname NOT IN ('pg_catalog', 'information_schema')
+    AND nspname NOT LIKE 'pg_toast%' AND nspname NOT LIKE 'pg_temp%'
+)
+SELECT format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM %I', current_database(), role_name) FROM managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+\gexec
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
+SELECT format('REVOKE %s (%I) ON TABLE %I.%I FROM %I',
+  acl.privilege_type, attribute.attname, namespace.nspname, relation.relname, managed.role_name)
+FROM pg_attribute attribute
+JOIN pg_class relation ON relation.oid = attribute.attrelid
+JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee
+JOIN managed ON managed.role_name = grantee.rolname
+WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+\gexec
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
+SELECT DISTINCT format(
+  'ALTER DEFAULT PRIVILEGES FOR ROLE %I%s REVOKE ALL PRIVILEGES ON %s FROM %I',
+  owner_role.rolname,
+  CASE WHEN namespace.oid IS NULL THEN '' ELSE format(' IN SCHEMA %I', namespace.nspname) END,
+  CASE defaults.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' ELSE 'ROUTINES' END,
+  managed.role_name
+)
+FROM pg_default_acl defaults
+JOIN pg_roles owner_role ON owner_role.oid = defaults.defaclrole
+LEFT JOIN pg_namespace namespace ON namespace.oid = defaults.defaclnamespace
+CROSS JOIN managed
+CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee AND grantee.rolname = managed.role_name
+WHERE defaults.defaclobjtype IN ('r', 'S', 'f')
+\gexec
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role", :"c4_media_worker_login_role";
@@ -61,9 +137,12 @@ DROP FUNCTION IF EXISTS app.list_scheduler_reminder_organization_ids();
 DROP FUNCTION IF EXISTS app.resolve_outgoing_delivery_scope(uuid);
 DROP FUNCTION IF EXISTS app.operator_incident_alert_already_sent(uuid);
 DROP FUNCTION IF EXISTS app.mark_operator_incident_alert_sent(uuid);
+DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, integer, text);
 REVOKE SELECT ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
 REVOKE UPDATE (alert_sent_at) ON TABLE public.operator_incidents FROM app_owner;
+REVOKE INSERT ON TABLE integrator.delivery_attempt_logs FROM app_owner;
+REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq FROM app_owner;
 REVOKE USAGE ON SCHEMA integrator, public FROM app_owner;
 DROP ROLE IF EXISTS app_operational_diagnostic;
 DROP ROLE IF EXISTS app_operational_delivery_worker;
@@ -122,6 +201,88 @@ ALTER ROLE :"c4_diagnostic_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLIC
 ALTER ROLE :"c4_delivery_worker_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
 ALTER ROLE :"c4_scheduler_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
 ALTER ROLE :"c4_media_worker_login_role" NOINHERIT NOBYPASSRLS NOCREATEDB NOREPLICATION;
+
+-- Managed runtime roles must never own database objects: ownership cannot be scrubbed with REVOKE.
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+), managed_oids AS (
+  SELECT role_state.oid FROM managed JOIN pg_roles role_state ON role_state.rolname = managed.role_name
+)
+SELECT 1 / (NOT EXISTS (
+  SELECT 1 FROM pg_namespace object JOIN managed_oids role_state ON role_state.oid = object.nspowner
+  UNION ALL
+  SELECT 1 FROM pg_database object JOIN managed_oids role_state ON role_state.oid = object.datdba
+    WHERE object.datname = current_database()
+  UNION ALL
+  SELECT 1 FROM pg_class object JOIN managed_oids role_state ON role_state.oid = object.relowner
+    WHERE object.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+  UNION ALL
+  SELECT 1 FROM pg_proc object JOIN managed_oids role_state ON role_state.oid = object.proowner
+))::int AS c4_managed_roles_own_no_objects;
+
+-- Catalog-wide direct/default ACL scrub. Exact grants are rebuilt below.
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+), schemas(schema_name) AS (
+  SELECT nspname FROM pg_namespace
+  WHERE nspname NOT IN ('pg_catalog', 'information_schema')
+    AND nspname NOT LIKE 'pg_toast%' AND nspname NOT LIKE 'pg_temp%'
+)
+SELECT format('REVOKE ALL PRIVILEGES ON DATABASE %I FROM %I', current_database(), role_name) FROM managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+UNION ALL
+SELECT format('REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA %I FROM %I', schema_name, role_name) FROM schemas CROSS JOIN managed
+\gexec
+
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
+SELECT format('REVOKE %s (%I) ON TABLE %I.%I FROM %I',
+  acl.privilege_type, attribute.attname, namespace.nspname, relation.relname, managed.role_name)
+FROM pg_attribute attribute
+JOIN pg_class relation ON relation.oid = attribute.attrelid
+JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee
+JOIN managed ON managed.role_name = grantee.rolname
+WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+\gexec
+
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+)
+SELECT DISTINCT format(
+  'ALTER DEFAULT PRIVILEGES FOR ROLE %I%s REVOKE ALL PRIVILEGES ON %s FROM %I',
+  owner_role.rolname,
+  CASE WHEN namespace.oid IS NULL THEN '' ELSE format(' IN SCHEMA %I', namespace.nspname) END,
+  CASE defaults.defaclobjtype WHEN 'r' THEN 'TABLES' WHEN 'S' THEN 'SEQUENCES' ELSE 'ROUTINES' END,
+  managed.role_name
+)
+FROM pg_default_acl defaults
+JOIN pg_roles owner_role ON owner_role.oid = defaults.defaclrole
+LEFT JOIN pg_namespace namespace ON namespace.oid = defaults.defaclnamespace
+CROSS JOIN managed
+CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
+JOIN pg_roles grantee ON grantee.oid = acl.grantee AND grantee.rolname = managed.role_name
+WHERE defaults.defaclobjtype IN ('r', 'S', 'f')
+\gexec
 
 -- Each capability may have exactly one member: its expected operator-provisioned base login.
 WITH expected(capability_name, login_name) AS (VALUES
@@ -221,6 +382,8 @@ GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE integrator.user_reminder_rules, integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
 GRANT UPDATE (alert_sent_at) ON TABLE public.operator_incidents TO app_owner;
+GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
+GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 
 CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope(p_queue_id uuid)
 RETURNS TABLE(queue_kind text, organization_id uuid, resolution text)
@@ -355,6 +518,57 @@ REVOKE ALL ON FUNCTION app.mark_operator_incident_alert_sent(uuid) FROM
   app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
 GRANT EXECUTE ON FUNCTION app.mark_operator_incident_alert_sent(uuid) TO app_operational_delivery_worker;
 
+CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt(
+  p_intent_event_id text,
+  p_channel text,
+  p_status text,
+  p_attempt integer,
+  p_reason text
+)
+RETURNS void
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  IF length(COALESCE(p_intent_event_id, '')) NOT BETWEEN 1 AND 240
+    OR p_intent_event_id NOT LIKE 'op-inc:%'
+    OR p_channel NOT IN ('telegram', 'max')
+    OR p_status NOT IN ('success', 'failed')
+    OR p_attempt NOT BETWEEN 1 AND 100
+    OR length(COALESCE(p_reason, '')) > 500
+  THEN
+    RAISE EXCEPTION 'invalid operator delivery attempt audit input' USING ERRCODE = '23514';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.outgoing_delivery_queue AS queue
+    WHERE queue.kind = 'operator_alert'
+      AND queue.channel = p_channel
+      AND queue.payload_json #>> '{intent,meta,eventId}' = p_intent_event_id
+  ) THEN
+    RAISE EXCEPTION 'operator delivery attempt has no exact queue source' USING ERRCODE = '23514';
+  END IF;
+  INSERT INTO integrator.delivery_attempt_logs (
+    intent_type, intent_event_id, correlation_id, channel, status,
+    attempt, reason, payload_json, occurred_at
+  ) VALUES (
+    'message.send', p_intent_event_id, NULL, p_channel, p_status,
+    p_attempt, p_reason,
+    jsonb_build_object('kind', 'operator_alert', 'channel', p_channel),
+    clock_timestamp()
+  );
+END
+$function$;
+ALTER FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) OWNER TO app_owner;
+REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text) FROM
+  app_staff, app_patient, app_worker,
+  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
+GRANT EXECUTE ON FUNCTION app.record_operator_delivery_attempt(text, text, text, integer, text)
+  TO app_operational_delivery_worker;
+
 CREATE OR REPLACE FUNCTION app.list_scheduler_reminder_organization_ids()
 RETURNS SETOF uuid
 LANGUAGE plpgsql
@@ -363,6 +577,19 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
 BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM integrator.user_reminder_occurrences AS occurrence
+    JOIN integrator.user_reminder_rules AS rule ON rule.id = occurrence.rule_id
+    WHERE occurrence.status IN ('planned', 'queued')
+      AND occurrence.organization_id IS NOT NULL
+      AND rule.organization_id IS NOT NULL
+      AND occurrence.organization_id <> rule.organization_id
+  ) THEN
+    RAISE EXCEPTION 'scheduler reminder work contains conflicting organization ownership'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM integrator.user_reminder_rules AS rule
@@ -550,6 +777,11 @@ SELECT 1 / (
     'app.mark_operator_incident_alert_sent(uuid)',
     'EXECUTE'
   )
+  AND has_function_privilege(
+    'app_operational_delivery_worker',
+    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'EXECUTE'
+  )
   AND NOT has_function_privilege(
     'app_operational_diagnostic',
     'app.resolve_outgoing_delivery_scope(uuid)',
@@ -593,9 +825,128 @@ SELECT 1 / (
   AND NOT has_function_privilege(
     'app_operational_media_worker',
     'app.mark_operator_incident_alert_sent(uuid)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_diagnostic',
+    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_scheduler',
+    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_operational_media_worker',
+    'app.record_operator_delivery_attempt(text,text,text,integer,text)',
     'EXECUTE'
   )
 )::int AS c4_operational_cross_contour_verified;
+
+WITH managed(role_name) AS (VALUES
+  (:'c4_diagnostic_login_role'), (:'c4_delivery_worker_login_role'),
+  (:'c4_scheduler_login_role'), (:'c4_media_worker_login_role'),
+  ('app_operational_diagnostic'), ('app_operational_delivery_worker'),
+  ('app_operational_scheduler'), ('app_operational_media_worker')
+), actual(kind, identity, privilege_type, role_name, is_grantable) AS (
+  SELECT 'database', database.datname::text, acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_database database
+  CROSS JOIN LATERAL aclexplode(database.datacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+  WHERE database.datname = current_database()
+  UNION ALL
+  SELECT 'schema', namespace.nspname::text, acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_namespace namespace
+  CROSS JOIN LATERAL aclexplode(namespace.nspacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+  WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
+  UNION ALL
+  SELECT CASE WHEN relation.relkind = 'S' THEN 'sequence' ELSE 'table' END,
+    namespace.nspname || '.' || relation.relname, acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_class relation
+  JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+  CROSS JOIN LATERAL aclexplode(relation.relacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+  WHERE relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+  UNION ALL
+  SELECT 'column', namespace.nspname || '.' || relation.relname || '.' || attribute.attname,
+    acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_attribute attribute
+  JOIN pg_class relation ON relation.oid = attribute.attrelid
+  JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+  CROSS JOIN LATERAL aclexplode(attribute.attacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+  WHERE attribute.attnum > 0 AND NOT attribute.attisdropped
+  UNION ALL
+  SELECT 'function', routine.oid::regprocedure::text, acl.privilege_type, grantee.rolname, acl.is_grantable
+  FROM pg_proc routine
+  CROSS JOIN LATERAL aclexplode(routine.proacl) acl
+  JOIN pg_roles grantee ON grantee.oid = acl.grantee
+  JOIN managed ON managed.role_name = grantee.rolname
+), expected(kind, identity, privilege_type, role_name, is_grantable) AS (VALUES
+  ('schema','app','USAGE',:'c4_diagnostic_login_role',false),
+  ('schema','app','USAGE',:'c4_delivery_worker_login_role',false),
+  ('schema','app','USAGE',:'c4_scheduler_login_role',false),
+  ('schema','app','USAGE',:'c4_media_worker_login_role',false),
+  ('function','app.release_principal_context()','EXECUTE',:'c4_diagnostic_login_role',false),
+  ('function','app.release_principal_context()','EXECUTE',:'c4_delivery_worker_login_role',false),
+  ('function','app.release_principal_context()','EXECUTE',:'c4_scheduler_login_role',false),
+  ('function','app.release_principal_context()','EXECUTE',:'c4_media_worker_login_role',false),
+  ('schema','app','USAGE','app_operational_diagnostic',false),
+  ('schema','integrator','USAGE','app_operational_diagnostic',false),
+  ('table','integrator.projection_outbox','SELECT','app_operational_diagnostic',false),
+  ('function','app.release_principal_context()','EXECUTE','app_operational_diagnostic',false),
+  ('schema','app','USAGE','app_operational_delivery_worker',false),
+  ('schema','integrator','USAGE','app_operational_delivery_worker',false),
+  ('schema','public','USAGE','app_operational_delivery_worker',false),
+  ('table','integrator.projection_outbox','SELECT','app_operational_delivery_worker',false),
+  ('table','integrator.projection_outbox','UPDATE','app_operational_delivery_worker',false),
+  ('table','integrator.rubitime_create_retry_jobs','SELECT','app_operational_delivery_worker',false),
+  ('table','integrator.rubitime_create_retry_jobs','UPDATE','app_operational_delivery_worker',false),
+  ('table','public.outgoing_delivery_queue','SELECT','app_operational_delivery_worker',false),
+  ('table','public.outgoing_delivery_queue','UPDATE','app_operational_delivery_worker',false),
+  ('function','app.release_principal_context()','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.resolve_outgoing_delivery_scope(uuid)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.operator_incident_alert_already_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.mark_operator_incident_alert_sent(uuid)','EXECUTE','app_operational_delivery_worker',false),
+  ('function','app.record_operator_delivery_attempt(text,text,text,integer,text)','EXECUTE','app_operational_delivery_worker',false),
+  ('schema','app','USAGE','app_operational_scheduler',false),
+  ('schema','integrator','USAGE','app_operational_scheduler',false),
+  ('table','integrator.idempotency_keys','SELECT','app_operational_scheduler',false),
+  ('table','integrator.idempotency_keys','INSERT','app_operational_scheduler',false),
+  ('table','integrator.idempotency_keys','UPDATE','app_operational_scheduler',false),
+  ('table','integrator.idempotency_keys','DELETE','app_operational_scheduler',false),
+  ('function','app.release_principal_context()','EXECUTE','app_operational_scheduler',false),
+  ('function','app.list_scheduler_reminder_organization_ids()','EXECUTE','app_operational_scheduler',false),
+  ('schema','app','USAGE','app_operational_media_worker',false),
+  ('schema','public','USAGE','app_operational_media_worker',false),
+  ('table','public.media_transcode_jobs','SELECT','app_operational_media_worker',false),
+  ('table','public.media_transcode_jobs','UPDATE','app_operational_media_worker',false),
+  ('table','public.media_files','SELECT','app_operational_media_worker',false),
+  ('table','public.media_files','UPDATE','app_operational_media_worker',false),
+  ('function','app.release_principal_context()','EXECUTE','app_operational_media_worker',false),
+  ('function','app.read_media_worker_runtime_setting(text)','EXECUTE','app_operational_media_worker',false),
+  ('function','app.is_staff()','EXECUTE','app_operational_media_worker',false),
+  ('function','app.current_org_id()','EXECUTE','app_operational_media_worker',false),
+  ('function','app.current_patient_user_id()','EXECUTE','app_operational_media_worker',false)
+), unexpected AS (SELECT * FROM actual EXCEPT SELECT * FROM expected),
+missing AS (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+SELECT 1 / (
+  NOT EXISTS (SELECT 1 FROM unexpected)
+  AND NOT EXISTS (SELECT 1 FROM missing)
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_default_acl defaults
+    CROSS JOIN LATERAL aclexplode(defaults.defaclacl) acl
+    JOIN pg_roles grantee ON grantee.oid = acl.grantee
+    JOIN managed ON managed.role_name = grantee.rolname
+  )
+)::int AS c4_catalog_exact_acl_surface_verified;
 
 COMMIT;
 \echo 'C4 operational runtime overlay UP complete.'

@@ -268,6 +268,13 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict
   finalizer that recreates the media policies. Before restart, each base login must call release directly, then
   `SET ROLE` only its own SET-only capability; positive exact-surface probes and cross-contour negatives must pass.
+  On the first production rollout, root/DB-admin must run
+  `deploy/host/provision-c4-operational-runtime.sh` after the schema is current and the root-owned API/media env files
+  contain the four distinct operational URLs. The script must run the shared C2 preflight against
+  `webapp.prod`/`api.prod`/`media-worker.prod` before any role/password mutation, rejecting reuse of any ambient or
+  operator login. Ordinary `deploy-prod.sh` remains readiness-only: it must not create
+  roles, set passwords, or gain broader sudo. The overlay must scrub stale direct/column/default ACLs catalog-wide,
+  reject managed-role ownership, rebuild the exact allowlist, and pass its catalog assertion before restart.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
   `deploy/postgres/saas-isolation-telemetry.sql` with the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role (falling back to `DATABASE_URL`), the `api.test` `DATABASE_URL` role, and the

@@ -64,6 +64,9 @@ function runChecks(overrides = {}) {
     "fingerprint mismatch across signing processes",
     "must not be identical for C2 dual-login preflight",
     "must use a separate operator login",
+    "allRuntimeUsernames",
+    "all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles",
+    "self-test did not detect all secret/login collision regressions",
     "restart_order=webapp integrator worker scheduler media-worker",
     "rollback_order=restore previous root-managed env files",
   ]);
@@ -85,6 +88,7 @@ function runChecks(overrides = {}) {
     "`SAAS_ISOLATION_OPERATOR_DATABASE_URL`",
     "Global Admin diagnostics reads and E2 coverage only",
     "compares signing secrets by SHA-256 fingerprint prefix only",
+    "compares PostgreSQL usernames across every webapp, integrator, operator, scheduler, delivery, diagnostic, and media URL",
     "Rollback is file-version based",
     "does not read `/opt/env/*`",
   ]);

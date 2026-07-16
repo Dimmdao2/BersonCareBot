@@ -114,6 +114,7 @@ export type MaxRoutesRegistrar = (
 export type BuildDepsInput = {
   dbReadPort?: DbReadPort;
   dbWritePort?: DbWritePort;
+  dispatchAttemptWritePort?: DbWritePort;
   queuePort?: QueuePort;
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
@@ -243,7 +244,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createDefaultDispatchPort({
       adapters,
       readPort: dbReadPort,
-      writePort: dbWritePort,
+      writePort: input.dispatchAttemptWritePort ?? dbWritePort,
     });
 
   dispatchPortRef.current = dispatchPort;

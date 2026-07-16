@@ -151,6 +151,20 @@ unit-файла, `enable`/`restart`/`is-active`/`journalctl` — см. [`deploy/
 
 **Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
 
+Первичное создание/нормализация четырёх operational login и применение C4 grants выполняются отдельно от обычного
+deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
+
+```bash
+bash /opt/projects/bersoncarebot/deploy/host/provision-c4-operational-runtime.sh
+```
+
+Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
+повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
+`api.prod`/`media-worker.prod`, передаёт `\password` через stdin, применяет
+`deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres` и запускает readiness. Обычный
+`deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
+контракт перед рестартом сервисов.
+
 #### Webapp
 
 Файл юнита:

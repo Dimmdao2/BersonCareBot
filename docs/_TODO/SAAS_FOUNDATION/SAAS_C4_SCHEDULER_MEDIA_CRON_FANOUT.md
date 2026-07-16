@@ -1,7 +1,8 @@
 # C4 scheduler, media-worker and cron/internal-job fanout
 
-Status: Phase C4 repo-side operational-login package implemented and locally verified. No live DB/S3/TEST/PROD execution
-and no runtime credential flip.
+Status: Phase C4 repo-side operational-login package implemented and locally verified, including disposable PostgreSQL
+16 UP/reapply/DOWN, ACL-scrub, readiness, scheduler-conflict, and operator-audit proofs. No TEST/PROD/S3 execution and no
+runtime credential flip.
 
 ## Scope
 
@@ -44,7 +45,7 @@ job fails closed and surfaces in metrics.
 | Process contour | Env URL | SET-only capability | Exact DB surface |
 |---|---|---|---|
 | API diagnostic | `DATABASE_URL_DIAGNOSTIC` | `app_operational_diagnostic` | `integrator.projection_outbox`: `SELECT` |
-| Delivery worker | `DATABASE_URL_DELIVERY_WORKER` | `app_operational_delivery_worker` | `integrator.projection_outbox`, `integrator.rubitime_create_retry_jobs`, `public.outgoing_delivery_queue`: `SELECT/UPDATE` |
+| Delivery worker | `DATABASE_URL_DELIVERY_WORKER` | `app_operational_delivery_worker` | `integrator.projection_outbox`, `integrator.rubitime_create_retry_jobs`, `public.outgoing_delivery_queue`: `SELECT/UPDATE`; narrow operator-alert attempt audit function |
 | Scheduler | `DATABASE_URL_SCHEDULER` | `app_operational_scheduler` | `integrator.idempotency_keys`: `SELECT/INSERT/UPDATE/DELETE`; PostgreSQL advisory lock |
 | Media worker | `DATABASE_URL` in `media-worker.prod/test` | `app_operational_media_worker` | `public.media_transcode_jobs`, `public.media_files`: `SELECT/UPDATE`; two-key SECURITY DEFINER runtime accessor |
 
@@ -53,6 +54,10 @@ membership. Base logins have no target-table privileges. Capability roles are te
 staff, patient, legacy `app_worker`, or sibling capabilities. The repeatable operator overlay is
 `deploy/postgres/c4-operational-runtime.sql`; TEST deploy discovers login names from the four URLs, applies the
 overlay after strict-policy installation, and runs positive plus cross-contour readiness probes before restart.
+The overlay first scrubs current-database, direct, column, and default ACLs for all four base logins and all four capabilities across
+non-system schemas, then rebuilds and catalog-asserts the exact allowlist. Managed roles are rejected if they own the
+current database or another managed object. Reapply removes injected stale database/table/sequence/function/column/default ACLs; DOWN scrubs the same catalog before
+dropping capabilities.
 
 Scheduler uses a narrow SECURITY DEFINER discovery function that returns only organization IDs and rejects enabled/due
 reminder rows without ownership. Advisory lock, discovery, and idempotency stay in the scheduler contour; the reminder
@@ -63,6 +68,14 @@ organization from reminder occurrence/rule or broadcast audit before any externa
 or mismatched ownership is quarantined without delivery. Tenant business reads/writes then run under that organization
 principal; temporary returns to the delivery capability are limited to queue bookkeeping. Global operator alerts use
 two dedicated incident accessors and never receive raw incident-table ACL.
+Their dispatch attempt audit uses a separate narrow function that accepts only an exact queued `operator_alert`
+event/channel pair and stores fixed redacted metadata; the delivery capability has no direct INSERT on the audit table.
+Provider-success and development-suppression tests exercise the real dispatch chain without real delivery.
+
+First production rollout is a separate root/DB-admin operation:
+`deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
+root-owned webapp/API/media env files. It then creates or normalizes the four distinct LOGIN roles, sets their existing passwords without printing them, applies the overlay as PostgreSQL admin, and
+runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
 
 ## Webapp Internal Cron / Internal HTTP Jobs
 
@@ -113,6 +126,8 @@ inventory/checker coverage fails `pnpm run check:saas-c4-scheduler-media-cron-fa
 - webapp internal route files under [`../../../apps/webapp/src/app/api/internal`](../../../apps/webapp/src/app/api/internal)
 - [`scripts/check-c4-scheduler-media-cron-fanout.mjs`](scripts/check-c4-scheduler-media-cron-fanout.mjs)
 - [`../../../deploy/postgres/c4-operational-runtime.sql`](../../../deploy/postgres/c4-operational-runtime.sql)
+- [`../../../deploy/host/provision-c4-operational-runtime.sh`](../../../deploy/host/provision-c4-operational-runtime.sh)
+- [`../../../deploy/host/assert-c4-operational-runtime-ready.sh`](../../../deploy/host/assert-c4-operational-runtime-ready.sh)
 
 ## Remaining C4 Gates
 

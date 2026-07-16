@@ -13,7 +13,12 @@ const files = {
   integratorWithClient: "apps/integrator/src/infra/db/withClient.ts",
   integratorWithClientTest: "apps/integrator/src/infra/db/withClient.test.ts",
   operationalReadiness: "apps/integrator/src/infra/db/operationalPoolReadiness.ts",
+  integratorDi: "apps/integrator/src/app/di.ts",
+  workerMain: "apps/integrator/src/infra/runtime/worker/main.ts",
   outgoingDeliveryScope: "apps/integrator/src/infra/db/repos/outgoingDeliveryScope.ts",
+  operatorDeliveryAttempts: "apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.ts",
+  operatorAttemptWritePort: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.ts",
+  operatorAttemptWritePortTest: "apps/integrator/src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts",
   outgoingDeliveryWorker: "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
   schedulerOrganizationRepo: "apps/integrator/src/infra/db/repos/schedulerReminderOrganizations.ts",
   schedulerOrganizationTicks: "apps/integrator/src/infra/runtime/scheduler/organizationTicks.ts",
@@ -28,6 +33,8 @@ const files = {
   mediaWithClientTest: "apps/media-worker/src/withClient.test.ts",
   mediaRuntimeConfig: "apps/media-worker/src/serverRuntimeConfig.ts",
   operationalSql: "deploy/postgres/c4-operational-runtime.sql",
+  operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
+  operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
   testDeploy: "deploy/host/deploy-test-saas.sh",
   cronRegistry: "apps/webapp/src/modules/operator-health/cronJobRegistry.ts",
   mediaPresign: "apps/webapp/src/app/api/media/presign/route.ts",
@@ -393,9 +400,25 @@ function assertOperationalSqlAndDeploy(loaded) {
     "CREATE OR REPLACE FUNCTION app.resolve_outgoing_delivery_scope",
     "CREATE OR REPLACE FUNCTION app.operator_incident_alert_already_sent",
     "CREATE OR REPLACE FUNCTION app.mark_operator_incident_alert_sent",
+    "CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt",
+    "operator delivery attempt has no exact queue source",
+    "integrator.delivery_attempt_logs",
+    "integrator.delivery_attempt_logs_id_seq",
+    "scheduler reminder work contains conflicting organization ownership",
+    "REVOKE ALL PRIVILEGES ON DATABASE",
+    "pg_database object",
     "scheduler reminder work contains rows without organization ownership",
+    "REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA",
+    "ALTER DEFAULT PRIVILEGES FOR ROLE",
+    "c4_catalog_exact_acl_surface_verified",
     "c4_operational_cross_contour_verified",
   ]);
+  requireFragmentBefore(
+    files.operationalSql,
+    loaded.operationalSql,
+    "scheduler reminder work contains conflicting organization ownership",
+    "scheduler reminder work contains rows without organization ownership",
+  );
   requireFragments(files.testDeploy, loaded.testDeploy, [
     "install_c4_operational_runtime_overlay",
     "assert_c4_operational_runtime_ready",
@@ -415,6 +438,50 @@ function assertOperationalSqlAndDeploy(loaded) {
     "TENANT_SCOPE_QUEUE_KIND_MISMATCH",
     "runWithOrganizationPrincipal(scope.organizationId",
     "runWithDeliveryQueueCapability",
+  ]);
+  requireFragments(files.operatorDeliveryAttempts, loaded.operatorDeliveryAttempts, [
+    "mutation.type !== 'delivery.attempt.log'",
+    "app.record_operator_delivery_attempt($1, $2, $3, $4, $5)",
+  ]);
+  requireFragments(files.operatorAttemptWritePort, loaded.operatorAttemptWritePort, [
+    "principal?.kind === 'infra'",
+    "principal.source === 'worker:outgoing-delivery-tick'",
+    "recordOperatorDeliveryAttempt(input.db, mutation)",
+    "input.tenantWritePort.writeDb(mutation)",
+  ]);
+  requireFragments(files.operatorAttemptWritePortTest, loaded.operatorAttemptWritePortTest, [
+    "uses the real dispatch chain and narrow operational audit function after provider success",
+    "audits a dev-suppressed send without reaching an adapter or tenant transaction",
+    "rejects another infra source and delegates an organization principal",
+    "sensitive operator alert text",
+  ]);
+  requireFragments(files.integratorDi, loaded.integratorDi, [
+    "dispatchAttemptWritePort?: DbWritePort",
+    "writePort: input.dispatchAttemptWritePort ?? dbWritePort",
+  ]);
+  requireFragments(files.workerMain, loaded.workerMain, [
+    "createOperatorAwareDeliveryAttemptWritePort",
+    "dispatchAttemptWritePort:",
+  ]);
+  requireFragments(files.operationalReadiness, loaded.operationalReadiness, [
+    "SELECT 1 / has_function_privilege",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+  ]);
+  requireFragments(files.operationalReadinessScript, loaded.operationalReadinessScript, [
+    "SELECT 1 / has_function_privilege",
+    "app.record_operator_delivery_attempt(text,text,text,integer,text)",
+    "tail -n 1",
+    "four contours must authenticate as four distinct PostgreSQL roles",
+  ]);
+  requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
+    "run as root/DB administrator",
+    "four operational URLs must use four distinct roles",
+    "WEBAPP_ENV_FILE",
+    "saas-c2-secret-preflight.mjs",
+    '--env-file="webapp:$WEBAPP_ENV_FILE"',
+    "sudo -u postgres psql",
+    "\\password $role",
+    "assert-c4-operational-runtime-ready.sh",
   ]);
 }
 
@@ -474,7 +541,7 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.doc, loaded.doc, [
     "# C4 scheduler, media-worker and cron/internal-job fanout",
-    "No live DB/S3/TEST/PROD execution",
+    "No TEST/PROD/S3 execution",
     "This is not the final C4 exit",
     "Remaining C4 Gates",
   ]);
@@ -518,6 +585,34 @@ if (process.argv.includes("--self-test")) {
   );
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
   const operationalSql = read(files.operationalSql).replaceAll("WITH INHERIT FALSE, SET TRUE", "WITH INHERIT TRUE, SET TRUE");
+  const operationalSqlNoConflictGate = read(files.operationalSql).replace(
+    "scheduler reminder work contains conflicting organization ownership",
+    "scheduler reminder conflict gate removed",
+  );
+  const operationalSqlNoOperatorAudit = read(files.operationalSql).replace(
+    "operator delivery attempt has no exact queue source",
+    "operator delivery attempt source gate removed",
+  );
+  const operationalSqlNoCatalogScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA",
+    "REVOKE SELECT ON ALL ROUTINES IN SCHEMA",
+  );
+  const operationalSqlNoDatabaseScrub = read(files.operationalSql).replaceAll(
+    "REVOKE ALL PRIVILEGES ON DATABASE",
+    "REVOKE CONNECT ON DATABASE",
+  );
+  const operationalSqlWrongAuditSchema = read(files.operationalSql).replaceAll(
+    "integrator.delivery_attempt_logs",
+    "public.delivery_attempt_logs",
+  );
+  const operationalProvisionNoPreflight = read(files.operationalProvisionScript).replace(
+    "saas-c2-secret-preflight.mjs",
+    "saas-c2-secret-preflight-removed.mjs",
+  );
+  const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
+    "SELECT 1 / has_function_privilege",
+    "SELECT has_function_privilege",
+  );
   const cases = [
     { mediaProcess },
     { mediaClaim },
@@ -526,6 +621,13 @@ if (process.argv.includes("--self-test")) {
     { "apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts": webpushRoute },
     { doc },
     { operationalSql },
+    { operationalSql: operationalSqlNoConflictGate },
+    { operationalSql: operationalSqlNoOperatorAudit },
+    { operationalSql: operationalSqlNoCatalogScrub },
+    { operationalSql: operationalSqlNoDatabaseScrub },
+    { operationalSql: operationalSqlWrongAuditSchema },
+    { operationalProvisionScript: operationalProvisionNoPreflight },
+    { operationalReadiness: operationalReadinessNoBooleanGate },
   ];
   let detected = 0;
   for (const testCase of cases) {

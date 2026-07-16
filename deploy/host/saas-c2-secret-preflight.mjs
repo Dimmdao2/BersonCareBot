@@ -212,6 +212,15 @@ function validateLoadedFiles(loadedFiles) {
   if (new Set(runtimeUsernames).size !== runtimeUsernames.length) {
     fail("integrator and media-worker operational DATABASE_URL values must use distinct PostgreSQL login roles");
   }
+  const allRuntimeUsernames = [
+    ...WEBAPP_DATABASE_URL_KEYS.map((key) =>
+      databaseUrlUsername(webapp?.values.get(key) ?? "", `webapp ${key}`),
+    ),
+    ...runtimeUsernames,
+  ];
+  if (new Set(allRuntimeUsernames).size !== allRuntimeUsernames.length) {
+    fail("all webapp, integrator, operator, and media runtime URLs must use distinct PostgreSQL login roles");
+  }
 
   return {
     signingFingerprint: [...uniqueSigningFingerprints][0],
@@ -294,7 +303,7 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
   const output = renderReport(fixtureFiles, summary);
   assertNoSecretLeak(output, fixtureFiles);
 
-  const broken = fixtureFiles.map((file) =>
+  const brokenSecret = fixtureFiles.map((file) =>
     file.processName === "integrator"
       ? {
           ...file,
@@ -302,13 +311,38 @@ DATABASE_URL=postgres://media:secret@127.0.0.1:5432/bersoncarebot_test
         }
       : file,
   );
-  try {
-    validateLoadedFiles(broken);
-  } catch {
-    console.log("saas-c2-secret-preflight self-test: OK");
-    return;
+  const brokenCrossProcessUsername = fixtureFiles.map((file) =>
+    file.processName === "integrator"
+      ? {
+          ...file,
+          values: new Map(file.values).set(
+            "DATABASE_URL_DIAGNOSTIC",
+            "postgres://staff:different-secret@127.0.0.1:5432/bersoncarebot_test",
+          ),
+        }
+      : file,
+  );
+  const brokenOperationalUsername = fixtureFiles.map((file) =>
+    file.processName === "integrator"
+      ? {
+          ...file,
+          values: new Map(file.values).set(
+            "DATABASE_URL_SCHEDULER",
+            "postgres://delivery:different-secret@127.0.0.1:5432/bersoncarebot_test",
+          ),
+        }
+      : file,
+  );
+  let detected = 0;
+  for (const broken of [brokenSecret, brokenCrossProcessUsername, brokenOperationalUsername]) {
+    try {
+      validateLoadedFiles(broken);
+    } catch {
+      detected += 1;
+    }
   }
-  fail("self-test did not detect signing secret fingerprint mismatch");
+  if (detected !== 3) fail("self-test did not detect all secret/login collision regressions");
+  console.log("saas-c2-secret-preflight self-test: OK");
 }
 
 try {
