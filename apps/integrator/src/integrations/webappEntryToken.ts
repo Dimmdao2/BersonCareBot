@@ -4,7 +4,7 @@
  * Source-agnostic: telegram or max (bindings.telegramId / bindings.maxId).
  */
 import { createHmac } from 'node:crypto';
-import { env, integratorWebappEntrySecret } from '../config/env.js';
+import { integratorWebappEntrySecret } from '../config/env.js';
 import { telegramConfig } from './telegram/config.js';
 
 type WebappEntryTokenPayload = {
@@ -58,7 +58,7 @@ function resolveRoleAndBindings(params: WebappEntrySource): {
 }
 
 function effectiveAppBaseUrl(override?: string | null): string | null {
-  const v = normalizeBase(override ?? env.APP_BASE_URL ?? '');
+  const v = normalizeBase(override ?? '');
   return v.length > 0 ? v : null;
 }
 
@@ -68,8 +68,8 @@ function normalizeBase(s: string): string {
 
 /**
  * Source-agnostic: builds signed webapp-entry token for telegram or max.
- * Returns null if base URL (override, else env `APP_BASE_URL`) or entry secret are not set.
- * @param appBaseUrlOverride — из `getAppBaseUrl(db)` / admin `app_base_url`; иначе env.
+ * Returns null if the DB-backed base URL override or entry secret is not set.
+ * @param appBaseUrlOverride — из `getAppBaseUrl(db)` / runtime `app_base_url`.
  */
 export function buildWebappEntryTokenFromSource(params: WebappEntrySource, appBaseUrlOverride?: string | null): string | null {
   const secret = integratorWebappEntrySecret();

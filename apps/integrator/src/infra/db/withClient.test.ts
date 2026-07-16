@@ -178,7 +178,11 @@ describe('integrator DB client helpers', () => {
       mode: 'locked' as const,
       signer: { secret: 'test-db-principal-signing-secret' },
     };
-    for (const source of ['integrator-user-org-resolution', 'integrator-deployment-org-resolution']) {
+    for (const source of [
+      'integrator-user-org-resolution',
+      'integrator-deployment-org-resolution',
+      'integrator-server-runtime-config',
+    ]) {
       expect(() => runWithDbBootstrapPrincipal({ source }, () =>
         assertIntegratorLockedPrincipalClassified(locked),
       )).not.toThrow();

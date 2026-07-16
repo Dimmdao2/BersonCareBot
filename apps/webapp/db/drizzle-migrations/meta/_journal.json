@@ -1338,6 +1338,13 @@
       "when": 1792243200000,
       "tag": "0190_curated_system_health_diagnostics",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1792329600000,
+      "tag": "0191_integrator_server_runtime_config",
+      "breakpoints": true
     }
   ]
 }

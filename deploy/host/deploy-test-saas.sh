@@ -43,6 +43,7 @@ TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
+INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
@@ -530,6 +531,23 @@ install_saas_system_health_diagnostics_overlay(){
   echo "   curated System Health diagnostic API: OK"
 }
 
+install_integrator_server_runtime_config_overlay(){
+  local api_runtime_role
+  api_runtime_role="$(discover_api_runtime_role)"
+  validate_pg_identifier "api.test server-runtime config role" "$api_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v integrator_runtime_config_role="$api_runtime_role" \
+    -f "$DEPLOY_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"
+  echo "   integrator server-runtime config API: OK"
+}
+
+assert_integrator_server_runtime_config_ready(){
+  local ok
+  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND NOT has_table_privilege(current_user, 'public.app_runtime_settings', 'SELECT') AND NOT has_table_privilege(current_user, 'public.system_settings', 'SELECT') AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
+  [ "$ok" = "true" ] || { echo "FATAL: integrator DB-backed app_base_url accessor is not ready" >&2; exit 1; }
+  echo "   integrator DB-backed app_base_url: OK (closed accessor, no table SELECT)"
+}
+
 run_saas_isolation_test_scenario_proof(){
   local scenario_args
   for scenario_args in \
@@ -752,6 +770,7 @@ run_strict_post_migration_closure(){
   provision_saas_isolation_operator_login
   install_saas_isolation_telemetry_overlay
   install_saas_system_health_diagnostics_overlay
+  install_integrator_server_runtime_config_overlay
   log "strict closure: reversible SaaS isolation TEST scenario proof"
   run_saas_isolation_test_scenario_proof
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
@@ -777,6 +796,7 @@ run_strict_post_migration_closure(){
   run_owner_ready_locked_db_matrix
   log "strict closure: post-matrix exact strict + FORCE reassertion"
   apply_test_strict_rls_finalizer
+  assert_integrator_server_runtime_config_ready
 
   log "strict closure: restart locked TEST units"
   mark_e1_runtime_coverage_start
@@ -802,7 +822,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -854,6 +874,7 @@ esac
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
+[ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }

@@ -26,7 +26,7 @@
 - `DATABASE_URL='...'`
 - `BOOKING_URL=https://...`
 - `INTEGRATOR_SHARED_SECRET=...`
-- `APP_BASE_URL=https://bersoncare.ru`
+- глобальная DB-настройка `app_base_url` должна быть заполнена; integrator читает её через закрытый server-runtime accessor и не использует env fallback
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
 - `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true|false`

@@ -25,9 +25,10 @@ async function sleep(ms: number): Promise<void> {
 
 async function startWorker(): Promise<void> {
   await assertWorkerIsolationTelemetryWriterReady();
+  const projectionDb = createDbPort();
+  await getAppBaseUrl(projectionDb);
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
-  const projectionDb = createDbPort();
   const webappEvents = createWebappEventsPort({
     getAppBaseUrl: () => getAppBaseUrl(projectionDb),
   });

@@ -87,7 +87,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
   }): Promise<{ ok: boolean; status: number; error?: string }> {
     const baseUrl = await deps.getAppBaseUrl();
     if (!baseUrl || !secret) {
-      return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+      return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
     }
     const url = `${baseUrl.replace(/\/$/, '')}${input.path}`;
     const timestamp = String(Math.floor(Date.now() / 1000));
@@ -126,7 +126,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/events`;
       const fallbackBody = buildIntegratorEventsHttpBody(event);
@@ -211,7 +211,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const result = await fetchSignedGet<{ trackings?: WebappSymptomTracking[] }>({
         baseUrl,
@@ -234,7 +234,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const result = await fetchSignedGet<{ complexes?: WebappLfkComplex[] }>({
         baseUrl,
@@ -283,7 +283,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const body = JSON.stringify({ stageItemId: input.stageItemId });
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/program-note/reply-begin`;
@@ -328,7 +328,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }): Promise<{ ok: boolean; status: number; error?: string }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-reminders/notify-channels`;
       const timestamp = String(Math.floor(Date.now() / 1000));
@@ -397,7 +397,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }): Promise<{ ok: boolean; status: number; error?: string; skipped?: string; webPushDelivered?: number }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, status: 0, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/patient-notifications/web-push`;
       const timestamp = String(Math.floor(Date.now() / 1000));
@@ -458,7 +458,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const body = JSON.stringify({
         linkToken: params.linkToken,
@@ -527,7 +527,7 @@ export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<stri
     }> {
       const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+        return { ok: false, error: 'DB-backed app_base_url or webhook secret not set' };
       }
       const body = JSON.stringify({
         setupToken: params.setupToken,

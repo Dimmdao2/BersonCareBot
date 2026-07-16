@@ -1,17 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../kernel/contracts/index.js';
 
-const envMock = vi.hoisted(() => ({
-  APP_BASE_URL: 'https://env.example' as string | undefined,
-  LOG_LEVEL: 'silent',
-}));
-
-vi.mock('./env.js', () => ({
-  env: envMock,
-}));
-
 vi.mock('../infra/observability/logger.js', () => ({
-  logger: { warn: vi.fn() },
+  logger: { error: vi.fn() },
 }));
 
 import {
@@ -33,15 +25,17 @@ function mockDb(query: DbPort['query']): DbPort {
 describe('getAppBaseUrl', () => {
   afterEach(() => {
     invalidateAppBaseUrlCache();
-    envMock.APP_BASE_URL = 'https://env.example';
     vi.useRealTimers();
   });
 
-  it('returns normalized URL from public.system_settings and caches for TTL', async () => {
+  it('returns normalized URL from the generic runtime accessor and caches for TTL', async () => {
     vi.useFakeTimers({ now: 0 });
-    envMock.APP_BASE_URL = 'https://env.example/';
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: 'https://db.example/app/' } }],
+    const query = vi.fn().mockImplementation(async () => {
+      expect(getCurrentDbPrincipal()).toEqual({
+        kind: 'bootstrap',
+        source: 'integrator-server-runtime-config',
+      });
+      return { rows: [{ value_json: { value: 'https://db.example/app/' } }] };
     });
     const db = mockDb(query);
 
@@ -50,39 +44,38 @@ describe('getAppBaseUrl', () => {
     expect(a).toBe('https://db.example/app');
     expect(b).toBe('https://db.example/app');
     expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]![0]).toContain('public.system_settings');
-    expect(query.mock.calls[0]![1]).toEqual(['app_base_url', 'admin']);
+    expect(query.mock.calls[0]![0]).toContain('app.read_global_server_runtime_setting');
+    expect(query.mock.calls[0]![1]).toEqual(['app_base_url']);
   });
 
-  it('falls back to env when setting is missing or invalid', async () => {
-    envMock.APP_BASE_URL = 'https://env-fallback.example';
+  it('fails closed when the DB setting is missing or invalid', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const db = mockDb(query);
-    expect(await getAppBaseUrl(db)).toBe('https://env-fallback.example');
+    await expect(getAppBaseUrl(db)).rejects.toThrow('app_base_url_runtime_setting_missing');
 
     invalidateAppBaseUrlCache();
     query.mockResolvedValueOnce({
       rows: [{ value_json: { value: 'not-a-url' } }],
     });
-    expect(await getAppBaseUrl(db)).toBe('https://env-fallback.example');
+    await expect(getAppBaseUrl(db)).rejects.toThrow('app_base_url_runtime_setting_invalid');
   });
 
-  it('getAppBaseUrlSync returns cached value within TTL', async () => {
+  it('getAppBaseUrlSync requires startup initialization and keeps the last DB value', async () => {
     vi.useFakeTimers({ now: 0 });
-    envMock.APP_BASE_URL = 'https://env.example';
     const query = vi.fn().mockResolvedValue({
       rows: [{ value_json: { value: 'https://db.example' } }],
     });
     const db = mockDb(query);
 
-    expect(getAppBaseUrlSync()).toBe('https://env.example');
+    expect(() => getAppBaseUrlSync()).toThrow('app_base_url_runtime_setting_not_initialized');
     await getAppBaseUrl(db);
+    expect(getAppBaseUrlSync()).toBe('https://db.example');
+    vi.advanceTimersByTime(120_000);
     expect(getAppBaseUrlSync()).toBe('https://db.example');
   });
 
   it('re-queries after cache invalidation', async () => {
     vi.useFakeTimers({ now: 0 });
-    envMock.APP_BASE_URL = 'https://env.example';
     const query = vi.fn().mockResolvedValue({
       rows: [{ value_json: { value: 'https://first.example' } }],
     });

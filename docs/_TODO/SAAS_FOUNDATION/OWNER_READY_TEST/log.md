@@ -340,3 +340,16 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   integrator Vitest `165 passed / 1 skipped; 1225 passed / 2 skipped`, E1/C3/C4 static checkers plus self-tests, and
   `git diff --check`. No live deploy/full CI. Independent child audit could not start because its selected model was
   at capacity; the root orchestrator will assign the required independent review after this checkpoint.
+
+### Integrator DB-backed server runtime bootstrap (`/root/integrator_runtime_bootstrap`)
+
+- Закрыт startup-gap: API, worker и scheduler до построения зависимостей загружают `app_base_url` через узкий
+  SECURITY DEFINER accessor из `app_runtime_settings`; прямого чтения `system_settings` и env fallback больше нет.
+- Миграция `0191` переносит существующее глобальное значение в server-runtime root и создаёт generic accessor.
+  Deploy overlay выдаёт API runtime-роли только EXECUTE, оставляя обе таблицы закрытыми, а финальный readiness gate
+  проверяет доступ и корректный HTTP(S) результат без вывода самого значения.
+- Проверки PASS: focused Vitest `4 files / 118 tests`, integrator typecheck, integrator lint, Drizzle journal sync,
+  новый static checker и его self-test, `bash -n deploy/host/deploy-test-saas.sh`, `git diff --check`.
+- Общий `check:saas-db-regression` останавливается раньше нового checker на параллельно изменяемом
+  `playbackResolutionEvents.ts` (`check-db-chokepoint`, `3x layer SQL signal`); этот чужой scope здесь не менялся.
+  Live TEST/PROD deploy не выполнялся.

@@ -6,12 +6,13 @@
 
 1. **Подключения к инфраструктуре** — `DATABASE_URL` и аналоги.
 2. **Секретов процесса веб-приложения** — `SESSION_COOKIE_SECRET`, секреты обмена с интегратором (`INTEGRATOR_WEBAPP_ENTRY_SECRET`, `INTEGRATOR_WEBHOOK_SECRET`), при необходимости `INTEGRATOR_SHARED_SECRET`.
-3. **Базовых параметров процесса** — `NODE_ENV`, `HOST`, `PORT`, `APP_BASE_URL`.
+3. **Базовых параметров процесса** — `NODE_ENV`, `HOST`, `PORT`. `APP_BASE_URL` остаётся webapp-only process input; integrator его не читает.
 4. **Опционально в клиентском бандле webapp:** `NEXT_PUBLIC_APP_BASE_URL` — тот же канонический базовый URL приложения, что и **`APP_BASE_URL`** у процесса Next.js (публичная строка, **не секрет**). Нужен только если в **`body_md`** страниц контента встречаются **абсолютные** ссылки на медиабиблиотеку вида `https://<ваш-хост>/api/media/{uuid}` и при открытии страницы origin браузера может не совпасть с этим хостом; иначе достаточно относительных путей `/api/media/…`. Логика: [`MarkdownEmbeddedLink.tsx`](../../apps/webapp/src/shared/ui/markdown/MarkdownEmbeddedLink.tsx), [`parseApiMediaIdFromMarkdownHref`](../../apps/webapp/src/shared/lib/parseApiMediaIdFromPlayableUrl.ts).
 5. **Bootstrap интегратора** — env integrator (`apps/integrator`) по своему `config`/`env.ts`; webhook/SMS к интегратору на стороне webapp: `INTEGRATOR_API_URL` + shared secret для вызовов отправки SMS/email OTP.
 
 **Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория. Таблица поддерживает глобальные строки (`organization_id IS NULL`) и org-specific overrides (`organization_id` задан); текущие admin Settings формы пишут глобальные строки, если конкретный flow явно не передаёт organization context.
 
+- Публичный origin integrator: глобальный `app_base_url`. Во время S5 compatibility он авторится в `system_settings`, зеркалируется generic-триггером в `app_runtime_settings` с `audience='server'` и читается API/worker/scheduler через один закрытый generic accessor. Integrator не имеет SELECT на обе таблицы для этого чтения и не использует `APP_BASE_URL` env fallback; отсутствие/ошибка/невалидный URL блокирует старт процесса с диагностикой.
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
 - Диплинк MAX для привязки в браузере (`POST /api/auth/channel-link/start`): **`max_login_bot_nickname`** (ник или `https://max.ru/<nick>`). Fallback порядка чтения: env **`MAX_LOGIN_BOT_NICKNAME`** → ник из **`CHANNEL_LIST`** в `apps/webapp/src/modules/channel-preferences/constants.ts` (поле `openUrl` у канала MAX), см. `getMaxLoginBotNickname()`.
@@ -63,7 +64,7 @@
 
 ## Интегратор (отдельное приложение)
 
-- Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме случая **одной PostgreSQL** (см. ниже).
+- Integrator читает bootstrap-инфраструктуру и process secrets из **своего** env (`apps/integrator`). Операционные значения, включая `app_base_url`, остаются DB-backed; integrator читает безопасные server-runtime строки из `public.app_runtime_settings` через закрытый generic accessor.
 - **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из канонической таблицы `public.system_settings` через общий public-accessor helper, с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Legacy `/api/integrator/settings/sync` по-прежнему сбрасывает cache для `google_*`, но `integrator.system_settings` больше не является runtime source of truth.
 
 ### Одна БД, схемы `public` и `integrator` (актуально)

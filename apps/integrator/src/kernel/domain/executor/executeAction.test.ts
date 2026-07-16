@@ -9,6 +9,10 @@ vi.mock('../../../config/appTimezone.js', async (importOriginal) => {
   };
 });
 
+vi.mock('../../../config/appBaseUrl.js', () => ({
+  getAppBaseUrlSync: vi.fn(() => 'https://app.test'),
+}));
+
 const enqueueReminderOutboxMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock('../../../infra/db/repos/outgoingDeliveryQueue.js', () => ({
   enqueueOutgoingDeliveryIfAbsent: enqueueReminderOutboxMock,

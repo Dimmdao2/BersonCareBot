@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { logger } from '../../observability/logger.js';
-import { closeDb } from '../../db/client.js';
+import { closeDb, createDbPort } from '../../db/client.js';
+import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 import {
@@ -42,6 +43,7 @@ async function startScheduler(): Promise<void> {
   }
 
   const { buildDeps } = await import('../../../app/di.js');
+  await getAppBaseUrl(createDbPort());
   const deps = buildDeps();
 
   logger.info('Scheduler lock acquired, starting scheduler loop');
