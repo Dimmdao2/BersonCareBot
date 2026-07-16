@@ -7,6 +7,7 @@ const paths = {
   deploy: "deploy/host/deploy-test-saas.sh",
   route: "apps/webapp/src/app/api/booking/public/slots/route.ts",
   repo: "apps/webapp/src/infra/repos/pgBookingScheduling.ts",
+  d34: "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql",
 };
 
 function requireFragments(label, text, fragments) {
@@ -58,6 +59,24 @@ function runChecks(overrides = {}) {
     "async resolvePublicBookingOrganization({ branchId, serviceId, branchServiceId })",
     "SELECT app.resolve_public_booking_organization(",
   ]);
+  requireFragments(paths.d34, files.d34, [
+    "to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)",
+    "FROM :\"d3_4_bootstrap_base_role\" CASCADE;",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)\n  FROM PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :\"d3_4_bootstrap_base_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :\"d3_4_bootstrap_base_role\";",
+    "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "AND privilege.grantee = bootstrap_role.oid",
+    "AND NOT privilege.is_grantable",
+    "AND 3 = (",
+    "procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
+  ]);
+  forbidFragments(paths.d34, files.d34, [
+    'GRANT SELECT ON TABLE public.system_settings TO :"d3_4_bootstrap_base_role"',
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC",
+  ]);
   requireFragments(paths.route, files.route, [
     "const publicContext = await resolvePublicInPersonBookingOrganization(deps, parsed.data)",
     "{ organizationId: publicContext.organizationId, source: \"api/booking/public/slots:GET\" }",
@@ -74,17 +93,39 @@ function runChecks(overrides = {}) {
 }
 
 if (process.argv.includes("--self-test")) {
-  const sql = readFileSync(paths.sql, "utf8").replace(
-    "REVOKE ALL ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM PUBLIC",
-    "",
-  );
-  let rejected = false;
-  try {
-    runChecks({ sql });
-  } catch {
-    rejected = true;
+  const cases = [
+    {
+      sql: readFileSync(paths.sql, "utf8").replace(
+        "REVOKE ALL ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM PUBLIC",
+        "",
+      ),
+    },
+    {
+      d34: readFileSync(paths.d34, "utf8").replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing direct bootstrap grant",
+      ),
+    },
+    {
+      d34: readFileSync(paths.d34, "utf8").replace("AND 3 = (", "AND 2 = ("),
+    },
+    {
+      route: readFileSync(paths.route, "utf8").replace(
+        "const publicContext = await resolvePublicInPersonBookingOrganization(deps, parsed.data)",
+        "const publicContext = await resolvePublicInPersonBookingOrganizationMissing(deps, parsed.data)",
+      ),
+    },
+  ];
+  const missed = [];
+  for (const [index, testCase] of cases.entries()) {
+    try {
+      runChecks(testCase);
+      missed.push(index);
+    } catch {
+      // expected
+    }
   }
-  if (!rejected) throw new Error("self-test failed: missing PUBLIC revoke was accepted");
+  if (missed.length > 0) throw new Error(`self-test missed mutations: ${missed.join(", ")}`);
   console.log("public booking bootstrap resolver checker self-test: OK");
 } else {
   runChecks();

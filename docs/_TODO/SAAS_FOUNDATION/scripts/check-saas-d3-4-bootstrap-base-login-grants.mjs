@@ -37,6 +37,7 @@ const requiredTables = [
 ];
 
 const requiredFunctions = [
+  "app.resolve_public_booking_organization(uuid, uuid, uuid)",
   "app.release_principal_context()",
   "app.current_org_id()",
   "app.current_patient_user_id()",
@@ -171,6 +172,7 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_grants_down",
     "d3_4_bootstrap_base_role_exists",
     "d3_4_webapp_runtime_accessors_exist",
+    "to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL",
     "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
     "granted_role.rolname <> 'app_patient'",
     "REVOKE ADMIN OPTION FOR app_patient FROM :\"d3_4_bootstrap_base_role\";",
@@ -191,6 +193,10 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_base_role_exact_topology_verified",
     "'app.read_public_runtime_setting(text,text)'::regprocedure",
     "'app.read_webapp_server_runtime_setting(text,text)'::regprocedure",
+    "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "AND 3 = (",
+    "procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
     "NOT has_table_privilege(",
     "'public.app_runtime_settings', 'SELECT'",
     "'public.system_settings', 'SELECT'",
@@ -247,6 +253,12 @@ function runChecks(overrides = {}) {
     files.grantSql,
     loaded.grantSql,
     "direct_membership_count = 1",
+    2,
+  );
+  requireOccurrenceCount(
+    files.grantSql,
+    loaded.grantSql,
+    "AND NOT privilege.is_grantable",
     2,
   );
   requireOccurrenceCount(files.grantSql, loaded.grantSql, "membership.admin_option = false", 2);
@@ -458,6 +470,11 @@ function runChecks(overrides = {}) {
     "WITH GRANT OPTION",
     "TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
+    "app.resolve_public_booking_organization(uuid,uuid,uuid)",
+    "53000000-0000-4000-8000-0000000056a1",
+    "53000000-0000-4000-8000-000000000001",
+    "arbitraryCapabilityRole",
     "app.staff_user_has_password_credentials(uuid)",
     "app.release_principal_context()",
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
@@ -636,8 +653,10 @@ function runChecks(overrides = {}) {
     "`SET ROLE app_patient` lifecycle",
     "reject any equality with the nonstaff login",
     "before `psql -f`",
-    "including stale\n  grant options",
+    "revoke stale base-login privileges and grant options",
     "`is_grantable=false`",
+    "is the third direct bootstrap accessor",
+    "must not add table grants",
   ]);
   assertPackageScript(loaded.packageJson);
 }
@@ -729,6 +748,18 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         "AND NOT privilege.is_grantable",
         "AND privilege.is_grantable",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "AND 3 = (",
+        "AND 2 = (",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing direct bootstrap resolver grant",
       ),
     },
     {
@@ -897,6 +928,12 @@ if (process.argv.includes("--self-test")) {
       hardProtocol: read(files.hardProtocol).replace(
         "reject any equality with the nonstaff login",
         "accept equality with the nonstaff login",
+      ),
+    },
+    {
+      hardProtocol: read(files.hardProtocol).replace(
+        "is the third direct bootstrap accessor",
+        "is not a bootstrap accessor",
       ),
     },
   ];

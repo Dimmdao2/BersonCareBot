@@ -271,9 +271,12 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   Final catalog proof must reject every transitive role other than `app_patient`, protected-table owner membership,
   effective reads of both `public.system_settings` and `public.app_runtime_settings`, and PUBLIC execution of the E1
   accessors, while preserving direct base-login EXECUTE on the public/server accessors and the explicit
-  `SET ROLE app_patient` lifecycle. Both accessor ACLs must first revoke all base-login privileges (including stale
-  grant options), then restore plain EXECUTE; the final ACL contains no PUBLIC/classified residue and both direct
-  base-login EXECUTE rows have `is_grantable=false`. It is not final D3.4 PASS until the owner-authorized locked TEST
+  `SET ROLE app_patient` lifecycle. The narrow SECURITY DEFINER
+  `app.resolve_public_booking_organization(uuid,uuid,uuid)` is the third direct bootstrap accessor: it resolves one
+  tenant before tenant-owned reads, retains the intentional `app_patient` EXECUTE, and must not add table grants.
+  All three accessor ACLs must first revoke stale base-login privileges and grant options, then restore plain
+  EXECUTE; the final three direct base-login rows have `is_grantable=false`, PUBLIC is absent, and only the booking
+  resolver may additionally retain `app_patient`. It is not final D3.4 PASS until the owner-authorized locked TEST
   product smoke reruns.
 - after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
   logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,

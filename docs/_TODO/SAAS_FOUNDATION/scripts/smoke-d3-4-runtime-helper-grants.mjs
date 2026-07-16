@@ -80,6 +80,7 @@ function psqlProveGrantDenied(database, roleIdent) {
   psql(database, `
     SET SESSION AUTHORIZATION ${roleIdent};
     GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;
+    GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;
     RESET SESSION AUTHORIZATION;
     SELECT 1 / (NOT EXISTS (
       SELECT 1
@@ -87,7 +88,10 @@ function psqlProveGrantDenied(database, roleIdent) {
       CROSS JOIN LATERAL aclexplode(
         COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
       ) privilege
-      WHERE procedure.oid = 'app.read_public_runtime_setting(text,text)'::regprocedure
+      WHERE procedure.oid IN (
+        'app.read_public_runtime_setting(text,text)'::regprocedure,
+        'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+      )
         AND privilege.grantee = 0
         AND privilege.privilege_type = 'EXECUTE'
     ))::int;
@@ -140,6 +144,7 @@ const functionSignatures = [...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([
   .filter((signature) => ![
     "app.read_public_runtime_setting(text, text)",
     "app.read_webapp_server_runtime_setting(text, text)",
+    "app.resolve_public_booking_organization(uuid, uuid, uuid)",
   ].includes(signature))
   .filter((signature, index, all) => all.indexOf(signature) === index);
 const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
@@ -185,6 +190,18 @@ const setupSql = [
     RETURNS TABLE (value_json jsonb)
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
     AS $$ SELECT '{"value":120}'::jsonb $$;`,
+  `CREATE FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
+    RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+    AS $$
+      SELECT CASE
+        WHEN $1 IS NULL
+         AND $2 IS NULL
+         AND $3 = '53000000-0000-4000-8000-0000000056a1'::uuid
+        THEN '53000000-0000-4000-8000-000000000001'::uuid
+        ELSE NULL::uuid
+      END
+    $$;`,
   "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;",
   "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
@@ -194,8 +211,11 @@ const setupSql = [
   `GRANT USAGE ON SCHEMA app TO ${bootstrapIdent}, ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
+  `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `SET SESSION AUTHORIZATION ${bootstrapIdent};`,
   "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
+  "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
   "RESET SESSION AUTHORIZATION;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${patientIdent};`,
@@ -337,13 +357,25 @@ SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.app_
 SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.system_settings', 'SELECT'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_public_runtime_setting(text,text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_webapp_server_runtime_setting(text,text)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE'))::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_proc procedure
+  CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+  WHERE procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    AND privilege.grantee = 0
+    AND privilege.privilege_type = 'EXECUTE'
+))::int;
 SELECT 1 / (NOT EXISTS (
   SELECT 1
   FROM pg_proc procedure
   CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
   WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
-    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
   )
     AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = ${quoteLiteral(bootstrapRole)})
     AND privilege.is_grantable
@@ -351,6 +383,13 @@ SELECT 1 / (NOT EXISTS (
 SET SESSION AUTHORIZATION ${bootstrapIdent};
 SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin')) = '{"value":true}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin')) = '{"value":120}'::jsonb)::int;
+SELECT 1 / (
+  app.resolve_public_booking_organization(
+    NULL::uuid,
+    NULL::uuid,
+    '53000000-0000-4000-8000-0000000056a1'::uuid
+  ) = '53000000-0000-4000-8000-000000000001'::uuid
+)::int;
 SET ROLE ${patientIdent};
 SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings) = 2)::int;
 SELECT 1 / (NOT EXISTS (
