@@ -3,6 +3,7 @@ import {
   DB_PRINCIPAL_CONTEXT_MODE_ENV,
   DB_PRINCIPAL_SIGNING_SECRET_ENV,
   enterWithDbBootstrapPrincipal,
+  enterWithDbPatientPrincipal,
   getCurrentDbPrincipal,
   type DbPrincipalContextMode,
 } from "@bersoncare/db-principal";
@@ -158,6 +159,34 @@ describe("requirePatientApiBusinessAccess / requirePatientApiSessionWithPhone â€
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "patient",
       platformUserId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    });
+    expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the organization resolved by the central patient session stamp", async () => {
+    const session = clientSession();
+    enterWithDbPatientPrincipal({
+      organizationId: PATIENT_ORG_ID,
+      platformUserId: session.user.userId,
+      source: "getCurrentSession",
+    });
+    vi.mocked(getCurrentSession).mockResolvedValueOnce(session);
+    resolveMock.mockResolvedValueOnce({
+      canonicalUserId: session.user.userId,
+      dbRole: "client",
+      tier: "patient",
+      hasPhoneInDb: true,
+      phoneTrustedForPatient: true,
+      resolution: "resolved_canon",
+    });
+
+    const gate = await requirePatientApiBusinessAccess();
+
+    expect(gate.ok).toBe(true);
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      organizationId: PATIENT_ORG_ID,
+      platformUserId: session.user.userId,
     });
     expect(resolvePatientOrganizationMock).not.toHaveBeenCalled();
   });

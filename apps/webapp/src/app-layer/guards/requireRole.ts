@@ -4,7 +4,7 @@ import {
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
-  getCurrentDbPrincipalOrganizationId,
+  getCurrentDbPrincipal,
 } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -135,8 +135,14 @@ async function stampPatientPrincipalForApi(
   }
 
   try {
+    const currentPrincipal = getCurrentDbPrincipal();
+    const organizationId =
+      currentPrincipal?.kind === "patient" &&
+      currentPrincipal.platformUserId === session.user.userId
+        ? currentPrincipal.organizationId
+        : undefined;
     enterWithDbPatientPrincipal({
-      organizationId: getCurrentDbPrincipalOrganizationId(),
+      organizationId,
       platformUserId: session.user.userId,
       source: "requirePatientApiBusinessAccess",
     });
