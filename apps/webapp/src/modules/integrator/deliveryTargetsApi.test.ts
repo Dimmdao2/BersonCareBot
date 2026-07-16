@@ -60,6 +60,8 @@ describe("deliveryTargetsApi", () => {
     getProfileEmailFields: vi.fn().mockResolvedValue({ email: null, emailVerifiedAt: null }),
     webPushSubscriptions: { hasAnyForUserId: vi.fn().mockResolvedValue(false) },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+    hasActivePatientEnrollment: vi.fn().mockResolvedValue(true),
+    findPlatformUserByIntegratorId: vi.fn().mockResolvedValue({ platformUserId: "user-1" }),
   };
 
   it("returns null when no phone, telegramId, or maxId", async () => {
@@ -72,6 +74,41 @@ describe("deliveryTargetsApi", () => {
     expect(result).not.toBeNull();
     expect(result!.channelBindings).toHaveProperty("telegramId", "tg123");
     expect(result!.resolution).toBeUndefined();
+  });
+
+  it("denies targets when the resolved user is outside the signed organization", async () => {
+    const deps: DeliveryTargetsApiDeps = {
+      ...baseDeps,
+      hasActivePatientEnrollment: vi.fn().mockResolvedValue(false),
+      webPushSubscriptions: { hasAnyForUserId: vi.fn().mockResolvedValue(false) },
+    };
+    await expect(
+      getDeliveryTargetsForIntegrator(
+        {
+          telegramId: "tg123",
+          organizationId: "11111111-1111-4111-8111-111111111111",
+        },
+        deps,
+      ),
+    ).rejects.toThrow("outside signed organization");
+    expect(deps.webPushSubscriptions.hasAnyForUserId).not.toHaveBeenCalled();
+  });
+
+  it("denies when signed integratorUserId resolves to a different platform user", async () => {
+    const deps: DeliveryTargetsApiDeps = {
+      ...baseDeps,
+      findPlatformUserByIntegratorId: vi.fn().mockResolvedValue({ platformUserId: "other-user" }),
+    };
+    await expect(
+      getDeliveryTargetsForIntegrator(
+        {
+          telegramId: "tg123",
+          integratorUserId: "99",
+          organizationId: "11111111-1111-4111-8111-111111111111",
+        },
+        deps,
+      ),
+    ).rejects.toThrow("outside signed organization");
   });
 
   it("with topic returns resolution and filters telegram when topic prefs exclude it", async () => {

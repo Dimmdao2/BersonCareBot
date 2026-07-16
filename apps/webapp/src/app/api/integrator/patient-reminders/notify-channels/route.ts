@@ -8,6 +8,7 @@ import {
   runPatientReminderIntegratorNotify,
 } from "@/modules/patient-reminders/integratorNotifyChannels";
 import { createLoadWarmupPushContext } from "@/modules/web-push/createLoadWarmupPushContext";
+import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
 
 /**
  * POST /api/integrator/patient-reminders/notify-channels — M2M fan-out напоминания в Web Push и email (webapp).
@@ -30,15 +31,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
 
-  const requestHash = createHash("sha256").update(rawBody).digest("hex");
-  const cached = await getCachedResponse(idempotencyKey, requestHash);
-  if (cached.hit && "mismatch" in cached && cached.mismatch) {
-    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
-  }
-  if (cached.hit && "status" in cached) {
-    return NextResponse.json(cached.body, { status: cached.status });
-  }
-
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(rawBody) as unknown;
@@ -50,13 +42,38 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid body" }, { status: 400 });
   }
+  if (!enterVerifiedIntegratorOrganizationPrincipal(parsed.data.organizationId, "integrator-patient-reminder-notify")) {
+    return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
+  }
 
   const deps = buildAppDeps();
+  if (!deps.patientOrganization) {
+    return NextResponse.json({ ok: false, error: "patient organization service unavailable" }, { status: 503 });
+  }
+  const platformUser = await deps.userProjection.findByIntegratorId(parsed.data.integratorUserId);
+  if (
+    platformUser &&
+    !(await deps.patientOrganization.hasActiveEnrollment(platformUser.platformUserId, parsed.data.organizationId))
+  ) {
+    return NextResponse.json({ ok: false, error: "integrator user is outside organization" }, { status: 403 });
+  }
+
+  const requestHash = createHash("sha256").update(rawBody).digest("hex");
+  const cached = await getCachedResponse(idempotencyKey, requestHash);
+  if (cached.hit && "mismatch" in cached && cached.mismatch) {
+    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+  }
+  if (cached.hit && "status" in cached) {
+    return NextResponse.json(cached.body, { status: cached.status });
+  }
+
   const loadWarmupPushContext = createLoadWarmupPushContext(deps);
   try {
     const result = await runPatientReminderIntegratorNotify(parsed.data, {
       findPlatformUserByIntegratorId: async (integratorUserId) => {
-        const row = await deps.userProjection.findByIntegratorId(integratorUserId);
+        const row = integratorUserId === parsed.data.integratorUserId
+          ? platformUser
+          : await deps.userProjection.findByIntegratorId(integratorUserId);
         return row ? { platformUserId: row.platformUserId } : null;
       },
       channelPreferences: deps.channelPreferencesPort,

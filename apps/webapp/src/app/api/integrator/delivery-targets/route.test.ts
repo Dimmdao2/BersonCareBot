@@ -5,6 +5,11 @@ vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
   assertIntegratorGetRequest: assertMock,
 }));
 
+const getTargetsMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({ deliveryTargetsApi: { getTargets: getTargetsMock } }),
+}));
+
 import { GET } from "./route";
 import {
   integratorGetSignedHeadersOk,
@@ -13,7 +18,29 @@ import {
 
 describe("GET /api/integrator/delivery-targets", () => {
   beforeEach(() => {
+    getTargetsMock.mockReset().mockResolvedValue({ channelBindings: { telegramId: "tg1" } });
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
+  it("returns 403 when target identity is outside the signed organization", async () => {
+    const { DeliveryTargetsTenantDeniedError } = await import("@/modules/integrator/deliveryTargetsApi");
+    getTargetsMock.mockRejectedValue(new DeliveryTargetsTenantDeniedError());
+    const res = await GET(
+      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1&integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 instead of a legacy fallback when target identity is not found", async () => {
+    getTargetsMock.mockResolvedValue(null);
+    const res = await GET(
+      new Request("http://localhost/api/integrator/delivery-targets?telegramId=missing&integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(404);
   });
 
   it("returns 400 when missing webhook headers", async () => {
@@ -36,7 +63,7 @@ describe("GET /api/integrator/delivery-targets", () => {
 
   it("returns 401 when signature invalid", async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1", {
+      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1&organizationId=11111111-1111-4111-8111-111111111111", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
       })
     );
@@ -46,7 +73,7 @@ describe("GET /api/integrator/delivery-targets", () => {
 
   it("returns 200 with channelBindings when signature valid and params present", async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1", {
+      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1&organizationId=11111111-1111-4111-8111-111111111111", {
         headers: integratorGetSignedHeadersOk,
       })
     );
@@ -55,5 +82,15 @@ describe("GET /api/integrator/delivery-targets", () => {
     expect(json).toHaveProperty("ok", true);
     expect(json).toHaveProperty("channelBindings");
     expect(typeof json.channelBindings).toBe("object");
+  });
+
+  it("fails closed when the signed request has no organizationId", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "valid organizationId required" });
   });
 });

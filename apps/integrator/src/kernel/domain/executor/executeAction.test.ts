@@ -3104,6 +3104,7 @@ describe('executeAction', () => {
     };
     const dueOcc = {
       id: 'occ-1',
+      organizationId: '11111111-1111-4111-8111-111111111111',
       ruleId: 'rule-1',
       userId: 'user-1',
       category: 'exercise' as const,
@@ -3147,6 +3148,7 @@ describe('executeAction', () => {
         maxId: 'max-ext-1',
         topic: 'warmup_reminders',
         integratorUserId: 'user-1',
+        organizationId: '11111111-1111-4111-8111-111111111111',
       });
       const sends = result.intents?.filter((i) => i.type === 'message.send') ?? [];
       expect(sends).toHaveLength(0);
@@ -3191,9 +3193,14 @@ describe('executeAction', () => {
       expect(notifyPatientReminderChannels).toHaveBeenCalledTimes(1);
       const arg = notifyPatientReminderChannels.mock.calls[0]?.[0];
       expect(arg?.idempotencyKey).toBe('prn:occ-1:channels');
-      const parsed = JSON.parse(arg?.body ?? '{}') as { topicCode?: string; integratorUserId?: string };
+      const parsed = JSON.parse(arg?.body ?? '{}') as {
+        topicCode?: string;
+        integratorUserId?: string;
+        organizationId?: string;
+      };
       expect(parsed.topicCode).toBe('warmup_reminders');
       expect(parsed.integratorUserId).toBe('user-1');
+      expect(parsed.organizationId).toBe('11111111-1111-4111-8111-111111111111');
     });
 
     it('does not drop all channels when topic bindings resolve to an empty object', async () => {

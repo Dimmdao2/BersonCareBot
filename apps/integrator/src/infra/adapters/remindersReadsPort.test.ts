@@ -56,11 +56,12 @@ describe('remindersReadsPort', () => {
       }),
     });
     const port = createRemindersReadsPort({ db: mockDb });
-    const list = await port.listRulesForUser('42');
+    const list = await port.listRulesForUser('42', '11111111-1111-4111-8111-111111111111');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
     expect(url).toContain('/api/integrator/reminders/rules');
     expect(url).toContain('integratorUserId=42');
+    expect(url).toContain('organizationId=11111111-1111-4111-8111-111111111111');
     expect(list).toHaveLength(1);
     expect(list[0]!.id).toBe('rule-1');
     expect(list[0]!.userId).toBe('42');
@@ -74,11 +75,24 @@ describe('remindersReadsPort', () => {
     expect(list[0]!.reminderIntent).toBe('generic');
   });
 
-  it('listRulesForUser returns [] on network error', async () => {
+  it('listRulesForUser fails closed on network error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
     const port = createRemindersReadsPort({ db: mockDb });
-    const list = await port.listRulesForUser('42');
-    expect(list).toEqual([]);
+    await expect(
+      port.listRulesForUser('42', '11111111-1111-4111-8111-111111111111'),
+    ).rejects.toThrow('unavailable');
+  });
+
+  it('listRulesForUser preserves tenant denial instead of returning default rules', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ ok: false, error: 'outside organization' }),
+    });
+    const port = createRemindersReadsPort({ db: mockDb });
+    await expect(
+      port.listRulesForUser('42', '11111111-1111-4111-8111-111111111111'),
+    ).rejects.toThrow('tenant denied');
   });
 
   it('getRuleForUserAndCategory calls correct URL and maps response', async () => {

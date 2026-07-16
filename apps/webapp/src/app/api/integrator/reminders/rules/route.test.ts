@@ -6,8 +6,15 @@ vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
 }));
 
 const mockListRules = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const mockHasActiveEnrollment = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    userProjection: {
+      findByIntegratorId: vi.fn().mockResolvedValue({
+        platformUserId: "22222222-2222-4222-8222-222222222222",
+      }),
+    },
+    patientOrganization: { hasActiveEnrollment: mockHasActiveEnrollment },
     reminderProjection: {
       listRulesByIntegratorUserId: mockListRules,
       getRuleByIntegratorUserIdAndCategory: vi.fn(),
@@ -28,7 +35,20 @@ import {
 
 describe("GET /api/integrator/reminders/rules", () => {
   beforeEach(() => {
+    mockListRules.mockClear();
+    mockHasActiveEnrollment.mockReset().mockResolvedValue(true);
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
+  it("rejects a user that is outside the signed organization", async () => {
+    mockHasActiveEnrollment.mockResolvedValue(false);
+    const res = await GET(
+      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(mockListRules).not.toHaveBeenCalled();
   });
 
   it("returns 400 when missing webhook headers", async () => {
@@ -40,7 +60,7 @@ describe("GET /api/integrator/reminders/rules", () => {
 
   it("returns 401 when signature invalid", async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
+      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
       })
     );
@@ -56,6 +76,17 @@ describe("GET /api/integrator/reminders/rules", () => {
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toContain("integratorUserId");
+  });
+
+  it("fails closed when the signed request has no organizationId", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "valid organizationId required" });
+    expect(mockListRules).not.toHaveBeenCalled();
   });
 
   it("returns 200 with rules on happy path", async () => {
@@ -81,7 +112,7 @@ describe("GET /api/integrator/reminders/rules", () => {
       },
     ]);
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
+      new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42&organizationId=11111111-1111-4111-8111-111111111111", {
         headers: integratorGetSignedHeadersOk,
       })
     );

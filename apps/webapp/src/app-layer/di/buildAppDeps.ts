@@ -1265,6 +1265,9 @@ function _buildAppDeps() {
     getProfileEmailFields: userProjectionPort.getProfileEmailFields,
     webPushSubscriptions: webPushSubscriptionsPort,
     systemSettings: systemSettingsService,
+    hasActivePatientEnrollment: (platformUserId: string, organizationId: string) =>
+      patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ?? Promise.resolve(false),
+    findPlatformUserByIntegratorId: userProjectionPort.findByIntegratorId,
   };
   return {
     auth: {
@@ -1513,6 +1516,7 @@ function _buildAppDeps() {
     contentCatalog,
     deliveryTargetsApi: {
       getTargets: (params: {
+        organizationId: string;
         phone?: string;
         telegramId?: string;
         maxId?: string;

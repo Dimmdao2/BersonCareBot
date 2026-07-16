@@ -142,14 +142,21 @@ export function createRemindersReadsPort(deps?: {
   };
 
   return {
-    async listRulesForUser(integratorUserId: string) {
-      const search = new URLSearchParams({ integratorUserId });
+    async listRulesForUser(integratorUserId: string, organizationId: string) {
+      const search = new URLSearchParams({ integratorUserId, organizationId });
       const result = await fetchRemindersGet<{ rules?: WebappRuleRow[] }>(
         db,
         '/api/integrator/reminders/rules',
         search.toString(),
       );
-      if (!result.ok || !result.data?.rules) return [];
+      if (!result.ok) {
+        throw new Error(
+          result.status === 403
+            ? "reminders.rules.forUser tenant denied"
+            : `reminders.rules.forUser unavailable (${result.status})`,
+        );
+      }
+      if (!result.data?.rules) throw new Error("reminders.rules.forUser invalid response");
       const rows = Array.isArray(result.data.rules) ? result.data.rules : [];
       const needsTz = rows.some((r) => typeof r.timezone !== 'string');
       const fallbackTz = needsTz

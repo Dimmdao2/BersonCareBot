@@ -7,6 +7,10 @@ export type PatientOrganizationResolution =
 
 export function createPatientOrganizationService(deps: { port: PatientOrganizationPort }) {
   return {
+    async hasActiveEnrollment(platformUserId: string, organizationId: string): Promise<boolean> {
+      const rows = await deps.port.listActiveEnrollmentsByPlatformUser(platformUserId);
+      return rows.some((row) => row.organizationId === organizationId);
+    },
     async resolveActiveOrganizationForPatient(platformUserId: string): Promise<PatientOrganizationResolution> {
       const rows = await deps.port.listActiveEnrollmentsByPlatformUser(platformUserId);
       if (rows.length === 0) {

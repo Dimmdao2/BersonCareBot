@@ -501,6 +501,7 @@ export type DeliveryTargetsPort = {
     maxId?: string;
     topic?: string;
     integratorUserId?: string;
+    organizationId?: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
 };
 
@@ -620,7 +621,7 @@ export type RemindersWebappWritesPort = {
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
 export type RemindersReadsPort = {
-  listRulesForUser(integratorUserId: string): Promise<ReminderRuleListItem[]>;
+  listRulesForUser(integratorUserId: string, organizationId: string): Promise<ReminderRuleListItem[]>;
   getRuleForUserAndCategory(integratorUserId: string, category: string): Promise<ReminderRuleDetail | null>;
   listHistoryForUser(integratorUserId: string, limit?: number): Promise<ReminderOccurrenceHistoryItem[]>;
 };

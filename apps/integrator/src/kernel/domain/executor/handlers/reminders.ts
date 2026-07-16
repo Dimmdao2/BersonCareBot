@@ -459,18 +459,19 @@ export async function handleReminders(
     }
 
     const rulesCache = new Map<string, Map<string, ReminderRuleRecord>>();
-    async function rulesForUser(userId: string): Promise<Map<string, ReminderRuleRecord>> {
-      const hit = rulesCache.get(userId);
+    async function rulesForUser(userId: string, organizationId: string): Promise<Map<string, ReminderRuleRecord>> {
+      const cacheKey = `${organizationId}:${userId}`;
+      const hit = rulesCache.get(cacheKey);
       if (hit) return hit;
       const rules = await deps.readPort!.readDb<ReminderRuleRecord[]>({
         type: 'reminders.rules.forUser',
-        params: { userId },
+        params: { userId, organizationId },
       });
       const map = new Map<string, ReminderRuleRecord>();
       for (const r of Array.isArray(rules) ? rules : []) {
         map.set(r.id, r);
       }
-      rulesCache.set(userId, map);
+      rulesCache.set(cacheKey, map);
       return map;
     }
 
@@ -481,9 +482,12 @@ export async function handleReminders(
       } satisfies DbWriteMutation;
       writes.push(markQueuedWrite);
       const occurrenceOrganizationId = reminderOrganizationId(occ);
+      if (!occurrenceOrganizationId) {
+        throw new Error(`reminders.dispatchDue occurrence ${occ.id} is missing organizationId`);
+      }
       addWriteToOrganizationBucket(writeBuckets, occurrenceOrganizationId, markQueuedWrite);
 
-      const ruleMap = await rulesForUser(occ.userId);
+      const ruleMap = await rulesForUser(occ.userId, occurrenceOrganizationId);
       const rule = ruleMap.get(occ.ruleId);
       const categoryKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const categoryTemplateId = categoryKey.replace(/^telegram:/, '').replace(/^max:/, '');
@@ -556,11 +560,18 @@ export async function handleReminders(
           maxId?: string;
           topic: string;
           integratorUserId: string;
-        } = { topic: topicCode, integratorUserId: occ.userId };
+          organizationId: string;
+        } = { topic: topicCode, integratorUserId: occ.userId, organizationId: occurrenceOrganizationId };
         if (tg && tg.chatId > 0) bindingParams.telegramId = String(tg.chatId);
         if (maxCh?.externalId) bindingParams.maxId = maxCh.externalId;
         deliveryTargetsFetched = await deps.deliveryTargetsPort.getTargetsByChannelBinding(bindingParams);
         const fetched = deliveryTargetsFetched;
+        if (!fetched) {
+          throw new Error(`reminders.dispatchDue delivery target unavailable for occurrence ${occ.id}`);
+        }
+        if (fetched?.tenantDenied) {
+          throw new Error(`reminders.dispatchDue delivery target tenant denied for occurrence ${occ.id}`);
+        }
         const bindings = fetched?.channelBindings;
         if (fetched?.resolution) {
           logger.info(
@@ -663,6 +674,7 @@ export async function handleReminders(
           notifyTitle = 'Напоминание';
         }
         const notifyPayload = {
+          organizationId: occurrenceOrganizationId,
           integratorUserId: occ.userId,
           occurrenceId: occ.id,
           topicCode,

@@ -214,11 +214,14 @@ describe('createDbReadPort', () => {
 
       const result = await port.readDb({
         type: 'reminders.rules.forUser',
-        params: { userId: '42' },
+        params: { userId: '42', organizationId: '11111111-1111-4111-8111-111111111111' },
       });
 
       expect(result).toEqual(adapterRules);
-      expect(remindersReadsPort.listRulesForUser).toHaveBeenCalledWith('42');
+      expect(remindersReadsPort.listRulesForUser).toHaveBeenCalledWith(
+        '42',
+        '11111111-1111-4111-8111-111111111111',
+      );
       expect(db.query).not.toHaveBeenCalled();
     });
 
@@ -229,7 +232,7 @@ describe('createDbReadPort', () => {
       await expect(
         port.readDb({
           type: 'reminders.rules.forUser',
-          params: { userId: '42' },
+          params: { userId: '42', organizationId: '11111111-1111-4111-8111-111111111111' },
         })
       ).rejects.toThrow('reminders product reads require remindersReadsPort');
     });

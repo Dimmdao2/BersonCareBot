@@ -5,6 +5,7 @@ import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topi
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import type { WebPushSubscriptionPayloadV1 } from "@/modules/web-push/ports";
 import {
+  integratorPatientReminderNotifyBodySchema,
   runPatientReminderIntegratorNotify,
   type IntegratorPatientReminderNotifyBody,
   type PatientReminderIntegratorNotifyDeps,
@@ -32,6 +33,7 @@ vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
 }));
 
 const baseBody: IntegratorPatientReminderNotifyBody = {
+  organizationId: "11111111-1111-4111-8111-111111111111",
   integratorUserId: "42",
   occurrenceId: "occ-1",
   topicCode: "appointment_reminders",
@@ -39,6 +41,13 @@ const baseBody: IntegratorPatientReminderNotifyBody = {
   bodyText: "Текст",
   openUrl: "https://example.com/open",
 };
+
+describe("integratorPatientReminderNotifyBodySchema tenant context", () => {
+  it("rejects a signed reminder payload without organizationId", () => {
+    const { organizationId: _organizationId, ...withoutOrganization } = baseBody;
+    expect(integratorPatientReminderNotifyBodySchema.safeParse(withoutOrganization).success).toBe(false);
+  });
+});
 
 const allChannelPrefs: ChannelPreference[] = [
   { channelCode: "telegram", isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },

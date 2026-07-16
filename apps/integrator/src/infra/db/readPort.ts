@@ -178,11 +178,14 @@ export function createDbReadPort(input: {
           return (await getAdminStats(db)) as T;
         case 'reminders.rules.forUser': {
           const userId = asNonEmptyString(query.params.userId);
-          if (!userId) return [] as T;
+          const organizationId = asNonEmptyString(query.params.organizationId);
+          if (!userId || !organizationId) {
+            throw new Error('reminders.rules.forUser requires userId and organizationId');
+          }
           if (!remindersReadsPort) {
             throw new Error('reminders product reads require remindersReadsPort');
           }
-          return (await remindersReadsPort.listRulesForUser(userId)) as T;
+          return (await remindersReadsPort.listRulesForUser(userId, organizationId)) as T;
         }
         case 'reminders.rule.forUserAndCategory': {
           const userId = asNonEmptyString(query.params.userId);

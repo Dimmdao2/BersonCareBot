@@ -22,6 +22,7 @@ import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 export type DeliveryTargetsApiParams = {
+  organizationId?: string;
   phone?: string;
   telegramId?: string;
   maxId?: string;
@@ -35,6 +36,13 @@ export type DeliveryTargetsApiResult = {
   resolution?: ResolvedNotificationChannels;
 };
 
+export class DeliveryTargetsTenantDeniedError extends Error {
+  constructor() {
+    super("delivery target is outside signed organization");
+    this.name = "DeliveryTargetsTenantDeniedError";
+  }
+}
+
 export type DeliveryTargetsApiDeps = {
   userByPhonePort: UserByPhonePort;
   identityResolutionPort: IdentityResolutionPort;
@@ -46,6 +54,8 @@ export type DeliveryTargetsApiDeps = {
   ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
   webPushSubscriptions: Pick<WebPushSubscriptionsPort, "hasAnyForUserId">;
   systemSettings: Pick<SystemSettingsService, "getSetting">;
+  hasActivePatientEnrollment: (platformUserId: string, organizationId: string) => Promise<boolean>;
+  findPlatformUserByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
 };
 
 async function resolveUser(
@@ -111,6 +121,16 @@ export async function getDeliveryTargetsForIntegrator(
 ): Promise<DeliveryTargetsApiResult | null> {
   const user = await resolveUser(params, deps);
   if (!user) return null;
+  if (
+    params.organizationId &&
+    !(await deps.hasActivePatientEnrollment(user.userId, params.organizationId))
+  ) throw new DeliveryTargetsTenantDeniedError();
+  if (params.integratorUserId) {
+    const projectedUser = await deps.findPlatformUserByIntegratorId(params.integratorUserId);
+    if (!projectedUser || projectedUser.platformUserId !== user.userId) {
+      throw new DeliveryTargetsTenantDeniedError();
+    }
+  }
 
   const topicTrimmed = params.topic?.trim();
   if (topicTrimmed && topicTrimmed.length > 0) {

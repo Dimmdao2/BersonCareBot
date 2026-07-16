@@ -41,6 +41,7 @@ async function fetchDeliveryTargets(
       channelBindings?: Record<string, string>;
       resolution?: DeliveryTargetsFetchResult['resolution'];
     };
+    if (res.status === 403) return { channelBindings: {}, tenantDenied: true };
     if (!res.ok || data.ok !== true) return null;
     const bindings = data.channelBindings;
     const channelBindings = typeof bindings === 'object' && bindings !== null ? bindings : {};
@@ -73,12 +74,14 @@ export function createDeliveryTargetsPort(deps: { getAppBaseUrl: () => Promise<s
       maxId?: string;
       topic?: string;
       integratorUserId?: string;
+      organizationId?: string;
     }): Promise<DeliveryTargetsFetchResult | null> {
       const topic = params.topic?.trim();
       const q = (base: Record<string, string>) => ({
         ...base,
         ...(topic ? { topic } : {}),
         ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
+        ...(params.organizationId ? { organizationId: params.organizationId } : {}),
       });
       if (params.telegramId?.trim()) {
         return fetchDeliveryTargets(getAppBaseUrl, q({ telegramId: params.telegramId.trim() }));

@@ -30,6 +30,7 @@ export type ReminderTransactionalEmailCooldownPort = {
 };
 
 export const integratorPatientReminderNotifyBodySchema = z.object({
+  organizationId: z.string().uuid(),
   integratorUserId: z.string().regex(/^\d+$/),
   occurrenceId: z.string().min(1).max(240),
   topicCode: z.string().min(1).max(120),

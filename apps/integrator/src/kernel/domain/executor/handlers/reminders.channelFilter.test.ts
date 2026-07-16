@@ -107,6 +107,7 @@ const BASE_RULE: ReminderRuleRecord = {
 
 const BASE_OCC: DueReminderOccurrence = {
   id: 'occ-1',
+  organizationId: '11111111-1111-4111-8111-111111111111',
   ruleId: 'rule-1',
   occurrenceKey: 'occ-key-1',
   plannedAt: '2026-06-19T10:00:00.000Z',
@@ -192,6 +193,14 @@ describe('B-5: reminder channel filter — selectedChannels applied unconditiona
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('fails closed without enqueue when webapp denies the signed tenant target', async () => {
+    const deliveryTargetsPort = makeDeliveryTargetsPort({ channelBindings: {}, tenantDenied: true });
+    await expect(
+      handleReminders(makeAction(), makeCtx(), makeDeps({ deliveryTargetsPort })),
+    ).rejects.toThrow('delivery target tenant denied');
+    expect(enqueueOutgoingMock).not.toHaveBeenCalled();
   });
 
   it('sends to telegram when selectedChannels includes telegram (baseline)', async () => {
