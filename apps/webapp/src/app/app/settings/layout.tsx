@@ -4,11 +4,9 @@
  */
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import "../../styles/doctor.css";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
-import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
@@ -22,12 +20,13 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
-  const session = await getCurrentSession();
-  if (!session) redirect("/app");
-  if (session.user.role === "client") redirect(buildOwnHubUrlWithAccessDeniedToast("client"));
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
 
   const deps = buildAppDeps();
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
+    organizationId: workspace.organizationId,
+  });
   const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
 
   return (

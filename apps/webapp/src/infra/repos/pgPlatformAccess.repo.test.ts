@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/client", () => ({
   getPool: () => ({ query: queryMock }),
@@ -13,12 +14,17 @@ vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
   resolveCanonicalUserId: (...args: unknown[]) => resolveCanonicalUserIdMock(...args),
 }));
 
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipal: () => getCurrentDbPrincipalMock(),
+}));
+
 import { pgPlatformAccessPort } from "./pgPlatformAccess";
 
 describe("pgPlatformAccessPort", () => {
   beforeEach(() => {
     queryMock.mockReset();
     resolveCanonicalUserIdMock.mockReset();
+    getCurrentDbPrincipalMock.mockReset();
   });
 
   it("delegates canonical user resolution to canonical platform repo", async () => {
@@ -29,7 +35,11 @@ describe("pgPlatformAccessPort", () => {
     expect(resolveCanonicalUserIdMock).toHaveBeenCalledWith(expect.anything(), "user-1");
   });
 
-  it("loads platform access canon row", async () => {
+  it("uses only patient-safe credential helpers for patient and bootstrap principals", async () => {
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "patient",
+      platformUserId: "00000000-0000-4000-8000-000000000001",
+    });
     queryMock.mockResolvedValueOnce({
       rows: [{ role: "client", phone_normalized: "+79990000000" }],
     });
@@ -41,13 +51,29 @@ describe("pgPlatformAccessPort", () => {
 
     const [sql, params] = queryMock.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("FROM platform_users pu");
-    expect(sql).toContain("CASE WHEN app.is_staff()");
-    expect(sql).toContain("app.staff_user_has_password_credentials(pu.id)");
     expect(sql).toContain("app.current_patient_has_password_credentials()");
+    expect(sql).not.toContain("app.staff_user_has_password_credentials");
     expect(sql).not.toContain("FROM user_password_credentials");
-    expect(sql).toContain("app.staff_user_has_web_oauth_binding(pu.id)");
     expect(sql).toContain("app.current_patient_has_web_oauth_binding()");
+    expect(sql).not.toContain("app.staff_user_has_web_oauth_binding");
     expect(sql).not.toContain("FROM user_oauth_bindings");
     expect(params).toEqual(["00000000-0000-4000-8000-000000000001"]);
+  });
+
+  it("uses staff-only credential helpers for a resolved staff principal", async () => {
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "staff",
+      organizationId: "00000000-0000-4000-8000-000000000002",
+      platformUserId: "00000000-0000-4000-8000-000000000001",
+    });
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    await pgPlatformAccessPort.loadCanonRow("00000000-0000-4000-8000-000000000001");
+
+    const [sql] = queryMock.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("app.staff_user_has_password_credentials(pu.id)");
+    expect(sql).toContain("app.staff_user_has_web_oauth_binding(pu.id)");
+    expect(sql).not.toContain("app.current_patient_has_password_credentials");
+    expect(sql).not.toContain("app.current_patient_has_web_oauth_binding");
   });
 });

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -45,12 +45,13 @@ export default async function SettingsPage({
     }
   }
 
-  const session = await getCurrentSession();
-  if (!session) redirect("/app");
-  if (session.user.role === "client") redirect("/app/patient/profile");
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
 
   const deps = buildAppDeps();
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor");
+  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
+    organizationId: workspace.organizationId,
+  });
 
   const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   const smsFallbackEnabled = getValueJson(
