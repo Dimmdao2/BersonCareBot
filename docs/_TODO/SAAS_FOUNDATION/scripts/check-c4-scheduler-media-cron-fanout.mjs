@@ -46,6 +46,8 @@ const files = {
   webPushOperationalProof: "deploy/postgres/smoke-c4-web-push-reminder-runtime.sh",
   operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
   operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
+  operationalPasswordSetter: "deploy/host/set-postgres-role-password.mjs",
+  operationalPasswordSmoke: "deploy/host/smoke-set-postgres-role-password.sh",
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
   webPushReminderCron: "deploy/host/web-push-only-reminder-cron.sh",
   testDeploy: "deploy/host/deploy-test-saas.sh",
@@ -503,6 +505,8 @@ function assertOperationalSqlAndDeploy(loaded) {
     "C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql",
     "C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh",
     "C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh",
+    "C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs",
+    "C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh",
     'PROJECT_ROOT="$DEPLOY_REPO"',
     'WEBAPP_ENV_FILE="$WEBAPP_ENV"',
     'bash "$DEPLOY_REPO/$C4_OPERATIONAL_PROVISIONER" --bootstrap-test-env',
@@ -526,6 +530,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "--c4-operational-chain-self-test",
     "run_c4_operational_chain_self_test",
     'bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test',
+    'bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"',
     'node "$C4_STATIC_CHECKER" --self-test',
     "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)",
   ]);
@@ -643,6 +648,7 @@ function assertOperationalSqlAndDeploy(loaded) {
   ]);
   requireOccurrenceCountAtLeast(files.operationalReadinessScript, loaded.operationalReadinessScript, "expect_denied", 15);
   requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
+    "#!/usr/bin/env bash\nset +x\nset -euo pipefail",
     "run as root/DB administrator",
     "five operational URLs must use five distinct roles",
     "DATABASE_URL_WEB_PUSH_REMINDER",
@@ -657,13 +663,69 @@ function assertOperationalSqlAndDeploy(loaded) {
     '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
     "sudo -u postgres psql",
     '-f - < "$OVERLAY"',
-    "\\password $role",
+    'PASSWORD_SETTER="$PROJECT_ROOT/deploy/host/set-postgres-role-password.mjs"',
+    'printf \'%s\' "$password"',
+    'sudo -u postgres node "$PASSWORD_SETTER" "$database" "$role"',
     "assert-c4-operational-runtime-ready.sh",
     "--bootstrap-test-env",
     "--self-test",
     "bootstrap-c4-test-env.mjs",
     '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
     "provision-c4-operational-runtime self-test: OK",
+  ]);
+  forbidFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
+    "\\password",
+    "-v password=",
+    "--password=",
+  ]);
+  requireFragments(files.operationalPasswordSetter, loaded.operationalPasswordSetter, [
+    'createRequire(new URL("../../apps/webapp/package.json", import.meta.url))',
+    'const { Client } = require("pg")',
+    "const identifier = /^[a-z_][a-z0-9_]*$/",
+    "chunk.includes(0x0d)",
+    "const newline = chunk.indexOf(0x0a)",
+    "newline !== chunk.length - 1",
+    "passwordBuffer.length > 4096",
+    "passwordBuffer.fill(0)",
+    "SET log_statement = 'none'",
+    "SET log_min_messages = 'panic'",
+    "SET log_min_error_statement = 'panic'",
+    "SET log_min_duration_statement = -1",
+    "SET log_parameter_max_length = 0",
+    "SET log_parameter_max_length_on_error = 0",
+    "current_setting('pgaudit.log', true)",
+    "set_config('pgaudit.log', 'none', false)",
+    "CREATE OR REPLACE FUNCTION pg_temp.bcb_set_role_password",
+    "EXECUTE format('ALTER ROLE %I PASSWORD %L', p_role, p_password)",
+    'client.query("SELECT pg_temp.bcb_set_role_password($1, $2)", [role, password])',
+    "PostgreSQL role password updated: OK",
+    "Deliberately suppress all driver/server diagnostics",
+  ]);
+  forbidFragments(files.operationalPasswordSetter, loaded.operationalPasswordSetter, [
+    "\\password",
+    "-v password=",
+    "--password=",
+    "mktemp",
+    "set -x",
+    "error.message",
+    "console.error(error",
+  ]);
+  requireFragments(files.operationalPasswordSmoke, loaded.operationalPasswordSmoke, [
+    "local all all scram-sha-256",
+    "canonical sudo/stdin helper invocation failed",
+    'script -E never -qefc "$pty_command"',
+    "PTY stdin helper invocation prompted, hung, or failed",
+    "post-bind server error exposed a non-generic client diagnostic",
+    "old credential remained valid after rotation",
+    "secret leaked to captured output",
+    "raw secret leaked to live process arguments",
+    "encoded secret leaked to live process arguments",
+    "process-argument harness failed",
+    "raw or encoded secret persisted in PostgreSQL logs",
+    "unsafe identifier was accepted",
+    "provisioner did not disable inherited xtrace",
+    "temporary secret artifacts remain",
+    "C4 noninteractive PostgreSQL role password smoke: OK (sudo stdin + PTY + rotation + forced-log no-leak)",
   ]);
   requireFragments(files.operationalTestEnvBootstrap, loaded.operationalTestEnvBootstrap, [
     'media: "/opt/env/bersoncarebot/media-worker.test"',
@@ -860,6 +922,26 @@ if (process.argv.includes("--self-test")) {
     "bootstrap-c4-test-env.mjs",
     "bootstrap-c4-test-env-removed.mjs",
   );
+  const operationalProvisionNoPasswordSetter = read(files.operationalProvisionScript).replace(
+    'sudo -u postgres node "$PASSWORD_SETTER" "$database" "$role"',
+    'sudo -u postgres psql -d "$database"',
+  );
+  const operationalProvisionXtraceEnabled = read(files.operationalProvisionScript).replace(
+    "#!/usr/bin/env bash\nset +x\nset -euo pipefail",
+    "#!/usr/bin/env bash\nset -euo pipefail",
+  );
+  const operationalPasswordSetterSqlLeak = read(files.operationalPasswordSetter).replace(
+    'client.query("SELECT pg_temp.bcb_set_role_password($1, $2)", [role, password])',
+    'client.query(`SELECT pg_temp.bcb_set_role_password(\'${role}\', \'${password}\')`)',
+  );
+  const operationalPasswordSetterOutputLeak = read(files.operationalPasswordSetter).replace(
+    "} catch {",
+    "} catch (error) { console.error(error);",
+  );
+  const operationalPasswordSmokeNoPty = read(files.operationalPasswordSmoke).replace(
+    "PTY stdin helper invocation prompted, hung, or failed",
+    "PTY proof removed",
+  );
   const operationalProvisionOpenProjectRoot = read(files.operationalProvisionScript).replace(
     '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
     '[ -n "$PROJECT_ROOT" ]',
@@ -983,6 +1065,11 @@ if (process.argv.includes("--self-test")) {
     { operationalSql: operationalSqlWrongAuditSchema },
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalProvisionScript: operationalProvisionNoBootstrap },
+    { operationalProvisionScript: operationalProvisionNoPasswordSetter },
+    { operationalProvisionScript: operationalProvisionXtraceEnabled },
+    { operationalPasswordSetter: operationalPasswordSetterSqlLeak },
+    { operationalPasswordSetter: operationalPasswordSetterOutputLeak },
+    { operationalPasswordSmoke: operationalPasswordSmokeNoPty },
     { operationalProvisionScript: operationalProvisionOpenProjectRoot },
     { operationalProvisionScript: operationalProvisionOpenTestDatabase },
     { operationalReadiness: schedulerReadinessWithoutScalarAlias },

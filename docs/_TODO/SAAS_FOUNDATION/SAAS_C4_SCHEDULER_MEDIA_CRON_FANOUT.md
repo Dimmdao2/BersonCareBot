@@ -85,6 +85,13 @@ First production rollout is a separate root/DB-admin operation:
 `deploy/host/provision-c4-operational-runtime.sh`. Before mutation it runs the shared all-URL C2 preflight across the
 root-owned webapp/API/media env files. It then creates or normalizes the five distinct LOGIN roles, sets their existing passwords without printing them, applies both overlays as PostgreSQL admin, and
 runs readiness. Ordinary deploy remains readiness-only and receives no role-creation sudo authority.
+Password rotation is fully noninteractive through `deploy/host/set-postgres-role-password.mjs`: the decoded URL
+password is stdin-only and reaches a fixed temporary server-side function only as an extended-protocol bind parameter;
+the function quotes the identifier and value with `format(%I, %L)`. Before that bind, the privileged session disables
+statement, duration, parameter, error-context and optional pgAudit logging. The secret never enters argv, SQL text, stdout/stderr,
+xtrace, committed files, or persistent temporary files. `smoke-set-postgres-role-password.sh` proves non-TTY and PTY
+execution, multiple roles, idempotent rotation, old-password rejection, adversarial quoting, no captured/process/log
+leak under forced server logging (including a deliberate post-bind server error), timeout/no prompt, and cleanup.
 Fresh TEST may invoke the same root script with `--bootstrap-test-env` and the three canonical `.test` env paths.
 That explicit mode creates missing, distinct operational credentials and `media-worker.test` before the shared
 collision preflight, replaces each protected env file atomically as `root:deploy 0640` (not one transaction across

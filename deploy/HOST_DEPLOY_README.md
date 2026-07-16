@@ -182,7 +182,13 @@ PROD checkout, dev-home или другого/stale каталога блоки�
 
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из
-`api.prod`/`media-worker.prod`, передаёт `\password` через stdin, применяет
+`api.prod`/`webapp.prod`/`media-worker.prod` и передаёт только через stdin в
+`deploy/host/set-postgres-role-password.mjs`. Примитив не использует интерактивный `\password`: пароль отсутствует
+в argv/SQL text/temp/output; он передаётся bind-параметром в фиксированную временную server-side функцию, где
+идентификатор и значение цитируются через `format(%I, %L)`. До secret-bearing bind сессия отключает statement,
+duration, parameter, error-context и optional pgAudit logging, а driver/server diagnostics закрыты общей ошибкой без секрета.
+PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
+`deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
 `deploy/postgres/c4-operational-runtime.sql` и `c4-web-push-reminder-runtime.sql` локально через системного `postgres`
 и запускает readiness всех пяти различных login. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4

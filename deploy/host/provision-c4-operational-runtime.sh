@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set +x
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/opt/projects/bersoncarebot}"
@@ -7,6 +8,7 @@ WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
 WEB_PUSH_OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-web-push-reminder-runtime.sql"
+PASSWORD_SETTER="$PROJECT_ROOT/deploy/host/set-postgres-role-password.mjs"
 TEST_BOOTSTRAP=0
 
 validate_test_bootstrap_paths(){
@@ -99,6 +101,7 @@ fi
 [ -r "$MEDIA_WORKER_ENV_FILE" ] || { echo "FATAL: cannot read $MEDIA_WORKER_ENV_FILE" >&2; exit 1; }
 [ -r "$OVERLAY" ] || { echo "FATAL: cannot read $OVERLAY" >&2; exit 1; }
 [ -r "$WEB_PUSH_OVERLAY" ] || { echo "FATAL: cannot read $WEB_PUSH_OVERLAY" >&2; exit 1; }
+[ -x "$PASSWORD_SETTER" ] || { echo "FATAL: cannot execute $PASSWORD_SETTER" >&2; exit 1; }
 
 # Reject any webapp/API/operator role reuse before CREATE/ALTER/password mutation.
 node "$PROJECT_ROOT/deploy/host/saas-c2-secret-preflight.mjs" \
@@ -180,8 +183,8 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role')
 SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', :'role')
 \gexec
 SQL
-  printf '%s\n%s\n' "$password" "$password" |
-    sudo -u postgres psql -d "$database" -X -q -c "\\password $role" >/dev/null
+  printf '%s' "$password" |
+    sudo -u postgres node "$PASSWORD_SETTER" "$database" "$role"
 done
 unset password passwords urls diagnostic_url delivery_url scheduler_url media_url web_push_reminder_url endpoint DATABASE_URL
 

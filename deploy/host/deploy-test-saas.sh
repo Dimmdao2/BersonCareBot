@@ -54,6 +54,8 @@ C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_WEB_PUSH_REMINDER_RUNTIME=deploy/postgres/c4-web-push-reminder-runtime.sql
 C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
 C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
+C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
+C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 C4_STATIC_CHECKER=docs/_TODO/SAAS_FOUNDATION/scripts/check-c4-scheduler-media-cron-fanout.mjs
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
@@ -975,6 +977,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_WEB_PUSH_REMINDER_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -1002,6 +1005,7 @@ run_c4_operational_chain_self_test(){
     "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" \
     "$SRC_REPO/$C4_OPERATIONAL_READINESS"
   bash "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" --self-test
+  bash "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"
   node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --self-test
   node "$SRC_REPO/deploy/host/saas-c2-secret-preflight.mjs" --self-test
   (
@@ -1059,6 +1063,8 @@ esac
 [ -r "$SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_WEB_PUSH_REMINDER_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
+[ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
+[ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 sudo node "$SRC_REPO/deploy/host/bootstrap-c4-test-env.mjs" --check
