@@ -44,6 +44,9 @@
   guaranteed cleanup, then performs a separate clean-only assertion before strict finalization/restart/product smoke.
   The product-smoke contract checker now has mutations for global-admin authority/admin-mode and a deliberately
   invalid fixture; its normal+self-test chain is part of root `audit`, therefore also the full CI audit stage.
+- Follow-up correction: the stale mixed `/app/doctor/analytics` global-admin page probe was replaced by the existing
+  tenant-scoped doctor program action-log endpoint. Smoke now requires a successful non-empty seeded `entries`
+  history under the specialist workspace; the global-versus-tenant analytics IA split remains deferred to task #800.
 
 ## 2026-07-15 — старт
 

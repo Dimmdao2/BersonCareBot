@@ -90,13 +90,17 @@
       "knownFailureHint": "G1"
     },
     {
-      "id": "doctor.analytics.notifications",
-      "actor": "global_admin",
+      "id": "doctor.analytics.patient-engagement",
+      "actor": "doctor",
       "category": "analytics",
       "method": "GET",
-      "path": "/app/doctor/analytics?tab=app",
+      "path": "/api/doctor/treatment-program-instances/{patientProgramInstanceId}/action-log",
       "expectStatus": 200,
-      "minBodyBytes": 800,
+      "jsonExpectation": {
+        "type": "object",
+        "requireSuccess": true,
+        "nonEmptyPaths": ["entries"]
+      },
       "knownFailureHint": "G1"
     },
     {

@@ -14,6 +14,8 @@
       отдельный final-clean assertion; product smoke видит уже очищенное состояние.
 - [x] Product-smoke contract checker вместе с mutation self-test и synthetic fixture preflight входит в root `audit`
       и тем самым в full CI, а не остаётся отдельной ручной командой.
+- [x] Analytics smoke проверяет tenant-scoped историю выполнения программы специалистом через непустой `entries`;
+      смешанная global/tenant IA страницы аналитики не расширяется и отдельно отложена в task #800.
 - [ ] Public `/app`, clean login, specialist/clinic registration и `/book` пройдены в профиле без cookie.
 - [ ] Live locked matrix исполнила A→B/B→A denials, shared-patient A/B context, global-admin clinical-write denial
       и org-scoped booking write; после неё post-matrix exact strict+FORCE повторно подтверждены.

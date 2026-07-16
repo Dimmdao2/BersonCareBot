@@ -151,9 +151,23 @@ function runFixtureGateDocChecks(overrides = new Map()) {
   ) {
     throw new Error(`${files.contract} must probe versioned SaaS isolation health as global_admin`);
   }
-  if (scenariosById.get('doctor.analytics.notifications')?.actor !== 'global_admin') {
+  const specialistEngagementAnalytics = scenariosById.get(
+    'doctor.analytics.patient-engagement',
+  );
+  if (
+    !['doctor', 'clinic_admin'].includes(specialistEngagementAnalytics?.actor) ||
+    specialistEngagementAnalytics?.category !== 'analytics' ||
+    specialistEngagementAnalytics?.method !== 'GET' ||
+    specialistEngagementAnalytics?.path !==
+      '/api/doctor/treatment-program-instances/{patientProgramInstanceId}/action-log' ||
+    specialistEngagementAnalytics.path.startsWith('/api/admin') ||
+    specialistEngagementAnalytics.path.startsWith('/app/doctor/analytics') ||
+    specialistEngagementAnalytics.expectStatus !== 200 ||
+    specialistEngagementAnalytics.jsonExpectation?.requireSuccess !== true ||
+    !specialistEngagementAnalytics.jsonExpectation?.nonEmptyPaths?.includes('entries')
+  ) {
     throw new Error(
-      `${files.contract} must run doctor.analytics.notifications as global_admin because the page requires admin mode`,
+      `${files.contract} must prove non-empty tenant-scoped specialist patient engagement analytics without an admin API or the mixed global analytics page`,
     );
   }
   for (const scenarioId of ['doctor.system-health.denied', 'clinic-admin.system-health.denied']) {
@@ -304,6 +318,23 @@ function runSelfTest() {
     'global-admin adminMode enforcement mutation',
     files.smokeRunner,
     runnerText.replace('profile.adminMode === true', 'profile.adminMode === false'),
+  );
+  const specialistAnalyticsAuthorityMutation = JSON.parse(contractText);
+  specialistAnalyticsAuthorityMutation.readOnlyScenarios.find(
+    (scenario) => scenario.id === 'doctor.analytics.patient-engagement',
+  ).actor = 'global_admin';
+  expectDocMutationRejected(
+    'specialist engagement analytics authority mutation',
+    files.contract,
+    JSON.stringify(specialistAnalyticsAuthorityMutation),
+  );
+  expectDocMutationRejected(
+    'specialist engagement analytics admin-path mutation',
+    files.contract,
+    contractText.replace(
+      '/api/doctor/treatment-program-instances/{patientProgramInstanceId}/action-log',
+      '/api/admin/product-analytics',
+    ),
   );
 
   const { tempDir, fixturePath } = makeSyntheticFixtureFile({ globalAdminMode: false });
