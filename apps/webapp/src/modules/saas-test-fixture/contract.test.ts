@@ -113,7 +113,7 @@ describe('SaaS TEST fixture packet', () => {
 });
 
 describe('SaaS TEST walkthrough reconciliation', () => {
-  it('enables and locks the mirrored TEST-only specialist+clinic registration flag', () => {
+  it('enables and locks the mirrored TEST-only walkthrough flags', () => {
     const source = readFileSync(
       new URL('../../../../../deploy/postgres/test-settings-override.sql', import.meta.url),
       'utf8',
@@ -121,10 +121,17 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(
       source.match(/VALUES \('specialist_signup_enabled', 'admin', '\{"value":true\}'::jsonb/g),
     ).toHaveLength(2);
+    expect(
+      source.match(
+        /VALUES \('patient_program_discussion_ui_enabled', 'admin', '\{"value":true\}'::jsonb/g,
+      ),
+    ).toHaveLength(2);
     expect(source).toContain(
-      "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled']",
+      "ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
     );
-    expect(source).toContain("ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled']");
+    expect(source).toContain(
+      "ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled','patient_program_discussion_ui_enabled']",
+    );
   });
 
   it('validates two distinct reserved-domain owner credentials', () => {
