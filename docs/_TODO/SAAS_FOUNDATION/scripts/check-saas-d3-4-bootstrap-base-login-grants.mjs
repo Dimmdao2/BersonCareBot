@@ -4,6 +4,7 @@ import { getAppStaffGrantTables, renderP05bGrantsSql } from "./p0-5b-grants-sql.
 
 const files = {
   grantSql: "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql",
+  appWorkerSql: "deploy/postgres/phase4-app-worker-narrow-rls.sql",
   d2GrantSql: "deploy/postgres/d2-fb1-bootstrap-phone-write-grants.sql",
   p05bGrantSql: "deploy/postgres/p0-5b-grants.sql",
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
@@ -178,6 +179,13 @@ function runChecks(overrides = {}) {
     "REVOKE USAGE ON SCHEMA public FROM :\"d3_4_bootstrap_base_role\";",
     "REVOKE USAGE ON SCHEMA app FROM :\"d3_4_media_worker_runtime_role\";",
     "GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :\"d3_4_media_worker_runtime_role\";",
+    "Grant them directly to the exact",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id() TO :\"d3_4_media_worker_runtime_role\";",
+    "GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :\"d3_4_media_worker_runtime_role\";",
+    "GRANT EXECUTE ON FUNCTION app.is_staff() TO :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;",
     "REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;",
@@ -190,6 +198,29 @@ function runChecks(overrides = {}) {
     "\\if :d3_4_has_p2_b_context_bundle",
     2,
   );
+  requireFragments(files.appWorkerSql, loaded.appWorkerSql, [
+    "PostgreSQL checks EXECUTE on every helper referenced by a policy",
+    "GRANT EXECUTE ON FUNCTION app.is_staff() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.is_staff() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM app_worker;",
+  ]);
+  forbidFragments(files.appWorkerSql, loaded.appWorkerSql, [
+    "GRANT EXECUTE ON FUNCTION app.install_signed_context",
+    "GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker",
+    "GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_worker",
+    "GRANT SELECT ON TABLE",
+    "GRANT INSERT ON TABLE",
+    "GRANT UPDATE ON TABLE",
+    "GRANT DELETE ON TABLE",
+  ]);
+  forbidFragments(files.grantSql, loaded.grantSql, [
+    'GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text) TO :"d3_4_media_worker_runtime_role";',
+    'GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO :"d3_4_media_worker_runtime_role";',
+    'GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"d3_4_media_worker_runtime_role";',
+  ]);
   for (const tableName of requiredTables) {
     requireFragments(files.grantSql, loaded.grantSql, [
       `GRANT SELECT ON TABLE ${tableName} TO :"d3_4_bootstrap_base_role";`,
@@ -327,9 +358,13 @@ function runChecks(overrides = {}) {
     "app.release_principal_context()",
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
     "app.current_org_id()",
+    "app.current_patient_user_id()",
+    "app.is_staff()",
     "app.reset_principal_context()",
     "acl.grantee = 0",
     'SET SESSION AUTHORIZATION ${mediaIdent}',
+    "FROM public.media_files",
+    "UPDATE public.media_transcode_jobs",
   ]);
   forbidRegex(files.platformAccessRepo, loaded.platformAccessRepo, [
     /FROM\s+(?:public\.)?user_password_credentials\b/i,
@@ -468,6 +503,15 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
+      appWorkerSql: read(files.appWorkerSql).replace(
+        "GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;",
+        "-- removed app_worker policy helper grant by self-test",
+      ),
+    },
+    {
+      appWorkerSql: `${read(files.appWorkerSql)}\nGRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker;\n`,
+    },
+    {
       grantSql: read(files.grantSql).replace(
         'GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO :"d3_4_bootstrap_base_role";',
         "-- removed public-bootstrap base-login EXECUTE by self-test",
@@ -477,6 +521,12 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         'GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";',
         "-- removed media-worker cleanup EXECUTE by self-test",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        'GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_media_worker_runtime_role";',
+        "-- removed media-worker policy helper EXECUTE by self-test",
       ),
     },
     {
@@ -543,6 +593,12 @@ if (process.argv.includes("--self-test")) {
       runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
         "acl.grantee = 0",
         "acl.grantee = 42",
+      ),
+    },
+    {
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
+        "UPDATE public.media_transcode_jobs",
+        "UPDATE public.missing_media_transcode_jobs",
       ),
     },
     {

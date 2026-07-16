@@ -92,7 +92,26 @@ function runChecks(overrides = {}) {
     "pg_has_role(current_user, 'app_worker', 'member')",
     'ON "public"."media_files"',
     'ON "public"."media_transcode_jobs"',
+    "GRANT EXECUTE ON FUNCTION app.is_staff() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.is_staff() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM app_worker;",
   ]);
+  for (const forbidden of [
+    "GRANT EXECUTE ON FUNCTION app.install_signed_context",
+    "GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker",
+    "GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_worker",
+    "GRANT SELECT ON TABLE",
+    "GRANT INSERT ON TABLE",
+    "GRANT UPDATE ON TABLE",
+    "GRANT DELETE ON TABLE",
+  ]) {
+    if (loaded.appWorker.includes(forbidden)) {
+      fail(`${files.appWorker} contains forbidden privilege expansion: ${forbidden}`);
+    }
+  }
 
   requireFragments(files.force, loaded.force, [
     "v_expected_count <> 163",
@@ -195,6 +214,8 @@ function runSelfTest() {
     { invites: `${baseline.invites}\nNULLIF(current_setting('app.org', true), '') IS NULL\n` },
     { courses: baseline.courses.replaceAll('"b4course_instance"."template_id" = "courses"."program_template_id"', "TRUE") },
     { appWorker: baseline.appWorker.replaceAll("pg_has_role(current_user, 'app_worker', 'member')", "FALSE") },
+    { appWorker: baseline.appWorker.replace("GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;", "") },
+    { appWorker: `${baseline.appWorker}\nGRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker;\n` },
     { force: baseline.force.replace("v_expected_count <> 163", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },

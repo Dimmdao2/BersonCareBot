@@ -103,9 +103,12 @@ SELECT (
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.current_integrator_user_id() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_media_worker_runtime_role";
 \endif
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_public_config_bool(text) FROM :"d3_4_bootstrap_base_role";
@@ -166,10 +169,17 @@ GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_s
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";
+-- Phase4 grants these policy-evaluation helpers to app_worker. Grant them directly to the exact
+-- media runtime too: pg_has_role(..., 'member') can make the worker policy branch true even for a
+-- NOINHERIT member, while inherited function privileges would still be unavailable. D3.4 must not
+-- grant install/reset/signing or unrelated current-integrator helpers.
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_media_worker_runtime_role";
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"d3_4_media_worker_runtime_role";
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_media_worker_runtime_role";
 \endif
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_bootstrap_base_role";
 
