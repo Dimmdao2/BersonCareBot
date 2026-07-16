@@ -153,7 +153,7 @@ function extractDeployMain(text) {
 function assertPackageScript(packageJsonText) {
   const packageJson = JSON.parse(packageJsonText);
   const expected =
-    "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs && bash -n deploy/host/deploy-test-saas.sh && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs --self-test";
+    "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs && node --check docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs && bash -n deploy/host/deploy-test-saas.sh && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs --self-test && node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs";
   if (packageJson.scripts?.["check:saas-d3-4-bootstrap-base-login-grants"] !== expected) {
     fail("package.json has an unexpected check:saas-d3-4-bootstrap-base-login-grants script");
   }
@@ -170,9 +170,23 @@ function runChecks(overrides = {}) {
     "d3_4_media_worker_runtime_role",
     "d3_4_bootstrap_grants_down",
     "d3_4_bootstrap_base_role_exists",
-    "d3_4_bootstrap_base_role_no_rls_bypass",
-    "d3_4_bootstrap_base_role_not_staff_member",
-    "d3_4_bootstrap_base_role_is_patient_member",
+    "d3_4_webapp_runtime_accessors_exist",
+    "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
+    "granted_role.rolname <> 'app_patient'",
+    "REVOKE ADMIN OPTION FOR app_patient FROM :\"d3_4_bootstrap_base_role\";",
+    "GRANT app_patient TO :\"d3_4_bootstrap_base_role\"",
+    "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
+    "reachable_roles(roleid)",
+    "AND NOT rolcreatedb",
+    "AND NOT rolcreaterole",
+    "AND NOT rolreplication",
+    "privilege.grantee = bootstrap_role.oid",
+    "d3_4_bootstrap_base_role_exact_topology_verified",
+    "'app.read_public_runtime_setting(text,text)'::regprocedure",
+    "'app.read_webapp_server_runtime_setting(text,text)'::regprocedure",
+    "NOT has_table_privilege(",
+    "'public.app_runtime_settings', 'SELECT'",
+    "'public.system_settings', 'SELECT'",
     "d3_4_media_worker_runtime_role_is_restricted",
     "d3_4_media_worker_runtime_role_has_exact_supported_capability",
     "A legacy deployment reaches the media surface through",
@@ -195,7 +209,6 @@ function runChecks(overrides = {}) {
     "d3_4_has_p2_b_context_bundle",
     "to_regprocedure('app.release_principal_context()')",
     "to_regprocedure('app.close_active_user_phone_history(uuid)')",
-    "pg_has_role(:'d3_4_bootstrap_base_role', 'app_patient', 'MEMBER')",
     "GRANT USAGE ON SCHEMA public, app TO :\"d3_4_bootstrap_base_role\";",
     "GRANT USAGE ON SCHEMA app TO :\"d3_4_media_worker_runtime_role\";",
     "REVOKE USAGE ON SCHEMA app FROM :\"d3_4_bootstrap_base_role\";",
@@ -313,15 +326,13 @@ function runChecks(overrides = {}) {
     "webapp.prod",
     "bcb_webapp_prod",
     "bcb_webapp_dev",
-    "public.system_settings",
     "public.content_pages",
     "public.media_files",
   ]);
   forbidRegex(files.grantSql, loaded.grantSql, [
-    /\bALTER\s+ROLE\b/i,
     /\bGRANT\s+app_staff\b/i,
     /\bGRANT\s+app_owner\b/i,
-    /\bGRANT\s+app_patient\b/i,
+    /\bGRANT\s+SELECT\s+ON\s+(?:TABLE\s+)?public\.system_settings\b/i,
     /\bGRANT\s+SELECT\s+ON\s+ALL\s+TABLES\b/i,
     /\bGRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+TABLE\s+public\./i,
   ]);
@@ -449,6 +460,14 @@ function runChecks(overrides = {}) {
     "public.app_runtime_settings",
     "public.system_settings",
     "has_table_privilege",
+    "intermediaryRole",
+    "adversarialPrestateSql",
+    "GRANT SELECT ON TABLE public.system_settings TO ${intermediaryIdent};",
+    "NOT membership.inherit_option",
+    "membership.set_option",
+    "SET ROLE",
+    "read_public_runtime_setting",
+    "read_webapp_server_runtime_setting",
     "runtimeAudiencePolicy",
     "count(*) = 1",
     "audience <> 'server' OR organization_id IS NOT NULL",
@@ -577,6 +596,12 @@ function runChecks(overrides = {}) {
     "deploy/postgres/specialist-owner-provisioning-rls.sql",
     "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
     "after any optional P2-B replacement",
+    "LOGIN NOINHERIT NOBYPASSRLS",
+    "remove every unexpected direct membership",
+    "ADMIN FALSE, INHERIT FALSE, SET TRUE",
+    "the separate staff-pool login is not passed to or changed",
+    "effective reads of both `public.system_settings` and `public.app_runtime_settings`",
+    "`SET ROLE app_patient` lifecycle",
   ]);
   assertPackageScript(loaded.packageJson);
 }
@@ -650,9 +675,18 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replaceAll("d3_4_bootstrap_grants_down", "d3_4_missing_down"),
     },
     {
+      grantSql: read(files.grantSql).replace("reachable_roles(roleid)", "reachable_roles_removed(roleid)"),
+    },
+    {
       grantSql: read(files.grantSql).replace(
-        "d3_4_bootstrap_base_role_is_patient_member",
-        "d3_4_bootstrap_base_role_missing_patient_member_assertion",
+        "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
+        '-- topology normalization removed by self-test',
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "'public.system_settings', 'SELECT'",
+        "'public.system_settings', 'UPDATE'",
       ),
     },
     {
@@ -758,6 +792,12 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
+      runtimeHelperSmoke: read(files.runtimeHelperSmoke).replace(
+        "GRANT SELECT ON TABLE public.system_settings TO ${intermediaryIdent};",
+        "-- adversarial intermediary grant removed by self-test",
+      ),
+    },
+    {
       testDeploySaas: read(files.testDeploySaas).replace(
         'log "strict closure: roles + grants"\n  install_p0_5b_runtime_wall',
         'log "strict closure: roles + grants removed by self-test"',
@@ -779,6 +819,12 @@ if (process.argv.includes("--self-test")) {
       hardProtocol: read(files.hardProtocol).replace(
         "D3.4 bootstrap/base-login grant closure",
         "final PASS",
+      ),
+    },
+    {
+      hardProtocol: read(files.hardProtocol).replace(
+        "remove every unexpected direct membership",
+        "preserve every unexpected direct membership",
       ),
     },
   ];

@@ -31,25 +31,19 @@ SELECT 1 / 0 AS d3_4_media_worker_runtime_role_missing;
 
 SELECT 1 / (
   length(:'d3_4_bootstrap_base_role') > 0
-  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'d3_4_bootstrap_base_role')
-)::int AS d3_4_bootstrap_base_role_exists;
-
-SELECT 1 / (
-  EXISTS (
+  AND EXISTS (
     SELECT 1
     FROM pg_roles
     WHERE rolname = :'d3_4_bootstrap_base_role'
-      AND rolbypassrls = false
+      AND rolcanlogin
+      AND NOT rolsuper
   )
-)::int AS d3_4_bootstrap_base_role_no_rls_bypass;
+)::int AS d3_4_bootstrap_base_role_exists;
 
 SELECT 1 / (
-  NOT pg_has_role(:'d3_4_bootstrap_base_role', 'app_staff', 'MEMBER')
-)::int AS d3_4_bootstrap_base_role_not_staff_member;
-
-SELECT 1 / (
-  pg_has_role(:'d3_4_bootstrap_base_role', 'app_patient', 'MEMBER')
-)::int AS d3_4_bootstrap_base_role_is_patient_member;
+  to_regprocedure('app.read_public_runtime_setting(text,text)') IS NOT NULL
+  AND to_regprocedure('app.read_webapp_server_runtime_setting(text,text)') IS NOT NULL
+)::int AS d3_4_webapp_runtime_accessors_exist;
 
 SELECT 1 / (
   length(:'d3_4_media_worker_runtime_role') > 0
@@ -206,6 +200,29 @@ REVOKE USAGE ON SCHEMA public FROM :"d3_4_bootstrap_base_role";
 \quit
 \endif
 
+-- Normalize only the discovered nonstaff/bootstrap login. The separate staff pool is not
+-- passed to this artifact and its topology remains untouched. Strip every stale direct edge,
+-- then rebuild the single SET-only patient lifecycle used by classified requests.
+ALTER ROLE :"d3_4_bootstrap_base_role"
+  LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+SELECT format(
+  'REVOKE %I FROM %I',
+  granted_role.rolname,
+  member_role.rolname
+)
+FROM pg_auth_members membership
+JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+JOIN pg_roles member_role ON member_role.oid = membership.member
+WHERE member_role.rolname = :'d3_4_bootstrap_base_role'
+  AND granted_role.rolname <> 'app_patient'
+ORDER BY granted_role.rolname
+\gexec
+REVOKE ADMIN OPTION FOR app_patient FROM :"d3_4_bootstrap_base_role";
+GRANT app_patient TO :"d3_4_bootstrap_base_role"
+  WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
+  FROM :"d3_4_bootstrap_base_role";
+
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
 GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";
 REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
@@ -282,5 +299,119 @@ GRANT SELECT ON TABLE public.be_specialists TO :"d3_4_bootstrap_base_role";
 -- D2 FB#1 phone/contact write surface, composed here intentionally.
 GRANT SELECT, INSERT, UPDATE ON TABLE public.user_phone_history TO :"d3_4_bootstrap_base_role";
 GRANT SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts TO :"d3_4_bootstrap_base_role";
+
+WITH RECURSIVE bootstrap_role AS (
+  SELECT
+    oid,
+    rolcanlogin,
+    rolsuper,
+    rolcreatedb,
+    rolcreaterole,
+    rolinherit,
+    rolreplication,
+    rolbypassrls
+  FROM pg_roles
+  WHERE rolname = :'d3_4_bootstrap_base_role'
+), direct_memberships AS (
+  SELECT membership.*
+  FROM pg_auth_members membership
+  JOIN bootstrap_role ON bootstrap_role.oid = membership.member
+), reachable_roles(roleid) AS (
+  SELECT roleid FROM direct_memberships
+  UNION
+  SELECT membership.roleid
+  FROM pg_auth_members membership
+  JOIN reachable_roles reachable ON reachable.roleid = membership.member
+), protected_tables AS (
+  SELECT relation.relowner
+  FROM pg_class relation
+  WHERE relation.oid IN (
+    'public.app_runtime_settings'::regclass,
+    'public.system_settings'::regclass
+  )
+), runtime_accessors AS (
+  SELECT procedure.oid, procedure.proowner, procedure.proacl
+  FROM pg_proc procedure
+  WHERE procedure.oid IN (
+    'app.read_public_runtime_setting(text,text)'::regprocedure,
+    'app.read_webapp_server_runtime_setting(text,text)'::regprocedure
+  )
+)
+SELECT 1 / (
+  (
+    SELECT
+      rolcanlogin
+      AND NOT rolsuper
+      AND NOT rolcreatedb
+      AND NOT rolcreaterole
+      AND NOT rolinherit
+      AND NOT rolreplication
+      AND NOT rolbypassrls
+    FROM bootstrap_role
+  )
+  AND (SELECT count(*) = 1 FROM direct_memberships)
+  AND EXISTS (
+    SELECT 1
+    FROM direct_memberships membership
+    JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+    WHERE granted_role.rolname = 'app_patient'
+      AND NOT membership.admin_option
+      AND NOT membership.inherit_option
+      AND membership.set_option
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM reachable_roles reachable
+    JOIN pg_roles granted_role ON granted_role.oid = reachable.roleid
+    WHERE granted_role.rolname <> 'app_patient'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM protected_tables protected
+    CROSS JOIN bootstrap_role
+    WHERE pg_has_role(bootstrap_role.oid, protected.relowner, 'MEMBER')
+  )
+  AND NOT has_table_privilege(
+    :'d3_4_bootstrap_base_role', 'public.app_runtime_settings', 'SELECT'
+  )
+  AND NOT has_table_privilege(
+    :'d3_4_bootstrap_base_role', 'public.system_settings', 'SELECT'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.read_public_runtime_setting(text,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.read_webapp_server_runtime_setting(text,text)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
+    WHERE pg_has_role(bootstrap_role.oid, accessor.proowner, 'MEMBER')
+  )
+  AND 2 = (
+    SELECT count(*)
+    FROM runtime_accessors accessor
+    CROSS JOIN bootstrap_role
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
+    ) privilege
+    WHERE privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = bootstrap_role.oid
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM runtime_accessors accessor
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
+    ) privilege
+    WHERE privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = 0
+  )
+)::int AS d3_4_bootstrap_base_role_exact_topology_verified;
 
 \echo 'D3.4 bootstrap/base-login grants UP complete.'

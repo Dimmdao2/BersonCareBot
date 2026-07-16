@@ -13,6 +13,7 @@ const appWorkerArtifactPath = "deploy/postgres/phase4-app-worker-narrow-rls.sql"
 const suffix = `${process.pid}_${Date.now()}`.replaceAll(/[^a-zA-Z0-9_]/g, "_");
 const dbName = `bcb_saas_d3_4_helper_scratch_${suffix}`;
 const bootstrapRole = `bcb_d3_4_bootstrap_${suffix}`;
+const intermediaryRole = `bcb_d3_4_intermediary_${suffix}`;
 const mediaRole = `bcb_d3_4_media_${suffix}`;
 const c4MediaRole = `bcb_d3_4_c4_media_${suffix}`;
 const operationalMediaRole = `app_operational_media_worker_scratch_${suffix}`;
@@ -76,6 +77,7 @@ function psqlExpectFailure(database, sql) {
 }
 
 const bootstrapIdent = quoteIdent(bootstrapRole);
+const intermediaryIdent = quoteIdent(intermediaryRole);
 const mediaIdent = quoteIdent(mediaRole);
 const c4MediaIdent = quoteIdent(c4MediaRole);
 const operationalMediaIdent = quoteIdent(operationalMediaRole);
@@ -123,7 +125,8 @@ const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
   .filter((table, index, all) => all.indexOf(table) === index);
 
 const setupSql = [
-  `CREATE ROLE ${bootstrapIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
+  `CREATE ROLE ${bootstrapIdent} LOGIN NOSUPERUSER INHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${intermediaryIdent} NOLOGIN NOSUPERUSER INHERIT NOBYPASSRLS;`,
   `CREATE ROLE ${mediaIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${c4MediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
   `CREATE ROLE ${operationalMediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
@@ -137,7 +140,8 @@ const setupSql = [
   `CREATE ROLE ${workerIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${staffIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${patientIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
-  `GRANT ${patientIdent} TO ${bootstrapIdent};`,
+  `GRANT ${patientIdent} TO ${bootstrapIdent} WITH ADMIN FALSE, INHERIT TRUE, SET TRUE;`,
+  `GRANT ${intermediaryIdent} TO ${bootstrapIdent} WITH ADMIN FALSE, INHERIT TRUE, SET TRUE;`,
   `GRANT ${workerIdent} TO ${mediaIdent} WITH INHERIT TRUE, SET TRUE;`,
   `GRANT ${operationalMediaIdent} TO ${c4MediaIdent} WITH INHERIT FALSE, SET TRUE;`,
   `GRANT ${workerIdent} TO ${legacyStaffIdent} WITH INHERIT TRUE, SET TRUE;`,
@@ -151,10 +155,24 @@ const setupSql = [
   `GRANT ${operationalMediaIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
   `GRANT ${siblingCapabilityIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
   "CREATE SCHEMA app;",
+  `CREATE FUNCTION app.read_public_runtime_setting(text, text)
+    RETURNS TABLE (value_json jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+    AS $$ SELECT '{"value":true}'::jsonb $$;`,
+  `CREATE FUNCTION app.read_webapp_server_runtime_setting(text, text)
+    RETURNS TABLE (value_json jsonb)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+    AS $$ SELECT '{"value":120}'::jsonb $$;`,
+  "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;",
+  "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;",
+  `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${bootstrapIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${bootstrapIdent};`,
   `GRANT USAGE ON SCHEMA app TO ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${patientIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO ${patientIdent};`,
   ...tableNames
     .filter((table) => table !== "public.app_runtime_settings")
     .map((table) => `CREATE TABLE ${table} (id integer);`),
@@ -172,6 +190,7 @@ const setupSql = [
     ('worker_server_org', 'admin', '00000000-0000-4000-8000-000000000020', 'server', '{"value":true}');`,
   "ALTER TABLE public.app_runtime_settings ENABLE ROW LEVEL SECURITY;",
   "ALTER TABLE public.app_runtime_settings FORCE ROW LEVEL SECURITY;",
+  `GRANT SELECT ON TABLE public.app_runtime_settings TO ${patientIdent};`,
   `CREATE POLICY app_runtime_settings_safe_read ON public.app_runtime_settings
     FOR SELECT USING (
       (
@@ -188,6 +207,7 @@ const setupSql = [
       )
     );`,
   "CREATE TABLE public.system_settings (id integer);",
+  `GRANT SELECT ON TABLE public.system_settings TO ${intermediaryIdent};`,
   `CREATE TABLE public.media_files (
     id uuid PRIMARY KEY,
     organization_id uuid,
@@ -235,6 +255,18 @@ const applySql = [
   runtimeAudiencePolicy,
 ].join("\n");
 
+const adversarialPrestateSql = `
+SELECT 1 / (
+  (SELECT rolinherit FROM pg_roles WHERE rolname = ${quoteLiteral(bootstrapRole)})
+)::int;
+SELECT 1 / has_table_privilege(
+  ${quoteLiteral(bootstrapRole)}, 'public.app_runtime_settings', 'SELECT'
+)::int;
+SELECT 1 / has_table_privilege(
+  ${quoteLiteral(bootstrapRole)}, 'public.system_settings', 'SELECT'
+)::int;
+`;
+
 // The same pre-C4 D3.4 artifact must also accept the canonical C4 SET-only shape.
 // Applying it a second time proves that shape against a real PostgreSQL 16 catalog.
 const applyC4ShapeSql = [
@@ -252,6 +284,42 @@ function malformedShapeSql(roleName) {
 }
 
 const proofSql = `
+SELECT 1 / (
+  SELECT rolcanlogin AND NOT rolinherit AND NOT rolbypassrls
+  FROM pg_roles
+  WHERE rolname = ${quoteLiteral(bootstrapRole)}
+)::int;
+SELECT 1 / ((
+  SELECT count(*)
+  FROM pg_auth_members membership
+  JOIN pg_roles granted ON granted.oid = membership.roleid
+  JOIN pg_roles member ON member.oid = membership.member
+  WHERE member.rolname = ${quoteLiteral(bootstrapRole)}
+    AND granted.rolname = ${quoteLiteral(patientRole)}
+    AND NOT membership.admin_option
+    AND NOT membership.inherit_option
+    AND membership.set_option
+) = 1)::int;
+SELECT 1 / ((
+  SELECT count(*)
+  FROM pg_auth_members membership
+  JOIN pg_roles member ON member.oid = membership.member
+  WHERE member.rolname = ${quoteLiteral(bootstrapRole)}
+) = 1)::int;
+SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.app_runtime_settings', 'SELECT'))::int;
+SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.system_settings', 'SELECT'))::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_public_runtime_setting(text,text)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_webapp_server_runtime_setting(text,text)', 'EXECUTE')::int;
+SET SESSION AUTHORIZATION ${bootstrapIdent};
+SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin')) = '{"value":true}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin')) = '{"value":120}'::jsonb)::int;
+SET ROLE ${patientIdent};
+SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings) = 2)::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1 FROM public.app_runtime_settings WHERE audience = 'server'
+))::int;
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
 SELECT 1 / has_function_privilege(${quoteLiteral(staffRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(patientRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
@@ -313,6 +381,7 @@ RESET SESSION AUTHORIZATION;
 try {
   run("sudo", ["-n", "-u", "postgres", "createdb", dbName]);
   psql(dbName, setupSql);
+  psql(dbName, adversarialPrestateSql);
   psql(dbName, applySql);
   psql(dbName, applyC4ShapeSql);
   // Every malformed shape must fail in real PostgreSQL 16 before D3.4 grants anything.
@@ -327,6 +396,7 @@ try {
   run("sudo", ["-n", "-u", "postgres", "dropdb", "--if-exists", dbName]);
   psql("postgres", [
     `DROP ROLE IF EXISTS ${bootstrapIdent};`,
+    `DROP ROLE IF EXISTS ${intermediaryIdent};`,
     `DROP ROLE IF EXISTS ${mediaIdent};`,
     `DROP ROLE IF EXISTS ${c4MediaIdent};`,
     `DROP ROLE IF EXISTS ${legacyStaffIdent};`,

@@ -31,6 +31,11 @@ SELECT 1 / (
     'app.read_public_runtime_setting(text,text)',
     'EXECUTE'
   )
+  AND NOT has_table_privilege(
+    :'e1_webapp_runtime_role',
+    'public.system_settings',
+    'SELECT'
+  )
   AND NOT EXISTS (
     SELECT 1
     FROM pg_class AS relation

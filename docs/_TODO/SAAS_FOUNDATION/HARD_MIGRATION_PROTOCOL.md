@@ -262,7 +262,13 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   read surface plus the composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth
   email/invite/signup accessors.
   It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
-  base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
+  base login. Before restart the overlay must normalize only that nonstaff login to `LOGIN NOINHERIT NOBYPASSRLS`,
+  remove every unexpected direct membership, and rebuild exactly one direct `app_patient` edge with
+  `ADMIN FALSE, INHERIT FALSE, SET TRUE`; the separate staff-pool login is not passed to or changed by this step.
+  Final catalog proof must reject every transitive role other than `app_patient`, protected-table owner membership,
+  effective reads of both `public.system_settings` and `public.app_runtime_settings`, and PUBLIC execution of the E1
+  accessors, while preserving direct base-login EXECUTE on the public/server accessors and the explicit
+  `SET ROLE app_patient` lifecycle. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
 - after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
   logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,
   `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict

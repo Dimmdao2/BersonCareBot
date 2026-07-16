@@ -69,6 +69,7 @@ function runChecks(overrides = {}) {
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "NOT has_function_privilege(",
+    "NOT has_table_privilege(\n    :'e1_webapp_runtime_role',\n    'public.system_settings',\n    'SELECT'\n  )",
     "CROSS JOIN LATERAL aclexplode(",
     "privilege.grantee IN (",
     "pg_has_role(",
@@ -80,7 +81,6 @@ function runChecks(overrides = {}) {
   ]);
   forbidText(files.overlay, loaded.overlay, [
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')",
-    "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.system_settings', 'SELECT')",
   ]);
   requireText(files.runtime, loaded.runtime, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
@@ -208,6 +208,7 @@ if (process.argv.includes("--self-test")) {
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
     ["overlay direct ACL closure", { overlay: read(files.overlay).replace("CROSS JOIN LATERAL aclexplode(", "CROSS JOIN LATERAL (") }],
+    ["overlay effective source-table denial", { overlay: read(files.overlay).replace("'public.system_settings',\n    'SELECT'", "'public.system_settings',\n    'UPDATE'") }],
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
     ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],
   ];
