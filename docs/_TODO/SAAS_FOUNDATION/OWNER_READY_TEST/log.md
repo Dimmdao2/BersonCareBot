@@ -390,3 +390,25 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   disposable rerun after a failed gate. `--post-migration-closure` is an internal shared wrapper mode, not an
   authorized stage-resume for acceptance of this failed fresh rehearsal. No TEST mutation/restart/cleanup or PROD
   action was performed during diagnosis.
+
+### 0191 base-login principal cleanup correction (`/root/integrator_runtime_bootstrap`)
+
+- The second fresh TEST rehearsal stopped before service activation because the exact API base login could not call
+  `app.release_principal_context()`. Redacted readiness facts confirmed that install/reset/current-context helpers
+  remained denied and that the login/membership `NOINHERIT` normalization from the preceding correction was active.
+- Root cause: the shared API/worker/scheduler lifecycle releases stale principal state before its first `SET ROLE`
+  and again during cleanup. Therefore the unclassified base login needs direct EXECUTE on the idempotent release
+  function; it must not receive direct install/reset/current-context/staff privileges.
+- The runtime overlay now grants only that cleanup capability alongside the server-runtime config accessor, revokes
+  ambient helper residue, and asserts that scoped `app_staff`/`app_patient` install+release grants remain intact.
+  TEST readiness performs the real base-login release call and separately pins the negative helper permissions.
+- Exact disposable PostgreSQL 16 proof PASS with the real P2-B, `0191`, and runtime-overlay SQL: base release and
+  config read succeeded; base install/reset/current helper and direct table access stayed denied; after explicit
+  `SET ROLE app_patient`, signed install/current/release worked; after `SET ROLE app_worker`, the classified table
+  read worked. The static checker and mutation self-tests also pin both the required release grant and the forbidden
+  direct install grant.
+- Targeted validation PASS: runtime-config checker+self-test, hard-migration protocol family, D3.4 base-login
+  checker+self-test, deploy shell syntax, integrator Vitest `3 files / 24 tests`, integrator typecheck/lint, and
+  `git diff --check`.
+- Recovery remains a fresh full TEST rehearsal under the documented failure policy; post-migration closure is not a
+  stage-resume acceptance path. No live TEST mutation/restart/cleanup or PROD action occurred during this fix.

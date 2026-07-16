@@ -14,6 +14,8 @@ SELECT 1 / 0 AS integrator_runtime_config_role_missing;
 \if :{?integrator_runtime_config_grants_down}
 REVOKE EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM :"integrator_runtime_config_role";
+REVOKE EXECUTE ON FUNCTION app.release_principal_context()
+  FROM :"integrator_runtime_config_role";
 \echo 'Integrator server-runtime config grants DOWN complete.'
 \quit
 \endif
@@ -63,6 +65,8 @@ SELECT 1 / (
       AND pg_has_role(:'integrator_runtime_config_role', relation.relowner, 'MEMBER')
   )
   AND to_regprocedure('app.read_global_server_runtime_setting(text)') IS NOT NULL
+  AND to_regprocedure('app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)') IS NOT NULL
+  AND to_regprocedure('app.release_principal_context()') IS NOT NULL
 )::int AS integrator_server_runtime_config_preflight;
 
 ALTER ROLE :"integrator_runtime_config_role" NOINHERIT;
@@ -86,8 +90,21 @@ ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_global_server_runtime_setting(text)
   FROM app_staff, app_patient, app_worker;
+REVOKE EXECUTE ON FUNCTION
+  app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
+  app.current_org_id(),
+  app.current_patient_user_id(),
+  app.current_integrator_user_id(),
+  app.reset_principal_context(),
+  app.close_active_user_phone_history(uuid),
+  app.is_staff()
+  FROM :"integrator_runtime_config_role";
 GRANT USAGE ON SCHEMA app TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)
+  TO :"integrator_runtime_config_role";
+-- Bootstrap/infra cleanup runs before any SET ROLE. Scoped install/release runs after the
+-- classified app_staff/app_patient switch and remains granted through those roles by P2-B.
+GRANT EXECUTE ON FUNCTION app.release_principal_context()
   TO :"integrator_runtime_config_role";
 
 WITH runtime_role AS (
@@ -109,6 +126,46 @@ SELECT 1 / (
     'app.read_global_server_runtime_setting(text)',
     'EXECUTE'
   )
+  AND has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.release_principal_context()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role',
+    'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.reset_principal_context()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.current_org_id()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.current_patient_user_id()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.current_integrator_user_id()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.close_active_user_phone_history(uuid)', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'integrator_runtime_config_role', 'app.is_staff()', 'EXECUTE'
+  )
+  AND has_function_privilege(
+    'app_staff',
+    'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege('app_staff', 'app.release_principal_context()', 'EXECUTE')
+  AND has_function_privilege(
+    'app_patient',
+    'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+    'EXECUTE'
+  )
+  AND has_function_privilege('app_patient', 'app.release_principal_context()', 'EXECUTE')
   AND NOT EXISTS (
     SELECT 1
     FROM pg_auth_members membership

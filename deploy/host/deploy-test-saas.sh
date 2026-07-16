@@ -375,9 +375,10 @@ rehydrate_post_restore_runtime_overlays(){
 
 assert_api_runtime_can_release_principal_context(){
   local ok
-  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
+  sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT app.release_principal_context();\" >/dev/null"
+  ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.reset_principal_context()', 'EXECUTE') AND NOT has_function_privilege(current_user, 'app.current_org_id()', 'EXECUTE'))::text;\"")"
   [ "$ok" = "true" ] || { echo "FATAL: api.test runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
-  echo "   app.release_principal_context: OK (visible + executable by api.test runtime)"
+  echo "   app.release_principal_context: OK (actual base-login call; install/reset/current remain denied)"
 }
 
 assert_media_worker_runtime_can_release_principal_context(){

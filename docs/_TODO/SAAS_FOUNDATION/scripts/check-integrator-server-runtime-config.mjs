@@ -72,6 +72,13 @@ function run(overrides = {}) {
     'GRANT EXECUTE ON FUNCTION app.read_global_server_runtime_setting(text)',
     'TO :"integrator_runtime_config_role";',
     'integrator_server_runtime_config_least_privilege_verified',
+    'GRANT EXECUTE ON FUNCTION app.release_principal_context()',
+    'app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)',
+    'app.reset_principal_context()',
+    'app.close_active_user_phone_history(uuid)',
+    'Bootstrap/infra cleanup runs before any SET ROLE',
+    "'app_staff', 'app.release_principal_context()', 'EXECUTE'",
+    "'app_patient', 'app.release_principal_context()', 'EXECUTE'",
     'SELECT oid, NOT rolinherit AS noinherit',
     'aclexplode(',
     "privilege.grantee IN (0, runtime_role.oid)",
@@ -79,6 +86,7 @@ function run(overrides = {}) {
   forbidFragments('overlay', files.overlay, [
     'GRANT SELECT ON TABLE public.app_runtime_settings TO :"integrator_runtime_config_role"',
     'GRANT SELECT ON TABLE public.system_settings',
+    'GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)\n  TO :"integrator_runtime_config_role"',
   ]);
 
   requireFragments('reader', files.reader, [
@@ -141,6 +149,9 @@ function run(overrides = {}) {
     "app.read_global_server_runtime_setting('app_base_url')",
     'install_integrator_server_runtime_config_overlay',
     'assert_integrator_server_runtime_config_ready',
+    'SELECT app.release_principal_context();',
+    "NOT has_function_privilege(current_user, 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)', 'EXECUTE')",
+    "NOT has_function_privilege(current_user, 'app.reset_principal_context()', 'EXECUTE')",
   ]);
 }
 
@@ -176,6 +187,27 @@ if (process.argv.includes('--self-test')) {
     rejected = true;
   }
   if (!rejected) fail('self-test did not reject inheriting PostgreSQL 16 membership edges');
+  rejected = false;
+  try {
+    run({
+      overlay: readFileSync(paths.overlay, 'utf8').replace(
+        'GRANT EXECUTE ON FUNCTION app.release_principal_context()\n  TO :"integrator_runtime_config_role";',
+        '-- removed required base-login cleanup capability',
+      ),
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject a missing base-login release capability');
+  rejected = false;
+  try {
+    run({
+      overlay: `${readFileSync(paths.overlay, 'utf8')}\nGRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)\n  TO :"integrator_runtime_config_role";\n`,
+    });
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) fail('self-test did not reject ambient base-login install capability');
   console.log('check-integrator-server-runtime-config: self-test OK');
 } else {
   run();
