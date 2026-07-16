@@ -87,6 +87,8 @@ Fresh TEST may invoke the same root script with `--bootstrap-test-env` and the t
 That explicit mode creates missing, distinct operational credentials and `media-worker.test` before the shared
 collision preflight, writes protected env files atomically as `root:deploy 0640`, never prints their values, and is
 idempotent. It is path-locked to TEST and cannot bootstrap PROD.
+The project root is also locked to the canonical `/opt/projects/bersoncarebot-test` checkout, preventing a TEST
+bootstrap from running a stale or PROD artifact.
 The duplicated TEST readiness uses quiet tuple-only PostgreSQL output and integer `0/1` assertions for all four contours;
 it does not depend on command-tag or newline parsing.
 

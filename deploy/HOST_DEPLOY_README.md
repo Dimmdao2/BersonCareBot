@@ -173,6 +173,8 @@ Bootstrap атомарно добавляет три отдельные operatio
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
 и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
 паролей и секретов не выводятся.
+Bootstrap дополнительно требует точный канонический checkout `/opt/projects/bersoncarebot-test`; запуск из
+PROD checkout, dev-home или другого/stale каталога блокируется до чтения и изменения env/БД.
 
 Скрипт до любых изменений ролей запускает общий C2 preflight по `webapp.prod`/`api.prod`/`media-worker.prod`, поэтому
 повторное использование webapp/API/operator login блокируется. Пароли он не печатает: берёт operational URL из

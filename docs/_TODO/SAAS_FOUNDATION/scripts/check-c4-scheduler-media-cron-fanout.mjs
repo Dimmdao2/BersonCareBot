@@ -543,7 +543,10 @@ function assertOperationalSqlAndDeploy(loaded) {
     "\\password $role",
     "assert-c4-operational-runtime-ready.sh",
     "--bootstrap-test-env",
+    "--self-test",
     "bootstrap-c4-test-env.mjs",
+    '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
+    "provision-c4-operational-runtime self-test: OK",
   ]);
   requireFragments(files.operationalTestEnvBootstrap, loaded.operationalTestEnvBootstrap, [
     'media: "/opt/env/bersoncarebot/media-worker.test"',
@@ -683,6 +686,10 @@ if (process.argv.includes("--self-test")) {
     "bootstrap-c4-test-env.mjs",
     "bootstrap-c4-test-env-removed.mjs",
   );
+  const operationalProvisionOpenProjectRoot = read(files.operationalProvisionScript).replace(
+    '[ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ]',
+    '[ -n "$PROJECT_ROOT" ]',
+  );
   const operationalReadinessNoBooleanGate = read(files.operationalReadiness).replace(
     "SELECT 1 / has_function_privilege",
     "SELECT has_function_privilege",
@@ -725,6 +732,7 @@ if (process.argv.includes("--self-test")) {
     { operationalSql: operationalSqlWrongAuditSchema },
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalProvisionScript: operationalProvisionNoBootstrap },
+    { operationalProvisionScript: operationalProvisionOpenProjectRoot },
     { operationalReadiness: operationalReadinessNoBooleanGate },
     { operationalSql: operationalSqlNoTypeScrub },
     { operationalSql: operationalSqlCategoryArrayFilter },

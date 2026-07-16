@@ -1,22 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-[ "${EUID}" -eq 0 ] || { echo "FATAL: run as root/DB administrator" >&2; exit 1; }
-
 PROJECT_ROOT="${PROJECT_ROOT:-/opt/projects/bersoncarebot}"
 API_ENV_FILE="${API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
 
+validate_test_bootstrap_paths(){
+  [ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ] || { echo "FATAL: TEST bootstrap requires canonical TEST project root" >&2; return 1; }
+  [ "$API_ENV_FILE" = "/opt/env/bersoncarebot/api.test" ] || { echo "FATAL: TEST bootstrap requires canonical api.test path" >&2; return 1; }
+  [ "$WEBAPP_ENV_FILE" = "/opt/env/bersoncarebot/webapp.test" ] || { echo "FATAL: TEST bootstrap requires canonical webapp.test path" >&2; return 1; }
+  [ "$MEDIA_WORKER_ENV_FILE" = "/opt/env/bersoncarebot/media-worker.test" ] || { echo "FATAL: TEST bootstrap requires canonical media-worker.test path" >&2; return 1; }
+}
+
+run_self_test(){
+  if ! (PROJECT_ROOT=/opt/projects/bersoncarebot-test
+        API_ENV_FILE=/opt/env/bersoncarebot/api.test
+        WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test
+        MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test
+        validate_test_bootstrap_paths); then
+    echo "FATAL: self-test rejected canonical TEST paths" >&2
+    return 1
+  fi
+  if (unset PROJECT_ROOT
+      PROJECT_ROOT="${PROJECT_ROOT:-/opt/projects/bersoncarebot}"
+      API_ENV_FILE=/opt/env/bersoncarebot/api.test
+      WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test
+      MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test
+      validate_test_bootstrap_paths) >/dev/null 2>&1; then
+    echo "FATAL: self-test accepted omitted project root" >&2
+    return 1
+  fi
+  for rejected_root in /opt/projects/bersoncarebot /opt/projects/wrong-test; do
+    if (PROJECT_ROOT="$rejected_root"
+        API_ENV_FILE=/opt/env/bersoncarebot/api.test
+        WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.test
+        MEDIA_WORKER_ENV_FILE=/opt/env/bersoncarebot/media-worker.test
+        validate_test_bootstrap_paths) >/dev/null 2>&1; then
+      echo "FATAL: self-test accepted non-canonical project root" >&2
+      return 1
+    fi
+  done
+  echo "provision-c4-operational-runtime self-test: OK"
+}
+
+if [ "${1:-}" = "--self-test" ]; then
+  [ "$#" -eq 1 ] || { echo "FATAL: usage: $0 [--bootstrap-test-env|--self-test]" >&2; exit 2; }
+  run_self_test
+  exit
+fi
+
+[ "${EUID}" -eq 0 ] || { echo "FATAL: run as root/DB administrator" >&2; exit 1; }
+
 if [ "${1:-}" = "--bootstrap-test-env" ]; then
-  [ "$#" -eq 1 ] || { echo "FATAL: usage: $0 [--bootstrap-test-env]" >&2; exit 2; }
-  [ "$API_ENV_FILE" = "/opt/env/bersoncarebot/api.test" ] || { echo "FATAL: TEST bootstrap requires canonical api.test path" >&2; exit 1; }
-  [ "$WEBAPP_ENV_FILE" = "/opt/env/bersoncarebot/webapp.test" ] || { echo "FATAL: TEST bootstrap requires canonical webapp.test path" >&2; exit 1; }
-  [ "$MEDIA_WORKER_ENV_FILE" = "/opt/env/bersoncarebot/media-worker.test" ] || { echo "FATAL: TEST bootstrap requires canonical media-worker.test path" >&2; exit 1; }
+  [ "$#" -eq 1 ] || { echo "FATAL: usage: $0 [--bootstrap-test-env|--self-test]" >&2; exit 2; }
+  validate_test_bootstrap_paths
   node "$PROJECT_ROOT/deploy/host/bootstrap-c4-test-env.mjs" --execute
 elif [ "$#" -ne 0 ]; then
-  echo "FATAL: usage: $0 [--bootstrap-test-env]" >&2
+  echo "FATAL: usage: $0 [--bootstrap-test-env|--self-test]" >&2
   exit 2
 fi
 
