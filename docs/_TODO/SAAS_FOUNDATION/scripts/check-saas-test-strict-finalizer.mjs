@@ -12,6 +12,7 @@ const files = {
   codeOnly: "deploy/host/deploy-test.sh",
   fixtureValidator: "deploy/host/validate-saas-product-smoke-fixture.sh",
   protocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
+  patientTestResults: "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
 };
 
 function fail(message) {
@@ -38,6 +39,14 @@ function requireOrdered(label, text, fragments) {
     if (index < 0) fail(`${label} missing ordered fragment after ${cursor}: ${fragment}`);
     cursor = index + fragment.length;
   }
+}
+
+function methodSlice(label, text, start, end) {
+  const startIndex = text.indexOf(start);
+  if (startIndex < 0) fail(`${label} missing method start: ${start}`);
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  if (endIndex < 0) fail(`${label} missing method end: ${end}`);
+  return text.slice(startIndex, endIndex);
 }
 
 function runChecks(overrides = {}) {
@@ -203,6 +212,21 @@ function runChecks(overrides = {}) {
   if (loaded.protocol.includes("Do not bundle strict/FORCE into the fresh-dump dormant rehearsal.")) {
     fail(`${files.protocol} still blesses dormant TEST end-state`);
   }
+
+  const patientResultDetails = methodSlice(
+    files.patientTestResults,
+    loaded.patientTestResults,
+    "async listResultDetailsForInstance(",
+    "async listPendingEvaluationResultsForPatient(",
+  );
+  requireFragments(files.patientTestResults, patientResultDetails, [
+    "itemSnapshot: itemTable.snapshot",
+    "clinicalTestTitleFromInstanceSnapshot(r.itemSnapshot, r.result.testId)",
+    ".where(eq(stageTable.instanceId, instanceId))",
+  ]);
+  if (patientResultDetails.includes(".innerJoin(clinicalTests")) {
+    fail(`${files.patientTestResults} patient result details reopened the restricted clinical-test catalog`);
+  }
 }
 
 function runSelfTest() {
@@ -227,6 +251,12 @@ function runSelfTest() {
     { fixtureValidator: baseline.fixtureValidator.replace('[ "$metadata" = "$expected_uid:$expected_gid:$expected_mode" ]', "true") },
     { codeOnly: baseline.codeOnly.replace('bash "$DEPLOY_REPO/$STRICT_CLOSURE" --post-migration-closure', "") },
     { protocol: `${baseline.protocol}\nDo not bundle strict/FORCE into the fresh-dump dormant rehearsal.\n` },
+    {
+      patientTestResults: baseline.patientTestResults.replace(
+        ".innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))\n        .where(eq(stageTable.instanceId, instanceId))",
+        ".innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))\n        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))\n        .where(eq(stageTable.instanceId, instanceId))",
+      ),
+    },
   ];
   const missed = [];
   for (const [index, broken] of cases.entries()) {
