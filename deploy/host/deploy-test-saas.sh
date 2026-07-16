@@ -44,6 +44,7 @@ PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accesso
 PUBLIC_BOOKING_BOOTSTRAP_RESOLVER=deploy/postgres/public-booking-bootstrap-resolver.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
+TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql
 OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
@@ -808,6 +809,11 @@ run_owner_ready_locked_db_matrix(){
     -f "$DEPLOY_REPO/$OWNER_READY_LOCKED_MATRIX"
 }
 
+run_test_patient_identity_capability_gate(){
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -f "$DEPLOY_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"
+}
+
 run_b1_doctor_admin_identity_assertion(){
   if [ "${SAAS_B1_IDENTITY_ASSERTION_SKIP:-0}" = "1" ]; then
     echo "   B1 doctor/admin identity assertion: skipped (SAAS_B1_IDENTITY_ASSERTION_SKIP=1)"
@@ -895,6 +901,9 @@ run_strict_post_migration_closure(){
     "export SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 && export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough"
   assert_cleanup_elevation
 
+  log "strict closure: locked patient identity capability gate"
+  run_test_patient_identity_capability_gate
+
   log "strict closure: owner-ready locked DB matrix (transactional)"
   run_owner_ready_locked_db_matrix
   log "strict closure: post-matrix exact strict + FORCE reassertion"
@@ -928,6 +937,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
+    "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" "$C4_OPERATIONAL_RUNTIME" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
@@ -979,6 +989,7 @@ esac
 [ -r "$SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
+[ -r "$SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }

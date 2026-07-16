@@ -338,6 +338,7 @@ describe("webapp pool provider", () => {
 
   it.each([
     "public_auth_config",
+    "auth_role_config",
     "patient_runtime_config",
     "public_booking_config",
     "patient_identity_exception_check",

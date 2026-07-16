@@ -14,6 +14,7 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,

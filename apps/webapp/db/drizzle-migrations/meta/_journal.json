@@ -1408,6 +1408,13 @@
       "when": 1793107200000,
       "tag": "0200_current_patient_product_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1793193600000,
+      "tag": "0201_e1_webapp_auth_role_runtime_config",
+      "breakpoints": true
     }
   ]
 }

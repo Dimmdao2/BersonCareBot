@@ -102,6 +102,9 @@ async function main() {
     "('webapp','patient_identity_exception_check')",
     "('webapp','patient_booking_history')",
     "('webapp','patient_product_analytics')",
+    "('webapp','auth_role_config')",
+    "('webapp', 'auth_role_config')",
+    "saas_isolation_events_source_operation_check",
   ])
     requireText(loaded.overlay, fragment, 'overlay');
   for (const fragment of [
@@ -264,6 +267,7 @@ async function main() {
     'patient_identity_exception_check_persisted_after_overlay',
     'patient_booking_history_persisted_after_overlay',
     'patient_product_analytics_persisted_after_overlay',
+    'auth_role_config_persisted_after_overlay',
     'unknown_webapp_family_denied',
   ])
     requireText(loaded.rehearsal, fragment, 'PostgreSQL rehearsal proof');
@@ -275,6 +279,7 @@ async function main() {
       'patient_identity_exception_check_persisted_after_overlay',
       'patient_booking_history_persisted_after_overlay',
       'patient_product_analytics_persisted_after_overlay',
+      'auth_role_config_persisted_after_overlay',
       'unknown_webapp_family_denied',
     ],
     '0194 then telemetry overlay operation-family persistence proof',
@@ -429,6 +434,16 @@ async function main() {
         loaded.overlay.replace("('webapp','patient_product_analytics'),", ''),
         "('webapp','patient_product_analytics')",
         'missing patient product analytics operation family',
+      ],
+      [
+        loaded.overlay.replace("('webapp','auth_role_config'),", ''),
+        "('webapp','auth_role_config')",
+        'missing auth role config operation family',
+      ],
+      [
+        loaded.overlay.replace("('webapp', 'auth_role_config'),", ''),
+        "('webapp', 'auth_role_config')",
+        'missing auth role config table constraint',
       ],
       [
         loaded.testScenarioRunner.replace('finally {', 'if (false) {'),

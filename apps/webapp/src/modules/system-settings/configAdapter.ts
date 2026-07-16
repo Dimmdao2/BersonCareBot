@@ -19,6 +19,7 @@ import {
   type RuntimeConfigOperationFamily,
   type ServerRuntimeBooleanKey,
   type ServerRuntimeIntegerKey,
+  type ServerRuntimeTokenListKey,
 } from "./runtimeConfig";
 
 const TTL_MS = 60_000;
@@ -64,6 +65,22 @@ export function getServerRuntimeInteger(key: ServerRuntimeIntegerKey): Promise<n
   return safeRuntimeConfig.getServerInteger(key);
 }
 
+export function getServerRuntimeTokenList(
+  key: ServerRuntimeTokenListKey,
+  envFallback: string,
+): Promise<string> {
+  const cacheKey = `server-token-list:${key}`;
+  const now = Date.now();
+  const cached = cache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < TTL_MS) {
+    return Promise.resolve(cached.value);
+  }
+  return safeRuntimeConfig.getServerTokenList(key, envFallback, "auth_role_config").then((value) => {
+    cache.set(cacheKey, { value, fetchedAt: Date.now() });
+    return value;
+  });
+}
+
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
 export function invalidateConfigCache(): void {
   cache.clear();
@@ -72,6 +89,7 @@ export function invalidateConfigCache(): void {
 /** Invalidate a single key from cache. */
 export function invalidateConfigKey(key: string): void {
   cache.delete(key);
+  cache.delete(`server-token-list:${key}`);
 }
 
 async function fetchFromDb(key: string): Promise<string | null> {

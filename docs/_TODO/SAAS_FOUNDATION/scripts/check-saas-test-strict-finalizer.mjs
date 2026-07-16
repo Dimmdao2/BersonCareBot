@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const files = {
   finalizer: "deploy/postgres/test-strict-rls-finalizer.sql",
+  patientIdentityGate: "deploy/postgres/test-patient-identity-capability-gate.sql",
   force: "deploy/postgres/phase4-force-rls-cutover.sql",
   invites: "deploy/postgres/organization-member-invites-rls.sql",
   courses: "deploy/postgres/patient-course-assignment-wall.sql",
@@ -180,6 +181,8 @@ function runChecks(overrides = {}) {
   requireFragments(files.hard, loaded.hard, [
     "must use DB_PRINCIPAL_CONTEXT_MODE=locked for strict TEST",
     "TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql",
+    "TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql",
+    "run_test_patient_identity_capability_gate",
     "apply_test_strict_rls_finalizer",
     "run_strict_post_migration_closure",
     "SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql",
@@ -205,6 +208,35 @@ function runChecks(overrides = {}) {
     'sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs"',
     '--fixture-file="$fixture_path"',
   ]);
+  requireOrdered(files.hard, loaded.hard, [
+    'pnpm --dir apps/webapp run seed:saas-test-walkthrough',
+    "assert_cleanup_elevation",
+    'log "strict closure: locked patient identity capability gate"',
+    "run_test_patient_identity_capability_gate",
+    'log "strict closure: owner-ready locked DB matrix (transactional)"',
+    'log "strict closure: restart locked TEST units"',
+  ]);
+
+  requireFragments(files.patientIdentityGate, loaded.patientIdentityGate, [
+    "current_database() = 'bersoncarebot_test'",
+    "NOT rolcanlogin AND NOT rolbypassrls",
+    "\\o /dev/null",
+    "BEGIN;",
+    "'53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a101'",
+    "'53000000-0000-4000-8000-0000000000b1', '53000000-0000-4000-8000-00000000a201'",
+    "'53000000-0000-4000-8000-0000000000a1', '53000000-0000-4000-8000-00000000a102'",
+    "SET SESSION AUTHORIZATION app_patient;",
+    "app.is_current_patient_test_account() AS patient_a \\gset",
+    "app.is_current_patient_test_account() AS patient_b \\gset",
+    "app.is_current_patient_test_account() AS unrelated \\gset",
+    "ROLLBACK;",
+    "\\o\n\\unset QUIET",
+    "\\unset QUIET",
+    "patientA=true patientB=true unrelated=false",
+  ]);
+  if (/\\echo[^\n]*(?:53000000|@|password|token)/i.test(loaded.patientIdentityGate)) {
+    fail(`${files.patientIdentityGate} exposes fixture identifiers or secrets in output`);
+  }
 
   requireFragments(files.fixtureValidator, loaded.fixtureValidator, [
     'canonical_fixture="$(realpath -e -- "$fixture_path")"',
@@ -289,6 +321,9 @@ function runSelfTest() {
     { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"', "") },
     { force: baseline.force.replace("v_expected_count <> 163", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
+    { hard: baseline.hard.replace("  run_test_patient_identity_capability_gate\n", "") },
+    { patientIdentityGate: baseline.patientIdentityGate.replace("00000000a201", "00000000a102") },
+    { patientIdentityGate: baseline.patientIdentityGate.replace(" AS unrelated \\gset", " AS unrelated") },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
     { hard: baseline.hard.replace('webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"', 'webapp_runtime_role="$(discover_webapp_migrator_role)"') },
     { hard: baseline.hard.replaceAll('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },

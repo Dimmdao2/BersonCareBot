@@ -10,9 +10,12 @@ const files = {
   visibleCatalogOverlay: "deploy/postgres/patient-visible-catalog-rls.sql",
   bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
+  authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
+  telemetryOverlay: "deploy/postgres/saas-isolation-telemetry.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
   adapter: "apps/webapp/src/modules/system-settings/configAdapter.ts",
+  envRole: "apps/webapp/src/modules/auth/envRole.ts",
   publicSnapshot: "apps/webapp/src/modules/auth/publicAuthSnapshot.ts",
   oauthProviders: "apps/webapp/src/app/api/auth/oauth/providers/route.ts",
   patientMaintenance: "apps/webapp/src/modules/system-settings/patientMaintenance.ts",
@@ -160,6 +163,26 @@ function runChecks(overrides = {}) {
     "app.record_current_patient_push_open", "push.organization_id = v_org",
     "push.user_id = v_patient", "ON CONFLICT (push_tracking_id)",
   ]);
+  requireText(files.authRoleMigration, loaded.authRoleMigration, [
+    "0201_e1_webapp_auth_role_runtime_config",
+    "('webapp','auth_role_config')",
+    "('admin_telegram_ids', '{\"value\":\"\"}'::jsonb)",
+    "('admin_max_ids', '{\"value\":\"\"}'::jsonb)",
+    "('admin_phones', '{\"value\":\"\"}'::jsonb)",
+    "('doctor_telegram_ids', '{\"value\":\"\"}'::jsonb)",
+    "('doctor_max_ids', '{\"value\":\"\"}'::jsonb)",
+    "('doctor_phones', '{\"value\":\"\"}'::jsonb)",
+    "'server'",
+    "CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting",
+    "SECURITY DEFINER",
+    "setting.audience = 'server'",
+    "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC",
+  ]);
+  forbidText(files.authRoleMigration, loaded.authRoleMigration, [
+    "GRANT SELECT ON TABLE public.system_settings",
+    "TO app_patient",
+    "GRANT EXECUTE",
+  ]);
   requireText(files.pgPatientBookings, loaded.pgPatientBookings, [
     "app.read_current_patient_booking_rows('upcoming'", "app.read_current_patient_booking_rows('history'",
   ]);
@@ -196,7 +219,8 @@ function runChecks(overrides = {}) {
     "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
     "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
     "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
-    "0200_current_patient_product_analytics.sql", "e1_webapp_runtime_role",
+    "0200_current_patient_product_analytics.sql", "0201_e1_webapp_auth_role_runtime_config.sql",
+    "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "REVOKE ALL PRIVILEGES ON FUNCTION",
@@ -252,6 +276,18 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.be_rooms TO app_patient",
     "GRANT SELECT ON TABLE public.be_clinic_services TO app_patient",
   ]);
+  requireText(files.telemetryOverlay, loaded.telemetryOverlay, [
+    "saas_isolation_events_source_operation_check",
+    "('webapp','auth_role_config')",
+    "('webapp', 'auth_role_config')",
+    "CREATE OR REPLACE FUNCTION app.report_saas_isolation_event",
+  ]);
+  requireOrderedText(files.deploy, loaded.deploy, [
+    'log "strict closure: reviewed runtime overlays"',
+    "rehydrate_post_restore_runtime_overlays",
+    'log "strict closure: SaaS isolation telemetry privilege overlay"',
+    "install_saas_isolation_telemetry_overlay",
+  ]);
   requireText(files.smoke, loaded.smoke, [
     "TO app_patient WITH GRANT OPTION",
     `TO \${arbitraryRole}`,
@@ -267,19 +303,34 @@ function runChecks(overrides = {}) {
     "read_current_patient_appointment_history()",
     "60000000-0000-4000-8000-000000000002",
     "appointment_id IN (",
+    "0201_e1_webapp_auth_role_runtime_config.sql",
+    "app.read_webapp_server_runtime_setting('admin_phones','admin')",
+    "app.read_webapp_server_runtime_setting('doctor_phones','admin')",
+    "app.read_webapp_server_runtime_setting('test_account_identifiers','admin')",
+    "v2:role_pool_mismatch:webapp:auth_role_config",
   ]);
   requireText(files.runtime, loaded.runtime, [
-    '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     "getPublicBoolean", "getPublicString", "getAuthenticatedBoolean", "getAuthenticatedString",
-    "getServerBoolean", "getServerInteger", "public_sms_fallback_enabled: false",
+    "getServerBoolean", "getServerTokenList", "getServerInteger", "public_sms_fallback_enabled: false",
     'allowGlobalFallback: key !== "patient_booking_url"',
   ]);
   requireText(files.adapter, loaded.adapter, [
     "getPublicRuntimeBool", "getPublicRuntimeValue", "getPatientRuntimeBool", "getPatientRuntimeValue",
-    "getServerRuntimeBool", "getServerRuntimeInteger",
+    "getServerRuntimeBool", "getServerRuntimeTokenList", "getServerRuntimeInteger",
     "return envFallback;",
   ]);
   forbidText(files.adapter, loaded.adapter, ["return getConfigBool(key, envFallback);"]);
+  requireText(files.envRole, loaded.envRole, [
+    "getServerRuntimeTokenList",
+    'getServerRuntimeTokenList("admin_telegram_ids"',
+    'getServerRuntimeTokenList("admin_max_ids"',
+    'getServerRuntimeTokenList("admin_phones"',
+    'getServerRuntimeTokenList("doctor_telegram_ids"',
+    'getServerRuntimeTokenList("doctor_max_ids"',
+    'getServerRuntimeTokenList("doctor_phones"',
+  ]);
+  forbidText(files.envRole, loaded.envRole, ["getConfigValue(", "readAdminSystemSettingString"]);
   for (const text of [loaded.publicSnapshot, loaded.oauthProviders]) {
     requireText("public oauth availability", text, [
       'getPublicRuntimeBool("oauth_yandex_enabled")',
@@ -307,7 +358,7 @@ function runChecks(overrides = {}) {
     'getPatientRuntimeValue("video_default_delivery")',
   ]);
   requireText(files.operationContext, loaded.operationContext, [
-    "AsyncLocalStorage", '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    "AsyncLocalStorage", '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     '"patient_identity_exception_check"', '"patient_booking_history"',
   ]);
   requireText(files.pgRuntime, loaded.pgRuntime, [
@@ -348,7 +399,7 @@ function runChecks(overrides = {}) {
   ]);
   requireText(files.poolProviderTest, loaded.poolProviderTest, [
     'runWithWebappDbOperationFamily("public_booking_config"',
-    '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     '"patient_identity_exception_check"', '"patient_booking_history"',
     'sourceOperation: "webapp_db_request"',
     "sourceOperation: family",
@@ -371,7 +422,7 @@ function runChecks(overrides = {}) {
     ]);
   }
   requireText(files.diagnostics, loaded.diagnostics, [
-    '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     '"patient_identity_exception_check"', '"patient_booking_history"',
   ]);
   requireText(files.deploy, loaded.deploy, [
@@ -383,6 +434,7 @@ function runChecks(overrides = {}) {
     '"idx": 193', '"tag": "0193_e1_safe_runtime_config"',
     '"idx": 194', '"tag": "0194_e1_patient_identity_exception"',
     '"idx": 195', '"tag": "0195_e1_patient_maintenance_history"',
+    '"idx": 201', '"tag": "0201_e1_webapp_auth_role_runtime_config"',
   ]);
   requireText(files.visibleCatalogMigration, loaded.visibleCatalogMigration, [
     "to_regprocedure('app.current_org_id()') IS NULL",
@@ -487,6 +539,7 @@ if (process.argv.includes("--self-test")) {
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
     ["legacy server read", { presignTtl: `${read(files.presignTtl)}\nvoid getConfigPositiveInt();\n` }],
     ["deploy overlay", { deploy: read(files.deploy).replace("E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql", "E1_WEBAPP_RUNTIME_CONFIG=") }],
+    ["telemetry auth role operation", { telemetryOverlay: read(files.telemetryOverlay).replaceAll("auth_role_config", "removed_auth_role_config") }],
     ["visible catalog fresh guard", { visibleCatalogMigration: read(files.visibleCatalogMigration).replace("to_regprocedure('app.current_patient_user_id()') IS NULL", "false") }],
     ["visible catalog post-P2-B overlay", { visibleCatalogOverlay: read(files.visibleCatalogOverlay).replace("patient_visible_catalog_principal_helpers_missing", "removed") }],
     ["visible catalog full prod wiring", { deployProd: read(files.deployProd).replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_VISIBLE_CATALOG_RLS}"', "# removed") }],

@@ -8,6 +8,7 @@ import {
   getConfigValue,
   getConfigBool,
   getConfigPositiveInt,
+  getServerRuntimeTokenList,
   invalidateConfigCache,
   invalidateConfigKey,
 } from "./configAdapter";
@@ -98,5 +99,29 @@ describe("configAdapter", () => {
 
     const r = await getConfigPositiveInt("video_presign_ttl_seconds", 3600, { min: 60, max: 604800 });
     expect(r).toBe(3600);
+  });
+
+  it("caches closed server token lists and preserves authoritative JSON arrays", async () => {
+    vi.mocked(runWebappPgText).mockResolvedValue({
+      rows: [{
+        key: "doctor_phones",
+        scope: "admin",
+        organization_id: null,
+        audience: "server",
+        value_json: { value: ["+75550000001"] },
+      }],
+    });
+
+    await expect(getServerRuntimeTokenList("doctor_phones", "env-doctor")).resolves.toBe(
+      '["+75550000001"]',
+    );
+    await expect(getServerRuntimeTokenList("doctor_phones", "env-doctor")).resolves.toBe(
+      '["+75550000001"]',
+    );
+    expect(runWebappPgText).toHaveBeenCalledTimes(1);
+
+    invalidateConfigKey("doctor_phones");
+    await getServerRuntimeTokenList("doctor_phones", "env-doctor");
+    expect(runWebappPgText).toHaveBeenCalledTimes(2);
   });
 });

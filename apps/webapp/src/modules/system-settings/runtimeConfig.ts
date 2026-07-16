@@ -41,6 +41,7 @@ export type RuntimeIntegerSetting = keyof typeof RUNTIME_INTEGER_SETTING_DEFINIT
 export type RuntimeConfigAudience = "public" | "authenticated_client" | "server";
 export type RuntimeConfigOperationFamily =
   | "public_auth_config"
+  | "auth_role_config"
   | "patient_runtime_config"
   | "public_booking_config";
 
@@ -111,6 +112,15 @@ export const SERVER_RUNTIME_BOOLEAN_DEFAULTS = {
   debug_forward_to_admin: false,
 } as const;
 
+export const SERVER_RUNTIME_TOKEN_LIST_DEFAULTS = {
+  admin_telegram_ids: "",
+  admin_max_ids: "",
+  admin_phones: "",
+  doctor_telegram_ids: "",
+  doctor_max_ids: "",
+  doctor_phones: "",
+} as const;
+
 export const SERVER_RUNTIME_INTEGER_DEFINITIONS = {
   video_presign_ttl_seconds: {
     defaultValue: 3600,
@@ -124,6 +134,7 @@ export type PublicRuntimeStringKey = keyof typeof PUBLIC_RUNTIME_STRING_DEFAULTS
 export type AuthenticatedRuntimeBooleanKey = keyof typeof AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS;
 export type AuthenticatedRuntimeStringKey = keyof typeof AUTHENTICATED_RUNTIME_STRING_DEFAULTS;
 export type ServerRuntimeBooleanKey = keyof typeof SERVER_RUNTIME_BOOLEAN_DEFAULTS;
+export type ServerRuntimeTokenListKey = keyof typeof SERVER_RUNTIME_TOKEN_LIST_DEFAULTS;
 export type ServerRuntimeIntegerKey = keyof typeof SERVER_RUNTIME_INTEGER_DEFINITIONS;
 
 function parseIntegerEnvelope(
@@ -142,6 +153,14 @@ function parseIntegerEnvelope(
   return parsed === null || parsed < 1
     ? null
     : Math.min(maxValue, Math.max(minValue, parsed));
+}
+
+function parseTokenListEnvelope(valueJson: unknown): string | null {
+  if (valueJson === null || typeof valueJson !== "object" || Array.isArray(valueJson)) return null;
+  const value = (valueJson as Record<string, unknown>).value;
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return null;
+  return JSON.stringify(value.map((item) => String(item).trim()).filter(Boolean));
 }
 
 export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
@@ -267,6 +286,24 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
         return parseBooleanEnvelope(row?.valueJson ?? null) ?? SERVER_RUNTIME_BOOLEAN_DEFAULTS[key];
       } catch {
         return SERVER_RUNTIME_BOOLEAN_DEFAULTS[key];
+      }
+    },
+    async getServerTokenList(
+      key: ServerRuntimeTokenListKey,
+      fallbackValue: string,
+      operationFamily: RuntimeConfigOperationFamily = "auth_role_config",
+    ): Promise<string> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["server"],
+          operationFamily,
+        });
+        return parseTokenListEnvelope(row?.valueJson ?? null) ?? fallbackValue;
+      } catch {
+        return fallbackValue;
       }
     },
     async getServerInteger(key: ServerRuntimeIntegerKey): Promise<number> {

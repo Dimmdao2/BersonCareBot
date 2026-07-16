@@ -187,6 +187,46 @@ describe("runtime config provider", () => {
     });
   });
 
+  it("reads JSON-array role allowlists through the precise closed server operation", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "doctor_phones",
+      scope: "admin",
+      organizationId: null,
+      audience: "server",
+      valueJson: { value: ["+75550000001", " "] },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getServerTokenList("doctor_phones", "env-fallback")).resolves.toBe(
+      '["+75550000001"]',
+    );
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "doctor_phones",
+      scope: "admin",
+      organizationId: null,
+      allowedAudiences: ["server"],
+      operationFamily: "auth_role_config",
+    });
+  });
+
+  it("uses the env role fallback only when the server projection is missing or denied", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("permission denied"))
+      .mockResolvedValueOnce({
+        key: "admin_phones",
+        scope: "admin",
+        organizationId: null,
+        audience: "server",
+        valueJson: { value: [] },
+      });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(provider.getServerTokenList("admin_phones", "env-admin")).resolves.toBe("env-admin");
+    await expect(provider.getServerTokenList("admin_phones", "env-admin")).resolves.toBe("env-admin");
+    await expect(provider.getServerTokenList("admin_phones", "env-admin")).resolves.toBe("[]");
+  });
+
   it("bounds server-only presign TTL and defaults on denial", async () => {
     const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
       .mockResolvedValueOnce({

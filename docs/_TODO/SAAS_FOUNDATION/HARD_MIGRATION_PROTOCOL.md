@@ -279,6 +279,13 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   EXECUTE; the final three direct base-login rows have `is_grantable=false`, PUBLIC is absent, and only the booking
   resolver may additionally retain `app_patient`. It is not final D3.4 PASS until the owner-authorized locked TEST
   product smoke reruns.
+- session role reconciliation must read the six global admin/doctor Telegram, MAX, and phone allowlists only from
+  the `server` audience of `public.app_runtime_settings` through
+  `app.read_webapp_server_runtime_setting(text,text)`. The accessor allowlist is closed, the webapp uses a nested
+  bootstrap checkout, and E1 telemetry classifies failures as `webapp/auth_role_config`. JSON string and JSON-array
+  setting shapes are both supported; a present empty array is authoritative, while a missing/denied projection
+  retains the legacy environment fallback. Never fix this path by granting `app_patient`, `app_staff`, or the
+  nonstaff base login direct `SELECT` on `public.system_settings`.
 - after strict policy installation, apply `deploy/postgres/c4-operational-runtime.sql` using the four distinct
   logins discovered from API `DATABASE_URL_DIAGNOSTIC`, `DATABASE_URL_DELIVERY_WORKER`,
   `DATABASE_URL_SCHEDULER`, and separate `media-worker.test` `DATABASE_URL`. Apply it again after any strict
@@ -403,6 +410,14 @@ specialist consolidation, and B1. The contract is:
   post-cleanup assertions make residue fatal on success or failure;
 - no real PII, message delivery, notification, S3, HTTP, or other external write path is used;
 - stdout is aggregate-only and never contains fixture email, password, cookie, token, or opaque row ID.
+
+Immediately after fixture reconciliation and privilege cleanup, the shared strict closure must run the canonical
+`deploy/postgres/test-patient-identity-capability-gate.sql`. In a rollback-only transaction it installs the existing
+signed principal context for the two representative fixture patients and one unrelated fixture patient, switches
+the effective principal to locked `app_patient`, and calls only the existing
+`app.is_current_patient_test_account()` capability. The required result is `patientA=true`, `patientB=true`, and
+`unrelated=false`; any other result aborts before the owner-ready matrix or service restart. Output contains only
+those labels and booleans, never fixture identifiers or restricted settings.
 
 The TEST settings override enables and locks the mirrored global `specialist_signup_enabled=true` row for the
 owner walkthrough. This is TEST-only: production remains default-off. On TEST, clean public/login, combined

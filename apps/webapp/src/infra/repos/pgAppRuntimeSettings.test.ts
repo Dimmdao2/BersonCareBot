@@ -60,4 +60,35 @@ describe("createPgAppRuntimeSettingsPort", () => {
     expect(getCurrentDbPrincipal()).toBeUndefined();
     expect(getCurrentWebappDbOperationFamily()).toBeUndefined();
   });
+
+  it("uses a nested bootstrap checkout and precise operation for server role config", async () => {
+    runWebappPgTextMock.mockImplementation(async () => {
+      expect(getCurrentDbPrincipal()?.kind).toBe("bootstrap");
+      expect(getCurrentWebappDbOperationFamily()).toBe("auth_role_config");
+      return {
+        rows: [{
+          key: "admin_phones",
+          scope: "admin",
+          organization_id: null,
+          audience: "server",
+          value_json: { value: "+75550000001" },
+        }],
+      };
+    });
+
+    const port = createPgAppRuntimeSettingsPort();
+    await runWithDbPatientPrincipal(
+      { organizationId: ORGANIZATION_ID, platformUserId: USER_ID },
+      () => port.getEffective({
+        key: "admin_phones",
+        scope: "admin",
+        organizationId: null,
+        allowedAudiences: ["server"],
+        operationFamily: "auth_role_config",
+      }),
+    );
+
+    expect(getCurrentDbPrincipal()).toBeUndefined();
+    expect(getCurrentWebappDbOperationFamily()).toBeUndefined();
+  });
 });

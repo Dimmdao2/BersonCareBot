@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 export type WebappDbOperationFamily =
   | "public_auth_config"
+  | "auth_role_config"
   | "patient_runtime_config"
   | "public_booking_config"
   | "patient_identity_exception_check"

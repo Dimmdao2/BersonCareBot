@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
+const { getServerRuntimeTokenListMock } = vi.hoisted(() => ({
+  getServerRuntimeTokenListMock: vi.fn(),
+}));
+
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getServerRuntimeTokenList: getServerRuntimeTokenListMock,
+}));
+
 vi.mock("@/config/env", () => ({
   env: {
     ADMIN_PHONES: "+79643805480, +79991112233",
@@ -12,7 +20,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "./envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleAsync, resolveRoleFromEnv } from "./envRole";
 
 describe("resolveRoleFromEnv", () => {
   it("returns admin when phone matches ADMIN_PHONES (normalized)", () => {
@@ -72,5 +80,28 @@ describe("reconcileDbRoleWithEnvRole", () => {
   it("keeps admin as the strongest staff role", () => {
     expect(reconcileDbRoleWithEnvRole("doctor", "admin")).toBe("admin");
     expect(reconcileDbRoleWithEnvRole("admin", "doctor")).toBe("admin");
+  });
+});
+
+describe("resolveRoleAsync", () => {
+  it("loads exactly the six closed server-only role settings", async () => {
+    getServerRuntimeTokenListMock.mockImplementation(async (key: string) =>
+      key === "doctor_phones" ? '["+75550000001"]' : "[]",
+    );
+
+    await expect(resolveRoleAsync({ phone: "+75550000001" })).resolves.toBe("doctor");
+    expect(getServerRuntimeTokenListMock.mock.calls.map(([key]) => key)).toEqual([
+      "admin_telegram_ids",
+      "admin_max_ids",
+      "admin_phones",
+      "doctor_telegram_ids",
+      "doctor_max_ids",
+      "doctor_phones",
+    ]);
+  });
+
+  it("keeps the legacy env policy when the closed runtime accessor fails", async () => {
+    getServerRuntimeTokenListMock.mockRejectedValueOnce(new Error("permission denied"));
+    await expect(resolveRoleAsync({ telegramId: "9001001001" })).resolves.toBe("admin");
   });
 });

@@ -30,6 +30,13 @@ const curatedPlaybackPatientRuntime = readFileSync(
   ),
   "utf8",
 );
+const authRoleRuntime = readFileSync(
+  new URL(
+    "../../../db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const patientPlaybackAccessors = readFileSync(
   new URL("../../../../../deploy/postgres/patient-media-playback-telemetry-accessors.sql", import.meta.url),
   "utf8",
@@ -54,6 +61,28 @@ const patientPlaybackScratch = readFileSync(
 );
 
 describe("patient-safe support default runtime migration", () => {
+  it("projects only the six role allowlists through the closed server accessor", () => {
+    for (const key of [
+      "admin_telegram_ids",
+      "admin_max_ids",
+      "admin_phones",
+      "doctor_telegram_ids",
+      "doctor_max_ids",
+      "doctor_phones",
+    ]) {
+      expect(authRoleRuntime).toContain(`'${key}'`);
+    }
+    expect(authRoleRuntime).toContain("'server'");
+    expect(authRoleRuntime).toContain("('webapp','auth_role_config')");
+    expect(authRoleRuntime).toContain(
+      "CREATE OR REPLACE FUNCTION app.read_webapp_server_runtime_setting",
+    );
+    expect(authRoleRuntime).not.toContain(
+      "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    );
+    expect(authRoleRuntime).not.toContain("GRANT EXECUTE");
+  });
+
   it("registers global and organization backfill for both doctor defaults", () => {
     for (const key of [
       "doctor_patient_support_comments_without_support_default_enabled",

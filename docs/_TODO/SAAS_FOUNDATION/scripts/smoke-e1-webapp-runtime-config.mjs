@@ -131,9 +131,22 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
 ('video_presign_ttl_seconds','admin',NULL,'{"value":7200}'),
 ('test_account_identifiers','admin',NULL,
  '{"value":{"phones":["+79990000001"],"telegramIds":["tg-test"],"maxIds":[]}}'),
-('patient_booking_url','admin','00000000-0000-4000-8000-000000000001','{"value":"https://booking.example.test"}');
+('patient_booking_url','admin','00000000-0000-4000-8000-000000000001','{"value":"https://booking.example.test"}'),
+('admin_telegram_ids','admin',NULL,'{"value":[]}'),
+('admin_max_ids','admin',NULL,'{"value":[]}'),
+('admin_phones','admin',NULL,'{"value":[]}'),
+('doctor_telegram_ids','admin',NULL,'{"value":["doctor-tg"]}'),
+('doctor_max_ids','admin',NULL,'{"value":["doctor-max"]}'),
+('doctor_phones','admin',NULL,'{"value":["+79990000009"]}');
 `;
 const proof = `
+SELECT app.report_saas_isolation_event(
+  'role_pool_mismatch', 'webapp', 'auth_role_config', 'unexplained'
+);
+SELECT 1 / (EXISTS (
+  SELECT 1 FROM public.saas_isolation_events
+  WHERE fingerprint = 'v2:role_pool_mismatch:webapp:auth_role_config'
+))::int;
 GRANT USAGE ON SCHEMA app TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${publicRole};
@@ -170,15 +183,21 @@ SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_googl
 SELECT 1 / ((SELECT count(*) FROM app.read_public_runtime_setting('debug_forward_to_admin','admin'))=0)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('debug_forward_to_admin','admin'))='{"value":true}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('video_presign_ttl_seconds','admin'))='{"value":7200}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('admin_phones','admin'))='{"value":[]}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM app.read_webapp_server_runtime_setting('doctor_phones','admin'))='{"value":["+79990000009"]}'::jsonb)::int;
+SELECT 1 / ((SELECT count(*) FROM app.read_webapp_server_runtime_setting('test_account_identifiers','admin'))=0)::int;
 RESET SESSION AUTHORIZATION;
 UPDATE public.system_settings SET value_json='{"value":false}'
 WHERE key='debug_forward_to_admin' AND scope='admin' AND organization_id IS NULL;
 UPDATE public.system_settings SET value_json='{"value":120}'
 WHERE key='video_presign_ttl_seconds' AND scope='admin' AND organization_id IS NULL;
+UPDATE public.system_settings SET value_json='{"value":["+79990000010"]}'
+WHERE key='doctor_phones' AND scope='admin' AND organization_id IS NULL;
 UPDATE public.system_settings SET value_json='{"value":true}'
 WHERE key='sms_fallback_enabled' AND scope='doctor' AND organization_id IS NULL;
 SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='debug_forward_to_admin' AND organization_id IS NULL)='{"value":false}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='video_presign_ttl_seconds' AND organization_id IS NULL)='{"value":120}'::jsonb)::int;
+SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='doctor_phones' AND organization_id IS NULL)='{"value":["+79990000010"]}'::jsonb)::int;
 SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='public_sms_fallback_enabled' AND organization_id IS NULL)='{"value":true}'::jsonb)::int;
 SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
 SELECT 1 / has_table_privilege('app_patient','public.app_runtime_settings','SELECT')::int;
@@ -353,6 +372,7 @@ try {
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);
   psql(`

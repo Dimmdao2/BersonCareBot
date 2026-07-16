@@ -1,7 +1,7 @@
 import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
 import { normalizePhone } from "./phoneNormalize";
-import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getServerRuntimeTokenList } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
 /** Нормализованные номера из env (whitelist для входа по телефону в токене). */
@@ -113,12 +113,12 @@ export async function resolveRoleAsync(ids: {
       doctorMaxRaw,
       doctorPhonesRaw,
     ] = await Promise.all([
-      getConfigValue("admin_telegram_ids", String(env.ADMIN_TELEGRAM_ID ?? "")),
-      getConfigValue("admin_max_ids", env.ADMIN_MAX_IDS ?? ""),
-      getConfigValue("admin_phones", env.ADMIN_PHONES ?? ""),
-      getConfigValue("doctor_telegram_ids", env.DOCTOR_TELEGRAM_IDS ?? ""),
-      getConfigValue("doctor_max_ids", env.DOCTOR_MAX_IDS ?? ""),
-      getConfigValue("doctor_phones", env.DOCTOR_PHONES ?? ""),
+      getServerRuntimeTokenList("admin_telegram_ids", String(env.ADMIN_TELEGRAM_ID ?? "")),
+      getServerRuntimeTokenList("admin_max_ids", env.ADMIN_MAX_IDS ?? ""),
+      getServerRuntimeTokenList("admin_phones", env.ADMIN_PHONES ?? ""),
+      getServerRuntimeTokenList("doctor_telegram_ids", env.DOCTOR_TELEGRAM_IDS ?? ""),
+      getServerRuntimeTokenList("doctor_max_ids", env.DOCTOR_MAX_IDS ?? ""),
+      getServerRuntimeTokenList("doctor_phones", env.DOCTOR_PHONES ?? ""),
     ]);
 
     const adminTelegramIds = parseIdTokens(adminTelegramRaw);

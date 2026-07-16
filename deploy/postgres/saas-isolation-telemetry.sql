@@ -87,6 +87,27 @@ SELECT format(
   :'telemetry_api_runtime_role'
 ) \gexec
 
+-- This overlay is applied after E1 runtime migrations and therefore owns the final closed
+-- service/operation vocabulary as well as the writer function.
+ALTER TABLE public.saas_isolation_events
+  DROP CONSTRAINT IF EXISTS saas_isolation_events_source_operation_check;
+ALTER TABLE public.saas_isolation_events
+  ADD CONSTRAINT saas_isolation_events_source_operation_check CHECK (
+    (source_service, source_operation) IN (
+      ('webapp', 'webapp_db_request'), ('webapp', 'webapp_admin_system_health'),
+      ('webapp', 'public_auth_config'), ('webapp', 'auth_role_config'),
+      ('webapp', 'patient_runtime_config'), ('webapp', 'public_booking_config'),
+      ('webapp', 'patient_identity_exception_check'), ('webapp', 'patient_booking_history'),
+      ('webapp', 'patient_product_analytics'),
+      ('integrator', 'integrator_http_request'), ('integrator', 'integrator_projection'),
+      ('worker', 'worker_queue_drain'), ('worker', 'worker_projection_delivery'),
+      ('worker', 'worker_outgoing_delivery'), ('scheduler', 'scheduler_lock'),
+      ('scheduler', 'scheduler_dispatch_tick'), ('media_worker', 'media_transcode_tick'),
+      ('cron', 'cron_health'), ('cron', 'cron_media'), ('cron', 'cron_analytics'),
+      ('cron', 'cron_reminders'), ('cron', 'cron_specialist_tasks')
+    )
+  );
+
 CREATE OR REPLACE FUNCTION app.report_saas_isolation_event(
   p_event_class text,
   p_source_service text,
@@ -108,7 +129,8 @@ BEGIN
   ) THEN RAISE EXCEPTION 'invalid_saas_isolation_event_class' USING ERRCODE = '22023'; END IF;
   IF (p_source_service, p_source_operation) NOT IN (
     ('webapp','webapp_db_request'), ('webapp','webapp_admin_system_health'),
-    ('webapp','public_auth_config'), ('webapp','patient_runtime_config'),
+    ('webapp','public_auth_config'), ('webapp','auth_role_config'),
+    ('webapp','patient_runtime_config'),
     ('webapp','public_booking_config'), ('webapp','patient_identity_exception_check'),
     ('webapp','patient_booking_history'), ('webapp','patient_product_analytics'),
     ('integrator','integrator_http_request'), ('integrator','integrator_projection'),
