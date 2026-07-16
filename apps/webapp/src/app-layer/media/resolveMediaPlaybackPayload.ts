@@ -81,7 +81,8 @@ export async function resolveMediaPlaybackPayload(input: {
     return { ok: false, status: 403, error: "forbidden" };
   }
 
-  const skipPlaybackStats = row.usage_purpose === "program_item_submission";
+  const recordPatientPlaybackTelemetry =
+    input.session.user.role === "client" && row.usage_purpose !== "program_item_submission";
   const mimeType = row.mime_type ?? "";
   const isVideo = mimeType.toLowerCase().startsWith("video/");
 
@@ -103,7 +104,7 @@ export async function resolveMediaPlaybackPayload(input: {
       },
       "playback_resolved",
     );
-    if (!skipPlaybackStats) {
+    if (recordPatientPlaybackTelemetry) {
       const userId = input.session.user.userId;
       await recordPlaybackResolutionStat({ userId, mediaId: id, delivery: "file", fallbackUsed: false });
       await recordPlaybackResolutionEvent({
@@ -177,7 +178,7 @@ export async function resolveMediaPlaybackPayload(input: {
     "playback_resolved",
   );
 
-  if (!skipPlaybackStats) {
+  if (recordPatientPlaybackTelemetry) {
     const userId = input.session.user.userId;
     await recordPlaybackResolutionStat({ userId, mediaId: id, delivery, fallbackUsed });
     await recordPlaybackResolutionEvent({

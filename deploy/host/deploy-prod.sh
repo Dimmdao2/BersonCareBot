@@ -8,6 +8,7 @@ BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql
 REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
+PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
@@ -78,6 +79,7 @@ require_file "${WEBAPP_ENV_FILE}" "Production webapp environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_file "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}" "Specialist owner provisioning overlay"
 require_file "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}" "Reference catalog RLS overlay"
+require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"
 require_unit_file "${API_SERVICE}"
 require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
@@ -138,6 +140,7 @@ pnpm --dir apps/webapp run migrate
 # created organization receives its catalog snapshot in the organization-creation transaction.
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${SPECIALIST_OWNER_PROVISIONING_RLS}"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${REFERENCE_CATALOG_RLS}"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"
 
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"

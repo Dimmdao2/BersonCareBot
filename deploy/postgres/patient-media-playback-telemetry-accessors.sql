@@ -13,7 +13,7 @@ BEGIN
 END
 $preflight$;
 
-GRANT SELECT ON TABLE public.be_organization_members, public.media_files TO app_owner;
+GRANT SELECT ON TABLE public.media_files TO app_owner;
 GRANT INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner;
 GRANT INSERT ON TABLE public.media_playback_resolution_events TO app_owner;
 
@@ -26,7 +26,11 @@ REVOKE ALL ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, 
   FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)
   FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)
+  FROM app_staff;
+REVOKE EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)
+  FROM app_staff;
 GRANT EXECUTE ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)
-  TO app_staff, app_patient;
+  TO app_patient;
 GRANT EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)
-  TO app_staff, app_patient;
+  TO app_patient;

@@ -121,9 +121,7 @@ describe("patient-safe support default runtime migration", () => {
     for (const fragment of [
       "app.current_org_id()",
       "app.current_patient_user_id()",
-      "v_patient_user_id <> p_user_id",
-      "member.organization_id = v_organization_id",
-      "member.platform_user_id = p_user_id",
+      "v_patient_user_id IS NULL OR v_patient_user_id <> p_user_id",
       "media.organization_id = v_organization_id",
       "p_delivery NOT IN ('hls', 'mp4', 'file')",
       "(v_organization_id, p_user_id, p_media_id, p_delivery, p_fallback_used)",
@@ -136,13 +134,21 @@ describe("patient-safe support default runtime migration", () => {
     expect(patientPlaybackAccessors).toContain(
       "ALTER FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)\n  OWNER TO app_owner",
     );
-    expect(patientPlaybackAccessors).toContain("TO app_staff, app_patient");
+    expect(patientPlaybackAccessors).toContain("FROM app_staff");
+    expect(patientPlaybackAccessors).toContain("TO app_patient");
+    expect(patientPlaybackAccessors).not.toContain("TO app_staff");
+    expect(patientPlaybackAccessors).not.toContain("public.be_organization_members");
     expect(patientPlaybackAccessors).not.toMatch(
       /GRANT\s+(?:INSERT|UPDATE|DELETE)[^;]*\bTO\s+app_(?:staff|patient)\b/i,
     );
     expect(patientPlaybackScratch).toContain("SET LOCAL ROLE app_patient");
     expect(patientPlaybackScratch).toContain("scratch_cross_org_media_unexpectedly_allowed");
+    expect(patientPlaybackScratch).toContain("scratch_cross_org_stat_unexpectedly_allowed");
+    expect(patientPlaybackScratch).toContain("scratch_org_only_actor_unexpectedly_allowed");
+    expect(patientPlaybackScratch).toContain("scratch_integrator_actor_unexpectedly_allowed");
+    expect(patientPlaybackScratch).toContain("scratch_staff_forged_actor_unexpectedly_allowed");
     expect(patientPlaybackScratch).toContain("cross_org_event_denied");
+    expect(patientPlaybackScratch).toContain("denied_contexts_created_no_extra_events");
     expect(patientPlaybackScratch).toContain("ROLLBACK;");
     expect(patientPlaybackScratch).not.toContain("COMMIT;");
   });

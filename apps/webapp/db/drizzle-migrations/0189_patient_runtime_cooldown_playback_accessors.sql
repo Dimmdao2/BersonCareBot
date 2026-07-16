@@ -63,16 +63,9 @@ BEGIN
   IF v_organization_id IS NULL OR p_delivery NOT IN ('hls', 'mp4', 'file') THEN
     RAISE EXCEPTION 'media_playback_telemetry_context_denied' USING ERRCODE = '42501';
   END IF;
-  IF v_patient_user_id IS NOT NULL AND v_patient_user_id <> p_user_id THEN
-    RAISE EXCEPTION 'media_playback_telemetry_actor_denied' USING ERRCODE = '42501';
-  END IF;
-  IF v_patient_user_id IS NULL AND NOT EXISTS (
-    SELECT 1
-    FROM public.be_organization_members AS member
-    WHERE member.organization_id = v_organization_id
-      AND member.platform_user_id = p_user_id
-      AND member.status = 'active'
-  ) THEN
+  -- Staff principal context currently does not carry a DB-verifiable staff actor id. This
+  -- patient-behaviour telemetry therefore accepts only an exact signed patient identity.
+  IF v_patient_user_id IS NULL OR v_patient_user_id <> p_user_id THEN
     RAISE EXCEPTION 'media_playback_telemetry_actor_denied' USING ERRCODE = '42501';
   END IF;
   IF NOT EXISTS (
@@ -114,16 +107,9 @@ BEGIN
   IF v_organization_id IS NULL OR p_delivery NOT IN ('hls', 'mp4', 'file') THEN
     RAISE EXCEPTION 'media_playback_telemetry_context_denied' USING ERRCODE = '42501';
   END IF;
-  IF v_patient_user_id IS NOT NULL AND v_patient_user_id <> p_user_id THEN
-    RAISE EXCEPTION 'media_playback_telemetry_actor_denied' USING ERRCODE = '42501';
-  END IF;
-  IF v_patient_user_id IS NULL AND NOT EXISTS (
-    SELECT 1
-    FROM public.be_organization_members AS member
-    WHERE member.organization_id = v_organization_id
-      AND member.platform_user_id = p_user_id
-      AND member.status = 'active'
-  ) THEN
+  -- Do not accept caller-supplied p_user_id as proof of a staff actor. Until the signed
+  -- context carries a staff id, staff/org-only/integrator contexts are all denied here.
+  IF v_patient_user_id IS NULL OR v_patient_user_id <> p_user_id THEN
     RAISE EXCEPTION 'media_playback_telemetry_actor_denied' USING ERRCODE = '42501';
   END IF;
   IF NOT EXISTS (
@@ -144,7 +130,11 @@ $function$;
 
 REVOKE ALL ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)
+  FROM app_staff;
+REVOKE EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)
+  FROM app_staff;
 GRANT EXECUTE ON FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)
-  TO app_staff, app_patient;
+  TO app_patient;
 GRANT EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)
-  TO app_staff, app_patient;
+  TO app_patient;
