@@ -1,0 +1,160 @@
+# UX-01 — specialist / clinic admin / global admin screen inventory
+
+Дата factual pass: 2026-07-15. Current evidence run: `UX-ROLE-MATRIX/2026-07-15T16-42-31Z`, commit `a537e74df6e5e38d589dd7dc0ec8549dcf848756`, плюс три TEST walkthrough manifests. Scope: `/app/doctor/**`, staff-ветка `/app/settings` и legacy redirect `/app/admin/promo`. Это current-state evidence, не target IA и не решение о реализации.
+
+## 1. Канон и метод
+
+- Layout families: `docs/ARCHITECTURE/SCREEN_LAYOUT_INVENTORY.md`.
+- Navigation intent: `docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`; фактический список и tiers: `apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts:25-52,54-152`.
+- Staff route gate: parent layout вызывает `requireDoctorWorkspaceContext` для всего `/app/doctor/**` и передаёт organization/membership/specialist context в shell (`apps/webapp/src/app/app/doctor/layout.tsx:24-70`; resolver/guard — `apps/webapp/src/app-layer/guards/requireRole.ts:147-184`).
+- Clinic management gate: global admin либо `canManageOrganization`; global-admin page gate: `role=admin` (`apps/webapp/src/app/app/settings/requireAdminDoctorPage.ts:4-20`).
+- Current visual smoke выполнен на DEV с отдельными `dev:doctor`, `dev:clinic-admin`, `dev:admin` profiles. Готовые TEST A/B profiles дают combined clinic-owner/specialist desktop evidence. DEV — изменяемая UX-песочница; controlled setting change относился только к registration capture, staff flows оставались read-only. Delivery actions не запускались.
+- Disposition ниже — discovery hypothesis (`keep / merge / move / split / retire / needs-decision`), не утверждённая IA.
+
+## 2. Coverage summary
+
+| Срез | Покрытие |
+|---|---:|
+| Трассировано route page files | 81 (`78 doctor + 2 settings + 1 legacy /app/admin/promo`) |
+| Coherent route families ниже | 31 |
+| Page files с явным redirect branch | 20 |
+| Global-admin page guards | 12 |
+| Clinic-management page guards | 2 |
+| Current safe staff PNG | 55 (`15` DEV + `40` selected TEST) |
+| Valid staff product/role-state PNG | 52 |
+| Staff finding-only PNG | 3 |
+
+Каждый page file в specialist allocation включён ниже напрямую либо как член CRUD/dynamic/legacy family. Middleware redirects дополнительно покрывают отсутствующие legacy filesystem routes (`apps/webapp/src/middleware/doctorRouteRedirects.ts:23-86`). Механическая глобальная трассировка: specialist allocation `81` + patient/public allocation `69` = `150/150` `page.tsx`; `/app/admin/promo` относится ровно к family 13 и больше нигде не учитывается.
+
+## 3. Access model as implemented
+
+| Actor / tier | Реальный доступ |
+|---|---|
+| Staff with doctor access + one active organization membership | Весь базовый `/app/doctor/**`; shell получает `organizationId`, membership role, effective `specialistId`, `canManageOrganization`, `canManageAllSpecialists` (`requireRole.ts:83-91,147-184`; `doctor/layout.tsx:48-57`). |
+| `owner` / org `admin` membership | Базовый doctor workspace + clinic members/settings через `requireClinicManagementDoctorPage`. |
+| `doctor` / `assistant` membership | Видит только doctor-tier navigation; фактическая capability-разница между doctor и assistant в screen IA не выражена. |
+| Platform `role=admin` | Global-admin navigation и pages; в текущей модели admin mode фактически обязателен для nav/API, но `requireAdminDoctorPage` проверяет только role. |
+
+Current DEV role boundary:
+
+| Session | Membership/context | Evidence-backed navigation boundary |
+|---|---|---|
+| `dev:doctor` | membership `doctor` + specialist | Regular clinical/content sections; no clinic-management or global-admin sections. |
+| `dev:clinic-admin` | membership `owner` + specialist | Doctor set + `Врачи` + `Настройки клиники`; no global-admin sections. |
+| `dev:admin` | platform `admin`, admin mode, minimal assistant membership | Doctor shell + clinic/global analytics/settings/system clusters. |
+
+Assistant remains a membership role without a separate capability/screen contract or independent screenshot slice; this is an explicit `needs-decision`.
+
+Фактический workspace selector отсутствует: resolver ожидает единственное активное staff membership (`requireRole.ts:153-174`). Это важно для будущего multi-organization staff UX.
+
+## 4. Route-family inventory
+
+Обозначения layout: L1 stack, L2 Today dashboard, L3 catalog master-detail, L4 patients workbench, L5 entity card, L6 full-height tabs, L7 analytics tabs, L8 CMS hub, L9 media library — по `SCREEN_LAYOUT_INVENTORY.md`.
+
+| # | Route / coherent family | Actor + server guard | Purpose, actions, states | Context | Layout | Visual | Disposition hypothesis | Evidence |
+|---:|---|---|---|---|---|---|---|---|
+| 1 | `/app/doctor` | doctor-tier; parent workspace + page `requireDoctorWorkspaceContext` | Today KPI, tasks, active care, appointments, attention/health banners | Explicit organization; user/specialist owner for tasks | L2 | DEV doctor/clinic/global desktop + mobile; corrected TEST A/B Today desktop | **keep**, then scope widgets as “mine / organization” | `doctor/page.tsx:74-142` |
+| 2 | `/app/doctor/patients` (`/clients` → 308) | doctor-tier; workspace | Search/filter/archive, metrics, list + preview workbench | Explicit organization + viewer user | L4 | DEV doctor empty state + TEST A/B normal/legal-empty desktop | **keep**; add “mine / all organization” capability contract | `patients/page.tsx:27-66`; redirects `doctorRouteRedirects.ts:37-48` |
+| 3 | `/app/doctor/patients/[userId]`; `/[...tabSlug]` → query-tab; `/programs/[instanceId]` | doctor-tier; workspace on card; UUID/org identity fail-close | Central patient card: overview, program, visits, notes/tasks/signals, appointments, files, clinical/finance/contact data; dynamic program detail | Organization identity lookup at card entry; several child reads use workspace principal | L5 | No: PII/data-gated | **keep**, make org/specialist attribution explicit; audit child-port scoping before SaaS launch | `patients/[userId]/page.tsx:24-93,190-222`; `[...tabSlug]/page.tsx:35-44`; `programs/[instanceId]/page.tsx:27-139` |
+| 4 | `/app/doctor/subscribers`, `/subscribers/[userId]` | doctor-tier | Legacy aliases into patients/client route | Legacy scope query | Redirect | Redirect verified by code only | **retire** after link census | `subscribers/page.tsx:20-29`; `subscribers/[userId]/page.tsx:10-12` |
+| 5 | `/app/doctor/schedule?tab=cal|work|setup`; legacy `/calendar`, `/appointments`, `/admin/booking` → 308 | Base page only `requireDoctorAccess` + parent workspace | Calendar/KPI, working plan, booking setup; URL-synced keep-mounted tabs | Page obtains user timezone; child APIs provide org context | L6 | DEV regular-doctor calendar; final TEST A/B past/future list+KPI evidence; older KPI findings superseded | **split** clinical schedule/work from organization booking management | `schedule/page.tsx:11-25`; tabs `doctorScheduleTabs.ts:20-39`; shell renders all tabs `DoctorScheduleShell.tsx:63-94,122-245` |
+| 6 | `/app/doctor/communications?tab=chats|intake|comments|broadcasts`; legacy `/messages`, `/online-intake[/id]`, `/comments`, `/broadcasts[/archive]` → 308 | doctor-tier; workspace | Chats, intake queue/detail, exercise comments, broadcast composer/archive; badges/deep links | Comments and patient list explicitly organization + viewer scoped | L6 with L3-like tab bodies | TEST A/B legal-empty chats/broadcasts valid; DEV doctor attempt deleted because it exposed real-looking restored names/messages | **keep + split permissions**; broadcasts/assistant capability needs decision | `communications/page.tsx:17-65`; tabs `doctorCommunicationsTabs.ts:20-42`; redirects `doctorRouteRedirects.ts:25-53` |
+| 7 | `/exercises`, `/exercises/new`, `/exercises/[id]`, `/exercises/auto-create` | doctor-tier | Search/filter/status, list/tiles, create/edit, usage; auto-create tool | No organization argument in page loaders; appears shared/global | L3 + standalone editors | DEV regular-doctor catalog + TEST A/B desktop valid; editors remain code-only | **split / needs-decision**: platform catalog vs org-owned/private assets | `exercises/page.tsx:28-84`; new/id pages `:1-30`; auto-create `:1-10` |
+| 8 | `/lfk-templates`, `/new`, `/[id]` | doctor-tier | Complex catalog, exercise picker, publication/archive, edit | No organization argument; shared catalog | L3 + editor | TEST A/B list valid; editors code-only | **split / needs-decision** | `lfk-templates/page.tsx:33-87`; dynamic/new pages |
+| 9 | `/clinical-tests`, `/new`, `/[id]` | doctor-tier | Test catalog, filters, usage, create/edit | No organization argument; shared catalog | L3 + editor | TEST A/B list valid; editors code-only | **split / needs-decision** | `clinical-tests/page.tsx:31-103`; dynamic/new pages |
+| 10 | `/test-sets`, `/new`, `/[id]` | doctor-tier | Test-set catalog + clinical-test picker, usage, create/edit | No organization argument; shared catalog | L3 + editor | TEST A/B list valid; editors code-only | **split / needs-decision** | `test-sets/page.tsx:25-67`; dynamic/new pages |
+| 11 | `/recommendations`, `/new`, `/[id]` | doctor-tier | Recommendation catalog, region/domain filters, usage, create/edit | No organization argument; shared catalog | L3 + editor | Covered by L3 representative | **split / needs-decision** | `recommendations/page.tsx:31-99`; dynamic/new pages |
+| 12 | `/treatment-program-templates`, `/new`, `/[id]` | doctor-tier | Program templates and multi-catalog constructor | Loads all catalog sources without organization argument | L3 + editor | TEST A/B list valid; editors code-only | **split / needs-decision** | `treatment-program-templates/page.tsx:24-71`; dynamic/new pages |
+| 13 | `/app/doctor/treatment-program-promo`; `/app/admin/promo` -> redirect to canonical route | Canonical target is doctor-tier via parent workspace; legacy page itself only redirects and target enforces the guard | Select default promo template; active/completed counters; legacy URL preserves entry compatibility | Canonical target reads system setting and global instance counts without visible org argument; redirect adds no context | L1 + redirect | Canonical target desktop/mobile captured; redirect verified by code only | **move + split** into org management; **retire alias** after link census; counts/settings must become org-explicit | `doctor/treatment-program-promo/page.tsx:7-35`; `admin/promo/page.tsx:1-7` |
+| 14 | `/references` → first category; `/references/[categoryCode]`; `/references/measure-kinds` | doctor-tier via parent | Manage reference categories/items; search/status/soft-delete in client UI | Appears global catalog | L1/catalog table | TEST A/B finding-only; not valid state evidence | **move / split** platform-owned references from org extensions | `references/page.tsx:1-9`; `[categoryCode]/page.tsx:10-35` |
+| 15 | `/courses`, `/courses/new`, `/courses/[id]` | doctor-tier | Course list/status, create, course editor | No organization argument in list page | L1 list/edit | TEST A/B desktop list valid; editor code-only | **split / needs-decision** platform vs org course ownership | `courses/page.tsx:55-127`; new/id pages |
+| 16 | `/content`; `/content/new`; `/content/edit/[id]`; `/content/sections`, `/new`, `/edit/[slug]`; `/content/motivation`; `/content/news` → motivation; `/patient-home`; `/settings/patient-home` → patient-home | doctor-tier | CMS nav/list/editor, sections, patient-home composition/motivation | Page loaders have no organization argument; current CMS behaves global | L8 hub + L1 editors | TEST A/B content/sections desktop valid; dynamic editors code-only | **split** org patient-facing content from true platform catalog; **merge** redirect aliases | `content/page.tsx:10-89`; `patient-home/page.tsx:33-163`; `content/news/page.tsx:5`; settings alias `settings/patient-home/page.tsx:5` |
+| 17 | `/content/library`; `/content/library/delete-errors` | doctor-tier; delete-errors admin check inside page | Media grid/list/upload/folders; delete error diagnostics | No organization context visible at page entry | L9 + L1 diagnostics | TEST A/B library desktop valid; delete-errors code-only | **split / needs-decision** storage ownership; diagnostics move global admin | `content/library/page.tsx:8-18`; `delete-errors/page.tsx:12-60` |
+| 18 | `/material-ratings`; `/material-ratings/[kind]/[id]` | doctor-tier despite global-admin documentation/nav | Aggregate content engagement + rating tables/drilldown | Audience exclusions; no organization argument in summary query | L1/L7-like analytics | Code only | **move or scope**: either org analytics or platform analytics; current tier mismatch needs decision | `material-ratings/page.tsx:26-73,78-168`; detail `:20-62` |
+| 19 | `/app/doctor/install` | doctor-tier via parent | Staff PWA install status/action | Personal/device context | L1 | Desktop/mobile captured | **keep** under personal/account | `install/page.tsx:1-17` |
+| 20 | `/app/settings`; legacy `?adminTab=*` redirects | authenticated staff; client → patient profile | Email, notification channels/topics, patient label/SMS/support defaults, timezone, appointment reminders | Mixed: personal account + doctor settings loaded without explicit organization | L1 | Desktop/mobile captured | **split** personal account from organization defaults | `settings/page.tsx:23-50,52-134` |
+| 21 | `/app/doctor/clinic/members` | clinic_admin via `requireClinicManagementDoctorPage` | Team list, pending invites, create/revoke/copy invite URL | Explicit resolved organization | L1 | DEV synthetic Demo team + TEST A/B desktop valid | **move** to organization management; keep flow, add delivery/accept/recovery states later | `clinic/members/page.tsx:8-36`; client actions `ClinicMembersClient.tsx:81-170` |
+| 22 | `/app/doctor/clinic/settings` | clinic_admin | Patient terminology, reminders, patient-home defaults, booking notifications/topics | Explicit organization for doctor/admin settings | L1 long form | DEV + TEST desktop valid; clinic-admin shell mobile valid | **move + split** into organization settings subsections | `clinic/settings/page.tsx:35-118` |
+| 23 | `/app/doctor/analytics?tab=clients|app|content|soprovozhdenie`; legacy `/analytics/clients`, `/analytics/notifications`, `/usage`, `/stats` | global_admin page | Client funnel, app/push, content, care analytics; legacy notification tab maps to app | Org resolved only for label; main metrics include global-looking loaders | L7 | DEV global-admin desktop valid; global shell mobile valid | **move** to separate platform-admin IA; decide which metrics should instead be org analytics | `analytics/page.tsx:30-75`; tabs `doctorAnalyticsTabs.ts:20-56`; redirects `doctorRouteRedirects.ts:49-53`; `stats/page.tsx:4` |
+| 24 | `/admin/app-settings` | global_admin | App parameters, SMTP, video, VAPID, notification topics | Global system settings | L1 | **NOT VISUALLY VERIFIED**: pair exposed messenger/support identifier; PNGs deleted | **move** platform operations | `admin/app-settings/page.tsx:11-27` |
+| 25 | `/admin/auth` | global_admin | OAuth/auth provider configuration | Global | L1 | **NOT VISUALLY VERIFIED**: pair exposed bot/messenger identifiers and masked secret-like values; PNGs deleted | **move** platform operations | `admin/auth/page.tsx:7-16` |
+| 26 | `/admin/integrations` | global_admin | Google Calendar/integration settings | Global | L1 | **NOT VISUALLY VERIFIED**: pair exposed connected personal email account; PNGs deleted | **move** platform operations; org integrations need separate surface | `admin/integrations/page.tsx:7-16` |
+| 27 | `/admin/technical` | global_admin | Dev/debug/maintenance/test identifiers, health thresholds | Global, includes sensitive operational values | L1 | **NOT VISUALLY VERIFIED**: pair exposed phone/messenger identifiers; PNGs deleted | **move** platform operations | `admin/technical/page.tsx:9-43` |
+| 28 | `/system-health`, `/health-archive`, `/audit-log` | global_admin | Current health, failure archive/filter, registration events + operation audit | Global platform operations | L1 | System health desktop finding; audit log legal-empty valid; health archive attempt deleted because of UUID-like identifiers | **move** platform operations | `system-health/page.tsx:6-13`; `health-archive/page.tsx:7-21`; `audit-log/page.tsx:7-15` |
+| 29 | `/admin/booking/{form-public,payments,integrations}`; `/admin/booking/catalog` → base; base itself middleware → `schedule?tab=setup` | Nested layout global_admin | Booking overview, locations/services/availability/rules, public form/attribution, payments, Rubitime mapping/legacy | Mixed organization booking and legacy/global integrations | L1 tabbed admin layout | Aggregate `schedule?tab=setup` desktop/mobile captured | **split** org booking management from platform/legacy integration ops | guard/layout `admin/booking/layout.tsx:7-15`; tabs `bookingAdminTabs.ts:18-40`; route pages; redirect `doctorRouteRedirects.ts:45-48` |
+| 30 | `/booking-merge`; `/clients/name-match-hints` | global_admin (second page inline admin+mode check) | Duplicate/profile merge diagnostics | Global/identity operations | L1 | No: PII | **move** platform operations, restricted tooling | `booking-merge/page.tsx:6-14`; `name-match-hints/page.tsx:13-27` |
+| 31 | `/dev/chart-test` | doctor-tier via parent only | Internal chart playground | None/product-internal | L1/dev | No | **retire from product IA**; keep dev-only only if still used | `dev/chart-test/page.tsx` |
+
+## 5. Material findings for target design
+
+1. **Current route shell is already organization-bound, but navigation is not role-complete.** The shell carries organization/membership/specialist context, while assistant vs doctor capabilities and “mine / all specialists” are not represented as distinct screen access.
+2. **Global admin is physically embedded in the specialist sidebar.** The same `DoctorWorkspaceShell` renders clinical, clinic-management and global operations links (`doctorNavLinks.ts:54-152`). This directly supports the initiative hypothesis to create a separate platform-admin IA.
+3. **Clinic management exists but is only two long stack pages.** Team/invites and a heterogeneous settings form are mixed into clinical navigation. They are reuse candidates, not a complete management workspace.
+4. **Catalog/CMS ownership is visually and programmatically ambiguous.** Main loaders do not pass organization context. Target IA cannot simply relabel these as clinic assets; platform catalog vs org library/override must be decided and data-scoped.
+5. **Schedule setup access contract is inconsistent.** Navigation/docs describe setup as admin-only, but `SCHEDULE_TABS` renders it for every doctor and page guard is only doctor access (`schedule/page.tsx:11-25`; `DoctorScheduleShell.tsx:63-94`). Doctor-session screenshots confirm the tab and controls render. Many underlying booking APIs are admin-guarded, producing a likely visible-but-partly-forbidden surface. Target: move setup to org management and gate it coherently.
+6. **Personal settings mix account and organization defaults.** `/app/settings` has personal email/channels/timezone alongside patient terminology/SMS/support defaults, while `/clinic/settings` repeats part of the same form. Target IA should separate Account, Notifications, Organization defaults and Platform settings.
+7. **Document/code drift exists.** Current code aggregates analytics into four tabs and removes standalone notifications, while some navigation docs still describe older subpages. Middleware/code is authoritative for this inventory.
+
+## 6. Historical screenshot index (superseded)
+
+Directory: `.claude/screenshots/SAAS-UX-01-SPECIALIST/`. This pre-refresh set is excluded from current totals. Current evidence is indexed by `UX01_EVIDENCE_MANIFEST.md`.
+
+| Surface | Desktop | Mobile | Notes |
+|---|---|---|---|
+| CMS hub L8 | `doctor-content-desktop.png` | `doctor-content-mobile.png` | PII-safe. |
+| Courses L1 list | `doctor-courses-desktop.png` | `doctor-courses-mobile.png` | Empty/list state. |
+| Promo setting | `doctor-program-promo-desktop.png` | `doctor-program-promo-mobile.png` | Current global-looking promo setting. |
+| Staff PWA install | `doctor-pwa-install-desktop.png` | `doctor-pwa-install-mobile.png` | Personal/device surface. |
+| Personal settings | `doctor-personal-settings-desktop.png` | `doctor-personal-settings-mobile.png` | Mixed personal/org defaults. |
+| Clinic settings | `clinic-settings-desktop.png` | `clinic-settings-mobile.png` | Clinic-management long form. |
+| Schedule setup as doctor | `doctor-schedule-setup-desktop.png` | `doctor-schedule-setup-mobile.png` | Evidence of tier mismatch. |
+| Schedule setup as admin | `global-schedule-setup-desktop.png` | `global-schedule-setup-mobile.png` | Same aggregate shell. |
+| Global analytics L7 | `global-analytics-desktop.png` | `global-analytics-mobile.png` | Platform admin in doctor shell. |
+| System health | `global-system-health-desktop.png` | `global-system-health-mobile.png` | Global ops. |
+
+## 7. Current explicit gaps
+
+- Patient cards/program detail and merge/name-match tools remain unverified because they can expose identity data. Today, patient list, clinic members and legal-empty audit log now have safe fixture evidence.
+- Dynamic catalog/course/CMS edit routes: no fixture IDs were copied from PII-bearing rendered lists; families are code-reconciled but the unattempted dynamic states remain **NOT VISUALLY VERIFIED**. The failed exercises captures are not a valid representative.
+- Broadcast compose/send states: not opened because accidental external delivery/write actions are out of scope.
+- Booking calendar/appointments: may render patient names; not retained.
+- References, material-rating detail, booking nested legacy tabs and dev chart: code-covered, not separately rendered.
+- Exercises list now has valid DEV regular-doctor and TEST A/B desktop evidence; dynamic editors remain unverified.
+- App settings, auth settings, integrations, technical settings, health archive and media library: attempted desktop/mobile, but captures were deleted after identifier/PII risk review and are not valid evidence.
+- The earlier missing-function/schema mismatch was resolved before the current role-matrix run and is historical, not a current blocker.
+
+- Regular-doctor communications was attempted, but the capture exposed real-looking restored names/messages and was deleted. TEST A/B legal-empty chats/broadcasts remain valid structural evidence; populated tenant/privacy composition is still a gap.
+- Global settings/auth/integrations/technical and health archive were reachable under `dev:admin`, but retained screenshots were omitted because configured account identifiers were visible.
+
+## 8. Risks / gaps to carry forward
+
+- Do not infer tenant safety from the organization-aware outer shell: several page loaders remain global-looking and must be traced at service/port level before route migration.
+- `requireAdminDoctorPage` checks role only, while nav/API contracts refer to admin mode. Current ruling says admin mode is always on for admins, but target role/capability matrix should eliminate this implicit coupling.
+- Assistant is a membership role without a dedicated capability/screen contract in current navigation.
+- Staff multi-org selection is not supported by the current single-membership resolver.
+- Clinic invite UI creates/copies invite links, but this audit found no end-to-end email delivery/first-login/recovery surface.
+- Visual evidence is structural only. No save, invite, upload, delivery, booking or destructive action was executed.
+
+## 9. Commands and results
+
+```text
+node /home/dev/brain/tools/code-search.mjs "doctor page routes access tier server guard organization clinic global admin" --repo bcb -k 30
+node /home/dev/brain/tools/code-search.mjs "doctorNavLinks clinic_admin global_admin navigation routes" --repo bcb -k 30
+node /home/dev/brain/tools/code-search.mjs "requireDoctorSession requireAdminModeSession canManageOrganization page" --repo bcb -k 30
+node /home/dev/brain/tools/code-search.mjs "apps webapp app doctor page.tsx routes" --repo bcb -k 30
+node /home/dev/brain/tools/code-search.mjs "clinic members invites settings doctor routes" --repo bcb -k 30
+Result: route/nav/guard anchors found; exact scan followed only inside known doctor/settings paths.
+
+rg --files apps/webapp/src/app/app/doctor apps/webapp/src/app/app/settings | rg '/page\.tsx$'
+Result: 80 specialist-workspace page files (78 + 2); plus `/app/admin/promo` is allocated to family 13, for 81 specialist-allocation files.
+
+curl --max-time 10 http://127.0.0.1:5200/
+Result: HTTP 200; existing Next dev process reused, no additional server started.
+
+Chromium auth step without virtual-time-budget, then target screenshots with the same profile, 1480x1024 and 390x844.
+Historical result: dev:doctor/dev:admin session cookies present. This pre-refresh count is superseded by `UX01_EVIDENCE_MANIFEST.md`.
+
+Current result: 55 safe staff PNG referenced, 52 valid and 3 finding-only; 15 are DEV role-matrix files and 40 are selected TEST staff evidence. Superseded TEST frames, the 2 selected TEST public frames and deleted privacy-review attempts are excluded from this staff-only count.
+```
+
+Application tests/lint/typecheck were not run: no application code changed. Structural checks for this document and evidence directory are reported at handoff.

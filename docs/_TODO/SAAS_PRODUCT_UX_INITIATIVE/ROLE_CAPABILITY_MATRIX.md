@@ -1,0 +1,164 @@
+# UX-03 — Role × screen × capability matrix
+
+**Статус:** latest owner clarifications integrated; awaiting full independent audit.
+**Authority:** производная matrix; `OWNER_RULINGS_2026-07-16.md` имеет приоритет над прежними capability candidates.
+**Правило:** product outcomes имеют только dated classifications из `OWNER_RULINGS_2026-07-16.md`. Статусы
+`implementation_policy` и `implementation_contract` ниже обозначают engineering/security work, а не новый owner
+decision gate. `deferred future` разрешён только для явно оставшихся future sub-decisions.
+
+## 1. Decision order
+
+```text
+session/tier → server-resolved relationship/context → object ownership → capability
+→ entitlement/mechanic → domain operation → permitted result → UI filter
+```
+
+Denial is evaluated at the failed layer: relationship denial (`access denied/recovery`), capability denial
+(`forbidden/no action`), entitlement denial (`upgrade/grace/read-only/blocked`) and empty permitted result are distinct
+states.
+
+The owner ruling that authorized clinic staff can open the clinic history defines the organization tenant wall and
+rejects a patient-level RLS wall based on the `Мои` filter; it does not make every private/restricted clinical entry
+readable by every staff role. Shared-history record classes and capabilities remain an implementation policy task.
+Platform-wide technical authority likewise does not create a global-admin patient workflow: the owner explicitly
+limited that product surface to aggregate/org/platform diagnostics and system/code support.
+
+## 2. Capability matrix
+
+Abbreviations: `N/A` — entitlement does not apply. “Org object” always means an object with a
+verified ownership path to the actor's server-resolved organization.
+
+The compact table is read together with §2.1. For every row, `Preconditions and scope` carries session tier,
+membership/enrollment and specialist relation; `Screen / capability` carries action and target class; §2.1 makes
+the ownership source, server enforcement contract and provenance explicit. Presentation text is never an
+enforcement point.
+
+| Actor / surface | Preconditions and scope | Screen / capability | Default/filter | Entitlement relation | Denied/recovery behavior | Audit | Status |
+|---|---|---|---|---|---|---|---|
+| Global admin / platform | Platform admin session + explicit admin mode | Organization directory, tariff, lifecycle, health | Platform filters over operational data | N/A; tariff editing is platform capability | No org/doctor fallback; explicit platform denial | Irreversible lifecycle/config writes | approved |
+| Global admin / support | Platform admin; explicit org/platform target | Aggregate/org/platform diagnostics and support reports | No patient-card navigation | N/A | No patient browsing or patient-record repair | Actor, purpose, org, system action, result | approved by owner 2026-07-16 |
+| Owner / management | One active owner membership | Org lifecycle, ownership transfer, contract/billing | Organization only | Billing mechanic may affect service, not access to recovery | Strong confirmation; preserve last owner | Required | implementation_policy; owner-only irreversible boundary |
+| Admin / management | One active admin membership | Delegated team/settings/booking operations | Organization only | Relevant mechanic checked separately | Owner-only action hidden/forbidden; no implicit elevation | Writes required | implementation_policy; irreversible owner actions denied |
+| Owner or admin / management | Membership; capability granted | Team list, staff invite/resend/revoke/deactivate | Org staff only | Seat/team mechanic may block creation, never safe offboarding | Upgrade/recovery state distinct from permission denial | Invite and staff lifecycle | implementation_contract |
+| Owner/admin + specialist / shell | Membership + specialist binding | Open distinct clinical and management surfaces under one login | Simple page/menu first; switch allowed if useful | N/A | Fall back only to a permitted destination | Mode change not security audit; sensitive actions are | approved by owner 2026-07-16; exact menu/switch is implementation choice |
+| Non-clinical owner/admin / shell | Membership, no specialist binding | Open management overview | No clinical filter | N/A | Doctor routes forbidden; setup/binding CTA if authorized | Binding creation audited | approved |
+| Specialist / clinical home | Membership + specialist binding | Today, own schedule/tasks | Own specialist context | Mechanic-specific | Permission state or entitlement recovery; never another specialist fallback | Clinical writes/actions | implementation_contract |
+| Solo specialist / patients | Bound specialist; one-specialist composition; permitted org records | Patient list/card | No redundant `Мои/Все`; all permitted solo result | Core patient access must not depend on team package | Direct/list/count/search/export parity | Reads per clinical audit policy; writes always | implementation_contract |
+| Clinic specialist / patient list | Bound specialist; actual/scheduled visit relationship | View own operational roster | `Мои` = patients with that visit/clinical relationship | Core list N/A | Foreign/unrelated patient denied; empty own roster is not full-org fallback | Sensitive export | approved by owner 2026-07-16 |
+| Clinic specialist / patient list | Bound specialist + future reviewed organization-history capability | View all permitted organization patients | `Все доступные` | Never granted by entitlement alone | Control absent/forbidden; API does not broaden scope | Export and bulk actions | implementation_policy; future clinic UI absent |
+| Specialist / patient card | Bound specialist + actual/scheduled visit relation | Read one organization card and authorized sections | Patient context fixed server-side | N/A/core | Neutral not-found/forbidden without foreign data leak | Sensitive reads per policy | approved by owner 2026-07-16; visibility classes remain enforced |
+| Specialist / history | Bound specialist; permitted entry classes | Read own authored/assigned history | `Мои события` default | N/A/core retained data | Private/foreign entries absent from list/count/search/export and direct URL | Export required; read per policy | approved |
+| Specialist / history | `clinical_history.view_shared` + entry visibility | Read authorized organization history | `Вся доступная` / specialist X on demand after permission | Packaging cannot grant permission | Control absent/forbidden; private classes remain hidden | Shared export/read policy | approved product direction; exact record-class policy is engineering/security work |
+| Specialist / history write | Binding + patient relation + write capability | Create/amend clinical entry | Author fixed to actor; filter does not impersonate | Relevant clinical mechanic/grant | Read-only/forbidden; never write as selected specialist | Author, object, amendment trail | implementation_policy; no impersonation |
+| Owner/admin without binding / patient | Membership + explicit operational capability | Demographics/schedule/billing sections | No clinical history by role alone | Section mechanic separate | Clinical sections/direct exports forbidden | Sensitive operational writes | implementation_policy; minimum operational fields only until reviewed |
+| Assistant / operations | Future membership/capability reservation only | Future clinic scope | None in launch | Not applicable to launch | No OPS surface in initial release | Future audit contract | outside current design; no pending owner gate |
+| Assistant / clinical | Future membership/capability only | No launch capability | None | Not applicable to launch | No clinical surface in initial release | Future denied-attempt policy | deferred future; no implicit clinical access |
+| Patient / global account | Patient tier | Identity/security, organizations, global consent/support | Global, no clinical aggregation | N/A | Recovery without exposing org data | Security/consent changes | approved |
+| Patient / one enrollment | Patient tier + active enrollment | Organization Today/program/visits/messages | Org visible; picker collapsed | Org mechanic may change action state, not enrollment validity | Suspended/revoked organization-specific recovery | Clinical action/message audit | implementation_contract |
+| Patient / multiple enrollments | Patient tier + selected active enrollment | Switch platform-app organization care context | Last active + persistent switcher | Per-org mechanics independently resolved | Invalid remembered org → chooser; no silent context switch | Context preference optional; clinical actions normal | approved by owner 2026-07-16; org-specific app is pinned and has no switcher |
+| Patient / direct object | Active enrollment owning target object | Read/act on appointment/program/message | Object determines verified org | Object mechanic checked separately | Foreign/revoked target → neutral denial/recovery | Domain action | approved |
+| Onboarding patient / activation | Onboarding tier + valid trusted invite/booking state | Activate identity and enrollment | Invite organization shown, not trusted from query/Host | Invite mechanic may block new business action | Expired/revoked/wrong-recipient recovery; no business data | Token lifecycle without raw token | approved; journey UX in UX-04 |
+| Anonymous / public | Published trusted projection | Platform landing, org profile, booking/join entry | Published org context only | Public-page/booking mechanic may affect availability | Unpublished/invalid domain → canonical fallback or safe 404 | Booking/invite creation | approved; surface contract UX-04/05 |
+| Specialist / another-specialist visit | Same org; future clinic appointment-create capability; patient relation | Future ordinary appointment only | Patient becomes visible through that visit relation | Not a launch mechanic | Future clinic validation only | Appointment actor/time/specialist | future-deferred; no separate transfer object |
+| Any actor / rejected transfer hierarchy | N/A | No launch/target-default capability | None | N/A | Action absent | N/A | rejected premise 2026-07-16 |
+| Any otherwise-authorized actor / entitled action | Valid relationship + capability | Use paid mechanic | Existing authorization scope only | Enabled/grace/read-only/blocked per mechanic | Upgrade/recovery owner and CTA; no broader fallback | Commercial override/use where required | implementation/commercial policy; retained data stays safely accessible |
+
+### 2.1 Ownership, enforcement and provenance supplement
+
+This supplement is normative for the rows above and prevents a compact screen-oriented row from being read as an
+implicit permission grant.
+
+| Matrix row(s) | Target and ownership source | Required server enforcement contract | Provenance |
+|---|---|---|---|
+| Global admin / platform | Platform organizations, tariffs, lifecycle and aggregate operations; platform scope comes only from explicit global-admin session | Dedicated platform capability/port before query or mutation; no organization membership fallback | SaaS owner rulings; UX-01; capability architecture review §§3.1, 10 |
+| Global admin / support | Explicit server-resolved organization support target; clinical objects remain separately scoped | Purpose-specific support capability and audited operation; no normal chart route or `adminMode` shortcut | Capability architecture review §§3.1, 9, 10 |
+| Owner / management | Actor's sole active membership organization and its contract/ownership records | Membership resolver + owner-only capability + object organization check; preserve one active owner | Owner rulings; capability architecture review §3.2 |
+| Admin / management | Actor's sole active membership organization and delegated management objects | Membership resolver + explicit delegated capability + object organization check; owner-only actions fail closed | Capability architecture review §§3.3, 9 |
+| Owner or admin / management — team lifecycle | Staff memberships/invites owned by actor's organization | Membership resolver + team lifecycle capability + seat entitlement after authorization | UX-01; UX-02 product patterns; capability architecture review §§2, 8 |
+| Owner/admin + specialist / shell | Same server-resolved organization; management relation and specialist binding are independent | Resolve membership and binding independently on every destination route; mode is presentation only | Owner rulings; UX-01; capability architecture review §§2, 3.2–3.4 |
+| Non-clinical owner/admin / shell | Management objects in sole membership organization | Membership/capability checks deny clinical actor routes unless a valid specialist binding exists | Owner rulings; capability architecture review §§3.2–3.3 |
+| Specialist / clinical home | Specialist binding, assignments and work items owned through the same organization | Membership + binding + action capability + object ownership before entitlement-specific action | UX-01; capability architecture review §§2, 3.4 |
+| Solo specialist / patients | Patient enrollments and permitted records owned by the same organization | Relationship/capability checks on list, direct read, count, search and export; composition cannot broaden result | UX-02 product patterns; capability architecture review §§5, 11 |
+| Clinic specialist / patient list — own roster | Organization patient enrollments related through the approved definition of `Мои` | Server computes the approved operational union over an already authorized organization dataset | Owner addendum in REQUIREMENTS; capability architecture review §§5, 9 |
+| Clinic specialist / patient list — organization roster | Patient enrollments owned by the same organization | Explicit organization-roster capability on list/count/search/export and direct object paths; entitlement alone cannot grant it | Owner addendum in REQUIREMENTS; capability architecture review §§2, 5 |
+| Specialist / patient card | Enrollment and card sections owned by the actor's organization, with section/record-class visibility | Resolve enrollment + actor relation + section capability for every direct/list/export path | Owner addendum in REQUIREMENTS; capability architecture review §5 |
+| Specialist / history — own/shared reads | Authored, assigned or shared timeline entries linked to the organization enrollment; each entry retains visibility class | Entry-level policy before list/count/search/export/filter; direct object read must use the same policy | Owner addendum in REQUIREMENTS; UX-02 technical patterns §8; capability architecture review §§5, 11 |
+| Specialist / history write | Target enrollment and writable record class in the same organization; author comes from authenticated binding | Write capability + record-class policy; server fixes author and stores amendment trail | Capability architecture review §§3.4, 5 |
+| Owner/admin without binding / patient | Explicitly delegated operational sections of an organization enrollment | Section-level operational capability; clinical history/authorship denied without separate binding and grant | Capability architecture review §§3.2–3.3, 9 |
+| Assistant / future clinic role | No approved object set or launch principal | No launch capability. Exact future grants require a new owner decision and capability review | Owner ruling 2026-07-16; earlier UX-02 patterns are non-normative candidates |
+| Patient / global account | Canonical patient identity and global account/consent records | Patient-tier identity check; no organization clinical aggregation | Identity canon; capability architecture review §3.6 |
+| Patient / one or multiple enrollments | Active server-resolved enrollment; each care object owns its organization context | Revalidate enrollment on entry/switch and on every direct object; remembered selection is preference only | Identity canon; owner addendum; capability architecture review §7 |
+| Patient / direct object | Appointment/program/message ownership path to an active enrollment | Resolve object first, then verify canonical patient + active/retained policy; foreign target returns neutral denial | Identity canon; capability architecture review §§3.6, 7 |
+| Onboarding patient / activation | Server-side invite/booking record and its organization; token is lookup material only | Token lifecycle + recipient/identity checks; query, Host and branding cannot replace invite organization | UX-02 technical patterns §§2–3; capability architecture review §3.6 |
+| Anonymous / public | Published platform or organization projection and server-verified domain mapping | Public projection/booking policy; no private base row or client-provided organization authority | UX-02 technical patterns §6; capability architecture review §§3.6, 10 |
+| Another-specialist visit | Appointment owned by the organization and attributed to the destination specialist | Ordinary appointment-create and object ownership checks; visit relation drives workspace visibility | Owner ruling 2026-07-16 |
+| Rejected transfer hierarchy/cross-organization movement | No approved target object | No launch path; do not infer a state machine from appointment relations | Rejected owner-decision premises 2026-07-16 |
+| Any entitled action | The already-authorized domain object; organization entitlement is server-resolved | Authorization first, then mechanic state; degradation cannot change object scope or erase retained data | UX-02 technical patterns; capability architecture review §8 |
+
+### 2.2 Current data/API gaps — observations, not product rulings
+
+- Current coarse role flags (including owner/admin management shortcuts) are not evidence of the target granular
+  capabilities in this matrix; implementation must introduce or map explicit server-enforced capabilities before an
+  `allow` proposal becomes real.
+- The current schema/API does not yet prove entry-level history visibility, restricted/private record classes or
+  list/direct/count/search/export parity. The one-card candidate therefore requires a data/API design gate.
+- Rejected transfer/hierarchy state machines are not target requirements. Existing appointment relations remain
+  appointment facts and drive specialist visibility only under the approved visit-based model.
+- Patient organization context exists conceptually through enrollment, but UX-01 exposed a current
+  `organization_principal_required` patient Today failure. It remains an implementation defect, not a reason to
+  weaken the target context contract.
+- Entitlement keys and lifecycle states exist as a SaaS direction, but per-mechanic degradation and recovery owners
+  remain an explicit implementation/commercial policy; they are not an extra UX08 owner gate.
+- Global-admin support is limited by owner ruling to aggregate/org/platform diagnostics and reports. No patient
+  support session or patient-record repair contract should be implemented.
+
+## 3. Screen composition summary
+
+| Screen group | Global admin | Owner/admin non-clinical | Owner/admin + specialist | Specialist | Assistant | Patient | Public |
+|---|---|---|---|---|---|---|---|
+| Platform operations | Yes | No | No | No | No | No | Published only |
+| Organization management | No ordinary org membership | Yes | Yes, management mode | No | Not in initial release | No | No |
+| Clinical home | No | No | Yes, clinical mode | Yes | No | Own care home | No |
+| Future clinic coordination | No patient workflow | Reserved future scope | Reserved future scope | Reserved future scope | Not in initial release | No hierarchy concept | No |
+| Patient card/history | No patient browsing/repair | Operational sections TBD | Clinical scope via binding, not owner role | Authorized scope | Not launch scope | Own org-scoped data | No |
+| Account/security/install | Platform account | Yes | Yes | Yes | Not in initial release | Yes | Login/join entry only |
+| Public landing/org/booking | Manage platform projection | Configure org projection if capable | Same in management mode | No management by default | Not in initial release | Consume published flow | Yes |
+
+## 4. Future clinic visit concept — deferred, not launch implementation
+
+| Operation | Preconditions | Result | Does not do | Required audit fact |
+|---|---|---|---|---|
+| Create/book visit with another specialist | Future reviewed clinic capability, patient relation and destination specialist | Ordinary appointment relation makes patient visible in destination workspace | Create a separate transfer hierarchy or rewrite history | actor, patient, organization, destination specialist, appointment/visit, timestamps |
+
+Cancellation/reschedule/deactivation follow ordinary appointment policy. Historical authorship remains unchanged.
+
+## 5. Matrix acceptance scenarios
+
+The independent critic must trace without contradiction:
+
+- zero/one/multiple active staff memberships;
+- owner/admin with and without specialist binding;
+- specialist A own/shared/private-B entry across list, direct read, count, search and export;
+- absence of assistant routes, grants and object access in initial release;
+- patient onboarding, one enrollment, A+B enrollments and revoked B;
+- `Мои`, `Вся доступная`, specialist X filters after authorization;
+- another-specialist booking, cancellation/reschedule and inactive destination;
+- absence of the rejected transfer/hierarchy actions;
+- enabled entitlement + denied capability, and granted capability + disabled/grace/read-only mechanic;
+- global-admin diagnostics/support reports with no patient browsing or repair;
+- public/invite/custom domain attempting to override trusted organization context.
+
+Open cells are intentionally not “filled in” by current route behavior or market precedent. Current product
+authority is [`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md); `OPERATING_MODEL.md` is derivative.
+
+## 6. Provenance
+
+- Current UX product authority and solo-first boundary: `OWNER_RULINGS_2026-07-16.md`.
+- Tenant, membership, one-active-staff-organization, patient identity/enrollment and combined owner/admin-specialist
+  facts: `SAAS_FOUNDATION/00_DECISIONS_AND_SCHEMA.md`, `P0_2_MEMBERSHIP_RESOLVER_CHECKLIST.md` and
+  `OWNER_RULINGS_2026-07-15.md`.
+- Current surface/context gaps: UX-01 inventories and acceptance records.
+- One-account solo/team and one-card/history/filter patterns: `UX02_PRODUCT_PATTERNS.md`; these remain product
+  candidates where not superseded by `OWNER_RULINGS_2026-07-16.md`.
+- Invite, PWA, domain, sender, history authorization and audit boundaries: `UX02_TECHNICAL_PATTERNS.md`.
+- Required check ordering, safe defaults and unresolved access questions: `UX03_CAPABILITY_ARCH_REVIEW.md`.
