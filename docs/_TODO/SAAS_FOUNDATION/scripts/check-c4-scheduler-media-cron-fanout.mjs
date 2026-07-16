@@ -420,7 +420,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "REVOKE ALL PRIVILEGES ON DATABASE",
     "pg_database object",
     "pg_type object",
-    "object.typcategory <> 'A'",
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
     "pg_shdepend dependency",
     "REVOKE ALL PRIVILEGES ON TYPE",
     "'T'",
@@ -430,6 +430,12 @@ function assertOperationalSqlAndDeploy(loaded) {
     "c4_catalog_exact_acl_surface_verified",
     "c4_operational_cross_contour_verified",
   ]);
+  requireOccurrenceCountAtLeast(
+    files.operationalSql,
+    loaded.operationalSql,
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
+    5,
+  );
   requireFragmentBefore(
     files.operationalSql,
     loaded.operationalSql,
@@ -661,6 +667,10 @@ if (process.argv.includes("--self-test")) {
     "REVOKE ALL PRIVILEGES ON TYPE",
     "REVOKE USAGE ON TYPE",
   );
+  const operationalSqlCategoryArrayFilter = read(files.operationalSql).replaceAll(
+    "array_element.oid = object.typelem AND array_element.typarray = object.oid",
+    "object.typcategory <> 'A'",
+  );
   const operationalSqlOpenReason = read(files.operationalSql).replace(
     "OR (p_status = 'failed' AND p_reason = 'provider_rejected')",
     "OR (p_status = 'failed' AND p_reason IS NOT NULL)",
@@ -692,6 +702,7 @@ if (process.argv.includes("--self-test")) {
     { operationalProvisionScript: operationalProvisionNoPreflight },
     { operationalReadiness: operationalReadinessNoBooleanGate },
     { operationalSql: operationalSqlNoTypeScrub },
+    { operationalSql: operationalSqlCategoryArrayFilter },
     { operationalSql: operationalSqlOpenReason },
     { testDeploy: testDeployLegacyReadiness },
     { dispatchPort: dispatchPortNoFailedAudit },

@@ -67,7 +67,11 @@ SELECT 1 / (NOT EXISTS (
   JOIN managed_oids role_state ON role_state.oid = object.typowner
   WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
     AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
-    AND object.typisdefined AND object.typcategory <> 'A'
+    AND object.typisdefined
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_type array_element
+      WHERE array_element.oid = object.typelem AND array_element.typarray = object.oid
+    )
     AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
   UNION ALL
   SELECT 1
@@ -129,7 +133,11 @@ JOIN pg_roles grantee ON grantee.oid = acl.grantee
 JOIN managed ON managed.role_name = grantee.rolname
 WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
   AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
-  AND object.typisdefined AND object.typcategory <> 'A'
+  AND object.typisdefined
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_type array_element
+    WHERE array_element.oid = object.typelem AND array_element.typarray = object.oid
+  )
   AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
 \gexec
 WITH managed(role_name) AS (VALUES
@@ -267,7 +275,11 @@ SELECT 1 / (NOT EXISTS (
   JOIN managed_oids role_state ON role_state.oid = object.typowner
   WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
     AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
-    AND object.typisdefined AND object.typcategory <> 'A'
+    AND object.typisdefined
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_type array_element
+      WHERE array_element.oid = object.typelem AND array_element.typarray = object.oid
+    )
     AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
   UNION ALL
   SELECT 1
@@ -333,7 +345,11 @@ JOIN pg_roles grantee ON grantee.oid = acl.grantee
 JOIN managed ON managed.role_name = grantee.rolname
 WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
   AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
-  AND object.typisdefined AND object.typcategory <> 'A'
+  AND object.typisdefined
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_type array_element
+    WHERE array_element.oid = object.typelem AND array_element.typarray = object.oid
+  )
   AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
 \gexec
 
@@ -975,7 +991,11 @@ WITH managed(role_name) AS (VALUES
   JOIN managed ON managed.role_name = grantee.rolname
   WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
     AND namespace.nspname NOT LIKE 'pg_toast%' AND namespace.nspname NOT LIKE 'pg_temp%'
-    AND object.typisdefined AND object.typcategory <> 'A'
+    AND object.typisdefined
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_type array_element
+      WHERE array_element.oid = object.typelem AND array_element.typarray = object.oid
+    )
     AND (object.typtype IN ('b', 'd', 'e', 'r', 'm') OR composite_relation.relkind = 'c')
   UNION ALL
   SELECT 'function', routine.oid::regprocedure::text, acl.privilege_type, grantee.rolname, acl.is_grantable
