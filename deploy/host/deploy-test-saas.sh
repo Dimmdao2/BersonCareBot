@@ -57,6 +57,7 @@ WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
+E1_RUNTIME_COVERAGE_STARTED_AT=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
 #   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
@@ -377,6 +378,29 @@ assert_api_runtime_can_release_principal_context(){
   echo "   app.release_principal_context: OK (visible + executable by api.test runtime)"
 }
 
+assert_media_worker_runtime_can_release_principal_context(){
+  local ok
+  ok="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (to_regnamespace('app') IS NOT NULL AND to_regprocedure('app.release_principal_context()') IS NOT NULL AND has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE'))::text;\"")"
+  [ "$ok" = "true" ] || { echo "FATAL: media-worker TEST runtime cannot see/execute app.release_principal_context()" >&2; exit 1; }
+  echo "   app.release_principal_context: OK (visible + executable through media-worker DATABASE_URL)"
+}
+
+assert_webapp_credential_helper_runtime_acl(){
+  local staff_has_execute nonstaff_has_execute synthetic_user_id
+  synthetic_user_id="00000000-0000-4000-8000-000000000000"
+  staff_has_execute="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && [ -n \"\${DATABASE_URL_STAFF:-}\" ] && psql \"\$DATABASE_URL_STAFF\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT has_function_privilege(current_user, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::text;\"")"
+  nonstaff_has_execute="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT has_function_privilege(current_user, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::text;\"")"
+  [ "$staff_has_execute" = "true" ] || { echo "FATAL: webapp staff runtime cannot execute app.staff_user_has_password_credentials(uuid)" >&2; exit 1; }
+  [ "$nonstaff_has_execute" = "false" ] || { echo "FATAL: webapp nonstaff runtime unexpectedly can execute app.staff_user_has_password_credentials(uuid)" >&2; exit 1; }
+
+  sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && psql \"\$DATABASE_URL_STAFF\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT app.staff_user_has_password_credentials('$synthetic_user_id');\"" >/dev/null
+  if sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT app.staff_user_has_password_credentials('$synthetic_user_id');\"" >/dev/null 2>&1; then
+    echo "FATAL: webapp nonstaff runtime credential-helper call was not permission-denied" >&2
+    exit 1
+  fi
+  echo "   staff credential helper ACL: OK (staff success; nonstaff permission denied)"
+}
+
 discover_database_role_from_env(){
   local label="$1"
   local env_file="$2"
@@ -391,6 +415,21 @@ discover_database_role_from_env(){
 
 discover_webapp_migrator_role(){
   discover_database_role_from_env "webapp.test" "$WEBAPP_ENV"
+}
+
+discover_media_worker_runtime_role(){
+  # The TEST media-worker systemd unit consumes webapp.test and its DATABASE_URL.
+  discover_database_role_from_env "webapp.test media-worker" "$WEBAPP_ENV"
+}
+
+discover_webapp_staff_runtime_role(){
+  local identity role_name database_name
+  identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && [ -n \"\${DATABASE_URL_STAFF:-}\" ] && psql \"\$DATABASE_URL_STAFF\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
+  role_name="${identity%%|*}"
+  database_name="${identity#*|}"
+  validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$role_name"
+  [ "$database_name" = "$DB" ] || { echo "FATAL: webapp.test staff DB URL points to '$database_name', expected '$DB'"; exit 1; }
+  printf '%s\n' "$role_name"
 }
 
 discover_webapp_bootstrap_base_role(){
@@ -442,17 +481,26 @@ assert_api_runtime_can_read_migration_ledger(){
 }
 
 grant_webapp_bootstrap_base_login_d3_4(){
-  local role_name
+  local role_name media_worker_role staff_role
   role_name="$(discover_webapp_bootstrap_base_role)"
+  media_worker_role="$(discover_media_worker_runtime_role)"
+  staff_role="$(discover_webapp_staff_runtime_role)"
   validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
+  validate_pg_identifier "webapp.test media-worker DATABASE_URL role" "$media_worker_role"
+  validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$staff_role"
   sudo -u deploy test -r "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" || {
     echo "FATAL: deploy cannot read SQL file: $DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS" >&2
     exit 1
   }
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v d3_4_bootstrap_base_role="$role_name" \
+    -v d3_4_media_worker_runtime_role="$media_worker_role" \
     -f "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS"
   echo "   D3.4 bootstrap/base-login grants: OK (webapp.test role $role_name)"
+  if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
+    assert_media_worker_runtime_can_release_principal_context
+  fi
+  assert_webapp_credential_helper_runtime_acl
 }
 
 install_saas_isolation_telemetry_overlay(){
@@ -614,6 +662,27 @@ run_locked_product_smoke(){
     --junit-output="$smoke_dir/saas-product-smoke-global-admin-denial.junit.xml"
 }
 
+mark_e1_runtime_coverage_start(){
+  E1_RUNTIME_COVERAGE_STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
+}
+
+run_e1_post_runtime_coverage_gate(){
+  [ -n "$E1_RUNTIME_COVERAGE_STARTED_AT" ] || {
+    echo "FATAL: E1 runtime coverage start was not recorded before TEST restart" >&2
+    exit 1
+  }
+  # Coverage represents the five active runtime-unit checks, the health probe,
+  # the nginx preflight, and both locked product-smoke runs. The product smoke
+  # includes Global Admin System Health, which reads the cron-family health.
+  # Runtime reporters have a 250 ms bounded write; allow those smoke-triggered
+  # writes to settle before the authoritative pre-coverage read.
+  sleep 1
+  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
+    pnpm --dir apps/webapp run diagnostics:saas-isolation -- post-runtime-gate \
+      --started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks 9"
+  echo "   E1 post-runtime coverage/read gate: OK"
+}
+
 run_owner_ready_locked_db_matrix(){
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v test_expected_database="$DB" \
@@ -698,6 +767,7 @@ run_strict_post_migration_closure(){
   apply_test_strict_rls_finalizer
 
   log "strict closure: restart locked TEST units"
+  mark_e1_runtime_coverage_start
   for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
   sleep 4
   assert_test_units_active
@@ -707,6 +777,8 @@ run_strict_post_migration_closure(){
   run_a2_nginx_preflight
   log "A2 product smoke gate (mandatory locked)"
   run_locked_product_smoke
+  log "E1 post-runtime coverage/read gate"
+  run_e1_post_runtime_coverage_gate
   assert_awg_relay_active
   SERVICES_RELEASED=1
 }

@@ -7,7 +7,11 @@ import { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDbPort } from './client.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
-import { withIntegratorPoolClient, withIntegratorPoolTransaction } from './withClient.js';
+import {
+  assertIntegratorLockedPrincipalClassified,
+  withIntegratorPoolClient,
+  withIntegratorPoolTransaction,
+} from './withClient.js';
 
 function restoreEnvValue(name: string, value: string | undefined): void {
   if (value === undefined) {
@@ -167,6 +171,24 @@ describe('integrator DB client helpers', () => {
     expect(query.mock.calls[0]).toEqual(['SELECT app.release_principal_context()']);
     expect(query.mock.calls[1]).toEqual(['RESET ROLE']);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('allowlists only the named central pre-routing and projection-health scopes', () => {
+    const locked = {
+      mode: 'locked' as const,
+      signer: { secret: 'test-db-principal-signing-secret' },
+    };
+    for (const source of ['integrator-user-org-resolution', 'integrator-deployment-org-resolution']) {
+      expect(() => runWithDbBootstrapPrincipal({ source }, () =>
+        assertIntegratorLockedPrincipalClassified(locked),
+      )).not.toThrow();
+    }
+    expect(() => runWithDbInfraPrincipal({ source: 'integrator-projection-health' }, () =>
+      assertIntegratorLockedPrincipalClassified(locked),
+    )).not.toThrow();
+    expect(() => runWithDbBootstrapPrincipal({ source: 'integrator-generic-http-request' }, () =>
+      assertIntegratorLockedPrincipalClassified(locked),
+    )).toThrow('DB bootstrap principal source is not allowed');
   });
 
   it('rejects invalid locked DB principal env before checking out a client', async () => {

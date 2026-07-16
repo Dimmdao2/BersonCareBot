@@ -44,6 +44,9 @@
   guaranteed cleanup, then performs a separate clean-only assertion before strict finalization/restart/product smoke.
   The product-smoke contract checker now has mutations for global-admin authority/admin-mode and a deliberately
   invalid fixture; its normal+self-test chain is part of root `audit`, therefore also the full CI audit stage.
+- Follow-up correction: the stale mixed `/app/doctor/analytics` global-admin page probe was replaced by the existing
+  tenant-scoped doctor program action-log endpoint. Smoke now requires a successful non-empty seeded `entries`
+  history under the specialist workspace; the global-versus-tenant analytics IA split remains deferred to task #800.
 
 ## 2026-07-15 — старт
 
@@ -320,3 +323,20 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   deployed checkout, so the protected read contract and version provenance are both exercised at consumption.
   `bash -n` for all three shell files, `pnpm run check:saas-test-strict-finalizer`,
   `pnpm run check:saas-hard-migration-protocol`, and `git diff --check` pass. No live TEST/PROD action occurred.
+
+### E1 locked runtime principal/transport closure (`/root/e1_background_transport_fix`)
+
+- Root cause: caught pre-routing/projection/health authorization failures could bypass the Fastify `onError` hook,
+  while the background reporter silently opened a 30-second circuit after its first writer failure. This made an
+  empty diagnostics store insufficient evidence that API/worker/scheduler telemetry was healthy.
+- Changed only bounded technical paths: messenger and M2M organization lookup scopes, projection-health infra scope,
+  and caught health/projection/pre-routing reporting. Unknown bootstrap/infra sources still fail before checkout;
+  no generic HTTP handler receives ambient access.
+- The shared reporter now exposes redacted bounded transport/drop/probe counters and emits milestone status without
+  raw errors. Locked API, worker and scheduler startup executes a real event-writer call inside `BEGIN`/`ROLLBACK` on
+  the dedicated telemetry pool; a failed probe prevents the corresponding unit from becoming active and leaves no
+  synthetic diagnostics row.
+- Evidence PASS: db-principal/integrator typechecks, targeted ESLint, focused Vitest `4 files / 34 tests`, full
+  integrator Vitest `165 passed / 1 skipped; 1225 passed / 2 skipped`, E1/C3/C4 static checkers plus self-tests, and
+  `git diff --check`. No live deploy/full CI. Independent child audit could not start because its selected model was
+  at capacity; the root orchestrator will assign the required independent review after this checkpoint.

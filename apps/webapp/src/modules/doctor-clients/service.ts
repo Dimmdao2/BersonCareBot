@@ -5,10 +5,7 @@ import type { DoctorSupplementaryContact } from "@/modules/platform-user-contact
 import type { DoctorClientsFilters, DoctorClientsPort, PatientCardHeader } from "./ports";
 import type { ClientIdentity, ClientListItem, PatientProgramInteractionPolicy } from "./ports";
 import type { ClientSupportProfile } from "./supportPolicy";
-import {
-  parseDoctorSupportDefaultEnabled,
-  resolvePatientProgramInteractionPolicy,
-} from "./supportPolicy";
+import { resolvePatientProgramInteractionPolicy } from "./supportPolicy";
 import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
 import { clientChannelDeliveryContext } from "./clientChannelDeliveryContext";
 
@@ -65,6 +62,7 @@ export type DoctorClientsServiceDeps = {
     key:
       | "doctor_patient_support_comments_without_support_default_enabled"
       | "doctor_patient_support_media_without_support_default_enabled",
+    context: { patientUserId: string; organizationId: string },
   ) => Promise<boolean>;
 };
 
@@ -172,11 +170,39 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
     async getPatientProgramInteractionPolicy(
       patientUserId: string,
+      context?: { organizationId: string },
     ): Promise<PatientProgramInteractionPolicy> {
-      const [profile, commentsDefault, mediaDefault] = await Promise.all([
-        deps.clientsPort.getClientSupport(patientUserId),
-        deps.getDoctorSupportDefault("doctor_patient_support_comments_without_support_default_enabled"),
-        deps.getDoctorSupportDefault("doctor_patient_support_media_without_support_default_enabled"),
+      const profile = await deps.clientsPort.getClientSupport(patientUserId);
+      if (
+        profile?.organizationId &&
+        context?.organizationId &&
+        profile.organizationId !== context.organizationId
+      ) {
+        throw new Error("organization_principal_mismatch");
+      }
+      if (profile?.onSupport) {
+        return resolvePatientProgramInteractionPolicy({
+          profile,
+          defaultsWithoutSupport: { commentsEnabled: false, mediaEnabled: false },
+        });
+      }
+      const organizationId = context?.organizationId ?? profile?.organizationId ?? null;
+      if (!organizationId) {
+        return resolvePatientProgramInteractionPolicy({
+          profile,
+          defaultsWithoutSupport: { commentsEnabled: false, mediaEnabled: false },
+        });
+      }
+      const runtimeContext = { patientUserId, organizationId };
+      const [commentsDefault, mediaDefault] = await Promise.all([
+        deps.getDoctorSupportDefault(
+          "doctor_patient_support_comments_without_support_default_enabled",
+          runtimeContext,
+        ),
+        deps.getDoctorSupportDefault(
+          "doctor_patient_support_media_without_support_default_enabled",
+          runtimeContext,
+        ),
       ]);
       return resolvePatientProgramInteractionPolicy({
         profile,

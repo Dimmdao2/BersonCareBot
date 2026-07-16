@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyClientContactBreakdown } from "./clientContactSegments";
 import { createDoctorClientsService } from "./service";
 import type { DoctorClientsPort } from "./ports";
+import { createRuntimeConfigProvider } from "@/modules/system-settings/runtimeConfig";
 
 describe("doctor-clients service", () => {
   const stubIdentity = {
@@ -141,10 +142,26 @@ describe("doctor-clients service", () => {
         };
       },
     };
+    const runtimeConfig = createRuntimeConfigProvider({
+      async getEffective(input) {
+        expect(input.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        expect(input.scope).toBe("doctor");
+        return {
+          key: input.key,
+          scope: input.scope,
+          organizationId: null,
+          audience: "authenticated_client",
+          valueJson: {
+            value:
+              input.key ===
+              "doctor_patient_support_media_without_support_default_enabled",
+          },
+        };
+      },
+    });
     const policyService = createDoctorClientsService({
       clientsPort: portWithSupport,
-      getDoctorSupportDefault: async (key) =>
-        key === "doctor_patient_support_media_without_support_default_enabled",
+      getDoctorSupportDefault: runtimeConfig.getBoolean,
       getUpcomingAppointments: () => [],
       listAppointmentHistoryForPhone: async () => [],
       listSymptomTrackings: async () => [],
@@ -158,6 +175,43 @@ describe("doctor-clients service", () => {
     expect(policy.onSupport).toBe(false);
     expect(policy.commentsAllowed).toBe(true);
     expect(policy.mediaAllowed).toBe(true);
+  });
+
+  it("does not read without-support defaults for an on-support patient", async () => {
+    const getDoctorSupportDefault = vi.fn(async () => false);
+    const policyService = createDoctorClientsService({
+      clientsPort: {
+        ...mockPort,
+        async getClientSupport() {
+          return {
+            patientUserId: "user-1",
+            organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            onSupport: true,
+            supportStartedAt: "2026-01-01T00:00:00.000Z",
+            commentsEnabled: null,
+            mediaEnabled: null,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            updatedBy: "doc-1",
+          };
+        },
+      },
+      getDoctorSupportDefault,
+      getUpcomingAppointments: () => [],
+      listAppointmentHistoryForPhone: async () => [],
+      listSymptomTrackings: async () => [],
+      listSymptomEntries: async () => [],
+      listLfkComplexes: async () => [],
+      listLfkSessions: async () => [],
+      getChannelCards: async () => [],
+      listSupplementaryContacts: async () => [],
+    });
+
+    await expect(policyService.getPatientProgramInteractionPolicy("user-1")).resolves.toMatchObject({
+      onSupport: true,
+      commentsAllowed: true,
+      mediaAllowed: true,
+    });
+    expect(getDoctorSupportDefault).not.toHaveBeenCalled();
   });
 
   it("getClientProfile returns full profile for known client", async () => {

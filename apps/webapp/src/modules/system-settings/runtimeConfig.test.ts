@@ -45,4 +45,28 @@ describe("runtime config provider", () => {
       provider.isFlagEnabled("patient_program_discussion_ui_enabled", { ...context, organizationId: "" }),
     ).rejects.toThrow("runtime_config_context_required");
   });
+
+  it("resolves patient-safe doctor support defaults through the same generic port", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "doctor_patient_support_comments_without_support_default_enabled",
+      scope: "doctor",
+      organizationId: null,
+      audience: "authenticated_client",
+      valueJson: { value: true },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getBoolean(
+        "doctor_patient_support_comments_without_support_default_enabled",
+        context,
+      ),
+    ).resolves.toBe(true);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "doctor_patient_support_comments_without_support_default_enabled",
+      scope: "doctor",
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+    });
+  });
 });

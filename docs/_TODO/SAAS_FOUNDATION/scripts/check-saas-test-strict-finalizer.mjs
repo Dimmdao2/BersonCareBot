@@ -12,6 +12,7 @@ const files = {
   codeOnly: "deploy/host/deploy-test.sh",
   fixtureValidator: "deploy/host/validate-saas-product-smoke-fixture.sh",
   protocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
+  patientTestResults: "apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts",
 };
 
 function fail(message) {
@@ -38,6 +39,14 @@ function requireOrdered(label, text, fragments) {
     if (index < 0) fail(`${label} missing ordered fragment after ${cursor}: ${fragment}`);
     cursor = index + fragment.length;
   }
+}
+
+function methodSlice(label, text, start, end) {
+  const startIndex = text.indexOf(start);
+  if (startIndex < 0) fail(`${label} missing method start: ${start}`);
+  const endIndex = text.indexOf(end, startIndex + start.length);
+  if (endIndex < 0) fail(`${label} missing method end: ${end}`);
+  return text.slice(startIndex, endIndex);
 }
 
 function runChecks(overrides = {}) {
@@ -92,7 +101,26 @@ function runChecks(overrides = {}) {
     "pg_has_role(current_user, 'app_worker', 'member')",
     'ON "public"."media_files"',
     'ON "public"."media_transcode_jobs"',
+    "GRANT EXECUTE ON FUNCTION app.is_staff() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;",
+    "GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.is_staff() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM app_worker;",
+    "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM app_worker;",
   ]);
+  for (const forbidden of [
+    "GRANT EXECUTE ON FUNCTION app.install_signed_context",
+    "GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker",
+    "GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_worker",
+    "GRANT SELECT ON TABLE",
+    "GRANT INSERT ON TABLE",
+    "GRANT UPDATE ON TABLE",
+    "GRANT DELETE ON TABLE",
+  ]) {
+    if (loaded.appWorker.includes(forbidden)) {
+      fail(`${files.appWorker} contains forbidden privilege expansion: ${forbidden}`);
+    }
+  }
 
   requireFragments(files.force, loaded.force, [
     "v_expected_count <> 163",
@@ -184,6 +212,21 @@ function runChecks(overrides = {}) {
   if (loaded.protocol.includes("Do not bundle strict/FORCE into the fresh-dump dormant rehearsal.")) {
     fail(`${files.protocol} still blesses dormant TEST end-state`);
   }
+
+  const patientResultDetails = methodSlice(
+    files.patientTestResults,
+    loaded.patientTestResults,
+    "async listResultDetailsForInstance(",
+    "async listPendingEvaluationResultsForPatient(",
+  );
+  requireFragments(files.patientTestResults, patientResultDetails, [
+    "itemSnapshot: itemTable.snapshot",
+    "clinicalTestTitleFromInstanceSnapshot(r.itemSnapshot, r.result.testId)",
+    ".where(eq(stageTable.instanceId, instanceId))",
+  ]);
+  if (patientResultDetails.includes(".innerJoin(clinicalTests")) {
+    fail(`${files.patientTestResults} patient result details reopened the restricted clinical-test catalog`);
+  }
 }
 
 function runSelfTest() {
@@ -195,6 +238,8 @@ function runSelfTest() {
     { invites: `${baseline.invites}\nNULLIF(current_setting('app.org', true), '') IS NULL\n` },
     { courses: baseline.courses.replaceAll('"b4course_instance"."template_id" = "courses"."program_template_id"', "TRUE") },
     { appWorker: baseline.appWorker.replaceAll("pg_has_role(current_user, 'app_worker', 'member')", "FALSE") },
+    { appWorker: baseline.appWorker.replace("GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;", "") },
+    { appWorker: `${baseline.appWorker}\nGRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker;\n` },
     { force: baseline.force.replace("v_expected_count <> 163", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
@@ -206,6 +251,12 @@ function runSelfTest() {
     { fixtureValidator: baseline.fixtureValidator.replace('[ "$metadata" = "$expected_uid:$expected_gid:$expected_mode" ]', "true") },
     { codeOnly: baseline.codeOnly.replace('bash "$DEPLOY_REPO/$STRICT_CLOSURE" --post-migration-closure', "") },
     { protocol: `${baseline.protocol}\nDo not bundle strict/FORCE into the fresh-dump dormant rehearsal.\n` },
+    {
+      patientTestResults: baseline.patientTestResults.replace(
+        ".innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))\n        .where(eq(stageTable.instanceId, instanceId))",
+        ".innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))\n        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))\n        .where(eq(stageTable.instanceId, instanceId))",
+      ),
+    },
   ];
   const missed = [];
   for (const [index, broken] of cases.entries()) {

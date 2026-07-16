@@ -60,7 +60,17 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "program_not_doctor_assigned" }, { status: 400 });
   }
 
-  const supportGate = await assertPatientProgramCommentsAllowed(deps, gate.session.user.userId);
+  const supportGate = await runWithDbPatientPrincipal(
+    {
+      platformUserId: gate.session.user.userId,
+      organizationId,
+      source: "patient.discussion-summary.support-policy",
+    },
+    () =>
+      assertPatientProgramCommentsAllowed(deps, gate.session.user.userId, {
+        organizationId,
+      }),
+  );
   if (!supportGate.ok) {
     return NextResponse.json({ ok: false, error: supportGate.error }, { status: 403 });
   }

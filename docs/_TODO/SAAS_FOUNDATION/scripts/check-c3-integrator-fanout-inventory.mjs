@@ -192,6 +192,14 @@ function runChecks(overrides = {}) {
     "DB infra principal source is not allowed on integrator request pool in locked mode",
     "client.release(toReleaseError(cleanupError));",
     "assertIntegratorLockedPrincipalClassified(principalApplyOptions);",
+    "'integrator-user-org-resolution'",
+    "'integrator-deployment-org-resolution'",
+    "'integrator-projection-health'",
+  ]);
+  requireFragments(files.routes, loaded.routes, [
+    "{ source: `${resource}-webhook:pre-routing` }",
+    "{ source: 'integrator-user-org-resolution' }",
+    "{ source: 'integrator-deployment-org-resolution' }",
   ]);
   requireFragmentBefore(
     files.withClient,

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import {
   getProjectionHealth,
@@ -16,6 +17,24 @@ function createDbMock() {
 }
 
 describe('projectionHealth', () => {
+  it('runs the whole aggregate read under the bounded projection-health infra principal', async () => {
+    const principals: unknown[] = [];
+    const db: DbPort = {
+      query: vi.fn(async () => {
+        principals.push(getCurrentDbPrincipal());
+        return { rows: [] };
+      }) as unknown as DbPort['query'],
+      tx: vi.fn() as unknown as DbPort['tx'],
+    };
+
+    await getProjectionHealth(db);
+
+    expect(principals).toHaveLength(5);
+    expect(principals).toEqual(Array.from({ length: 5 }, () => ({
+      kind: 'infra', source: 'integrator-projection-health',
+    })));
+  });
+
   it('returns snapshot with pending, dead, oldestPendingAt, retryDistribution, lastSuccessAt, retriesOverThreshold', async () => {
     const { db, query } = createDbMock();
     query

@@ -4,6 +4,7 @@ import {
   readProjectionHealthSnapshot,
   type ProjectionHealthSnapshot,
 } from './projectionHealthCore.js';
+import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 
 export { isProjectionHealthDegraded };
 export type { ProjectionHealthSnapshot } from './projectionHealthCore.js';
@@ -17,5 +18,8 @@ export async function getProjectionHealth(
   db: DbPort,
   options?: { retryThreshold?: number },
 ): Promise<ProjectionHealthSnapshot> {
-  return readProjectionHealthSnapshot(db, options);
+  return runWithInfraPrincipal(
+    { source: 'integrator-projection-health' },
+    () => readProjectionHealthSnapshot(db, options),
+  );
 }

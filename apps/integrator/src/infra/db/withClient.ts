@@ -11,6 +11,8 @@ import {
 
 const principalApplyOptionsByClient = new WeakMap<PoolClient, DbPrincipalApplyOptions>();
 const allowedLockedBootstrapSources = new Set([
+	'integrator-deployment-org-resolution',
+	'integrator-user-org-resolution',
 	'max-webhook:pre-routing',
 	'max-webhook:unresolved-org',
 	'max-webhook:verbose-config',
@@ -21,6 +23,7 @@ const allowedLockedBootstrapSources = new Set([
 const allowedLockedInfraSources = new Set([
 	'delivery-handler',
 	'integrator-health-check',
+	'integrator-projection-health',
 	'max-webhook:record-outcome',
 	'scheduler:acquire-lock',
 	'scheduler:claim-due-jobs',

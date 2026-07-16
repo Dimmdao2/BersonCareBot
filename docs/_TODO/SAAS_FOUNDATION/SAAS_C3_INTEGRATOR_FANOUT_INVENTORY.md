@@ -27,7 +27,7 @@ source files; adding `app.get/post` there without updating this table fails the 
 | ID | Entrypoint | Registered by | Principal class / source | DB surfaces | Locked-mode behavior | Send-safe status |
 |---|---|---|---|---|---|---|
 | `health` | `GET /health` | direct `routes.ts` | `infra`, source `integrator-health-check` | `SELECT 1` through provider query | Explicitly allowlisted infra source; missing/unknown source fails before checkout. | No outbound send. |
-| `projection-health` | `GET /health/projection` | direct `routes.ts` | Technical projection health via `deps.getProjectionHealth`; C3 has no separate operational-pool proof yet. | `integrator.projection_outbox` aggregate reads through `getProjectionHealth`. | Future operational-pool classification remains required if locked runtime exercises this route. | No outbound send. |
+| `projection-health` | `GET /health/projection` | direct `routes.ts` | `infra`, source `integrator-projection-health` inside the shared repository entrypoint. | `integrator.projection_outbox` aggregate reads through `getProjectionHealth`. | Explicitly allowlisted only for the closed aggregate read; unknown infra sources still fail before checkout. | No outbound send. |
 | `send-sms` | `POST /api/bersoncare/send-sms` | `registerBersoncareSendSmsRoute` | Signed webapp M2M delivery request; no org principal currently resolved in the route. | No route-local DB read; `dispatchPort` may persist delivery attempts/queue state. | Missing principal would fail on scoped DB checkout if downstream writes need the request pool in locked mode; final delivery worker fanout proof remains future C3. | Delivery intent only; safe only under existing dev/test redirect or future no-real-delivery proof. |
 | `send-email` | `POST /api/bersoncare/send-email` | `registerBersoncareSendEmailRoute` | Signed webapp M2M delivery request; no org principal currently resolved in the route. | SMTP config pre-check via `system_settings`; dispatch persistence downstream. | Requires future bootstrap/operational classification for config pre-check and delivery writes under locked runtime. | Delivery intent only; no live send proof in this stage. |
 | `relay-outbound` | `POST /api/bersoncare/relay-outbound` | `registerBersoncareRelayOutboundRoute` | Signed webapp M2M delivery relay; payload recipient/channel, no org principal currently resolved in the route. | In-memory dedup; downstream `dispatchPort` persistence. | Missing principal would fail on scoped DB checkout if downstream writes need the request pool in locked mode; final fanout is future C3. | Delivery intent only; no live send proof in this stage. |
@@ -44,6 +44,11 @@ source files; adding `app.get/post` there without updating this table fails the 
 | `max-webhook` | `POST /webhook/max` when `deps.registerMaxWebhookRoutes` is enabled | `deps.registerMaxWebhookRoutes` | MAX secret + pre-routing `bootstrap` sources `max-webhook:verbose-config` and `max-webhook:pre-routing`; event handling under `integrator` or `organization` principal; unresolved path source `max-webhook:unresolved-org`. | Operational verbose config, webapp-entry facts, staff IDs, app URL, channel/user state, conversation/reminder/support writes through event gateway. | Listed bootstrap/infra sources are allowlisted; organization/integrator principal is applied when resolved; unresolved path is explicit, not silent. | Incoming only plus possible replies through dispatch; send-safe proof remains future C3. |
 
 ## Worker / Scheduler Sources Carried From T0.4
+
+Shared messenger and M2M organization lookups now install only their bounded bootstrap source around the lookup
+itself: channel pre-routing reuses `telegram-webhook:pre-routing` / `max-webhook:pre-routing`, while integrator-user
+and single-deployment fallbacks use `integrator-user-org-resolution` / `integrator-deployment-org-resolution`.
+These scopes do not wrap the downstream handler, so they cannot turn an unclassified M2M write into ambient access.
 
 These are not mounted HTTP routes from `routes.ts`, but C3 still tracks them because the roadmap calls out API and
 delivery worker fanout together:

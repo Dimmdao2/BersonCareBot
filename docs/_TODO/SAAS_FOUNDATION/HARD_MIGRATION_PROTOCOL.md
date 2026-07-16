@@ -244,8 +244,14 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
 - apply the D3.4 bootstrap/base-login grant closure from
   `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` to the discovered `webapp.test`
   `DATABASE_URL_NONSTAFF` role, falling back to `DATABASE_URL` only when dual-pool URLs are absent, before any TEST
-  service restart or product smoke. This repo artifact grants the proven bootstrap direct read surface plus the
-  composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth email/invite/signup accessors.
+  service restart or product smoke. The same invocation must discover the actual media-worker login from the
+  `webapp.test` `DATABASE_URL`, pass it separately to the artifact, and then prove through that exact URL that
+  `app.release_principal_context()` is visible and executable. After the final helper recreation/grants, it must also
+  use the actual `DATABASE_URL_STAFF` and `DATABASE_URL_NONSTAFF` paths to prove that only the staff runtime can call
+  `app.staff_user_has_password_credentials(uuid)`; the probe uses a synthetic UUID and emits no returned value.
+  This repo artifact grants the proven bootstrap direct
+  read surface plus the composed D2 FB#1 phone/contact write surface and EXECUTE on the narrow pre-auth
+  email/invite/signup accessors.
   It deliberately does not grant clinical/media/content/full-settings or credential table access to the bootstrap
   base login. It is not final D3.4 PASS until the owner-authorized locked TEST product smoke reruns.
 - after migration `0185_saas_isolation_diagnostics` and runtime-role discovery, apply
@@ -420,6 +426,12 @@ acceptance.
 - Rerun from a fresh restore or fresh disposable DB.
 - If a temporary privilege cleanup failure occurs, treat it as the primary incident until post-cleanup
   assertions prove the target is clean.
+- After locked TEST services restart, health/nginx and both mandatory product-smoke passes, the shared closure records
+  one real E1 coverage run for all six process families and immediately rereads diagnostics through the protected
+  operator URL. It reads first and fails before the coverage write when a genuine unexplained event is already
+  active; it also fails when a new unexplained event appears during the gate or the exact fresh complete coverage
+  cannot be reread. The gate never invokes the synthetic scenario cleanup and never deletes genuine events. Both
+  fresh-restore and code-only paths must pass this gate before AWG/DONE.
 
 ## DEV/disposable dormant wrapper
 

@@ -53,6 +53,16 @@ if (
 ) {
   throw new Error(`${contractPath}: global-admin clinical-write denial is incomplete`);
 }
+const specialistEngagementAnalytics = scenarios.get('doctor.analytics.patient-engagement');
+if (
+  !['doctor', 'clinic_admin'].includes(specialistEngagementAnalytics?.actor) ||
+  specialistEngagementAnalytics?.path !==
+    '/api/doctor/treatment-program-instances/{patientProgramInstanceId}/action-log' ||
+  specialistEngagementAnalytics.jsonExpectation?.requireSuccess !== true ||
+  !specialistEngagementAnalytics.jsonExpectation?.nonEmptyPaths?.includes('entries')
+) {
+  throw new Error(`${contractPath}: tenant specialist engagement analytics contract is incomplete`);
+}
 
 requireText('docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs', [
   "'doctor', 'clinic_admin', 'patient', 'global_admin', 'public'",
@@ -132,6 +142,7 @@ requireText('docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/audit/acceptance-ST-04.
   'post-matrix exact strict+FORCE',
   'double-seed convergence',
   'authenticated media',
+  'task #800',
 ]);
 
 console.log('check-owner-ready-test-integration: OK');

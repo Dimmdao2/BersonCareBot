@@ -73,7 +73,21 @@ VALUES ('specialist_signup_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NU
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
--- 6b. OAuth redirect URIs.
+-- 6b. Patient program discussion for the owner-ready TEST walkthrough.
+-- Migration 0186 registers this key in app_runtime_settings before this post-migrate
+-- override runs. The generic system_settings trigger therefore mirrors this value
+-- into the patient-readable runtime table without a key-specific application accessor.
+INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
+VALUES ('patient_program_discussion_ui_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+
+INSERT INTO integrator.system_settings (key, scope, value_json, updated_at, updated_by)
+VALUES ('patient_program_discussion_ui_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
+ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+
+-- 6c. OAuth redirect URIs.
 UPDATE public.system_settings SET value_json = jsonb_set(value_json, '{value}',
   '"https://test.bersoncare.ru/api/auth/oauth/callback/yandex"'::jsonb), updated_at = NOW(), updated_by = NULL
 WHERE key = 'yandex_oauth_redirect_uri' AND scope = 'admin';
@@ -135,7 +149,7 @@ COMMIT;
 CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled'];
+  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','smtp_outbound','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key
@@ -151,7 +165,7 @@ CREATE TRIGGER system_settings_test_lock BEFORE UPDATE ON public.system_settings
 CREATE OR REPLACE FUNCTION integrator.system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled'];
+  locked_keys TEXT[] := ARRAY['smtp_outbound','app_base_url','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK (integrator): system_settings key "%" is locked.', OLD.key

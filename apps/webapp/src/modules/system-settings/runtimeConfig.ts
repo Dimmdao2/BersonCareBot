@@ -7,6 +7,21 @@ export const RUNTIME_FLAG_DEFINITIONS = {
 } as const;
 
 export type RuntimeFlag = keyof typeof RUNTIME_FLAG_DEFINITIONS;
+export const RUNTIME_BOOLEAN_SETTING_DEFINITIONS = {
+  ...RUNTIME_FLAG_DEFINITIONS,
+  doctor_patient_support_comments_without_support_default_enabled: {
+    key: "doctor_patient_support_comments_without_support_default_enabled",
+    scope: "doctor",
+    defaultValue: false,
+  },
+  doctor_patient_support_media_without_support_default_enabled: {
+    key: "doctor_patient_support_media_without_support_default_enabled",
+    scope: "doctor",
+    defaultValue: false,
+  },
+} as const;
+
+export type RuntimeBooleanSetting = keyof typeof RUNTIME_BOOLEAN_SETTING_DEFINITIONS;
 export type RuntimeConfigAudience = "public" | "authenticated_client" | "server";
 
 export type RuntimeConfigContext = {
@@ -38,19 +53,27 @@ function parseBooleanEnvelope(valueJson: unknown): boolean | null {
 }
 
 export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
+  async function getBoolean(
+    key: RuntimeBooleanSetting,
+    context: RuntimeConfigContext,
+  ): Promise<boolean> {
+    if (!context.patientUserId.trim() || !context.organizationId.trim()) {
+      throw new Error("runtime_config_context_required");
+    }
+    const definition = RUNTIME_BOOLEAN_SETTING_DEFINITIONS[key];
+    const row = await port.getEffective({
+      key: definition.key,
+      scope: definition.scope,
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+    });
+    return parseBooleanEnvelope(row?.valueJson ?? null) ?? definition.defaultValue;
+  }
+
   return {
+    getBoolean,
     async isFlagEnabled(flag: RuntimeFlag, context: RuntimeConfigContext): Promise<boolean> {
-      if (!context.patientUserId.trim() || !context.organizationId.trim()) {
-        throw new Error("runtime_config_context_required");
-      }
-      const definition = RUNTIME_FLAG_DEFINITIONS[flag];
-      const row = await port.getEffective({
-        key: definition.key,
-        scope: definition.scope,
-        organizationId: context.organizationId,
-        allowedAudiences: ["authenticated_client", "public"],
-      });
-      return parseBooleanEnvelope(row?.valueJson ?? null) ?? definition.defaultValue;
+      return getBoolean(flag, context);
     },
   };
 }

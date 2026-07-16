@@ -22,6 +22,7 @@ import type {
   PendingProgramTestEvaluationRow,
   PendingProgramTestEvaluationGlobalRow,
 } from "@/modules/treatment-program/types";
+import { clinicalTestTitleFromInstanceSnapshot } from "@/modules/treatment-program/clinicalTestSnapshotTitle";
 
 function mapAttempt(row: typeof attemptTable.$inferSelect): TreatmentProgramTestAttemptRow {
   return {
@@ -340,7 +341,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
           stageId: stageTable.id,
           stageTitle: stageTable.title,
           stageSortOrder: stageTable.sortOrder,
-          testTitle: clinicalTests.title,
+          itemSnapshot: itemTable.snapshot,
           attemptStartedAt: attemptTable.startedAt,
           attemptSubmittedAt: attemptTable.submittedAt,
           attemptAcceptedAt: attemptTable.acceptedAt,
@@ -349,7 +350,6 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(attemptTable, eq(resultTable.attemptId, attemptTable.id))
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
-        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .where(eq(stageTable.instanceId, instanceId))
         .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
 
@@ -359,7 +359,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         stageId: r.stageId,
         stageTitle: r.stageTitle,
         stageSortOrder: r.stageSortOrder,
-        testTitle: r.testTitle ?? null,
+        testTitle: clinicalTestTitleFromInstanceSnapshot(r.itemSnapshot, r.result.testId),
         attemptStartedAt: r.attemptStartedAt,
         attemptSubmittedAt: r.attemptSubmittedAt ?? null,
         attemptAcceptedAt: r.attemptAcceptedAt ?? null,

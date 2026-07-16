@@ -17,8 +17,10 @@
 -- read arbitrary tenant data outside this narrow surface.
 --
 -- Idempotent: safe to re-run. Requires phase4-locked-helper-rls-policies.sql (enforce mode) and
--- p0-5b-role-split-staff-patient.sql (app_staff/app_patient) to already be applied, and the
--- `app_worker` role to exist.
+-- p0-5b-role-split-staff-patient.sql (app_staff/app_patient) and
+-- p2-b-protected-principal-context.sql (locked read-only helpers) to already be applied, and the
+-- `app_worker` role to exist. PostgreSQL checks EXECUTE on every helper referenced by a policy even
+-- when the app_worker OR branch is true, so this overlay owns the matching narrow helper grants.
 --
 -- Rollback: re-run with -v phase4_app_worker_narrow_rls_down=1 to restore the pre-patch (enforce
 -- mode, no worker branch) policy text for the same two tables.
@@ -28,6 +30,10 @@
 
 \if :{?phase4_app_worker_narrow_rls_down}
 BEGIN;
+
+REVOKE EXECUTE ON FUNCTION app.is_staff() FROM app_worker;
+REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM app_worker;
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM app_worker;
 
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."media_files";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."media_files"
@@ -47,8 +53,19 @@ COMMIT;
 \endif
 
 SELECT 1 / (EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_worker'))::int AS app_worker_role_exists;
+SELECT 1 / (
+  to_regprocedure('app.is_staff()') IS NOT NULL
+  AND to_regprocedure('app.current_org_id()') IS NOT NULL
+  AND to_regprocedure('app.current_patient_user_id()') IS NOT NULL
+)::int AS app_worker_policy_helpers_exist;
 
 BEGIN;
+
+-- Read-only context helpers referenced by the two policies below. Deliberately exclude
+-- install/reset/signing helpers and every table-level grant.
+GRANT EXECUTE ON FUNCTION app.is_staff() TO app_worker;
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_worker;
 
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."media_files";
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."media_files"

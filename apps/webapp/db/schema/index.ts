@@ -42,5 +42,6 @@ export * from "./patientClinicalAnamnesis";
 export * from "./patientPayments";
 export * from "./saasEntitlements";
 export * from "./appRuntimeSettings";
+export * from "./doctorPatientSupport";
 export * from "./saasIsolationDiagnostics";
 export * from "./relations";

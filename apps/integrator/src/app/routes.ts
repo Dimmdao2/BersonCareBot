@@ -22,6 +22,8 @@ import { integratorWebhookSecret } from '../config/env.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
+import { runWithBootstrapPrincipal } from '../infra/principal/organizationPrincipal.js';
+import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
@@ -39,9 +41,13 @@ function createResolveIntegratorUserIdForMessenger(): (
   return async (externalId, resource) => {
     try {
       const db = createDbPort();
-      const row = await getLinkDataByIdentity(db, resource, externalId);
+      const row = await runWithBootstrapPrincipal(
+        { source: `${resource}-webhook:pre-routing` },
+        () => getLinkDataByIdentity(db, resource, externalId),
+      );
       return row?.userId;
-    } catch {
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
       return undefined;
     }
   };
@@ -54,8 +60,12 @@ function createResolveOrganizationIdForMessengerIdentity(): (
   return async (externalId, resource) => {
     try {
       const db = createDbPort();
-      return await resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId });
-    } catch {
+      return await runWithBootstrapPrincipal(
+        { source: `${resource}-webhook:pre-routing` },
+        () => resolveActiveOrganizationIdForMessengerIdentity(db, { resource, externalId }),
+      );
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
       return null;
     }
   };
@@ -67,8 +77,12 @@ function createResolveOrganizationIdForIntegratorUserId(): (
   return async (integratorUserId) => {
     try {
       const db = createDbPort();
-      return await resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId);
-    } catch {
+      return await runWithBootstrapPrincipal(
+        { source: 'integrator-user-org-resolution' },
+        () => resolveActiveOrganizationIdForIntegratorUserId(db, integratorUserId),
+      );
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
       return null;
     }
   };
@@ -84,8 +98,12 @@ function createResolveDeploymentOrganizationId(): () => Promise<string | null> {
   return async () => {
     try {
       const db = createDbPort();
-      return await resolveDeploymentSingleActiveOrganizationId(db);
-    } catch {
+      return await runWithBootstrapPrincipal(
+        { source: 'integrator-deployment-org-resolution' },
+        () => resolveDeploymentSingleActiveOrganizationId(db),
+      );
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
       return null;
     }
   };
@@ -111,7 +129,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     try {
       const snapshot = await deps.getProjectionHealth();
       return reply.code(200).send(snapshot);
-    } catch {
+    } catch (error) {
+      reportIntegratorIsolationFailure(error);
       return reply.code(503).send({
         pendingCount: 0,
         deadCount: 0,
