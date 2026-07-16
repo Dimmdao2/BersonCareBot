@@ -42,6 +42,7 @@ D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
+SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh
 UNITS=(api worker scheduler webapp media-worker)
@@ -519,6 +520,16 @@ install_saas_isolation_telemetry_overlay(){
   echo "   SaaS isolation telemetry closed API: OK"
 }
 
+install_saas_system_health_diagnostics_overlay(){
+  local operator_runtime_role
+  operator_runtime_role="$(discover_saas_isolation_operator_role)"
+  validate_pg_identifier "webapp.test System Health operator role" "$operator_runtime_role"
+  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+    -v system_health_operator_runtime_role="$operator_runtime_role" \
+    -f "$DEPLOY_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"
+  echo "   curated System Health diagnostic API: OK"
+}
+
 run_saas_isolation_test_scenario_proof(){
   local scenario_args
   for scenario_args in \
@@ -740,6 +751,7 @@ run_strict_post_migration_closure(){
   log "strict closure: SaaS isolation telemetry privilege overlay"
   provision_saas_isolation_operator_login
   install_saas_isolation_telemetry_overlay
+  install_saas_system_health_diagnostics_overlay
   log "strict closure: reversible SaaS isolation TEST scenario proof"
   run_saas_isolation_test_scenario_proof
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
@@ -790,7 +802,8 @@ assert_strict_closure_deploy_checkout_ready(){
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" \
+    "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read strict closure artifact: $DEPLOY_REPO/$required_path" >&2
@@ -840,6 +853,7 @@ esac
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
+[ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
 for f in "$API_ENV" "$WEBAPP_ENV"; do
   sudo -u deploy test -r "$f" || { echo "FATAL: deploy cannot read required env file: $f"; exit 1; }

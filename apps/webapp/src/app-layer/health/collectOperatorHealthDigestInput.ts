@@ -79,7 +79,7 @@ export async function collectOperatorHealthDigestInput(params: {
     probeConsecutiveFailRuns: health.probeOutbound.consecutiveFailRuns,
     videoTranscodeStatus: health.videoTranscode.status,
     cronJobs: health.cronJobs,
-    operatorIncidentsOpenCount: health.operatorIncidentsOpen.length,
+    operatorIncidentsOpenCount: health.operatorIncidents.openCount,
   });
 
   return {

@@ -99,9 +99,14 @@ function aggregateCronJobsStatus(
  */
 export async function collectCronJobsHealth(input?: {
   backupJobs?: Record<string, BackupJobHealthSlice>;
+  /** Curated, already-redacted rows supplied by protected System Health diagnostics. */
+  jobRows?: OperatorJobStatusTickRow[];
 }): Promise<CronJobsHealthPayload> {
-  const read = buildAppDeps().operatorHealthRead;
+  const read = input?.jobRows ? null : buildAppDeps().operatorHealthRead;
   const backupByKey = input?.backupJobs ?? {};
+  const curatedByKey = input?.jobRows
+    ? new Map(input.jobRows.map((row) => [`${row.jobFamily}:${row.jobKey}`, row]))
+    : null;
 
   const jobs: CronJobHealthItem[] = [];
 
@@ -114,7 +119,9 @@ export async function collectCronJobsHealth(input?: {
         lastTick = backupRowToTick(entry.jobKey, row);
       }
     } else {
-      const row = await read.getOperatorJobStatus(entry.jobFamily, entry.jobKey);
+      const row = curatedByKey
+        ? curatedByKey.get(`${entry.jobFamily}:${entry.jobKey}`) ?? null
+        : await read!.getOperatorJobStatus(entry.jobFamily, entry.jobKey);
       if (row) {
         lastTick = tickRowToPayload(row);
       }

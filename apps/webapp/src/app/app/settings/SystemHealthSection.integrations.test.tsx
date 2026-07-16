@@ -70,7 +70,7 @@ function healthJson(overrides: Record<string, unknown> = {}) {
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoTranscode: videoTranscodeShell,
-    operatorIncidentsOpen: [],
+    operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     backupJobs: {},
     outgoingDelivery: {
       dueBacklog: 0,

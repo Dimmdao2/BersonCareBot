@@ -218,19 +218,11 @@ function fetchHealthJson(): Record<string, unknown> {
         ],
       },
     },
-    operatorIncidentsOpen: [
-      {
-        id: "550e8400-e29b-41d4-a716-446655440000",
-        dedupKey: "outbound:max:max_probe_failed",
-        direction: "outbound",
-        integration: "max",
-        errorClass: "max_probe_failed",
-        errorDetail: "probe timeout",
-        openedAt: "2026-04-16T09:00:00.000Z",
-        lastSeenAt: "2026-04-16T09:30:00.000Z",
-        occurrenceCount: 2,
-      },
-    ],
+    operatorIncidents: {
+      openCount: 1,
+      occurrenceCount: 2,
+      lastSeenAt: "2026-04-16T09:30:00.000Z",
+    },
     backupJobs: {
       nightly_dump: {
         lastStatus: "success",

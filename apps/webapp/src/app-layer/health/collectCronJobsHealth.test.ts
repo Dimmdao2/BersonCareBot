@@ -18,6 +18,27 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 describe("collectCronJobsHealth", () => {
+  it("uses supplied curated rows without querying the principal-aware repository", async () => {
+    getOperatorJobStatusMock.mockClear();
+    const result = await collectCronJobsHealth({
+      jobRows: [{
+        jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+        jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
+        lastStatus: "success",
+        lastStartedAt: null,
+        lastFinishedAt: new Date().toISOString(),
+        lastSuccessAt: new Date(Date.now() - 60_000).toISOString(),
+        lastFailureAt: null,
+        lastDurationMs: 12,
+        lastError: null,
+        metaJson: {},
+      }],
+    });
+
+    expect(getOperatorJobStatusMock).not.toHaveBeenCalled();
+    expect(result.jobs.find((job) => job.id === "playback_retention")?.status).toBe("ok");
+  });
+
   it("includes playback retention job with ok status when tick is fresh", async () => {
     getOperatorJobStatusMock.mockImplementation((family: string, key: string) => {
       if (

@@ -56,4 +56,5 @@ export type NotificationDeliverySystemHealthStatus =
   | "ok"
   | "degraded"
   | "no_data"
-  | "not_configured";
+  | "not_configured"
+  | "error";

@@ -77,7 +77,7 @@ function healthJson(overrides: Record<string, unknown> = {}) {
     mediaPreview: mediaPreviewShell,
     videoPlayback: videoPlaybackShell,
     videoTranscode: videoTranscodeShell,
-    operatorIncidentsOpen: [],
+    operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     backupJobs: {},
     outgoingDelivery: {
       dueBacklog: 0,
@@ -117,19 +117,11 @@ describe("SystemHealthSection operator incidents", () => {
       text: () =>
         Promise.resolve(JSON.stringify(
           healthJson({
-            operatorIncidentsOpen: [
-              {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                dedupKey: "k",
-                direction: "outbound",
-                integration: "max",
-                errorClass: "max_probe_failed",
-                errorDetail: "detail",
-                openedAt: "2026-04-16T09:00:00.000Z",
-                lastSeenAt: "2026-04-16T09:30:00.000Z",
-                occurrenceCount: 2,
-              },
-            ],
+            operatorIncidents: {
+              openCount: 1,
+              occurrenceCount: 2,
+              lastSeenAt: "2026-04-16T09:30:00.000Z",
+            },
             meta: {
               probes: {
                 ...probeShell,
@@ -155,19 +147,11 @@ describe("SystemHealthSection operator incidents", () => {
       text: () =>
         Promise.resolve(JSON.stringify(
           healthJson({
-            operatorIncidentsOpen: [
-              {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                dedupKey: "k",
-                direction: "outbound",
-                integration: "google_calendar",
-                errorClass: "unknown_error_class",
-                errorDetail: null,
-                openedAt: "2026-04-16T09:00:00.000Z",
-                lastSeenAt: "2026-04-16T09:30:00.000Z",
-                occurrenceCount: 1,
-              },
-            ],
+            operatorIncidents: {
+              openCount: 1,
+              occurrenceCount: 1,
+              lastSeenAt: "2026-04-16T09:30:00.000Z",
+            },
             meta: {
               probes: {
                 ...probeShell,
@@ -193,15 +177,9 @@ describe("SystemHealthSection operator incidents", () => {
   it("confirm dialog calls resolve-all and reloads system-health", async () => {
     const user = userEvent.setup();
     const openIncident = {
-      id: "550e8400-e29b-41d4-a716-446655440000",
-      dedupKey: "k",
-      direction: "outbound",
-      integration: "google_calendar",
-      errorClass: "unknown_error_class",
-      errorDetail: null,
-      openedAt: "2026-04-16T09:00:00.000Z",
-      lastSeenAt: "2026-04-16T09:30:00.000Z",
+      openCount: 1,
       occurrenceCount: 1,
+      lastSeenAt: "2026-04-16T09:30:00.000Z",
     };
     let healthLoads = 0;
     const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -213,7 +191,9 @@ describe("SystemHealthSection operator incidents", () => {
           text: () =>
             Promise.resolve(JSON.stringify(
               healthJson({
-                operatorIncidentsOpen: healthLoads === 1 ? [openIncident] : [],
+                operatorIncidents: healthLoads === 1
+                  ? openIncident
+                  : { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
                 meta: {
                   probes: {
                     ...probeShell,

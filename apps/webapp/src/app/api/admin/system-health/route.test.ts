@@ -69,6 +69,7 @@ const {
   getOperatorJobStatusMock,
   listIntegrationWebhookLastStatusMock,
   loadAdminReminderPipelineMetricsMock,
+  loadCuratedSystemHealthSnapshotMock,
   readSaasIsolationHealthMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
@@ -96,6 +97,7 @@ const {
   getOperatorJobStatusMock: vi.fn(),
   listIntegrationWebhookLastStatusMock: vi.fn(),
   loadAdminReminderPipelineMetricsMock: vi.fn(),
+  loadCuratedSystemHealthSnapshotMock: vi.fn(),
   readSaasIsolationHealthMock: vi.fn(),
 }));
 
@@ -195,6 +197,10 @@ vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
   }),
 }));
 
+vi.mock("@/infra/repos/pgCuratedSystemHealthDiagnostics", () => ({
+  loadCuratedSystemHealthSnapshot: loadCuratedSystemHealthSnapshotMock,
+}));
+
 import { GET } from "./route";
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -267,6 +273,7 @@ describe("GET /api/admin/system-health", () => {
     getIntegratorPushOutboxHealthMock.mockReset();
     getOperatorJobStatusMock.mockReset();
     loadAdminReminderPipelineMetricsMock.mockReset();
+    loadCuratedSystemHealthSnapshotMock.mockReset();
     readSaasIsolationHealthMock.mockReset();
     listOpenIncidentsMock.mockResolvedValue([]);
     listBackupJobStatusMock.mockResolvedValue([]);
@@ -283,6 +290,111 @@ describe("GET /api/admin/system-health", () => {
         deliveryEvents: { sent: 0, failed: 0 },
         patientReminderM2mIdempotencyKeysActive: 0,
       },
+    });
+    loadCuratedSystemHealthSnapshotMock.mockImplementation(async () => {
+      const [transcode, incidents, backups, outgoing, pushOutbox, reminderResult] = await Promise.all([
+        loadAdminTranscodeHealthMetricsMock(),
+        listOpenIncidentsMock(20),
+        listBackupJobStatusMock(),
+        getOutgoingDeliveryQueueHealthMock(),
+        getIntegratorPushOutboxHealthMock(),
+        loadAdminReminderPipelineMetricsMock(zeroOutgoingSnapshot),
+      ]);
+      const requestedJobs = [
+        [OPERATOR_MEDIA_JOB_FAMILY, OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY],
+        [OPERATOR_REMINDERS_JOB_FAMILY, OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY],
+      ] as const;
+      const jobs = (await Promise.all(
+        requestedJobs.map(([family, key]) => getOperatorJobStatusMock(family, key)),
+      )).filter((row): row is NonNullable<typeof row> => row != null);
+      const pipelineEnabled = Boolean(await getConfigBoolMock("video_hls_pipeline_enabled", false));
+      const reconcileEnabled = Boolean(await getConfigBoolMock("video_hls_reconcile_enabled", false));
+      const playbackEnabled = Boolean(await getConfigBoolMock("video_playback_api_enabled", false));
+      return {
+        schemaVersion: 1,
+        config: {
+          pipelineEnabled,
+          reconcileEnabled,
+          playbackEnabled,
+          vapidConfigured: false,
+          smtpConfigured: false,
+        },
+        videoTranscode: transcode,
+        operatorJobs: [
+          ...jobs.map((job) => ({
+            jobKey: job.jobKey,
+            jobFamily: job.jobFamily,
+            lastStatus: job.lastStatus,
+            lastFinishedAt: job.lastFinishedAt ?? null,
+            lastSuccessAt: job.lastSuccessAt ?? null,
+            lastFailureAt: job.lastFailureAt ?? null,
+            lastDurationMs: job.lastDurationMs ?? null,
+            safeMeta: job.metaJson ?? {},
+          })),
+          ...backups.map((job: {
+            jobKey: string;
+            jobFamily: string;
+            lastStatus: string;
+            lastFinishedAt?: string | null;
+            lastSuccessAt?: string | null;
+            lastFailureAt?: string | null;
+            lastDurationMs?: number | null;
+          }) => ({
+            jobKey: job.jobKey,
+            jobFamily: job.jobFamily,
+            lastStatus: job.lastStatus,
+            lastFinishedAt: job.lastFinishedAt ?? null,
+            lastSuccessAt: job.lastSuccessAt ?? null,
+            lastFailureAt: job.lastFailureAt ?? null,
+            lastDurationMs: job.lastDurationMs ?? null,
+            safeMeta: {},
+          })),
+        ],
+        operatorIncidents: {
+          openCount: incidents.length,
+          occurrenceCount: incidents.reduce(
+            (sum: number, row: { occurrenceCount?: number }) => sum + (row.occurrenceCount ?? 0),
+            0,
+          ),
+          lastSeenAt: incidents[0]?.lastSeenAt ?? null,
+        },
+        outgoingDelivery: { ...outgoing, reminderProcessingCount: 0 },
+        integratorPushOutbox: pushOutbox,
+        remindersPipeline: reminderResult.ok
+          ? reminderResult.value
+          : {
+              windowHours: 24,
+              outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
+              occurrenceHistory: { sent: 0, failed: 0 },
+              deliveryEvents: { sent: 0, failed: 0 },
+              patientReminderM2mIdempotencyKeysActive: 0,
+            },
+        webPush: {
+          windowHours: 24,
+          activeSubscriptionsCount: 0,
+          usersWithSubscriptionCount: 0,
+          subscriptionsTouchedLast24h: 0,
+        },
+        notificationDelivery: {
+          windowHours: 24,
+          totalAttempts24h: 0,
+          byChannel: Object.fromEntries(
+            ["telegram", "max", "web_push", "email"].map((channel) => [channel, {
+              successCount: 0,
+              failedCount: 0,
+              skippedCount: 0,
+              lastAttemptAt: null,
+              lastSuccessAt: null,
+              lastErrorAt: null,
+              lastErrorReason: null,
+              lastErrorMessage: null,
+            }]),
+          ),
+          recentIssues: [],
+        },
+        integrationWebhookStatus: [],
+        operatorHealthDigestLastSentAt: null,
+      };
     });
     readSaasIsolationHealthMock.mockResolvedValue({
       schemaVersion: 3,
@@ -329,6 +441,7 @@ describe("GET /api/admin/system-health", () => {
 
     const res = await GET();
     expect(res.status).toBe(403);
+    expect(loadCuratedSystemHealthSnapshotMock).not.toHaveBeenCalled();
   });
 
   it("returns normalized healthy payload with projection degraded", async () => {
@@ -372,7 +485,7 @@ describe("GET /api/admin/system-health", () => {
         status: string;
         pendingCount: number;
       };
-      operatorIncidentsOpen: unknown[];
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, unknown>;
       outgoingDelivery: typeof zeroOutgoingSnapshot;
       integratorPushOutbox: typeof zeroIntegratorPushOutboxSnapshot;
@@ -421,7 +534,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoTranscode.status).toBe("ok");
     expect(body.videoTranscode.pendingCount).toBe(0);
     expect(body.meta?.probes?.videoTranscode?.status).toBe("ok");
-    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
     expect(body.backupJobs).toEqual({});
     expect(body.outgoingDelivery).toEqual(zeroOutgoingSnapshot);
     expect(body.integratorPushOutbox).toEqual(zeroIntegratorPushOutboxSnapshot);
@@ -644,12 +757,12 @@ describe("GET /api/admin/system-health", () => {
       meta?: { probes?: { videoTranscode?: { status?: string; errorCode?: string } } };
     };
     expect(body.videoTranscode.status).toBe("error");
-    expect(body.videoTranscode.pipelineEnabled).toBe(true);
-    expect(body.videoTranscode.reconcileEnabled).toBe(true);
+    expect(body.videoTranscode.pipelineEnabled).toBe(false);
+    expect(body.videoTranscode.reconcileEnabled).toBe(false);
     expect(body.videoTranscode.pendingCount).toBe(0);
-    expect(body.meta?.probes?.videoTranscode?.errorCode).toBe("video_transcode_probe_failed");
+    expect(body.meta?.probes?.videoTranscode?.errorCode).toBe("curated_system_health_read_failed");
     expect(loggerWarnMock).toHaveBeenCalledWith(
-      expect.objectContaining({ probe: "video_transcode", errorCode: "video_transcode_probe_failed" }),
+      expect.objectContaining({ probe: "video_transcode", errorCode: "curated_system_health_read_failed" }),
       "system_health_probe",
     );
   });
@@ -707,12 +820,15 @@ describe("GET /api/admin/system-health", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      operatorIncidentsOpen: Array<{ id: string; integration: string }>;
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, { lastStatus: string }>;
       meta?: { probes?: { operatorIncidents?: { status: string }; operatorBackupJobs?: { status: string } } };
     };
-    expect(body.operatorIncidentsOpen).toHaveLength(1);
-    expect(body.operatorIncidentsOpen[0]!.integration).toBe("max");
+    expect(body.operatorIncidents).toEqual({
+      openCount: 1,
+      occurrenceCount: 3,
+      lastSeenAt: "2026-04-16T10:05:00.000Z",
+    });
     expect(body.backupJobs["backup.hourly"]?.lastStatus).toBe("failure");
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("degraded");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("degraded");
@@ -746,7 +862,7 @@ describe("GET /api/admin/system-health", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      operatorIncidentsOpen: unknown[];
+      operatorIncidents: { openCount: number; occurrenceCount: number; lastSeenAt: string | null };
       backupJobs: Record<string, unknown>;
       meta?: {
         probes?: {
@@ -755,10 +871,10 @@ describe("GET /api/admin/system-health", () => {
         };
       };
     };
-    expect(body.operatorIncidentsOpen).toEqual([]);
+    expect(body.operatorIncidents).toEqual({ openCount: 0, occurrenceCount: 0, lastSeenAt: null });
     expect(body.backupJobs).toEqual({});
     expect(body.meta?.probes?.operatorIncidents?.status).toBe("error");
-    expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("operator_health_read_failed");
+    expect(body.meta?.probes?.operatorIncidents?.errorCode).toBe("curated_system_health_read_failed");
     expect(body.meta?.probes?.operatorBackupJobs?.status).toBe("error");
   });
 

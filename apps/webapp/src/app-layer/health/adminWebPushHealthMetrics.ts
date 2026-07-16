@@ -6,7 +6,7 @@ import { userWebPushSubscriptions } from "../../../db/schema/schema";
 
 export const WEB_PUSH_HEALTH_WINDOW_HOURS = 24 as const;
 
-export type WebPushSystemHealthStatus = "ok" | "degraded" | "not_configured" | "no_data";
+export type WebPushSystemHealthStatus = "ok" | "degraded" | "not_configured" | "no_data" | "error";
 
 export type WebPushHealthPayload = {
   windowHours: typeof WEB_PUSH_HEALTH_WINDOW_HOURS;

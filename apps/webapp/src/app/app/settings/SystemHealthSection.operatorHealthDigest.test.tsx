@@ -49,7 +49,7 @@ const healthShell = {
     readableVideoReadyWithHlsCount: 0,
     lastReconcileTick: null,
   },
-  operatorIncidentsOpen: [],
+  operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
   backupJobs: {},
   outgoingDelivery: {
     dueBacklog: 0,
