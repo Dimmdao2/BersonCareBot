@@ -8,10 +8,18 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \endif
 
 \ir ../../apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql
 
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
+GRANT SELECT ON TABLE
+  public.app_runtime_settings,
+  public.system_settings,
+  public.platform_users,
+  public.user_channel_bindings,
+  public.org_enrollments
+  TO app_owner;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
+ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
@@ -19,6 +27,8 @@ REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
   FROM PUBLIC, app_patient, app_staff;
+REVOKE ALL ON FUNCTION app.is_current_patient_test_account()
+  FROM PUBLIC, app_staff, :"e1_webapp_runtime_role";
 REVOKE ALL PRIVILEGES ON FUNCTION
   app.read_public_runtime_setting(text, text),
   app.read_webapp_server_runtime_setting(text, text)
@@ -28,6 +38,8 @@ GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)
   TO :"e1_webapp_runtime_role";
 GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
   TO :"e1_webapp_runtime_role";
+GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account()
+  TO app_patient;
 
 SELECT 1 / (
   has_function_privilege(
@@ -94,5 +106,31 @@ SELECT 1 / (
     'app_patient',
     'app.read_webapp_server_runtime_setting(text,text)',
     'EXECUTE'
+  )
+  AND has_function_privilege(
+    'app_patient',
+    'app.is_current_patient_test_account()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    'app_staff',
+    'app.is_current_patient_test_account()',
+    'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'e1_webapp_runtime_role',
+    'app.is_current_patient_test_account()',
+    'EXECUTE'
+  )
+  AND 1 = (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+      AND privilege.privilege_type = 'EXECUTE'
+      AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+      AND NOT privilege.is_grantable
   )
 )::int AS e1_webapp_runtime_acl_closed;

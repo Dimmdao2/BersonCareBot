@@ -8,6 +8,7 @@ import type {
 } from "@/modules/system-settings/ports";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 import type { WebappSqlExecutor } from "@/infra/db/runWebappSql";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 type SystemSettingRow = {
   key: string;
@@ -232,6 +233,15 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       );
       const v = r.rows[0]?.public_key;
       return typeof v === "string" && v.trim() ? v.trim() : null;
+    },
+
+    async isCurrentPatientTestAccount(): Promise<boolean> {
+      const r = await runWithWebappDbOperationFamily("patient_identity_exception_check", () =>
+        runWebappPgText<{ allowed: boolean }>(
+          `SELECT app.is_current_patient_test_account() AS allowed`,
+        ),
+      );
+      return r.rows[0]?.allowed === true;
     },
 
     async getByScope(scope: SystemSettingScope, options: SystemSettingsReadOptions = {}): Promise<SystemSetting[]> {

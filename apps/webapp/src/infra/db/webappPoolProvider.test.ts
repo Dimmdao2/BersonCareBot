@@ -2,6 +2,7 @@
 
 import type { Pool, PoolClient, PoolConfig } from "pg";
 import {
+  getCurrentDbPrincipal,
   runWithDbBootstrapPrincipal,
   runWithDbInfraPrincipal,
   runWithDbPatientPrincipal,
@@ -175,6 +176,37 @@ describe("webapp pool provider", () => {
     });
   });
 
+  it.each([
+    ["staff", runWithDbStaffPrincipal],
+    ["patient", runWithDbPatientPrincipal],
+  ] as const)("temporarily routes a nested public-config bootstrap checkout from %s and restores the outer principal", async (kind, runOuter) => {
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await runOuter({ organizationId: ORG_ID, platformUserId: kind === "staff" ? STAFF_USER_ID : PATIENT_USER_ID }, async () => {
+      expect(getCurrentDbPrincipal()?.kind).toBe(kind);
+      await runWithWebappDbOperationFamily("public_auth_config", () =>
+        runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }, () =>
+          pool.query("SELECT public_config_marker"),
+        ),
+      );
+      expect(getCurrentDbPrincipal()?.kind).toBe(kind);
+    });
+
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).toHaveBeenCalledTimes(1);
+    expect(getCurrentDbPrincipal()).toBeUndefined();
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+      bootstrapSelections: 1,
+      nonstaffSelections: 1,
+      staffSelections: 0,
+    });
+  });
+
   it("rejects missing and infra principals before dual-pool checkout in locked mode", async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
     process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
@@ -308,6 +340,8 @@ describe("webapp pool provider", () => {
     "public_auth_config",
     "patient_runtime_config",
     "public_booking_config",
+    "patient_identity_exception_check",
+    "patient_booking_history",
   ] as const)("preserves the %s operation family through an async pool query failure", async (family) => {
     const rlsError = Object.assign(
       new Error("new row violates row-level security policy for table projected"),

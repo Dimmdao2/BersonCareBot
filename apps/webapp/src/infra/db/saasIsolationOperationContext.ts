@@ -3,7 +3,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export type WebappDbOperationFamily =
   | "public_auth_config"
   | "patient_runtime_config"
-  | "public_booking_config";
+  | "public_booking_config"
+  | "patient_identity_exception_check"
+  | "patient_booking_history";
 
 const operationStore = new AsyncLocalStorage<WebappDbOperationFamily>();
 

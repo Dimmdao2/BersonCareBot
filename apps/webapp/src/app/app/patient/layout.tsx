@@ -11,13 +11,18 @@ import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDenie
 import { canAccessPatient } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
   resolvePatientMaintenanceOrganizationId,
 } from "@/modules/system-settings/patientMaintenance";
-import { PatientMaintenanceScreen } from "./PatientMaintenanceScreen";
+import {
+  PatientMaintenanceScreen,
+  selectMaintenanceUpcomingBookings,
+  type PatientMaintenanceBooking,
+} from "./PatientMaintenanceScreen";
 import { PatientClientLayout } from "./PatientClientLayout";
 
 /**
@@ -68,11 +73,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     let isTestAccount = false;
     if (maintenance.enabled && !skipMaintenance) {
       try {
-        isTestAccount = await deps.systemSettings.isTestPatientSession({
-          phone: session.user.phone,
-          telegramId: session.user.bindings?.telegramId,
-          maxId: session.user.bindings?.maxId,
-        });
+        isTestAccount = await deps.systemSettings.isCurrentPatientTestAccount();
       } catch (err) {
         logger.warn({
           scope: "patient_layout",
@@ -84,11 +85,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
 
     if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
-      const bookingDeps = deps;
-      let upcoming: Awaited<ReturnType<typeof bookingDeps.patientBooking.listMyBookings>>["upcoming"] = [];
+      let upcoming: PatientMaintenanceBooking[] = [];
       try {
-        const records = await bookingDeps.patientBooking.listMyBookings(session.user.userId);
-        upcoming = records.upcoming;
+        if (patientOrganizationId) {
+          const records = await runWithWebappDbOperationFamily("patient_booking_history", () =>
+            deps.clientHistory.listVisitHistory(patientOrganizationId, session.user.userId, 100),
+          );
+          upcoming = selectMaintenanceUpcomingBookings(records);
+        }
       } catch (err) {
         logger.warn({
           scope: "patient_layout",

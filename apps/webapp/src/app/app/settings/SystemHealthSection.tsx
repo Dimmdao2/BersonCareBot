@@ -765,6 +765,8 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   public_auth_config: "публичная конфигурация входа",
   patient_runtime_config: "конфигурация кабинета пациента",
   public_booking_config: "публичная конфигурация записи",
+  patient_identity_exception_check: "проверка тестового пациента",
+  patient_booking_history: "история записей пациента",
   integrator_http_request: "HTTP-запрос integrator",
   integrator_projection: "проекция integrator",
   worker_queue_drain: "очередь заданий worker",

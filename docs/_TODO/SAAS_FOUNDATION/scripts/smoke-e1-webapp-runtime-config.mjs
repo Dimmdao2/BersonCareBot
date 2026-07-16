@@ -23,7 +23,33 @@ function psql(sql) { run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db], sql)
 const setup = `
 CREATE SCHEMA app;
 CREATE TABLE public.be_organizations (id uuid PRIMARY KEY);
-CREATE TABLE public.platform_users (id uuid PRIMARY KEY);
+CREATE TABLE public.platform_users (id uuid PRIMARY KEY, phone_normalized text);
+CREATE TABLE public.user_channel_bindings (
+  user_id uuid NOT NULL REFERENCES public.platform_users(id),
+  channel_code text NOT NULL,
+  external_id text NOT NULL
+);
+CREATE TABLE public.org_enrollments (
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
+  platform_user_id uuid NOT NULL REFERENCES public.platform_users(id),
+  status text NOT NULL
+);
+CREATE TABLE app.principal_context (
+  backend_pid integer PRIMARY KEY,
+  org_id uuid,
+  patient_user_id uuid,
+  expires_epoch bigint NOT NULL
+);
+CREATE OR REPLACE FUNCTION app.current_org_id() RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = app, pg_catalog
+AS $$ SELECT org_id FROM app.principal_context
+  WHERE backend_pid = pg_backend_pid()
+    AND expires_epoch > floor(extract(epoch FROM clock_timestamp()))::bigint $$;
+CREATE OR REPLACE FUNCTION app.current_patient_user_id() RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = app, pg_catalog
+AS $$ SELECT patient_user_id FROM app.principal_context
+  WHERE backend_pid = pg_backend_pid()
+    AND expires_epoch > floor(extract(epoch FROM clock_timestamp()))::bigint $$;
 CREATE TABLE public.system_settings (
   key text NOT NULL, scope text NOT NULL, organization_id uuid, value_json jsonb NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now(), updated_by uuid
@@ -31,7 +57,18 @@ CREATE TABLE public.system_settings (
 CREATE UNIQUE INDEX system_settings_global_uq ON public.system_settings(key, scope) WHERE organization_id IS NULL;
 CREATE UNIQUE INDEX system_settings_org_uq ON public.system_settings(key, scope, organization_id) WHERE organization_id IS NOT NULL;
 CREATE TABLE public.system_settings_audit (id bigserial PRIMARY KEY);
-INSERT INTO public.be_organizations VALUES ('00000000-0000-4000-8000-000000000001');
+INSERT INTO public.be_organizations VALUES
+  ('00000000-0000-4000-8000-000000000001'),
+  ('00000000-0000-4000-8000-000000000002');
+INSERT INTO public.platform_users VALUES
+  ('10000000-0000-4000-8000-000000000001', '+79990000001'),
+  ('10000000-0000-4000-8000-000000000002', '+79990000002');
+INSERT INTO public.user_channel_bindings VALUES
+  ('10000000-0000-4000-8000-000000000001', 'telegram', 'tg-test'),
+  ('10000000-0000-4000-8000-000000000002', 'telegram', 'tg-other');
+INSERT INTO public.org_enrollments VALUES
+  ('00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'active'),
+  ('00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'active');
 `;
 const seed = `
 INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
@@ -50,6 +87,8 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
 ('sms_fallback_enabled','doctor',NULL,'{"value":false}'),
 ('debug_forward_to_admin','admin',NULL,'{"value":true}'),
 ('video_presign_ttl_seconds','admin',NULL,'{"value":7200}'),
+('test_account_identifiers','admin',NULL,
+ '{"value":{"phones":["+79990000001"],"telegramIds":["tg-test"],"maxIds":[]}}'),
 ('patient_booking_url','admin','00000000-0000-4000-8000-000000000001','{"value":"https://booking.example.test"}');
 `;
 const proof = `
@@ -103,6 +142,55 @@ SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='publi
 SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
 SELECT 1 / has_table_privilege('app_patient','public.app_runtime_settings','SELECT')::int;
 SELECT 1 / (NOT has_function_privilege('app_patient','app.read_webapp_server_runtime_setting(text,text)','EXECUTE'))::int;
+SELECT 1 / has_function_privilege('app_patient','app.is_current_patient_test_account()','EXECUTE')::int;
+SELECT 1 / (NOT has_function_privilege('app_staff','app.is_current_patient_test_account()','EXECUTE'))::int;
+SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
+INSERT INTO app.principal_context VALUES (
+  pg_backend_pid(),
+  '00000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000001',
+  floor(extract(epoch FROM clock_timestamp()))::bigint + 300
+);
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / app.is_current_patient_test_account()::int;
+RESET SESSION AUTHORIZATION;
+UPDATE app.principal_context SET org_id = '00000000-0000-4000-8000-000000000002';
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+RESET SESSION AUTHORIZATION;
+UPDATE app.principal_context SET org_id = '00000000-0000-4000-8000-000000000001';
+UPDATE public.org_enrollments SET status = 'archived'
+WHERE organization_id = '00000000-0000-4000-8000-000000000001'
+  AND platform_user_id = '10000000-0000-4000-8000-000000000001';
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+RESET SESSION AUTHORIZATION;
+UPDATE public.org_enrollments SET status = 'active'
+WHERE organization_id = '00000000-0000-4000-8000-000000000001'
+  AND platform_user_id = '10000000-0000-4000-8000-000000000001';
+UPDATE app.principal_context SET
+  org_id = '00000000-0000-4000-8000-000000000001',
+  patient_user_id = '10000000-0000-4000-8000-000000000002';
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+RESET SESSION AUTHORIZATION;
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+INSERT INTO app.principal_context VALUES (
+  pg_backend_pid(),
+  '00000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000001',
+  floor(extract(epoch FROM clock_timestamp()))::bigint + 300
+);
+UPDATE public.system_settings
+SET value_json = '{"value":{"phones":"+79990000001","telegramIds":{},"maxIds":null}}'
+WHERE key = 'test_account_identifiers' AND scope = 'admin' AND organization_id IS NULL;
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+RESET SESSION AUTHORIZATION;
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+RESET SESSION AUTHORIZATION;
 SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings WHERE key IN ('oauth_yandex_enabled','oauth_google_enabled','oauth_apple_enabled') AND value_json='{"value":true}'::jsonb)=3)::int;
 SELECT 1 / (NOT EXISTS (SELECT 1 FROM public.app_runtime_settings WHERE key LIKE '%secret%' OR value_json::text LIKE '%TOP_SECRET%'))::int;
 UPDATE public.system_settings SET value_json='{"value":""}' WHERE key='google_client_secret' AND scope='admin' AND organization_id IS NULL;
@@ -121,13 +209,19 @@ RESET SESSION AUTHORIZATION;
 `;
 
 const runtimeAcl = `
+GRANT USAGE ON SCHEMA app TO app_patient, app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
+GRANT SELECT ON TABLE public.system_settings, public.platform_users,
+  public.user_channel_bindings, public.org_enrollments TO app_owner;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
+ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings FROM ${publicRole};
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC, app_patient, app_staff;
+REVOKE ALL ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC, app_staff, ${publicRole};
+GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient;
 `;
 
 function asMigrationOwner(sql) {
@@ -145,6 +239,7 @@ try {
   psql(asMigrationOwner(seed));
   psql(`ALTER ROLE ${migrationOwner} BYPASSRLS;`);
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);
   psql(`

@@ -33,11 +33,15 @@ export function createPgAppRuntimeSettingsPort(): RuntimeConfigPort {
         && input.allowedAudiences.length === 1
         && input.allowedAudiences[0] === "public"
       ) {
-        const result = await runWithWebappDbOperationFamily(input.operationFamily, () => runWebappPgText<RuntimeSettingDbRow>(
-          `SELECT key, scope, organization_id, audience, value_json
-             FROM app.read_public_runtime_setting($1, $2)`,
-          [input.key, input.scope],
-        ));
+        const result = await runWithWebappDbOperationFamily(input.operationFamily, () =>
+          runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }, () =>
+            runWebappPgText<RuntimeSettingDbRow>(
+              `SELECT key, scope, organization_id, audience, value_json
+                 FROM app.read_public_runtime_setting($1, $2)`,
+              [input.key, input.scope],
+            ),
+          ),
+        );
         return result.rows[0] ? toRuntimeSetting(result.rows[0]) : null;
       }
       if (

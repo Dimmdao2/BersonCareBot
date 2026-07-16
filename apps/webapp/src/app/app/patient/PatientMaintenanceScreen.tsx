@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import type { SessionUser } from "@/shared/types/session";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { ClientVisitHistoryRow } from "@/modules/client-history/types";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { bookingProvenancePrefix, nativeBookingSubtitle } from "@/app/app/patient/cabinet/patientBookingLabels";
 import { cn } from "@/lib/utils";
 import {
   patientMutedTextClass,
@@ -18,9 +17,43 @@ export type PatientMaintenanceScreenProps = {
   message: string;
   /** Already normalized; still validated at render for safety. */
   bookingUrl: string | null;
-  bookings: PatientBookingRecord[];
+  bookings: PatientMaintenanceBooking[];
   appDisplayTimeZone: string;
 };
+
+export type PatientMaintenanceBooking = {
+  id: string;
+  startAt: string;
+  status: string;
+  serviceTitle: string | null;
+  branchTitle: string | null;
+};
+
+const ACTIVE_UPCOMING_STATUSES = new Set([
+  "created",
+  "awaiting_payment",
+  "paid",
+  "confirmed",
+  "rescheduled",
+  "manual_review_required",
+]);
+
+export function selectMaintenanceUpcomingBookings(
+  rows: ClientVisitHistoryRow[],
+  now: Date = new Date(),
+): PatientMaintenanceBooking[] {
+  const threshold = now.getTime();
+  return rows
+    .filter((row) => ACTIVE_UPCOMING_STATUSES.has(row.status) && Date.parse(row.startAt) >= threshold)
+    .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt))
+    .map(({ appointmentId, startAt, status, serviceTitle, branchTitle }) => ({
+      id: appointmentId,
+      startAt,
+      status,
+      serviceTitle,
+      branchTitle,
+    }));
+}
 
 /**
  * Standalone server-friendly экран режима техработ: без primary patient nav / bottom nav.
@@ -80,11 +113,10 @@ export function PatientMaintenanceScreen({
                   )}
                 >
                   <p className="font-medium text-[var(--patient-text-primary)]">
-                    {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
+                    {formatBookingDateTimeMediumRu(row.startAt, appDisplayTimeZone)}
                   </p>
                   <p className={cn(patientMutedTextClass, "mt-1 truncate text-xs")}>
-                    {bookingProvenancePrefix(row)}
-                    {nativeBookingSubtitle(row)}
+                    {[row.serviceTitle, row.branchTitle].filter(Boolean).join(" · ") || "Приём"}
                   </p>
                 </li>
               ))}

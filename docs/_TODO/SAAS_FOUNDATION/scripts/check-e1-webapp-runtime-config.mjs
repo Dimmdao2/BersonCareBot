@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const files = {
   migration: "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
+  identityMigration: "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
   adapter: "apps/webapp/src/modules/system-settings/configAdapter.ts",
@@ -17,6 +18,8 @@ const files = {
   presignTtl: "apps/webapp/src/app-layer/media/videoPresignTtl.ts",
   operationContext: "apps/webapp/src/infra/db/saasIsolationOperationContext.ts",
   pgRuntime: "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
+  pgSystemSettings: "apps/webapp/src/infra/repos/pgSystemSettings.ts",
+  patientLayout: "apps/webapp/src/app/app/patient/layout.tsx",
   poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
   poolProviderTest: "apps/webapp/src/infra/db/webappPoolProvider.test.ts",
   diagnostics: "apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts",
@@ -64,8 +67,32 @@ function runChecks(overrides = {}) {
     "FROM app_patient",
     "TO app_patient",
   ]);
+  requireText(files.identityMigration, loaded.identityMigration, [
+    "0194_e1_patient_identity_exception",
+    "CREATE OR REPLACE FUNCTION app.is_current_patient_test_account()",
+    "RETURNS boolean", "SECURITY DEFINER", "SET search_path = pg_catalog",
+    "v_organization_id uuid := app.current_org_id()",
+    "v_patient_user_id uuid := app.current_patient_user_id()",
+    "FROM public.org_enrollments AS enrollment",
+    "enrollment.status = 'active'",
+    "setting.key = 'test_account_identifiers'",
+    "setting.organization_id IS NULL",
+    "FROM public.platform_users AS platform_user",
+    "FROM public.user_channel_bindings AS binding",
+    "binding.channel_code = 'telegram'", "binding.channel_code = 'max'",
+    "RETURN false;", "REVOKE ALL ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC",
+    "('webapp','patient_identity_exception_check')",
+    "('webapp','patient_booking_history')",
+  ]);
+  forbidText(files.identityMigration, loaded.identityMigration, [
+    "OWNER TO app_owner",
+    "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    "GRANT SELECT ON TABLE public.platform_users TO app_patient",
+    "GRANT SELECT ON TABLE public.user_channel_bindings TO app_patient",
+    "GRANT SELECT ON TABLE public.org_enrollments TO app_patient",
+  ]);
   requireText(files.overlay, loaded.overlay, [
-    "0193_e1_safe_runtime_config.sql", "e1_webapp_runtime_role",
+    "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql", "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "REVOKE ALL PRIVILEGES ON FUNCTION",
@@ -80,11 +107,20 @@ function runChecks(overrides = {}) {
     "relation.relowner",
     "ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner",
     "ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner",
+    "ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner",
+    "GRANT SELECT ON TABLE\n  public.app_runtime_settings,\n  public.system_settings,\n  public.platform_users,\n  public.user_channel_bindings,\n  public.org_enrollments\n  TO app_owner",
+    "REVOKE ALL ON FUNCTION app.is_current_patient_test_account()",
+    "GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account()\n  TO app_patient",
+    "'app.is_current_patient_test_account()'::regprocedure",
     "REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient",
     "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient",
   ]);
   forbidText(files.overlay, loaded.overlay, [
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')",
+    "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    "GRANT SELECT ON TABLE public.platform_users TO app_patient",
+    "GRANT SELECT ON TABLE public.user_channel_bindings TO app_patient",
+    "GRANT SELECT ON TABLE public.org_enrollments TO app_patient",
   ]);
   requireText(files.runtime, loaded.runtime, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
@@ -126,6 +162,7 @@ function runChecks(overrides = {}) {
   ]);
   requireText(files.operationContext, loaded.operationContext, [
     "AsyncLocalStorage", '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"patient_identity_exception_check"', '"patient_booking_history"',
   ]);
   requireText(files.pgRuntime, loaded.pgRuntime, [
     "FROM app.read_public_runtime_setting($1, $2)",
@@ -133,7 +170,20 @@ function runChecks(overrides = {}) {
     "FROM app.read_webapp_server_runtime_setting($1, $2)",
     'input.allowedAudiences[0] === "server"',
     'runWithDbBootstrapPrincipal({ source: "webapp-server-runtime-config" }',
+    'runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }',
     "input.allowGlobalFallback !== false",
+  ]);
+  requireText(files.pgSystemSettings, loaded.pgSystemSettings, [
+    "isCurrentPatientTestAccount", 'runWithWebappDbOperationFamily("patient_identity_exception_check"',
+    "SELECT app.is_current_patient_test_account() AS allowed",
+  ]);
+  requireText(files.patientLayout, loaded.patientLayout, [
+    'runWithWebappDbOperationFamily("patient_booking_history"',
+    "deps.clientHistory.listVisitHistory(patientOrganizationId, session.user.userId, 100)",
+    "deps.systemSettings.isCurrentPatientTestAccount()",
+  ]);
+  forbidText(files.patientLayout, loaded.patientLayout, [
+    "patientBooking.listMyBookings", "isTestPatientSession", "test_account_identifiers",
   ]);
   requireText(files.poolProvider, loaded.poolProvider, [
     'getCurrentWebappDbOperationFamily() ?? "webapp_db_request"',
@@ -145,6 +195,7 @@ function runChecks(overrides = {}) {
   requireText(files.poolProviderTest, loaded.poolProviderTest, [
     'runWithWebappDbOperationFamily("public_booking_config"',
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"patient_identity_exception_check"', '"patient_booking_history"',
     'sourceOperation: "webapp_db_request"',
     "sourceOperation: family",
   ]);
@@ -167,13 +218,17 @@ function runChecks(overrides = {}) {
   }
   requireText(files.diagnostics, loaded.diagnostics, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
+    '"patient_identity_exception_check"', '"patient_booking_history"',
   ]);
   requireText(files.deploy, loaded.deploy, [
     "E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql",
     'e1_webapp_runtime_role="$e1_runtime_role"',
     '"$DEPLOY_REPO/$E1_WEBAPP_RUNTIME_CONFIG"',
   ]);
-  requireText(files.journal, loaded.journal, ['"idx": 193', '"tag": "0193_e1_safe_runtime_config"']);
+  requireText(files.journal, loaded.journal, [
+    '"idx": 193', '"tag": "0193_e1_safe_runtime_config"',
+    '"idx": 194', '"tag": "0194_e1_patient_identity_exception"',
+  ]);
   requireText(files.dbRegression, loaded.dbRegression, [
     '"docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"',
     '"--self-test"',
@@ -199,13 +254,21 @@ if (process.argv.includes("--self-test")) {
   const cases = [
     ["patient system_settings grant", { overlay: read(files.overlay).replace("REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient", "-- removed") }],
     ["migration protected-owner coupling", { migration: `${read(files.migration)}\nALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;\n` }],
+    ["identity migration owner coupling", { identityMigration: `${read(files.identityMigration)}\nALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;\n` }],
+    ["identity signed context", { identityMigration: read(files.identityMigration).replace("app.current_patient_user_id()", "NULL::uuid") }],
+    ["identity active enrollment", { identityMigration: read(files.identityMigration).replace("enrollment.status = 'active'", "true") }],
+    ["identity raw source grant", { identityMigration: `${read(files.identityMigration)}\nGRANT SELECT ON TABLE public.system_settings TO app_patient;\n` }],
+    ["identity capability callsite", { pgSystemSettings: read(files.pgSystemSettings).replace("SELECT app.is_current_patient_test_account() AS allowed", "SELECT false AS allowed") }],
+    ["booking history attribution", { patientLayout: read(files.patientLayout).replace('runWithWebappDbOperationFamily("patient_booking_history"', 'runWithWebappDbOperationFamily("patient_runtime_config"') }],
+    ["legacy booking callsite", { patientLayout: `${read(files.patientLayout)}\nvoid patientBooking.listMyBookings;\n` }],
     ["oauth source cardinality", { migration: read(files.migration).replaceAll("count(*) FILTER (WHERE NULLIF(btrim(value_json->>'value'), '') IS NOT NULL) = 5", "true") }],
     ["public generic fallback", { adapter: read(files.adapter).replace("return envFallback;", "return getConfigBool(key, envFallback);") }],
     ["public OAuth secret read", { publicSnapshot: `${read(files.publicSnapshot)}\nvoid getGoogleClientSecret();\n` }],
     ["patient organization scope", { patientMaintenance: read(files.patientMaintenance).replace("organizationId: string | null", "organizationId: string") }],
     ["patient booking null guard", { patientMaintenance: read(files.patientMaintenance).replace("organizationId === null", "false") }],
-    ["operation attribution", { operationContext: read(files.operationContext).replace('  | "public_booking_config";', ";") }],
+    ["operation attribution", { operationContext: read(files.operationContext).replace('"public_booking_config"', '"removed_booking_config"') }],
     ["public accessor", { pgRuntime: read(files.pgRuntime).replace("FROM app.read_public_runtime_setting($1, $2)", "FROM public.app_runtime_settings") }],
+    ["public bootstrap principal", { pgRuntime: read(files.pgRuntime).replace('runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }', 'Promise.resolve') }],
     ["server accessor", { pgRuntime: read(files.pgRuntime).replace("FROM app.read_webapp_server_runtime_setting($1, $2)", "FROM public.app_runtime_settings") }],
     ["pool operation attribution", { poolProvider: read(files.poolProvider).replace('getCurrentWebappDbOperationFamily() ?? "webapp_db_request"', '"webapp_db_request"') }],
     ["legacy SMS read", { phoneStart: `${read(files.phoneStart)}\nvoid getSmsFallbackEnabled();\n` }],
@@ -214,7 +277,7 @@ if (process.argv.includes("--self-test")) {
     ["overlay direct ACL closure", { overlay: read(files.overlay).replace("COALESCE(relation.relacl, acldefault('r', relation.relowner))", "relation.relacl") }],
     ["overlay effective source-table denial", { overlay: read(files.overlay).replace("'public.system_settings',\n    'SELECT'", "'public.system_settings',\n    'UPDATE'") }],
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
-    ["overlay stale accessor grant option", { overlay: read(files.overlay).replace("AND NOT privilege.is_grantable", "AND privilege.is_grantable") }],
+    ["overlay stale accessor grant option", { overlay: read(files.overlay).replaceAll("AND NOT privilege.is_grantable", "AND privilege.is_grantable") }],
     ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],
   ];
   let detected = 0;

@@ -664,6 +664,7 @@ export function createPgClientHistoryPort(): ClientHistoryPort {
           and(
             eq(beAppointments.organizationId, organizationId),
             eq(beAppointments.platformUserId, platformUserId),
+            isNull(beAppointments.deletedAt),
           ),
         )
         .orderBy(desc(beAppointments.startAt))
