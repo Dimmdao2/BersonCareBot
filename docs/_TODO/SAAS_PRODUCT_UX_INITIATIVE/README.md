@@ -1,7 +1,7 @@
 # SaaS Product UX Initiative
 
-**Статус:** independently audited discovery / planning complete; awaiting 12 owner decisions before conditional
-implementation branches. Implementation has not started.
+**Статус:** owner rulings 2026-07-16 integrated across UX contracts and implementation roadmap; full independent
+audit `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Implementation has not started.
 **Рабочая ветка:** `feat/saas-interface-work3`.  
 **Taskdb:** `#787`.
 
@@ -36,7 +36,10 @@ implementation branches. Implementation has not started.
 
 ## Канонические входы
 
-- решения владельца: `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md`;
+- Foundation-решения владельца: `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` — высший приоритет в
+  foundation/tenant/enforcement scope;
+- UX product-решения владельца: `OWNER_RULINGS_2026-07-16.md` — высший приоритет внутри этой инициативы над всеми
+  более старыми requirements, candidates, prototypes и audits;
 - порядок текущей SaaS-работы: `docs/_TODO/SAAS_FOUNDATION/SEQUENCE.md`;
 - текущий SaaS execution plan: `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`;
 - обзор продукта: `docs/PRODUCT_OVERVIEW.md`;
@@ -47,7 +50,8 @@ implementation branches. Implementation has not started.
 - каналы уведомлений: `docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`;
 - агентная оркестрация: `docs/AGENT_AUTORUN_SCHEME.md` и `docs/ORCHESTRATION_BINDINGS.md`.
 
-Если старый roadmap противоречит `OWNER_RULINGS_2026-07-15.md`, побеждают rulings. Новая product-гипотеза не подписывается как решение владельца до явной фиксации.
+Если старый UX text противоречит `OWNER_RULINGS_2026-07-16.md`, побеждает dated UX ruling. Foundation rulings
+2026-07-15 сохраняют приоритет в своей области. Новая product-гипотеза не подписывается как решение владельца.
 
 ## Правило актуальности документов
 
@@ -62,6 +66,8 @@ implementation branches. Implementation has not started.
 
 ## Артефакты
 
+- `OWNER_RULINGS_2026-07-16.md` — текущий высший product/UX authority и solo-first launch boundary;
+- `OWNER_DECISION_PACKET.md` — superseded исходные варианты/history, подчинённые dated rulings;
 - `REQUIREMENTS.md` — цель, исходные требования, ограничения и стартовые гипотезы;
 - `ROADMAP.md` — этапы исследования, роли исполнителей и критерии закрытия;
 - `CURRENT_STATE_BASELINE.md` — стартовая карта уже существующих поверхностей;
@@ -72,21 +78,20 @@ implementation branches. Implementation has not started.
 - `UX02_PRODUCT_PATTERNS.md` и `UX02_TECHNICAL_PATTERNS.md` — внешние product/technical patterns;
 - `UX02_RESEARCH_AUDIT.md` — независимый PASS внешнего исследования;
 - `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md` — decision-ready модель ролей, контекстов и capabilities;
-- `UX03_INDEPENDENT_AUDIT.md` — независимый PASS operating model;
+- `UX03_INDEPENDENT_AUDIT.md` — historical pre-ruling PASS operating model; superseded for current acceptance;
 - `ENTRY_AND_INVITE_JOURNEYS.md` и `UX04_SCREEN_STATE_LIST.md` — acquisition/invite/activation/install journeys и
   проекция экранных состояний;
-- `UX04_INDEPENDENT_AUDIT.md` — полный identity/security/product audit и PASS после integrated correction;
+- `UX04_INDEPENDENT_AUDIT.md` — historical pre-ruling identity/security/product PASS;
 - `BRANDING_DOMAIN_CONTRACT.md` и `BRANDING_CAPABILITY_MATRIX.md` — branding/domain/sender/PWA contract;
-- `UX05_INDEPENDENT_AUDIT.md` — полный product/architecture audit и PASS после integrated correction;
+- `UX05_INDEPENDENT_AUDIT.md` — historical pre-ruling product/architecture PASS;
 - `TARGET_IA.md`, `SCREEN_COMPOSITION.md` и `ROUTE_MIGRATION_MAP.md` — целевая IA, канонический состав экранов и
   полная current→target migration map;
-- `UX06_INDEPENDENT_AUDIT.md` — full-coverage audit и PASS после integrated correction;
+- `UX06_INDEPENDENT_AUDIT.md` — historical pre-ruling full-coverage PASS;
 - `UX07_PROTOTYPE_INDEX.md`, `UX07_USABILITY_FINDINGS.md` и `ux07-prototype/index.html` — навигируемый прототип
   ключевых сценариев и наблюдения по нему;
-- `UX07_INDEPENDENT_AUDIT.md` — полный двухревьюерный visual/usability audit; seals #1/#2 PASS;
-- `OWNER_DECISION_PACKET.md` — минимальный decision-ready пакет из 12 продуктовых решений; все rulings пока
-  `pending`;
-- `IMPLEMENTATION_ROADMAP.md` — проверенный decision-safe roadmap из 19 зависимых стадий;
-- `UX09_INDEPENDENT_AUDIT.md` — полный независимый PASS owner packet и implementation roadmap после integrated
-  correction;
+- `UX07_INDEPENDENT_AUDIT.md` — historical pre-ruling visual/usability PASS and seals; current acceptance superseded;
+- `IMPLEMENTATION_ROADMAP.md` — независимо проверенный roadmap из 19 зависимых стадий, обновлённый под solo-first
+  launch;
+- `UX09_INDEPENDENT_AUDIT.md` — исторический PASS pre-ruling owner packet/roadmap; актуальный полный
+  cross-contract audit записан в `LOG.md`;
 - `LOG.md` — журнал фактов, решений и проверок.

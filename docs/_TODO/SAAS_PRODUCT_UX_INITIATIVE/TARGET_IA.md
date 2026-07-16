@@ -1,11 +1,11 @@
 # UX-06 — Target information architecture
 
-**Статус:** completed as a decision-safe target IA contract; full independent UX-06 re-audit **PASS** after
-integrated correction. Канонический phase verdict: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
-(`57/57` canonical registry/composition parity; `150/150` current route allocation).
+**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Registry remains `57/57` and
+current-route allocation remains `150/150`; previous UX-06 PASS is a historical pre-ruling baseline.
+**Authority:** производная IA; `OWNER_RULINGS_2026-07-16.md` побеждает прежние candidate/prototype assumptions.
 **Scope:** logical IA and navigation contract; this is not an implementation route freeze.
-**Inputs:** UX-01 factual inventory, UX-02 patterns, audited UX-03 operating model, audited UX-04 journeys and
-audited UX-05 branding/domain contract.
+**Inputs:** dated UX owner rulings first; UX-01 factual inventory and UX-02 patterns; corrected UX-03…05 contracts.
+Earlier UX-03…05 audits are historical pre-ruling evidence, not authority for changed assumptions.
 
 ## 1. Rules that shape the IA
 
@@ -46,8 +46,10 @@ Published organization surface
 Authenticated staff workspace — one organization
 ├── Clinical work              specialist binding + clinical capability
 ├── Organization management   owner/admin/delegated capability
-├── Operations                assistant/delegated operational capability
 └── Account                   every staff identity
+
+Reserved future clinic workspace IDs (not launch navigation)
+└── Operations                possible assistant/receptionist capability; grants/topology unresolved
 
 Patient app — one global identity
 ├── Organization context resolver / chooser
@@ -58,7 +60,7 @@ Platform administration
 ├── Organizations / commercial lifecycle
 ├── Platform configuration and catalogs
 ├── Aggregate analytics and health
-└── Purpose-specific support / repair
+└── Purpose-specific support and platform diagnostics
 ```
 
 ## 2.1 Master target screen-ID registry
@@ -74,7 +76,7 @@ are flow/state labels only and must never be used as a second route or screen id
 | PUB-03 | Specialist signup | composed |
 | PUB-04 | Login and recovery | composed |
 | PUB-05 | Legal / support / status | composed |
-| PUB-06 | Published-organization directory | deferred by BD-6; composition is defined but absent from safe-launch navigation |
+| PUB-06 | Published-organization directory | deferred by owner ruling 2026-07-16; absent from initial navigation |
 | ORG-PUB-01 | Organization profile | composed |
 | ORG-PUB-02 | Public booking | composed |
 | ORG-PUB-03 | Trusted join | composed |
@@ -85,10 +87,10 @@ are flow/state labels only and must never be used as a second route or screen id
 | PLAT-05 | Platform configuration | composed |
 | PLAT-06 | Catalog governance | composed |
 | PLAT-07 | Reliability | composed |
-| PLAT-08 | Identity and repair | composed |
-| PLAT-09 | Support intervention | composed; conditional on owner gate |
+| PLAT-08 | Platform identity-integrity diagnostics | composed without patient browsing or mutation |
+| PLAT-09 | Support reports and escalation | composed without patient browsing/repair; patient-intervention premise rejected |
 | MGMT-01 | Organization overview and setup | composed |
-| MGMT-02 | Team, access and invitations | composed |
+| MGMT-02 | Future team, access and invitations | reserved/deferred; absent from initial solo release |
 | MGMT-03 | Booking setup | composed |
 | MGMT-04 | Public page and brand | composed |
 | MGMT-05 | Domains | composed |
@@ -100,17 +102,17 @@ are flow/state labels only and must never be used as a second route or screen id
 | CLIN-02 | Patients | composed |
 | CLIN-03 | Patient card | composed |
 | CLIN-04 | Patient history | composed as a CLIN-03 tab/state |
-| CLIN-05 | Collaboration | composed as a CLIN-03 tab plus recovery queue |
+| CLIN-05 | Future clinic visit coordination | reserved/deferred; absent from initial release |
 | CLIN-06 | Schedule | composed |
 | CLIN-07 | Communications | composed |
 | CLIN-08 | Programs | composed through patient-card/program detail |
 | CLIN-09 | Clinical library | composed |
 | CLIN-10 | Content and media | composed |
 | CLIN-11 | Organization clinical analytics | composed |
-| OPS-01 | Operations home | composed |
-| OPS-02 | Operations schedule | composed |
-| OPS-03 | Intake and patient contact | composed |
-| OPS-04 | Non-clinical messages | composed; absent by safe default until explicitly granted |
+| OPS-01 | Future operations home | deferred; assistant/receptionist not initial scope |
+| OPS-02 | Future operations schedule | deferred; assistant/receptionist not initial scope |
+| OPS-03 | Future intake and patient contact | deferred; assistant/receptionist not initial scope |
+| OPS-04 | Future non-clinical messages | deferred; assistant/receptionist not initial scope |
 | PAT-01 | Organization resolver / chooser | composed |
 | PAT-02 | Patient Today | composed |
 | PAT-03 | Treatment | composed |
@@ -132,8 +134,8 @@ are flow/state labels only and must never be used as a second route or screen id
 | Alias / family | Classification | Canonical UX-06 destination |
 |---|---|---|
 | `MGMT-SETUP` | first-run state/flow label | MGMT-01, with security steps in ACC-02 |
-| `MGMT-TEAM` | shorthand label | MGMT-02 |
-| `MGMT-INVITE` | create/detail flow inside a canonical screen | MGMT-02; public acceptance continues through ORG-PUB-03/PUB-04 |
+| `MGMT-TEAM` | historical future shorthand | Deferred MGMT-02 only |
+| `MGMT-INVITE` | historical future create/detail shorthand | Deferred MGMT-02; no launch acceptance flow |
 | `CLIN-PAT-INVITE` | action/flow, not a screen ID | CLIN-02 or CLIN-03; public acceptance continues through ORG-PUB-03/PUB-04 |
 | `ACC-FIRST` | first-run state label | ACC-02 |
 | `PAT-INSTALL` | install/push state label | PAT-11 |
@@ -150,11 +152,11 @@ are flow/state labels only and must never be used as a second route or screen id
 | PUB-03 | Specialist signup | One entry with `solo practice` / `clinic` composition choice | Future owner; creates organization + owner membership, then binding/setup |
 | PUB-04 | Login and recovery | Staff email/password; patient passwordless entry; recovery | Identity-specific routes, no persona mutation from query parameters |
 | PUB-05 | Legal / support / status | Platform operator disclosures and recovery channels | Any visitor; organization disclosures appear where relevant |
-| PUB-06 | Directory | Search published organizations | **Not in safe launch default** while BD-6 is pending; do not show an empty directory |
+| PUB-06 | Directory | Search published organizations | **Deferred by owner ruling 2026-07-16**; do not show an empty directory |
 
 `PUB-01` is specialist-oriented. The patient CTA is compact: «У меня есть приглашение» / «Войти». Patient free
-registration is not presented as the hero path. Public acquisition remains platform-branded even when organization
-white-label surfaces exist.
+registration is not presented as the hero path. Public acquisition remains platform-branded; future organization-
+specific surfaces do not replace it.
 
 ## 4. Published organization IA
 
@@ -165,9 +167,9 @@ white-label surfaces exist.
 | ORG-PUB-03 | Join | Neutral token exchange → organization summary → recipient proof → relationship confirmation | No private data before proof; expired/revoked/wrong-recipient use neutral recovery |
 | State: unavailable projection | State of the affected ORG-PUB-01/02/03 screen, not a fourth screen | Unpublished/suspended/domain-degraded state | Canonical fallback, support/recovery owner and no cross-organization leakage |
 
-Safe launch composition while BD-2/BD-6 remain pending: profile + booking + join on the stable platform alias;
-verified custom-domain bindings may expose only independently ready surfaces. Directory, auth-domain and per-origin
-PWA are not assumed.
+Initial public composition: profile + booking + join on the stable platform alias; directory later. Future custom
+domain includes entry/auth/org-specific app direction, but it is post-launch and waits for feasibility; no custom
+origin/app is assumed in initial release.
 
 ## 5. Platform administration IA
 
@@ -182,8 +184,8 @@ Platform administration uses a separate shell and route namespace. It is never a
 | PLAT-05 | Configuration | Auth, platform integrations, notification topics, platform defaults | DB-backed settings and secret-safe states |
 | PLAT-06 | Catalog governance | True platform references/content/media and publication | Only after ownership split; org assets do not become global by relocation |
 | PLAT-07 | Reliability | Current health, incident archive, audit log | Sensitive identifiers minimized; remediation is purpose-specific |
-| PLAT-08 | Identity and repair | Merge diagnostics, name-match review, invite/registration failures | Restricted tooling, explicit target and full audit |
-| PLAT-09 | Support intervention | Organization diagnostics, then bounded repair/support session if approved | `needs_owner_decision`; safe default is diagnostics/repair without clinical browsing |
+| PLAT-08 | Identity-integrity diagnostics | Aggregate integrity signals and invite/registration system failures | No patient list, profile lookup, merge, name-match review or patient-record mutation |
+| PLAT-09 | Support reports and escalation | Organization/platform diagnostics and support reports | No patient browsing/session or patient-record repair; system/code defects only |
 
 Desktop: persistent platform sidebar, page header and dense workbench. Mobile: top bar + full-height navigation
 drawer; operational tables become cards/detail routes. Platform administration is desktop-first but must preserve
@@ -193,8 +195,8 @@ all denial, recovery and emergency actions on mobile.
 
 | ID | Navigation group | Screens / actions | Who sees it |
 |---|---|---|---|
-| MGMT-01 | Overview | Setup checklist, operational status, team/booking/channel/domain warnings | Owner/admin; first destination for non-clinical owner/admin |
-| MGMT-02 | Team and access | Members, invitations, roles, specialist binding, deactivation preflight | Owner/admin or explicit delegated capability |
+| MGMT-01 | Overview | Setup checklist, operational status, booking/channel/domain warnings | Owner/admin; first destination for non-clinical owner/admin |
+| MGMT-02 | Future team and access | No initial composition | Reserved ID; excluded from launch navigation and U10 acceptance implementation |
 | MGMT-03 | Booking setup | Services, locations, work plan, availability, form, payments, attribution | Separately gated management capabilities |
 | MGMT-04 | Public page and brand | Draft identity, assets, profile, preview, publish history | Brand/publication capability; core org identity is not a paid permission |
 | MGMT-05 | Domains | Hostname base, surface bindings, readiness, errors, remove/quarantine | Owner or delegated irreversible capabilities; readiness and entitlement are separate |
@@ -204,51 +206,48 @@ all denial, recovery and emergency actions on mobile.
 | MGMT-09 | Organization settings | Patient terminology, timezone, care defaults, permissions | Owner/admin according to section capability |
 
 Management and clinical surfaces share the current organization identity and account chrome. They do not share one
-unbounded menu. Until OM-1 is ruled, the target composition uses the safe recommended candidate: an explicit
-`Clinical work` / `Organization management` switch for users who have both; single-surface users see no switch.
+unbounded menu. Owner ruling 2026-07-16 requires one login and distinct surfaces. Launch may use a simple management
+page/menu entry; `Clinical work` / `Organization management` switch remains an implementation choice.
 
 ## 7. Clinical work IA
 
 | ID | Group | Screen composition | Solo mode | Clinic mode |
 |---|---|---|---|---|
 | CLIN-01 | Today | Appointments, tasks, signals, active care and shortcuts | Own practice, no redundant scope control | Own operational scope by default; authorized organization widgets explicit |
-| CLIN-02 | Patients | Search, operational roster, filters, preview/list | All permitted practice patients; omit `Мои` toggle | `Мои пациенты` default; `Все доступные` only after capability |
-| CLIN-03 | Patient card | Identity/care bar, overview, program, visits, communications, files, finance/contact sections | Team controls hidden | Team and assignment summary shown only when available |
+| CLIN-02 | Patients | Search, operational roster, filters, preview/list; manual create | All permitted practice patients; omit `Мои` toggle | `Мои пациенты` = actual/scheduled visit relation; `Все доступные` only after capability |
+| CLIN-03 | Patient card | Identity/care bar, overview, program, visits, communications, files, finance/contact sections | Solo launch card | One org card; future clinic visibility may use visit relation; no hierarchy summary |
 | CLIN-04 | History | One authorized organization timeline with type/period/author filters | Full permitted solo history | `Мои события` default; `Вся доступная история` / specialist only after authorization |
-| CLIN-05 | Collaboration | Primary assignment, care team, named work-item reassignment, pending/recovery queue | Hidden, not empty | Capability + entitlement + approved object state required |
+| CLIN-05 | Future clinic visit coordination | No initial composition | Absent in solo launch | Reserved ID; exact future clinic permissions/UI deferred |
 | CLIN-06 | Schedule | Own calendar/list/work plan | Own calendar; setup link only with management capability | Own calendar; organization schedule and setup separately gated |
-| CLIN-07 | Communications | Conversations, intake, comments, broadcasts | Own practice | Organization queues and send scope capability-driven |
+| CLIN-07 | Communications | Conversations, intake, comments, broadcasts | Current solo-specialist chat unchanged | Future clinic topology remains unselected and is not represented in launch UI |
 | CLIN-08 | Programs | Patient assignments and program instances | Same components | Attribution, visibility and reassignment explicit |
 | CLIN-09 | Clinical library | Exercises, complexes, tests, recommendations, program templates | Allowed platform/org assets | Same; scope/source visible |
 | CLIN-10 | Content and media | Patient-facing content, sections, media, courses | Practice assets + allowed platform assets | Organization assets + allowed platform assets |
 | CLIN-11 | Organization clinical analytics | Schedule/care/content metrics within authorized organization | Own practice | Own vs authorized team aggregate clearly labeled |
 
-The preferred UX-03 candidate is one organization-scoped card, but OM-4/5 remain unresolved. Therefore UX-06
-freezes only the shell and section slots, not shared-history access. The safe composition renders already-authorized
-operational sections and own/assigned clinical entries. Alternative per-specialist cards are blocked because they
-would require a different data/identity contract; they are not silently implemented as parallel routes.
+Owner ruling approves one organization-scoped card. A clinic specialist sees the patient through an actual/scheduled
+visit relation, sees own events by default and may open all authorized organization history or filter by another
+specialist. Record-class/private visibility remains a server policy. Per-specialist card trees are rejected.
 
-### Handoff placement
+### Future clinic visit coordination placement
 
-- Patient-card care bar: current primary specialist/care team and contextual actions.
-- `Collaboration` card tab/drawer: request/accept/reject/cancel detail for a named primitive.
-- Patient-list/card create action: resolve existing identity or create a pending patient relationship, then use the
-  same invite/recipient-proof lifecycle; manual staff entry must not silently create an accepted enrollment.
-- Today/management recovery queue: pending, stale and deactivated-party cases.
-- Schedule/program/task detail: reassign only that object; never label it «Передать пациента».
-- Cross-organization transfer has no launch navigation while OM-6/7 are pending; a future separate workflow may be
-  added without changing same-organization handoff semantics.
+- Patient-list, calendar and card offer manual create: name, phone, optional email, scheduled appointment or walk-in.
+- Future clinic visit coordination creates/books a visit with another specialist; that visit establishes workspace
+  visibility. It does not create a separate transfer hierarchy or receiver-approval lifecycle.
+- Portal activation later links verified identity to the existing card/program/visits; delivery is not proof.
+- Cross-organization movement and generic patient-transfer actions have no navigation.
 
-## 8. Assistant operations IA
+## 8. Assistant operations IA — deferred future
 
-OM-2 is unresolved. The safe target is a bounded operations shell, not reused doctor/admin routes.
+Owner ruling 2026-07-16 removes assistant/receptionist from initial release. IDs remain reserved in the 57-screen
+registry only to prevent future route duplication; they are not launch surfaces or implementation dependencies.
 
 | ID | Screen | Safe composition before ruling |
 |---|---|---|
-| OPS-01 | Operations home | Assigned intake, appointment exceptions, failed invitations and permitted contact tasks |
-| OPS-02 | Schedule | Explicitly granted appointment read/write actions; clinical notes absent |
-| OPS-03 | Intake and patient contact | Administrative demographics/contact and invite lifecycle only when capability exists |
-| OPS-04 | Messages | Non-clinical classes only if separately granted; otherwise absent |
+| OPS-01 | Future operations home | Deferred; exact clinic product/grants unresolved |
+| OPS-02 | Future schedule | Deferred |
+| OPS-03 | Future intake and patient contact | Deferred |
+| OPS-04 | Future messages | Deferred; future topology is configurable |
 | Shared account destination | Profile, security, notifications and install use ACC-01…ACC-04 | No assistant-owned duplicate route or permission model |
 
 Direct URL, search, counts, suggestions and exports must match the same bounded capability. Empty clinical panels are
@@ -259,21 +258,21 @@ not shown as teasers. Upgrade states are used only for entitled mechanics after 
 | ID | Surface | Scope | Main composition |
 |---|---|---|---|
 | PAT-01 | Context resolver / chooser | Global relationship list | Zero: activation/help; one: enter with visible org; many: chooser and persistent switcher |
-| PAT-02 | Today | Active organization | Next visit, current program/action, reminders, care-team attribution, organization alerts |
+| PAT-02 | Today | Active organization | Next visit, current program/action, reminders, attributed specialist, organization alerts |
 | PAT-03 | Treatment | Active organization / direct object | Program list, program detail, item execution, author/specialist source |
 | PAT-04 | Booking | Active organization or verified published journey | Upcoming/history, new/reschedule flow, service/specialist/location context |
 | PAT-05 | Inbox | Active organization | Conversation threads and service notifications with organization + author/recipient attribution |
 | PAT-06 | Progress | Active organization | Diary, symptoms, rehabilitation journal and reminders; no cross-org raw aggregate by default |
 | PAT-07 | Benefits and payments | Active organization | Purchases, memberships, payments and entitlement state grouped by organization |
 | PAT-08 | Content and help | Active organization or published content | Help, sections, content and courses with source attribution |
-| PAT-09 | Organization details | Active organization | Care team, location/contact, organization support and disclosures |
+| PAT-09 | Organization details | Active organization | Specialists from the patient's visits, location/contact, organization support and disclosures |
 | PAT-10 | Profile and security | Global | Identity, recovery/security and relationship list |
 | PAT-11 | Notifications and install | Global consent plus explicit org preferences | Channel consent, topic preferences, platform PWA install; org sender identity is presentation |
 
-Until OM-3 is ruled, ambiguous neutral entry uses the chooser. A trusted invite/booking deep link may propose and
-visibly enter its verified organization; an invalid remembered context never silently selects another organization.
-The safe PWA contract is one platform patient app while BD-5 is pending. Custom domains do not create separate patient
-accounts or mixed manifests.
+Platform app opens the last active organization with a visible switcher; invalid preference uses the chooser. A
+trusted invite/booking deep link visibly enters its verified organization. Initial release uses one platform app.
+Future paid organization-specific app is pinned to one organization without a switcher; PWA/APK/native technology is
+not yet selected.
 
 ## 10. Navigation contract
 
@@ -285,7 +284,7 @@ accounts or mixed manifests.
   boundary → trust/legal → final signup/demo action. Patient care proof supports the buyer story and does not become
   a patient-acquisition hero.
 - Login, recovery, legal, support and status remain reachable from both header/footer and classified recovery states.
-  PUB-06 is absent from launch navigation while BD-6 is pending; a disabled or empty directory is not advertised.
+  PUB-06 is absent from launch navigation by owner ruling; a disabled or empty directory is not advertised.
 
 ### Platform public — mobile
 
@@ -320,8 +319,8 @@ accounts or mixed manifests.
 - Persistent sidebar contains only the current surface.
 - Surface switch sits next to organization identity, not among patient filters.
 - `Clinical work`: Today, Patients, Schedule, Communications, Library, Content; secondary items live in group pages.
-- `Organization management`: Overview, Team, Booking, Brand & public, Domains & senders, Integrations, Plan & billing,
-  Settings.
+- `Organization management`: Overview, Booking, Brand & public, Domains & senders, Integrations, Plan & billing,
+  Settings. `MGMT-02 Team` is a reserved future ID and is absent from launch navigation.
 - Account/security/install is reached from the profile menu in every staff surface.
 - Global admin has its own platform shell and never inherits clinical navigation.
 
@@ -331,7 +330,8 @@ accounts or mixed manifests.
 - Primary task routes keep the same URLs and capability checks as desktop.
 - Dense master-detail screens become list → detail; editors retain explicit save/publish actions.
 - Owner/admin + specialist surface switch is a top-level drawer control with current mode announced.
-- Assistant drawer contains only granted operations; no collapsed hidden doctor menu.
+- No assistant/receptionist drawer or operations destination exists in launch navigation. Reserved `OPS-01…04`
+  must not appear until a separate future clinic contract defines the actor, grants and communication topology.
 
 ### Patient mobile and installed PWA
 
@@ -362,17 +362,17 @@ Every target screen specification in `SCREEN_COMPOSITION.md` declares applicable
 | Suspended organization | Relationship exists but business actions are unavailable | Retained data/read policy, billing/support recovery; domain cannot bypass |
 | Error | Operation failed without a safer classified state | Retry with correlation/support path; preserve entered non-secret data |
 
-## 12. Unresolved gates carried without false freeze
+## 12. Current owner outcomes and remaining open details
 
-| Gate | Safe UX-06 composition | Blocked alternative |
+| Decision area | Current composition | Excluded or still-open detail |
 |---|---|---|
-| OM-1 management/clinical switch | Explicit switch for dual-capability user | One grouped mega-navigation |
-| OM-2 assistant permissions | Operations home + only explicit schedule/contact/invite grants; clinical denied | Assistant clinical/history or broad doctor route reuse |
-| OM-3 patient multi-org default | Chooser on ambiguous neutral entry; visible verified deep-link switch | Silent last-active fallback when invalid; automatic organization merge |
-| OM-4/5 card/history | One card shell; operational + own/assigned authorized entries; permission-before-filter | Shared clinical history, private classes or per-specialist duplicate cards |
-| OM-6/7 handoff | Distinct named primitives; no generic mutation; hidden when unsupported | Immediate generic patient transfer or cross-org re-parent |
-| OM-8 entitlement packaging | Core context visible; each mechanic declares degradation | Menu visibility treated as package permission |
-| BD-1…6 | Platform disclosure, stable platform aliases/manifest/sender fallbacks, profile+booking+join only | Full white-label/auth/PWA/directory launch claims |
+| Owner/admin navigation — resolved launch | One login; simple distinct management surface | Menu versus switch remains implementation choice; no duplicate account |
+| Assistant — resolved launch absence | No OPS launch surfaces | Exact future grants remain deferred |
+| Patient multi-org — resolved launch | Last active + visible switcher; chooser if invalid | No silent substitution or organization merge |
+| Card/history — resolved launch | One card; visit relation; own events default; authorized history/specialist filter | Record-class enforcement remains implementation policy |
+| Transfer premise — rejected | No lifecycle or launch navigation; ordinary another-specialist visit is future clinic scope | No separate transfer hierarchy or cross-org movement |
+| Entitlement degradation — implementation policy | Core context visible; each mechanic declares degradation | Not an unresolved UX08 decision |
+| Branding/domain | Initial platform app; profile+booking+join, directory later; future org-specific direction | Brand depth and future technology/timing/feasibility remain deferred; no unapproved launch promise |
 
-These gates are inputs to UX-08. UX-07 may prototype the safe composition and visibly label conditional alternatives;
-it must not convert them into owner decisions.
+These are outputs of the dated owner rulings, not pending inputs. Historical UX-07 prototype alternatives are
+superseded wherever they conflict; future/deferred details remain absent until separately approved.

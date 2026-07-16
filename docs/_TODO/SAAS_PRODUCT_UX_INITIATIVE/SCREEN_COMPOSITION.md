@@ -1,8 +1,8 @@
 # UX-06 — Target screen composition
 
-**Статус:** completed as a decision-safe screen-composition contract; full independent UX-06 re-audit **PASS**
-after integrated correction. Канонический phase verdict:
-[`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7 (`57/57` compositions; unknown target IDs `0`).
+**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Canonical registry remains
+`57/57`; previous UX-06 PASS is a historical pre-ruling baseline.
+**Authority:** производная composition; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
 **Contract:** screen specifications below are logical compositions. Target route names are migration candidates, not
 an authorization source or an implementation commitment.
 
@@ -22,7 +22,7 @@ Target URLs use four logical namespaces:
 
 - `/app/work/**` — clinical work;
 - `/app/manage/**` — organization management;
-- `/app/ops/**` — bounded assistant/operational work;
+- `/app/ops/**` — reserved future namespace only; absent from launch navigation and routing;
 - `/app/platform/**` — global platform operations;
 - `/app/account/**` and existing `/app/patient/**` — personal staff and patient surfaces.
 
@@ -51,11 +51,11 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 | ID / candidate route | Composition | State coverage | Notes |
 |---|---|---|---|
 | `MGMT-SETUP` → MGMT-01 + ACC-02 | Progress checklist: organization basics, specialist binding, booking, first patient, notifications, 2FA/recovery, plan | new, partial, blocked dependency, completed, suspended | Solo owner-specialist lands on CLIN-01 only after binding; non-clinical owner remains on MGMT-01 |
-| `MGMT-TEAM` → MGMT-02 | Members and pending invitations; role/capability summary; seats; invite CTA | empty, loading, delivery pending/failed, accepted, revoked, expired, seat blocked | Reuse current clinic members list; do not expose raw reusable token as the primary delivery flow |
-| `MGMT-INVITE` → MGMT-02 | Recipient, role, specialist-binding intent, bounded permissions, review, send | duplicate membership, other-active-org conflict, entitlement/seat block, retry/resend | Public acceptance continues through ORG-PUB-03/PUB-04; assistant outcome remains OM-2-safe |
-| `CLIN-PAT-INVITE` → CLIN-02/CLIN-03 | Resolve existing identity or create pending relationship; email-first invite; optional SMS attempt; relationship summary; delivery history | invite lifecycle independent from delivery and OTP proof; wrong recipient/revoke/resend; manual-create pending/claimed/conflict | Public acceptance continues through ORG-PUB-03/PUB-04; manual entry never implies recipient proof |
+| `MGMT-TEAM` → MGMT-02 | Historical future-team state shorthand | Deferred; no initial states | Reserved for a later clinic contract |
+| `MGMT-INVITE` → MGMT-02 | Historical future-staff invite shorthand | Deferred; no initial states | Reserved for a later clinic contract; no role/grant is frozen |
+| `CLIN-PAT-INVITE` → CLIN-02/CLIN-03 | Create card/relationship + scheduled or walk-in visit; optional email-first portal invite and SMS attempt; link verified identity later | created/not-activated/invited/linked; delivery remains independent from proof; duplicate/conflict/revoke/resend | Manual relationship exists before portal activation; delivery never implies proof/access |
 | `ACC-FIRST` → ACC-02 | Password, factor enroll/verify, recovery codes, sessions and step-up | factor unavailable/lost, cooldown, replacement, recovery | Staff target requires complete 2FA mechanics; patient remains passwordless OTP per owner ruling |
-| `PAT-INSTALL` → PAT-11 | First useful org screen → contextual install education → browser-specific steps → push prompt later | already installed, unsupported, denied, iOS/browser instructions, subscription degraded | Reuse current install/notification UI; one platform manifest while BD-5 pending |
+| `PAT-INSTALL` → PAT-11 | First useful org screen → contextual install education → browser-specific steps → push prompt later | already installed, unsupported, denied, iOS/browser instructions, subscription degraded | Initial release uses platform app; future org-specific PWA/APK/native path awaits feasibility |
 
 ## 4. Platform administration screens
 
@@ -68,15 +68,15 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 | PLAT-05 `/app/platform/configuration` | App, auth, integrations, technical modes grouped by risk | secret masked, validation fail, dependency degraded, maintenance confirmation | Move current admin settings clients; keep DB-backed configuration |
 | PLAT-06 `/app/platform/catalogs` | Platform references/content/media governance, publication and ownership | ownership unresolved, publish conflict, storage degraded | Split current global-looking catalogs only after data ownership gate |
 | PLAT-07 `/app/platform/reliability` | Health, incident archive, operation/registration audit | healthy empty, incident detail, identifier-safe export, retry | Move current system health/archive/audit pages |
-| PLAT-08 `/app/platform/identity-repair` | Duplicate/name-match diagnostics, merge review, dry-run/result | PII-restricted, ambiguous match, stale target, rollback/support | Move booking-merge/name hints; strict purpose/audit |
-| PLAT-09 `/app/platform/support/[orgId]` | Organization diagnostics and explicit repair actions | purpose required, timed support state, denied clinical section | Pending owner decision; safe default has no ordinary clinical chart |
+| PLAT-08 `/app/platform/identity-integrity` | Aggregate identity-integrity signals and invite/registration system failures | aggregate empty, degraded source, thresholded anomaly, support report | No patient list/profile lookup, merge, name-match review or patient-record mutation |
+| PLAT-09 `/app/platform/support/[orgId]` | Organization/platform diagnostics, support reports and escalation | purpose required; no clinical section or patient-record mutation | Patient browsing/session/repair rejected; platform fixes system/code defects |
 
 ## 5. Organization management screens
 
 | ID / route | Composition | States / actions | Current reuse |
 |---|---|---|---|
-| MGMT-01 `/app/manage` | Setup/lifecycle, team, booking, delivery, domain, plan and recent admin actions | first-run, configured, warning/degraded, suspended, billing recovery | Compose current clinic settings/members status plus SaaS summaries |
-| MGMT-02 `/app/manage/team/**` | Team list/detail, invitations, capabilities, specialist binding, deactivation preflight | empty, pending invite, multi-membership conflict, seat block, deactivation recovery queue | Current clinic members and invite components |
+| MGMT-01 `/app/manage` | Setup/lifecycle, booking, delivery, domain, plan and recent admin actions | first-run, configured, warning/degraded, suspended, billing recovery | Compose solo-launch settings/status plus SaaS summaries; no Team entry |
+| MGMT-02 future `/app/manage/team/**` | No initial composition | Absent from solo launch | Registry reservation; current clinic-member components are not a launch migration commitment |
 | MGMT-03 `/app/manage/booking/**` | Services, locations, availability/work plan, public form, payments and attribution | no service/location, invalid schedule, integration fallback, payment degraded | Split current schedule setup + admin booking tabs |
 | MGMT-04 `/app/manage/public` | Brand/public profile draft, assets, preview, publish/version history | draft, validation fail, unpublished, published, stale preview | Current patient-home/content preview patterns + new publication object |
 | MGMT-05 `/app/manage/domains` | Hostname base list/detail; proof/TLS/routing/base readiness; per-surface bindings; remove/quarantine | every UX-05 base/binding pending/fail/degraded state; canonical fallback always shown | New contract; no current UI claimed as complete |
@@ -90,10 +90,10 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 | ID / route | Composition | Solo / clinic behavior | States / reuse |
 |---|---|---|---|
 | CLIN-01 `/app/work` | Today header/context; appointments; tasks; signals; care queue; quick actions | Solo omits scope controls; clinic labels own/authorized org widgets | Reuse Today dashboard; loading/empty/partial widget/degraded source; fix principal defect separately |
-| CLIN-02 `/app/work/patients` | Search, operational filters, roster/list, optional preview; invite patient | Solo permitted list; clinic `Мои` then capability-gated `Все доступные` | Reuse patients workbench; list/count/search/export parity; no full-org fallback on empty own list |
-| CLIN-03 `/app/work/patients/[patientId]` | Care bar; overview, program, visits/history, communications, files, finance/contact; team summary slot | Solo team slot absent; clinic team/primary attribution conditional | Reuse central patient card and tabs; section-specific loading/denial; neutral foreign target |
+| CLIN-02 `/app/work/patients` | Search, operational filters, roster/list, manual create card+scheduled/walk-in visit, optional portal invite | Solo permitted list; clinic `Мои` from actual/scheduled visit relation, then capability-gated `Все доступные` | Reuse patients workbench/calendar; list/count/search/export parity; no full-org fallback on empty own list |
+| CLIN-03 `/app/work/patients/[patientId]` | One org card: overview, program, visits/history, communications, files, finance/contact; portal-link status | Solo launch card; future clinic visibility may use visit relation; no hierarchy slot | Reuse central patient card and tabs; section-specific loading/denial; neutral foreign target |
 | CLIN-04 card `History` tab | Authorized timeline; period/type/author filters; event author, specialist, visibility | Solo no redundant own/all; clinic own default, available/all only if granted | Reuse visit/event/program components; private classes filtered server-side before controls |
-| CLIN-05 card `Collaboration` + `/app/work/handoffs` | Primary/care-team/work-item state, request/detail, accept/reject/cancel, stale/deactivation queue | Hidden in solo; clinic only if capability/mechanic exists | New state objects required; no generic transfer; entitlement recovery cannot reveal history |
+| CLIN-05 reserved `Future clinic visit coordination` | No initial composition | Absent in solo launch; exact future clinic permissions/UI deferred | Registry reservation only; any future implementation reuses ordinary appointments and requires a new contract |
 | CLIN-06 `/app/work/schedule` | Calendar/list, own appointments, work plan; object detail/reassign | Solo own schedule; clinic own with separately gated org view | Reuse schedule calendar/KPI; move setup to MGMT-03; empty/no availability/integration degraded |
 | CLIN-07 `/app/work/communications` | Threads, intake, comments and broadcasts as capability-gated tabs | Clinic organization attribution and send scope | Reuse communications shell; split non-clinical/clinical classes; delivery partial/fail states |
 | CLIN-08 patient card/program routes | Assignment builder, program instance, tests/results, discussion and named work-item assignment | Attribution and visibility always explicit | Reuse treatment program templates and patient program components |
@@ -103,38 +103,36 @@ canonical ownership is fixed here and in the master registry in `TARGET_IA.md`.
 
 ### Patient card decision-safe composition
 
-The screen shell assumes one organization enrollment identity because that is the recommended candidate, but the
-following panels remain gated pending OM-4/5:
+The screen shell uses the owner-approved one organization card and visit-based specialist relation:
 
 - `Overview`: demographics and scheduling already authorized to the actor;
-- `History`: own/assigned entries only by safe default;
-- `All available` and `Specialist X`: controls are absent until shared-read capability and entry visibility exist;
+- `History`: own events by default;
+- `All available` and `Specialist X`: available only after shared-read capability and entry visibility;
 - `Private entry`: never inferred from organization membership or entitlement;
-- alternative per-specialist cards: no target route is allocated; if owner rejects one-card, UX-06 must be revised
-  before implementation rather than creating duplicate routes ad hoc.
+- alternative per-specialist cards and separate patient hierarchy models are rejected; no duplicate route is allocated.
 
-## 7. Assistant screens
+## 7. Assistant screens — deferred future
 
-| ID / route | Composition | Safe state until OM-2 |
+| ID / route | Composition | Current state |
 |---|---|---|
-| OPS-01 `/app/ops` | Assigned operational queue and status cards | Only explicit tasks; no patient clinical summary |
-| OPS-02 `/app/ops/schedule` | Permitted appointment list/detail and named actions | Deny ungranted writes; no clinical notes |
-| OPS-03 `/app/ops/intake` | Intake and administrative patient contact/invite lifecycle | Minimum demographics/contact fields; direct clinical routes forbidden |
-| OPS-04 `/app/ops/messages` | Explicitly non-clinical templates/threads if granted | Surface absent by default, not an empty doctor chat |
+| OPS-01 `/app/ops` | Reserved future operations home | Not initial release |
+| OPS-02 `/app/ops/schedule` | Reserved future schedule | Not initial release |
+| OPS-03 `/app/ops/intake` | Reserved future intake/contact | Not initial release |
+| OPS-04 `/app/ops/messages` | Reserved future configurable routing | Not initial release; topology unresolved |
 
 ## 8. Patient screens
 
 | ID / route | Composition | Context / state behavior | Current reuse |
 |---|---|---|---|
-| PAT-01 `/app/patient/organizations` | Relationship list/chooser, current indicator, unavailable relationships and join entry | Zero/one/many; invalid preference → chooser; deep-link proposal verified and visible | New composition over enrollment list |
+| PAT-01 `/app/patient/organizations` | Relationship list/chooser, current indicator, unavailable relationships and join entry | Platform app: last active + visible switcher; invalid preference → chooser; deep-link verified | New composition over enrollment list; future org-specific app is pinned without switcher |
 | PAT-02 `/app/patient` | Organization badge/switcher, next appointment, current program/action, reminders, attributed care contact | No data from previous context during load; suspended/revoked recovery | Reuse patient Today after organization-principal fix |
 | PAT-03 `/app/patient/treatment/**` | Program list/detail/item, progress, source specialist/organization | Direct object resolves org before context switch; missing entitlement does not erase retained program | Keep current treatment pages/components |
 | PAT-04 `/app/patient/booking/**` | Upcoming/history plus new/reschedule wizard | Active org or trusted booking context; service/location/specialist visible throughout | Keep canonical `/new/**`; retire alias steps after deep-link census |
-| PAT-05 `/app/patient/messages/**` | Thread list/detail plus service-notification activity | Organization first, explicit author and reply recipient; no hard-coded specialist | Split current chat and notification chromes into one inbox model |
+| PAT-05 `/app/patient/messages/**` | Current solo-specialist chat for initial release | Existing authorized conversation behavior; organization/author context remains truthful | Keep current chat; future clinic topology is configurable and deferred |
 | PAT-06 `/app/patient/progress/**` | Diary, symptom/rehab journals, reminders and completion history | Organization/program attribution; no cross-org raw aggregate | Move current diary/reminders under one information group; compatibility redirects |
 | PAT-07 `/app/patient/benefits/**` | Purchases, packages/memberships, payment continuation | Group/filter by organization; never mix entitlements | Merge current purchases/memberships/payment surfaces |
 | PAT-08 `/app/patient/content/**` | Help, sections, content, courses | Published/source attribution; inaccessible content not-found | Reuse current CMS renderers; retire navigation aliases |
-| PAT-09 `/app/patient/organization` | Care team, location/contact, org support and disclosures | Active organization only; platform support remains global | Merge current about/address and organization support projection |
+| PAT-09 `/app/patient/organization` | Specialists from actual patient visits, location/contact, org support and disclosures | Active organization only; platform support remains global | Merge current about/address and organization support projection; no separate hierarchy |
 | PAT-10 `/app/patient/profile` | Global identity, security/recovery and organization relationships | Relationship list is not a clinical aggregate | Keep current profile; split account/global preferences cleanly |
 | PAT-11 `/app/patient/notifications` | Global channel consent, topic preferences, optional org preferences; install entry | Permission denied, unsupported, unsubscribed, sender degraded | Merge settings/install entry; reuse notification and PWA controls |
 
@@ -158,8 +156,8 @@ Every implementation spec derived from this document must explicitly select and 
 | Permission | visible+allowed, visible read-only, neutral denied/direct URL, list/count/search/export parity |
 | Entitlement | enabled, grace, read-only, blocked/upgrade, recovery owner unavailable |
 | Invite | created, delivery pending/sent/failed, proof pending/verified, accepted, expired/revoked/replayed/wrong-recipient |
-| Handoff | request, pending, accepted/completed, rejected, cancelled, expired, source/destination deactivated |
-| Domain/sender | proof/TLS/routing/binding readiness, canonical fallback, sender fallback/hold, removal/quarantine |
+| Future clinic another-specialist visit | Not a launch state; define ordinary appointment states only after future clinic scope approval |
+| Domain/sender | proof/TLS/routing/binding readiness, safe domain entry fallback, custom-sender hold/retry only within TTL, removal/quarantine |
 | Install/push | unsupported, installable, installed, permission default/denied/granted, subscribed/degraded/revoked |
 
 ## 11. UX-07 prototype handoff
@@ -170,8 +168,8 @@ additional UX-06 screen identities. Every flow includes its named recovery branc
 | Priority flow | UX-04 state trace | Canonical UX-06 screen trace | Required recovery / boundary |
 |---|---|---|---|
 | Solo signup and first-run | ACQ-01…ACQ-05 | PUB-01 → PUB-03 → MGMT-01/ACC-02 → CLIN-01 | signup disabled, duplicate/expired challenge, partial provisioning, binding pending, factor recovery; specialist-first desktop/mobile hierarchy |
-| Staff invite | STF-01…STF-08 + ERR-01…07 as applicable | MGMT-02 → ORG-PUB-03/PUB-04 → ACC-02 → CLIN-01 or MGMT-01 or OPS-01 | delivery axis separate from relationship, expired/wrong account/other-org/seat block, assistant safe default |
-| Patient email invite, install and push | PIN-01…PIN-09 + ERR-01…07 | CLIN-02/CLIN-03 → ORG-PUB-03/PUB-04 → PAT-02 → PAT-11 | wrong recipient, terminal replay, no duplicate enrollment, first value before install, installed re-auth and push recovery |
+| Historical staff invite | STF-01…STF-08 + ERR-01…07 as applicable | Future MGMT-02/ORG-PUB-03/PUB-04/ACC-02 | Deferred pre-ruling prototype trace; absent from initial release |
+| Manual patient, optional portal link, install and push | PIN-01…PIN-09 + ERR-01…07 | CLIN-02/CLIN-03/CLIN-06 → optional ORG-PUB-03/PUB-04 → PAT-02 → PAT-11 | scheduled or walk-in visit exists before portal identity; wrong recipient, terminal replay, no duplicate card, first value before deferred install/push channel |
 | SMS fallback branch | SMS-01…SMS-03 over PIN-01…PIN-05 | CLIN-02/CLIN-03 invite flow → ORG-PUB-03/PUB-04 | transport-only branch of the same invite; email proof remains required; suppressed/rate-limited/terminal states and no SMS auth elevation |
 | Public booking to patient app | PBK-01…PBK-08 | ORG-PUB-01 → ORG-PUB-02 → PUB-04 when proof is needed → PAT-04 exact appointment → PAT-11 after value | invalid/unpublished org, no catalog/slots, slot conflict, payment/review, signed continuation, ambiguous identity, atomic enrollment/object authorization |
 | Returning multi-org patient | MOR-01…MOR-05 | PUB-04 → PAT-01 → PAT-02 and target PAT-03/04/05 object | zero/one/many, revoked remembered context, visible trusted deep-link context change, no cached cross-org data |
@@ -181,8 +179,8 @@ Additional UX-06 validation flows remain mandatory:
 1. CLIN-01 ↔ MGMT-01 for owner/admin + specialist, including the MGMT-01 landing for a non-clinical owner.
 2. MGMT-04 → MGMT-05 custom-domain setup with canonical fallback and one degraded surface binding while siblings
    remain active.
-3. CLIN-03 / CLIN-04 / CLIN-05 clinic patient card with the safe own-history default and visibly unavailable
-   shared-history/handoff alternatives until OM-4…7 rulings.
+3. CLIN-03 / CLIN-04 patient card with own-history default, authorized all-history and specialist filters;
+   reserved CLIN-05 future clinic visit coordination is explicitly absent from launch.
 
 Visual direction starts only after low-fidelity task flow validates context, hierarchy, denial/recovery and mobile
 navigation. Current CRUD editors use the existing template system and do not need bespoke wireframes.

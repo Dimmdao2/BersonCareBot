@@ -32,7 +32,10 @@ re-audit. Цикл узких двухстрочных fix/audit допусти�
 - отдельный worktree/branch;
 - taskdb #787;
 - зафиксирована граница с текущим SaaS enforcement;
-- собраны owner rulings, product docs, route/layout baseline и orchestration canon.
+- собраны owner rulings, product docs, route/layout baseline и orchestration canon;
+- `OWNER_RULINGS_2026-07-16.md` является высшим authority внутри UX initiative и побеждает производные
+  requirements/operating/journeys/branding/IA/prototype/audit тексты; Foundation rulings сохраняют приоритет только
+  в foundation/tenant/enforcement scope.
 
 Проверка: `git status -sb`, `git worktree list`, ссылки на канонические документы.
 
@@ -73,12 +76,12 @@ screen capture.
 
 **Статус:** completed; independent research audit PASS.
 
-**Цель:** не изобретать onboarding, white-label и role IA с нуля.
+**Цель:** не изобретать onboarding, paid-brand/custom-domain и role IA с нуля.
 
 Исследовательские треки:
 
 - practice-management / digital-care продукты: specialist acquisition, clinic workspace, patient portal, staff invite;
-- PWA install/deep-link, email invite и custom-domain/white-label contracts;
+- install/deep-link, email invite и custom-domain/paid-brand contracts;
 - platform admin SaaS analytics и organization lifecycle.
 
 Требования к источникам:
@@ -97,8 +100,9 @@ screen capture.
 
 ## UX-03 — Product operating model и role/capability matrix
 
-**Статус:** completed as decision-ready candidate; independent plan-critic PASS. Open owner rulings remain gates for
-the named downstream screens, not hidden defaults.
+**Статус:** owner rulings 2026-07-16 integrated; current contract independently audited **PASS** by
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. The earlier plan-critic PASS remains historical pre-ruling
+evidence.
 
 **Цель:** определить, кто, в каком контексте и над какими объектами работает.
 
@@ -107,10 +111,10 @@ the named downstream screens, not hidden defaults.
 - global admin vs organization management vs clinical work;
 - solo specialist vs clinic onboarding;
 - owner/admin, который одновременно specialist;
-- assistant permissions;
+- assistant/reception future compatibility without launch UI;
 - «мои пациенты / все пациенты организации»;
 - solo-mode vs clinic-mode composition: team context, collaboration actions и отсутствие лишнего clinic UI у solo;
-- patient handoff/transfer semantics и состояния передачи между специалистами;
+- visit-based transition between specialists without a handoff lifecycle;
 - clinic patient record model: отдельные specialist-карточки против единой organization-scoped карточки;
 - history access и фильтры `мои визиты / вся история / конкретный специалист`, отдельно от permission enforcement;
 - patient multi-org context и specialist attribution;
@@ -121,16 +125,16 @@ the named downstream screens, not hidden defaults.
 
 **Выход:** `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, state/context diagrams.
 
-Текущий synthesis собран в `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md`. Инварианты, recommended candidates
-и owner decisions разведены явно; карточка/история, assistant, handoff, dual-mode navigation и entitlement
-degradation не считаются утверждёнными до rulings. Independent plan-critic после исправления row-level ownership /
-enforcement / provenance, data/API gaps, owner-ruling boundaries, status/safe defaults и handoff deactivation states
-выдал **PASS**. Audit record: `UX03_INDEPENDENT_AUDIT.md`.
+Текущий synthesis собран в `OPERATING_MODEL.md` и `ROLE_CAPABILITY_MATRIX.md`: solo-first launch, одна карточка
+организации, visit-based specialist visibility, простая management-поверхность owner-specialist, last-active org и
+platform-app switcher. Assistant/reception и multi-specialist clinic остаются future-only. Independent plan-critic
+**PASS** в `UX03_INDEPENDENT_AUDIT.md` относится к pre-ruling версии; актуальная cross-contract проверка записана в
+`LOG.md`.
 
 ## UX-04 — Acquisition, invite, activation и install journeys
 
-**Статус:** completed as a decision-ready journey contract; full independent re-audit PASS after integrated
-correction. Open owner decisions remain conditional downstream gates.
+**Статус:** owner rulings 2026-07-16 integrated; current contract independently audited **PASS** by
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. Earlier re-audit PASS remains historical pre-ruling evidence.
 
 **Цель:** спроектировать полные входные пути.
 
@@ -161,8 +165,9 @@ exchange и browser→installed-PWA recovery. Current gaps сверены с к�
 
 ## UX-05 — Branding и domain contract
 
-**Статус:** completed as a decision-ready contract; full independent re-audit PASS after integrated correction.
-Pending owner requests BD-1…BD-6 have no owner ruling and remain gates for final launch scope and visual freeze.
+**Статус:** owner rulings 2026-07-16 integrated; current contract independently audited **PASS** by
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. Earlier UX-05 re-audit PASS remains historical pre-ruling
+evidence. BD-3/BD-6 are resolved, BD-2/BD-5 are future-deferred, and BD-1/BD-4 remain open.
 
 **Цель:** определить уровни брендинга и технически честные surface boundaries.
 
@@ -179,9 +184,12 @@ Pending owner requests BD-1…BD-6 have no owner ruling and remain gates for fin
 - legal/support;
 - custom-domain verification/status/error/redirect.
 
-Для каждой поверхности фиксировать platform-only / organization identity / white-label, fallback, ownership и entitlement.
+Для каждой поверхности фиксировать platform-only / organization identity / deferred org-specific candidate,
+fallback, ownership и entitlement; deferred candidate не является выбранной paid-brand глубиной.
 
-Базовый инвариант: Host/domain может подсказать scope entry, но не является authorization. Custom domain должен иметь canonical platform fallback и loop-safe redirect contract.
+Базовый инвариант: Host/domain может подсказать scope entry, но не является authorization. Для начального релиза
+каноничен platform domain. Future custom-domain app будет organization-pinned; точные fallback/redirect и
+PWA/APK/native contracts требуют отдельной feasibility-проработки.
 
 **Исполнители:** product/brand UX planner на `gpt-5.6-terra` High и architecture/security reviewer на `gpt-5.6-sol` High. Визуальный дизайнер подключается только после contract freeze.
 
@@ -191,13 +199,15 @@ Pending owner requests BD-1…BD-6 have no owner ruling and remain gates for fin
 одного integrated correction pass они согласованно разделяют core organization context и paid brand presentation,
 `HostnameBase` и независимые surface bindings, стабильный platform alias lifecycle и полную authenticated email
 identity. Полный re-audit проверил все исправления и исходные инварианты с **PASS**; audit record:
-`UX05_INDEPENDENT_AUDIT.md`. BD-1…BD-6 остаются pending owner requests (`owner ruling=none`), а не решениями
-владельца, и переносятся дальше только как явные decision gates.
+`UX05_INDEPENDENT_AUDIT.md`. После ответа 2026-07-16 BD-3/BD-6 resolved, BD-2/BD-5 являются future direction с
+deferred timing/technology, а BD-1/BD-4 остаются unresolved. Актуальная cross-contract проверка записана в
+`LOG.md`.
 
 ## UX-06 — Target IA и screen composition
 
-**Статус:** completed as a decision-safe target IA/screen-composition contract; full independent re-audit PASS after
-one integrated correction. Open OM/BD owner gates remain conditional and are not approved target policy.
+**Статус:** owner rulings integrated into target IA/screen composition; current contract independently audited
+**PASS** by `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. Previous UX-06 PASS is a historical pre-ruling
+baseline.
 
 **Цель:** собрать целевую карту экранов по ролям с максимальным reuse текущего продукта.
 
@@ -219,7 +229,7 @@ one integrated correction. Open OM/BD owner gates remain conditional and are not
 **Выход:** `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md`.
 
 Current synthesis covers all declared actor surfaces, responsive navigation, management↔clinical composition,
-one-org staff vs multi-org patient context, decision-safe card/history and handoff slots, UX-04 acquisition/invite/
+one-org staff vs multi-org patient context, one-card/history and visit-coordination slots, UX-04 acquisition/invite/
 install, UX-05 branding/domain degradation and shared empty/loading/error/permission states. The first full audit
 confirmed exact page allocation `150/150`, but failed the phase on one screen-ID registry, registration/multi-state
 trace, public responsive navigation and incomplete UX-04→UX-07 handoff. One integrated correction updated the three
@@ -227,28 +237,31 @@ existing outputs in place: `TARGET_IA.md` now owns canonical IDs and aliases, `S
 canonical/deferred surface and all six UX-04 prototype journeys, and `ROUTE_MIGRATION_MAP.md` preserves exact file
 allocation while separately tracing multi-state/query-tab/redirect/mixed pages. Full independent re-audit confirmed
 `150/150`, exact `57/57` canonical registry/composition parity, complete responsive navigation and all UX-04 journey
-handoffs with **PASS**. Previously passing role/security/patient/handoff/branding/provenance boundaries remain intact.
-Audit record: `UX06_INDEPENDENT_AUDIT.md`.
+handoffs with **PASS**. This is historical pre-ruling evidence. Current `57/57` and `150/150` registries are retained,
+and the integrated owner outcomes are now covered by the full cross-contract audit in `LOG.md`. Historical audit
+record: `UX06_INDEPENDENT_AUDIT.md`.
 
 ## UX-07 — Wireframes и scenario prototype
 
-**Статус:** completed — final independent two-reviewer re-audit PASS; visual/usability seals #1 and #2 granted on
-source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and evidence batch
-`2026-07-15T21-03-18Z`.
+**Статус:** historical pre-ruling prototype evidence. The final two-reviewer re-audit PASS and visual/usability
+seals #1/#2 remain valid only for source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`
+and evidence batch `2026-07-15T21-03-18Z`; they do not validate the 2026-07-16 owner rulings. Any revised prototype
+scope follows the new independent contract audit.
 
 **Цель:** проверить структуру до изменения рабочего UI.
 
 Прототипировать только ключевые цепочки и их recovery, используя canonical UX-06 screen IDs и UX-04 state IDs:
 
 - specialist landing → signup и owner first-run/security/setup (`ACQ-01…05`);
-- clinic staff invite acceptance (`STF-01…08`);
+- historical clinic staff invite acceptance (`STF-01…08`), now deferred outside solo launch;
 - patient email invite → OTP → first value → install → installed first launch → push recovery (`PIN-01…09`);
 - SMS fallback (`SMS-01…03`) как transport-only branch без auth elevation;
 - public booking → exact appointment/enrollment → patient app (`PBK-01…08`);
 - returning multi-org switch и denied/revoked deep-link recovery (`MOR-01…05`);
 - owner/admin management ↔ clinical work;
 - brand/publication → hostname base → independent surface binding, включая degraded fallback;
-- decision-safe clinic patient card/history/handoff candidate без превращения OM-4…7 в owner rulings.
+- manual patient + scheduled/walk-in visit + optional portal link; clinic card uses visit-based visibility and no
+  handoff lifecycle, while multi-specialist clinic UI remains future-only.
 
 Сначала low-fidelity flow/wireframe, затем один согласованный visual direction. Не рисовать все существующие CRUD-экраны заново.
 
@@ -265,12 +278,15 @@ source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and ev
 
 **Executor checklist:**
 
+The checklist and evidence counts below describe the historical pre-ruling prototype only. They are superseded for
+current normative acceptance and cannot add clinic/assistant/brand work to the solo launch.
+
 - один навигируемый low-fidelity prototype покрывает все цепочки выше и явные error/recovery states;
 - desktop/mobile меняют композицию, но не trusted context, CTA priority, authorization или recovery;
 - current BersonCare visual language используется как одно направление, без перерисовки всех CRUD;
 - staff one-org, patient multi-org, permission-before-filter, core org context, one-way domain fallback и
   transport/auth/relationship separation не нарушены;
-- безопасные кандидаты OM/BD явно отмечены как candidates/pending, а не owner rulings;
+- historical OM/BD candidates are labelled as such and yield to the dated owner outcomes;
 - нет реальных PII, delivery, application/DB/runtime changes;
 - проверены local links/navigation, canonical IDs, UX-04 flow trace, representative viewport renders, browser
   console и `git diff --check`.
@@ -282,21 +298,22 @@ source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and ev
 Финальный full re-audit независимо повторён двумя reviewers на точном source-bound batch. Каждый проверил 9
 scenarios / 73 states × desktop/mobile = `146` renders, `284` declared-action checks и `124` generated public
 Support/Documents checks; reviewer #2 дополнительно зафиксировал combined total `408` visible action/history/metadata
-checks. Hash/history/focus, public recovery boundaries, handoff capability, neutral/authorized shell, all `42` mobile
+checks. Hash/history/focus, public recovery boundaries, historical clinic candidate, neutral/authorized shell, all `42` mobile
 drawers, semantics, diagnostics, console/network и overflow прошли без failures. Все 18 PNG и source SHA совпали с
 manifest. Итоговый record и оба seal: `UX07_INDEPENDENT_AUDIT.md` §§11–13. Pending OM/BD gates не были превращены в
 owner rulings.
 
 ## UX-08 — Owner decision packet
 
-**Статус:** completed as a decision-ready packet; full UX-09 independent re-audit PASS after provenance correction.
-Все двенадцать rulings пока `pending`: PASS подтверждает полноту пакета, но не заменяет решения владельца.
+**Статус:** owner answers 2026-07-16 integrated into packet and dated rulings artifact; full independent audit
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Previous UX-09 PASS is a historical pre-ruling
+baseline.
 
 **Цель:** передать владельцу только решения, реально меняющие продукт.
 
 Пакет не должен спрашивать инженерные детали. В нём остаются короткие альтернативы с последствиями, например:
 
-- граница platform brand vs paid white-label;
+- понятная граница platform brand vs paid organization branding;
 - какие public/directory surfaces входят в первый launch;
 - assistant product permissions;
 - patient multi-org default context;
@@ -304,11 +321,11 @@ owner rulings.
 
 **Исполнитель:** Planner на `gpt-5.6-sol` Medium; независимый critic на `gpt-5.6-terra` High удаляет вопросы, на которые уже есть owner ruling или индустриальный стандарт.
 
-**Выход:** `OWNER_DECISION_PACKET.md`, затем решения переносятся в отдельный dated rulings file.
+**Выход:** `OWNER_DECISION_PACKET.md` и предусмотренный dated artifact `OWNER_RULINGS_2026-07-16.md`.
 
-Текущий packet содержит двенадцать консолидированных продуктовых развилок: clinic card/history/default filters,
-handoff launch/acceptance, assistant scope, dual-mode navigation, patient multi-org default, public launch scope,
-paid white-label depth, custom-domain/W-PWA launch surfaces, custom-sender failure policy и platform support surface.
+Текущий packet сохраняет двенадцать исходных развилок и exact owner outcome: resolved launch, resolved future with
+deferred timing/feasibility, explicitly deferred/unresolved или rejected premise. Launch focus = solo specialist;
+multi-specialist clinic, assistant/reception и complex clinic communications не задерживают release.
 После полного UX-09 audit добавлены два потерянных literal upstream выбора: момент создания patient enrollment при
 staff invite и topology коммуникаций organization/specialist/thread. Отдельный provenance registry классифицирует
 все остальные explicit вопросы UX-03…05 как existing ruling, architecture/security invariant, planner
@@ -320,8 +337,9 @@ path проверены для каждого пункта.
 
 ## UX-09 — Implementation roadmap
 
-**Статус:** completed as a decision-safe implementation roadmap; full independent re-audit PASS after integrated
-correction and final provenance source-fix. Ни implementation, ни app/DB/runtime changes этим статусом не разрешены.
+**Статус:** owner rulings integrated into implementation roadmap; full independent audit
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03` — **PASS**. Ни implementation, ни app/DB/runtime changes этим
+статусом не разрешены.
 
 **Цель:** после решений разложить реализацию на независимые эпики, не вмешавшись в текущий SaaS-поток.
 
@@ -330,7 +348,7 @@ correction and final provenance source-fix. Ни implementation, ни app/DB/run
 1. contracts/data gaps;
 2. role/capability guards and organization workspace spine;
 3. early patient-context resolver plus specialist signup/staff/patient acquisition;
-4. clinical card/history, handoff and communications policy;
+4. manual patient/visit, clinical card/history and solo communications policy;
 5. public landing and organization pages;
 6. core branding and global platform configuration/reliability/org operations;
 7. only then optional custom domain, sender and per-origin PWA adapters;
@@ -338,7 +356,7 @@ correction and final provenance source-fix. Ни implementation, ни app/DB/run
 
 Каждый epic получает scope, forbidden scope, tests, screenshots/smoke и merge dependency. Декомпозицию ведёт `gpt-5.6-terra` Medium, повторяемые checklist/route-операции — `gpt-5.6-luna` Medium. Реализация идёт по worker (`gpt-5.6-terra` Medium/High) → independent code audit (`gpt-5.6-terra` High) → fixer (`gpt-5.6-terra` или `gpt-5.6-luna` по формализуемости) → критический audit (`gpt-5.6-sol` High при затрагивании identity/tenant/security) → visual seals.
 
-Фактический planned output: `IMPLEMENTATION_ROADMAP.md`. После integrated correction он содержит 19 meaningful
+Фактический planned output: `IMPLEMENTATION_ROADMAP.md`. Registry по-прежнему содержит 19 meaningful
 leaf stages: отдельный J1 owner `U3S`, независимый ранний resolver `U5A`, acquisition convergence без обратной
 зависимости, отдельный communications stage `U5D`, core platform stage `U9` до optional `U8A/B/C` и normative
 acyclic dependency registry. Все `UX08-01…12` остаются явными gates с fail-closed safe defaults; каждый stage имеет
@@ -346,7 +364,10 @@ data/API/UI, migration/compat, validation, rollback/degradation, checklist и me
 последнему stage каждой фактически исполняемой фазы. Полный независимый re-audit
 `UX09-REAUDIT-20260716-U3B-FULL-01` повторно подтвердил `19 × 14` stage contracts, ацикличный DAG `19/19`,
 `57/57`, `150/150`, `12/12` decision gates, `24` provenance choices и весь security/foundation/final checklist.
-Roadmap принят как decision-safe execution plan; owner-gated branches остаются условными до датированных rulings.
+Предыдущий audit остаётся историческим evidence для pre-ruling версии. Новый roadmap делает solo launch
+unconditional, переносит clinic/assistant/custom-domain app ветки в future scope и явно добавляет manual patient
+card + scheduled/walk-in visit + later portal identity linking. Текущая версия принята полным cross-contract
+аудитом; implementation ещё не начиналась.
 
 ## Стоп-гейты
 
@@ -358,21 +379,21 @@ Roadmap принят как decision-safe execution plan; owner-gated branches �
 
 ## Final initiative completion gate
 
-**Статус:** **PASS — independently audited discovery / planning complete.** Все `UX08-01…12` остаются
-`pending` с `owner ruling=none`; PASS подтверждает полноту product/UX specification и decision-safe roadmap, но не
-разрешает implementation, TEST/deploy, DB/runtime changes или выбор conditional product branches.
+**Статус:** **owner rulings integrated; full independent audit PASS.** Актуальный run:
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. Предыдущий PASS ниже остаётся историческим pre-ruling
+baseline.
 
 **Final run:** `SAAS-UX-FINAL-REAUDIT-20260716-AF864C-01` на
 `af864c2d98bd89421f60c4ed04af0f2499b5b06c`.
 
-- [x] Literal owner requirements покрыты UX-01…09: roles, solo/clinic, card/history/handoff, multi-org patient,
+- [x] Historical pre-ruling audit covered UX-01…09 scope: roles, solo/clinic, card/history/handoff, multi-org patient,
       specialist landing, signup, email-first invite, optional SMS, activation/install, branding, domains, PWA и
       sender identity.
 - [x] Current/target registries воспроизведены: `150/150` current routes и `57/57` canonical target compositions.
 - [x] UX-01 runtime evidence доступно и согласовано; UX-07 exact source/manifests и оба independent visual seals
       воспроизведены без hash/status drift.
-- [x] Owner packet содержит `12/12` pending decisions с alternatives, provenance, recommendation, distinct safe
-      boundary и execution consequence; ни одна рекомендация агента не названа owner ruling.
+- [x] Owner packet preserves `12/12` original alternatives and dated outcomes/classifications; full independent
+      audit verified that no agent recommendation is mislabeled as an owner ruling.
 - [x] Implementation roadmap содержит `19 × 14` complete stage contracts; dependency registry `19/19` ацикличен,
       unknown dependencies `0`; Foundation/no-dup/migration/rollback/validation gates сохранены.
 - [x] F-FINAL-01 current-source status convergence и F-FINAL-02 integration-canon sync закрыты; orchestration model

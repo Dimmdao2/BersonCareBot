@@ -1,7 +1,7 @@
 # UX-07 — Executor usability findings
 
-**Статус:** interaction/context-graph convergence reconciled against full re-audit §§8–10; awaiting independent
-two-reviewer re-audit.  
+**Статус:** historical pre-ruling executor findings; superseded for current normative acceptance by
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md).
 **Artifact:** [`ux07-prototype/index.html`](./ux07-prototype/index.html).  
 **Boundary:** this is the correction owner's observation log, not an audit verdict or visual seal.
 

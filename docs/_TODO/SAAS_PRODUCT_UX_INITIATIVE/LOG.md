@@ -800,3 +800,475 @@ specification/evidence chain passes without new drift.
 
 **ИЗМЕНИЛ:** existing `LOG.md`, `README.md` status and `ROADMAP.md` final initiative gate/checklist only; no new
 audit file, app/DB/runtime change, commit or push.
+
+## 2026-07-16 — UX08 owner rulings integrated; awaiting independent audit
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-INTEGRATION-20260716-01`.
+- **Источник решений:** ответ владельца в текущем чате на `UX08-01…12`; каноническая запись:
+  [`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md).
+- **Статус:** owner rulings integrated into the existing UX canon and implementation roadmap; **awaiting one full
+  independent audit**. Все предыдущие UX-03…09 PASS/seals являются historical pre-ruling evidence и не считаются
+  проверкой новых решений.
+- **Классификация `12/12`:** resolved launch `7` (`01`, `03`, `04`, `05`, `06`, `09`, `12`); resolved future
+  deferred `1` (`08`); explicitly deferred `1` (`07`); rejected premise `3` (`02`, `10`, `11`).
+- **Главная launch-граница:** solo-specialist first. Multi-specialist clinic, assistant/reception и сложная
+  маршрутизация clinic messages остаются future-compatible, но отсутствуют в initial release и не задерживают его.
+- **Patient implementation scope:** specialist/staff создаёт patient card и scheduled appointment либо immediate
+  walk-in visit без предварительной регистрации пациента; portal identity по verified email/phone связывается с
+  существующей карточкой позже и не создаёт duplicate card.
+- **Clinical model:** одна organization-scoped patient card; patient появляется у specialist через его actual или
+  scheduled visit; own events по умолчанию, authorized available history и specialist filter по запросу. Primary
+  specialist, care team, accept/reject, generic handoff и cross-org transfer отвергнуты.
+- **Context/branding:** platform app открывает last-used organization и показывает switcher; future paid org-specific
+  app pinned to one organization. Platform launch precedes custom-domain/app work. Branding depth and PWA/APK/native
+  technology remain explicit unresolved feasibility items.
+- **Delivery/support:** configured custom provider never falls back to platform sender for user messages; retry only
+  within TTL, then expiry, with account-owner alerts. Global admin has aggregate/org/platform diagnostics only and
+  no patient browsing/repair workflow.
+- **Registry preservation:** canonical target registry/composition remains `57/57`; current route allocation remains
+  `150/150`. No canonical screen ID or route-allocation row was added or removed.
+- **Changed in place:** `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `OPERATING_MODEL.md`,
+  `ROLE_CAPABILITY_MATRIX.md`, `ENTRY_AND_INVITE_JOURNEYS.md`, `UX04_SCREEN_STATE_LIST.md`,
+  `BRANDING_DOMAIN_CONTRACT.md`, `BRANDING_CAPABILITY_MATRIX.md`, `TARGET_IA.md`, `SCREEN_COMPOSITION.md`,
+  `ROUTE_MIGRATION_MAP.md`, `OWNER_DECISION_PACKET.md`, `IMPLEMENTATION_ROADMAP.md`, this `LOG.md`, plus the planned
+  dated rulings artifact. No competing roadmap/operating-model document was created.
+- **Runtime boundary:** documentation only. No app code, DB, migration, runtime, DEV/TEST/PROD, delivery, deploy,
+  commit or push was performed by this stage.
+
+**НАШЁЛ:** старый decision-safe канон всё ещё содержал handoff/primary/care-team lifecycle, assistant launch paths,
+invite-first patient creation, global-admin patient support и sender/platform-fallback assumptions, которые после
+ответа владельца стали ложными или только историческими.
+
+**ИЗМЕНИЛ:** сохранил исходные 12 развилок как историю, но сделал dated owner outcome текущей нормой во всех
+канонических UX-документах. Точный retry/TTL, понятная глубина paid branding, custom-domain/app effort и technology,
+будущие права assistant/reception и clinic communication topology оставлены открытыми, а не выданы за решения.
+
+## 2026-07-16 — Full independent audit of UX08 owner-ruling integration: FAIL
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-AUDIT-20260716-799-FULL-01`.
+- **Task:** taskdb `#799`.
+- **Verdict:** **FAIL — требуется одна цельная reconciliation-correction существующих UX-документов.** Решения
+  владельца в dated artifact переданы в основном точно, но current normative/executable слой всё ещё содержит
+  старые gates, clinic/handoff workstreams и термины, которые противоречат solo-first границе. Поэтому этот audit
+  не меняет статусы `OWNER_RULINGS`, packet, `README`, `ROADMAP` или `IMPLEMENTATION_ROADMAP`.
+- **Runtime boundary:** независимый docs-only audit. App/schema/DB/runtime/DEV/TEST/PROD не менялись и не
+  запускались; commit/push не выполнялись.
+
+### Requirement-by-requirement verdict
+
+| Owner decision / requirement | Verdict |
+|---|---|
+| UX08-01 — one organization patient card, visibility through actual/scheduled visit, own-first history | **FAIL по полной интеграции:** dated ruling, matrix and core CLIN card rows are correct, but `TARGET_IA.md` still shows `care-team attribution` / `Care team`, and roadmap still says the policy is pending. |
+| UX08-02 — no primary/care-team/handoff lifecycle; another specialist means an ordinary visit | **FAIL по execution:** rejected model is stated correctly, but U5C remains an included P3 implementation stage with collaboration queue/recovery and deactivation work, while U5D retains handoff language. |
+| UX08-03 — no assistant at initial release; future compatibility only, exact grants open | **FAIL:** launch absence is stated, but the capability supplement still assigns a concrete delegated object set; U2 still owns OPS screens/ports and assistant validation. This freezes/implements more than the owner approved. |
+| UX08-04 — one login; simple management destination/menu first; exact switch UX open | **PASS:** no second account/persona and no forced navigation mechanism were found. |
+| UX08-05 — platform app restores last organization plus visible switcher; branded org app pinned | **PASS:** platform and future pinned-app contexts are separated and no client-side selection is treated as authorization. |
+| UX08-06 — landing + organization profile + booking + join; directory later | **FAIL по execution:** content rows defer `PUB-06`, but canonical ownership/gap/U6 text still says it waits for or is conditional on UX08-06, as if the decision were unresolved. |
+| UX08-07 — paid branding depth unresolved in plain language | **FAIL:** the gate is marked unresolved, but branding contracts still normatively present `W — True white-label` surface/tier behavior without an immediate candidate-only disclaimer; dated owner wording did not select that product promise. |
+| UX08-08 — custom domain/org-specific auth/app is future paid scope; initial platform product first; technology/effort open | **PASS:** U8A/B are explicitly post-launch/optional and PWA/APK/native choice is not frozen. |
+| UX08-09 — custom provider has no platform sender fallback; retry within TTL, expire, alert owner | **PASS:** direction is captured without inventing exact TTL/retry values or enabling a provider. |
+| UX08-10 — global admin has no patient browse/session/record repair workflow | **FAIL по execution:** PLAT content is corrected, but U9 merge dependency still says the PLAT-09 branch is blocked by UX08-10, even though the premise was rejected and the allowed diagnostics/report path is resolved. |
+| UX08-11 — staff can create patient card plus scheduled/walk-in visit before portal activation; verified identity links later | **PASS:** journey/state documents separate business relationship, delivery, identity proof and portal access; no registration-first prerequisite remains. |
+| UX08-12 — current solo chat unchanged; clinic topology future/configurable and not launch work | **FAIL по execution:** owner boundary is stated, but U5D still includes conditional OPS-04, multi-specialist/assistant validation, migration and handoff-continuity work as the last included P3 stage. |
+| Solo-first release must not wait for clinic/assistant/custom-app work | **FAIL:** P3 explicitly includes U5C and U5D; U5C is not classified as an absent optional node, and U10 depends on every included audited stage. U2/U5D also retain future OPS work. |
+| Historical audits may not validate the new rulings | **FAIL:** top-level files call earlier PASS records historical, but the UX03/04/05/06/07/09 audit artifacts themselves still open with active PASS language and no dated supersession banner. Direct readers can mistake pre-ruling conclusions for validation of the 2026-07-16 decisions. |
+| Registry/route/link integrity | **PASS:** 12/12 ruling IDs and 12/12 packet questions; 57 canonical target IDs plus two explicitly non-canonical aliases; composition 57/57; current routes 150 actual = 150 refs = 150 unique; local links 39, missing 0; normative stage registry 19 rows and acyclic. |
+
+### Consolidated findings
+
+#### F1 — Owner authority is below derived UX documents
+
+`IMPLEMENTATION_ROADMAP.md` conflict order puts `OWNER_RULINGS_2026-07-16.md` at position 7, below requirements,
+operating model, journeys, branding and IA artifacts derived from it. That reverses the intended authority and makes
+the stale text below executable. The dated owner ruling must outrank all derived initiative documents while remaining
+subordinate to repository/foundation canon in its proper scope.
+
+#### F2 — Future clinic work can still block the solo-first release
+
+The phase table includes U5C/U5D in P3 and U10 waits for every included stage. U5C says clinic UI may be deferred,
+but it remains a normal DAG node and still requires a collaboration queue/recovery and deactivation preflight. U2
+still lists OPS-01…04 plus ops ports/assistant smoke; U5D still carries OPS-04, assistant/two-specialist and migration
+work as its phase checkpoint. This is incompatible with the explicit rule that multi-specialist clinic,
+assistant/reception and configurable clinic communications are future design capacity, not initial implementation or
+launch gates. Mark those branches genuinely absent/optional and remove their workstreams from solo-stage completion.
+
+#### F3 — Rejected or unresolved product models remain normative
+
+- `TARGET_IA.md` PAT-02/PAT-09 and `ROUTE_MIGRATION_MAP.md` C20 still use care-team semantics although there is no
+  care team in the approved model.
+- U5D still describes handoff continuity/history behavior after the handoff lifecycle was rejected.
+- `ROLE_CAPABILITY_MATRIX.md` assigns assistant schedule/intake/contact/invite objects although exact future grants
+  are unresolved.
+- `ENTRY_AND_INVITE_JOURNEYS.md` still routes Assistant to `OM-2 bounded operations home` instead of marking the
+  initial-release destination not applicable/future.
+- The branding contract/matrix present a detailed true-white-label tier as normative surface behavior while UX08-07
+  is explicitly unresolved. It may remain only as clearly labelled candidate analysis, not as a selected target.
+
+#### F4 — Resolved decisions still appear as pending execution gates
+
+Roadmap rows still say `PUB-06 waits for UX08-06`, card/history policy is pending UX08-01, multiple U5/U9 branches
+remain conditional, and PLAT-09 is blocked by UX08-10. These are not harmless history: they control stage ownership,
+merge and completion. Reconcile every `UX08-01…12` reference to one of exactly four current states: resolved launch,
+resolved future-deferred, explicitly unresolved/deferred, or rejected premise.
+
+#### F5 — Pre-ruling audit artifacts are ambiguous when opened directly
+
+Current README/roadmap notices are not enough to make every retained historical PASS self-describing. Add a concise
+top banner to the affected existing UX03/04/05/06/07/09 audit files stating that their PASS predates
+`OWNER_RULINGS_2026-07-16.md`, remains evidence only for the unchanged pre-ruling scope and does not validate the
+integrated rulings. Do not create another audit document.
+
+### Reproduced evidence and commands
+
+- Full reads: `OWNER_RULINGS_2026-07-16.md`, `OWNER_DECISION_PACKET.md`, `README.md`, `REQUIREMENTS.md`,
+  `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, `ENTRY_AND_INVITE_JOURNEYS.md`,
+  `UX04_SCREEN_STATE_LIST.md`, both branding contracts, all three UX-06 artifacts, `ROADMAP.md`,
+  `IMPLEMENTATION_ROADMAP.md`, UX03/04/05/06/07/09 independent audits, initiative `LOG.md`, Foundation owner
+  rulings, and repository/orchestration canon.
+- Focused `rg` over care-team/handoff/assistant/OPS/white-label and all UX08 stage/gate references reproduced every
+  finding above.
+- Read-only Node registry checks: owner rulings `12/12`; packet headings `12/12`; canonical target/composition
+  `57/57`; route allocation `150/150`; local Markdown links `39`, missing `0`; stage registry `19`, cycle `0`.
+- `git diff --check`: PASS before this audit record.
+- Current branch HEAD before this audit record: `223ff8b9a`; initiative worktree changes are documentation-only.
+  `origin/feat/doctor-ui-rebuild` is five commits ahead of the shared merge-base `9a0d5da41`; the four orchestration
+  canon files have no delta, while newer Foundation/runtime evidence must be consumed by the normal U0 handoff before
+  any implementation.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run because this is a documentation audit and no
+  application/runtime behavior was changed.
+
+### Residual risks
+
+- Exact assistant grants, clinic communication topology, paid branding depth, custom-domain/app technology and
+  sender retry/TTL values remain intentionally unresolved; correction must not invent them.
+- The canonical registry intentionally retains future IDs (OPS and custom capabilities) for architecture planning;
+  retaining an ID must not make its implementation a solo-launch dependency.
+- Foundation has advanced after the last work3 merge; this does not change the owner-ruling verdict, but every future
+  implementation stage still needs the documented current-state integration handoff.
+
+**НАШЁЛ:** dated owner artifact is substantially faithful, but five connected reconciliation failures leave old
+authority, clinic/handoff work, assistant grants, white-label promises and resolved-as-pending gates active.
+
+**ИЗМЕНИЛ:** only this new audit section in existing `LOG.md`. Per FAIL protocol, no initiative status, ruling,
+packet, roadmap, application, DB/runtime state, commit or push was changed.
+
+## 2026-07-16 — Integrated convergence after owner-ruling audit FAIL
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-CONVERGENCE-20260716-799-01`.
+- **Input audit:** `SAAS-UX-OWNER-RULINGS-AUDIT-20260716-799-FULL-01` above. Its FAIL history was not edited.
+- **Status:** all consolidated F1–F5 findings corrected in one pass; current UX canon still **awaits one full
+  independent re-audit**. No previous PASS/seal is treated as acceptance of the 2026-07-16 rulings.
+
+### Integrated corrections
+
+1. **Authority order:** `OWNER_RULINGS_2026-07-16.md` now explicitly outranks every derivative UX requirement,
+   operating model, journey, branding candidate, IA, prototype, roadmap and prior UX audit. Foundation owner rulings
+   retain priority only in foundation/tenant/enforcement scope. The same order is repeated at derivative entrypoints.
+2. **Solo launch DAG:** clinic-only `U3A`, `U5C`, `U5D` and optional `U8A/B/C` are `absent optional node`s and are
+   excluded from U10 launch dependencies. P2 no longer depends on J2/staff invite; U3B/U4/public launch run without
+   U3A. P3 contains only launch-ready U5B. `MGMT-02`, `CLIN-05`, `OPS-01…04`, J2/STF and clinic communication are
+   registry/history reservations, not launch implementation or acceptance.
+3. **Rejected/candidate semantics:** active contracts no longer specify transfer queues, receiver approval,
+   deactivation recovery, concrete assistant grants or a selected deep-brand tier. Historical options remain only in
+   explicitly labelled superseded/pre-ruling sections. Current solo chat is unchanged without a stage.
+4. **Decision registry:** resolved/rejected outcomes are no longer pending blockers. Only five deferred product
+   sub-decisions remain: paid-brand depth; future org-app technology/feasibility/timing; exact sender retry/TTL values;
+   future assistant grants; future clinic communication topology. Record-class, entitlement, security-factor,
+   identity-matching and lifecycle details are labelled implementation/security/commercial policy, not new owner
+   gates.
+5. **Historical audits/prototype:** `UX03/04/05/06/07/09_INDEPENDENT_AUDIT.md` each has an internal top banner:
+   historical pre-ruling evidence, superseded for current normative acceptance, awaiting re-audit. UX07 prototype
+   index/findings are marked the same without rewriting their evidence history.
+6. **Sender truthfulness:** every configured-custom-provider intermediate/degraded state holds/retries within TTL and
+   expires without platform sender fallback; exact timing remains deferred.
+
+### Verification
+
+- dated decisions/classifications: `12/12`;
+- target registry/composition: `57/57`;
+- current route allocation: `150 actual = 150 references = 150 unique`;
+- implementation contracts: `19 × 14`; dependency registry `19/19`, unknown `0`, cycles `0`;
+- absent launch nodes: `U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`; U10 depends only on launch-included stages;
+- pre-ruling audit banners: `6/6`;
+- initiative local Markdown links: `47/47`, missing `0`;
+- `git diff --check`: PASS;
+- documentation-only worktree; no app/schema/DB/runtime/DEV/TEST/PROD/delivery/deploy action; no commit/push.
+
+**НАШЁЛ:** removing only U5C/U5D was insufficient: clinic staff invite `U3A/J2/MGMT-02` still sat on the U3B→U4→
+U6B launch path. It was also removed from the initial DAG so the stated solo-first boundary is executable rather than
+copy-only.
+
+**ИЗМЕНИЛ:** converged authority, product contracts, screen/route reservations, journey scope, branding candidate
+language, the 19-stage DAG and historical-audit self-description without changing ruling history or registry
+denominators. Remaining risks are intentionally deferred product/engineering details, not hidden launch blockers.
+
+## 2026-07-16 — Full independent owner-ruling convergence re-audit: FAIL
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-02`.
+- **Task:** taskdb `#799`.
+- **Input convergence:** `SAAS-UX-OWNER-RULINGS-CONVERGENCE-20260716-799-01`.
+- **Verdict:** **FAIL — original F1–F5 are closed, but a full non-spot re-audit found four additional active
+  reconciliation defects outside that correction brief.** No current status is promoted to independently audited.
+- **Runtime boundary:** docs-only audit. No app/schema/DB/runtime/DEV/TEST/PROD/delivery/deploy action, commit or
+  push was performed.
+
+The audit re-read the owner message and all 24 changed files, then checked current normative semantics rather than
+assuming the previous five findings were the complete defect set.
+
+### Requirement-by-requirement verdict
+
+| Owner decision / contract | Verdict |
+|---|---|
+| UX08-01 — one organization card; actual/scheduled visit visibility; own-first authorized history | **PASS:** one card, visit relation, own-events default, record-class policy and permission-before-filter are consistently separated. |
+| UX08-02 — reject primary/care-team/accept-reject/cross-org transfer lifecycle | **PASS:** no active launch lifecycle or state machine remains; U5C is an absent future placeholder for an ordinary clinic appointment concept only. |
+| UX08-03 — no assistant/receptionist launch role or grants | **FAIL по IA clarity:** roadmap and capability matrix correctly assign no grants, but `TARGET_IA.md` still presents Operations in the main authenticated workspace tree, Team in normal desktop staff navigation and an Assistant drawer rule without marking those navigation rows future-only. |
+| UX08-04 — one login and distinct management/clinical destination; exact menu/switch is implementation choice | **PASS.** |
+| UX08-05 — last-used organization + visible platform switcher; future org app pinned | **PASS.** |
+| UX08-06 — landing/profile/booking/join; directory later | **FAIL по canonical requirements:** execution/IA correctly defer PUB-06, but `REQUIREMENTS.md` §3.1 still lists the directory conditionally “if it enters selected launch scope”, leaving a resolved choice looking pending. |
+| UX08-07 — paid-brand depth unresolved; no promise to hide BersonCare | **FAIL:** launch tables now use P/O/F correctly, but `BRANDING_CAPABILITY_MATRIX.md` still exposes active resolver result `white_label_ready`; the owner explicitly did not select or understand that product tier. |
+| UX08-08 — custom domain/auth/org-specific app future-deferred; technology/effort/timing open | **PASS:** U8A/B are absent optional nodes and platform origin/app remains first. |
+| UX08-09 — configured custom provider never falls back to platform sender; retry within TTL then expire/alert | **PASS:** email, SMS and U8C all preserve this direction without inventing numeric values. |
+| UX08-10 — no global-admin patient browsing or patient-record repair | **FAIL:** PLAT-08 and U9 still place booking-account merge/name-match review and identity repair in the platform-admin shell; route map S26 moves two patient-profile merge tools there. This is patient data repair, not aggregate/org/platform diagnostics or code repair. |
+| UX08-11 — manual patient + scheduled/walk-in visit before portal activation; verified identity links later | **PASS:** U3B, PIN and booking flows preserve card/visit independently from delivery/proof/access and prevent duplicate linking. |
+| UX08-12 — current solo chat unchanged; future clinic topology configurable and absent from launch | **FAIL по IA clarity:** U5D and composition are correctly absent/deferred, but `TARGET_IA.md` still states clinic `CLIN-07` uses “Organization queues and send scope”, selecting part of a topology the owner left open. |
+| Solo-first critical path | **PASS:** U3A/U5C/U5D/U8A/U8B/U8C are absent optional nodes; U3B/U4/U6B/U10 contain no reverse dependency on them. P3 contains only U5B. |
+| Architecture compatibility | **PASS:** deferred screen/state IDs and future stage placeholders are retained without schema/API/UI work or launch completion boxes. |
+| Historical evidence/status | **PASS:** six old audit files have internal pre-ruling supersession banners; prototype index/findings are historical; current canonical statuses still correctly await this audit. |
+| Open decisions | **PASS:** exactly five product areas remain open: brand depth; org-app feasibility/technology/timing; sender retry/TTL values; future assistant grants; future clinic communication topology. Other gaps are labelled engineering/security/data/commercial policy. |
+
+### Consolidated findings
+
+#### R1 — PLAT-08 still authorizes the rejected patient-data repair product
+
+`TARGET_IA.md` PLAT-08, `SCREEN_COMPOSITION.md` PLAT-08, `ROUTE_MIGRATION_MAP.md` S26 and U9 still converge
+`booking-merge` and `clients/name-match-hints` into platform `Identity and repair`. Source verification confirms these
+are manual merge/name-overlap tools over patient platform profiles and links back to the patient list. The owner
+explicitly rejected global-admin patient-record correction and required correctable patient data to be handled by
+authorized patient/doctor product surfaces. Reclassify existing tools by actual actor/object ownership or retire the
+platform destination; PLAT support may retain aggregate diagnostics/reports and code/system remediation only.
+
+#### R2 — Deferred clinic/assistant topology still leaks into active target navigation
+
+The implementation DAG is now correct, but `TARGET_IA.md` still has three active-looking navigation statements:
+
+- the top product tree lists `Operations — assistant/delegated operational capability` without a future-only label;
+- desktop staff navigation lists `Team` although MGMT-02/U3A are absent from initial release;
+- mobile staff specifies an Assistant drawer as though the actor exists at launch.
+
+The CLIN-07 clinic cell additionally selects `Organization queues`, while future clinic communication topology is
+one of the five unresolved areas. Keep these as clearly labelled future placeholders and make the launch navigation
+explicitly exclude them; do not remove the reserved IDs or future compatibility.
+
+#### R3 — One selected white-label state remains in the current capability contract
+
+`BRANDING_CAPABILITY_MATRIX.md` correctly replaced the old W tier with candidate-only F analysis everywhere except
+the effective resolver result `organization_ready / white_label_ready`. This is current normative resolver language,
+not a historical option. Rename it to neutral organization-presentation/readiness terminology or explicitly move it
+under candidate-only future analysis. UX08-07 cannot expose a selected deep-brand state before the owner receives
+and answers a plain-language question.
+
+#### R4 — Resolved public-directory scope remains conditional in REQUIREMENTS
+
+`REQUIREMENTS.md` §3.1 still says the public organization directory is included “if it enters the selected launch
+scope”. UX08-06 already decided that it does not: landing/profile/booking/join are launch scope and directory is
+later. Update the canonical requirement to the dated result so no downstream reader can reopen the resolved gate.
+
+### Original convergence findings and full-scope checks
+
+- **F1 authority:** closed. Dated UX ruling now follows repository/Foundation canon and outranks every derivative UX
+  artifact.
+- **F2 solo DAG:** closed. U3A/U5C/U5D/U8 are absent optional nodes and cannot block U10.
+- **F3 rejected/candidate semantics:** closed for transfer hierarchy and concrete assistant grants; R2/R3 above are
+  newly found IA/readiness wording residues.
+- **F4 resolved-as-pending execution gates:** closed in the implementation roadmap; R4 is a remaining canonical
+  requirements residue outside the prior roadmap-focused fix.
+- **F5 audit history:** closed; banners are present 6/6 and prototype artifacts self-identify as pre-ruling.
+- Manual patient creation, scheduled appointment, walk-in, optional invite, verified portal linking, multi-org
+  context, sender failure, domain/app future scope and solo chat were re-read end-to-end and otherwise match the
+  dated owner outcomes.
+
+### Mechanical and repository evidence
+
+- Owner decisions: `12/12` dated headings; packet questions `12/12` unique with dated classifications.
+- Target registry/composition: `57/57`, missing/extra/duplicate `0`.
+- Current route allocation: `150 actual = 150 references = 150 unique`, missing/stale/duplicate `0`.
+- Implementation roadmap: `19` stages, each `14/14` required fields; direct dependency registry `19/19`, cycle
+  `0`, unknown dependency `0`, topological coverage `19/19`.
+- Absent optional launch nodes confirmed: `U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`; U10 explicitly excludes them.
+- Initiative local Markdown links: `47`, missing `0`.
+- Historical audit banners: `6/6`.
+- `git diff --check`: PASS before this audit record.
+- Pre-audit HEAD: `223ff8b9a`; shared merge-base with `origin/feat/doctor-ui-rebuild` is `9a0d5da41`.
+  Integration is eight commits ahead, but the four orchestration-canon files have no delta. All current worktree
+  changes remain under `docs/`; future implementation must consume newer Foundation/runtime evidence through U0.
+- Code-search plus focused source/doc read confirmed that `booking-merge` and `name-match-hints` perform manual
+  platform-user/profile merge and expose patient-list navigation; this supports R1 rather than inferring it from a
+  route name alone.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run because the audit changed no application or
+  runtime behavior.
+
+### Residual open decisions
+
+Exactly five remain intentionally unresolved and must not be filled during correction:
+
+1. plain-language paid organization-brand depth and BersonCare visibility;
+2. organization-specific app feasibility, PWA/APK/native technology, order and timing;
+3. custom-provider retry cadence, TTL, attempts and retention values;
+4. future assistant/receptionist grants;
+5. future clinic communication topology.
+
+**НАШЁЛ:** the convergence made the solo launch graph executable and closed F1–F5, but a full fresh audit found four
+additional active inconsistencies: patient-profile repair in PLAT, future clinic UI in current navigation, one
+`white_label_ready` result and a conditional directory requirement.
+
+**ИЗМЕНИЛ:** only this re-audit section in existing `LOG.md`. Per FAIL protocol, no status, ruling, packet, roadmap,
+application, DB/runtime state, commit or push was changed.
+
+## 2026-07-16 — Integrated correction after owner-ruling full re-audit FAIL-02
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-CONVERGENCE-20260716-799-02`.
+- **Task:** taskdb `#799`.
+- **Input audit:** `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-02`.
+- **Status:** integrated correction complete; **awaiting a new full independent re-audit**. This correction does not
+  promote any UX stage or initiative status.
+- **Runtime boundary:** documentation only. No app/schema/DB/runtime/DEV/TEST/PROD/delivery/deploy action, commit or
+  push was performed.
+
+### Integrated corrections
+
+1. **Global-admin boundary:** `PLAT-08` is now aggregate identity-integrity/system-failure diagnostics only.
+   Existing booking-profile merge and name-match pages are explicitly retired/reclassified instead of moved into
+   platform administration. No patient browse, profile lookup, merge mutation or schema was invented. A future
+   correction flow, if needed, requires a separately reviewed patient/specialist authorization contract.
+2. **Launch topology:** Operations, Team, clinic coordination and assistant destinations remain reserved IDs but are
+   explicitly absent from initial desktop/mobile navigation and U10 implementation acceptance. `CLIN-07` preserves
+   the current solo-specialist chat; no organization queue or clinic routing topology is selected.
+3. **Brand wording:** the active `white_label_ready` resolver result was removed. The neutral
+   `organization_presentation_ready` result covers only approved organization identity/assets and explicitly makes
+   no promise to hide BersonCare or deliver a selected deep-brand tier.
+4. **Public launch scope:** canonical requirements now state the resolved bundle: specialist-first platform landing,
+   published organization profiles, booking and trusted join. Directory/search is later and absent from launch.
+5. **Open-decision register:** the dated ruling now exposes exactly five areas: brand depth; organization-specific
+   app/custom-origin feasibility, technology, order and timing; custom-sender retry/TTL values; future assistant
+   grants; future clinic communication topology.
+
+### Files changed by this correction
+
+- `TARGET_IA.md`
+- `SCREEN_COMPOSITION.md`
+- `ROLE_CAPABILITY_MATRIX.md` (rechecked; no additional edit required)
+- `ROUTE_MIGRATION_MAP.md`
+- `IMPLEMENTATION_ROADMAP.md`
+- `REQUIREMENTS.md`
+- `BRANDING_CAPABILITY_MATRIX.md`
+- `BRANDING_DOMAIN_CONTRACT.md`
+- `OWNER_RULINGS_2026-07-16.md`
+- `LOG.md`
+
+### Validation
+
+- Owner packet/rulings: `12/12` unique UX08 decisions in each source.
+- Target registry/composition: `57/57`, missing/extra/duplicate `0`.
+- Current route allocation: `150 actual = 150 references = 150 unique`, missing/stale/duplicate `0`.
+- Implementation roadmap: `19` stages; `19 × 14` required fields present (including singular `Decision gate` in
+  U7); direct dependency registry `19/19`, cycle `0`, unknown dependency `0`, topological coverage `19/19`.
+- Absent optional launch nodes remain `U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`; U10 additionally names deferred
+  `MGMT-02` among registry-only launch-absence surfaces.
+- Residual product areas: exactly `5`, matching the list above.
+- Initiative local Markdown links: `47`, missing `0`.
+- Focused adjacent contradiction search found no active `white_label_ready`, conditional directory requirement,
+  launch organization queue/assistant drawer, or PLAT patient-repair destination outside preserved audit history and
+  current-state inventory evidence.
+- `git diff --check`: PASS before this log record; rerun required after it.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run because this is a docs-only correction.
+
+### Residuals carried to full re-audit
+
+- The five product areas above intentionally remain unresolved; correction must not fill them.
+- Existing current-state inventory still documents the rejected merge/name-match pages as evidence of what must be
+  retired/reclassified. It is not target authorization.
+- No UX stage is accepted or independently PASS until the next full re-audit checks the whole corrected canon.
+
+**НАШЁЛ:** all four FAIL-02 blockers were active wording/topology residues, not a need for another patient-repair
+product, clinic role implementation, directory branch or brand tier.
+
+**ИЗМЕНИЛ:** corrected the existing canonical sources in one integrated pass, preserved the `57/57` and `150/150`
+denominators and the solo-first DAG, and left the initiative waiting for a full independent re-audit.
+
+## 2026-07-16 — Full independent owner-rulings re-audit after convergence-02
+
+- **Run ID:** `SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`.
+- **Input correction:** `SAAS-UX-OWNER-RULINGS-CONVERGENCE-20260716-799-02`.
+- **Scope:** owner message → dated rulings → requirements/operating model/journeys/branding → role matrix/IA/screen
+  composition/routes → all 19 implementation stages, DAG, final acceptance and historical-audit banners.
+- **Verdict:** **PASS**. The corrected canon traces all twelve owner outcomes without adding clinic-only launch work,
+  patient-level global-admin intervention or an unapproved branding/app promise.
+- **Runtime boundary:** documentation only. No application/schema/DB/runtime/DEV/TEST/PROD/delivery/deploy action,
+  commit or push was performed.
+
+### Full 12/12 semantic trace
+
+| Owner outcome | Full re-audit result |
+|---|---|
+| UX08-01 — one organization card; visit-based visibility; own events by default; authorized all/specialist filters; no primary specialist | **PASS:** requirements, operating model, role matrix, CLIN-02/03/04 and U5B preserve permission-before-filter and record-class boundaries. |
+| UX08-02 — no handoff/care-team/accept-reject/cross-org lifecycle; another specialist becomes related through an ordinary visit | **PASS:** no launch state machine or navigation exists; CLIN-05/U5C are absent future reservations and do not block U10. |
+| UX08-03 — no assistant/receptionist at launch; future grants open | **PASS:** OPS IDs remain registry-only; no launch principal, route, drawer, Team flow or acceptance dependency is introduced. |
+| UX08-04 — one login, distinct management/clinical surfaces; menu page or switch is implementation choice | **PASS:** MGMT/CLIN capability separation is explicit and no-binding owner/admin cannot enter clinical work. |
+| UX08-05 — platform app last active org + visible switcher/chooser; future org app pinned | **PASS:** resolver, journeys, PAT-01/02 and U5A agree; PWA/APK/native remains unselected. |
+| UX08-06 — landing + published organization profile + booking + join; directory later | **PASS:** PUB-06 is absent from launch navigation and U6A/U6B/U10; no conditional directory blocker remains. |
+| UX08-07 — branding depth/platform visibility unresolved; no deep-rebrand promise | **PASS:** active resolver uses neutral `organization_presentation_ready`; no `white_label_ready` or promise to hide BersonCare remains. |
+| UX08-08 — future organization-specific domain/auth/app direction, not initial release | **PASS:** U8A/U8B are absent optional stages; feasibility, technology, order and timing remain open. |
+| UX08-09 — configured custom provider never falls back to platform sender; retry only within TTL, then expire; owner alert | **PASS:** email/SMS sender contracts and U8C preserve no-fallback/TTL/alert behavior; exact values remain open. |
+| UX08-10 — global admin gets aggregate/org/platform diagnostics only, never patient browse/merge/repair | **PASS:** PLAT-08/09 and U9 exclude patient lists, profile lookup, merge, name-match review, session and record mutation; old pages are retire/reclassify only. |
+| UX08-11 — staff creates card + scheduled/walk-in visit before optional portal activation | **PASS:** J3/PIN, CLIN-02/03 and U3B separate relationship, delivery, verified identity and portal linking. |
+| UX08-12 — current solo chat unchanged; future clinic topology configurable and deferred | **PASS:** PAT-05/CLIN-07 preserve current solo behavior; U5D/OPS-04 are absent future reservations with no queue/routing model selected. |
+
+### Cross-contract and mechanical evidence
+
+- Owner ruling headings: `12/12`, unique. Residual product areas: exactly `5`.
+- Canonical target registry/composition: `57/57`; the only additional IA references are explicitly non-canonical
+  `OPS-05` and `ORG-PUB-04` aliases; missing/extra canonical compositions `0`.
+- Current route allocation: `150 actual = 150 references = 150 unique`; missing/stale/duplicate `0`.
+- Implementation roadmap: `19` stages × `14` required contract fields = `266/266`; normative DAG `19/19`, unknown
+  dependencies `0`, cycle `0`, topological coverage `19/19`.
+- Initial-release DAG excludes optional `U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`; U10 explicitly accepts deferred
+  `PUB-06`, `MGMT-02`, `CLIN-05`, `OPS-01…04` and U8 surfaces by absence, not implementation.
+- Initiative Markdown local links: `47`, missing `0`.
+- Focused contradiction search found no active patient-repair PLAT destination, assistant/team launch destination,
+  clinic message queue, conditional directory launch gate or `white_label_ready`. Matches in dated alternatives,
+  current-state inventories and pre-ruling audit/prototype records are explicitly historical/superseded.
+- Post-edit validation rerun: `git diff --check` PASS; `12/12`, `57/57`, `150/150`, `19 × 14`, DAG `19/19`
+  acyclic, and `47` local links with missing `0` all remained green after status/log edits.
+- Merge base with `origin/feat/doctor-ui-rebuild`: `9a0d5da413fba50cdbbe9243081badc32a4618bd`; integration branch is
+  eight commits ahead. `AGENTS.md`, `CLAUDE.md`, `docs/AGENT_AUTORUN_SCHEME.md` and
+  `docs/ORCHESTRATION_BINDINGS.md` have no work3 delta from the shared merge base.
+- App tests, lint, typecheck, build, DB smoke and full CI were not run because this pass is documentation-only.
+
+### Status updates made after PASS
+
+Only the existing status surfaces were updated:
+
+- `OWNER_RULINGS_2026-07-16.md`
+- `OWNER_DECISION_PACKET.md`
+- `README.md`
+- `ROADMAP.md`
+- `IMPLEMENTATION_ROADMAP.md`
+- `LOG.md`
+
+Historical UX-03…07/09 audit and prototype records remain source-bound/superseded; their old PASS bodies were not
+rewritten into current evidence. Implementation remains not started.
+
+### Intentionally open — exactly five areas
+
+1. plain-language paid organization-brand depth and BersonCare visibility;
+2. organization-specific app/custom-origin feasibility, PWA/APK/native technology, order and timing;
+3. custom-provider retry cadence, TTL, attempt and retention values;
+4. future assistant/receptionist grants;
+5. future clinic communication topology.
+
+**НАШЁЛ:** convergence-02 closed all four FAIL-02 blockers across the full current contract. No new blocker or
+adjacent semantic drift was found; the five unresolved areas remain correctly deferred and do not block solo launch.
+
+**ИЗМЕНИЛ:** appended this full independent PASS record and promoted only the five existing current-status documents
+listed above from `awaiting audit` to independently audited. No product semantics, application/runtime state,
+historical audit verdict, commit or push was changed.

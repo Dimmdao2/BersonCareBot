@@ -1,5 +1,10 @@
 # UX-06 — Independent full-coverage audit
 
+**Historical pre-ruling notice (2026-07-16):** этот PASS предшествует
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
+неизменившейся части прежнего scope, но **superseded for current normative acceptance** и не подтверждает
+интеграцию новых owner outcomes. Текущий канон ожидает полный re-audit.
+
 **Дата:** 2026-07-15  
 **Финальный вердикт:** **PASS after integrated correction and full independent re-audit.**  
 **Scope:** `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md` целиком против UX-01…05,

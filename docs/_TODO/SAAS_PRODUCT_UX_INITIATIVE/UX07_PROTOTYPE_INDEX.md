@@ -1,9 +1,9 @@
 # UX-07 — Scenario prototype index
 
-**Статус:** **PASS; UX-07 complete.** Full independent two-reviewer re-audit granted visual/usability seals #1 and
-#2 on source `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and evidence batch
-`2026-07-15T21-03-18Z`. Канонический phase verdict:
-[`UX07_INDEPENDENT_AUDIT.md`](./UX07_INDEPENDENT_AUDIT.md) §§11–13.
+**Статус:** historical pre-ruling prototype. The earlier two-reviewer PASS/seals remain source-bound evidence for
+`929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657`, but are superseded for current normative
+acceptance by [`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Current contract awaits re-audit;
+the prototype must not be read as launch scope for clinic/assistant/transfer/deep-brand branches.
 **Прототип:** [`ux07-prototype/index.html`](./ux07-prototype/index.html).  
 **Scope:** self-contained low-fidelity task/recovery prototype; application routes, API, DB and delivery are not
 changed.
@@ -33,14 +33,14 @@ changed.
 | Scenario | State trace | Canonical destination trace | Labelled recovery / boundary |
 |---|---|---|---|
 | Specialist landing → signup → owner first-run | `ACQ-01…05` | `PUB-01 → PUB-03 → MGMT-01 / ACC-02 → CLIN-01` | validation, OTP resend, retry, binding pending, security recovery |
-| Clinic staff invite | `STF-01…08`, `ERR-02/05/06/07` | `MGMT-02 → ORG-PUB-03 / PUB-04 → ACC-02 → CLIN-01` | wrong account, expired, other-org conflict, seat/plan block |
+| Historical clinic staff invite | `STF-01…08`, `ERR-02/05/06/07` | Future-reserved MGMT-02/join/account trace | Pre-ruling evidence only; absent from initial solo release |
 | Patient email invite → install → push | `PIN-01…09`, `ERR-04/05/07` | `CLIN-02/03 → ORG-PUB-03 / PUB-04 → PAT-02 → PAT-11` | wrong recipient, replay, installed re-auth, denied/revoked push |
 | SMS fallback | `SMS-01…03` over patient invite | `CLIN-03 → ORG-PUB-03 / PUB-04` | email proof remains required; SMS never elevates auth |
 | Public booking → patient app | `PBK-01…08` | `ORG-PUB-01 → ORG-PUB-02 → PUB-04 → PAT-04` | unavailable publication, no slots, pending review, slot conflict |
 | Returning multi-org patient | `MOR-01…05` | `PUB-04 → PAT-01 → PAT-02` | neutral chooser, explicit context change, foreign/revoked target |
 | Management ↔ clinical | UX-06 validation flow | `MGMT-01 / ACC-02 ↔ CLIN-01` | no mode switch without specialist binding |
 | Brand and custom domain | UX-05 contract states | `MGMT-04 → MGMT-05 → MGMT-06 → ORG-PUB-02` | independent binding degradation and one-way platform fallback |
-| Clinic patient card/history/handoff | UX-06 decision-safe flow | `CLIN-02 → CLIN-03 / CLIN-04 / CLIN-05` | permission-before-filter and no generic/cross-org transfer |
+| Historical clinic card/visit-coordination candidate | Superseded pre-ruling flow | `CLIN-02 → CLIN-03 / CLIN-04 / CLIN-05` | Not launch scope; current contract uses solo card/manual visit and reserves CLIN-05 for future clinic work |
 
 The inventory remains exactly **9 scenarios / 73 states**. `ORG-PUB-04` is only the UX-06 degraded-state alias for
 `ORG-PUB-02`; `ACQ-05` remains a reused first-run state reference, not a parallel screen registry.

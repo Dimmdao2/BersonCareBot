@@ -1,5 +1,10 @@
 # UX-03 — Independent plan-critic audit
 
+**Historical pre-ruling notice (2026-07-16):** этот PASS предшествует
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
+неизменившейся части прежнего scope, но **superseded for current normative acceptance** и не подтверждает
+интеграцию новых owner outcomes. Текущий канон ожидает полный re-audit.
+
 **Дата:** 2026-07-15
 **Вердикт:** **PASS after fixes**
 **Scope:** `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`, UX-03 draft/review, `REQUIREMENTS.md`, `ROADMAP.md`

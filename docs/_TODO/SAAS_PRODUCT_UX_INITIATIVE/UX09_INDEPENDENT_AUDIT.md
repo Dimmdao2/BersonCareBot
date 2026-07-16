@@ -1,5 +1,10 @@
 # UX-09 — independent implementation-roadmap audit
 
+**Historical pre-ruling notice (2026-07-16):** этот PASS предшествует
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
+pre-ruling roadmap, но **superseded for current normative acceptance** и не подтверждает интеграцию новых owner
+outcomes. Текущий roadmap ожидает полный re-audit.
+
 **Дата:** 2026-07-16
 **Первичный вердикт:** **FAIL — требовалась одна integrated correction всего roadmap.**
 **Текущий re-audit:** **PASS — полный повторный проход после source-fix подтвердил F1–F5 и весь UX-09 checklist.**

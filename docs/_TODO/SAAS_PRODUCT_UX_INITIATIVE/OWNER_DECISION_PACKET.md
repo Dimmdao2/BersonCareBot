@@ -1,18 +1,26 @@
 # UX-08 — решения владельца по будущему интерфейсу
 
-**Статус:** full independent UX-09 re-audit PASS; packet decision-ready, все owner rulings остаются `pending`.
-**Дата проверки:** 2026-07-16.  
+**Статус:** ответы владельца от 2026-07-16 интегрированы и подтверждены полным независимым аудитом
+`SAAS-UX-OWNER-RULINGS-REAUDIT-20260716-799-FULL-03`. Исходные варианты сохранены ниже как история постановки, а
+действующий результат каждого пункта указан отдельно.
+**Дата решения:** 2026-07-16.
 **Назначение:** только продуктовые развилки, которые заметно меняют доступ, рабочую модель или объём будущего
 публичного SaaS-релиза. Ответ на этот пакет не разрешает deploy и не меняет TEST-only execution scope.
 
 ## Как читать пакет
 
-- `Owner ruling: none` означает, что конкретный выбор ещё не сделан. Ссылка `Основание` объясняет, откуда возник
-  вопрос, и не выдаёт это основание за ответ владельца.
-- `Рекомендация` — позиция планировщика. `Временная безопасная граница` — то, что можно условно заложить в UX-09 без
+- Действующий provenance всех результатов: ответ владельца в текущем чате 2026-07-16 и
+  [`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md).
+- `Рекомендация` — позиция планировщика. `Историческая безопасная граница до решения (superseded)` — то, что можно условно заложить в UX-09 без
   фиксации целевой политики. Это разные вещи.
-- После ответа выбранный вариант переносится в dated owner-rulings file с точным источником и датой. До этого все
-  двенадцать пунктов остаются `pending`.
+- Исторические `Рекомендация` и `Историческая безопасная граница до решения (superseded)` не заменяют новое решение. Tentative future language
+  владельца остаётся deferred, а не превращается в freeze.
+
+## Общая граница запуска — решение владельца
+
+Initial product focus — solo specialist. Multi-specialist clinic, assistant/reception и сложная clinic communication
+остаются future architecture-compatible capabilities и не входят в launch scope. Clinic path не должен задерживать
+выход текущего продукта.
 
 ## Что уже не спрашивается
 
@@ -54,7 +62,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-01 — карточка пациента и история внутри клиники
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** вариант 1 с уточнением: видимость пациента у специалиста появляется через фактический или
+  запланированный визит/клиническую связь. По умолчанию видны его события; всю разрешённую историю организации и
+  фильтр другого специалиста можно открыть по праву. Никакого primary specialist не вводится.
 - **Основание, не ответ:** сводит OM-4/OM-5; исходный owner addendum в `REQUIREMENTS.md` §3.4; обязательность
   фильтра — `OWNER_RULINGS_2026-07-15.md` §7; candidates — `OPERATING_MODEL.md` §6.
 - **Вопрос:** какую общую картину пациента должен видеть специалист клиники?
@@ -67,7 +78,7 @@ origins и устанавливаемые приложения вообще по
   3. Отдельная карточка у каждого специалиста; общая история существует как отдельный clinic-wide режим.
 - **Рекомендация планировщика:** вариант 1 — цельная история без перегрузки ежедневного режима и без обещания
   доступа к ограниченным записям.
-- **Временная безопасная граница:** проектировать общий card shell, но показывать только own/assigned operational
+- **Историческая безопасная граница до решения (superseded):** проектировать общий card shell, но показывать только own/assigned operational
   scope и собственные/разрешённые события; не фиксировать shared-history access и не создавать per-specialist route
   tree до ответа.
 - **Последствия:** patient roster, card/timeline, record-class visibility, search/count/direct read/export parity,
@@ -77,7 +88,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-02 — что запускаем как «передачу пациента»
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `rejected premise`.
+- **Решение владельца:** варианты 1–3 отвергнуты. Сейчас «передать» означает записать пациента на визит к другому
+  специалисту; связь этого визита делает пациента видимым новому специалисту. Нет primary/care team, accept/reject,
+  отдельного handoff lifecycle или cross-organization transfer.
 - **Основание, не ответ:** сводит OM-6/OM-7; owner addendum в `REQUIREMENTS.md` §3.4; четыре разные semantics —
   `OPERATING_MODEL.md` §7.
 - **Вопрос:** какой набор same-organization действий нужен в первой версии и требуется ли подтверждение получателя?
@@ -88,7 +102,7 @@ origins и устанавливаемые приложения вообще по
   3. Уполномоченный owner/admin меняет primary specialist сразу; остальные collaboration mechanics позже.
 - **Рекомендация планировщика:** вариант 1; admin override — отдельное аудируемое исключение. История/авторство не
   переписываются, дальнейшая видимость бывшего специалиста следует обычной policy пункта 01.
-- **Временная безопасная граница:** не показывать общую кнопку `Передать пациента`; разрешать только уже
+- **Историческая безопасная граница до решения (superseded):** не показывать общую кнопку `Передать пациента`; разрешать только уже
   определённые actions конкретного визита/задачи. Cross-org workflow отсутствует.
 - **Последствия:** collaboration UI, request lifecycle, accept/reject/cancel, notification ownership, deactivation
   preflight/recovery и post-handoff visibility.
@@ -97,7 +111,9 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-03 — рабочая зона ассистента
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** assistant/receptionist отсутствует в initial release. Роль можно заложить архитектурно для
+  будущего платного/configurable clinic product; точные grants не выбраны и не являются launch blocker.
 - **Основание, не ответ:** сводит OM-2; роль зафиксирована в `REQUIREMENTS.md` §2; unresolved baseline —
   `OPERATING_MODEL.md` §4.
 - **Вопрос:** какие повседневные задачи ассистент выполняет в первой версии?
@@ -107,7 +123,7 @@ origins и устанавливаемые приложения вообще по
   2. Узкий режим: расписание, intake и приглашения.
   3. Настраиваемые permission templates, включая ограниченное чтение явно выбранных частей истории.
 - **Рекомендация планировщика:** вариант 1 как полезный bounded operations baseline; custom templates — позже.
-- **Временная безопасная граница:** только отдельно выданные schedule/intake/contact/invite actions; clinical read,
+- **Историческая безопасная граница до решения (superseded):** только отдельно выданные schedule/intake/contact/invite actions; clinical read,
   export и write запрещены, OPS-04 отсутствует без явного grant.
 - **Последствия:** first workspace, navigation, staff-invite role summary, queues, payment/contact widgets и permission
   setup.
@@ -116,7 +132,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-04 — навигация owner/admin, который также работает специалистом
 
-- **Статус:** `pending`. **Owner ruling:** none for the UI choice.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** один login и отдельная понятная management surface. На старте это может быть простая
+  страница/раздел меню; switch `Работа / Управление` допустим, если нужен. Точная композиция — implementation choice,
+  не новый product gate.
 - **Основание, не ответ:** сводит OM-1; владелец подтвердил dual role и назвал допустимыми несколько UI-подходов,
   но не выбрал один — `OWNER_RULINGS_2026-07-15.md` §17; candidate — `OPERATING_MODEL.md` §3.
 - **Вопрос:** как переключаться между клинической работой и управлением организацией?
@@ -125,7 +144,7 @@ origins и устанавливаемые приложения вообще по
   2. Одно общее меню с двумя хорошо различимыми группами.
   3. Два entrypoint/cabinet shell под одной авторизацией.
 - **Рекомендация планировщика:** вариант 1 — контексты различимы без повторного входа.
-- **Временная безопасная граница:** планировать management и clinical destinations как независимые capability-gated
+- **Историческая безопасная граница до решения (superseded):** планировать management и clinical destinations как независимые capability-gated
   surfaces и не замораживать общий shell; prototype option 1 остаётся candidate. У owner/admin без specialist binding
   clinical entry отсутствует.
 - **Последствия:** desktop/mobile navigation, default destination, breadcrumbs, deep links и route restoration.
@@ -134,7 +153,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-05 — старт пациента с несколькими организациями
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** вариант 1 для platform app: последняя доступная организация + заметный switcher; без
+  валидного выбора — chooser. Будущее branded/custom-origin приложение закреплено за одной организацией без
+  switcher; оно может сосуществовать с platform app. PWA/APK/native не выбраны.
 - **Основание, не ответ:** сводит OM-3; multi-org UX входит в исходную задачу — `REQUIREMENTS.md` §§1, 3.5;
   candidate — `OPERATING_MODEL.md` §5.
 - **Вопрос:** что открывать при neutral login/launch пациента с несколькими active enrollments?
@@ -144,7 +166,7 @@ origins и устанавливаемые приложения вообще по
   3. Neutral organization overview без объединения clinical data, затем вход в выбранную.
 - **Рекомендация планировщика:** вариант 1; без валидной preference — chooser. Verified invite/booking/deep link
   открывает только свой разрешённый context и явно сообщает о смене.
-- **Временная безопасная граница:** chooser при любой неоднозначности; remembered/revoked relationship не выбирается
+- **Историческая безопасная граница до решения (superseded):** chooser при любой неоднозначности; remembered/revoked relationship не выбирается
   молча и не подменяется другой организацией.
 - **Последствия:** patient home, first installed launch, switcher, push/deep-link recovery и brand context.
 - **Экраны / эпики:** `PAT-01`, `PAT-02`, `MOR-01…05`; patient-context resolver/switcher epic.
@@ -152,7 +174,8 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-06 — публичные поверхности будущего SaaS-релиза
 
-- **Статус:** `pending`. **Owner ruling:** none for release timing/scope.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** вариант 1: platform landing, organization profiles, booking и join; общий directory позже.
 - **Основание, не ответ:** сводит BD-6; platform/org public needs — `REQUIREMENTS.md` §§3.1–3.2; допустимость
   отдельного public directory — `OWNER_RULINGS_2026-07-15.md` §12. Текущий execution остаётся TEST-only по §9–10.
 - **Вопрос:** какие public surfaces должны войти в первую будущую публичную версию?
@@ -162,7 +185,7 @@ origins и устанавливаемые приложения вообще по
   3. Только platform landing и direct booking/join links; organization profiles и directory позже.
 - **Рекомендация планировщика:** вариант 1 — организация уже получает собственную acquisition surface, а release не
   зависит от качества общего directory.
-- **Временная безопасная граница:** UX-09 разделяет landing, profile/projection, booking/join и directory на
+- **Историческая безопасная граница до решения (superseded):** UX-09 разделяет landing, profile/projection, booking/join и directory на
   независимые epics; `PUB-06` не попадает в базовую navigation и никакой публичный rollout не предполагается без
   отдельного разрешения.
 - **Последствия:** landing navigation, publication workflow, SEO/content operations, catalog quality и release gates.
@@ -171,7 +194,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-07 — граница organization branding и paid white-label
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `explicitly deferred`.
+- **Решение владельца:** варианты не выбраны, потому что терминология была непонятна. Известно: BersonCare —
+  personal/platform brand владельца; платный organization branding/custom-domain product предполагается позже.
+  Видимость platform brand и rebranding staff workspace надо переформулировать простым языком.
 - **Основание, не ответ:** branding входит в исходную задачу — `REQUIREMENTS.md` §§1, 4; pending BD-1/BD-4 —
   `BRANDING_DOMAIN_CONTRACT.md` §12.
 - **Вопрос:** насколько paid white-label скрывает platform brand и распространяется ли он на staff workspace?
@@ -181,7 +207,7 @@ origins и устанавливаемые приложения вообще по
   2. Organization-first presentation распространяется и на staff workspace; platform остаётся в legal/security/help.
   3. В первой версии только logo/colors/contacts организации без обещания true white-label.
 - **Рекомендация планировщика:** вариант 1 — глубокая client-facing identity при стабильном supportable staff app.
-- **Временная безопасная граница:** P/O presentation only: platform trust anchor + core organization context; W
+- **Историческая безопасная граница до решения (superseded):** P/O presentation only: platform trust anchor + core organization context; W
   visuals и скрытие platform chrome не обещаются.
 - **Последствия:** tariff promise, public/patient/staff shells, legal/support copy, design/QA matrix и brand resolver.
 - **Экраны / эпики:** W-variants `PUB/ORG-PUB/PAT/MGMT/ACC`, `MGMT-04`; branding/presentation epic.
@@ -189,7 +215,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-08 — custom domain и отдельное устанавливаемое приложение
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved future deferred`.
+- **Решение владельца:** целевое будущее ближе к варианту 3: собственный domain включает entry/auth и
+  organization-specific installed/mobile experience. Не initial release: сначала platform/unbranded product.
+  PWA/APK/native iOS, effort и сроки требуют feasibility study.
 - **Основание, не ответ:** domain/PWA входят в исходную задачу — `REQUIREMENTS.md` §§1, 4; architecture direction —
   `SAAS_FOUNDATION/00_DECISIONS_AND_SCHEMA.md` D6; pending BD-2/BD-5 — `BRANDING_DOMAIN_CONTRACT.md` §12.
 - **Вопрос:** какие surfaces работают на custom domain в первой версии и нужен ли сразу отдельный org PWA brand?
@@ -199,7 +228,7 @@ origins и устанавливаемые приложения вообще по
   3. Full per-origin white-label: auth и отдельный patient PWA с собственными name/icon/install/push.
 - **Рекомендация планировщика:** вариант 1; auth и per-origin PWA — отдельные readiness stages после устойчивых
   public bindings.
-- **Временная безопасная граница:** canonical platform URLs и стабильные platform patient/staff PWA для всех
+- **Историческая безопасная граница до решения (superseded):** canonical platform URLs и стабильные platform patient/staff PWA для всех
   surfaces; custom-domain/auth/W-PWA epics остаются выключенными и условными.
 - **Последствия:** manifest/install/push, session handoff, origin/cookie/CSRF/OAuth QA, support и стоимость release.
 - **Экраны / эпики:** `MGMT-05`, `PAT-11`, `ACC-04`, W auth/join/public bindings; domain-base, surface-binding,
@@ -208,7 +237,11 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-09 — поведение при отказе custom email/SMS sender
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** вариант 2 с дополнениями. Если custom provider настроен, platform sender не используется
+  для сообщений пользователям. Retry идёт только через custom provider в пределах TTL; expired сообщения не
+  отправляются. Периодические operational alerts идут на account email solo specialist/clinic owner. Точные
+  retry/TTL/retention значения определяются позже.
 - **Основание, не ответ:** коммерческая fallback/hold policy осталась открытой в `BRANDING_DOMAIN_CONTRACT.md`
   §7.1/BD-3. DNS/provider readiness и запрет spoofing уже являются engineering/security invariants и не спрашиваются.
 - **Вопрос:** можно ли использовать verified platform sender, когда sender организации недоступен?
@@ -218,7 +251,7 @@ origins и устанавливаемые приложения вообще по
   2. Все сообщения удерживаются до восстановления custom sender.
   3. Все допустимые classes, включая marketing, переходят на platform sender с org attribution.
 - **Рекомендация планировщика:** вариант 1 — activation/security delivery сохраняется без ложного branded sender.
-- **Временная безопасная граница:** при неизвестном message class ничего не отправлять; verified platform fallback
+- **Историческая безопасная граница до решения (superseded):** при неизвестном message class ничего не отправлять; verified platform fallback
   разрешать только для заранее классифицированных mandatory account/security transactions, custom-only/marketing
   удерживать. Sender identity никогда не подделывать.
 - **Последствия:** contractual white-label promise, delivery policy, sender health, templates, recovery и audit.
@@ -227,7 +260,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-10 — patient-level support workflow platform admin
 
-- **Статус:** `pending`. **Owner ruling:** none for the product UI.
+- **Статус:** `rejected premise`.
+- **Решение владельца:** patient-level browsing/session/repair для global admin не создаётся. Global admin получает
+  aggregate/org/platform diagnostics и support reports. Patient data исправляют авторизованные patient/doctor через
+  продуктовый UI; platform team исправляет system/code defects, а не records пациента.
 - **Основание, не ответ:** owner has platform-wide DB authority, но patient behavior не относится к ordinary SaaS
   analytics — `OWNER_RULINGS_2026-07-15.md` §5; product surface remains open in `OPERATING_MODEL.md` §3/§9.
 - **Вопрос:** нужен ли в первой версии отдельный интерфейс patient-level support intervention?
@@ -237,7 +273,7 @@ origins и устанавливаемые приложения вообще по
   3. Такой session + отдельно подтверждаемые repair actions над разрешёнными patient objects.
 - **Рекомендация планировщика:** вариант 1; read-only session — отдельный последующий epic, write repair — только по
   доказанной support-потребности.
-- **Временная безопасная граница:** не создавать patient-level browsing/session; оставить только уже существующие
+- **Историческая безопасная граница до решения (superseded):** не создавать patient-level browsing/session; оставить только уже существующие
   aggregate/org diagnostics. Новые repair actions также требуют отдельного object contract.
 - **Последствия:** `PLAT-09`, support training, purpose/audit UX, escalation and repair ownership.
 - **Экраны / эпики:** `PLAT-07…09`; platform support-intervention epic.
@@ -245,7 +281,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-11 — когда появляется relationship пациента при приглашении персоналом
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `rejected premise`.
+- **Решение владельца:** staff сразу может создать patient card/relationship и appointment/visit по имени, телефону
+  и необязательному email; walk-in card+visit создаётся без booking. Portal activation отдельно связывает verified
+  email/phone identity с существующей карточкой/программой. Self-booking — дополнительный, не обязательный entry.
 - **Основание, не ответ:** literal question in `REQUIREMENTS.md` §5 and carried UX-04 decision in
   `ENTRY_AND_INVITE_JOURNEYS.md` §§7, 13. Security contract already requires that delivery and an unproved invite do
   not masquerade as accepted identity or portal access; it does not choose the staff-side business lifecycle.
@@ -258,7 +297,7 @@ origins и устанавливаемые приложения вообще по
   3. No patient relationship before acceptance; staff sees only a pending invite/contact record until activation.
 - **Рекомендация планировщика:** вариант 1 — staff can track intake without turning message delivery into portal
   identity or hiding the activation boundary.
-- **Временная безопасная граница:** persist only an explicit intent/pending portal state; no active portal access,
+- **Историческая безопасная граница до решения (superseded):** persist only an explicit intent/pending portal state; no active portal access,
   clinical disclosure or `activated` status before recipient proof. An already authorized manual enrollment remains
   a separately named lifecycle, not an invite side effect.
 - **Последствия:** staff roster labels, manual patient creation, duplicate resolution, invite idempotency, booking
@@ -269,7 +308,10 @@ origins и устанавливаемые приложения вообще по
 
 ### UX08-12 — структура коммуникаций пациента с организацией
 
-- **Статус:** `pending`. **Owner ruling:** none.
+- **Статус:** `resolved launch`.
+- **Решение владельца:** launch сохраняет текущий solo-specialist chat без изменений. Clinic topology остаётся
+  future/configurable: per-specialist, receptionist/assistant routing или owner routing. Сейчас её не freeze и не
+  реализовывать.
 - **Основание, не ответ:** literal open choice in `REQUIREMENTS.md` §5. `OPERATING_MODEL.md` fixes organization as
   care context and truthful author/recipient attribution, but no owner ruling chooses one organization chat,
   specialist chats or explicit threads.
@@ -281,7 +323,7 @@ origins и устанавливаемые приложения вообще по
   3. Separate patient↔specialist conversations; organization operations messages remain a distinct channel.
 - **Рекомендация планировщика:** вариант 1 — organization context stays stable while clinical and operational
   conversations remain attributable and routable.
-- **Временная безопасная граница:** keep existing explicitly authorized message objects only; every visible message
+- **Историческая безопасная граница до решения (superseded):** keep existing explicitly authorized message objects only; every visible message
   must show organization, author and reply target. Do not add an organization-wide unified inbox, cross-specialist
   visibility or a new thread model before the ruling/data contract.
 - **Последствия:** `PAT-05`, `CLIN-07`, `OPS-04`, unread counts, notification routing, private/clinical visibility,
@@ -292,41 +334,39 @@ origins и устанавливаемые приложения вообще по
 
 ## Полная сверка upstream-решений
 
-Эта таблица не добавляет скрытых rulings. Она закрывает literal open items из `REQUIREMENTS.md` и UX-03…05 ровно
-одним provenance outcome: существующее решение, invariant, recommendation + safe default или pending owner gate.
+Эта таблица не добавляет скрытых rulings. Она классифицирует literal items из `REQUIREMENTS.md` и UX-03…05 как
+dated outcome, invariant, implementation policy или один из пяти реальных deferred sub-decisions.
 
 | Upstream choice | Классификация и источник | Execution consequence |
 |---|---|---|
 | Один onboarding с развилкой solo/clinic или отдельные CTA | Planner recommendation + safe default: one account flow with optional practice-shape composition; `ENTRY_AND_INVITE_JOURNEYS.md` §5 | U3S implements one identity/tenant path; copy/branch can be tested without a second account model |
 | Signup result, owner membership, specialist binding and first-run | Architecture/security contract: `OPERATING_MODEL.md` §2; `ENTRY_AND_INVITE_JOURNEYS.md` §5 | U3S must close deferred binding, secure retry/session and first-run security before clinical actor success |
 | Solo specialist vs clinic specialist composition | Existing owner requirement + approved operating invariant: one organization/account and shared components, but solo omits meaningless team/filter chrome while clinic exposes only capable collaboration/history controls; `REQUIREMENTS.md` §3.4, `OPERATING_MODEL.md` §3 | U2/U5 stages use capability/composition variants, never parallel solo/clinic route trees |
-| Assistant scope | Pending owner gate `UX08-03`; OM-2 | Safe bounded explicit operations only |
-| Dual-role owner/admin navigation | Pending owner gate `UX08-04`; OM-1 | Separate guarded destinations until shell choice |
-| Card, `Мои`, shared history and private classes | Pending owner gate `UX08-01`; OM-4/5 | Common shell + own/assigned safe subset only |
-| Handoff primitives, acceptance and former-specialist visibility | Pending owner gate `UX08-02`; OM-6/7 | No generic transfer/cross-org workflow |
-| Patient neutral multi-org start and archived relationships | Pending owner gate `UX08-05`; OM-3 | Chooser on ambiguity; verified target only |
-| Communication topology | Pending owner gate `UX08-12`; `REQUIREMENTS.md` §5 | Existing authorized messages + explicit attribution only |
+| Assistant scope | Owner ruling: absent from initial release; future grants unresolved | No OPS launch surface; future clinic plan only |
+| Dual-role owner/admin navigation | Owner ruling: one login, distinct management surface | Simple page/menu first; switch is implementation choice |
+| Card, `Мои`, shared history and private classes | Owner ruling: one card, visit relation, own events default, authorized history on demand | U5B; private classes still enforced |
+| Rejected transfer hierarchy/acceptance premise | Rejected premise | No lifecycle; future clinic may only use an ordinary appointment concept |
+| Patient neutral multi-org start | Owner ruling: last active + visible switcher; invalid preference → chooser | U5A platform app; org-specific app pinned later |
+| Communication topology | Owner ruling: current solo chat at launch; clinic future configurable | No new clinic topology in launch |
 | Entitlement packaging/degradation | Existing owner ruling on configurable mechanics plus architecture invariant capability-before-entitlement: `OWNER_RULINGS_2026-07-15.md` §3; OM-8 | Per-mechanic lifecycle is implementation contract; no new bundle-wide yes/no gate |
 | Owner vs delegated admin and non-clinical access | Existing least-privilege role contract: owner-only irreversible account/ownership actions; explicit delegated grants; no clinical authorship from management role, `ROLE_CAPABILITY_MATRIX.md` §2 and `UX03_CAPABILITY_ARCH_REVIEW.md` §§3.2–3.3 | U1/U2 capability presets and denial parity; exact grants remain configuration, not a reconstructed owner ruling |
-| Cross-organization patient transfer | Covered by `UX08-02` launch boundary plus planner recommendation/safe default to exclude cross-org copy/share until consent, retention and destination contract exist; `OPERATING_MODEL.md` §7 | U5C implements no cross-org re-parent; any future transfer is a separate owner-approved epic |
+| Cross-organization patient transfer | Rejected as part of current transfer premise | No current workflow or U5C state machine |
 | Staff 2FA factors/roles/grace/step-up | Architecture/security invariant + source: complete factor enrollment, verification, recovery and session revocation are mandatory; exact factor/role/grace is resolved by a reviewed security-architecture contract, `ENTRY_AND_INVITE_JOURNEYS.md` §§5–6 | U3S/U3A cannot claim completion before that contract; until freeze high-risk owner actions fail closed |
 | Invite TTL/resend timing and terminal replay | Engineering/security invariant: `ENTRY_AND_INVITE_JOURNEYS.md` §§2–3, 11 | Configurable/rate-limited timing; fresh token/invite, immutable attempts and exactly-once are mandatory |
 | Additive patient+staff persona wording/support | Architecture/security invariant: no overwrite; UX copy is planner-owned recovery, `ENTRY_AND_INVITE_JOURNEYS.md` §§2, 13 | Fail closed until sanctioned additive-persona path; no owner product choice is invented |
-| Enrollment at send versus accept | Pending owner gate `UX08-11`; `ENTRY_AND_INVITE_JOURNEYS.md` §§7, 13 | Pending-intent safe subset only before ruling |
+| Staff patient creation vs portal activation | Owner ruling: card/relationship + scheduled/walk-in visit first; verified portal identity links later | U3B named implementation scope; delivery is not proof/access |
 | SMS-only activation | Planner recommendation + safe default: out of launch; `ENTRY_AND_INVITE_JOURNEYS.md` §8 | SMS remains transport-only; phone-only identity needs a separately funded trust/security contract |
 | Booking activation channel when phone+email exist | Planner recommendation + safe default: strongest already trusted channel, no silent identity merge; `ENTRY_AND_INVITE_JOURNEYS.md` §9 | U3B preserves booking and routes ambiguity to recovery; channel selection remains policy-configurable after proof |
 | Invite expiry/wrong-recipient/replay behavior | Engineering/security invariant: `ENTRY_AND_INVITE_JOURNEYS.md` §11 | No mutation from terminal/wrong-recipient token; support/resend creates a fresh lifecycle |
-| Public scope/directory | Pending owner gate `UX08-06`; BD-6 | Independent epics; no directory/rollout by default |
-| Brand depth/platform disclosure/staff W | Pending owner gates `UX08-07`; BD-1/4 | P/O trust anchor only |
-| Custom-domain/auth/PWA surfaces and manifest identity | Pending owner gate `UX08-08`; BD-2/5 | Canonical platform origins/manifests only |
-| Sender identity and degraded fallback/hold | Authenticated sender readiness is engineering invariant; commercial fallback is pending `UX08-09`; BD-3 | Never spoof; unknown/custom-only class holds |
-| Platform patient support intervention | Pending owner gate `UX08-10` | Aggregate/org diagnostics only |
+| Public scope/directory | Owner ruling: landing/profile/booking/join; directory later | U6A/U6B; no directory in initial nav |
+| Paid brand depth/platform disclosure/staff workspace | Explicitly unresolved in plain language; BersonCare is platform/personal brand | Conservative platform trust anchor until rewritten decision |
+| Custom-domain/auth/installed app | Future direction: org-specific entry/auth/app; timing and PWA/APK/native feasibility deferred | Platform origin/app first; U8A/B future only |
+| Sender identity and degraded policy | Owner ruling: no platform fallback once custom provider configured; TTL retry/expiry + account-owner alerts | U8C future policy exact; no spoof/fallback |
+| Platform patient support intervention | Rejected premise | Aggregate/org/platform diagnostics only; no patient record repair |
 
-## Как ответить
+## Текущий результат
 
-Достаточно написать номера вариантов, например:
-
-`01-1, 02-1, 03-2, 04-1, 05-1, 06-1, 07-1, 08-1, 09-1, 10-1, 11-1, 12-1`
-
-Можно изменить любой вариант своими словами. Пока ответа нет, временные безопасные границы используются только для
-условного планирования и не считаются решениями владельца.
+Ответы перенесены в датированный rulings artifact. Открыты только: понятная paid-brand depth; технология/срок/
+feasibility future org app; точные sender retry/TTL values; future assistant grants; future clinic communication
+topology. Они не являются launch scope. Полный независимый аудит интеграции завершён с **PASS**; эти пять областей
+намеренно остаются открытыми.

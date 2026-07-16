@@ -1,6 +1,8 @@
 # UX-04 — Entry, invite, activation and install journeys
 
-**Статус:** completed as a decision-ready journey contract; full independent re-audit PASS after integrated correction.
+**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit. Предыдущий PASS остаётся
+историческим pre-ruling baseline.
+**Authority:** производный journey contract; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
 **Дата:** 2026-07-15.
 **Scope:** acquisition, trusted entry, identity activation, organization enrollment, first workspace, install и recovery.
 
@@ -11,7 +13,7 @@ journey отдельно указаны:
 
 - подтверждённое текущее поведение;
 - целевой UX-контракт;
-- безопасный default до owner ruling;
+- current owner classification или безопасная граница только для реально оставшегося deferred sub-decision;
 - текущий implementation gap.
 
 Три класса состояния нельзя смешивать:
@@ -123,8 +125,8 @@ user; terminal token сам по себе не выбирает workspace.
 | ID | Journey | Trusted organization source | Итоговая relationship |
 |---|---|---|---|
 | J1 | Solo specialist self-signup | Server-side signup intent | Owner membership + specialist binding |
-| J2 | Clinic staff email invite | Staff invite record created inside current clinic guard | Staff membership, optional specialist binding |
-| J3 | Patient email invite | Patient invite record | Active organization enrollment |
+| J2 | Future clinic staff email invite | Historical current mechanics only; no initial target implementation | Deferred future clinic membership/binding flow |
+| J3 | Staff creates patient/card/visit; optional patient email invite and portal linking | Staff-authorized organization + existing card/visit + invite record | Existing patient relationship linked to verified portal identity |
 | J4 | Patient SMS fallback | The same patient invite record; SMS is transport only | Same enrollment as J3 |
 | J5 | Public booking | Server-resolved published branch/service/slot | Appointment + active enrollment in exact organization |
 | J6 | Returning multi-org patient | Active enrollment or verified target object | Selected active organization context; no new identity |
@@ -144,10 +146,9 @@ user; terminal token сам по себе не выбирает workspace.
 - Password is set before confirmation; session is issued only for the verified canonical staff identity.
 - Organization context comes from the server-side signup intent created with the challenge, not from a later query,
   Host or client-supplied organization id.
-- 2FA is not currently implemented, but full target mechanics are required by owner ruling. Owner first-run includes
-  factor enrollment, verification, recovery-code/alternate recovery setup and acknowledgement. Exact factor,
-  mandatory staff roles, grace and step-up policy remain pending; before those rulings high-risk owner actions use a
-  fail-closed security checkpoint rather than pretending setup succeeded.
+- 2FA is not currently implemented. Owner first-run requires a reviewed security contract for factor enrollment,
+  verification, recovery and session handling. Exact factor/grace/step-up values are security implementation policy,
+  not another UX08 owner gate; high-risk owner actions remain fail-closed until that policy is approved.
 
 ### Records and transaction boundary
 
@@ -206,11 +207,15 @@ staff later grows the same organization.
 
 ## 6. J2 — Clinic owner invites staff by email
 
+**Deferred future journey:** весь раздел сохраняется как pre-ruling candidate analysis. J2 отсутствует в initial
+solo release и не входит в launch DAG/acceptance. Никакие перечисленные ниже роли, grants или first-workspace
+destinations не считаются утверждённым future clinic contract.
+
 ### Trigger, actor and channel
 
 - **Trigger:** owner/admin with explicit team-management capability opens Organization → Team → Invite.
-- **Actor:** inviter is current organization staff; recipient becomes admin, specialist/doctor or assistant according
-  to the approved role matrix.
+- **Actor:** inviter is current organization staff; initial release supports admin/specialist outcomes. Assistant/
+  receptionist is a future clinic capability and has no launch workspace.
 - **Channel:** transactional email is primary. Invite URL is generated from trusted canonical/verified origin.
 
 ### Trust, auth and organization context
@@ -252,7 +257,7 @@ staff later grows the same organization.
    - specialist → clinical Today;
    - admin without binding → organization overview;
    - admin + binding → default surface according to OM-1 ruling;
-   - assistant → bounded operations home after OM-2 ruling.
+   - assistant → not available in initial release.
 
 ### Delivery, recovery and privacy/security
 
@@ -266,8 +271,8 @@ staff later grows the same organization.
 
 ### Open decisions and safe default
 
-- **Decision OM-2:** assistant permissions and first workspace. **Safe default:** no clinical history/write; only
-  separately enforced schedule/intake/contact/invite operations.
+- **Owner ruling:** assistant/receptionist invite and first workspace are outside initial release. Future grants need
+  a separate clinic contract.
 - **Decision:** 2FA factor, mandatory staff roles, grace and step-up frequency. Full mechanics/recovery are not open.
   **Safe default:** fail-closed step-up gate for owner/admin high-risk actions.
 - **Current gap:** current implementation supports `admin | doctor`, seven-day hash-token invite and email OTP, but
@@ -275,11 +280,12 @@ staff later grows the same organization.
   role to `doctor`, does not reject another active staff organization, creates membership with `specialist_id = NULL`,
   then issues a doctor session. Assistant, additive personas, specialist provisioning and 2FA are absent.
 
-## 7. J3 — Specialist invites a patient by email
+## 7. J3 — Staff creates a patient; portal invite/linking is optional and separate
 
 ### Trigger, actor and channel
 
-- **Trigger:** authorized specialist or delegated staff opens patient/create/invite action from current organization.
+- **Trigger:** authorized specialist creates a new patient/card and appointment/visit, including a walk-in without
+  prior booking. Email invite is an optional later action when portal access is included.
 - **Actor:** inviter is attributed separately from the organization; recipient is a new or existing canonical patient.
 - **Channel:** transactional email is primary.
 
@@ -295,35 +301,34 @@ staff later grows the same organization.
 
 ### Records and transaction boundary
 
-Recommended candidate:
+Owner-approved business lifecycle:
 
-- staff may create a patient/intake shell and **enrollment intent** when sending, so staff can track `not invited /
-  invited / activated`; active business enrollment is confirmed transactionally on acceptance;
-- if legal/operational workflow requires an active enrollment before portal acceptance, that status must remain
-  visibly `portal_not_activated` and cannot imply successful identity proof;
-- accept resolves canonical user first, then creates/reactivates exact organization enrollment once and marks invite
-  accepted with canonical user/enrollment references;
-- existing canonical patient in another organization receives only a new enrollment, never another global identity.
-
-The exact moment of enrollment creation is an owner/data-contract decision; no UI may hide it behind one generic
-`patient created` badge.
+- staff immediately creates an organization patient card/relationship using name, phone and optional email;
+- staff can create a scheduled appointment at the same time or a walk-in visit at the point of care;
+- patient self-booking is another entry into the same relationship/card resolution, not a prerequisite;
+- portal activation is separate: canonical identity proves the recorded email or phone and links exactly once to the
+  existing organization card, visits and assigned program;
+- invitation delivery, provider success and an unproved link never mean portal identity proof or active access;
+- an existing canonical patient is linked without creating a duplicate global identity.
 
 ### UI screens and states
 
-1. Staff invite form: patient/contact, email, organization fixed, specialist attribution, neutral message preview.
-2. Staff delivery/lifecycle row with resend, revoke, correct address and activation status.
-3. Patient join preview with safe organization identity and masked recipient.
-4. Passwordless patient entry: exchange raw token, scrub URL, request/verify OTP, wrong account/channel recovery.
-5. Relationship confirmation: organization and what becomes available; legal/consent steps only if separately required.
-6. Activation success and organization-scoped first useful screen:
+1. Staff create form: name, phone, optional email, organization fixed, visit date/time or explicit walk-in.
+2. Created patient card and visit; separate portal status `not activated / invited / linked` without hiding the
+   business relationship.
+3. Optional invite form and delivery/lifecycle row with resend, revoke, correct address and activation status.
+4. Patient join preview with safe organization identity and masked recipient.
+5. Passwordless patient entry: exchange raw token, scrub URL, request/verify OTP, wrong account/channel recovery.
+6. Portal-link confirmation: organization and existing card/visit/program; legal/consent steps only if required.
+7. Activation success and organization-scoped first useful screen:
    - nearest appointment, active program/task or organization Today;
    - if no content exists, clear relationship confirmation and one useful next action/contact, not a dead empty dashboard.
-7. Contextual install card.
-8. Platform-specific install help/native prompt.
-9. First installed launch: restore authenticated session if valid, otherwise passwordless OTP re-auth without
+8. Contextual install card.
+9. Platform-specific install help/native prompt.
+10. First installed launch: restore authenticated session if valid, otherwise passwordless OTP re-auth without
    consuming invite/enrollment again; restore exact authorized organization server-side.
-10. Separate notification education and «Включить уведомления» gesture after authenticated context.
-11. Granted/denied/default/revoked/subscription-rotated recovery without blocking browser access.
+11. Separate notification education and «Включить уведомления» gesture after authenticated context.
+12. Granted/denied/default/revoked/subscription-rotated recovery without blocking browser access.
 
 ### Delivery, recovery and privacy/security
 
@@ -338,15 +343,13 @@ The exact moment of enrollment creation is an owner/data-contract decision; no U
   subscription belongs to authenticated canonical user + currently authorized context, and every deep link
   revalidates enrollment before showing content/counts.
 
-### Open decisions and safe default
+### Resolved product contract and remaining engineering policy
 
-- **Decision:** create enrollment at send versus accept. **Safe default:** store explicit intent/pending portal state;
-  active portal relationship only after canonical identity acceptance, unless a separately authorized staff enrollment
-  already exists.
-- **Decision OM-3:** neutral multi-org default. **Safe default:** trusted invite opens its organization visibly for
-  this journey; later neutral entry uses chooser when selection is ambiguous.
-- **Current gap:** no canonical specialist→patient email invite/join implementation was found. Existing staff invite
-  and generic patient email auth must not be reused as if they already implement patient enrollment semantics.
+- Staff-created patient/card/visit exists before portal activation; verified portal identity links later.
+- Platform neutral multi-org launch uses last active + visible switcher; invalid preference uses chooser. Trusted
+  invite still opens its exact organization visibly.
+- **Current gap:** canonical manual patient creation from calendar/walk-in, specialist→patient invite/join and safe
+  identity-to-existing-card linking must be traced/implemented; staff invite and generic patient auth do not prove it.
 
 ## 8. J4 — Patient SMS as additional/fallback transport
 
@@ -469,8 +472,8 @@ post-booking organization access as a target contract, not a current guarantee.
 
 - Authentication is global. Organization is selected only from active/retained enrollments resolved server-side.
 - Neutral entry with one enrollment opens it and keeps organization identity visible.
-- Neutral entry with multiple enrollments follows OM-3 ruling. Recommended candidate is last successfully used active
-  organization; if missing/invalid/ambiguous, show chooser. Safe default before ruling is chooser on ambiguity.
+- Neutral entry with multiple enrollments opens the last successfully used active organization and keeps a visible
+  switcher; if missing/invalid/ambiguous, show chooser.
 - Trusted invite/booking/object deep link may select its verified organization for that journey and visibly announce
   the context change. It cannot select a foreign/revoked organization.
 - Object deep links resolve object → organization → enrollment; UI preference never authorizes the object.
@@ -499,11 +502,10 @@ post-booking organization access as a target contract, not a current guarantee.
   session it runs passwordless OTP re-auth, then restores the exact last authorized/target organization only after
   revalidation; it never re-consumes the original invite or booking continuation.
 
-### Open decisions and safe default
+### Resolved launch behavior
 
-- **Decision OM-3:** last-active versus chooser on every neutral launch; suspended/archived visibility and care-team
-  roster. **Safe default:** chooser whenever more than one context is equally plausible; explicit context on every
-  clinical screen.
+- Last active + visible switcher in platform app; chooser when preference is unusable. Future organization-specific
+  installed app is pinned to its organization without a switcher; its technology remains unresolved.
 - **Current gap:** organization enrollment resolution exists, but target switcher/selection contract is not complete;
   current Patient Today also has documented `organization_principal_required` failure in DEV.
 
@@ -557,7 +559,7 @@ After a successful relationship mutation, destination is selected from server-ap
 | Clinic specialist | Own clinical Today | Organization management without capability |
 | Admin without specialist binding | Organization overview | Doctor Today |
 | Admin with binding | OM-1 selected management/clinical destination | A route that infers access from UI mode |
-| Assistant | OM-2 bounded operations home | Doctor routes as shortcut |
+| Assistant | Not applicable in initial release; future destination/grants unresolved | Any launch workspace or doctor-route shortcut |
 | New patient by invite | Invite organization Today/appointment/program or relationship success state | Global mixed clinical feed |
 | New patient by booking | Exact appointment in booking organization | Generic install page before value |
 | Multi-org returning patient | Verified target or chosen/last-active organization | Silent organization selected from Host/query |
@@ -578,23 +580,16 @@ Install card may be dismissed. Already-installed suppresses repeat prompts; unsu
 5. Notification open resolves target object server-side and rechecks current enrollment. Revoked/foreign target gives
    neutral recovery; service-worker caches, badges, counts and message copy cannot leak prior-organization content.
 
-## 13. Owner decisions carried forward
+## 13. Current deferred product detail and implementation policies
 
-UX-04 does not block documentation on these decisions, but dependent screens stay conditional:
+The only journey-related open product detail here is exact future assistant grants/first workspace; it is not launch
+scope. Future clinic communication topology and future org-app technology/timing are tracked in their own contracts.
 
-1. OM-2 assistant permissions and first workspace.
-2. OM-3 neutral multi-org default and suspended/archived relationship presentation.
-3. Mandatory staff 2FA factor, roles and grace/step-up policy.
-4. Enrollment creation moment for staff patient invite.
-5. SMS-only activation launch scope; safe default is no.
-6. UI wording/support path for a supported additive patient+staff persona. No silent persona overwrite is already a
-   security/architecture requirement, not an owner choice.
-7. Public-booking portal activation channel and ambiguous identity recovery.
-8. Invite TTL/resend timing per staff/patient. Single-use, fresh token/invite on resend, immutable attempts and
-   exactly-once relationship are security requirements, not owner choices.
-
-These questions move to UX-08. Until rulings, implementation specifications must use the safe defaults above and
-must not encode a candidate as an owner-approved product rule.
+Suspended relationship presentation, staff security factors/grace, portal identity matching/conflict handling,
+additive-persona recovery copy, booking activation-channel selection and invite TTL/resend timing are explicit
+security/data/UX implementation policies. They require review and fail-closed behavior, but they are **not extra
+pending owner rulings** and do not reopen resolved UX08 outcomes. SMS remains transport-only and is not a standalone
+launch identity path.
 
 ## 14. Current implementation reuse and gaps
 

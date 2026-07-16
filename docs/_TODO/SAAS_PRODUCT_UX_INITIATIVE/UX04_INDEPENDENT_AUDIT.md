@@ -1,5 +1,10 @@
 # UX-04 — Independent identity/security/product audit
 
+**Historical pre-ruling notice (2026-07-16):** этот PASS предшествует
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Он сохраняется без переписывания как evidence для
+неизменившейся части прежнего scope, но **superseded for current normative acceptance** и не подтверждает
+интеграцию новых owner outcomes. Текущий канон ожидает полный re-audit.
+
 **Дата:** 2026-07-15
 **Вердикт:** **PASS after integrated correction and full re-audit**
 **Scope:** `ENTRY_AND_INVITE_JOURNEYS.md`, `UX04_SCREEN_STATE_LIST.md`, входные UX-02/03 артефакты,

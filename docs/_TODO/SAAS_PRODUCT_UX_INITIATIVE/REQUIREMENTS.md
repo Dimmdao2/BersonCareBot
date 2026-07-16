@@ -1,5 +1,8 @@
 # Requirements — SaaS Product UX
 
+**Authority:** производный contract. При конфликте побеждает
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md); Foundation rulings сохраняют приоритет в своём scope.
+
 ## 1. Исходная задача владельца
 
 Нужно последовательно, без ухода в локальные улучшения:
@@ -23,13 +26,19 @@
 | Organization owner | Владелец SaaS-аккаунта организации; lifecycle, billing, branding, staff и настройки организации |
 | Organization admin | Операционное управление организацией; может одновременно быть специалистом |
 | Specialist / doctor | Клиническая работа, расписание, пациенты, программы, коммуникации и контент в пределах организации |
-| Assistant | Ограниченная операционная работа; точная permission matrix требует отдельной проработки |
+| Assistant / receptionist | Будущая clinic capability, не initial release; точные permissions и workspace не утверждены |
 | Patient | Собственные данные и care flows в одной или нескольких организациях |
 | Onboarding patient | Только активация identity; без business actions до достижения patient tier |
-| Anonymous/public | Platform landing, публичный каталог/страница организации, публичная запись и trusted invite entry |
+| Anonymous/public | Platform landing, опубликованная страница организации, публичная запись и trusted invite entry; каталог/поиск позже |
 | System actors | Worker/integrator/scheduler/media/cron; не пользовательские кабинеты |
 
 Текущий канон персонала: одна активная организация на один staff login; несколько активных membership — ошибка данных, не org switcher. Не менять это скрыто внутри UX-плана.
+
+### 2.1 Launch focus — owner ruling 2026-07-16
+
+Первый выпуск ориентирован на solo specialist. Multi-specialist clinic, assistant/receptionist и сложная clinic
+communication сохраняются как future architecture-compatible направления, но не должны добавлять launch UI или
+задерживать текущий продукт.
 
 ## 3. Продуктовые поверхности, которые надо спроектировать
 
@@ -39,7 +48,8 @@
 - возможности продукта и специализации;
 - тарифы/демо/регистрация специалиста;
 - вторичный вход пациента «У меня есть приглашение / войти»;
-- публичный каталог организаций, если он входит в выбранный launch scope;
+- опубликованные страницы организаций, публичная запись и trusted join;
+- каталог/поиск организаций не входит в initial launch и переносится на потом;
 - legal/support/status surfaces.
 
 ### 3.2 Organization public
@@ -52,13 +62,14 @@
 ### 3.3 Organization workspace
 
 - clinic overview;
-- staff и приглашения;
 - organization settings;
 - branding/public page;
 - тариф, usage и billing;
 - integrations/channels;
-- роли и permissions;
 - клинический кабинет для owner/admin, которые также являются специалистами.
+
+Staff/team invitations, assistant/receptionist roles and clinic-specific permission presets are reserved future
+capabilities. They are absent from the initial organization navigation and do not block solo launch.
 
 ### 3.4 Specialist workspace
 
@@ -73,20 +84,19 @@
 
 #### Solo specialist vs clinic specialist
 
-Владелец отдельно зафиксировал, что это не полностью одинаковые UI-режимы:
+Действующее решение владельца:
 
-- solo specialist работает без team/handoff слоя и видит собственную практику как основной контекст;
-- специалист клиники работает внутри общей команды и потенциально должен уметь передать пациента другому
-  специалисту;
-- для клиники требуется спроектировать доступ к истории пациента по всем визитам, не подменяя authorization
-  обычным UI-фильтром;
-- до реализации нужно сравнить две модели: отдельные карточки пациента по специалистам или одна
-  organization-scoped карточка с фильтрацией по своим визитам, всей истории и конкретному специалисту;
-- стартовая идея владельца для проверки: специалист по умолчанию фильтрует свои приёмы, но при наличии права
-  может открыть всю историю клиники или выбрать другого специалиста.
+- launch composition — solo specialist без clinic collaboration/assistant слоя;
+- clinic future использует одну organization-scoped карточку;
+- пациент виден конкретному clinic specialist только через фактический или запланированный визит/clinical relation;
+- по умолчанию специалист видит свои события, а по праву может открыть всю доступную историю организации или
+  отфильтровать её по другому специалисту;
+- «передача» не является отдельным lifecycle: это создание/запись визита к другому специалисту, через который у
+  него появляется рабочая связь с пациентом;
+- отдельная patient hierarchy, receiver-approval lifecycle и cross-organization movement не входят в эту модель.
 
-Точная модель карточки, права просмотра, attribution записей и semantics передачи пациента остаются
-`needs-decision`; discovery не должен скрыто выбрать их по текущей структуре route/API.
+Record-class visibility и authorization всё равно проектируются отдельно от UI-фильтра; одна карточка не означает
+безусловный доступ ко всем записям.
 
 Формулировка фильтра уточняется на этапе IA: речь о «мои пациенты / все пациенты организации», а не о выборе организации.
 
@@ -99,39 +109,48 @@
 - понятное указание автора назначения/сообщения и получателя ответа;
 - единый global identity без дублирования аккаунтов;
 - activation, install и notification consent после trusted invite.
+- portal activation может привязать verified identity к карточке/визиту, уже созданным специалистом до регистрации.
+
+### 3.6 Manual patient creation and walk-in — owner ruling 2026-07-16
+
+- Specialist/staff может сразу создать карточку/relationship пациента и appointment по имени, телефону и
+  необязательному email.
+- Walk-in карточка и visit создаются в момент приёма без предварительной booking.
+- Patient self-booking — параллельный entry, а не обязательный путь.
+- Portal activation отдельно связывает verified email/phone identity с существующей карточкой, программой и
+  визитами. Delivery не доказывает identity и не означает активированный portal access.
 
 ## 4. Стартовые UX-гипотезы — не решения
 
-Эти пункты надо проверить исследованием и scenario mapping:
+Исторические гипотезы ниже уточнены решениями 2026-07-16; они не должны противоречить датированному rulings file:
 
 1. Главный platform landing продаёт продукт специалисту/клинике. Пациент не проходит обычную свободную регистрацию с hero; он входит по приглашению, через запись или отдельную компактную точку входа.
 2. Patient invite ведёт не на абстрактную инструкцию установки, а на organization-scoped join page: проверка токена → identity activation → подтверждение связи с организацией → первый полезный экран → предложение установить PWA.
 3. Email — основной транспорт приглашения; SMS используется как fallback/дополнительный канал. Web Push становится основным только после установки и подписки.
 4. Пациент выбирает организацию, а не «логинится к каждому врачу». Внутри организации конкретный специалист отображается в записи, программе и диалоге.
-5. Branding имеет уровни: platform brand, organization identity внутри продукта, paid white-label. Custom domain — проверенный alias/entrypoint и не источник authorization.
+5. Branding имеет уровни: platform brand и organization identity; глубина будущего paid organization branding
+   остаётся unresolved. Custom domain не является authorization.
 6. Кабинет global admin должен быть отдельной IA-поверхностью, а не растущим cluster внутри doctor sidebar.
 
 ## 5. Обязательные вопросы, которые должен закрыть discovery
 
 - Solo specialist и clinic: один onboarding или две развилки одного onboarding?
 - Что именно создаётся при self-signup и какой минимальный first-run checklist?
-- Какие capabilities у owner, admin, specialist и assistant?
+- Какие capabilities у future assistant/receptionist? Это не launch blocker и не initial scope.
 - Как owner/admin переключается между management и clinical work без второй авторизации?
 - Какие различия UI обязательны между solo specialist и специалистом клиники, а какие должны оставаться одной
   композицией с capability-driven actions?
-- Что означает «передать пациента»: сменить primary specialist, создать совместное сопровождение, передать
-  конкретное обращение/программу или только назначить следующий визит?
-- Карточка пациента в клинике едина для организации или разделяется по специалистам? Если едина, какие фильтры
-  (`мои визиты / вся история / конкретный специалист`) являются default и какие данные нельзя раскрывать без
-  отдельного права?
+- Для future clinic реализовать уже выбранную модель: одна карточка; связь специалиста через visit; own events по
+  умолчанию; вся доступная история/конкретный специалист только по праву.
 - Как выглядит patient context switch при нескольких организациях?
-- Нужен ли отдельный chat на организацию, на специалиста или conversation threads с явным author/context?
+- Какая configurable clinic communication topology понадобится позже: per-specialist, receptionist/assistant или
+  owner routing? Launch сохраняет текущий solo chat.
 - Кто считается отправителем email/SMS/push при разных branding tiers?
 - Какие данные бренда видны на landing, join, auth, PWA, email, booking и внутри patient shell?
-- Как ведут себя manifest/install/icon/name для platform и white-label tiers?
+- Какая технология нужна будущему organization-specific installed/mobile experience: PWA, APK и/или native iOS?
 - Какие custom-domain сценарии поддерживаются: public page, booking, join, PWA; какой canonical redirect contract?
 - Что происходит при истёкшей, повторно использованной или отправленной не тому email invite-ссылке?
-- Как пациент попадает в организацию через invite, public booking и ручное создание персоналом; где создаётся enrollment?
+- Как portal identity безопасно связывается с уже созданной staff карточкой/визитом без дубля identity/relationship?
 
 ## 6. Definition of Done discovery
 

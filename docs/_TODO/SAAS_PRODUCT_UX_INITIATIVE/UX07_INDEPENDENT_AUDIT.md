@@ -1,5 +1,10 @@
 # UX-07 — Independent visual/usability audit
 
+**Historical pre-ruling notice (2026-07-16):** этот PASS и visual seals предшествуют
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md). Они сохраняются без переписывания как evidence для
+прежнего source-bound prototype, но **superseded for current normative acceptance** и не подтверждают интеграцию
+новых owner outcomes. Текущий канон ожидает полный re-audit.
+
 **Статус:** **PASS; UX-07 complete.** Final source-bound re-audit of the interaction/context convergence is complete;
 independent visual/usability seals #1 and #2 are granted on source
 `929a6613929251ff5a86ddb82e4a57969d9bc1a2240ae446cabc5abf0de13657` and evidence batch

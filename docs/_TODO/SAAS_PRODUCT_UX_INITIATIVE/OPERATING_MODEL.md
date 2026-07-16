@@ -1,8 +1,9 @@
 # UX-03 — Product operating model
 
-**Статус:** independently audited decision-ready candidate; owner P0/P1 rulings remain open.
+**Статус:** owner rulings 2026-07-16 integrated; awaiting full independent audit.
+**Authority:** производный contract; `OWNER_RULINGS_2026-07-16.md` побеждает старые candidates этого документа.
 **Дата:** 2026-07-15.
-**Scope:** actor/context model, solo/clinic composition, patient record/history, handoff и entitlement boundaries.
+**Scope:** actor/context model, solo/clinic composition, patient record/history, visit coordination и entitlement boundaries.
 
 ## 1. Как читать документ
 
@@ -11,8 +12,8 @@
 - **Инвариант** — уже зафиксированный канон identity/tenant/security; последующие UX-этапы обязаны ему следовать.
 - **Рекомендуемый кандидат** — предпочтительная продуктовая модель на основании UX-01/02 и architecture review,
   но не owner ruling.
-- **Решение владельца** — открытый выбор, меняющий доступ, IA или launch scope. До решения действует указанный
-  safe default; это не означает, что safe default автоматически становится target product policy.
+- **Решение владельца** — датированный outcome из `OWNER_RULINGS_2026-07-16.md`. Открыты только явно перечисленные
+  там deferred sub-decisions; старый safe default не является target policy.
 
 Исходные рабочие документы сохраняются отдельно:
 [`UX03_OPERATING_MODEL_DRAFT.md`](./UX03_OPERATING_MODEL_DRAFT.md) и
@@ -58,7 +59,7 @@ flowchart LR
 
 ## 3. Staff workspace composition
 
-### Рекомендуемый кандидат: один shell, явные рабочие поверхности
+### Действующее launch-направление: один login, простая management surface
 
 ```text
 Organization workspace
@@ -73,9 +74,7 @@ Organization workspace
 │   ├── Booking/services setup
 │   ├── Branding/public page/channels
 │   └── Plan, usage and billing
-├── Operations                  assistant/delegated operational capabilities
-│   ├── Schedule and intake
-│   └── Patient contact/invites (exact scope TBD)
+├── Operations                  future clinic capability; absent from initial release
 └── Account                     every staff user
     ├── Profile/security/2FA
     ├── Personal notifications
@@ -86,12 +85,14 @@ Organization workspace
   **«Управление организацией»** entry. Switching surfaces does not re-authenticate or elevate access.
 - Non-clinical owner/admin opens management overview and never receives an empty doctor dashboard.
 - Specialist without management capability sees clinical + account surfaces only.
-- Assistant receives a bounded operations surface; doctor/admin routes are not used as a temporary shortcut.
-- Global admin uses a separate platform-operations IA. Organization diagnostics or support intervention must be
-  purpose-specific and audited, not ordinary patient-chart browsing.
+- Assistant/receptionist workspace is absent from initial release; a future clinic extension must not reuse broad
+  doctor/admin access as a shortcut.
+- Global admin uses a separate platform-operations IA for aggregate/org/platform diagnostics and support reports;
+  no patient chart browsing or patient-record repair surface is planned.
 
-**Owner decision OM-1:** explicit management/clinical mode switch (recommended) versus one navigation with grouped
-sections. This blocks target navigation in UX-06, but not invite journey mechanics in UX-04.
+Owner ruling 2026-07-16: one login, with management as a distinct surface. A simple page/menu section is preferred
+for launch; an explicit mode switch is allowed if the final composition needs it. This exact switch-vs-menu choice
+is an implementation detail and no longer blocks product scope.
 
 ### Solo specialist versus clinic specialist
 
@@ -103,37 +104,20 @@ organization shape and entitlement, not by a permanent `solo=true` branch.
 | Header/context | «Моя практика»; no redundant specialist selector | Clinic identity; own specialist context visible |
 | Today/patients | Own practice; «Мои» control omitted when it cannot change result | «Мои» by default; optional «Все доступные» after authorization |
 | Patient history | All permitted solo history without team chrome | Own attributed events by default; optional permitted shared history/specialist filter |
-| Team/handoff | Hidden, not empty | Care team and distinct handoff actions when capable/entitled |
+| Future clinic coordination | Absent | Reserved concept only; exact permissions/UI require a future clinic contract |
 | Schedule | Own calendar; setup entry if management-capable | Own calendar; organization calendar/setup separately gated |
 | Settings | Personal + compact practice setup | Personal and organization settings clearly separated |
 | Growth | First staff invite activates team composition without account migration | Staff lifecycle, seats and collaboration mechanics |
 
-An organization with one active specialist is not permanently commercialized as “solo”: inviting an assistant,
-adding locations or preparing a team must not produce contradictory navigation.
+Initial release is explicitly solo-first. Future clinic growth can reuse the same Organization/account model, but
+assistant/team/complex communication capabilities must not appear in or delay launch.
 
-## 4. Assistant operating boundary
+## 4. Assistant / receptionist — future only
 
-### Инварианты
-
-- Assistant is a real membership role, normally without specialist binding.
-- Assistant never gains clinical authorship, unrestricted chart access, ownership transfer or billing-contract powers
-  merely through that role.
-- Direct URL, export, search counts and suggestions must enforce the same scope as visible screens.
-
-### Рекомендуемый candidate baseline, pending ruling
-
-- organization schedule read/write for explicitly permitted appointment operations;
-- intake queue and administrative demographics/contact maintenance;
-- send/resend/revoke trusted patient invites;
-- operational message routing only where message class is explicitly non-clinical;
-- no treatment notes, private entries, clinical exports or program authorship.
-
-**Safe default until owner decision:** deny clinical history and clinical writes; allow only capabilities that are
-explicitly assigned and separately server-enforced.
-
-**Owner decision OM-2:** exact schedule, contact, invite, messaging, payment and limited-history permissions, and
-whether custom assistant templates are launch scope. This blocks assistant journeys in UX-04 and assistant IA in
-UX-06.
+Owner ruling 2026-07-16: роли и отдельной рабочей зоны нет в initial release. Architecture may reserve a future
+membership/capability extension for clinics, but exact schedule/contact/invite/messaging/payment/history grants are
+not approved. No OPS navigation or assistant acceptance is required for solo-first launch. If built later, direct
+URL/export/search/count enforcement must match explicit grants and clinical access cannot be inferred from the role.
 
 ## 5. Patient organization context
 
@@ -157,28 +141,27 @@ stateDiagram-v2
   Recovery --> ChooseOrg: another usable enrollment
 ```
 
-### Рекомендуемый кандидат
+### Действующий platform-app contract
 
 - With one active enrollment, keep organization name/brand visible but collapse the picker.
 - With multiple enrollments, show a persistent organization picker and clearly attribute appointment, specialist,
   program and message recipient.
-- Default to last successfully used active organization. A trusted invite/booking deep link may override only for
+- Default to last successfully used active organization with a persistent visible switcher. A trusted invite/booking deep link may override only for
   that journey and must visibly show the context change. If preference is invalid, show the chooser.
 
-**Owner decision OM-3:** last-active default (recommended) versus chooser on every neutral entry; treatment of
-suspended/archived relationships and patient-visible care-team roster. This blocks returning-patient details in
-UX-04 and patient navigation in UX-06.
+Owner ruling 2026-07-16: a future paid organization-branded/custom-origin installed app is pinned to that
+organization and has no org switcher. It may coexist with the platform app. PWA/APK/native technology remains open.
 
 ## 6. Patient card and clinic history
 
-### Рекомендуемый кандидат, not approved
+### Owner-approved direction
 
 Use one **organization-scoped patient card** per enrollment. Visits, notes, programs, messages and assignments retain
 immutable author/specialist attribution and their own visibility class. Introduce restricted episodes/cases only for
 a demonstrated privacy, legal or independent workflow boundary; do not duplicate the ordinary card per specialist.
 
 Why this is preferred: it preserves one clinic identity, avoids merge/copy problems, supports a coherent history and
-keeps handoff separate from historical ownership. It also requires entry/episode-level privacy; “one card” does not
+keeps future visit coordination separate from historical ownership. It also requires entry/episode-level privacy; “one card” does not
 mean “all staff see everything”.
 
 ### Permission before filter
@@ -191,74 +174,31 @@ server-derived organization and actor relation
   → filter: my attributed events | all available | specialist X | period | type
 ```
 
-### Рекомендуемые filter defaults
+### Filter and visibility contract
 
 - Solo specialist: no `Мои / Все` toggle when both produce the same permitted result.
 - Clinic specialist: `Мои события` by default; `Вся доступная история` and `Специалист X` only when a capability
   permits the corresponding dataset.
-- `Мои пациенты` should be a defined operational union, not an ambiguous visual label. Candidate union:
-  primary responsibility OR active care-team membership OR assigned active work/future appointment. Merely having
-  authored an old historical entry should not keep a patient forever in the daily roster.
+- `Мои пациенты` is driven by an actual or scheduled visit/clinical relationship with the specialist. Merely being
+  staff of the organization or having unrelated historical visibility does not add the patient to the daily roster.
 - Every timeline event displays author/specialist, event type, date and visibility indicator when restricted.
 
-**Safe default until owner decision:** shared demographics/scheduling only where already authorized; clinical
-history outside the actor's own/assigned scope and all private entries remain denied. UI uses “Вся доступная история”,
-never an absolute promise of all stored data.
+Owner ruling 2026-07-16 approves one organization-scoped card, own events by default and on-demand authorized org
+history/specialist filters. Record-class/private visibility remains an authorization/data-policy task; UI uses
+“Вся доступная история”, never an unconditional promise of all stored data. No patient hierarchy is introduced.
 
-**Owner decisions OM-4/5:** approve the one-card candidate; define `Мои`; define which roles may request shared
-history and which record classes remain private. These are the highest-priority gates for patient-card composition in
-UX-06.
+## 7. Visit-based specialist relation; rejected transfer model
 
-## 7. Four distinct handoff semantics
+Owner ruling 2026-07-16 rejects the proposed primary/care-team/acceptance model for current product scope.
+«Передать пациента» means create/book a visit with another specialist. That actual or scheduled visit creates the
+working relationship through which the patient appears in the receiving specialist's workspace. There is no
+primary specialist, care team, accept/reject, generic transfer object or cross-organization transfer.
 
-There is no generic `transfer_patient` action. Every UI action names its object and resulting responsibility.
-
-| Primitive | Meaning | Minimum states | Does not do |
-|---|---|---|---|
-| Primary assignment | Changes main coordinator inside one organization | `unassigned`, `assigned`, `pending`, `accepted/completed`, `rejected`, `cancelled`, `expired` | Rewrite history or move every work item |
-| Care-team membership | Adds/removes a participant with explicit capabilities | `not_member`, `pending/added`, `active`, `removed` | Change primary or reveal private history automatically |
-| Work-item reassignment | Moves one appointment/task/program/episode responsibility | `owned`, `pending`, `accepted/completed`, `rejected`, `cancelled` | Transfer the whole patient relationship |
-| Cross-organization transfer | Creates destination enrollment and controlled share/copy package | `requested`, `consent_pending`, `destination_verified`, `approved`, `copied/shared`, `received`, `rejected/revoked/failed` | Re-parent source rows or delete source retention record |
-
-```mermaid
-flowchart TB
-  P[Patient in Organization A] --> PA[Primary assignment]
-  P --> CT[Care-team membership]
-  P --> WI[Specific work item]
-  P --> XO[Cross-org transfer package]
-  PA --> H[History attribution unchanged]
-  CT --> H
-  WI --> H
-  XO --> N[New enrollment in Organization B]
-  XO --> S[Source record retained]
-```
-
-Every transition records organization, patient canonical id, operation and object id, old/new responsible party,
-actor identity/membership, request/accept/complete/reject timestamps, reason/category and correlation/idempotency id.
-General audit logs exclude clinical narrative, raw tokens and unrelated PII. Deactivated source/destination staff
-triggers preflight/recovery rather than leaving a silent pending or unassigned state.
-
-Deactivation recovery is part of the handoff contract, not an implementation detail:
-
-- a destination that becomes inactive before acceptance makes the request non-acceptable and routes it to
-  `cancelled`/`expired` with an explicit reassignment recovery action;
-- a source that becomes inactive does not silently complete the request or erase responsibility: an authorized
-  owner/admin must resolve pending primary assignments and affected work items;
-- staff deactivation must preflight future appointments, active work items, primary assignments and care-team
-  membership; unresolved objects are shown as a bounded recovery queue, not assigned to an arbitrary specialist;
-- historical authorship remains visible and immutable after either party is deactivated.
-
-### Recommended launch candidate
-
-- Launch primary assignment, bounded care-team membership and reassignment of explicitly supported work items.
-- Require destination specialist accept/reject for specialist-initiated transfers; allow owner/admin override only as
-  a separate audited action.
-- Keep the previous responsible specialist active until acceptance; post-completion care-team membership is explicit.
-- Exclude cross-organization record transfer from initial launch unless consent, retention and share-package contract
-  is deliberately funded as a separate epic.
-
-**Owner decisions OM-6/7:** launch primitives; accept versus immediate transition; initiator/cancel/escalation powers;
-what, if anything, follows primary assignment; former specialist visibility. These block handoff screens in UX-06.
+Earlier discovery considered primary assignment, care-team membership, work-item reassignment and cross-org transfer
+as separate lifecycle objects. That entire candidate model is **historical and rejected by the owner ruling**; none
+of its pending/accept/reject/deactivation queues is a launch or target-default requirement. The implementation path
+is ordinary visit creation and appointment audit. Historical authorship remains immutable, but no transfer object
+rewrites it. Cross-organization transfer is outside this initiative.
 
 ## 8. Entitlement relation
 
@@ -272,37 +212,41 @@ what, if anything, follows primary assignment; former specialist visibility. The
 ### Recommended presentation contract
 
 Each entitlement-dependent capability declares one degradation state: `hidden`, `read_only`, `grace`, or `blocked`,
-plus recovery owner and CTA. Team/handoff may be packaged, but core access to retained patient data and safe
+plus recovery owner and CTA. Future clinic collaboration may be packaged, but core access to retained patient data and safe
 offboarding cannot depend on buying a collaboration feature.
 
 **Owner decision OM-8:** packaging and degradation per mechanic. This informs UX-05 tiers and blocks final denied/
 recovery states in UX-06; it must not delay identity-safe UX-04 flows.
 
-## 9. Owner decision packet, ordered by downstream block
+## 9. Current owner-outcome registry
 
-| Priority | Decision | Recommended candidate | Blocks |
+| Status | Decision | Current contract | Remaining open detail |
 |---|---|---|---|
-| P0 | Patient card + shared-history policy + meaning of `Мои` | One org card; entry visibility; operational-union roster; own-events default | UX-06 patient list/card/history |
-| P0 | Assistant baseline | Bounded schedule/intake/contact/invite; deny clinical history/write | UX-04 staff invite role outcome; UX-06 assistant IA |
-| P0 | Handoff launch/acceptance/scope | Primary + care team + explicit work items; accept/reject; no cross-org launch | UX-06 clinic collaboration screens |
-| P1 | Owner/admin clinical composition | One shell with explicit management/clinical mode | UX-06 staff navigation |
-| P1 | Patient multi-org default/roster | Last active with persistent switcher; explicit deep-link context | UX-04 returning patient; UX-06 patient shell |
-| P1 | Owner vs admin + non-clinical record access | Owner-only irreversible contract actions; no clinical authorship; explicit section grants | UX-06 management and denial states |
-| P1 | Entitlement packaging/degradation | Separate mechanic from permission; declared hidden/read-only/grace/blocked | UX-05 tier contract; UX-06 recovery states |
-| P2 | Cross-org transfer | Exclude from initial launch; retain explicit future workflow | UX-06 only if launch scope changes |
-| P2 | Global-admin support intervention | Diagnostics/repair first; audited purpose-specific session for deeper intervention | UX-06 global-admin detail screens |
+| Resolved launch | Patient card/history/`Мои` | One org card; visit relationship; own-events default; authorized history on demand | Record-class implementation policy only |
+| Resolved launch absence | Assistant at launch | No role, workspace or grants | Exact future grants deferred |
+| Rejected premise | Patient transfer lifecycle | No transfer object; ordinary future visit concept only | None for launch |
+| Resolved launch | Owner/admin clinical composition | One login; simple distinct management surface | Menu versus mode switch is implementation choice |
+| Resolved launch | Patient multi-org default | Last active with persistent switcher; explicit deep-link context | None |
+| Rejected premise | Global-admin patient intervention | Aggregate/org/platform diagnostics only; no patient browsing/repair | None |
 
-UX-04 can proceed on invite/token/activation mechanics while marking the assistant landing surface and patient neutral
-multi-org default conditional. UX-05 can proceed on branding/domain surfaces while leaving exact entitlement packaging
-open. UX-06 cannot freeze patient-card, assistant, handoff or dual-mode navigation screens before the P0/P1 rulings.
+Current downstream contract: manual patient/card/visit creation precedes optional portal activation; assistant and
+multi-specialist clinic surfaces remain future-only; last-active patient organization and one-card/visit-based
+history are ruled. Custom-domain application technology/timing remains future-deferred and must not delay solo launch;
+entitlement degradation is an engineering/commercial policy, not an unresolved UX08 decision.
+
+Owner/admin section authorization, record-class policy and entitlement degradation remain engineering/data-policy
+contracts, not additional open product rulings. The only unresolved product sub-decisions are those enumerated in
+`OWNER_RULINGS_2026-07-16.md`: brand depth, future app feasibility/technology/timing, sender retry/TTL values, future
+assistant grants and clinic communication topology.
 
 ## 10. Acceptance criteria for the independent critic
 
-- No candidate is described as owner-approved.
+- Every owner-approved outcome cites the dated ruling; remaining candidates are explicitly unresolved or future.
 - No allow path relies on UI filter, route, Host, client organization or entitlement alone.
 - Solo and clinic share one account model but do not show identical irrelevant UI.
 - Owner/admin with and without specialist binding lead to different safe surfaces.
 - One active staff organization and patient multi-org contexts are not conflated.
 - Patient list, direct read, counts, search and export use the same permitted scope.
-- All four handoff operations and their audit states remain distinct.
-- Every unresolved matrix row maps to the decision packet and has a safe denial/read-only behavior.
+- No rejected transfer/hierarchy lifecycle leaks back into the target contract.
+- Every engineering-policy row is distinguished from the five true deferred product sub-decisions and has safe
+  fail-closed/read-only behavior.
