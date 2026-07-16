@@ -17,6 +17,7 @@ const OPERATIONAL_KEYS = [
   ["DATABASE_URL_SCHEDULER", "bcb_test_operational_scheduler_login"],
 ];
 const MEDIA_ROLE = "bcb_test_operational_media_login";
+const WEB_PUSH_REMINDER_ROLE = "bcb_test_operational_web_push_reminder_login";
 const MEDIA_COPY_KEYS = [
   "DB_PRINCIPAL_CONTEXT_MODE",
   "DB_PRINCIPAL_SIGNING_SECRET",
@@ -90,6 +91,9 @@ function validateBaseUrl(raw) {
   const url = new URL(raw);
   const database = decodeURIComponent(url.pathname).replace(/^\//, "");
   if (!url.username || !url.password) fail("api.test DATABASE_URL must contain a login and password");
+  if (url.hostname !== "127.0.0.1" || url.port !== "5432") {
+    fail("api.test DATABASE_URL must target exact local PostgreSQL endpoint 127.0.0.1:5432");
+  }
   if (database !== "bersoncarebot_test") fail("api.test DATABASE_URL must target bersoncarebot_test");
 }
 
@@ -134,6 +138,12 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid }) 
   for (const [key, role] of OPERATIONAL_KEYS) {
     apiAdditions.set(key, api.get(key) || makeUrl(baseUrl, role));
   }
+  const webappAdditions = new Map([
+    [
+      "DATABASE_URL_WEB_PUSH_REMINDER",
+      webapp.get("DATABASE_URL_WEB_PUSH_REMINDER") || makeUrl(baseUrl, WEB_PUSH_REMINDER_ROLE),
+    ],
+  ]);
 
   let mediaText;
   if (mediaExists) {
@@ -165,11 +175,22 @@ function bootstrap({ apiPath, webappPath, mediaPath, ownerUid = 0, deployGid }) 
 
   writeProtected(mediaPath, mediaText, ownerUid, deployGid);
   writeProtected(apiPath, upsertEnv(apiText, apiAdditions), ownerUid, deployGid);
-  chownSync(webappPath, ownerUid, deployGid);
-  chmodSync(webappPath, 0o640);
+  writeProtected(webappPath, upsertEnv(webappText, webappAdditions), ownerUid, deployGid);
 }
 
 function selfTest() {
+  for (const rejected of [
+    "postgresql://base:secret@db.example.test:5432/bersoncarebot_test",
+    "postgresql://base:secret@127.0.0.1:6432/bersoncarebot_test",
+  ]) {
+    let rejectedAsExpected = false;
+    try {
+      validateBaseUrl(rejected);
+    } catch {
+      rejectedAsExpected = true;
+    }
+    if (!rejectedAsExpected) fail("self-test accepted a non-canonical TEST PostgreSQL endpoint");
+  }
   const root = mkdtempSync(join(tmpdir(), "bcb-c4-bootstrap-"));
   try {
     const api = join(root, "api.test");
@@ -186,6 +207,10 @@ function selfTest() {
       if (new URL(firstApi.get(key)).username !== role) fail(`self-test wrong role for ${key}`);
     }
     if (new URL(firstMedia.get("DATABASE_URL")).username !== MEDIA_ROLE) fail("self-test wrong media role");
+    const firstWebapp = parseEnv(readFileSync(webapp, "utf8"), "webapp.test");
+    if (new URL(firstWebapp.get("DATABASE_URL_WEB_PUSH_REMINDER")).username !== WEB_PUSH_REMINDER_ROLE) {
+      fail("self-test wrong Web Push reminder role");
+    }
     bootstrap({ apiPath: api, webappPath: webapp, mediaPath: media, ownerUid: process.getuid(), deployGid: process.getgid() });
     const secondApi = parseEnv(readFileSync(api, "utf8"), "api.test");
     if (secondApi.get("DATABASE_URL_DIAGNOSTIC") !== firstApi.get("DATABASE_URL_DIAGNOSTIC")) fail("bootstrap is not idempotent");

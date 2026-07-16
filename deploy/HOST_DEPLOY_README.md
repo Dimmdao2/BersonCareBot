@@ -384,7 +384,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 **Post-deploy checklist (Web Push-only reminders):**
 
 1. Применить миграции webapp (в т.ч. **`0075_webapp_reminder_occurrences`**) — `pnpm --filter @bersoncare/webapp run db:migrate` или принятый на хосте способ (`deploy-prod.sh` делает это автоматически); убедиться, что таблица `webapp_reminder_occurrences` существует.
-2. **Обязательно** установить host-level cron **`/etc/cron.d/bersoncarebot-webpush-reminders`** (см. пример ниже) и `systemctl restart cron` — без него push по расписанию для правил без бота **не** отправляется (integrator scheduler их не видит).
+2. **Обязательно** установить именованную задачу только через cronport: `sudo /opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh install-prod`. Скрипт идемпотентно регистрирует минутный запуск и не раскрывает секрет в crontab. Напрямую редактировать `crontab` или `/etc/cron.d` запрещено.
 3. Smoke (один вызов, секрет не логировать):
    ```bash
    set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
@@ -393,9 +393,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
    ```
    Ожидается `{"ok":true,"rulesFound":…,"plannedUpserts":…,"sent":…,…}`. При due-слоте проверить строки в `webapp_reminder_occurrences` и `notification_delivery_attempts` для `platform_user_id` пациента.
 
-На хосте полезно сочетать **два** режима cron (оба используют тот же `curl`/`INTERNAL_JOB_SECRET` и loopback **`127.0.0.1:6200`):  
-1. **Частый «прогресс» большого хвоста:** например **`*/10 * * * *`** и **`limit: 50`** — быстрый догон очереди.  
-2. **Ночное окно один раз за сутки:** **`CRON_TZ=Europe/Moscow`** для файла **`/etc/cron.d/...`** (если поддерживается) или эквивалент в systemd timer, строка **`0 4 * * *`** (`04:00` по Москве) с тем же `POST`/`limit`; снимает часть фоновой нагрузки с дня, но **не** заменяет частый режим для «застывших» объектов после массовых загрузок.
+Канонический режим — одна именованная cronport-задача каждую минуту с `limit=50`; повторный запуск защищён `flock`. Изменять расписание нужно через `cronport`, а не вторым параллельным cron.
 
 **Known limitations / runtime requirements:** HEIC/HEIF (`image/heic`, `image/heif`) теперь обрабатываются через `ffmpeg`, а при ошибке декодирования есть fallback через `ImageMagick` (`magick`/`convert`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; иначе `@ffmpeg-installer` может давать `SIGSEGV` на видео. Для fallback HEIC установите `imagemagick` и при необходимости задайте `MAGICK_PATH=/usr/bin/magick` (или `/usr/bin/convert`). Скачивание HEIC во временный файл перед `magick` ограничено HTTP timeout 120 c; по timeout задача уходит в retry/backoff (не в immediate `skipped`).
 
@@ -423,7 +421,7 @@ location /api/internal/ {
 - миграция `060_media_files_status_retry.sql` применена (запись в `webapp_schema_migrations`), колонки/constraint/index присутствуют;
 - ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
 - cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL);
-- cron файл **`/etc/cron.d/bersoncarebot-webpush-reminders`** установлен (каждую минуту, loopback `reminders/web-push-only/tick`).
+- cronport-задача **`bersoncarebot-prod-web-push-only-reminders`** установлена (каждую минуту, loopback `reminders/web-push-only/tick`).
 
 Пример cron (актуальный формат):
 
@@ -502,23 +500,12 @@ CRON_TZ=Europe/Moscow
 */10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/specialist-task-reminders/tick?limit=50" >/dev/null'
 ```
 
-**Обязательный** host-level cron Web Push-only напоминаний (пациент без бота, только подписка в браузере). Файл на хосте: **`/etc/cron.d/bersoncarebot-webpush-reminders`** (устанавливается **вручную** после deploy — `deploy-prod.sh` cron не трогает):
-
-```cron
-* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=50" >/dev/null'
-```
-
-Установка (от root, после `deploy-prod.sh` и при наличии `INTERNAL_JOB_SECRET` в `webapp.prod`):
+**Обязательная** host-задача Web Push-only напоминаний устанавливается только через cronport-обёртку (от root, после deploy и при наличии `INTERNAL_JOB_SECRET` в `webapp.prod`):
 
 ```bash
-sudo install -m 0644 /dev/stdin /etc/cron.d/bersoncarebot-webpush-reminders <<'EOF'
-* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=50" >/dev/null'
-EOF
-sudo systemctl restart cron
-test -f /etc/cron.d/bersoncarebot-webpush-reminders && echo "bersoncarebot-webpush-reminders ok"
+sudo /opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh install-prod
+/opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh status
 ```
-
-Примечание по service control: на некоторых дистрибутивах `cron.service` не поддерживает `reload` (`Job type reload is not applicable`), используйте `systemctl restart cron`.
 
 **Проверка MinIO (ops):** скрипт [`check-s3.ts`](../apps/integrator/src/infra/scripts/check-s3.ts) — из **корня репозитория** с `pnpm exec tsx ...`, переменные `S3_*` в корневом `.env` должны совпадать по смыслу с именами бакетов в `webapp.prod` (не обязателен для runtime webapp).
 
@@ -911,13 +898,13 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### Host cron jobs (production)
+### Host scheduled jobs (production)
 
-Фоновые задачи webapp на production — **отдельные файлы** в `/etc/cron.d/` (не в репозитории; `deploy-prod.sh` их **не** создаёт). После каждого deploy оператор проверяет, что обязательные cron **уже установлены** на хосте (первичная установка — один раз вручную).
+Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются. Web Push-задача управляется репозиторной обёрткой.
 
-| Файл `/etc/cron.d/` | Обязательность | Назначение |
+| Именованная задача | Обязательность | Назначение |
 |---------------------|----------------|------------|
-| **`bersoncarebot-webpush-reminders`** | **обязателен** после deploy | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
+| **`bersoncarebot-prod-web-push-only-reminders`** | **обязательна** после deploy | `POST /api/internal/reminders/web-push-only/tick` каждую минуту — Web Push для `reminder_rules` без бота (`integrator_user_id IS NULL`) |
 | **`bersoncarebot-specialist-task-reminders`** (имя на усмотрение) | **рекомендуется** после миграции `0102` | `POST /api/internal/specialist-task-reminders/tick` каждые 5–15 мин — напоминания врачу по `specialist_tasks` |
 | `bersoncarebot-media-purge` | обязателен (медиа CMS) | purge очереди удаления `media-pending-delete` |
 | `bersoncarebot-media-multipart` (имя на усмотрение) | рекомендуется | multipart cleanup |
@@ -928,8 +915,7 @@ sudo systemctl reload nginx
 Проверка обязательного webpush-cron:
 
 ```bash
-test -f /etc/cron.d/bersoncarebot-webpush-reminders && grep -F 'web-push-only/tick' /etc/cron.d/bersoncarebot-webpush-reminders
-test -f /etc/cron.d/bersoncarebot-specialist-task-reminders && grep -F 'specialist-task-reminders/tick' /etc/cron.d/bersoncarebot-specialist-task-reminders
+/opt/projects/bersoncarebot/deploy/host/web-push-only-reminder-cron.sh status
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 [ -n "$INTERNAL_JOB_SECRET" ] && curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
   "http://127.0.0.1:6200/api/internal/reminders/web-push-only/tick?limit=1" | head -c 200 && echo

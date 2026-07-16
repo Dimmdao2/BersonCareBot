@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const BookingLifecyclePayloadSchema = z.object({
+  organizationId: z.string().uuid().optional(),
   bookingId: z.string().uuid(),
   userId: z.string().min(1),
   rubitimeId: z.string().nullable().optional(),

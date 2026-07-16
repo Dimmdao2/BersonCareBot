@@ -12,6 +12,7 @@ const s3ListObjectKeysUnderPrefixMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipal: vi.fn(() => undefined),
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
   applyCurrentDbPrincipalToConnection: vi.fn().mockResolvedValue(undefined),
   applyCurrentDbPrincipalToTransaction: vi.fn().mockResolvedValue(undefined),

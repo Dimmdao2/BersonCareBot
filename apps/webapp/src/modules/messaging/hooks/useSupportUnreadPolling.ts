@@ -91,9 +91,10 @@ export function usePatientNotificationUnreadCount() {
  * Потребители в UI берут значение через `useDoctorSupportUnreadCount` из `@/shared/hooks/useSupportUnreadPolling`
  * (контекст `DoctorSupportUnreadProvider`), чтобы не дублировать интервал.
  */
-export function useDoctorSupportUnreadCountPolling() {
+export function useDoctorSupportUnreadCountPolling(enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -118,6 +119,6 @@ export function useDoctorSupportUnreadCountPolling() {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener(DOCTOR_SUPPORT_UNREAD_REFRESH_EVENT, run);
     };
-  }, []);
-  return count;
+  }, [enabled]);
+  return enabled ? count : 0;
 }

@@ -5,6 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import { runWebPushOnlyReminderInternalTick } from "@/app-layer/reminders/runWebPushOnlyReminderInternalTick";
+import { WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE } from "@/modules/reminders/webPushOnlyScheduler";
 import {
   OPERATOR_REMINDERS_JOB_FAMILY,
   OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
   // INFRA: scheduler tick plans and dispatches due Web Push reminder occurrences across organizations.
-  enterWithDbInfraPrincipal({ source: "api/internal/reminders/web-push-only/tick:POST" });
+  enterWithDbInfraPrincipal({ source: WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE });
 
   let dispatchLimit = 50;
   try {
@@ -67,9 +68,7 @@ export async function POST(request: Request) {
         OPERATOR_WEB_PUSH_ONLY_REMINDER_TICK_JOB_KEY,
       );
       const prev =
-        typeof prevRow?.metaJson?.consecutiveCronFailures === "number"
-          ? prevRow.metaJson.consecutiveCronFailures
-          : 0;
+        typeof prevRow?.metaJson?.consecutiveCronFailures === "number" ? prevRow.metaJson.consecutiveCronFailures : 0;
       consecutiveCronFailures = prev + 1;
     } catch {
       /* ignore — default 1 */
@@ -82,10 +81,7 @@ export async function POST(request: Request) {
         metaJson: { consecutiveCronFailures },
       });
     } catch (tickErr) {
-      logger.warn(
-        { err: tickErr },
-        "[internal/reminders/web-push-only/tick] operator_job_status failure tick failed",
-      );
+      logger.warn({ err: tickErr }, "[internal/reminders/web-push-only/tick] operator_job_status failure tick failed");
     }
     return NextResponse.json({ ok: false, error: "tick_failed" }, { status: 500 });
   }

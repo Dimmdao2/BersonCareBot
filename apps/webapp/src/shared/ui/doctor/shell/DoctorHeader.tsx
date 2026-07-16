@@ -19,6 +19,7 @@ import {
 } from "@/shared/ui/doctor/primitives/sheet";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
+import { doctorShellLinkPrefetch } from "@/shared/ui/doctor/shell/doctorShellLinkPrefetch";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_HEADER_INNER_CLASS,
@@ -37,6 +38,7 @@ type DoctorHeaderProps = {
   patientLabel?: string;
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
+  enableBadgePolling?: boolean;
 };
 
 const DOCTOR_SHEET_LINK_CLASS = cn(
@@ -47,7 +49,14 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
-export function DoctorHeader({ userDisplayName, adminMode, menuAccess, patientLabel, hideMenuOnDesktop }: DoctorHeaderProps) {
+export function DoctorHeader({
+  userDisplayName,
+  adminMode,
+  menuAccess,
+  patientLabel,
+  hideMenuOnDesktop,
+  enableBadgePolling,
+}: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
@@ -175,11 +184,22 @@ export function DoctorHeader({ userDisplayName, adminMode, menuAccess, patientLa
                 menuAccess={menuAccess}
                 patientLabel={patientLabel}
                 onNavigate={closeMenu}
+                enableBadgePolling={enableBadgePolling}
               />
-              <Link href={routePaths.doctorInstall} onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
+              <Link
+                href={routePaths.doctorInstall}
+                prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
+                onClick={closeMenu}
+                className={DOCTOR_SHEET_LINK_CLASS}
+              >
                 Установить приложение
               </Link>
-              <Link href="/app/settings" onClick={closeMenu} className={cn(DOCTOR_SHEET_LINK_CLASS, "mt-1")}>
+              <Link
+                href="/app/settings"
+                prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
+                onClick={closeMenu}
+                className={cn(DOCTOR_SHEET_LINK_CLASS, "mt-1")}
+              >
                 Настройки специалиста
               </Link>
               <form action="/api/auth/logout" method="post" className="w-full">

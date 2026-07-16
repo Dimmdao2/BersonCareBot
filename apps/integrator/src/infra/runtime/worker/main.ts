@@ -9,6 +9,7 @@ import { createDbReadPort } from '../../db/readPort.js';
 import { createDbWritePort } from '../../db/writePort.js';
 import { PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS } from '../../../kernel/domain/reminders/patientNotificationTopics.js';
 import { runWorkerTick } from './runner.js';
+import { assertWebappPushNotifyAccepted } from './jobExecutor.js';
 import { runProjectionWorkerTick } from './projectionWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
@@ -82,6 +83,7 @@ async function startWorker(): Promise<void> {
                   tickDeps.dispatchWebappPush = async (pushNotify) => {
                     const base = (await getAppBaseUrl(projectionDb)).replace(/\/$/, '');
                     const body = JSON.stringify({
+                      organizationId: pushNotify.organizationId,
                       phoneNormalized: pushNotify.phoneNormalized,
                       topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
                       intentType: 'appointment_reminder',
@@ -90,10 +92,11 @@ async function startWorker(): Promise<void> {
                       stableKey: pushNotify.stableKey,
                       nowIso: new Date().toISOString(),
                     });
-                    await notify({
+                    const result = await notify({
                       body,
                       idempotencyKey: `pwp:${pushNotify.stableKey}`.slice(0, 240),
                     });
+                    assertWebappPushNotifyAccepted(result);
                   };
                 }
                 await runWorkerTick(tickDeps);

@@ -210,6 +210,7 @@ export async function POST(request: Request) {
         eventType: "booking.created",
         idempotencyKey: `staff.booking.created:${appointment.id}:${appointment.startAt}`,
         payload: {
+          organizationId: appointment.organizationId,
           bookingId: bookingRow?.id ?? appointment.id,
           userId: bookingRow?.userId ?? appointment.platformUserId ?? appointment.id,
           rubitimeId: bookingRow?.rubitimeId ?? syncedRubitimeId ?? null,

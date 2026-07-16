@@ -6,6 +6,7 @@ import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 
 export const DATABASE_URL_STAFF_ENV = "DATABASE_URL_STAFF";
 export const DATABASE_URL_NONSTAFF_ENV = "DATABASE_URL_NONSTAFF";
+export const DATABASE_URL_WEB_PUSH_REMINDER_ENV = "DATABASE_URL_WEB_PUSH_REMINDER";
 
 let pool: Pool | null = null;
 
@@ -13,18 +14,22 @@ type WebappRuntimeDatabaseEnv = {
   DATABASE_URL?: string;
   DATABASE_URL_STAFF?: string;
   DATABASE_URL_NONSTAFF?: string;
+  DATABASE_URL_WEB_PUSH_REMINDER?: string;
 };
 
 function trimOptionalEnv(value: string | undefined): string {
   return (value ?? "").trim();
 }
 
-export function resolveWebappPoolProviderConfig(input: WebappRuntimeDatabaseEnv): Parameters<typeof createWebappPoolProvider>[0] {
+export function resolveWebappPoolProviderConfig(
+  input: WebappRuntimeDatabaseEnv,
+): Parameters<typeof createWebappPoolProvider>[0] {
   const legacyConnectionString = trimOptionalEnv(input.DATABASE_URL);
   const staffConnectionString = trimOptionalEnv(input.DATABASE_URL_STAFF);
   const nonstaffConnectionString = trimOptionalEnv(input.DATABASE_URL_NONSTAFF);
+  const webPushReminderConnectionString = trimOptionalEnv(input.DATABASE_URL_WEB_PUSH_REMINDER);
 
-  if (!staffConnectionString && !nonstaffConnectionString) {
+  if (!staffConnectionString && !nonstaffConnectionString && !webPushReminderConnectionString) {
     if (!legacyConnectionString) {
       throw new Error("DATABASE_URL is not set");
     }
@@ -34,13 +39,16 @@ export function resolveWebappPoolProviderConfig(input: WebappRuntimeDatabaseEnv)
   const resolvedStaffConnectionString = staffConnectionString || legacyConnectionString;
   const resolvedNonstaffConnectionString = nonstaffConnectionString || legacyConnectionString;
   if (!resolvedStaffConnectionString || !resolvedNonstaffConnectionString) {
-    throw new Error("DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback");
+    throw new Error(
+      "DATABASE_URL_STAFF and DATABASE_URL_NONSTAFF must both be set, or DATABASE_URL must be set as fallback",
+    );
   }
 
   return {
     connectionString: legacyConnectionString || undefined,
     staffConnectionString: resolvedStaffConnectionString,
     nonstaffConnectionString: resolvedNonstaffConnectionString,
+    ...(webPushReminderConnectionString ? { webPushReminderConnectionString } : {}),
   };
 }
 
@@ -49,6 +57,7 @@ function readWebappRuntimeDatabaseEnv(): WebappRuntimeDatabaseEnv {
     DATABASE_URL: env.DATABASE_URL || process.env.DATABASE_URL,
     DATABASE_URL_STAFF: process.env[DATABASE_URL_STAFF_ENV],
     DATABASE_URL_NONSTAFF: process.env[DATABASE_URL_NONSTAFF_ENV],
+    DATABASE_URL_WEB_PUSH_REMINDER: process.env[DATABASE_URL_WEB_PUSH_REMINDER_ENV],
   };
 }
 

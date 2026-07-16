@@ -2,6 +2,7 @@
 set -euo pipefail
 
 API_ENV_FILE="${API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
+WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 fail(){ echo "C4 operational readiness: $*" >&2; exit 1; }
 
@@ -19,6 +20,14 @@ scheduler_url="$DATABASE_URL_SCHEDULER"
 unset DATABASE_URL
 set -a
 # shellcheck disable=SC1090
+. "$WEBAPP_ENV_FILE"
+set +a
+: "${DATABASE_URL_WEB_PUSH_REMINDER:?missing DATABASE_URL_WEB_PUSH_REMINDER}"
+web_push_reminder_url="$DATABASE_URL_WEB_PUSH_REMINDER"
+
+unset DATABASE_URL
+set -a
+# shellcheck disable=SC1090
 . "$MEDIA_WORKER_ENV_FILE"
 set +a
 : "${DATABASE_URL:?missing media-worker DATABASE_URL}"
@@ -30,7 +39,8 @@ diagnostic_login="$(probe "$diagnostic_url" "SELECT app.release_principal_contex
 delivery_login="$(probe "$delivery_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_delivery_worker; UPDATE integrator.projection_outbox SET id=id WHERE false; UPDATE integrator.rubitime_create_retry_jobs SET id=id WHERE false; UPDATE public.outgoing_delivery_queue SET id=id WHERE false; SELECT resolution FROM app.resolve_outgoing_delivery_scope('00000000-0000-4000-8000-000000000000'::uuid); SELECT app.operator_incident_alert_already_sent('00000000-0000-4000-8000-000000000000'::uuid); SELECT app.mark_operator_incident_alert_sent('00000000-0000-4000-8000-000000000000'::uuid); SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int; ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
 scheduler_login="$(probe "$scheduler_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_scheduler; SELECT count(*) FROM app.list_scheduler_reminder_organization_ids(); UPDATE integrator.idempotency_keys SET key=key WHERE false; DELETE FROM integrator.idempotency_keys WHERE false; INSERT INTO integrator.idempotency_keys(key, expires_at, request_hash, status, response_body) SELECT 'c4-readiness', now(), '', 200, '{}'::jsonb WHERE false; ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
 media_login="$(probe "$media_url" "SELECT app.release_principal_context(); BEGIN; SET ROLE app_operational_media_worker; UPDATE public.media_transcode_jobs SET id=id WHERE false; UPDATE public.media_files SET id=id WHERE false; SELECT app.read_media_worker_runtime_setting('video_hls_pipeline_enabled'); ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
+web_push_reminder_login="$(probe "$web_push_reminder_url" "BEGIN; SET ROLE app_operational_web_push_reminder; SELECT count(*) FROM app.list_web_push_reminder_organization_ids(now()); UPDATE public.webapp_reminder_occurrences SET id=id WHERE false; INSERT INTO public.operator_job_status(job_family, job_key, last_status) SELECT 'readiness', 'readiness', 'ok' WHERE false; ROLLBACK; RESET ROLE; SELECT session_user;" | tail -n 1)"
 
-login_count="$(printf '%s\n' "$diagnostic_login" "$delivery_login" "$scheduler_login" "$media_login" | sed '/^$/d' | sort -u | wc -l)"
-[ "$login_count" -eq 4 ] || fail "four contours must authenticate as four distinct PostgreSQL roles"
+login_count="$(printf '%s\n' "$diagnostic_login" "$delivery_login" "$scheduler_login" "$media_login" "$web_push_reminder_login" | sed '/^$/d' | sort -u | wc -l)"
+[ "$login_count" -eq 5 ] || fail "five contours must authenticate as five distinct PostgreSQL roles"
 echo "C4 operational readiness: OK"

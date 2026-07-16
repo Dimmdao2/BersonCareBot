@@ -103,6 +103,8 @@ export type DoctorMenuAccordionProps = {
   patientLabel?: string;
   /** Вызывается после навигации по пункту меню (например закрытие Sheet на mobile). */
   onNavigate?: () => void;
+  /** Global-only surfaces have no tenant workspace and must not poll tenant badge APIs. */
+  enableBadgePolling?: boolean;
 };
 
 /**
@@ -406,14 +408,23 @@ function SheetTwoLevelMenu({
   );
 }
 
-export function DoctorMenuAccordion({ variant, pathname, menuAccess, patientLabel, onNavigate }: DoctorMenuAccordionProps) {
+export function DoctorMenuAccordion({
+  variant,
+  pathname,
+  menuAccess,
+  patientLabel,
+  onNavigate,
+  enableBadgePolling = true,
+}: DoctorMenuAccordionProps) {
   const items = useMemo(() => getDoctorMenuItems(menuAccess, patientLabel), [menuAccess, patientLabel]);
 
   const messagesUnread = useDoctorSupportUnreadCount();
-  const onlineIntakeNew = useDoctorOnlineIntakeNewCount();
-  const pendingProgramTests = useDoctorPendingProgramTestsCount();
-  const proactiveInsights = useDoctorProactiveInsightsCount();
-  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(menuAccess.role === "admin");
+  const onlineIntakeNew = useDoctorOnlineIntakeNewCount(enableBadgePolling);
+  const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
+  const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
+  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
+    enableBadgePolling && menuAccess.role === "admin",
+  );
 
   const badgeCounts = useMemo(
     () =>

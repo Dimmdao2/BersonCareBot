@@ -31,7 +31,6 @@ import {
   type NotificationTopicGate,
 } from "@/modules/patient-notifications/resolveNotificationChannels";
 import type { SystemSettingsService } from "@/modules/system-settings/service";
-import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import type { WarmupPushDynamicContext } from "@/modules/web-push/pushNotificationCopy";
 import { createTrackedWebPushPayload } from "@/app-layer/product-analytics/createTrackedWebPushPayload";
 import {
@@ -47,7 +46,7 @@ export type PlatformUserReminderWebPushNotifyDeps = {
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
   webPushSubscriptions: WebPushSubscriptionsPort;
-  systemSettings: Pick<SystemSettingsService, "getSetting">;
+  systemSettings: Pick<SystemSettingsService, "getWebPushVapidPublicKeyOnly">;
   readReminderNotifyGate: (platformUserId: string, topicCode: string) => Promise<NotificationTopicGate>;
   notificationDelivery?: NotificationDeliveryService;
 };
@@ -62,6 +61,7 @@ export type ReminderWebPushRuleMeta = {
 };
 
 export type PlatformUserReminderWebPushNotifyInput = {
+  organizationId: string;
   platformUserId: string;
   occurrenceId: string;
   topicCode: string;
@@ -78,7 +78,10 @@ export type PlatformUserReminderWebPushNotifyResult =
   | { ok: false; error: string };
 
 function stripHtmlLight(s: string): string {
-  return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  return s
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function resolvePushPayload(input: PlatformUserReminderWebPushNotifyInput): ReminderWebPushPayload | null {
@@ -118,7 +121,7 @@ export async function runPlatformUserReminderWebPushNotify(
 
   const prefs = await deps.channelPreferences.getPreferences(input.platformUserId);
   const topicRows = await deps.topicChannelPrefs.listByUserId(input.platformUserId);
-  const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
+  const vapidPublicKey = await deps.systemSettings.getWebPushVapidPublicKeyOnly();
   const subs = await deps.webPushSubscriptions.listActiveByUserId(input.platformUserId);
 
   const resolved = resolvePatientNotificationChannels({
@@ -129,7 +132,7 @@ export async function runPlatformUserReminderWebPushNotify(
       hasEmail: false,
       emailVerified: false,
       hasWebPushSubscription: subs.length > 0,
-      vapidConfigured: Boolean(vapidKeys),
+      vapidConfigured: Boolean(vapidPublicKey),
       // smtpConfigured omitted: email channel disabled (hasEmail: false) — not consulted
     },
     channelPrefs: prefs,
@@ -142,7 +145,7 @@ export async function runPlatformUserReminderWebPushNotify(
     return { ok: true, delivered: 0, skipped: skip?.reason ?? "web_push_not_selected" };
   }
 
-  if (!vapidKeys) {
+  if (!vapidPublicKey) {
     await deps.notificationDelivery?.recordNotificationDeliveryAttempt({
       userId: input.platformUserId,
       topicCode: input.topicCode,

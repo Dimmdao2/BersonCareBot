@@ -486,7 +486,7 @@ Canonical linking rules:
 
 **Headers:** `x-bersoncare-timestamp`, `x-bersoncare-signature`, `x-bersoncare-idempotency-key` (как у других signed M2M).
 
-**Body (JSON):** один из идентификаторов пользователя — `integratorUserId` (digits) или `phoneNormalized`; для internal fan-out из webapp допустим `platformUserId` (UUID, не используется integrator HTTP-клиентом).
+**Body (JSON):** обязательный `organizationId` (UUID подписанного tenant-контекста) и один из идентификаторов пользователя — `integratorUserId` (digits) или `phoneNormalized`; для internal fan-out из webapp допустим `platformUserId` (UUID, не используется integrator HTTP-клиентом). После HMAC webapp устанавливает organization principal до idempotency/read-path и отклоняет разрешившегося пользователя без активного enrollment в этой организации.
 
 | Поле | Описание |
 |------|----------|

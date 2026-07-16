@@ -1,6 +1,7 @@
 import type { ReminderCategory, ReminderLinkedObjectType } from "./types";
 
 export type WebPushOnlyReminderRuleRow = {
+  organizationId: string;
   integratorRuleId: string;
   platformUserId: string;
   category: ReminderCategory;
@@ -25,6 +26,7 @@ export type WebPushOnlyReminderRuleRow = {
 
 export type WebPushOnlyDueOccurrenceRow = {
   id: string;
+  organizationId: string;
   integratorRuleId: string;
   platformUserId: string;
   occurrenceKey: string;
@@ -32,19 +34,21 @@ export type WebPushOnlyDueOccurrenceRow = {
 };
 
 export type WebPushOnlyRemindersPort = {
-  listEnabledWebPushOnlyRules(nowIso: string): Promise<WebPushOnlyReminderRuleRow[]>;
-  getRuleByIntegratorRuleId(integratorRuleId: string): Promise<WebPushOnlyReminderRuleRow | null>;
+  listOrganizationIds(nowIso: string): Promise<string[]>;
+  listEnabledWebPushOnlyRules(organizationId: string, nowIso: string): Promise<WebPushOnlyReminderRuleRow[]>;
+  getRuleByIntegratorRuleId(
+    organizationId: string,
+    integratorRuleId: string,
+  ): Promise<WebPushOnlyReminderRuleRow | null>;
   upsertPlannedOccurrences(
+    organizationId: string,
     platformUserId: string,
     integratorRuleId: string,
     drafts: Array<{ occurrenceKey: string; plannedAt: string }>,
   ): Promise<number>;
-  claimDueOccurrences(nowIso: string, limit: number): Promise<WebPushOnlyDueOccurrenceRow[]>;
-  markOccurrenceSent(occurrenceId: string): Promise<void>;
-  markOccurrenceFailed(occurrenceId: string, errorCode: string): Promise<void>;
-  resolveLinkedCatalogTitle(
-    linkedObjectType: string,
-    linkedObjectId: string,
-  ): Promise<string | null>;
-  expireOrphanedPendingOccurrences(nowIso: string): Promise<number>;
+  claimDueOccurrences(organizationId: string, nowIso: string, limit: number): Promise<WebPushOnlyDueOccurrenceRow[]>;
+  markOccurrenceSent(organizationId: string, occurrenceId: string): Promise<void>;
+  markOccurrenceFailed(organizationId: string, occurrenceId: string, errorCode: string): Promise<void>;
+  resolveLinkedCatalogTitle(linkedObjectType: string, linkedObjectId: string): Promise<string | null>;
+  expireOrphanedPendingOccurrences(organizationId: string, nowIso: string): Promise<number>;
 };

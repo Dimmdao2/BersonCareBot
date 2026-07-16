@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { notificationDeliveryAttempts } from "../../../db/schema/notificationDeliveryAttempts";
 import type { NotificationDeliveryAttemptsPort } from "@/modules/notification-delivery/ports";
@@ -43,6 +44,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
   async recordAttempt(input: RecordNotificationDeliveryAttemptInput): Promise<void> {
     const db = getDrizzle();
     await db.insert(notificationDeliveryAttempts).values({
+      organizationId: getCurrentDbPrincipalOrganizationId() ?? null,
       userId: input.userId ?? null,
       integratorUserId: input.integratorUserId ?? null,
       topicCode: input.topicCode ?? null,
@@ -98,12 +100,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
           errorMessage: notificationDeliveryAttempts.errorMessage,
         })
         .from(notificationDeliveryAttempts)
-        .where(
-          and(
-            eq(notificationDeliveryAttempts.channel, channel),
-            windowFilter,
-          ),
-        )
+        .where(and(eq(notificationDeliveryAttempts.channel, channel), windowFilter))
         .orderBy(desc(notificationDeliveryAttempts.createdAt))
         .limit(1);
 
@@ -167,12 +164,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         errorMessage: notificationDeliveryAttempts.errorMessage,
       })
       .from(notificationDeliveryAttempts)
-      .where(
-        and(
-          windowFilter,
-          inArray(notificationDeliveryAttempts.status, ["failed", "skipped"]),
-        ),
-      )
+      .where(and(windowFilter, inArray(notificationDeliveryAttempts.status, ["failed", "skipped"])))
       .orderBy(desc(notificationDeliveryAttempts.createdAt))
       .limit(10);
 

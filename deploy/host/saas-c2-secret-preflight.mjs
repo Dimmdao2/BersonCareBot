@@ -5,7 +5,12 @@ import { basename } from "node:path";
 
 const REQUIRED_PROCESS_NAMES = new Set(["webapp", "integrator", "media-worker"]);
 const REQUIRED_SHARED_KEYS = ["DB_PRINCIPAL_CONTEXT_MODE", "DB_PRINCIPAL_SIGNING_SECRET"];
-const WEBAPP_DATABASE_URL_KEYS = ["DATABASE_URL_STAFF", "DATABASE_URL_NONSTAFF", "SAAS_ISOLATION_OPERATOR_DATABASE_URL"];
+const WEBAPP_DATABASE_URL_KEYS = [
+  "DATABASE_URL_STAFF",
+  "DATABASE_URL_NONSTAFF",
+  "DATABASE_URL_WEB_PUSH_REMINDER",
+  "SAAS_ISOLATION_OPERATOR_DATABASE_URL",
+];
 const INTEGRATOR_OPERATIONAL_URL_KEYS = [
   "DATABASE_URL_DIAGNOSTIC",
   "DATABASE_URL_DELIVERY_WORKER",
@@ -228,6 +233,9 @@ function validateLoadedFiles(loadedFiles) {
     signingFingerprint: [...uniqueSigningFingerprints][0],
     webappStaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_STAFF") ?? ""),
     webappNonstaffUrlShape: fingerprintUrlHost(webapp?.values.get("DATABASE_URL_NONSTAFF") ?? ""),
+    webappWebPushReminderUrlShape: fingerprintUrlHost(
+      webapp?.values.get("DATABASE_URL_WEB_PUSH_REMINDER") ?? "",
+    ),
     webappOperatorUrlShape: fingerprintUrlHost(webapp?.values.get("SAAS_ISOLATION_OPERATOR_DATABASE_URL") ?? ""),
     integratorOperationalUrlShapes: Object.fromEntries(
       operationalUrls.map(([key, value]) => [key, fingerprintUrlHost(value)]),
@@ -242,6 +250,7 @@ function renderReport(loadedFiles, summary) {
     `signing_secret_sha256_16=${summary.signingFingerprint}`,
     `webapp_DATABASE_URL_STAFF_shape=${summary.webappStaffUrlShape}`,
     `webapp_DATABASE_URL_NONSTAFF_shape=${summary.webappNonstaffUrlShape}`,
+    `webapp_DATABASE_URL_WEB_PUSH_REMINDER_shape=${summary.webappWebPushReminderUrlShape}`,
     `webapp_SAAS_ISOLATION_OPERATOR_DATABASE_URL_shape=${summary.webappOperatorUrlShape}`,
     ...Object.entries(summary.integratorOperationalUrlShapes).map(([key, value]) => `integrator_${key}_shape=${value}`),
     `media-worker_DATABASE_URL_shape=${summary.mediaWorkerUrlShape}`,
@@ -274,6 +283,7 @@ DB_PRINCIPAL_CONTEXT_MODE=shadow
 DB_PRINCIPAL_SIGNING_SECRET='${sharedSecret}'
 DATABASE_URL_STAFF=postgres://staff:staff-secret@127.0.0.1:5432/bersoncarebot_test
 DATABASE_URL_NONSTAFF=postgres://nonstaff:nonstaff-secret@127.0.0.1:5432/bersoncarebot_test
+DATABASE_URL_WEB_PUSH_REMINDER=postgres://webpush_reminder:webpush-secret@127.0.0.1:5432/bersoncarebot_test
 SAAS_ISOLATION_OPERATOR_DATABASE_URL=postgres://saas_operator:operator-secret@127.0.0.1:5432/bersoncarebot_test
 `),
     },

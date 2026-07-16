@@ -13,6 +13,7 @@ import { resolveWebappPoolProviderConfig } from "@/infra/db/client";
 import {
   createWebappPoolProvider,
   getWebappPoolRoutingMetrics,
+  WEB_PUSH_REMINDER_INFRA_SOURCE,
 } from "@/infra/db/webappPoolProvider";
 import { createSaasIsolationTelemetryPoolProvider } from "@/infra/db/saasIsolationTelemetryPoolProvider";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
@@ -179,33 +180,42 @@ describe("webapp pool provider", () => {
   it.each([
     ["staff", runWithDbStaffPrincipal],
     ["patient", runWithDbPatientPrincipal],
-  ] as const)("temporarily routes a nested public-config bootstrap checkout from %s and restores the outer principal", async (kind, runOuter) => {
-    const { factory, pools } = createFakePoolFactory();
-    const pool = createWebappPoolProvider({
-      staffConnectionString: "postgres://staff/db",
-      nonstaffConnectionString: "postgres://nonstaff/db",
-      poolFactory: factory,
-    });
+  ] as const)(
+    "temporarily routes a nested public-config bootstrap checkout from %s and restores the outer principal",
+    async (kind, runOuter) => {
+      const { factory, pools } = createFakePoolFactory();
+      const pool = createWebappPoolProvider({
+        staffConnectionString: "postgres://staff/db",
+        nonstaffConnectionString: "postgres://nonstaff/db",
+        poolFactory: factory,
+      });
 
-    await runOuter({ organizationId: ORG_ID, platformUserId: kind === "staff" ? STAFF_USER_ID : PATIENT_USER_ID }, async () => {
-      expect(getCurrentDbPrincipal()?.kind).toBe(kind);
-      await runWithWebappDbOperationFamily("public_auth_config", () =>
-        runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }, () =>
-          pool.query("SELECT public_config_marker"),
-        ),
+      await runOuter(
+        {
+          organizationId: ORG_ID,
+          platformUserId: kind === "staff" ? STAFF_USER_ID : PATIENT_USER_ID,
+        },
+        async () => {
+          expect(getCurrentDbPrincipal()?.kind).toBe(kind);
+          await runWithWebappDbOperationFamily("public_auth_config", () =>
+            runWithDbBootstrapPrincipal({ source: "webapp-public-runtime-config" }, () =>
+              pool.query("SELECT public_config_marker"),
+            ),
+          );
+          expect(getCurrentDbPrincipal()?.kind).toBe(kind);
+        },
       );
-      expect(getCurrentDbPrincipal()?.kind).toBe(kind);
-    });
 
-    expect(pools[0]?.connect).not.toHaveBeenCalled();
-    expect(pools[1]?.connect).toHaveBeenCalledTimes(1);
-    expect(getCurrentDbPrincipal()).toBeUndefined();
-    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
-      bootstrapSelections: 1,
-      nonstaffSelections: 1,
-      staffSelections: 0,
-    });
-  });
+      expect(pools[0]?.connect).not.toHaveBeenCalled();
+      expect(pools[1]?.connect).toHaveBeenCalledTimes(1);
+      expect(getCurrentDbPrincipal()).toBeUndefined();
+      expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+        bootstrapSelections: 1,
+        nonstaffSelections: 1,
+        staffSelections: 0,
+      });
+    },
+  );
 
   it("rejects missing and infra principals before dual-pool checkout in locked mode", async () => {
     process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
@@ -237,6 +247,73 @@ describe("webapp pool provider", () => {
       sourceService: "webapp",
       sourceOperation: "webapp_db_request",
     });
+  });
+
+  it("routes only the exact Web Push reminder infra source to its operational pool and cleans it", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      webPushReminderConnectionString: "postgres://webpush/db",
+      poolFactory: factory,
+    });
+
+    await runWithDbInfraPrincipal({ source: WEB_PUSH_REMINDER_INFRA_SOURCE, organizationId: ORG_ID }, () =>
+      pool.query("SELECT operational_marker"),
+    );
+
+    expect(pools).toHaveLength(3);
+    expect(pools[2]?.config).toMatchObject({ connectionString: "postgres://webpush/db", max: 2 });
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+    expect(pools[2]?.connect).toHaveBeenCalledOnce();
+    expect(pools[2]?.clients[0]?.query.mock.calls.map(([statement]) => statement)).toEqual([
+      "SET ROLE app_operational_web_push_reminder",
+      "SELECT set_config('app.org', $1, false)",
+      "SELECT operational_marker",
+      "SELECT set_config('app.org', '', false)",
+      "RESET ROLE",
+    ]);
+    expect(pools[2]?.clients[0]?.query).toHaveBeenCalledWith("SELECT set_config('app.org', $1, false)", [ORG_ID]);
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({ webPushReminderSelections: 1 });
+
+    await expect(
+      runWithDbInfraPrincipal({ source: "wrong-infra-source" }, () => pool.query("SELECT denied")),
+    ).rejects.toThrow("DB infra principal is not allowed to use the webapp request DB pool in locked mode");
+  });
+
+  it("fails closed before checkout when the exact Web Push reminder source has no operational URL", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+
+    await expect(
+      runWithDbInfraPrincipal({ source: WEB_PUSH_REMINDER_INFRA_SOURCE }, () => pool.query("SELECT denied")),
+    ).rejects.toThrow("DATABASE_URL_WEB_PUSH_REMINDER is required");
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+  });
+
+  it("keeps the operational pool when request traffic uses one legacy connection string", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      connectionString: "postgres://legacy/db",
+      webPushReminderConnectionString: "postgres://webpush/db",
+      poolFactory: factory,
+    });
+
+    await runWithDbInfraPrincipal({ source: WEB_PUSH_REMINDER_INFRA_SOURCE }, () => pool.query("SELECT marker"));
+
+    expect(pools).toHaveLength(3);
+    expect(pools[2]?.config).toMatchObject({ connectionString: "postgres://webpush/db" });
+    expect(pools[2]?.connect).toHaveBeenCalledOnce();
   });
 
   it("uses one legacy pool for both principals when only DATABASE_URL is resolved", async () => {
@@ -301,11 +378,14 @@ describe("webapp pool provider", () => {
       }
       return { rows: [], rowCount: 0 };
     });
-    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+    const pool = createWebappPoolProvider({
+      connectionString: "postgres://legacy/db",
+      poolFactory: factory,
+    });
 
-    await expect(
-      runWithWebappDbOperationFamily("public_booking_config", () => pool.query("SELECT ok")),
-    ).rejects.toBe(cleanupError);
+    await expect(runWithWebappDbOperationFamily("public_booking_config", () => pool.query("SELECT ok"))).rejects.toBe(
+      cleanupError,
+    );
 
     expect(pools[0]?.clients[0]?.release).toHaveBeenCalledWith(cleanupError);
     expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
@@ -323,7 +403,10 @@ describe("webapp pool provider", () => {
       if (sql === "SELECT tenant_data") throw rlsError;
       return { rows: [], rowCount: 0 };
     });
-    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+    const pool = createWebappPoolProvider({
+      connectionString: "postgres://legacy/db",
+      poolFactory: factory,
+    });
 
     await expect(pool.query("SELECT tenant_data")).rejects.toBe(rlsError);
 
@@ -349,19 +432,21 @@ describe("webapp pool provider", () => {
     "patient_content_catalog",
     "patient_diary",
   ] as const)("preserves the %s operation family through an async pool query failure", async (family) => {
-    const rlsError = Object.assign(
-      new Error("new row violates row-level security policy for table projected"),
-      { code: "42501" },
-    );
+    const rlsError = Object.assign(new Error("new row violates row-level security policy for table projected"), {
+      code: "42501",
+    });
     const { factory } = createFakePoolFactory(async (sql: string) => {
       if (sql === "SELECT projected_config") throw rlsError;
       return { rows: [], rowCount: 0 };
     });
-    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+    const pool = createWebappPoolProvider({
+      connectionString: "postgres://legacy/db",
+      poolFactory: factory,
+    });
 
-    await expect(
-      runWithWebappDbOperationFamily(family, () => pool.query("SELECT projected_config")),
-    ).rejects.toBe(rlsError);
+    await expect(runWithWebappDbOperationFamily(family, () => pool.query("SELECT projected_config"))).rejects.toBe(
+      rlsError,
+    );
 
     expect(reportSaasIsolationEventBestEffortMock).toHaveBeenCalledWith({
       eventClass: "rls_denial",
@@ -381,7 +466,10 @@ describe("webapp pool provider", () => {
       }
       return { rows: [], rowCount: 0 };
     });
-    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+    const pool = createWebappPoolProvider({
+      connectionString: "postgres://legacy/db",
+      poolFactory: factory,
+    });
 
     await expect(
       runWithWebappDbOperationFamily("patient_runtime_config", () =>

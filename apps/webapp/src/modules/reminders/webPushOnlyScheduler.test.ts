@@ -14,14 +14,16 @@ vi.mock("@/infra/logging/logger", () => ({
 const runPlatformUserReminderWebPushNotify = vi.fn();
 
 vi.mock("./platformUserReminderWebPushNotify", () => ({
-  runPlatformUserReminderWebPushNotify: (...args: unknown[]) =>
-    runPlatformUserReminderWebPushNotify(...args),
+  runPlatformUserReminderWebPushNotify: (...args: unknown[]) => runPlatformUserReminderWebPushNotify(...args),
 }));
 
 import { runWebPushOnlyReminderTick } from "./webPushOnlyScheduler";
 
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+
 function makeRule(overrides: Partial<WebPushOnlyReminderRuleRow> = {}): WebPushOnlyReminderRuleRow {
   return {
+    organizationId: ORGANIZATION_ID,
     integratorRuleId: "rule-1",
     platformUserId: "user-1",
     category: "lfk",
@@ -67,6 +69,7 @@ describe("runWebPushOnlyReminderTick", () => {
     const rule = makeRule();
     const dueOcc = {
       id: "occ-1",
+      organizationId: ORGANIZATION_ID,
       integratorRuleId: rule.integratorRuleId,
       platformUserId: rule.platformUserId,
       occurrenceKey: "2026-05-19T12:00:00.000Z",
@@ -74,6 +77,7 @@ describe("runWebPushOnlyReminderTick", () => {
     };
 
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => [rule]),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 1),
@@ -98,7 +102,7 @@ describe("runWebPushOnlyReminderTick", () => {
     expect(result.dueClaimed).toBe(1);
     expect(result.sent).toBe(1);
     expect(result.failed).toBe(0);
-    expect(reminders.markOccurrenceSent).toHaveBeenCalledWith("occ-1");
+    expect(reminders.markOccurrenceSent).toHaveBeenCalledWith(ORGANIZATION_ID, "occ-1");
     expect(runPlatformUserReminderWebPushNotify).toHaveBeenCalledOnce();
   });
 
@@ -110,6 +114,7 @@ describe("runWebPushOnlyReminderTick", () => {
     });
     const dueOcc = {
       id: "occ-2",
+      organizationId: ORGANIZATION_ID,
       integratorRuleId: rule.integratorRuleId,
       platformUserId: rule.platformUserId,
       occurrenceKey: "k2",
@@ -117,6 +122,7 @@ describe("runWebPushOnlyReminderTick", () => {
     };
 
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => []),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -135,7 +141,7 @@ describe("runWebPushOnlyReminderTick", () => {
     expect(result.skippedNoTopic).toBe(1);
     expect(result.skipped).toBe(1);
     expect(result.failed).toBe(0);
-    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith("occ-2", "no_topic_code");
+    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith(ORGANIZATION_ID, "occ-2", "no_topic_code");
     expect(runPlatformUserReminderWebPushNotify).not.toHaveBeenCalled();
   });
 
@@ -143,6 +149,7 @@ describe("runWebPushOnlyReminderTick", () => {
     const rule = makeRule({ notificationTopicCode: "exercise_reminders" });
     const dueOcc = {
       id: "occ-3",
+      organizationId: ORGANIZATION_ID,
       integratorRuleId: rule.integratorRuleId,
       platformUserId: rule.platformUserId,
       occurrenceKey: "k3",
@@ -150,6 +157,7 @@ describe("runWebPushOnlyReminderTick", () => {
     };
 
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => []),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -174,13 +182,14 @@ describe("runWebPushOnlyReminderTick", () => {
     expect(result.skipped).toBe(1);
     expect(result.skippedNoSubscription).toBe(1);
     expect(result.failed).toBe(0);
-    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith("occ-3", "no_active_subscriptions");
+    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith(ORGANIZATION_ID, "occ-3", "no_active_subscriptions");
     expect(runPlatformUserReminderWebPushNotify).toHaveBeenCalledOnce();
   });
 
   it("does not re-dispatch when upsert inserts nothing and nothing is due", async () => {
     const rule = makeRule();
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => [rule]),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -206,6 +215,7 @@ describe("runWebPushOnlyReminderTick", () => {
 
   it("sends nothing when no enabled web-push-only rules are listed", async () => {
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => []),
       listEnabledWebPushOnlyRules: vi.fn(async () => []),
       getRuleByIntegratorRuleId: vi.fn(async () => null),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -231,6 +241,7 @@ describe("runWebPushOnlyReminderTick", () => {
     const rule = makeRule();
     const dueOcc = {
       id: "occ-4",
+      organizationId: ORGANIZATION_ID,
       integratorRuleId: rule.integratorRuleId,
       platformUserId: rule.platformUserId,
       occurrenceKey: "k4",
@@ -238,6 +249,7 @@ describe("runWebPushOnlyReminderTick", () => {
     };
 
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => []),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -257,7 +269,7 @@ describe("runWebPushOnlyReminderTick", () => {
 
     expect(result.failed).toBe(1);
     expect(result.skipped).toBe(0);
-    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith("occ-4", "web_push_errors");
+    expect(reminders.markOccurrenceFailed).toHaveBeenCalledWith(ORGANIZATION_ID, "occ-4", "web_push_errors");
     expect(loggerWarnMock).toHaveBeenCalled();
     expect(loggerInfoMock).not.toHaveBeenCalled();
   });
@@ -265,6 +277,7 @@ describe("runWebPushOnlyReminderTick", () => {
   it("does not info-log empty tick with only rulesFound", async () => {
     const rule = makeRule();
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => [rule]),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),
@@ -275,10 +288,7 @@ describe("runWebPushOnlyReminderTick", () => {
       resolveLinkedCatalogTitle: vi.fn(async () => null),
     };
 
-    await runWebPushOnlyReminderTick(
-      { reminders, notify: makeNotifyDeps() },
-      { nowIso: "2026-05-19T12:00:00.000Z" },
-    );
+    await runWebPushOnlyReminderTick({ reminders, notify: makeNotifyDeps() }, { nowIso: "2026-05-19T12:00:00.000Z" });
 
     expect(loggerInfoMock).not.toHaveBeenCalled();
     expect(loggerWarnMock).not.toHaveBeenCalled();
@@ -288,12 +298,14 @@ describe("runWebPushOnlyReminderTick", () => {
     const rule = makeRule();
     const dueOcc = {
       id: "occ-log",
+      organizationId: ORGANIZATION_ID,
       integratorRuleId: rule.integratorRuleId,
       platformUserId: rule.platformUserId,
       occurrenceKey: "k-log",
       plannedAt: "2026-05-19T12:00:00.000Z",
     };
     const reminders: WebPushOnlyRemindersPort = {
+      listOrganizationIds: vi.fn(async () => [ORGANIZATION_ID]),
       listEnabledWebPushOnlyRules: vi.fn(async () => []),
       getRuleByIntegratorRuleId: vi.fn(async () => rule),
       upsertPlannedOccurrences: vi.fn(async () => 0),

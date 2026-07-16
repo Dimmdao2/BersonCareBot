@@ -17,6 +17,8 @@ import {
   createPgWebPushOnlyRemindersPort,
 } from "./pgWebPushOnlyReminders";
 
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+
 function lastApproxSql(): string {
   const fragment = runWebappSqlMock.mock.calls.at(-1)?.[1];
   return drizzleSqlFragmentToApproximateSql(fragment);
@@ -47,6 +49,7 @@ describe("pgWebPushOnlyReminders (pg SQL)", () => {
         rows: [
           {
             id: "occ-id-1",
+            organization_id: ORGANIZATION_ID,
             integrator_rule_id: "rule-1",
             platform_user_id: "pu-1",
             occurrence_key: "k1",
@@ -57,35 +60,40 @@ describe("pgWebPushOnlyReminders (pg SQL)", () => {
       })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });
     const port = createPgWebPushOnlyRemindersPort();
-    const claimed = await port.claimDueOccurrences("2026-06-05T12:00:00.000Z", 5);
+    const claimed = await port.claimDueOccurrences(ORGANIZATION_ID, "2026-06-05T12:00:00.000Z", 5);
     expect(claimed).toHaveLength(1);
     expect(claimed[0]?.id).toBe("occ-id-1");
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     const resetSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[0]?.[1]);
     const selectSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[1]?.[1]);
     expect(resetSql).toContain("status = 'planned'");
+    expect(resetSql).toContain("organization_id");
     expect(selectSql).toContain("FOR UPDATE SKIP LOCKED");
     expect(selectSql).toContain("status = 'planned'");
+    expect(selectSql).toContain("organization_id");
     const updateSql = drizzleSqlFragmentToApproximateSql(runWebappSqlMock.mock.calls[2]?.[1]);
-    expect(updateSql).toContain("WHERE id IN (");
+    expect(updateSql).toContain("AND id IN (");
+    expect(updateSql).toContain("organization_id");
     expect(updateSql).toContain("::uuid");
     expect(updateSql).not.toContain("::uuid[]");
   });
 
   it("markOccurrenceSent sets status sent", async () => {
     const port = createPgWebPushOnlyRemindersPort();
-    await port.markOccurrenceSent("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    await port.markOccurrenceSent(ORGANIZATION_ID, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     const sql = lastApproxSql();
     expect(sql).toContain("status = 'sent'");
     expect(sql).toContain("sent_at");
+    expect(sql).toContain("organization_id");
   });
 
   it("markOccurrenceFailed truncates error_code and sets failed", async () => {
     const port = createPgWebPushOnlyRemindersPort();
     const longCode = "x".repeat(200);
-    await port.markOccurrenceFailed("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", longCode);
+    await port.markOccurrenceFailed(ORGANIZATION_ID, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", longCode);
     const sql = lastApproxSql();
     expect(sql).toContain("status = 'failed'");
     expect(sql).toContain("error_code");
+    expect(sql).toContain("organization_id");
   });
 });

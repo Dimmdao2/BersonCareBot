@@ -478,6 +478,7 @@ export async function createBookingOnCanonicalEngine(
         eventType: "booking.created",
         idempotencyKey: `booking.created:${pending.id}`,
         payload: {
+          organizationId: appointment.organizationId,
           bookingId: (confirmed ?? pending).id,
           userId: createInput.userId,
           rubitimeId,

@@ -406,6 +406,7 @@ export function createPatientBookingService(input: {
               eventType: "booking.reschedule_requested",
               idempotencyKey: `booking.reschedule_requested:${row.id}:${rescheduleInput.slotStart}`,
               payload: {
+                organizationId: orgId,
                 bookingId: row.id,
                 userId: row.userId as string,
                 rubitimeId: row.rubitimeId,
@@ -515,6 +516,7 @@ export function createPatientBookingService(input: {
           eventType: "booking.rescheduled",
           idempotencyKey,
           payload: {
+            organizationId: orgId,
             bookingId: row.id,
             userId: row.userId as string,
             rubitimeId: row.rubitimeId,
@@ -728,6 +730,7 @@ export function createPatientBookingService(input: {
             eventType: "booking.cancelled",
             idempotencyKey,
             payload: {
+              organizationId: orgId,
               bookingId: row.id,
               userId: row.userId as string,
               rubitimeId: row.rubitimeId,
@@ -807,34 +810,47 @@ export function createPatientBookingService(input: {
         status: "cancelled",
       });
       invalidateSlotsCache();
-      try {
-        await input.syncPort.emitBookingEvent({
-          eventType: "booking.cancelled",
-          idempotencyKey: `booking.cancelled:${row.id}`,
-          payload: {
-            bookingId: row.id,
-            userId: row.userId as string,
-            rubitimeId: row.rubitimeId,
-            bookingType: row.bookingType,
-            city: row.city ?? undefined,
-            category: row.category,
-            slotStart: row.slotStart,
-            slotEnd: row.slotEnd,
-            contactName: row.contactName,
-            contactPhone: row.contactPhone,
-            contactEmail: row.contactEmail ?? undefined,
-            reason: cancelInput.reason,
-            branchServiceId: row.branchServiceId,
-            cityCodeSnapshot: row.cityCodeSnapshot,
-            serviceTitleSnapshot: row.serviceTitleSnapshot,
-          },
-        });
-      } catch {
-        // Booking cancellation state is primary; event fan-out is best-effort.
+      const legacyEventOrganizationId = row.canonicalAppointmentId
+        ? await resolveCanonicalAppointmentOrganizationId(input.bookingEngine, row.canonicalAppointmentId)
+            .catch(() => null)
+        : null;
+      let notificationOutcomeFailed = false;
+      if (legacyEventOrganizationId) {
+        try {
+          await input.syncPort.emitBookingEvent({
+            eventType: "booking.cancelled",
+            idempotencyKey: `booking.cancelled:${row.id}`,
+            payload: {
+              organizationId: legacyEventOrganizationId,
+              bookingId: row.id,
+              userId: row.userId as string,
+              rubitimeId: row.rubitimeId,
+              bookingType: row.bookingType,
+              city: row.city ?? undefined,
+              category: row.category,
+              slotStart: row.slotStart,
+              slotEnd: row.slotEnd,
+              contactName: row.contactName,
+              contactPhone: row.contactPhone,
+              contactEmail: row.contactEmail ?? undefined,
+              reason: cancelInput.reason,
+              branchServiceId: row.branchServiceId,
+              cityCodeSnapshot: row.cityCodeSnapshot,
+              serviceTitleSnapshot: row.serviceTitleSnapshot,
+            },
+          });
+        } catch {
+          notificationOutcomeFailed = true;
+        }
+      } else {
+        // Legacy rows without a canonical appointment have no trustworthy tenant source.
+        // Fail closed instead of emitting an unscoped signed M2M notification.
+        notificationOutcomeFailed = true;
       }
       return {
         ok: true,
         ...(legacyRubitimeMirror === "failed" ? { rubitimeMirrorFailed: true as const } : {}),
+        ...(notificationOutcomeFailed ? { notificationOutcomeFailed: true as const } : {}),
       };
     },
 

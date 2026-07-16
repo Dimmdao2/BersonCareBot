@@ -168,7 +168,8 @@ describe("createPatientBookingService", () => {
       bookingId: row.id,
       reason: "busy",
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, notificationOutcomeFailed: true });
+    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
     expect(bookingsPort.markCancelling).toHaveBeenCalledWith(row.id);
     expect(syncPort.cancelRecord).toHaveBeenCalledWith("r1");
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
@@ -196,7 +197,8 @@ describe("createPatientBookingService", () => {
       bookingId: row.id,
       reason: "busy",
     });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, notificationOutcomeFailed: true });
+    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
     expect(syncPort.cancelRecord).not.toHaveBeenCalled();
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
       bookingId: row.id,
@@ -240,7 +242,11 @@ describe("createPatientBookingService", () => {
       isRubitimeBridgeEnabled: async () => true,
     });
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
+    expect(result).toEqual({
+      ok: true,
+      rubitimeMirrorFailed: true,
+      notificationOutcomeFailed: true,
+    });
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
       bookingId: row.id,
       reason: undefined,
@@ -274,7 +280,11 @@ describe("createPatientBookingService", () => {
     expect(getOnlineSlots).toHaveBeenCalledTimes(1);
 
     const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
+    expect(result).toEqual({
+      ok: true,
+      rubitimeMirrorFailed: true,
+      notificationOutcomeFailed: true,
+    });
 
     await svc.getSlots({ type: "online", organizationId: "org-1", category: "general" });
     expect(getOnlineSlots).toHaveBeenCalledTimes(2);
@@ -1090,7 +1100,7 @@ describe("createPatientBookingService", () => {
 
     const first = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     const second = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(first).toEqual({ ok: true });
+    expect(first).toEqual({ ok: true, notificationOutcomeFailed: true });
     expect(second).toEqual({ ok: false, error: "already_cancelled" });
   });
 
@@ -1144,6 +1154,7 @@ describe("createPatientBookingService", () => {
       branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
       cityCodeSnapshot: "moscow",
       serviceTitleSnapshot: "Сеанс",
+      canonicalAppointmentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     });
     bookingsPort.getByIdForUser.mockResolvedValue(row);
     bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
@@ -1155,6 +1166,9 @@ describe("createPatientBookingService", () => {
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
       bookingCatalog: null,
+      bookingEngine: {
+        getAppointment: vi.fn().mockResolvedValue({ organizationId: "org-1" }),
+      } as never,
     });
     const result = await svc.cancelBooking({
       userId: row.userId!,
@@ -1166,6 +1180,7 @@ describe("createPatientBookingService", () => {
       expect.objectContaining({
         eventType: "booking.cancelled",
         payload: expect.objectContaining({
+          organizationId: "org-1",
           branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
           cityCodeSnapshot: "moscow",
           serviceTitleSnapshot: "Сеанс",

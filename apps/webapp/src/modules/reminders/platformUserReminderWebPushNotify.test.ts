@@ -19,29 +19,32 @@ vi.mock("@/modules/messaging/relayOutbound", () => ({
 // Mock createTrackedWebPushPayload — it registers analytics (not a send path).
 // We return a predictable payload to assert forwarding into relay metadata.
 const createTrackedWebPushPayloadMock = vi.hoisted(() =>
-  vi.fn().mockImplementation((input: {
-    userId: string;
-    title: string;
-    body: string;
-    url: string;
-    tag?: string;
-    topicCode?: string | null;
-    intentType?: string | null;
-    pushKind?: string | null;
-    warmupSloganKey?: string | null;
-  }) =>
-    Promise.resolve({
-      title: input.title,
-      body: input.body,
-      url: input.url,
-      tag: input.tag ?? undefined,
-      trackingId: "mock-tracking-id",
-      topicCode: input.topicCode ?? null,
-      intentType: input.intentType ?? null,
-      pushKind: input.pushKind ?? null,
-      warmupSloganKey: input.warmupSloganKey ?? null,
-    }),
-  ),
+  vi
+    .fn()
+    .mockImplementation(
+      (input: {
+        userId: string;
+        title: string;
+        body: string;
+        url: string;
+        tag?: string;
+        topicCode?: string | null;
+        intentType?: string | null;
+        pushKind?: string | null;
+        warmupSloganKey?: string | null;
+      }) =>
+        Promise.resolve({
+          title: input.title,
+          body: input.body,
+          url: input.url,
+          tag: input.tag ?? undefined,
+          trackingId: "mock-tracking-id",
+          topicCode: input.topicCode ?? null,
+          intentType: input.intentType ?? null,
+          pushKind: input.pushKind ?? null,
+          warmupSloganKey: input.warmupSloganKey ?? null,
+        }),
+    ),
 );
 
 vi.mock("@/app-layer/product-analytics/createTrackedWebPushPayload", () => ({
@@ -49,13 +52,7 @@ vi.mock("@/app-layer/product-analytics/createTrackedWebPushPayload", () => ({
   productAnalyticsMetadataFromPayload: vi.fn(),
 }));
 
-// Mock vapid key resolution
-const getWebPushVapidKeyPairMock = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ publicKey: "pub", privateKey: "priv" }),
-);
-vi.mock("@/modules/system-settings/webPushVapidRuntime", () => ({
-  getWebPushVapidKeyPair: getWebPushVapidKeyPairMock,
-}));
+const getWebPushVapidPublicKeyOnlyMock = vi.hoisted(() => vi.fn().mockResolvedValue("pub"));
 
 // Mock resolveReminderWebPushPayload
 vi.mock("@/modules/web-push/resolveReminderWebPushPayload", () => ({
@@ -90,9 +87,13 @@ import type { NotificationDeliveryService } from "@/modules/notification-deliver
 
 const USER_ID = "user-uuid-1";
 const OCCURRENCE_ID = "occ-1";
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 
-function makeInput(overrides: Partial<PlatformUserReminderWebPushNotifyInput> = {}): PlatformUserReminderWebPushNotifyInput {
+function makeInput(
+  overrides: Partial<PlatformUserReminderWebPushNotifyInput> = {},
+): PlatformUserReminderWebPushNotifyInput {
   return {
+    organizationId: ORGANIZATION_ID,
     platformUserId: USER_ID,
     occurrenceId: OCCURRENCE_ID,
     topicCode: "exercise_reminder",
@@ -105,16 +106,24 @@ function makeInput(overrides: Partial<PlatformUserReminderWebPushNotifyInput> = 
   };
 }
 
-function makeDeps(overrides: Partial<PlatformUserReminderWebPushNotifyDeps> = {}): PlatformUserReminderWebPushNotifyDeps {
+function makeDeps(
+  overrides: Partial<PlatformUserReminderWebPushNotifyDeps> = {},
+): PlatformUserReminderWebPushNotifyDeps {
   return {
     channelPreferences: { getPreferences: async () => [] } as unknown as ChannelPreferencesPort,
     topicChannelPrefs: { listByUserId: async () => [] } as unknown as TopicChannelPrefsPort,
     webPushSubscriptions: {
-      listActiveByUserId: async () => [{ endpoint: "https://push.example.com/sub1", keys: { p256dh: "k1", auth: "a1" }, userId: USER_ID }],
+      listActiveByUserId: async () => [
+        {
+          endpoint: "https://push.example.com/sub1",
+          keys: { p256dh: "k1", auth: "a1" },
+          userId: USER_ID,
+        },
+      ],
       hasAnyForUserId: async () => true,
       deleteByEndpointIfExists: async () => true,
     } as unknown as WebPushSubscriptionsPort,
-    systemSettings: { getSetting: async () => null },
+    systemSettings: { getWebPushVapidPublicKeyOnly: getWebPushVapidPublicKeyOnlyMock },
     readReminderNotifyGate: async () => ({ muted: false, topicMasterEnabled: true }),
     ...overrides,
   };
@@ -124,28 +133,29 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     relayOutboundMock.mockResolvedValue({ ok: true, status: "accepted" });
-    getWebPushVapidKeyPairMock.mockResolvedValue({ publicKey: "pub", privateKey: "priv" });
-    createTrackedWebPushPayloadMock.mockImplementation((input: {
-      title: string;
-      body: string;
-      url: string;
-      tag?: string;
-      topicCode?: string | null;
-      intentType?: string | null;
-      pushKind?: string | null;
-      warmupSloganKey?: string | null;
-    }) =>
-      Promise.resolve({
-        title: input.title,
-        body: input.body,
-        url: input.url,
-        tag: input.tag ?? undefined,
-        trackingId: "mock-tracking-id",
-        topicCode: input.topicCode ?? null,
-        intentType: input.intentType ?? null,
-        pushKind: input.pushKind ?? null,
-        warmupSloganKey: input.warmupSloganKey ?? null,
-      }),
+    getWebPushVapidPublicKeyOnlyMock.mockResolvedValue("pub");
+    createTrackedWebPushPayloadMock.mockImplementation(
+      (input: {
+        title: string;
+        body: string;
+        url: string;
+        tag?: string;
+        topicCode?: string | null;
+        intentType?: string | null;
+        pushKind?: string | null;
+        warmupSloganKey?: string | null;
+      }) =>
+        Promise.resolve({
+          title: input.title,
+          body: input.body,
+          url: input.url,
+          tag: input.tag ?? undefined,
+          trackingId: "mock-tracking-id",
+          topicCode: input.topicCode ?? null,
+          intentType: input.intentType ?? null,
+          pushKind: input.pushKind ?? null,
+          warmupSloganKey: input.warmupSloganKey ?? null,
+        }),
     );
   });
 
@@ -198,7 +208,8 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
   });
 
   it("returns skipped when web_push not selected by resolvePatientNotificationChannels", async () => {
-    const { resolvePatientNotificationChannels } = await import("@/modules/patient-notifications/resolveNotificationChannels");
+    const { resolvePatientNotificationChannels } =
+      await import("@/modules/patient-notifications/resolveNotificationChannels");
     vi.mocked(resolvePatientNotificationChannels).mockReturnValueOnce({
       selectedChannels: [],
       skippedChannels: [{ channel: "web_push", reason: "disabled_by_user_global" }],
@@ -213,7 +224,7 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
   });
 
   it("returns skipped when vapid not configured", async () => {
-    getWebPushVapidKeyPairMock.mockResolvedValueOnce(null);
+    getWebPushVapidPublicKeyOnlyMock.mockResolvedValueOnce(null);
 
     const result = await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps());
 
@@ -308,7 +319,7 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
   });
 
   it("records skipped vapid_missing attempt when notificationDelivery provided", async () => {
-    getWebPushVapidKeyPairMock.mockResolvedValueOnce(null);
+    getWebPushVapidPublicKeyOnlyMock.mockResolvedValueOnce(null);
 
     const recordMock = vi.fn().mockResolvedValue(undefined);
     const notificationDelivery: NotificationDeliveryService = {

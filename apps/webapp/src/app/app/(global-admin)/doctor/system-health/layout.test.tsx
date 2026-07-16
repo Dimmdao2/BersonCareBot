@@ -39,6 +39,7 @@ describe("GlobalAdminSystemHealthLayout", () => {
     expect(requireGlobalAdminDoctorPageMock).toHaveBeenCalledOnce();
     expect(result.props).toMatchObject({
       adminMode: true,
+      enableTenantRuntime: false,
       userRole: "admin",
       userDisplayName: "Global operator",
       children: "health",

@@ -24,6 +24,7 @@ function parseLinkedType(raw: string | null): ReminderLinkedObjectType | null {
 }
 
 function mapRuleRow(row: {
+  organization_id: string;
   integrator_rule_id: string;
   platform_user_id: string;
   category: string;
@@ -46,6 +47,7 @@ function mapRuleRow(row: {
   reminder_intent: string | null;
 }): WebPushOnlyReminderRuleRow {
   return {
+    organizationId: row.organization_id,
     integratorRuleId: row.integrator_rule_id,
     platformUserId: row.platform_user_id,
     category: row.category as ReminderCategory,
@@ -70,6 +72,7 @@ function mapRuleRow(row: {
 }
 
 const RULE_SELECT = `
+  rr.organization_id::text,
   rr.integrator_rule_id,
   rr.platform_user_id::text,
   rr.category,
@@ -104,12 +107,16 @@ export async function cancelWebPushOnlyPendingOccurrencesForRule(integratorRuleI
 }
 
 /** Legacy catch-up rows: pending slot older than grace window (cron runs every minute). */
-export async function expireOrphanedWebPushOnlyPendingOccurrences(nowIso: string): Promise<number> {
+export async function expireOrphanedWebPushOnlyPendingOccurrences(
+  organizationId: string,
+  nowIso: string,
+): Promise<number> {
   const r = await runWebappSql(
     getWebappSqlDb(),
     sql`UPDATE webapp_reminder_occurrences
      SET status = 'failed', failed_at = now(), error_code = 'orphaned_past_slot', updated_at = now()
      WHERE status IN ('planned', 'queued')
+       AND organization_id = ${organizationId}::uuid
        AND planned_at < ${nowIso}::timestamptz - interval '3 minutes'`,
   );
   return r.rowCount ?? 0;
@@ -117,13 +124,23 @@ export async function expireOrphanedWebPushOnlyPendingOccurrences(nowIso: string
 
 export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
   return {
-    async listEnabledWebPushOnlyRules(nowIso) {
+    async listOrganizationIds(nowIso) {
+      const res = await runWebappSql<{ organization_id: string }>(
+        getWebappSqlDb(),
+        sql`SELECT organization_id::text
+         FROM app.list_web_push_reminder_organization_ids(${nowIso}::timestamptz)`,
+      );
+      return res.rows.map((row) => row.organization_id);
+    },
+
+    async listEnabledWebPushOnlyRules(organizationId, nowIso) {
       const res = await runWebappSql<Parameters<typeof mapRuleRow>[0]>(
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(RULE_SELECT)}
          FROM reminder_rules rr
          INNER JOIN platform_users pu ON pu.id = rr.platform_user_id
          WHERE rr.integrator_user_id IS NULL
+           AND rr.organization_id = ${organizationId}::uuid
            AND rr.platform_user_id IS NOT NULL
            AND rr.is_enabled = true
            AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)`,
@@ -131,12 +148,13 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
       return res.rows.map(mapRuleRow);
     },
 
-    async getRuleByIntegratorRuleId(integratorRuleId) {
+    async getRuleByIntegratorRuleId(organizationId, integratorRuleId) {
       const res = await runWebappSql<Parameters<typeof mapRuleRow>[0]>(
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(RULE_SELECT)}
          FROM reminder_rules rr
          WHERE rr.integrator_rule_id = ${integratorRuleId}
+           AND rr.organization_id = ${organizationId}::uuid
            AND rr.integrator_user_id IS NULL
          LIMIT 1`,
       );
@@ -144,15 +162,15 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
       return row ? mapRuleRow(row) : null;
     },
 
-    async upsertPlannedOccurrences(platformUserId, integratorRuleId, drafts) {
+    async upsertPlannedOccurrences(organizationId, platformUserId, integratorRuleId, drafts) {
       if (drafts.length === 0) return 0;
       let inserted = 0;
       for (const d of drafts) {
         const r = await runWebappSql(
           getWebappSqlDb(),
           sql`INSERT INTO webapp_reminder_occurrences (
-             integrator_rule_id, platform_user_id, occurrence_key, planned_at, status, updated_at
-           ) VALUES (${integratorRuleId}, ${platformUserId}::uuid, ${d.occurrenceKey}, ${d.plannedAt}::timestamptz, 'planned', now())
+             organization_id, integrator_rule_id, platform_user_id, occurrence_key, planned_at, status, updated_at
+           ) VALUES (${organizationId}::uuid, ${integratorRuleId}, ${platformUserId}::uuid, ${d.occurrenceKey}, ${d.plannedAt}::timestamptz, 'planned', now())
            ON CONFLICT (integrator_rule_id, occurrence_key) DO NOTHING
            RETURNING id`,
         );
@@ -161,28 +179,31 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
       return inserted;
     },
 
-    async claimDueOccurrences(nowIso, limit) {
+    async claimDueOccurrences(organizationId, nowIso, limit) {
       const lim = Math.max(1, Math.trunc(limit));
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE webapp_reminder_occurrences
          SET status = 'planned', updated_at = now()
          WHERE status = 'queued'
+           AND organization_id = ${organizationId}::uuid
            AND updated_at < ${nowIso}::timestamptz - interval '10 minutes'`,
       );
       return runWebappTransaction(async (tx) => {
         const sel = await runWebappSql<{
           id: string;
+          organization_id: string;
           integrator_rule_id: string;
           platform_user_id: string;
           occurrence_key: string;
           planned_at: string;
         }>(
           tx,
-          sql`SELECT o.id::text, o.integrator_rule_id, o.platform_user_id::text, o.occurrence_key, o.planned_at::text
+          sql`SELECT o.id::text, o.organization_id::text, o.integrator_rule_id, o.platform_user_id::text, o.occurrence_key, o.planned_at::text
            FROM webapp_reminder_occurrences o
            INNER JOIN platform_users pu ON pu.id = o.platform_user_id
            WHERE o.status = 'planned'
+             AND o.organization_id = ${organizationId}::uuid
              AND o.planned_at <= ${nowIso}::timestamptz
              AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= ${nowIso}::timestamptz)
            ORDER BY o.planned_at ASC
@@ -193,12 +214,14 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
         if (ids.length > 0) {
           await runWebappSql(
             tx,
-            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now() WHERE id IN (${drizzleSqlUuidInList(ids)})`,
+            sql`UPDATE webapp_reminder_occurrences SET status = 'queued', updated_at = now()
+               WHERE organization_id = ${organizationId}::uuid AND id IN (${drizzleSqlUuidInList(ids)})`,
           );
         }
         return sel.rows.map(
           (r): WebPushOnlyDueOccurrenceRow => ({
             id: r.id,
+            organizationId: r.organization_id,
             integratorRuleId: r.integrator_rule_id,
             platformUserId: r.platform_user_id,
             occurrenceKey: r.occurrence_key,
@@ -208,26 +231,26 @@ export function createPgWebPushOnlyRemindersPort(): WebPushOnlyRemindersPort {
       });
     },
 
-    async markOccurrenceSent(occurrenceId) {
+    async markOccurrenceSent(organizationId, occurrenceId) {
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE webapp_reminder_occurrences
          SET status = 'sent', sent_at = now(), updated_at = now()
-         WHERE id = ${occurrenceId}::uuid`,
+         WHERE organization_id = ${organizationId}::uuid AND id = ${occurrenceId}::uuid`,
       );
     },
 
-    async markOccurrenceFailed(occurrenceId, errorCode) {
+    async markOccurrenceFailed(organizationId, occurrenceId, errorCode) {
       await runWebappSql(
         getWebappSqlDb(),
         sql`UPDATE webapp_reminder_occurrences
          SET status = 'failed', failed_at = now(), error_code = ${errorCode.slice(0, 120)}, updated_at = now()
-         WHERE id = ${occurrenceId}::uuid`,
+         WHERE organization_id = ${organizationId}::uuid AND id = ${occurrenceId}::uuid`,
       );
     },
 
-    async expireOrphanedPendingOccurrences(nowIso) {
-      return expireOrphanedWebPushOnlyPendingOccurrences(nowIso);
+    async expireOrphanedPendingOccurrences(organizationId, nowIso) {
+      return expireOrphanedWebPushOnlyPendingOccurrences(organizationId, nowIso);
     },
 
     async resolveLinkedCatalogTitle(linkedObjectType, linkedObjectId) {

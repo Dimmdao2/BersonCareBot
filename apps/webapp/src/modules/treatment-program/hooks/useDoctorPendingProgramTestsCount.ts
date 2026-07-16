@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 const PENDING_PROGRAM_TESTS_SUMMARY_URL = "/api/doctor/pending-program-tests/summary";
 
 /** Число попыток «К проверке» для бейджа пункта «Сегодня» в меню врача. */
-export function useDoctorPendingProgramTestsCount() {
+export function useDoctorPendingProgramTestsCount(enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -33,6 +34,6 @@ export function useDoctorPendingProgramTestsCount() {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
-  return count;
+  }, [enabled]);
+  return enabled ? count : 0;
 }

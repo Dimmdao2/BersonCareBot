@@ -729,6 +729,8 @@ const paymentsService =
           const row = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
           if (!row) return;
           try {
+            const appointment = await bookingEngineService.getAppointment(appointmentId);
+            if (!appointment) throw new Error("booking_payment_appointment_organization_required");
             const { loadBookingLifecycleNotificationsFromSystemSettings, resolveBookingNotifyTargets } = await import(
               "@/modules/booking-notifications/settings"
             );
@@ -745,6 +747,7 @@ const paymentsService =
                 eventType: "booking.payment_captured",
                 idempotencyKey: `booking.payment_captured:${paymentId}`,
                 payload: {
+                  organizationId: appointment.organizationId,
                   bookingId: row.id,
                   userId: platformUserId ?? row.userId ?? row.id,
                   rubitimeId: row.rubitimeId,

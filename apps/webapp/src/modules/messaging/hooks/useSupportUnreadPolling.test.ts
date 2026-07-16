@@ -5,6 +5,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import {
   notifyPatientSupportUnreadCountChanged,
   usePatientSupportUnreadCount,
+  useDoctorSupportUnreadCountPolling,
 } from "./useSupportUnreadPolling";
 
 describe("usePatientSupportUnreadCount", () => {
@@ -53,6 +54,15 @@ describe("usePatientSupportUnreadCount", () => {
     const fetchMock = vi.mocked(fetch);
 
     const { result } = renderHook(() => usePatientSupportUnreadCount(false));
+
+    expect(result.current).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not poll the doctor API when tenant runtime is disabled", () => {
+    const fetchMock = vi.mocked(fetch);
+
+    const { result } = renderHook(() => useDoctorSupportUnreadCountPolling(false));
 
     expect(result.current).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();

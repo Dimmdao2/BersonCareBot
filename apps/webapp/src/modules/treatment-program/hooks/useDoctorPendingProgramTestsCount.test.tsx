@@ -35,4 +35,11 @@ describe("useDoctorPendingProgramTestsCount", () => {
     });
     expect(result.current).toBe(0);
   });
+
+  it("does not fetch when tenant runtime is disabled", () => {
+    const { result } = renderHook(() => useDoctorPendingProgramTestsCount(false));
+
+    expect(result.current).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

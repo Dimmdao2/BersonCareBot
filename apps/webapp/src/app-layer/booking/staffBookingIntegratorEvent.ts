@@ -51,6 +51,7 @@ export async function emitStaffCanonicalBookingEvent(opts: {
       eventType: opts.eventType,
       idempotencyKey: `staff.${opts.eventType}:${opts.appointment.id}:${opts.appointment.startAt}`,
       payload: {
+        organizationId: opts.appointment.organizationId,
         bookingId,
         userId,
         rubitimeId: bookingRow?.rubitimeId ?? null,

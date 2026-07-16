@@ -25,6 +25,7 @@ export async function emitPackageCalendarSync(opts: {
       eventType: opts.eventType,
       idempotencyKey: `staff.${opts.eventType}:${opts.appointment.id}:${Date.now()}`,
       payload: {
+        organizationId: opts.appointment.organizationId,
         bookingId,
         userId,
         rubitimeId: bookingRow?.rubitimeId ?? null,

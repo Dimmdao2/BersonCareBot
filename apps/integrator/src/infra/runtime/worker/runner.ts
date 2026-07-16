@@ -12,6 +12,7 @@ export type WorkerRunnerDeps = {
     import('../../../kernel/contracts/index.js').DeliverySendResult
   >;
   dispatchWebappPush?: (input: {
+    organizationId: string;
     phoneNormalized: string;
     slotStartIso: string;
     stableKey: string;

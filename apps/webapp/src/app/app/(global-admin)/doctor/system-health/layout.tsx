@@ -17,6 +17,7 @@ export default async function GlobalAdminSystemHealthLayout({ children }: { chil
   return (
     <DoctorWorkspaceShell
       adminMode={true}
+      enableTenantRuntime={false}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
     >

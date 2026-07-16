@@ -5,6 +5,7 @@ import {
   applyCurrentDbPrincipalToTransaction,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromTransaction,
+  getCurrentDbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import * as schema from "../../../db/schema";
@@ -93,36 +94,36 @@ function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
   const rawTransaction = rawDb.transaction.bind(rawDb);
   const wrappedTransaction: DrizzleDb["transaction"] = ((callback, config) => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
-    return rawTransaction(
-      async (tx) => {
-        const queryable = drizzlePrincipalQueryable(tx);
-        let applied = false;
+    return rawTransaction(async (tx) => {
+      const queryable = drizzlePrincipalQueryable(tx);
+      let applied = false;
+      try {
+        applied =
+          getCurrentDbPrincipal()?.kind === "infra"
+            ? false
+            : await applyCurrentDbPrincipalToTransaction(queryable, principalApplyOptions);
+      } catch (error) {
+        await reportPrincipalSetupFailure(error);
+        throw error;
+      }
+      try {
         try {
-          applied = await applyCurrentDbPrincipalToTransaction(queryable, principalApplyOptions);
+          return await callback(tx);
         } catch (error) {
-          await reportPrincipalSetupFailure(error);
+          await reportDbQueryFailure(error);
           throw error;
         }
-        try {
+      } finally {
+        if (applied) {
           try {
-            return await callback(tx);
+            await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions);
           } catch (error) {
-            await reportDbQueryFailure(error);
+            await reportDbCleanupFailure();
             throw error;
           }
-        } finally {
-          if (applied) {
-            try {
-              await clearCurrentDbPrincipalFromDrizzleTransaction(queryable, principalApplyOptions);
-            } catch (error) {
-              await reportDbCleanupFailure();
-              throw error;
-            }
-          }
         }
-      },
-      config,
-    );
+      }
+    }, config);
   }) as DrizzleDb["transaction"];
 
   rawDb.transaction = wrappedTransaction;

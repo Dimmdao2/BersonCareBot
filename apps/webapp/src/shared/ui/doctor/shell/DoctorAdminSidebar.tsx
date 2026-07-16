@@ -6,6 +6,7 @@ import { Stethoscope } from "lucide-react";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
+import { doctorShellLinkPrefetch } from "@/shared/ui/doctor/shell/doctorShellLinkPrefetch";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
@@ -24,13 +25,19 @@ type DoctorAdminSidebarProps = {
   menuAccess: DoctorMenuAccess;
   /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
   patientLabel?: string;
+  enableBadgePolling?: boolean;
 };
 
 /**
  * Левое меню разделов кабинета на md+ (бренд-блок сверху + разделы); глобальной шапки на desktop нет,
  * сайдбар липнет к верху вьюпорта. На мобильных скрыто (разделы — в Sheet мобильной `DoctorHeader`).
  */
-export function DoctorAdminSidebar({ userDisplayName, menuAccess, patientLabel }: DoctorAdminSidebarProps) {
+export function DoctorAdminSidebar({
+  userDisplayName,
+  menuAccess,
+  patientLabel,
+  enableBadgePolling,
+}: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
   return (
@@ -69,9 +76,16 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess, patientLabel }
       </Link>
       <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
-        <DoctorMenuAccordion variant="sidebar" pathname={pathname} menuAccess={menuAccess} patientLabel={patientLabel} />
+        <DoctorMenuAccordion
+          variant="sidebar"
+          pathname={pathname}
+          menuAccess={menuAccess}
+          patientLabel={patientLabel}
+          enableBadgePolling={enableBadgePolling}
+        />
         <Link
           href={routePaths.doctorInstall}
+          prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
           className={cn(
             SIDEBAR_LINK_CLASS,
             pathname === routePaths.doctorInstall && "bg-primary/15 text-primary",
@@ -79,7 +93,11 @@ export function DoctorAdminSidebar({ userDisplayName, menuAccess, patientLabel }
         >
           Установить приложение
         </Link>
-        <Link href="/app/settings" className={cn(SIDEBAR_LINK_CLASS, "mt-1")}>
+        <Link
+          href="/app/settings"
+          prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
+          className={cn(SIDEBAR_LINK_CLASS, "mt-1")}
+        >
           Настройки специалиста
         </Link>
         <form action="/api/auth/logout" method="post" className="w-full">

@@ -148,6 +148,7 @@ export type BookingSyncPort = {
       | "booking.package_unlinked";
     idempotencyKey: string;
     payload: {
+      organizationId?: string;
       bookingId: string;
       userId: string;
       rubitimeId?: string | null;

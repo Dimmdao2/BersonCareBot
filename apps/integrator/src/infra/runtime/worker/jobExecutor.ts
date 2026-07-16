@@ -3,11 +3,16 @@ import type { DeliveryAttemptResult, DeliveryJob, DeliverySendResult, OutgoingIn
 export type JobExecutorDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   dispatchWebappPush?: (input: {
+    organizationId: string;
     phoneNormalized: string;
     slotStartIso: string;
     stableKey: string;
   }) => Promise<void>;
 };
+
+export function assertWebappPushNotifyAccepted(result: { ok: boolean; status: number }): void {
+  if (!result.ok) throw new Error(`WEBAPP_PUSH_NOTIFY_FAILED:${result.status}`);
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
@@ -70,15 +75,22 @@ export async function executeJob(job: DeliveryJob, deps: JobExecutorDeps): Promi
   try {
     await deps.dispatchOutgoing(intent);
     const pushNotify = payload.webappPushNotify;
-    if (
-      deps.dispatchWebappPush &&
-      pushNotify &&
-      typeof pushNotify === 'object' &&
-      typeof (pushNotify as { phoneNormalized?: unknown }).phoneNormalized === 'string' &&
-      typeof (pushNotify as { slotStartIso?: unknown }).slotStartIso === 'string' &&
-      typeof (pushNotify as { stableKey?: unknown }).stableKey === 'string'
-    ) {
+    if (pushNotify !== undefined) {
+      if (
+        !pushNotify ||
+        typeof pushNotify !== 'object' ||
+        typeof (pushNotify as { organizationId?: unknown }).organizationId !== 'string' ||
+        typeof (pushNotify as { phoneNormalized?: unknown }).phoneNormalized !== 'string' ||
+        typeof (pushNotify as { slotStartIso?: unknown }).slotStartIso !== 'string' ||
+        typeof (pushNotify as { stableKey?: unknown }).stableKey !== 'string'
+      ) {
+        throw new Error('INVALID_WEBAPP_PUSH_NOTIFY_PAYLOAD');
+      }
+      if (!deps.dispatchWebappPush) {
+        throw new Error('WEBAPP_PUSH_DISPATCH_UNAVAILABLE');
+      }
       await deps.dispatchWebappPush({
+        organizationId: (pushNotify as { organizationId: string }).organizationId,
         phoneNormalized: (pushNotify as { phoneNormalized: string }).phoneNormalized,
         slotStartIso: (pushNotify as { slotStartIso: string }).slotStartIso,
         stableKey: (pushNotify as { stableKey: string }).stableKey,

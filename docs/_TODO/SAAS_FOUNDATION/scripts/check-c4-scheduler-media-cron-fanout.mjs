@@ -42,9 +42,11 @@ const files = {
   mediaWithClientTest: "apps/media-worker/src/withClient.test.ts",
   mediaRuntimeConfig: "apps/media-worker/src/serverRuntimeConfig.ts",
   operationalSql: "deploy/postgres/c4-operational-runtime.sql",
+  webPushOperationalSql: "deploy/postgres/c4-web-push-reminder-runtime.sql",
   operationalReadinessScript: "deploy/host/assert-c4-operational-runtime-ready.sh",
   operationalProvisionScript: "deploy/host/provision-c4-operational-runtime.sh",
   operationalTestEnvBootstrap: "deploy/host/bootstrap-c4-test-env.mjs",
+  webPushReminderCron: "deploy/host/web-push-only-reminder-cron.sh",
   testDeploy: "deploy/host/deploy-test-saas.sh",
   mediaWorkerTestUnit: "deploy/systemd/bersoncarebot-media-worker-test.service",
   mediaWorkerTestUnitAssertion: "deploy/host/assert-media-worker-test-unit-properties.sh",
@@ -229,13 +231,17 @@ function assertWebappInternalRoutesCovered(loaded) {
       "INTERNAL_JOB_SECRET",
       "bearerMatchesSecret",
       "enterWithDbInfraPrincipal",
-      `source: "${entry.path.slice(1)}:POST"`,
+      entry.id === "webpush_reminders"
+        ? "WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE"
+        : `source: "${entry.path.slice(1)}:POST"`,
     ]);
     requireFragmentBefore(
       entry.source,
       routeText,
       "bearerMatchesSecret(token, secret)",
-      `source: "${entry.path.slice(1)}:POST"`,
+      entry.id === "webpush_reminders"
+        ? "enterWithDbInfraPrincipal({ source: WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE })"
+        : `source: "${entry.path.slice(1)}:POST"`,
     );
     requireFragments(files.doc, loaded.doc, [`| \`${entry.id}\` |`, `\`${entry.path}\``, `\`${entry.source}\``]);
   }
@@ -558,11 +564,16 @@ function assertOperationalSqlAndDeploy(loaded) {
     "SELECT 1 / has_function_privilege",
     "app.record_operator_delivery_attempt(text,text,text,integer,text)",
     "tail -n 1",
-    "four contours must authenticate as four distinct PostgreSQL roles",
+    "five contours must authenticate as five distinct PostgreSQL roles",
+    "app_operational_web_push_reminder",
   ]);
   requireFragments(files.operationalProvisionScript, loaded.operationalProvisionScript, [
     "run as root/DB administrator",
-    "four operational URLs must use four distinct roles",
+    "five operational URLs must use five distinct roles",
+    "DATABASE_URL_WEB_PUSH_REMINDER",
+    "validate_operational_endpoint",
+    "127.0.0.1",
+    "5432",
     "WEBAPP_ENV_FILE",
     "saas-c2-secret-preflight.mjs",
     '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
@@ -583,6 +594,27 @@ function assertOperationalSqlAndDeploy(loaded) {
     "root:deploy 0640",
     "writeProtected(mediaPath",
     "writeProtected(apiPath",
+    "writeProtected(webappPath",
+    "DATABASE_URL_WEB_PUSH_REMINDER",
+  ]);
+  requireFragments(files.webPushOperationalSql, loaded.webPushOperationalSql, [
+    "app_operational_web_push_reminder",
+    "NOLOGIN NOINHERIT NOBYPASSRLS",
+    "WITH INHERIT FALSE, SET TRUE",
+    "app.list_web_push_reminder_organization_ids",
+    "app_web_push_reminder_discovery_definer",
+    "c4_web_push_reminder_discovery",
+    "c4_web_push_reminder_org",
+    "reminders.web_push_only.tick",
+    "c4_web_push_reminder_down",
+    "DROP ROLE IF EXISTS app_operational_web_push_reminder",
+    "granted.rolname IN (:'c4_web_push_reminder_login_role'",
+  ]);
+  requireFragments(files.webPushReminderCron, loaded.webPushReminderCron, [
+    'JOB_NAME="bersoncarebot-test-web-push-only-reminders"',
+    'node "$CRONPORT" set',
+    'http://127.0.0.1:6300/api/internal/reminders/web-push-only/tick?limit=50',
+    '"Authorization: Bearer $INTERNAL_JOB_SECRET"',
   ]);
   requireFragments(files.mediaWorkerTestUnit, loaded.mediaWorkerTestUnit, [
     "User=deploy",
@@ -700,9 +732,9 @@ if (process.argv.includes("--self-test")) {
     "assertMediaWorkerLockedPrincipalClassified(principalApplyOptions);",
     "// removed by self-test",
   );
-  const webpushRoute = read("apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts").replace(
-    'source: "api/internal/reminders/web-push-only/tick:POST"',
-    'source: "api/internal/reminders/web-push-only/tick-missing:POST"',
+  const webpushRoute = read("apps/webapp/src/app/api/internal/reminders/web-push-only/tick/route.ts").replaceAll(
+    "WEB_PUSH_ONLY_REMINDER_TICK_DB_SOURCE",
+    "REMINDER_DB_SOURCE_MISSING",
   );
   const doc = read(files.doc).replaceAll("`/api/internal/media-transcode/enqueue`", "`/api/internal/media-transcode/enqueue-missing`");
   const operationalSql = read(files.operationalSql).replaceAll("WITH INHERIT FALSE, SET TRUE", "WITH INHERIT TRUE, SET TRUE");

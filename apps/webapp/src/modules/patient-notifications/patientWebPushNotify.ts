@@ -47,6 +47,7 @@ import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topi
 
 export const integratorPatientWebPushNotifyBodySchema = z
   .object({
+    organizationId: z.string().uuid().optional(),
     integratorUserId: z.string().regex(/^\d+$/).optional(),
     phoneNormalized: z.string().min(8).max(32).optional(),
     platformUserId: z.string().uuid().optional(),

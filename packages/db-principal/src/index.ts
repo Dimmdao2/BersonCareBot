@@ -18,15 +18,10 @@ export type DbOperationalRuntimeRole =
   | "app_operational_diagnostic"
   | "app_operational_delivery_worker"
   | "app_operational_media_worker"
-  | "app_operational_scheduler";
+  | "app_operational_scheduler"
+  | "app_operational_web_push_reminder";
 
-export type DbPrincipalKind =
-  | "organization"
-  | "staff"
-  | "patient"
-  | "integrator"
-  | "bootstrap"
-  | "infra";
+export type DbPrincipalKind = "organization" | "staff" | "patient" | "integrator" | "bootstrap" | "infra";
 
 export type DbOrganizationPrincipal = {
   kind: "organization";
@@ -62,6 +57,7 @@ export type DbBootstrapPrincipal = {
 
 export type DbInfraPrincipal = {
   kind: "infra";
+  organizationId?: string;
   source?: string;
 };
 
@@ -101,6 +97,7 @@ export type DbBootstrapPrincipalInput = {
 };
 
 export type DbInfraPrincipalInput = {
+  organizationId?: string | null;
   source?: string;
 };
 
@@ -132,10 +129,18 @@ export async function setDbOperationalRuntimeRole(
     case "app_operational_scheduler":
       statement = "SET ROLE app_operational_scheduler";
       break;
+    case "app_operational_web_push_reminder":
+      statement = "SET ROLE app_operational_web_push_reminder";
+      break;
     default:
       throw new Error("Unsupported DB operational runtime role");
   }
   await client.query(statement);
+}
+
+/** Clears a role selected through `setDbOperationalRuntimeRole` at the shared DB chokepoint. */
+export async function resetDbOperationalRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
+  await client.query("RESET ROLE");
 }
 
 export type DbPrincipalSigner = {
@@ -240,7 +245,9 @@ export function createDbStaffPrincipal(input: DbStaffPrincipalInput): DbStaffPri
 export function createDbPatientPrincipal(input: DbPatientPrincipalInput): DbPatientPrincipal {
   return {
     kind: "patient",
-    ...(input.organizationId == null ? {} : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
+    ...(input.organizationId == null
+      ? {}
+      : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
     platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
     ...copyOptionalSource(input),
   };
@@ -265,6 +272,9 @@ export function createDbBootstrapPrincipal(input: DbBootstrapPrincipalInput = {}
 export function createDbInfraPrincipal(input: DbInfraPrincipalInput = {}): DbInfraPrincipal {
   return {
     kind: "infra",
+    ...(input.organizationId == null
+      ? {}
+      : { organizationId: normalizeDbPrincipalOrganizationId(input.organizationId) }),
     ...copyOptionalSource(input),
   };
 }
@@ -279,6 +289,9 @@ export function getCurrentDbPrincipalOrganizationId(): string | undefined {
   // application-selected organization for clinic-specific screens. Expose only that explicit
   // selection; never derive or guess an organization here.
   if (principal?.kind === "patient") {
+    return principal.organizationId;
+  }
+  if (principal?.kind === "infra") {
     return principal.organizationId;
   }
   return isOrganizationScopedPrincipal(principal) ? principal.organizationId : undefined;
@@ -513,15 +526,10 @@ function copyOptionalSource(input: { source?: string }): { source?: string } {
   return { source };
 }
 
-function isOrganizationScopedPrincipal(principal: DbPrincipal | undefined): principal is
-  | DbOrganizationPrincipal
-  | DbStaffPrincipal
-  | DbIntegratorPrincipal {
-  return (
-    principal?.kind === "organization" ||
-    principal?.kind === "staff" ||
-    principal?.kind === "integrator"
-  );
+function isOrganizationScopedPrincipal(
+  principal: DbPrincipal | undefined,
+): principal is DbOrganizationPrincipal | DbStaffPrincipal | DbIntegratorPrincipal {
+  return principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "integrator";
 }
 
 async function applyDbPrincipal(
@@ -706,7 +714,10 @@ export type SaasIsolationTelemetryEventClass =
   | "unclassified_background_operation";
 export type SaasIsolationBackgroundSource =
   | { service: "integrator"; operation: "integrator_http_request" | "integrator_projection" }
-  | { service: "worker"; operation: "worker_queue_drain" | "worker_projection_delivery" | "worker_outgoing_delivery" }
+  | {
+      service: "worker";
+      operation: "worker_queue_drain" | "worker_projection_delivery" | "worker_outgoing_delivery";
+    }
   | { service: "scheduler"; operation: "scheduler_lock" | "scheduler_dispatch_tick" }
   | { service: "media_worker"; operation: "media_transcode_tick" };
 
@@ -731,14 +742,26 @@ export type SaasIsolationBackgroundReporter = ((error: unknown) => void) & {
 };
 
 export function classifySaasIsolationFailure(error: unknown): SaasIsolationTelemetryEventClass {
-  const value = typeof error === "object" && error !== null
-    ? error as { code?: unknown; message?: unknown }
-    : {};
-  const message = typeof error === "string" ? error : typeof value.message === "string" ? value.message : error instanceof Error ? error.message : "";
+  const value = typeof error === "object" && error !== null ? (error as { code?: unknown; message?: unknown }) : {};
+  const message =
+    typeof error === "string"
+      ? error
+      : typeof value.message === "string"
+        ? value.message
+        : error instanceof Error
+          ? error.message
+          : "";
   if (/principal context is required/i.test(message)) return "missing_principal";
   if (/signed context|signature|install_signed_context/i.test(message)) return "invalid_signature_or_install";
-  if ((value.code === "42501" || value.code === undefined) && /row-level security|row level security|policy/i.test(message)) return "rls_denial";
-  if ((value.code === "42501" || value.code === undefined) && /permission denied for (table|schema|sequence|function|relation)/i.test(message)) {
+  if (
+    (value.code === "42501" || value.code === undefined) &&
+    /row-level security|row level security|policy/i.test(message)
+  )
+    return "rls_denial";
+  if (
+    (value.code === "42501" || value.code === undefined) &&
+    /permission denied for (table|schema|sequence|function|relation)/i.test(message)
+  ) {
     return "role_pool_mismatch";
   }
   if (/release_principal_context|cleanup/i.test(message)) return "cleanup_failure";
@@ -746,10 +769,14 @@ export function classifySaasIsolationFailure(error: unknown): SaasIsolationTelem
 }
 
 export function isRecognizedSaasIsolationFailure(error: unknown): boolean {
-  const value = typeof error === "object" && error !== null ? error as { code?: unknown; message?: unknown } : {};
+  const value = typeof error === "object" && error !== null ? (error as { code?: unknown; message?: unknown }) : {};
   const message = typeof error === "string" ? error : typeof value.message === "string" ? value.message : "";
-  return value.code === "42501"
-    || /principal context is required|signed context|signature|install_signed_context|release_principal_context|permission denied for (table|schema|sequence|function|relation)|row-level security|row level security/i.test(message);
+  return (
+    value.code === "42501" ||
+    /principal context is required|signed context|signature|install_signed_context|release_principal_context|permission denied for (table|schema|sequence|function|relation)|row-level security|row level security/i.test(
+      message,
+    )
+  );
 }
 
 /**
@@ -816,14 +843,20 @@ export function createSaasIsolationBackgroundReporter(input: {
     draining = true;
     try {
       while (queue.length > 0) {
-        if (now() < circuitOpenUntil) { queue.length = 0; return; }
+        if (now() < circuitOpenUntil) {
+          queue.length = 0;
+          return;
+        }
         const eventClass = queue.shift();
         if (!eventClass) return;
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           await Promise.race([
             input.query("SELECT app.report_saas_isolation_event($1, $2, $3, $4)", [
-              eventClass, input.source.service, input.source.operation, "unexplained",
+              eventClass,
+              input.source.service,
+              input.source.operation,
+              "unexplained",
             ]),
             new Promise<never>((_, reject) => {
               timer = setTimeout(() => reject(new Error("saas_isolation_telemetry_timeout")), timeoutMs);

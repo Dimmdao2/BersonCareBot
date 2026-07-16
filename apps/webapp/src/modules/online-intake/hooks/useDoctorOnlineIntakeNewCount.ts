@@ -8,9 +8,10 @@ const ONLINE_INTAKE_OPEN_LIST_URL = "/api/doctor/online-intake?open=1&limit=1";
  * Число незакрытых онлайн-заявок для бейджа меню врача.
  * Использует тот же list API, что и экран заявок; `limit=1` минимизирует полезную нагрузку, счётчик берётся из `total`.
  */
-export function useDoctorOnlineIntakeNewCount() {
+export function useDoctorOnlineIntakeNewCount(enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -36,6 +37,6 @@ export function useDoctorOnlineIntakeNewCount() {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
-  return count;
+  }, [enabled]);
+  return enabled ? count : 0;
 }

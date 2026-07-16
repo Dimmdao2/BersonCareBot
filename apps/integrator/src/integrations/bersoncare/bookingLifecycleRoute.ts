@@ -286,6 +286,7 @@ async function cancelPendingBookingReminders(bookingId: string): Promise<void> {
 }
 
 async function scheduleBookingReminders(input: {
+  organizationId?: string;
   bookingId: string;
   slotStartIso: string;
   phoneNormalized: string | null;
@@ -353,6 +354,7 @@ async function scheduleBookingReminders(input: {
       retry: { maxAttempts: 2, backoffSeconds: [60] },
       booking: { bookingId: input.bookingId, reminderCode: reminder.code },
       webappPushNotify: {
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
         phoneNormalized: input.phoneNormalized,
         slotStartIso: input.slotStartIso,
         stableKey: `booking-reminder:${input.bookingId}:${reminder.code}`,
@@ -370,6 +372,7 @@ async function scheduleBookingReminders(input: {
 }
 
 async function sendBookingWebPush(input: {
+  organizationId?: string;
   webappEventsPort?: WebappEventsPort;
   phoneNormalized: string | null;
   intentType: 'appointment_lifecycle' | 'appointment_reminder';
@@ -378,7 +381,7 @@ async function sendBookingWebPush(input: {
   variant?: 'created' | 'cancelled' | 'rescheduled';
   nowIso?: string;
 }): Promise<void> {
-  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized) return;
+  if (!input.webappEventsPort?.notifyPatientWebPush || !input.phoneNormalized || !input.organizationId) return;
   const dbPort = createDbPort();
   const base = (await getAppBaseUrl(dbPort)).replace(/\/$/, '');
   const openUrl =
@@ -386,6 +389,7 @@ async function sendBookingWebPush(input: {
       ? `${base}/app/patient/messages`
       : `${base}/app/patient/booking/new`;
   const body = JSON.stringify({
+    organizationId: input.organizationId,
     phoneNormalized: input.phoneNormalized,
     topicCode: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
     intentType: input.intentType,
@@ -514,6 +518,7 @@ async function handleBookingLifecycleEvent(
       );
       await cancelPendingBookingReminders(bookingId);
       await scheduleBookingReminders({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -536,6 +541,7 @@ async function handleBookingLifecycleEvent(
           eventId: `booking-cancelled:${bookingId}`,
         });
         await sendBookingWebPush({
+          ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
           ...(webappEventsPort ? { webappEventsPort } : {}),
           phoneNormalized: contactPhone,
           intentType: 'appointment_lifecycle',
@@ -568,6 +574,7 @@ async function handleBookingLifecycleEvent(
         `booking-rescheduled:${bookingId}`,
       );
       await sendBookingWebPush({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         ...(webappEventsPort ? { webappEventsPort } : {}),
         phoneNormalized: contactPhone,
         intentType: 'appointment_lifecycle',
@@ -576,6 +583,7 @@ async function handleBookingLifecycleEvent(
         stableKey: `booking-rescheduled:${bookingId}`,
       });
       await scheduleBookingReminders({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,
@@ -601,6 +609,7 @@ async function handleBookingLifecycleEvent(
         `booking-payment:${bookingId}`,
       );
       await scheduleBookingReminders({
+        ...(payload.organizationId ? { organizationId: payload.organizationId } : {}),
         bookingId,
         slotStartIso: payload.slotStart,
         phoneNormalized: contactPhone,

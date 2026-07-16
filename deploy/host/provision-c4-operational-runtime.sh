@@ -6,12 +6,21 @@ API_ENV_FILE="${API_ENV_FILE:-/opt/env/bersoncarebot/api.prod}"
 WEBAPP_ENV_FILE="${WEBAPP_ENV_FILE:-/opt/env/bersoncarebot/webapp.prod}"
 MEDIA_WORKER_ENV_FILE="${MEDIA_WORKER_ENV_FILE:-/opt/env/bersoncarebot/media-worker.prod}"
 OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-operational-runtime.sql"
+WEB_PUSH_OVERLAY="$PROJECT_ROOT/deploy/postgres/c4-web-push-reminder-runtime.sql"
 
 validate_test_bootstrap_paths(){
   [ "$PROJECT_ROOT" = "/opt/projects/bersoncarebot-test" ] || { echo "FATAL: TEST bootstrap requires canonical TEST project root" >&2; return 1; }
   [ "$API_ENV_FILE" = "/opt/env/bersoncarebot/api.test" ] || { echo "FATAL: TEST bootstrap requires canonical api.test path" >&2; return 1; }
   [ "$WEBAPP_ENV_FILE" = "/opt/env/bersoncarebot/webapp.test" ] || { echo "FATAL: TEST bootstrap requires canonical webapp.test path" >&2; return 1; }
   [ "$MEDIA_WORKER_ENV_FILE" = "/opt/env/bersoncarebot/media-worker.test" ] || { echo "FATAL: TEST bootstrap requires canonical media-worker.test path" >&2; return 1; }
+}
+
+validate_operational_endpoint(){
+  local host="$1" port="$2"
+  [ "$host" = "127.0.0.1" ] && [ "$port" = "5432" ] || {
+    echo "FATAL: operational URLs must target exact local PostgreSQL endpoint 127.0.0.1:5432" >&2
+    return 1
+  }
 }
 
 run_self_test(){
@@ -42,6 +51,15 @@ run_self_test(){
       return 1
     fi
   done
+  validate_operational_endpoint 127.0.0.1 5432 >/dev/null
+  if validate_operational_endpoint db.example.test 5432 >/dev/null 2>&1; then
+    echo "FATAL: self-test accepted remote PostgreSQL endpoint" >&2
+    return 1
+  fi
+  if validate_operational_endpoint 127.0.0.1 6432 >/dev/null 2>&1; then
+    echo "FATAL: self-test accepted non-canonical PostgreSQL port" >&2
+    return 1
+  fi
   echo "provision-c4-operational-runtime self-test: OK"
 }
 
@@ -66,6 +84,7 @@ fi
 [ -r "$WEBAPP_ENV_FILE" ] || { echo "FATAL: cannot read $WEBAPP_ENV_FILE" >&2; exit 1; }
 [ -r "$MEDIA_WORKER_ENV_FILE" ] || { echo "FATAL: cannot read $MEDIA_WORKER_ENV_FILE" >&2; exit 1; }
 [ -r "$OVERLAY" ] || { echo "FATAL: cannot read $OVERLAY" >&2; exit 1; }
+[ -r "$WEB_PUSH_OVERLAY" ] || { echo "FATAL: cannot read $WEB_PUSH_OVERLAY" >&2; exit 1; }
 
 # Reject any webapp/API/operator role reuse before CREATE/ALTER/password mutation.
 node "$PROJECT_ROOT/deploy/host/saas-c2-secret-preflight.mjs" \
@@ -91,20 +110,30 @@ scheduler_url="$DATABASE_URL_SCHEDULER"
 unset DATABASE_URL
 set -a
 # shellcheck disable=SC1090
+. "$WEBAPP_ENV_FILE"
+set +a
+: "${DATABASE_URL_WEB_PUSH_REMINDER:?missing DATABASE_URL_WEB_PUSH_REMINDER}"
+web_push_reminder_url="$DATABASE_URL_WEB_PUSH_REMINDER"
+unset DATABASE_URL
+set -a
+# shellcheck disable=SC1090
 . "$MEDIA_WORKER_ENV_FILE"
 set +a
 : "${DATABASE_URL:?missing media-worker DATABASE_URL}"
 media_url="$DATABASE_URL"
 
-urls=("$diagnostic_url" "$delivery_url" "$scheduler_url" "$media_url")
+urls=("$diagnostic_url" "$delivery_url" "$scheduler_url" "$media_url" "$web_push_reminder_url")
 roles=()
 passwords=()
 database=""
+endpoint=""
 for url in "${urls[@]}"; do
   role="$(printf '%s' "$url" | url_field username)"
   password="$(printf '%s' "$url" | url_field password)"
   current_database="$(printf '%s' "$url" | url_field pathname)"
   current_database="${current_database#/}"
+  current_host="$(printf '%s' "$url" | url_field hostname)"
+  current_port="$(printf '%s' "$url" | url_field port)"
   [[ "$role" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "FATAL: unsafe PostgreSQL role identifier" >&2; exit 1; }
   [ -n "$password" ] || { echo "FATAL: operational URL has no password" >&2; exit 1; }
   [[ "$password" != *$'\n'* && "$password" != *$'\r'* ]] || {
@@ -112,13 +141,17 @@ for url in "${urls[@]}"; do
     exit 1
   }
   [ -n "$current_database" ] || { echo "FATAL: operational URL has no database name" >&2; exit 1; }
+  validate_operational_endpoint "$current_host" "$current_port" || exit 1
   if [ -z "$database" ]; then database="$current_database"; fi
   [ "$database" = "$current_database" ] || { echo "FATAL: operational URLs target different databases" >&2; exit 1; }
+  current_endpoint="$current_host:$current_port"
+  if [ -z "$endpoint" ]; then endpoint="$current_endpoint"; fi
+  [ "$endpoint" = "$current_endpoint" ] || { echo "FATAL: operational URLs target different endpoints" >&2; exit 1; }
   roles+=("$role")
   passwords+=("$password")
 done
-[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 4 ] || {
-  echo "FATAL: four operational URLs must use four distinct roles" >&2
+[ "$(printf '%s\n' "${roles[@]}" | sort -u | wc -l)" -eq 5 ] || {
+  echo "FATAL: five operational URLs must use five distinct roles" >&2
   exit 1
 }
 
@@ -135,7 +168,7 @@ SQL
   printf '%s\n%s\n' "$password" "$password" |
     sudo -u postgres psql -d "$database" -X -q -c "\\password $role" >/dev/null
 done
-unset password passwords urls diagnostic_url delivery_url scheduler_url media_url DATABASE_URL
+unset password passwords urls diagnostic_url delivery_url scheduler_url media_url web_push_reminder_url endpoint DATABASE_URL
 
 sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_diagnostic_login_role="${roles[0]}" \
@@ -144,6 +177,10 @@ sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
   -v c4_media_worker_login_role="${roles[3]}" \
   -f - < "$OVERLAY"
 
-API_ENV_FILE="$API_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
+sudo -u postgres psql -d "$database" -X -v ON_ERROR_STOP=1 \
+  -v c4_web_push_reminder_login_role="${roles[4]}" \
+  -f - < "$WEB_PUSH_OVERLAY"
+
+API_ENV_FILE="$API_ENV_FILE" WEBAPP_ENV_FILE="$WEBAPP_ENV_FILE" MEDIA_WORKER_ENV_FILE="$MEDIA_WORKER_ENV_FILE" \
   bash "$PROJECT_ROOT/deploy/host/assert-c4-operational-runtime-ready.sh"
 echo "C4 root/DB-admin provisioning: OK"

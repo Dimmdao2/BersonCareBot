@@ -6,8 +6,14 @@ import { useDoctorSupportUnreadCountPolling } from "@/modules/messaging/hooks/us
 const DoctorSupportUnreadContext = createContext<number | undefined>(undefined);
 
 /** Один polling непрочитанных сообщений врача на всё дерево кабинета (меню, виджеты дашборда). */
-export function DoctorSupportUnreadProvider({ children }: { children: ReactNode }) {
-  const count = useDoctorSupportUnreadCountPolling();
+export function DoctorSupportUnreadProvider({
+  children,
+  enabled = true,
+}: {
+  children: ReactNode;
+  enabled?: boolean;
+}) {
+  const count = useDoctorSupportUnreadCountPolling(enabled);
   return (
     <DoctorSupportUnreadContext.Provider value={count}>{children}</DoctorSupportUnreadContext.Provider>
   );

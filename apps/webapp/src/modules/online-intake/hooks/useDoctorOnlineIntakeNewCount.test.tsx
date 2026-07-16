@@ -57,6 +57,13 @@ describe("useDoctorOnlineIntakeNewCount", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("does not fetch when tenant runtime is disabled", () => {
+    const { result } = renderHook(() => useDoctorOnlineIntakeNewCount(false));
+
+    expect(result.current).toBe(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("polls every 20s", async () => {
     mockFetch.mockResolvedValue({
       ok: true,

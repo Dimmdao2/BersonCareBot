@@ -21,6 +21,8 @@ type DoctorWorkspaceShellProps = {
   patientLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
+  /** Disable tenant-only background badge requests on global operator surfaces. */
+  enableTenantRuntime?: boolean;
   children: ReactNode;
 };
 
@@ -39,6 +41,7 @@ export function DoctorWorkspaceShell({
   userDisplayName,
   patientLabel,
   workspaceContext,
+  enableTenantRuntime = true,
   children,
 }: DoctorWorkspaceShellProps) {
   const showDoctorDesktopNav = canAccessDoctor(userRole);
@@ -49,7 +52,7 @@ export function DoctorWorkspaceShell({
   };
 
   return (
-    <DoctorSupportUnreadProvider>
+    <DoctorSupportUnreadProvider enabled={enableTenantRuntime}>
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />
       </Suspense>
@@ -62,6 +65,7 @@ export function DoctorWorkspaceShell({
           menuAccess={menuAccess}
           patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}
+          enableBadgePolling={enableTenantRuntime}
         />
         <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
           {showDoctorDesktopNav ? (
@@ -69,6 +73,7 @@ export function DoctorWorkspaceShell({
               userDisplayName={userDisplayName}
               menuAccess={menuAccess}
               patientLabel={patientLabel}
+              enableBadgePolling={enableTenantRuntime}
             />
           ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>

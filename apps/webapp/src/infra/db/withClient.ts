@@ -5,9 +5,11 @@ import {
   assertDbPrincipalRequestPoolCheckoutAllowed,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
+  getCurrentDbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
+import { WEB_PUSH_REMINDER_INFRA_SOURCE } from "@/infra/db/webappPoolProvider";
 import {
   reportDbCleanupFailure,
   reportDbQueryFailure,
@@ -18,17 +20,20 @@ function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
-async function prepareClientForRequest(
-  client: PoolClient,
-  options: DbPrincipalApplyOptions,
-): Promise<void> {
+function usesOperationalWebPushReminderPool(): boolean {
+  const principal = getCurrentDbPrincipal();
+  return principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
+}
+
+async function releaseOperationalClient(client: PoolClient, error?: Error): Promise<void> {
+  await (client.release(error) as unknown as Promise<void>);
+}
+
+async function prepareClientForRequest(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
 }
 
-async function releasePreparedClient(
-  client: PoolClient,
-  options: DbPrincipalApplyOptions,
-): Promise<void> {
+async function releasePreparedClient(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
   let cleanupError: unknown;
   try {
     await clearDbPrincipalFromConnection(client, options);
@@ -62,28 +67,27 @@ async function releasePreparedClientAfterSetupFailure(
   }
 }
 
-async function prepareTransactionClientForRequest(
-  client: PoolClient,
-  options: DbPrincipalApplyOptions,
-): Promise<void> {
+async function prepareTransactionClientForRequest(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
 }
 
-export async function withPoolClient<T>(
-  pool: Pool,
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withPoolClient<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  try {
-    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
-  } catch (error) {
-    await reportPrincipalSetupFailure(error);
-    throw error;
+  const operationalWebPushReminder = usesOperationalWebPushReminderPool();
+  if (!operationalWebPushReminder) {
+    try {
+      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+    } catch (error) {
+      await reportPrincipalSetupFailure(error);
+      throw error;
+    }
   }
   const client = await pool.connect();
   try {
     try {
-      await prepareClientForRequest(client, principalApplyOptions);
+      if (!operationalWebPushReminder) {
+        await prepareClientForRequest(client, principalApplyOptions);
+      }
     } catch (error) {
       await reportPrincipalSetupFailure(error);
       throw error;
@@ -95,7 +99,11 @@ export async function withPoolClient<T>(
       throw error;
     }
   } finally {
-    await releasePreparedClient(client, principalApplyOptions);
+    if (operationalWebPushReminder) {
+      await releaseOperationalClient(client);
+    } else {
+      await releasePreparedClient(client, principalApplyOptions);
+    }
   }
 }
 
@@ -112,19 +120,26 @@ export type PoolTransactionHandle = {
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  try {
-    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
-  } catch (error) {
-    await reportPrincipalSetupFailure(error);
-    throw error;
+  const operationalWebPushReminder = usesOperationalWebPushReminderPool();
+  if (!operationalWebPushReminder) {
+    try {
+      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+    } catch (error) {
+      await reportPrincipalSetupFailure(error);
+      throw error;
+    }
   }
   const client = await pool.connect();
   let transactionStarted = false;
   try {
-    await prepareClientForRequest(client, principalApplyOptions);
+    if (!operationalWebPushReminder) {
+      await prepareClientForRequest(client, principalApplyOptions);
+    }
     await client.query("BEGIN");
     transactionStarted = true;
-    await prepareTransactionClientForRequest(client, principalApplyOptions);
+    if (!operationalWebPushReminder) {
+      await prepareTransactionClientForRequest(client, principalApplyOptions);
+    }
   } catch (err) {
     await reportPrincipalSetupFailure(err);
     if (transactionStarted) {
@@ -134,7 +149,14 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         /* preserve original setup error */
       }
     }
-    await releasePreparedClientAfterSetupFailure(client, principalApplyOptions);
+    if (operationalWebPushReminder) {
+      await releaseOperationalClient(
+        client,
+        err instanceof Error ? err : new Error("Web Push reminder transaction setup failed"),
+      );
+    } else {
+      await releasePreparedClientAfterSetupFailure(client, principalApplyOptions);
+    }
     throw err;
   }
   return {
@@ -145,14 +167,17 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
     rollback: async () => {
       await client.query("ROLLBACK");
     },
-    release: () => releasePreparedClient(client, principalApplyOptions),
+    release: async () => {
+      if (operationalWebPushReminder) {
+        await releaseOperationalClient(client);
+      } else {
+        await releasePreparedClient(client, principalApplyOptions);
+      }
+    },
   };
 }
 
-export async function withPoolTransaction<T>(
-  pool: Pool,
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withPoolTransaction<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const tx = await startPoolTransaction(pool);
   try {
     const out = await fn(tx.client);

@@ -1,0 +1,208 @@
+-- C4 extension: least-privilege Web Push-only reminder tick runtime.
+-- The LOGIN role is operator-created; this overlay owns only the NOLOGIN capability and ACLs.
+\set ON_ERROR_STOP on
+\pset pager off
+
+\if :{?c4_web_push_reminder_login_role}
+\else
+\echo 'FATAL: missing c4_web_push_reminder_login_role'
+SELECT 1 / 0;
+\endif
+
+BEGIN;
+
+\if :{?c4_web_push_reminder_down}
+DROP POLICY IF EXISTS c4_web_push_reminder_status ON public.operator_job_status;
+DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.reminder_rules;
+DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.webapp_reminder_occurrences;
+DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.notification_delivery_attempts;
+DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.product_push_notifications;
+DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.product_analytics_hourly;
+DROP POLICY IF EXISTS c4_web_push_reminder_catalog ON public.content_sections;
+DROP POLICY IF EXISTS c4_web_push_reminder_catalog ON public.content_pages;
+DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.platform_users;
+DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.user_channel_preferences;
+DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.user_notification_topic_channels;
+DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.user_web_push_subscriptions;
+DROP POLICY IF EXISTS c4_web_push_reminder_discovery ON public.reminder_rules;
+DROP POLICY IF EXISTS c4_web_push_reminder_discovery ON public.platform_users;
+DROP FUNCTION IF EXISTS app.list_web_push_reminder_organization_ids(timestamptz);
+SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
+FROM pg_auth_members membership
+JOIN pg_roles granted ON granted.oid = membership.roleid
+JOIN pg_roles member ON member.oid = membership.member
+WHERE granted.rolname IN (:'c4_web_push_reminder_login_role', 'app_operational_web_push_reminder', 'app_web_push_reminder_discovery_definer')
+   OR member.rolname IN (:'c4_web_push_reminder_login_role', 'app_operational_web_push_reminder', 'app_web_push_reminder_discovery_definer')
+\gexec
+REVOKE ALL PRIVILEGES ON DATABASE :DBNAME FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON SCHEMA public, app FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA app FROM app_operational_web_push_reminder;
+DROP ROLE IF EXISTS app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM app_web_push_reminder_discovery_definer;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_web_push_reminder_discovery_definer;
+DROP ROLE IF EXISTS app_web_push_reminder_discovery_definer;
+COMMIT;
+\echo 'C4 Web Push reminder operational runtime overlay DOWN complete.'
+\quit
+\endif
+
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_operational_web_push_reminder') THEN
+    CREATE ROLE app_operational_web_push_reminder NOLOGIN NOINHERIT NOBYPASSRLS;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web_push_reminder_discovery_definer') THEN
+    CREATE ROLE app_web_push_reminder_discovery_definer NOLOGIN NOINHERIT NOBYPASSRLS;
+  END IF;
+END
+$roles$;
+
+ALTER ROLE app_operational_web_push_reminder NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+ALTER ROLE app_web_push_reminder_discovery_definer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+ALTER ROLE :"c4_web_push_reminder_login_role" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+
+REVOKE ALL PRIVILEGES ON DATABASE :DBNAME FROM :"c4_web_push_reminder_login_role";
+REVOKE ALL PRIVILEGES ON SCHEMA public, app FROM :"c4_web_push_reminder_login_role";
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM :"c4_web_push_reminder_login_role";
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM :"c4_web_push_reminder_login_role";
+REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA app FROM :"c4_web_push_reminder_login_role";
+REVOKE ALL PRIVILEGES ON DATABASE :DBNAME FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON SCHEMA public, app FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA app FROM app_operational_web_push_reminder;
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM app_web_push_reminder_discovery_definer;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM app_web_push_reminder_discovery_definer;
+GRANT USAGE ON SCHEMA public TO app_web_push_reminder_discovery_definer;
+GRANT SELECT (organization_id, integrator_user_id, platform_user_id, is_enabled)
+  ON public.reminder_rules TO app_web_push_reminder_discovery_definer;
+GRANT SELECT (id, reminder_muted_until)
+  ON public.platform_users TO app_web_push_reminder_discovery_definer;
+
+DROP POLICY IF EXISTS c4_web_push_reminder_discovery ON public.reminder_rules;
+CREATE POLICY c4_web_push_reminder_discovery ON public.reminder_rules FOR SELECT
+  TO app_web_push_reminder_discovery_definer USING (true);
+DROP POLICY IF EXISTS c4_web_push_reminder_discovery ON public.platform_users;
+CREATE POLICY c4_web_push_reminder_discovery ON public.platform_users FOR SELECT
+  TO app_web_push_reminder_discovery_definer USING (true);
+
+GRANT CONNECT ON DATABASE :DBNAME TO app_operational_web_push_reminder;
+GRANT USAGE ON SCHEMA public, app TO app_operational_web_push_reminder;
+
+CREATE OR REPLACE FUNCTION app.list_web_push_reminder_organization_ids(p_now timestamptz)
+RETURNS TABLE(organization_id uuid)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $function$
+  SELECT DISTINCT rr.organization_id
+  FROM public.reminder_rules rr
+  JOIN public.platform_users pu ON pu.id = rr.platform_user_id
+  WHERE rr.integrator_user_id IS NULL
+    AND rr.platform_user_id IS NOT NULL
+    AND rr.organization_id IS NOT NULL
+    AND rr.is_enabled = true
+    AND (pu.reminder_muted_until IS NULL OR pu.reminder_muted_until <= p_now)
+  ORDER BY rr.organization_id
+$function$;
+ALTER FUNCTION app.list_web_push_reminder_organization_ids(timestamptz)
+  OWNER TO app_web_push_reminder_discovery_definer;
+REVOKE ALL ON FUNCTION app.list_web_push_reminder_organization_ids(timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.list_web_push_reminder_organization_ids(timestamptz) TO app_operational_web_push_reminder;
+GRANT EXECUTE ON FUNCTION app.get_web_push_vapid_public_key() TO app_operational_web_push_reminder;
+
+GRANT SELECT ON public.reminder_rules, public.platform_users,
+  public.user_channel_preferences, public.user_notification_topic_channels,
+  public.user_web_push_subscriptions, public.content_sections, public.content_pages
+  TO app_operational_web_push_reminder;
+GRANT SELECT, INSERT, UPDATE ON public.webapp_reminder_occurrences TO app_operational_web_push_reminder;
+GRANT INSERT ON public.notification_delivery_attempts, public.product_push_notifications TO app_operational_web_push_reminder;
+GRANT SELECT, INSERT, UPDATE ON public.product_analytics_hourly TO app_operational_web_push_reminder;
+GRANT SELECT, INSERT, UPDATE ON public.operator_job_status TO app_operational_web_push_reminder;
+
+DROP POLICY IF EXISTS c4_web_push_reminder_status ON public.operator_job_status;
+CREATE POLICY c4_web_push_reminder_status ON public.operator_job_status TO app_operational_web_push_reminder
+USING (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick')
+WITH CHECK (job_family = 'reminders' AND job_key = 'reminders.web_push_only.tick');
+
+-- Every tenant-owned row is constrained by the organization selected for the current job.
+DO $policies$
+DECLARE table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'reminder_rules', 'webapp_reminder_occurrences', 'notification_delivery_attempts',
+    'product_push_notifications', 'product_analytics_hourly'
+  ] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS c4_web_push_reminder_org ON public.%I', table_name);
+    EXECUTE format(
+      'CREATE POLICY c4_web_push_reminder_org ON public.%I TO app_operational_web_push_reminder USING (organization_id = NULLIF(current_setting(''app.org'', true), '''')::uuid) WITH CHECK (organization_id = NULLIF(current_setting(''app.org'', true), '''')::uuid)',
+      table_name
+    );
+  END LOOP;
+
+  FOREACH table_name IN ARRAY ARRAY['content_sections', 'content_pages'] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS c4_web_push_reminder_catalog ON public.%I', table_name);
+    EXECUTE format(
+      'CREATE POLICY c4_web_push_reminder_catalog ON public.%I FOR SELECT TO app_operational_web_push_reminder USING (organization_id IS NULL OR organization_id = NULLIF(current_setting(''app.org'', true), '''')::uuid)',
+      table_name
+    );
+  END LOOP;
+END
+$policies$;
+
+DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.platform_users;
+CREATE POLICY c4_web_push_reminder_user ON public.platform_users FOR SELECT TO app_operational_web_push_reminder
+USING (EXISTS (
+  SELECT 1 FROM public.reminder_rules rr
+  WHERE rr.platform_user_id = platform_users.id
+    AND rr.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+));
+
+DO $child_policies$
+DECLARE table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'user_channel_preferences', 'user_notification_topic_channels', 'user_web_push_subscriptions'
+  ] LOOP
+    EXECUTE format('DROP POLICY IF EXISTS c4_web_push_reminder_user ON public.%I', table_name);
+    EXECUTE format(
+      'CREATE POLICY c4_web_push_reminder_user ON public.%I FOR SELECT TO app_operational_web_push_reminder USING (EXISTS (SELECT 1 FROM public.reminder_rules rr WHERE rr.platform_user_id = %I.%s AND rr.organization_id = NULLIF(current_setting(''app.org'', true), '''')::uuid))',
+      table_name,
+      table_name,
+      CASE WHEN table_name = 'user_channel_preferences' THEN 'platform_user_id' ELSE 'user_id' END
+    );
+  END LOOP;
+END
+$child_policies$;
+
+-- Exact SET-only topology: one base LOGIN, one terminal capability, no sibling edges.
+SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
+FROM pg_auth_members membership
+JOIN pg_roles granted ON granted.oid = membership.roleid
+JOIN pg_roles member ON member.oid = membership.member
+WHERE granted.rolname = 'app_operational_web_push_reminder'
+  AND member.rolname <> :'c4_web_push_reminder_login_role'
+\gexec
+SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
+FROM pg_auth_members membership
+JOIN pg_roles granted ON granted.oid = membership.roleid
+JOIN pg_roles member ON member.oid = membership.member
+WHERE member.rolname IN (
+  :'c4_web_push_reminder_login_role',
+  'app_operational_web_push_reminder',
+  'app_web_push_reminder_discovery_definer'
+)
+\gexec
+SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
+FROM pg_auth_members membership
+JOIN pg_roles granted ON granted.oid = membership.roleid
+JOIN pg_roles member ON member.oid = membership.member
+WHERE granted.rolname IN (:'c4_web_push_reminder_login_role', 'app_web_push_reminder_discovery_definer')
+\gexec
+
+GRANT app_operational_web_push_reminder TO :"c4_web_push_reminder_login_role" WITH INHERIT FALSE, SET TRUE;
+
+COMMIT;
+\echo 'C4 Web Push reminder operational runtime overlay complete.'

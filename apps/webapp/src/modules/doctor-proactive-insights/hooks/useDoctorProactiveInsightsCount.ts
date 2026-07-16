@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 const PROACTIVE_INSIGHTS_SUMMARY_URL = "/api/doctor/proactive-insights/summary";
 
 /** Число проактивных сигналов для бейджа пункта «Сегодня» в меню врача. */
-export function useDoctorProactiveInsightsCount() {
+export function useDoctorProactiveInsightsCount(enabled = true) {
   const [count, setCount] = useState(0);
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const run = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -33,6 +34,6 @@ export function useDoctorProactiveInsightsCount() {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
-  return count;
+  }, [enabled]);
+  return enabled ? count : 0;
 }

@@ -16,7 +16,7 @@
 | Inbox | PWA-чат `/app/patient/messages` — единая история; push ведёт в чат — см. [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md) |
 | Расчёт каналов | `resolvePatientNotificationChannels` — порядок проверки **`web_push` → telegram → max → email`** |
 | Подписка | `/api/patient/web-push/subscribe` — включает глобальный канал и topic-defaults в `user_notification_topic_channels` |
-| Напоминания / запись | Integrator запрашивает targets у webapp; push-copy и M2M `patient-notifications/web-push` — см. [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) |
+| Напоминания / запись | Integrator запрашивает targets у webapp; push-copy и M2M `patient-notifications/web-push` передают подписанный `organizationId` и проверяют enrollment — см. [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) |
 
 ## Специалист (врач / admin, Staff PWA)
 

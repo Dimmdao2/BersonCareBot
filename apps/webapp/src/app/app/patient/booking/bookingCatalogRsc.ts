@@ -1,4 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type { BookingCity } from "@/modules/booking-catalog/types";
 import {
   listInPersonCitiesForOrganization,
@@ -48,7 +49,10 @@ export async function loadBookingCitiesForPatientRsc(platformUserId: string): Pr
     return { ok: false, error: "catalog_unavailable", cities: [] };
   }
   try {
-    const cities = await listInPersonCitiesForOrganization(deps, organizationId);
+    const cities = await withExplicitOrganizationPrincipal(
+      { organizationId, source: "app/patient/booking:load-cities" },
+      () => listInPersonCitiesForOrganization(deps, organizationId),
+    );
     if (!cities) return { ok: false, error: "catalog_unavailable", cities: [] };
     return { ok: true, cities };
   } catch {
@@ -67,11 +71,13 @@ export async function loadInPersonServicesForCityRsc(
     return { ok: false, error: "catalog_unavailable", services: [] };
   }
   try {
-    const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
-    if (!branch) {
-      return { ok: false, error: "city_not_found", services: [] };
-    }
-    const listed = await listInPersonServicesForBranch(deps, organizationId, branch.id);
+    const listed = await withExplicitOrganizationPrincipal(
+      { organizationId, source: "app/patient/booking:load-services" },
+      async () => {
+        const branch = await resolveActiveBranchForCity(deps, organizationId, cityCode);
+        return branch ? listInPersonServicesForBranch(deps, organizationId, branch.id) : null;
+      },
+    );
     if (!listed) {
       return { ok: false, error: "city_not_found", services: [] };
     }

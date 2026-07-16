@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setDbOperationalRuntimeRole } from "../dist/index.js";
+import { resetDbOperationalRuntimeRole, setDbOperationalRuntimeRole } from "../dist/index.js";
 
 test("sets each supported operational runtime role with fixed SQL", async () => {
   const queries = [];
@@ -16,6 +16,7 @@ test("sets each supported operational runtime role with fixed SQL", async () => 
     "app_operational_delivery_worker",
     "app_operational_media_worker",
     "app_operational_scheduler",
+    "app_operational_web_push_reminder",
   ]) {
     await setDbOperationalRuntimeRole(client, role);
   }
@@ -25,6 +26,7 @@ test("sets each supported operational runtime role with fixed SQL", async () => 
     "SET ROLE app_operational_delivery_worker",
     "SET ROLE app_operational_media_worker",
     "SET ROLE app_operational_scheduler",
+    "SET ROLE app_operational_web_push_reminder",
   ]);
 });
 
@@ -41,4 +43,14 @@ test("rejects an unsupported role before querying", async () => {
     /Unsupported DB operational runtime role/,
   );
   assert.equal(queried, false);
+});
+
+test("resets an operational runtime role with fixed SQL", async () => {
+  const queries = [];
+  await resetDbOperationalRuntimeRole({
+    async query(sql) {
+      queries.push(sql);
+    },
+  });
+  assert.deepEqual(queries, ["RESET ROLE"]);
 });

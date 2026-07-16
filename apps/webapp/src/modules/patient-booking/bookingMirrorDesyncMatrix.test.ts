@@ -106,7 +106,8 @@ describe("booking mirror desync matrix (P2)", () => {
     syncPort.emitBookingEvent.mockResolvedValue(undefined);
 
     const result = await svc().cancelBooking({ userId: row.userId!, bookingId: row.id, reason: "busy" });
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, notificationOutcomeFailed: true });
+    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith(
       expect.objectContaining({ bookingId: row.id, status: "cancelled" }),
     );
@@ -337,7 +338,12 @@ describe("booking mirror desync matrix (P2)", () => {
     syncPort.cancelRecord.mockRejectedValue(new Error("rubitime down"));
 
     const result = await svc().cancelBooking({ userId: row.userId!, bookingId: row.id });
-    expect(result).toEqual({ ok: true, rubitimeMirrorFailed: true });
+    expect(result).toEqual({
+      ok: true,
+      rubitimeMirrorFailed: true,
+      notificationOutcomeFailed: true,
+    });
+    expect(syncPort.emitBookingEvent).not.toHaveBeenCalled();
     expect(bookingsPort.markCancelled).toHaveBeenCalled();
   });
 });
