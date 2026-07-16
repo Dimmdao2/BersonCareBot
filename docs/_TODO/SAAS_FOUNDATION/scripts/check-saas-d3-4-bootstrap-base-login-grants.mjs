@@ -177,13 +177,20 @@ function runChecks(overrides = {}) {
     "d3_4_media_worker_runtime_role_has_exact_supported_capability",
     "A legacy deployment reaches the media surface through",
     "Refuse a mixed shape",
+    "count(membership.roleid) AS direct_membership_count",
+    "granted.rolname = 'app_worker'",
+    "exact_legacy_worker_edge_count = 1",
     "granted.rolname = 'app_operational_media_worker'",
+    "membership.admin_option = false",
     "membership.inherit_option = false",
+    "membership.inherit_option = true",
     "membership.set_option = true",
     "exact_media_set_only_edge_count = 1",
-    "edge_count = 1",
-    "edge_count = 0",
+    "direct_membership_count = 1",
+    "rolinherit = true",
     "rolinherit = false",
+    "NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')",
+    "NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')",
     "d3_4_p2_b_context_bundle_is_complete_or_absent",
     "d3_4_has_p2_b_context_bundle",
     "to_regprocedure('app.release_principal_context()')",
@@ -216,6 +223,14 @@ function runChecks(overrides = {}) {
     "\\if :d3_4_has_p2_b_context_bundle",
     2,
   );
+  requireOccurrenceCount(
+    files.grantSql,
+    loaded.grantSql,
+    "direct_membership_count = 1",
+    2,
+  );
+  requireOccurrenceCount(files.grantSql, loaded.grantSql, "membership.admin_option = false", 2);
+  requireOccurrenceCount(files.grantSql, loaded.grantSql, "membership.set_option = true", 2);
   requireFragments(files.appWorkerSql, loaded.appWorkerSql, [
     "PostgreSQL checks EXECUTE on every helper referenced by a policy",
     "GRANT EXECUTE ON FUNCTION app.is_staff() TO app_worker;",
@@ -414,6 +429,12 @@ function runChecks(overrides = {}) {
     "operationalMediaRole",
     "WITH INHERIT FALSE, SET TRUE",
     "canonical C4 SET-only shape",
+    "legacyStaffRole",
+    "legacyArbitraryRole",
+    "c4UnrelatedRole",
+    "mixedRole",
+    "siblingOperationalRole",
+    "psqlExpectFailure",
     "app.staff_user_has_password_credentials(uuid)",
     "app.release_principal_context()",
     "app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)",
@@ -648,8 +669,32 @@ if (process.argv.includes("--self-test")) {
     },
     {
       grantSql: read(files.grantSql).replace(
-        "AND (SELECT edge_count = 0 FROM operational_edges)",
-        "AND true",
+        "count(membership.roleid) AS direct_membership_count",
+        "count(*) FILTER (WHERE granted.rolname LIKE 'app_%') AS direct_membership_count",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "direct_membership_count = 1",
+        "direct_membership_count >= 1",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "membership.admin_option = false",
+        "membership.admin_option = true",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')",
+        "true",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')",
+        "true",
       ),
     },
     {

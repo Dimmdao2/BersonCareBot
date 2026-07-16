@@ -412,3 +412,23 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   `git diff --check`.
 - Recovery remains a fresh full TEST rehearsal under the documented failure policy; post-migration closure is not a
   stage-resume acceptance path. No live TEST mutation/restart/cleanup or PROD action occurred during this fix.
+
+### D3.4 media-worker membership-shape correction (`/root/ci_fix_review`)
+
+- The next fresh TEST rehearsal stopped inside the D3.4 bootstrap grant preflight, before the C4 overlay, FORCE and
+  service activation. Read-only redacted catalog facts showed the media-worker login was already in the canonical C4
+  shape: `NOINHERIT`, no `app_worker`, and one non-admin `INHERIT FALSE, SET TRUE` edge to
+  `app_operational_media_worker`. This was not a missing-privilege regression; the D3.4 predicate still required the
+  legacy `app_worker` membership unconditionally.
+- D3.4 now accepts exactly two mutually exclusive direct-membership shapes across all `pg_auth_members`: legacy is an
+  `INHERIT` login with exactly one non-admin `INHERIT TRUE, SET TRUE` edge to `app_worker`; C4 is a `NOINHERIT` login
+  with exactly one non-admin `INHERIT FALSE, SET TRUE` edge to `app_operational_media_worker`. Any extra arbitrary,
+  staff, patient, sibling-operational or mixed legacy+C4 edge fails closed.
+- The first correction commit `a243a6cce` was rejected in review because it counted only `app_operational_%` edges
+  and could therefore miss an unrelated direct membership. The corrected invariant counts every direct membership.
+  Its PostgreSQL 16 scratch proof covers both positive shapes and rejects legacy+staff, legacy+arbitrary,
+  C4+unrelated, mixed `app_worker`+C4 and sibling-operational cases. Checker mutation tests pin the exact edge count
+  and membership options.
+- Recovery requires another fresh full `deploy-test-saas` restore/rehearsal under the hard-protocol failure policy.
+  `--post-migration-closure` is not an acceptance shortcut. Diagnosis made no TEST mutation, restart or cleanup and
+  did not access PROD.

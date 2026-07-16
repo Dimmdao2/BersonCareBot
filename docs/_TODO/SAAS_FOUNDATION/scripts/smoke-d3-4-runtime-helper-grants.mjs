@@ -16,6 +16,13 @@ const bootstrapRole = `bcb_d3_4_bootstrap_${suffix}`;
 const mediaRole = `bcb_d3_4_media_${suffix}`;
 const c4MediaRole = `bcb_d3_4_c4_media_${suffix}`;
 const operationalMediaRole = `app_operational_media_worker_scratch_${suffix}`;
+const arbitraryCapabilityRole = `bcb_d3_4_arbitrary_${suffix}`;
+const siblingCapabilityRole = `app_operational_scheduler_scratch_${suffix}`;
+const legacyStaffRole = `bcb_d3_4_legacy_staff_${suffix}`;
+const legacyArbitraryRole = `bcb_d3_4_legacy_arbitrary_${suffix}`;
+const c4UnrelatedRole = `bcb_d3_4_c4_unrelated_${suffix}`;
+const mixedRole = `bcb_d3_4_mixed_${suffix}`;
+const siblingOperationalRole = `bcb_d3_4_sibling_operational_${suffix}`;
 const workerRole = `bcb_d3_4_worker_${suffix}`;
 const staffRole = `bcb_d3_4_staff_${suffix}`;
 const patientRole = `bcb_d3_4_patient_${suffix}`;
@@ -53,10 +60,32 @@ function psql(database, sql) {
   run("sudo", ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database], sql);
 }
 
+function psqlExpectFailure(database, sql) {
+  const result = spawnSync(
+    "sudo",
+    ["-n", "-u", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", database],
+    { cwd: repoRoot, encoding: "utf8", input: sql, stdio: ["pipe", "pipe", "pipe"] },
+  );
+  if (result.error) throw result.error;
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  if (result.status === 0 || !output.includes("division by zero")) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    throw new Error("D3.4 malformed membership shape did not fail at its SQL invariant");
+  }
+}
+
 const bootstrapIdent = quoteIdent(bootstrapRole);
 const mediaIdent = quoteIdent(mediaRole);
 const c4MediaIdent = quoteIdent(c4MediaRole);
 const operationalMediaIdent = quoteIdent(operationalMediaRole);
+const arbitraryCapabilityIdent = quoteIdent(arbitraryCapabilityRole);
+const siblingCapabilityIdent = quoteIdent(siblingCapabilityRole);
+const legacyStaffIdent = quoteIdent(legacyStaffRole);
+const legacyArbitraryIdent = quoteIdent(legacyArbitraryRole);
+const c4UnrelatedIdent = quoteIdent(c4UnrelatedRole);
+const mixedIdent = quoteIdent(mixedRole);
+const siblingOperationalIdent = quoteIdent(siblingOperationalRole);
 const workerIdent = quoteIdent(workerRole);
 const staffIdent = quoteIdent(staffRole);
 const patientIdent = quoteIdent(patientRole);
@@ -98,12 +127,29 @@ const setupSql = [
   `CREATE ROLE ${mediaIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${c4MediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
   `CREATE ROLE ${operationalMediaIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${arbitraryCapabilityIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${siblingCapabilityIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${legacyStaffIdent} NOLOGIN NOSUPERUSER INHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${legacyArbitraryIdent} NOLOGIN NOSUPERUSER INHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${c4UnrelatedIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${mixedIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
+  `CREATE ROLE ${siblingOperationalIdent} NOLOGIN NOSUPERUSER NOINHERIT NOBYPASSRLS;`,
   `CREATE ROLE ${workerIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${staffIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `CREATE ROLE ${patientIdent} NOLOGIN NOSUPERUSER NOBYPASSRLS;`,
   `GRANT ${patientIdent} TO ${bootstrapIdent};`,
-  `GRANT ${workerIdent} TO ${mediaIdent};`,
+  `GRANT ${workerIdent} TO ${mediaIdent} WITH INHERIT TRUE, SET TRUE;`,
   `GRANT ${operationalMediaIdent} TO ${c4MediaIdent} WITH INHERIT FALSE, SET TRUE;`,
+  `GRANT ${workerIdent} TO ${legacyStaffIdent} WITH INHERIT TRUE, SET TRUE;`,
+  `GRANT ${staffIdent} TO ${legacyStaffIdent} WITH INHERIT TRUE, SET TRUE;`,
+  `GRANT ${workerIdent} TO ${legacyArbitraryIdent} WITH INHERIT TRUE, SET TRUE;`,
+  `GRANT ${arbitraryCapabilityIdent} TO ${legacyArbitraryIdent} WITH INHERIT TRUE, SET TRUE;`,
+  `GRANT ${operationalMediaIdent} TO ${c4UnrelatedIdent} WITH INHERIT FALSE, SET TRUE;`,
+  `GRANT ${arbitraryCapabilityIdent} TO ${c4UnrelatedIdent} WITH INHERIT FALSE, SET TRUE;`,
+  `GRANT ${workerIdent} TO ${mixedIdent} WITH INHERIT TRUE, SET TRUE;`,
+  `GRANT ${operationalMediaIdent} TO ${mixedIdent} WITH INHERIT FALSE, SET TRUE;`,
+  `GRANT ${operationalMediaIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
+  `GRANT ${siblingCapabilityIdent} TO ${siblingOperationalIdent} WITH INHERIT FALSE, SET TRUE;`,
   "CREATE SCHEMA app;",
   `GRANT USAGE ON SCHEMA app TO ${staffIdent}, ${patientIdent};`,
   ...functionSignatures.map(createFunctionSql),
@@ -197,6 +243,14 @@ const applyC4ShapeSql = [
   artifact,
 ].join("\n");
 
+function malformedShapeSql(roleName) {
+  return [
+    `\\set d3_4_bootstrap_base_role ${bootstrapRole}`,
+    `\\set d3_4_media_worker_runtime_role ${roleName}`,
+    artifact,
+  ].join("\n");
+}
+
 const proofSql = `
 SELECT 1 / has_function_privilege(${quoteLiteral(staffRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.staff_user_has_password_credentials(uuid)', 'EXECUTE'))::int;
@@ -261,6 +315,12 @@ try {
   psql(dbName, setupSql);
   psql(dbName, applySql);
   psql(dbName, applyC4ShapeSql);
+  // Every malformed shape must fail in real PostgreSQL 16 before D3.4 grants anything.
+  psqlExpectFailure(dbName, malformedShapeSql(legacyStaffRole));
+  psqlExpectFailure(dbName, malformedShapeSql(legacyArbitraryRole));
+  psqlExpectFailure(dbName, malformedShapeSql(c4UnrelatedRole));
+  psqlExpectFailure(dbName, malformedShapeSql(mixedRole));
+  psqlExpectFailure(dbName, malformedShapeSql(siblingOperationalRole));
   psql(dbName, proofSql);
   process.stdout.write("smoke-d3-4-runtime-helper-grants: OK\n");
 } finally {
@@ -269,7 +329,14 @@ try {
     `DROP ROLE IF EXISTS ${bootstrapIdent};`,
     `DROP ROLE IF EXISTS ${mediaIdent};`,
     `DROP ROLE IF EXISTS ${c4MediaIdent};`,
+    `DROP ROLE IF EXISTS ${legacyStaffIdent};`,
+    `DROP ROLE IF EXISTS ${legacyArbitraryIdent};`,
+    `DROP ROLE IF EXISTS ${c4UnrelatedIdent};`,
+    `DROP ROLE IF EXISTS ${mixedIdent};`,
+    `DROP ROLE IF EXISTS ${siblingOperationalIdent};`,
     `DROP ROLE IF EXISTS ${operationalMediaIdent};`,
+    `DROP ROLE IF EXISTS ${arbitraryCapabilityIdent};`,
+    `DROP ROLE IF EXISTS ${siblingCapabilityIdent};`,
     `DROP ROLE IF EXISTS ${workerIdent};`,
     `DROP ROLE IF EXISTS ${staffIdent};`,
     `DROP ROLE IF EXISTS ${patientIdent};`,

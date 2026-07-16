@@ -71,33 +71,39 @@ WITH media_login AS (
   SELECT oid, rolinherit
   FROM pg_roles
   WHERE rolname = :'d3_4_media_worker_runtime_role'
-), operational_edges AS (
+), direct_memberships AS (
   SELECT
-    count(*) AS edge_count,
+    count(membership.roleid) AS direct_membership_count,
+    count(*) FILTER (
+      WHERE granted.rolname = 'app_worker'
+        AND membership.admin_option = false
+        AND membership.inherit_option = true
+        AND membership.set_option = true
+    ) AS exact_legacy_worker_edge_count,
     count(*) FILTER (
       WHERE granted.rolname = 'app_operational_media_worker'
+        AND membership.admin_option = false
         AND membership.inherit_option = false
         AND membership.set_option = true
     ) AS exact_media_set_only_edge_count
   FROM media_login
   LEFT JOIN pg_auth_members membership ON membership.member = media_login.oid
-  LEFT JOIN pg_roles granted
-    ON granted.oid = membership.roleid
-    AND granted.rolname LIKE 'app_operational_%'
-  WHERE granted.oid IS NOT NULL
+  LEFT JOIN pg_roles granted ON granted.oid = membership.roleid
 )
 SELECT 1 / (
-  (
-    pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
-    AND (SELECT edge_count = 0 FROM operational_edges)
-  )
-  OR (
-    NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
-    AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')
-    AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')
-    AND (SELECT rolinherit = false FROM media_login)
-    AND (SELECT edge_count = 1 FROM operational_edges)
-    AND (SELECT exact_media_set_only_edge_count = 1 FROM operational_edges)
+  NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_staff', 'MEMBER')
+  AND NOT pg_has_role(:'d3_4_media_worker_runtime_role', 'app_patient', 'MEMBER')
+  AND (
+    (
+      (SELECT rolinherit = true FROM media_login)
+      AND (SELECT direct_membership_count = 1 FROM direct_memberships)
+      AND (SELECT exact_legacy_worker_edge_count = 1 FROM direct_memberships)
+    )
+    OR (
+      (SELECT rolinherit = false FROM media_login)
+      AND (SELECT direct_membership_count = 1 FROM direct_memberships)
+      AND (SELECT exact_media_set_only_edge_count = 1 FROM direct_memberships)
+    )
   )
 )::int AS d3_4_media_worker_runtime_role_has_exact_supported_capability;
 
