@@ -168,6 +168,7 @@ describe('SaaS TEST walkthrough reconciliation', () => {
         programActions: 18,
         programEvents: 4,
         diarySnapshots: 21,
+        supportProfiles: 1,
       },
       surfaces: {
         sharedPatient: true,

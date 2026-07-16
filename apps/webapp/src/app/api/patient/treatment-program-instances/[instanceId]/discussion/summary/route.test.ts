@@ -171,6 +171,10 @@ describe("GET discussion summary", () => {
       },
     );
     expect(restrictedSettingsReadMock).not.toHaveBeenCalled();
+    expect(getPatientProgramInteractionPolicyMock).toHaveBeenCalledWith(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      { organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+    );
   });
 
   it("returns 403 when the safe runtime flag is disabled", async () => {
@@ -196,5 +200,27 @@ describe("GET discussion summary", () => {
 
     expect(res.status).toBe(404);
     expect(isFlagEnabledMock).not.toHaveBeenCalled();
+    expect(getPatientProgramInteractionPolicyMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when the patient support policy disables comments", async () => {
+    getPatientProgramInteractionPolicyMock.mockResolvedValue({
+      organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      onSupport: false,
+      commentsAllowed: false,
+      mediaAllowed: false,
+    });
+
+    const res = await GET(
+      new Request(`http://localhost/api/patient/treatment-program-instances/${instanceId}/discussion/summary`),
+      { params: Promise.resolve({ instanceId }) },
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      ok: false,
+      error: "patient_support_comments_disabled",
+    });
+    expect(listMessagesPageMock).not.toHaveBeenCalled();
   });
 });

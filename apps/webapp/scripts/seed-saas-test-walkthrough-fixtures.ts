@@ -229,6 +229,7 @@ export const SAAS_TEST_FIXTURE_MANIFEST = Object.freeze({
     programActions: 18,
     programEvents: 4,
     diarySnapshots: 21,
+    supportProfiles: 1,
   }),
   surfaces: Object.freeze({
     sharedPatient: true,
@@ -1103,6 +1104,30 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       },
     ]);
     await tx.insert(schema.orgEnrollments).values(plan.enrollments);
+    await tx
+      .insert(schema.doctorPatientSupport)
+      .values({
+        organizationId: ids.organizationA,
+        patientUserId: ids.patientsA[0],
+        onSupport: true,
+        supportStartedAt: relativeIso(now, -30),
+        commentsEnabled: true,
+        mediaEnabled: true,
+        updatedAt: nowIso,
+        updatedBy: ids.ownerA,
+      })
+      .onConflictDoUpdate({
+        target: schema.doctorPatientSupport.patientUserId,
+        set: {
+          organizationId: ids.organizationA,
+          onSupport: true,
+          supportStartedAt: relativeIso(now, -30),
+          commentsEnabled: true,
+          mediaEnabled: true,
+          updatedAt: nowIso,
+          updatedBy: ids.ownerA,
+        },
+      });
     await tx.insert(schema.beAppointments).values(plan.appointments);
 
     const packageRoots = [
@@ -1638,6 +1663,19 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       .from(schema.orgEnrollments)
       .where(inArray(schema.orgEnrollments.id, [...ids.enrollmentsA, ...ids.enrollmentsB]));
     assertCount('patients', fixtureEnrollments[0]?.value ?? 0, 8);
+    const fixtureSupportProfiles = await tx
+      .select({ value: count() })
+      .from(schema.doctorPatientSupport)
+      .where(
+        and(
+          eq(schema.doctorPatientSupport.organizationId, ids.organizationA),
+          eq(schema.doctorPatientSupport.patientUserId, ids.patientsA[0]),
+          eq(schema.doctorPatientSupport.onSupport, true),
+          eq(schema.doctorPatientSupport.commentsEnabled, true),
+          eq(schema.doctorPatientSupport.mediaEnabled, true),
+        ),
+      );
+    assertCount('support_profiles', fixtureSupportProfiles[0]?.value ?? 0, 1);
     const clinicAPatients = await tx
       .select({ value: count() })
       .from(schema.orgEnrollments)

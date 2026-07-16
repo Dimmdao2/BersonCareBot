@@ -46,7 +46,6 @@ import { listLessons } from "@/modules/lessons/service";
 import { listEmergencyTopics } from "@/modules/emergency/service";
 import { getDoctorWorkspaceState, getOverviewState } from "@/modules/doctor-cabinet/service";
 import { createDoctorClientsService } from "@/modules/doctor-clients/service";
-import { parseDoctorSupportDefaultEnabled } from "@/modules/doctor-clients/supportPolicy";
 import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/service";
 import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
 import { createDoctorStatsService } from "@/modules/doctor-stats/service";
@@ -1249,10 +1248,7 @@ function _buildAppDeps() {
         phone: identity.phone,
         email: identity.email ?? null,
       }),
-    getDoctorSupportDefault: async (key) => {
-      const row = await systemSettingsService.getSetting(key, "doctor");
-      return parseDoctorSupportDefaultEnabled(row?.valueJson ?? null);
-    },
+    getDoctorSupportDefault: (key, context) => runtimeConfig.getBoolean(key, context),
   });
   const integratorDeliveryTargetsDeps = {
     userByPhonePort,
