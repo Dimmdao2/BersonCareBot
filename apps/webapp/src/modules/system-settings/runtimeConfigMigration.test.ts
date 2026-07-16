@@ -16,6 +16,35 @@ const mediaWorkerRuntime = readFileSync(
   new URL("../../../db/drizzle-migrations/0188_media_worker_runtime_flags.sql", import.meta.url),
   "utf8",
 );
+const patientCooldownPlaybackRuntime = readFileSync(
+  new URL(
+    "../../../db/drizzle-migrations/0189_patient_runtime_cooldown_playback_accessors.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const patientPlaybackAccessors = readFileSync(
+  new URL("../../../../../deploy/postgres/patient-media-playback-telemetry-accessors.sql", import.meta.url),
+  "utf8",
+);
+const patientTreatmentPage = readFileSync(
+  new URL("../../app/app/patient/treatment/[instanceId]/page.tsx", import.meta.url),
+  "utf8",
+);
+const patientTreatmentItemPage = readFileSync(
+  new URL(
+    "../../app/app/patient/treatment/[instanceId]/item/[itemId]/page.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const patientPlaybackScratch = readFileSync(
+  new URL(
+    "../../../../../docs/_TODO/SAAS_FOUNDATION/scripts/smoke-patient-playback-telemetry-accessors.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("patient-safe support default runtime migration", () => {
   it("registers global and organization backfill for both doctor defaults", () => {
@@ -68,5 +97,53 @@ describe("patient-safe support default runtime migration", () => {
     );
     expect(mediaWorkerRuntime).not.toContain("GRANT SELECT ON TABLE public.system_settings");
     expect(mediaWorkerRuntime).not.toMatch(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION/i);
+  });
+
+  it("registers the bounded patient cooldown in the authenticated runtime store", () => {
+    expect(patientCooldownPlaybackRuntime).toContain(
+      "'patient_treatment_plan_item_done_repeat_cooldown_minutes'",
+    );
+    expect(patientCooldownPlaybackRuntime).toContain("'authenticated_client'");
+    expect(patientCooldownPlaybackRuntime).toContain("'{\"value\":60}'::jsonb");
+    expect(patientCooldownPlaybackRuntime).toContain("setting.organization_id IS NULL");
+    expect(patientCooldownPlaybackRuntime).toContain("setting.organization_id IS NOT NULL");
+    expect(patientCooldownPlaybackRuntime).not.toContain(
+      "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    );
+    for (const source of [patientTreatmentPage, patientTreatmentItemPage]) {
+      expect(source).toContain("deps.runtimeConfig.getInteger(");
+      expect(source).toContain("detail.organizationId?.trim()");
+      expect(source).not.toContain("deps.systemSettings.getSetting(");
+    }
+  });
+
+  it("keeps playback writes behind actor, organization and media-bound accessors", () => {
+    for (const fragment of [
+      "app.current_org_id()",
+      "app.current_patient_user_id()",
+      "v_patient_user_id <> p_user_id",
+      "member.organization_id = v_organization_id",
+      "member.platform_user_id = p_user_id",
+      "media.organization_id = v_organization_id",
+      "p_delivery NOT IN ('hls', 'mp4', 'file')",
+      "(v_organization_id, p_user_id, p_media_id, p_delivery, p_fallback_used)",
+    ]) {
+      expect(patientCooldownPlaybackRuntime).toContain(fragment);
+    }
+    expect(patientPlaybackAccessors).toContain(
+      "ALTER FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)\n  OWNER TO app_owner",
+    );
+    expect(patientPlaybackAccessors).toContain(
+      "ALTER FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)\n  OWNER TO app_owner",
+    );
+    expect(patientPlaybackAccessors).toContain("TO app_staff, app_patient");
+    expect(patientPlaybackAccessors).not.toMatch(
+      /GRANT\s+(?:INSERT|UPDATE|DELETE)[^;]*\bTO\s+app_(?:staff|patient)\b/i,
+    );
+    expect(patientPlaybackScratch).toContain("SET LOCAL ROLE app_patient");
+    expect(patientPlaybackScratch).toContain("scratch_cross_org_media_unexpectedly_allowed");
+    expect(patientPlaybackScratch).toContain("cross_org_event_denied");
+    expect(patientPlaybackScratch).toContain("ROLLBACK;");
+    expect(patientPlaybackScratch).not.toContain("COMMIT;");
   });
 });

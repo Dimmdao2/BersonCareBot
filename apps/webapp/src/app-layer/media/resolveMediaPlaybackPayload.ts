@@ -105,7 +105,7 @@ export async function resolveMediaPlaybackPayload(input: {
     );
     if (!skipPlaybackStats) {
       const userId = input.session.user.userId;
-      await recordPlaybackResolutionStat({ delivery: "file", fallbackUsed: false });
+      await recordPlaybackResolutionStat({ userId, mediaId: id, delivery: "file", fallbackUsed: false });
       await recordPlaybackResolutionEvent({
         userId,
         mediaId: id,
@@ -179,7 +179,7 @@ export async function resolveMediaPlaybackPayload(input: {
 
   if (!skipPlaybackStats) {
     const userId = input.session.user.userId;
-    await recordPlaybackResolutionStat({ delivery, fallbackUsed });
+    await recordPlaybackResolutionStat({ userId, mediaId: id, delivery, fallbackUsed });
     await recordPlaybackResolutionEvent({
       userId,
       mediaId: id,

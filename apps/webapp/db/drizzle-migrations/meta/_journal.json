@@ -1324,6 +1324,13 @@
       "when": 1792070400000,
       "tag": "0188_media_worker_runtime_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1792156800000,
+      "tag": "0189_patient_runtime_cooldown_playback_accessors",
+      "breakpoints": true
     }
   ]
 }

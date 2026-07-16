@@ -69,4 +69,48 @@ describe("runtime config provider", () => {
       allowedAudiences: ["authenticated_client", "public"],
     });
   });
+
+  it("resolves the bounded patient treatment cooldown without reading restricted settings", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+      scope: "admin",
+      organizationId: context.organizationId,
+      audience: "authenticated_client",
+      valueJson: { value: 75 },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getInteger(
+        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        context,
+      ),
+    ).resolves.toBe(75);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+      scope: "admin",
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+    });
+  });
+
+  it("clamps legacy cooldown values and uses the default for a missing row", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockResolvedValueOnce({
+        key: "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        scope: "admin",
+        organizationId: null,
+        audience: "authenticated_client",
+        valueJson: { value: 181 },
+      })
+      .mockResolvedValueOnce(null);
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getInteger("patient_treatment_plan_item_done_repeat_cooldown_minutes", context),
+    ).resolves.toBe(180);
+    await expect(
+      provider.getInteger("patient_treatment_plan_item_done_repeat_cooldown_minutes", context),
+    ).resolves.toBe(60);
+  });
 });

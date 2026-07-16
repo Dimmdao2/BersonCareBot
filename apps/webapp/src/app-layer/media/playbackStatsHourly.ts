@@ -1,7 +1,5 @@
-import { sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
 import { logger } from "@/app-layer/logging/logger";
-import { mediaPlaybackStatsHourly } from "../../../db/schema";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 
 export type PlaybackStatDelivery = "hls" | "mp4" | "file";
 
@@ -17,28 +15,16 @@ export function utcHourBucketIso(now: Date = new Date()): string {
  * VIDEO_HLS_DELIVERY: one row per (bucket_hour UTC, delivery).
  */
 export async function recordPlaybackResolutionStat(input: {
+  userId: string;
+  mediaId: string;
   delivery: PlaybackStatDelivery;
   fallbackUsed: boolean;
 }): Promise<void> {
   try {
-    const db = getDrizzle();
-    const bucketHour = utcHourBucketIso();
-    const fallbackDelta = input.fallbackUsed ? 1 : 0;
-    await db
-      .insert(mediaPlaybackStatsHourly)
-      .values({
-        bucketHour,
-        delivery: input.delivery,
-        resolvedCount: 1,
-        fallbackCount: fallbackDelta,
-      })
-      .onConflictDoUpdate({
-        target: [mediaPlaybackStatsHourly.bucketHour, mediaPlaybackStatsHourly.delivery],
-        set: {
-          resolvedCount: sql`${mediaPlaybackStatsHourly.resolvedCount} + 1`,
-          fallbackCount: sql`${mediaPlaybackStatsHourly.fallbackCount} + ${fallbackDelta}`,
-        },
-      });
+    await runWebappPgText(
+      "SELECT app.increment_media_playback_resolution_stat($1::uuid, $2::uuid, $3, $4)",
+      [input.userId, input.mediaId, input.delivery, input.fallbackUsed],
+    );
   } catch (e) {
     logger.error({ err: e, delivery: input.delivery }, "playback_stats_hourly_write_failed");
   }

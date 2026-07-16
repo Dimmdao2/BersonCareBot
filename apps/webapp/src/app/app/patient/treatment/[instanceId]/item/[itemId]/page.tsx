@@ -22,7 +22,6 @@ import { parsePatientPlanTab } from "@/app/app/patient/treatment/patientPlanTab"
 import { PatientProgramStageItemPageClient } from "@/app/app/patient/treatment/PatientProgramStageItemPageClient";
 import type { PatientTestSetPageServerSnapshot } from "@/modules/treatment-program/progress-service";
 import { testTitleFromTestSetSnapshot } from "@/app/app/patient/treatment/stageItemSnapshot";
-import { parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
 import { loadPatientProgramInteractionBundle } from "@/app/app/patient/treatment/loadPatientProgramInteractionBundle";
 
 type Props = {
@@ -64,24 +63,30 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const deps = buildAppDeps();
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
-  let planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(null);
+  let planItemDoneRepeatCooldownMinutes = 60;
   let programCommentsInteraction = { visible: false, enabled: false };
   let programMediaInteraction = { visible: false, enabled: false };
   try {
-    const [rawDetail, planItemCooldownSetting] = await Promise.all([
-      deps.treatmentProgramInstance.getInstanceForPatient(session.user.userId, instanceId),
-      deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin"),
-    ]);
+    const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(
+      session.user.userId,
+      instanceId,
+    );
     if (!rawDetail) notFound();
     detail = omitDisabledInstanceStageItemsForPatientApi(rawDetail);
-    planItemDoneRepeatCooldownMinutes = parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes(
-      planItemCooldownSetting?.valueJson ?? null,
-    );
-    const interaction = await loadPatientProgramInteractionBundle(
-      deps,
-      session.user.userId,
-      detail.assignmentSource,
-    );
+    const organizationId = detail.organizationId?.trim();
+    if (!organizationId) notFound();
+    const [cooldown, interaction] = await Promise.all([
+      deps.runtimeConfig.getInteger(
+        "patient_treatment_plan_item_done_repeat_cooldown_minutes",
+        { patientUserId: session.user.userId, organizationId },
+      ),
+      loadPatientProgramInteractionBundle(
+        deps,
+        session.user.userId,
+        detail.assignmentSource,
+      ),
+    ]);
+    planItemDoneRepeatCooldownMinutes = cooldown;
     programCommentsInteraction = interaction.comments;
     programMediaInteraction = interaction.media;
   } catch {

@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getDrizzleMock, insertMock, valuesMock, loggerErrorMock } = vi.hoisted(() => ({
-  getDrizzleMock: vi.fn(),
-  insertMock: vi.fn(),
-  valuesMock: vi.fn(),
+const { runWebappPgTextMock, loggerErrorMock } = vi.hoisted(() => ({
+  runWebappPgTextMock: vi.fn(() => Promise.resolve({ rows: [] })),
   loggerErrorMock: vi.fn(),
 }));
 
-vi.mock("@/app-layer/db/drizzle", () => ({
-  getDrizzle: getDrizzleMock,
+vi.mock("@/infra/db/runWebappSql", () => ({
+  runWebappPgText: runWebappPgTextMock,
 }));
 
 vi.mock("@/app-layer/logging/logger", () => ({
@@ -22,13 +20,9 @@ const mid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 describe("recordPlaybackResolutionEvent", () => {
   beforeEach(() => {
-    getDrizzleMock.mockReset();
-    insertMock.mockReset();
-    valuesMock.mockReset();
+    runWebappPgTextMock.mockReset();
     loggerErrorMock.mockReset();
-    valuesMock.mockResolvedValue(undefined);
-    insertMock.mockReturnValue({ values: valuesMock });
-    getDrizzleMock.mockReturnValue({ insert: insertMock });
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
   });
 
   it("skips invalid ids", async () => {
@@ -38,29 +32,25 @@ describe("recordPlaybackResolutionEvent", () => {
       delivery: "mp4",
       fallbackUsed: false,
     });
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
-  it("inserts event for valid ids", async () => {
+  it("records valid ids through the narrow playback telemetry accessor", async () => {
     await recordPlaybackResolutionEvent({
       userId: uid,
       mediaId: mid,
       delivery: "hls",
       fallbackUsed: true,
     });
-    expect(valuesMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: uid,
-        mediaId: mid,
-        delivery: "hls",
-        fallbackUsed: true,
-      }),
+    expect(runWebappPgTextMock).toHaveBeenCalledWith(
+      "SELECT app.record_media_playback_resolution_event($1::uuid, $2::uuid, $3, $4)",
+      [uid, mid, "hls", true],
     );
   });
 
-  it("logs and swallows insert errors", async () => {
+  it("logs and swallows accessor errors", async () => {
     const err = new Error("db_down");
-    valuesMock.mockRejectedValue(err);
+    runWebappPgTextMock.mockRejectedValue(err);
     await expect(
       recordPlaybackResolutionEvent({
         userId: uid,

@@ -8,6 +8,7 @@ const files = {
   invites: "deploy/postgres/organization-member-invites-rls.sql",
   courses: "deploy/postgres/patient-course-assignment-wall.sql",
   appWorker: "deploy/postgres/phase4-app-worker-narrow-rls.sql",
+  patientPlayback: "deploy/postgres/patient-media-playback-telemetry-accessors.sql",
   hard: "deploy/host/deploy-test-saas.sh",
   codeOnly: "deploy/host/deploy-test.sh",
   fixtureValidator: "deploy/host/validate-saas-product-smoke-fixture.sh",
@@ -63,6 +64,7 @@ function runChecks(overrides = {}) {
     "\\ir organization-member-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
+    "\\ir patient-media-playback-telemetry-accessors.sql",
     "\\ir phase4-force-rls-cutover.sql",
     "test_strict_specialized_policy_assertions",
     "test_strict_courses_assignment_policy_missing",
@@ -75,6 +77,7 @@ function runChecks(overrides = {}) {
     "\\ir organization-member-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
+    "\\ir patient-media-playback-telemetry-accessors.sql",
     "\\ir phase4-force-rls-cutover.sql",
     "test_strict_specialized_policy_assertions",
   ]);
@@ -120,6 +123,19 @@ function runChecks(overrides = {}) {
     if (loaded.appWorker.includes(forbidden)) {
       fail(`${files.appWorker} contains forbidden privilege expansion: ${forbidden}`);
     }
+  }
+
+  requireFragments(files.patientPlayback, loaded.patientPlayback, [
+    "GRANT SELECT ON TABLE public.be_organization_members, public.media_files TO app_owner",
+    "GRANT INSERT, UPDATE ON TABLE public.media_playback_stats_hourly TO app_owner",
+    "GRANT INSERT ON TABLE public.media_playback_resolution_events TO app_owner",
+    "ALTER FUNCTION app.increment_media_playback_resolution_stat(uuid, uuid, text, boolean)",
+    "ALTER FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean)",
+    "OWNER TO app_owner",
+    "TO app_staff, app_patient",
+  ]);
+  if (/GRANT\s+(?:INSERT|UPDATE|DELETE)[^;]*\bTO\s+app_(?:staff|patient)\b/i.test(loaded.patientPlayback)) {
+    fail(`${files.patientPlayback} grants runtime roles direct playback telemetry DML`);
   }
 
   requireFragments(files.force, loaded.force, [
@@ -240,6 +256,8 @@ function runSelfTest() {
     { appWorker: baseline.appWorker.replaceAll("pg_has_role(current_user, 'app_worker', 'member')", "FALSE") },
     { appWorker: baseline.appWorker.replace("GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_worker;", "") },
     { appWorker: `${baseline.appWorker}\nGRANT EXECUTE ON FUNCTION app.reset_principal_context() TO app_worker;\n` },
+    { finalizer: baseline.finalizer.replace("\\ir patient-media-playback-telemetry-accessors.sql", "") },
+    { patientPlayback: `${baseline.patientPlayback}\nGRANT INSERT ON public.media_playback_stats_hourly TO app_patient;\n` },
     { force: baseline.force.replace("v_expected_count <> 163", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
