@@ -432,3 +432,23 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
 - Recovery requires another fresh full `deploy-test-saas` restore/rehearsal under the hard-protocol failure policy.
   `--post-migration-closure` is not an acceptance shortcut. Diagnosis made no TEST mutation, restart or cleanup and
   did not access PROD.
+
+### E1 webapp safe runtime-config closure (`/root/ci_fix_review`)
+
+- Read-only live TEST forensics found 25 PostgreSQL `42501` denials in one bounded burst for the non-staff base
+  login. Every denial had the same global `system_settings` SELECT shape; the affected webapp families were public
+  auth/login, patient maintenance/playback, and public booking/config. No setting values or credentials were
+  captured in the evidence.
+- Migration `0193` projects only reviewed public/authenticated scalar settings plus derived OAuth/SMS availability
+  booleans into `app_runtime_settings`. Raw OAuth identifiers, redirect values and secrets remain exclusively in
+  restricted `system_settings`; `app_patient` receives no access to that table. Per-clinic patient booking reads use
+  the active patient organization and do not select an arbitrary first clinic.
+- These reads now carry closed diagnostics attribution (`public_auth_config`, `patient_runtime_config`,
+  `public_booking_config`). Admin writes remain canonical `system_settings` writes and refresh the safe projection
+  through the registered projection trigger, including derived availability recomputation.
+- Disposable PostgreSQL 16 smoke proof PASS: restricted-table denial, safe projection access, no secret material in
+  projections, initial OAuth derivation, trigger-driven invalidation, and organization-scoped patient booking.
+  Live TEST was not mutated by this implementation step.
+- Targeted validation PASS: webapp Vitest `9 files / 46 tests`, webapp typecheck and targeted ESLint, E1 checker plus
+  mutation self-test, isolation diagnostics/D3.4/hard-protocol checker families, full `check:saas-db-regression`,
+  deploy shell syntax, and `git diff --check`. Full application CI was not repeated.

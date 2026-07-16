@@ -108,6 +108,8 @@ BEGIN
   ) THEN RAISE EXCEPTION 'invalid_saas_isolation_event_class' USING ERRCODE = '22023'; END IF;
   IF (p_source_service, p_source_operation) NOT IN (
     ('webapp','webapp_db_request'), ('webapp','webapp_admin_system_health'),
+    ('webapp','public_auth_config'), ('webapp','patient_runtime_config'),
+    ('webapp','public_booking_config'),
     ('integrator','integrator_http_request'), ('integrator','integrator_projection'),
     ('worker','worker_queue_drain'), ('worker','worker_projection_delivery'),
     ('worker','worker_outgoing_delivery'), ('scheduler','scheduler_lock'),

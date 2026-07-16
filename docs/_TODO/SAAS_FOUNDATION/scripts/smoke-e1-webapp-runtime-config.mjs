@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const suffix = `${process.pid}_${Date.now()}`;
+const db = `bcb_saas_e1_config_scratch_${suffix}`;
+const publicRole = `bcb_e1_public_${suffix}`;
+if (!db.startsWith("bcb_saas_") || !db.includes("scratch")) throw new Error("unsafe scratch name");
+if (!/^bcb_e1_public_[0-9_]+$/.test(publicRole)) throw new Error("unsafe scratch role name");
+
+function run(args, input) {
+  const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    process.stdout.write(result.stdout ?? ""); process.stderr.write(result.stderr ?? "");
+    throw new Error(`postgres command failed: ${result.status}`);
+  }
+}
+function psql(sql) { run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db], sql); }
+
+const setup = `
+CREATE SCHEMA app;
+CREATE TABLE public.be_organizations (id uuid PRIMARY KEY);
+CREATE TABLE public.platform_users (id uuid PRIMARY KEY);
+CREATE TABLE public.system_settings (
+  key text NOT NULL, scope text NOT NULL, organization_id uuid, value_json jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(), updated_by uuid
+);
+CREATE UNIQUE INDEX system_settings_global_uq ON public.system_settings(key, scope) WHERE organization_id IS NULL;
+CREATE UNIQUE INDEX system_settings_org_uq ON public.system_settings(key, scope, organization_id) WHERE organization_id IS NOT NULL;
+CREATE TABLE public.system_settings_audit (id bigserial PRIMARY KEY);
+INSERT INTO public.be_organizations VALUES ('00000000-0000-4000-8000-000000000001');
+`;
+const seed = `
+INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
+('yandex_oauth_client_id','admin',NULL,'{"value":"public-id"}'),
+('yandex_oauth_client_secret','admin',NULL,'{"value":"TOP_SECRET_Y"}'),
+('yandex_oauth_redirect_uri','admin',NULL,'{"value":"https://example.test/y"}'),
+('google_client_id','admin',NULL,'{"value":"public-id"}'),
+('google_client_secret','admin',NULL,'{"value":"TOP_SECRET_G"}'),
+('google_oauth_login_redirect_uri','admin',NULL,'{"value":"https://example.test/g"}'),
+('apple_oauth_client_id','admin',NULL,'{"value":"public-id"}'),
+('apple_oauth_redirect_uri','admin',NULL,'{"value":"https://example.test/a"}'),
+('apple_oauth_team_id','admin',NULL,'{"value":"team"}'),
+('apple_oauth_key_id','admin',NULL,'{"value":"kid"}'),
+('apple_oauth_private_key','admin',NULL,'{"value":"TOP_SECRET_A"}'),
+('specialist_signup_enabled','admin',NULL,'{"value":true}'),
+('patient_booking_url','admin','00000000-0000-4000-8000-000000000001','{"value":"https://booking.example.test"}');
+`;
+const proof = `
+GRANT USAGE ON SCHEMA app TO ${publicRole};
+GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${publicRole};
+SELECT 1 / (NOT has_table_privilege('${publicRole}','public.system_settings','SELECT'))::int;
+SELECT 1 / (NOT has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT'))::int;
+SET SESSION AUTHORIZATION ${publicRole};
+SELECT 1 / ((SELECT value_json FROM app.read_public_runtime_setting('oauth_google_enabled','admin'))='{"value":true}'::jsonb)::int;
+RESET SESSION AUTHORIZATION;
+SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
+SELECT 1 / has_table_privilege('app_patient','public.app_runtime_settings','SELECT')::int;
+SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings WHERE key IN ('oauth_yandex_enabled','oauth_google_enabled','oauth_apple_enabled') AND value_json='{"value":true}'::jsonb)=3)::int;
+SELECT 1 / (NOT EXISTS (SELECT 1 FROM public.app_runtime_settings WHERE key LIKE '%secret%' OR value_json::text LIKE '%TOP_SECRET%'))::int;
+UPDATE public.system_settings SET value_json='{"value":""}' WHERE key='google_client_secret' AND scope='admin' AND organization_id IS NULL;
+SELECT 1 / ((SELECT value_json FROM public.app_runtime_settings WHERE key='oauth_google_enabled' AND scope='admin' AND organization_id IS NULL)='{"value":false}'::jsonb)::int;
+SET SESSION AUTHORIZATION app_patient;
+SET app.org = '00000000-0000-4000-8000-000000000001';
+SELECT 1 / ((SELECT value_json->>'value' FROM public.app_runtime_settings WHERE key='patient_booking_url' ORDER BY organization_id IS NULL ASC LIMIT 1)='https://booking.example.test')::int;
+RESET SESSION AUTHORIZATION;
+`;
+
+try {
+  run(["createuser", "--no-login", publicRole]);
+  run(["createdb", db]);
+  psql(setup);
+  psql(readFileSync("apps/webapp/db/drizzle-migrations/0185_saas_isolation_diagnostics.sql", "utf8"));
+  psql(readFileSync("apps/webapp/db/drizzle-migrations/0186_app_runtime_settings.sql", "utf8"));
+  psql(seed);
+  psql(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8"));
+  psql(proof);
+  console.log("smoke-e1-webapp-runtime-config: OK");
+} finally {
+  run(["dropdb", "--if-exists", db]);
+  run(["dropuser", "--if-exists", publicRole]);
+}

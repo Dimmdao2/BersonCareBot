@@ -1,7 +1,6 @@
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
-import { getConfigValue, getSmsFallbackEnabled } from "@/modules/system-settings/configAdapter";
-import { getMaxLoginBotNickname, normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
-import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
+import { getPublicRuntimeBool, getPublicRuntimeValue } from "@/modules/system-settings/configAdapter";
+import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 
 export type LoginAlternativesPublicConfig = {
   telegramBotUsername: string | null;
@@ -16,18 +15,16 @@ export type LoginAlternativesPublicConfig = {
 /** Публичные URL для экрана входа (Max, VK и т.д.), без секретов. */
 export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternativesPublicConfig> {
   // Do NOT expose Telegram Login as an active public provider on the public login screen.
-  // Keep internal `/api/auth/telegram-login/config` unchanged for authenticated flows.
-  // We still call the system-settings getter to avoid side-effects in tests/env, but we will not
-  // propagate the username to the public config.
-  await getTelegramLoginBotUsername();
-  const nick = normalizeMaxBotNicknameInput(await getMaxLoginBotNickname());
+  // Keep internal `/api/auth/telegram-login/config` unchanged for authenticated flows and do not
+  // propagate the Telegram username through this public alternatives payload.
+  const nick = normalizeMaxBotNicknameInput(await getPublicRuntimeValue("max_login_bot_nickname"));
   const maxBotOpenUrl =
     nick.length > 0 ? `https://max.ru/${encodeURIComponent(nick)}` : null;
 
-  const vkRaw = (await getConfigValue("vk_web_login_url", "")).trim();
+  const vkRaw = (await getPublicRuntimeValue("vk_web_login_url")).trim();
   const vkWebLoginUrl = vkRaw.length > 0 && isSafeExternalHref(vkRaw) ? vkRaw : null;
 
-  const smsFallbackEnabled = await getSmsFallbackEnabled();
+  const smsFallbackEnabled = await getPublicRuntimeBool("public_sms_fallback_enabled");
 
   return {
     telegramBotUsername: null,

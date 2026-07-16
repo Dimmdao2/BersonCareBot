@@ -21,8 +21,8 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
-  getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
-  getConfigValue: (...a: unknown[]) => getConfigValueMock(...a),
+  getPatientRuntimeBool: (...a: unknown[]) => getConfigBoolMock(...a),
+  getPatientRuntimeValue: (...a: unknown[]) => getConfigValueMock(...a),
 }));
 
 vi.mock("@/app-layer/media/videoPresignTtl", () => ({

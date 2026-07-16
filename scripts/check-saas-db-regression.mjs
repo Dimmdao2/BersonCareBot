@@ -167,6 +167,14 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p2-c3-patient-booking-lfk-guards-sql.mjs"],
   },
   {
+    label: "E1 webapp safe runtime-config closure",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"],
+  },
+  {
+    label: "E1 webapp safe runtime-config closure self-test",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs", "--self-test"],
+  },
+  {
     label: "Integrator DB-backed server-runtime config closure",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-integrator-server-runtime-config.mjs"],
   },

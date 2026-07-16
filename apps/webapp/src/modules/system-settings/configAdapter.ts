@@ -11,6 +11,15 @@ import {
   readSystemSettingInnerValueByScopes,
   systemSettingInnerValueToString,
 } from "@/infra/repos/pgSystemSettings";
+import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
+import {
+  createRuntimeConfigProvider,
+  type AuthenticatedRuntimeBooleanKey,
+  type AuthenticatedRuntimeStringKey,
+  type PublicRuntimeBooleanKey,
+  type PublicRuntimeStringKey,
+  type RuntimeConfigOperationFamily,
+} from "./runtimeConfig";
 
 const TTL_MS = 60_000;
 
@@ -20,6 +29,32 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
+const safeRuntimeConfig = createRuntimeConfigProvider(createPgAppRuntimeSettingsPort());
+
+export function getPublicRuntimeBool(
+  key: PublicRuntimeBooleanKey,
+  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+): Promise<boolean> {
+  return safeRuntimeConfig.getPublicBoolean(key, operationFamily);
+}
+
+export function getPublicRuntimeValue(
+  key: PublicRuntimeStringKey,
+  operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+): Promise<string> {
+  return safeRuntimeConfig.getPublicString(key, operationFamily);
+}
+
+export function getPatientRuntimeBool(key: AuthenticatedRuntimeBooleanKey): Promise<boolean> {
+  return safeRuntimeConfig.getAuthenticatedBoolean(key);
+}
+
+export function getPatientRuntimeValue(
+  key: AuthenticatedRuntimeStringKey,
+  organizationId: string | null = null,
+): Promise<string> {
+  return safeRuntimeConfig.getAuthenticatedString(key, organizationId);
+}
 
 /** Invalidate all cached entries (call after PATCH /api/admin/settings). */
 export function invalidateConfigCache(): void {
@@ -89,8 +124,8 @@ export async function getConfigBool(key: string, envFallback: boolean): Promise<
 }
 
 /**
- * Public/pre-session boolean config read through a whitelisted SECURITY DEFINER accessor.
- * Falls back to the regular system_settings reader for staff contexts or before the accessor is deployed.
+ * Legacy public/pre-session boolean read through its whitelisted SECURITY DEFINER accessor.
+ * New public reads use the typed app_runtime_settings projection helpers above.
  */
 export async function getPublicConfigBool(key: string, envFallback: boolean): Promise<boolean> {
   const dbValue = await fetchPublicConfigBoolFromDb(key);
@@ -99,7 +134,7 @@ export async function getPublicConfigBool(key: string, envFallback: boolean): Pr
     cache.set(key, { value: dbValue ? "true" : "false", fetchedAt: now });
     return dbValue;
   }
-  return getConfigBool(key, envFallback);
+  return envFallback;
 }
 
 /**

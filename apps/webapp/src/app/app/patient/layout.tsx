@@ -51,7 +51,16 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   if (session.user.role === "client") {
-    const maintenance = await getPatientMaintenanceConfig();
+    const deps = buildAppDeps();
+    let patientOrganizationId: string | null = null;
+    try {
+      const resolved = await deps.patientOrganization?.resolveActiveOrganizationForPatient(session.user.userId);
+      if (!resolved) throw new Error("patient_organization_port_unavailable");
+      patientOrganizationId = resolved.ok ? resolved.organizationId : null;
+    } catch {
+      patientOrganizationId = null;
+    }
+    const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,
       gate,
@@ -59,10 +68,8 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       sessionPhoneTrimmed: session.user.phone?.trim(),
     });
 
-    let deps: ReturnType<typeof buildAppDeps> | null = null;
     let isTestAccount = false;
     if (maintenance.enabled && !skipMaintenance) {
-      deps = buildAppDeps();
       try {
         isTestAccount = await deps.systemSettings.isTestPatientSession({
           phone: session.user.phone,
@@ -80,7 +87,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     }
 
     if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
-      const bookingDeps = deps ?? buildAppDeps();
+      const bookingDeps = deps;
       let upcoming: Awaited<ReturnType<typeof bookingDeps.patientBooking.listMyBookings>>["upcoming"] = [];
       try {
         const records = await bookingDeps.patientBooking.listMyBookings(session.user.userId);

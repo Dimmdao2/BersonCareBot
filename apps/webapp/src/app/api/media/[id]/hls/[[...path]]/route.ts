@@ -4,7 +4,7 @@ import { handleHlsDeliveryProxyRequest } from "@/app-layer/media/hlsDeliveryProx
 import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 import { getCurrentSession } from "@/modules/auth/service";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getPatientRuntimeBool } from "@/modules/system-settings/configAdapter";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const playbackEnabled = await getConfigBool("video_playback_api_enabled", false);
+  const playbackEnabled = await getPatientRuntimeBool("video_playback_api_enabled");
   if (!playbackEnabled) {
     return NextResponse.json({ error: "feature_disabled" }, { status: 503 });
   }

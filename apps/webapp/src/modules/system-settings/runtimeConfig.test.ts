@@ -25,6 +25,7 @@ describe("runtime config provider", () => {
       scope: "admin",
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
   });
 
@@ -67,6 +68,7 @@ describe("runtime config provider", () => {
       scope: "doctor",
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
   });
 
@@ -91,6 +93,7 @@ describe("runtime config provider", () => {
       scope: "admin",
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
   });
 
@@ -112,5 +115,44 @@ describe("runtime config provider", () => {
     await expect(
       provider.getInteger("patient_treatment_plan_item_done_repeat_cooldown_minutes", context),
     ).resolves.toBe(60);
+  });
+
+  it("uses the closed public operation and fails safe on a DB error", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>()
+      .mockRejectedValue(new Error("permission denied"));
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getPublicBoolean("oauth_google_enabled", "public_auth_config"),
+    ).resolves.toBe(false);
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "oauth_google_enabled",
+      scope: "admin",
+      organizationId: null,
+      allowedAudiences: ["public"],
+      operationFamily: "public_auth_config",
+    });
+  });
+
+  it("keeps patient booking resolution scoped to the active organization", async () => {
+    const getEffective = vi.fn<RuntimeConfigPort["getEffective"]>().mockResolvedValue({
+      key: "patient_booking_url",
+      scope: "admin",
+      organizationId: context.organizationId,
+      audience: "authenticated_client",
+      valueJson: { value: "https://booking.example.test" },
+    });
+    const provider = createRuntimeConfigProvider({ getEffective });
+
+    await expect(
+      provider.getAuthenticatedString("patient_booking_url", context.organizationId),
+    ).resolves.toBe("https://booking.example.test");
+    expect(getEffective).toHaveBeenCalledWith({
+      key: "patient_booking_url",
+      scope: "admin",
+      organizationId: context.organizationId,
+      allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
+    });
   });
 });

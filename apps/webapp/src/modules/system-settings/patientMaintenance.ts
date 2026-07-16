@@ -1,4 +1,4 @@
-import { getConfigBool, getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getPatientRuntimeBool, getPatientRuntimeValue } from "@/modules/system-settings/configAdapter";
 import type { PatientBusinessGate } from "@/modules/platform-access";
 import { patientPathsAllowedDuringPhoneActivation } from "@/modules/platform-access";
 
@@ -54,8 +54,10 @@ export function patientMaintenanceReplacesPatientShell(
  * При выключенном режиме не читает message/booking из БД (одно чтение флага).
  * При включённом — параллельно читает message и URL.
  */
-export async function getPatientMaintenanceConfig(): Promise<PatientMaintenanceConfig> {
-  const enabled = await getConfigBool("patient_app_maintenance_enabled", false);
+export async function getPatientMaintenanceConfig(
+  organizationId: string | null = null,
+): Promise<PatientMaintenanceConfig> {
+  const enabled = await getPatientRuntimeBool("patient_app_maintenance_enabled");
   if (!enabled) {
     return {
       enabled: false,
@@ -64,8 +66,8 @@ export async function getPatientMaintenanceConfig(): Promise<PatientMaintenanceC
     };
   }
   const [messageRaw, bookingRaw] = await Promise.all([
-    getConfigValue("patient_app_maintenance_message", DEFAULT_PATIENT_MAINTENANCE_MESSAGE),
-    getConfigValue("patient_booking_url", DEFAULT_PATIENT_BOOKING_URL),
+    getPatientRuntimeValue("patient_app_maintenance_message"),
+    getPatientRuntimeValue("patient_booking_url", organizationId),
   ]);
   return {
     enabled: true,

@@ -39,6 +39,10 @@ export const RUNTIME_INTEGER_SETTING_DEFINITIONS = {
 export type RuntimeBooleanSetting = keyof typeof RUNTIME_BOOLEAN_SETTING_DEFINITIONS;
 export type RuntimeIntegerSetting = keyof typeof RUNTIME_INTEGER_SETTING_DEFINITIONS;
 export type RuntimeConfigAudience = "public" | "authenticated_client" | "server";
+export type RuntimeConfigOperationFamily =
+  | "public_auth_config"
+  | "patient_runtime_config"
+  | "public_booking_config";
 
 export type RuntimeConfigContext = {
   patientUserId: string;
@@ -57,8 +61,9 @@ export type RuntimeConfigPort = {
   getEffective(input: {
     key: string;
     scope: string;
-    organizationId: string;
+    organizationId: string | null;
     allowedAudiences: readonly RuntimeConfigAudience[];
+    operationFamily: RuntimeConfigOperationFamily;
   }): Promise<RuntimeSettingRow | null>;
 };
 
@@ -67,6 +72,44 @@ function parseBooleanEnvelope(valueJson: unknown): boolean | null {
   const value = (valueJson as Record<string, unknown>).value;
   return typeof value === "boolean" ? value : null;
 }
+
+function parseStringEnvelope(valueJson: unknown): string | null {
+  if (valueJson === null || typeof valueJson !== "object" || Array.isArray(valueJson)) return null;
+  const value = (valueJson as Record<string, unknown>).value;
+  return typeof value === "string" ? value : null;
+}
+
+export const PUBLIC_RUNTIME_BOOLEAN_DEFAULTS = {
+  oauth_yandex_enabled: false,
+  oauth_google_enabled: false,
+  oauth_apple_enabled: false,
+  public_sms_fallback_enabled: true,
+  specialist_signup_enabled: false,
+} as const;
+
+export const PUBLIC_RUNTIME_STRING_DEFAULTS = {
+  telegram_login_bot_username: "",
+  max_login_bot_nickname: "",
+  vk_web_login_url: "",
+  support_contact_url: "",
+  app_display_timezone: "Europe/Moscow",
+} as const;
+
+export const AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS = {
+  patient_app_maintenance_enabled: false,
+  video_playback_api_enabled: false,
+} as const;
+
+export const AUTHENTICATED_RUNTIME_STRING_DEFAULTS = {
+  patient_app_maintenance_message: "",
+  patient_booking_url: "",
+  video_default_delivery: "auto",
+} as const;
+
+export type PublicRuntimeBooleanKey = keyof typeof PUBLIC_RUNTIME_BOOLEAN_DEFAULTS;
+export type PublicRuntimeStringKey = keyof typeof PUBLIC_RUNTIME_STRING_DEFAULTS;
+export type AuthenticatedRuntimeBooleanKey = keyof typeof AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS;
+export type AuthenticatedRuntimeStringKey = keyof typeof AUTHENTICATED_RUNTIME_STRING_DEFAULTS;
 
 function parseIntegerEnvelope(
   valueJson: unknown,
@@ -100,6 +143,7 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
       scope: definition.scope,
       organizationId: context.organizationId,
       allowedAudiences: ["authenticated_client", "public"],
+      operationFamily: "patient_runtime_config",
     });
     return parseBooleanEnvelope(row?.valueJson ?? null) ?? definition.defaultValue;
   }
@@ -119,6 +163,7 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
         scope: definition.scope,
         organizationId: context.organizationId,
         allowedAudiences: ["authenticated_client", "public"],
+        operationFamily: "patient_runtime_config",
       });
       return parseIntegerEnvelope(
         row?.valueJson ?? null,
@@ -128,6 +173,71 @@ export function createRuntimeConfigProvider(port: RuntimeConfigPort) {
     },
     async isFlagEnabled(flag: RuntimeFlag, context: RuntimeConfigContext): Promise<boolean> {
       return getBoolean(flag, context);
+    },
+    async getPublicBoolean(
+      key: PublicRuntimeBooleanKey,
+      operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+    ): Promise<boolean> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["public"],
+          operationFamily,
+        });
+        return parseBooleanEnvelope(row?.valueJson ?? null) ?? PUBLIC_RUNTIME_BOOLEAN_DEFAULTS[key];
+      } catch {
+        return PUBLIC_RUNTIME_BOOLEAN_DEFAULTS[key];
+      }
+    },
+    async getPublicString(
+      key: PublicRuntimeStringKey,
+      operationFamily: RuntimeConfigOperationFamily = "public_auth_config",
+    ): Promise<string> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["public"],
+          operationFamily,
+        });
+        return parseStringEnvelope(row?.valueJson ?? null) ?? PUBLIC_RUNTIME_STRING_DEFAULTS[key];
+      } catch {
+        return PUBLIC_RUNTIME_STRING_DEFAULTS[key];
+      }
+    },
+    async getAuthenticatedBoolean(key: AuthenticatedRuntimeBooleanKey): Promise<boolean> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId: null,
+          allowedAudiences: ["authenticated_client", "public"],
+          operationFamily: "patient_runtime_config",
+        });
+        return parseBooleanEnvelope(row?.valueJson ?? null) ?? AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS[key];
+      } catch {
+        return AUTHENTICATED_RUNTIME_BOOLEAN_DEFAULTS[key];
+      }
+    },
+    async getAuthenticatedString(
+      key: AuthenticatedRuntimeStringKey,
+      organizationId: string | null = null,
+    ): Promise<string> {
+      try {
+        const row = await port.getEffective({
+          key,
+          scope: "admin",
+          organizationId,
+          allowedAudiences: ["authenticated_client", "public"],
+          operationFamily: "patient_runtime_config",
+        });
+        return parseStringEnvelope(row?.valueJson ?? null) ?? AUTHENTICATED_RUNTIME_STRING_DEFAULTS[key];
+      } catch {
+        return AUTHENTICATED_RUNTIME_STRING_DEFAULTS[key];
+      }
     },
   };
 }

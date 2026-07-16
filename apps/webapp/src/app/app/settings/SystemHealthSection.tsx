@@ -762,6 +762,9 @@ const SAAS_ISOLATION_SERVICE_LABEL: Record<SaasIsolationSourceService, string> =
 const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, string> = {
   webapp_db_request: "запрос webapp к БД",
   webapp_admin_system_health: "страница здоровья системы",
+  public_auth_config: "публичная конфигурация входа",
+  patient_runtime_config: "конфигурация кабинета пациента",
+  public_booking_config: "публичная конфигурация записи",
   integrator_http_request: "HTTP-запрос integrator",
   integrator_projection: "проекция integrator",
   worker_queue_drain: "очередь заданий worker",

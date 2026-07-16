@@ -1,4 +1,10 @@
 import { reportSaasIsolationEventBestEffort } from "@/infra/saasIsolationReporterRuntime";
+import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import type { SaasIsolationSourceOperation } from "@/modules/operator-health/saasIsolationDiagnostics";
+
+function currentSourceOperation(): SaasIsolationSourceOperation {
+  return getCurrentWebappDbOperationFamily() ?? "webapp_db_request";
+}
 
 export function classifyPostgresIsolationDenial(
   error: unknown,
@@ -18,7 +24,7 @@ export async function reportPrincipalSetupFailure(error: unknown): Promise<void>
   await reportSaasIsolationEventBestEffort({
     eventClass: missing ? "missing_principal" : "invalid_signature_or_install",
     sourceService: "webapp",
-    sourceOperation: "webapp_db_request",
+    sourceOperation: currentSourceOperation(),
   });
 }
 
@@ -28,7 +34,7 @@ export async function reportDbQueryFailure(error: unknown): Promise<void> {
   await reportSaasIsolationEventBestEffort({
     eventClass,
     sourceService: "webapp",
-    sourceOperation: "webapp_db_request",
+    sourceOperation: currentSourceOperation(),
   });
 }
 
@@ -36,6 +42,6 @@ export async function reportDbCleanupFailure(): Promise<void> {
   await reportSaasIsolationEventBestEffort({
     eventClass: "cleanup_failure",
     sourceService: "webapp",
-    sourceOperation: "webapp_db_request",
+    sourceOperation: currentSourceOperation(),
   });
 }

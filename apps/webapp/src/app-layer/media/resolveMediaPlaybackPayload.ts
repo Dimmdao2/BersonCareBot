@@ -18,7 +18,7 @@ import { recordPlaybackResolutionEvent } from "@/app-layer/media/playbackResolut
 import { recordPlaybackResolutionStat } from "@/app-layer/media/playbackStatsHourly";
 import { recordPlaybackUserVideoFirstResolve } from "@/app-layer/media/playbackUserVideoFirstResolve";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
-import { getConfigBool, getConfigValue } from "@/modules/system-settings/configAdapter";
+import { getPatientRuntimeBool, getPatientRuntimeValue } from "@/modules/system-settings/configAdapter";
 import { canAccessProgramSubmissionMedia } from "@/modules/media/programSubmissionPlaybackAccess";
 import type { AppSession } from "@/shared/types/session";
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from "@/shared/lib/hlsStorageLayout";
@@ -62,14 +62,14 @@ export async function resolveMediaPlaybackPayload(input: {
     s3Key: row.s3_key,
     mimeType: row.mime_type,
   });
-  const playbackEnabled = await getConfigBool("video_playback_api_enabled", false);
+  const playbackEnabled = await getPatientRuntimeBool("video_playback_api_enabled");
   if (!playbackEnabled && !localSaasTestFixture) {
     return { ok: false, status: 503, error: "feature_disabled" };
   }
 
   const presignExpiresSec = await getVideoPresignTtlSeconds();
 
-  const defaultRaw = await getConfigValue("video_default_delivery", "auto");
+  const defaultRaw = await getPatientRuntimeValue("video_default_delivery");
   const systemDefault = parseDefaultDeliveryConfig(defaultRaw, "auto");
 
   if (

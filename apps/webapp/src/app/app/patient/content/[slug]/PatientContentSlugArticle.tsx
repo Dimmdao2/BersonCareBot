@@ -23,7 +23,7 @@ import {
   patientHomeHeroDurationBadgeClass,
   patientHomeHeroSummaryClampClass,
 } from "@/app/app/patient/home/patientHomeCardStyles";
-import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getPatientRuntimeBool } from "@/modules/system-settings/configAdapter";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import type { MediaPlaybackPayload } from "@/modules/media/playbackPayloadTypes";
 import type { ContentStubItem } from "@/modules/content-catalog/types";
@@ -72,7 +72,7 @@ export async function PatientContentSlugArticle({
 
   let patientPlaybackInitial: MediaPlaybackPayload | null = null;
   if (apiMediaId && session) {
-    const playbackEnabled = await getConfigBool("video_playback_api_enabled", false);
+    const playbackEnabled = await getPatientRuntimeBool("video_playback_api_enabled");
     if (playbackEnabled) {
       const resolved = await resolveMediaPlaybackPayload({
         id: apiMediaId,

@@ -1,0 +1,19 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
+export type WebappDbOperationFamily =
+  | "public_auth_config"
+  | "patient_runtime_config"
+  | "public_booking_config";
+
+const operationStore = new AsyncLocalStorage<WebappDbOperationFamily>();
+
+export function runWithWebappDbOperationFamily<T>(
+  family: WebappDbOperationFamily,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return operationStore.run(family, fn);
+}
+
+export function getCurrentWebappDbOperationFamily(): WebappDbOperationFamily | undefined {
+  return operationStore.getStore();
+}
