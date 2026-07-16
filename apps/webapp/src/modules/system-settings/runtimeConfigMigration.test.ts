@@ -12,6 +12,10 @@ const supportDefaults = readFileSync(
   ),
   "utf8",
 );
+const mediaWorkerRuntime = readFileSync(
+  new URL("../../../db/drizzle-migrations/0188_media_worker_runtime_flags.sql", import.meta.url),
+  "utf8",
+);
 
 describe("patient-safe support default runtime migration", () => {
   it("registers global and organization backfill for both doctor defaults", () => {
@@ -41,5 +45,28 @@ describe("patient-safe support default runtime migration", () => {
     expect(runtimeRoot).toContain(
       "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;",
     );
+  });
+
+  it("registers media worker flags as global server runtime without exposing restricted settings", () => {
+    expect(mediaWorkerRuntime).toContain(
+      "'video_hls_pipeline_enabled', 'admin', 'server', '{\"value\":false}'::jsonb",
+    );
+    expect(mediaWorkerRuntime).toContain(
+      "'video_watermark_enabled', 'admin', 'server', '{\"value\":false}'::jsonb",
+    );
+    expect(mediaWorkerRuntime).toContain("audience = 'server'");
+    expect(mediaWorkerRuntime).toContain("organization_id IS NULL");
+    expect(mediaWorkerRuntime).toContain("pg_has_role(current_user, 'app_worker', 'member')");
+    expect(mediaWorkerRuntime).toContain(
+      "AND NOT pg_has_role(current_user, 'app_worker', 'member')",
+    );
+    expect(mediaWorkerRuntime).toContain(
+      "NULLIF(current_setting('app.patient_user_id', true), '') IS NULL",
+    );
+    expect(mediaWorkerRuntime).toContain(
+      "GRANT SELECT ON TABLE public.app_runtime_settings TO app_worker;",
+    );
+    expect(mediaWorkerRuntime).not.toContain("GRANT SELECT ON TABLE public.system_settings");
+    expect(mediaWorkerRuntime).not.toMatch(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION/i);
   });
 });

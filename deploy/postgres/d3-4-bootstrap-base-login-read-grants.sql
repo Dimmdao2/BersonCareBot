@@ -62,6 +62,10 @@ SELECT 1 / (
   )
 )::int AS d3_4_media_worker_runtime_role_is_restricted;
 
+SELECT 1 / (
+  pg_has_role(:'d3_4_media_worker_runtime_role', 'app_worker', 'MEMBER')
+)::int AS d3_4_media_worker_runtime_role_is_worker_member;
+
 -- P2-B owns the protected principal-context helper bundle. The TEST wrapper may
 -- intentionally skip P2-B in legacy-guc mode, so D3.4 accepts either the complete
 -- bundle or no bundle and refuses a partially installed state.
@@ -152,6 +156,7 @@ REVOKE SELECT ON TABLE public.be_specialists FROM :"d3_4_bootstrap_base_role";
 
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.user_phone_history FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts FROM :"d3_4_bootstrap_base_role";
+REVOKE SELECT ON TABLE public.app_runtime_settings FROM :"d3_4_media_worker_runtime_role";
 
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_bootstrap_base_role";
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_media_worker_runtime_role";
@@ -182,6 +187,10 @@ GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :"d3_4_bo
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_media_worker_runtime_role";
 \endif
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_bootstrap_base_role";
+
+-- Generic server-audience runtime config only. RLS in 0188 exposes global server rows to
+-- app_worker members and hides authenticated-client rows; restricted system_settings stays denied.
+GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";
 
 -- Narrow SECURITY DEFINER pre-auth surface. These functions own their validation and expose only
 -- the bootstrap operations used by email auth, invite acceptance, and specialist signup. Direct

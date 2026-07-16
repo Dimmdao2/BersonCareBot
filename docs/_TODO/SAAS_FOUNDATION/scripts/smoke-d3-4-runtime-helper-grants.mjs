@@ -55,7 +55,8 @@ const patientIdent = quoteIdent(patientRole);
 const sourceArtifact = readFileSync(artifactPath, "utf8");
 const artifact = sourceArtifact
   .replaceAll("app_staff", staffRole)
-  .replaceAll("app_patient", patientRole);
+  .replaceAll("app_patient", patientRole)
+  .replaceAll("app_worker", workerRole);
 const appWorkerArtifact = readFileSync(appWorkerArtifactPath, "utf8")
   .replaceAll("app_worker", workerRole);
 
@@ -94,6 +95,7 @@ const setupSql = [
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
   ...tableNames.map((table) => `CREATE TABLE ${table} (id integer);`),
+  "CREATE TABLE public.system_settings (id integer);",
   `CREATE TABLE public.media_files (
     id uuid PRIMARY KEY,
     organization_id uuid,
@@ -153,6 +155,8 @@ SELECT 1 / has_function_privilege(${quoteLiteral(mediaRole)}, 'app.is_staff()', 
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.reset_principal_context()', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.current_integrator_user_id()', 'EXECUTE'))::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(mediaRole)}, 'app.close_active_user_phone_history(uuid)', 'EXECUTE'))::int;
+SELECT 1 / has_table_privilege(${quoteLiteral(mediaRole)}, 'public.app_runtime_settings', 'SELECT')::int;
+SELECT 1 / (NOT has_table_privilege(${quoteLiteral(mediaRole)}, 'public.system_settings', 'SELECT'))::int;
 SELECT 1 / (NOT EXISTS (
   SELECT 1
   FROM pg_proc proc

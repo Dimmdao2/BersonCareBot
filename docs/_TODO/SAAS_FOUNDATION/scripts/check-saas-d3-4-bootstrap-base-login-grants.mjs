@@ -17,6 +17,10 @@ const files = {
   platformAccessRepo: "apps/webapp/src/infra/repos/pgPlatformAccess.ts",
   hardProtocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   runtimeHelperSmoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs",
+  mediaRuntimeMigration: "apps/webapp/db/drizzle-migrations/0188_media_worker_runtime_flags.sql",
+  mediaRuntimeReader: "apps/media-worker/src/serverRuntimeConfig.ts",
+  mediaPipelineReader: "apps/media-worker/src/pipelineEnabled.ts",
+  mediaWatermarkReader: "apps/media-worker/src/watermarkEnabled.ts",
   packageJson: "package.json",
 };
 
@@ -168,6 +172,7 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_base_role_not_staff_member",
     "d3_4_bootstrap_base_role_is_patient_member",
     "d3_4_media_worker_runtime_role_is_restricted",
+    "d3_4_media_worker_runtime_role_is_worker_member",
     "d3_4_p2_b_context_bundle_is_complete_or_absent",
     "d3_4_has_p2_b_context_bundle",
     "to_regprocedure('app.release_principal_context()')",
@@ -186,6 +191,8 @@ function runChecks(overrides = {}) {
     "REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :\"d3_4_media_worker_runtime_role\";",
+    "GRANT SELECT ON TABLE public.app_runtime_settings TO :\"d3_4_media_worker_runtime_role\";",
+    "REVOKE SELECT ON TABLE public.app_runtime_settings FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :\"d3_4_media_worker_runtime_role\";",
     "REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;",
     "REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;",
@@ -220,6 +227,36 @@ function runChecks(overrides = {}) {
     'GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text) TO :"d3_4_media_worker_runtime_role";',
     'GRANT EXECUTE ON FUNCTION app.reset_principal_context() TO :"d3_4_media_worker_runtime_role";',
     'GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"d3_4_media_worker_runtime_role";',
+  ]);
+  requireFragments(files.mediaRuntimeMigration, loaded.mediaRuntimeMigration, [
+    "'video_hls_pipeline_enabled', 'admin', 'server'",
+    "'video_watermark_enabled', 'admin', 'server'",
+    "CREATE POLICY app_runtime_settings_safe_read",
+    "CREATE POLICY app_runtime_settings_staff_write",
+    "audience = 'server'",
+    "pg_has_role(current_user, 'app_worker', 'member')",
+    "NULLIF(current_setting('app.org', true), '') IS NULL",
+    "NULLIF(current_setting('app.patient_user_id', true), '') IS NULL",
+    "GRANT SELECT ON TABLE public.app_runtime_settings TO app_worker;",
+  ]);
+  forbidFragments(files.mediaRuntimeMigration, loaded.mediaRuntimeMigration, [
+    "GRANT SELECT ON TABLE public.system_settings",
+    "CREATE FUNCTION",
+  ]);
+  requireFragments(files.mediaRuntimeReader, loaded.mediaRuntimeReader, [
+    "FROM public.app_runtime_settings",
+    "key = $1",
+    "audience = 'server'",
+    "organization_id IS NULL",
+  ]);
+  forbidFragments(files.mediaRuntimeReader, loaded.mediaRuntimeReader, [
+    "FROM public.system_settings",
+  ]);
+  requireFragments(files.mediaPipelineReader, loaded.mediaPipelineReader, [
+    'readServerRuntimeBoolean(pool, "video_hls_pipeline_enabled")',
+  ]);
+  requireFragments(files.mediaWatermarkReader, loaded.mediaWatermarkReader, [
+    'readServerRuntimeBoolean(pool, "video_watermark_enabled")',
   ]);
   for (const tableName of requiredTables) {
     requireFragments(files.grantSql, loaded.grantSql, [
@@ -365,6 +402,9 @@ function runChecks(overrides = {}) {
     'SET SESSION AUTHORIZATION ${mediaIdent}',
     "FROM public.media_files",
     "UPDATE public.media_transcode_jobs",
+    "public.app_runtime_settings",
+    "public.system_settings",
+    "has_table_privilege",
   ]);
   forbidRegex(files.platformAccessRepo, loaded.platformAccessRepo, [
     /FROM\s+(?:public\.)?user_password_credentials\b/i,
@@ -500,6 +540,24 @@ if (process.argv.includes("--self-test")) {
       grantSql: read(files.grantSql).replace(
         'GRANT SELECT ON TABLE public.platform_users TO :"d3_4_bootstrap_base_role";',
         "-- removed by self-test",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        'GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";',
+        "-- removed media runtime SELECT by self-test",
+      ),
+    },
+    {
+      mediaRuntimeMigration: read(files.mediaRuntimeMigration).replace(
+        "GRANT SELECT ON TABLE public.app_runtime_settings TO app_worker;",
+        "-- removed app_worker runtime SELECT by self-test",
+      ),
+    },
+    {
+      mediaRuntimeReader: read(files.mediaRuntimeReader).replace(
+        "FROM public.app_runtime_settings",
+        "FROM public.system_settings",
       ),
     },
     {
