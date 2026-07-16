@@ -27,8 +27,10 @@ function parseArgs(argv) {
       options.selfTest = true;
       continue;
     }
-    if (arg.startsWith("--env-file=")) {
-      options.envFiles.push(arg.slice("--env-file=".length));
+    // `--env-file` is a Node.js runtime flag, including when it appears after the script path.
+    // Keep this application option distinct so Node does not consume it before this parser runs.
+    if (arg.startsWith("--process-env-file=")) {
+      options.envFiles.push(arg.slice("--process-env-file=".length));
       continue;
     }
     fail(`unknown argument: ${arg}`);
@@ -39,12 +41,12 @@ function parseArgs(argv) {
 function parseEnvFileSpec(spec) {
   const separator = spec.indexOf(":");
   if (separator <= 0 || separator === spec.length - 1) {
-    fail(`invalid --env-file spec, expected process:/path: ${spec}`);
+    fail(`invalid --process-env-file spec, expected process:/path: ${spec}`);
   }
   const processName = spec.slice(0, separator);
   const path = spec.slice(separator + 1);
   if (!REQUIRED_PROCESS_NAMES.has(processName)) {
-    fail(`unsupported process in --env-file: ${processName}`);
+    fail(`unsupported process in --process-env-file: ${processName}`);
   }
   if (!path.startsWith("/")) {
     fail(`env file path must be absolute for ${processName}`);

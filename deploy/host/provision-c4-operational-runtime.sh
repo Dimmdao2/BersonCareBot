@@ -27,9 +27,9 @@ fi
 
 # Reject any webapp/API/operator role reuse before CREATE/ALTER/password mutation.
 node "$PROJECT_ROOT/deploy/host/saas-c2-secret-preflight.mjs" \
-  --env-file="webapp:$WEBAPP_ENV_FILE" \
-  --env-file="integrator:$API_ENV_FILE" \
-  --env-file="media-worker:$MEDIA_WORKER_ENV_FILE"
+  --process-env-file="webapp:$WEBAPP_ENV_FILE" \
+  --process-env-file="integrator:$API_ENV_FILE" \
+  --process-env-file="media-worker:$MEDIA_WORKER_ENV_FILE"
 
 url_field(){
   local field="$1"

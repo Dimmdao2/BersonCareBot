@@ -537,7 +537,7 @@ function assertOperationalSqlAndDeploy(loaded) {
     "four operational URLs must use four distinct roles",
     "WEBAPP_ENV_FILE",
     "saas-c2-secret-preflight.mjs",
-    '--env-file="webapp:$WEBAPP_ENV_FILE"',
+    '--process-env-file="webapp:$WEBAPP_ENV_FILE"',
     "sudo -u postgres psql",
     "\\password $role",
     "assert-c4-operational-runtime-ready.sh",
