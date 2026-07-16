@@ -54,11 +54,13 @@ CREATE TABLE public.app_runtime_settings (key text NOT NULL, scope text NOT NULL
 CREATE UNIQUE INDEX app_runtime_settings_global_uq ON public.app_runtime_settings(key, scope) WHERE organization_id IS NULL;
 CREATE UNIQUE INDEX app_runtime_settings_org_uq ON public.app_runtime_settings(key, scope, organization_id) WHERE organization_id IS NOT NULL;
 CREATE TABLE public.system_settings (key text NOT NULL, scope text NOT NULL, organization_id uuid, value_json jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), updated_by uuid);
-CREATE TABLE public.media_files (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), organization_id uuid, mime_type text, status text, s3_key text, size_bytes bigint, video_processing_status text, hls_master_playlist_s3_key text);
+CREATE TABLE public.media_files (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), organization_id uuid, mime_type text, status text, s3_key text, size_bytes bigint, video_processing_status text, hls_master_playlist_s3_key text, preview_status text, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE public.media_transcode_jobs (media_id uuid, status text, created_at timestamptz NOT NULL DEFAULT now(), processing_started_at timestamptz, finished_at timestamptz);
 CREATE TABLE public.media_playback_resolution_events (organization_id uuid, user_id uuid, media_id uuid, delivery text NOT NULL, fallback_used boolean NOT NULL DEFAULT false, resolved_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE public.media_playback_stats_hourly (bucket_hour timestamptz NOT NULL, delivery text NOT NULL, resolved_count integer NOT NULL DEFAULT 0, fallback_count integer NOT NULL DEFAULT 0, PRIMARY KEY (bucket_hour, delivery));
 CREATE TABLE public.media_playback_user_video_first_resolve (user_id uuid, media_id uuid, first_resolved_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.media_playback_client_events (organization_id uuid, user_id uuid, media_id uuid, event_class text NOT NULL, delivery text, error_detail text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE public.media_hls_proxy_error_events (organization_id uuid, user_id uuid, media_id uuid, reason_code text NOT NULL, artifact_kind text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE public.operator_job_status (job_key text, job_family text, last_status text, last_finished_at timestamptz, last_success_at timestamptz, last_failure_at timestamptz, last_duration_ms integer, meta_json jsonb NOT NULL DEFAULT '{}');
 CREATE TABLE public.operator_incidents (occurrence_count integer NOT NULL DEFAULT 1, last_seen_at timestamptz NOT NULL DEFAULT now(), resolved_at timestamptz);
 CREATE TABLE public.outgoing_delivery_queue (status text, next_retry_at timestamptz, failure_class text, created_at timestamptz NOT NULL DEFAULT now(), channel text, kind text, sent_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now());
@@ -80,12 +82,29 @@ CREATE POLICY deny_all_incidents ON public.operator_incidents USING (false);
   sql("GRANT USAGE ON SCHEMA app TO app_owner, app_patient;");
   sql(await readFile("apps/webapp/db/drizzle-migrations/0190_curated_system_health_diagnostics.sql", "utf8"));
   sql(await readFile("apps/webapp/db/drizzle-migrations/0192_curated_playback_and_patient_program_runtime.sql", "utf8"));
+  sql(`
+SELECT 1 / (
+  NOT (app.read_curated_system_health() ? 'mediaPreview')
+  AND NOT (app.read_curated_system_health() ? 'videoPlaybackClient')
+  AND NOT (app.read_curated_playback_health() ? 'hlsProxy')
+)::int AS pre_0196_existing_db_state_verified;
+`);
+  sql(await readFile("apps/webapp/db/drizzle-migrations/0196_curated_system_health_media_upgrade.sql", "utf8"));
+  sql(`
+SELECT 1 / (
+  app.read_curated_system_health() ? 'mediaPreview'
+  AND app.read_curated_system_health() ? 'videoPlaybackClient'
+  AND app.read_curated_playback_health() ? 'hlsProxy'
+)::int AS migration_0196_existing_db_upgrade_verified;
+`);
   const overlay = `\\set system_health_operator_runtime_role ${runtimeRole}\n${await readFile("deploy/postgres/saas-system-health-diagnostics.sql", "utf8")}`;
   const stalePlaybackAcl = `
 GRANT SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_stats_hourly,
-  public.media_playback_user_video_first_resolve
+  public.media_playback_user_video_first_resolve,
+  public.media_playback_client_events,
+  public.media_hls_proxy_error_events
 TO PUBLIC, app_owner, app_staff, app_patient, app_worker, saas_telemetry_operator, ${runtimeRole};
 `;
   sql(stalePlaybackAcl);
@@ -99,6 +118,7 @@ SELECT 1 / (
   (app.read_curated_playback_health()#>>'{24,totalResolutions}') = '0'
   AND (app.read_curated_playback_health()#>>'{24,fallbackTotal}') = '0'
   AND (app.read_curated_playback_health()#>>'{1,totalResolutions}') = '0'
+  AND (app.read_curated_playback_health()#>>'{hlsProxy,errorsTotal24h}') = '0'
 )::int AS empty_playback_aggregate_zero_verified;
 RESET ROLE;
 `);
@@ -143,6 +163,16 @@ BEGIN
     RAISE EXCEPTION 'app_owner_playback_first_resolve_select_allowed';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM * FROM public.media_playback_client_events;
+    RAISE EXCEPTION 'app_owner_playback_client_select_allowed';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM * FROM public.media_hls_proxy_error_events;
+    RAISE EXCEPTION 'app_owner_hls_proxy_select_allowed';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   PERFORM * FROM public.media_playback_stats_hourly;
   RESET ROLE;
 END
@@ -160,6 +190,16 @@ INSERT INTO public.notification_delivery_attempts(channel,status,recipient_ref,e
 INSERT INTO public.outgoing_delivery_queue(status,next_retry_at,channel,kind) VALUES ('pending',now()-interval '1 minute','telegram','reminder_dispatch');
 INSERT INTO public.operator_job_status(job_key,job_family,last_status,last_finished_at,last_success_at,meta_json) VALUES
  ('health.outbound_probe.run','health','success',now(),now(),'{"rubitime":"ok","secret":"DO_NOT_EXPOSE"}');
+INSERT INTO public.media_files(id,organization_id,mime_type,status,preview_status,created_at) VALUES
+ ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','11111111-1111-4111-8111-111111111111','image/heic','ready','failed',now()),
+ ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','33333333-3333-4333-8333-333333333333','video/quicktime','ready','pending',now()-interval '31 minutes');
+INSERT INTO public.media_playback_client_events(organization_id,user_id,media_id,event_class,delivery,error_detail,created_at) VALUES
+ ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hls_fatal','hls','CLIENT_ERROR_SENTINEL',now()),
+ ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hls_fatal','hls','CLIENT_ERROR_SENTINEL',now()),
+ ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','hls_fatal','hls','CLIENT_ERROR_SENTINEL',now());
+INSERT INTO public.media_hls_proxy_error_events(organization_id,user_id,media_id,reason_code,artifact_kind,created_at) VALUES
+ ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','missing_object','segment',now()),
+ ('33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','s3_read_failed','variant',now());
 `);
 
   sql(`
@@ -177,14 +217,28 @@ DO $proof$ DECLARE snapshot jsonb; BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN PERFORM * FROM public.media_playback_user_video_first_resolve; RAISE EXCEPTION 'operator_playback_first_resolve_select_allowed';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN PERFORM * FROM public.media_playback_client_events; RAISE EXCEPTION 'operator_playback_client_select_allowed';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN PERFORM * FROM public.media_hls_proxy_error_events; RAISE EXCEPTION 'operator_hls_proxy_select_allowed';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   SELECT app.read_curated_system_health() INTO snapshot;
   IF snapshot#>>'{operatorIncidents,openCount}' <> '2' THEN RAISE EXCEPTION 'incident_count_wrong'; END IF;
   IF snapshot#>>'{operatorIncidents,occurrenceCount}' <> '5' THEN RAISE EXCEPTION 'occurrence_count_wrong'; END IF;
   IF snapshot#>>'{config,vapidConfigured}' <> 'true' OR snapshot#>>'{config,smtpConfigured}' <> 'true' THEN RAISE EXCEPTION 'config_projection_wrong'; END IF;
-  IF snapshot::text ~ '(PATIENT_SENTINEL|ERROR_SENTINEL|OTHER_SENTINEL|DO_NOT_EXPOSE)' THEN RAISE EXCEPTION 'raw_value_leaked'; END IF;
+  IF snapshot#>>'{mediaPreview,stalePendingCount}' <> '1' OR snapshot#>>'{mediaPreview,byMimeAndStatus,image/heic,failed}' <> '1' THEN RAISE EXCEPTION 'media_preview_projection_wrong'; END IF;
+  IF snapshot#>>'{videoPlaybackClient,totalErrors}' <> '3' OR jsonb_array_length(snapshot->'videoPlaybackClient'->'recent') <> 0 THEN RAISE EXCEPTION 'playback_client_projection_wrong'; END IF;
+  IF snapshot::text ~ '(PATIENT_SENTINEL|ERROR_SENTINEL|OTHER_SENTINEL|DO_NOT_EXPOSE|CLIENT_ERROR_SENTINEL)' THEN RAISE EXCEPTION 'raw_value_leaked'; END IF;
   IF jsonb_array_length(snapshot->'notificationDelivery'->'recentIssues') <> 0 THEN RAISE EXCEPTION 'notification_rows_leaked'; END IF;
   RESET ROLE;
 END $proof$;
+SET ROLE ${runtimeRole};
+SELECT 1 / (
+  (app.read_curated_playback_health()#>>'{hlsProxy,errorsTotal24h}') = '2'
+  AND (app.read_curated_playback_health()#>>'{hlsProxy,errorsTotal1h}') = '2'
+  AND jsonb_array_length(app.read_curated_playback_health()->'hlsProxy'->'recent') = 0
+  AND app.read_curated_playback_health()::text !~ '(aaaaaaaa|bbbbbbbb|CLIENT_ERROR_SENTINEL)'
+)::int;
+RESET ROLE;
 SELECT 1 / (NOT has_function_privilege('app_staff','app.read_curated_system_health()','EXECUTE'))::int;
 SELECT 1 / has_function_privilege('${runtimeRole}','app.read_curated_system_health()','EXECUTE')::int;
 SELECT 1 / (NOT has_table_privilege('${runtimeRole}','public.operator_incidents','SELECT'))::int;
@@ -200,7 +254,9 @@ SELECT 1 / (
       AND source_table.relname = ANY (ARRAY[
         'media_playback_resolution_events',
         'media_playback_stats_hourly',
-        'media_playback_user_video_first_resolve'
+        'media_playback_user_video_first_resolve',
+        'media_playback_client_events',
+        'media_hls_proxy_error_events'
       ])
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = ANY (ARRAY[
@@ -224,7 +280,9 @@ SELECT 1 / (
     WHERE source_schema.nspname = 'public'
       AND source_table.relname = ANY (ARRAY[
         'media_playback_resolution_events',
-        'media_playback_user_video_first_resolve'
+        'media_playback_user_video_first_resolve',
+        'media_playback_client_events',
+        'media_hls_proxy_error_events'
       ])
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = 'app_owner'::regrole::oid

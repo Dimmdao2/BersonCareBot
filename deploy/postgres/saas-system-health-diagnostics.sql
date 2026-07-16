@@ -16,6 +16,8 @@ SELECT 1 / (
   AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saas_telemetry_operator')
   AND to_regprocedure('app.read_curated_system_health()') IS NOT NULL
   AND to_regprocedure('app.read_curated_playback_health()') IS NOT NULL
+  AND to_regprocedure('app.read_curated_system_health_pre_0196()') IS NOT NULL
+  AND to_regprocedure('app.read_curated_playback_health_pre_0196()') IS NOT NULL
 )::int AS curated_system_health_prerequisites_exist;
 
 DO $roles$
@@ -45,16 +47,20 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM saas_system_health_owner;
 REVOKE SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_stats_hourly,
-  public.media_playback_user_video_first_resolve
+  public.media_playback_user_video_first_resolve,
+  public.media_playback_client_events,
+  public.media_hls_proxy_error_events
 FROM PUBLIC, app_staff, app_patient, app_worker, saas_telemetry_operator;
 REVOKE SELECT ON TABLE
   public.media_playback_resolution_events,
-  public.media_playback_user_video_first_resolve
+  public.media_playback_user_video_first_resolve,
+  public.media_playback_client_events,
+  public.media_hls_proxy_error_events
 FROM app_owner;
 -- The protected ON CONFLICT counter accessor reads the old aggregate values.
 GRANT SELECT ON TABLE public.media_playback_stats_hourly TO app_owner;
 SELECT format(
-  'REVOKE SELECT ON TABLE public.media_playback_resolution_events, public.media_playback_stats_hourly, public.media_playback_user_video_first_resolve FROM %I',
+  'REVOKE SELECT ON TABLE public.media_playback_resolution_events, public.media_playback_stats_hourly, public.media_playback_user_video_first_resolve, public.media_playback_client_events, public.media_hls_proxy_error_events FROM %I',
   :'system_health_operator_runtime_role'
 ) \gexec
 
@@ -66,6 +72,8 @@ GRANT SELECT ON TABLE
   public.media_playback_resolution_events,
   public.media_playback_stats_hourly,
   public.media_playback_user_video_first_resolve,
+  public.media_playback_client_events,
+  public.media_hls_proxy_error_events,
   public.operator_job_status,
   public.operator_incidents,
   public.outgoing_delivery_queue,
@@ -78,21 +86,36 @@ GRANT SELECT ON TABLE
   public.integration_webhook_last_status,
   public.operator_health_alert_sent
 TO saas_system_health_owner;
+GRANT USAGE ON SCHEMA app TO saas_system_health_owner;
 
 ALTER FUNCTION app.read_curated_system_health() OWNER TO saas_system_health_owner;
 ALTER FUNCTION app.read_curated_playback_health() OWNER TO saas_system_health_owner;
+ALTER FUNCTION app.read_curated_system_health_pre_0196() OWNER TO saas_system_health_owner;
+ALTER FUNCTION app.read_curated_playback_health_pre_0196() OWNER TO saas_system_health_owner;
 REVOKE ALL ON FUNCTION app.read_curated_system_health() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_curated_playback_health() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_curated_system_health()
   FROM app_owner, app_staff, app_patient, app_worker;
 REVOKE ALL ON FUNCTION app.read_curated_playback_health()
   FROM app_owner, app_staff, app_patient, app_worker;
+REVOKE ALL ON FUNCTION app.read_curated_system_health_pre_0196()
+  FROM PUBLIC, app_owner, app_staff, app_patient, app_worker, saas_telemetry_operator;
+REVOKE ALL ON FUNCTION app.read_curated_playback_health_pre_0196()
+  FROM PUBLIC, app_owner, app_staff, app_patient, app_worker, saas_telemetry_operator;
 SELECT format(
   'REVOKE ALL ON FUNCTION app.read_curated_system_health() FROM %I',
   :'system_health_operator_runtime_role'
 ) \gexec
 SELECT format(
   'REVOKE ALL ON FUNCTION app.read_curated_playback_health() FROM %I',
+  :'system_health_operator_runtime_role'
+) \gexec
+SELECT format(
+  'REVOKE ALL ON FUNCTION app.read_curated_system_health_pre_0196() FROM %I',
+  :'system_health_operator_runtime_role'
+) \gexec
+SELECT format(
+  'REVOKE ALL ON FUNCTION app.read_curated_playback_health_pre_0196() FROM %I',
   :'system_health_operator_runtime_role'
 ) \gexec
 
@@ -124,6 +147,12 @@ SELECT 1 / (
   AND NOT has_function_privilege('app_staff', 'app.read_curated_playback_health()', 'EXECUTE')
   AND NOT has_function_privilege('app_patient', 'app.read_curated_playback_health()', 'EXECUTE')
   AND NOT has_function_privilege('app_worker', 'app.read_curated_playback_health()', 'EXECUTE')
+  AND NOT has_function_privilege(
+    :'system_health_operator_runtime_role', 'app.read_curated_system_health_pre_0196()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'system_health_operator_runtime_role', 'app.read_curated_playback_health_pre_0196()', 'EXECUTE'
+  )
   AND NOT has_table_privilege(
     :'system_health_operator_runtime_role', 'public.operator_incidents', 'SELECT'
   )
@@ -148,7 +177,9 @@ SELECT 1 / (
       AND source_table.relname = ANY (ARRAY[
         'media_playback_resolution_events',
         'media_playback_stats_hourly',
-        'media_playback_user_video_first_resolve'
+        'media_playback_user_video_first_resolve',
+        'media_playback_client_events',
+        'media_hls_proxy_error_events'
       ])
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = ANY (ARRAY[
@@ -171,7 +202,9 @@ SELECT 1 / (
     WHERE source_schema.nspname = 'public'
       AND source_table.relname = ANY (ARRAY[
         'media_playback_resolution_events',
-        'media_playback_user_video_first_resolve'
+        'media_playback_user_video_first_resolve',
+        'media_playback_client_events',
+        'media_hls_proxy_error_events'
       ])
       AND source_acl.privilege_type = 'SELECT'
       AND source_acl.grantee = 'app_owner'::regrole::oid

@@ -50,6 +50,38 @@ function validSnapshot() {
       legacyReconcileCandidateCountWithinSizeCap: 3,
       readableVideoReadyWithHlsCount: 5,
     },
+    mediaPreview: {
+      stalePendingCount: 0,
+      byMimeAndStatus: {
+        "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+      },
+    },
+    videoPlaybackClient: {
+      windowHours: 24,
+      totalErrors: 0,
+      totalErrorsLast1h: 0,
+      byEvent: {
+        hls_fatal: 0,
+        video_error: 0,
+        hls_import_failed: 0,
+        playback_refetch_failed: 0,
+        playback_refetch_exception: 0,
+        hls_js_unsupported: 0,
+      },
+      byEventLast1h: {
+        hls_fatal: 0,
+        video_error: 0,
+        hls_import_failed: 0,
+        playback_refetch_failed: 0,
+        playback_refetch_exception: 0,
+        hls_js_unsupported: 0,
+      },
+      byDelivery: { hls: 0, mp4: 0, file: 0 },
+      likelyLooping: false,
+      recent: [],
+    },
     operatorJobs: [],
     operatorIncidents: { openCount: 0, occurrenceCount: 0, lastSeenAt: null },
     outgoingDelivery: {
@@ -131,11 +163,21 @@ describe("curated System Health diagnostics", () => {
       totalResolutions: 6,
       uniquePlaybackPairsFirstSeenInWindow: 4,
     };
-    queryMock.mockResolvedValue({ rows: [{ snapshot: { "24": metrics, "1": metrics } }] });
+    const hlsProxy = {
+      windowHours: 24,
+      errorsTotal24h: 0,
+      errorsTotal1h: 0,
+      byReason: {},
+      byReasonLast1h: {},
+      degraded: false,
+      recent: [],
+    };
+    queryMock.mockResolvedValue({ rows: [{ snapshot: { "24": metrics, "1": metrics, hlsProxy } }] });
 
     await expect(loadCuratedPlaybackHealthSnapshot()).resolves.toEqual({
       "24": metrics,
       "1": metrics,
+      hlsProxy,
     });
     expect(queryMock).toHaveBeenCalledWith("SELECT app.read_curated_playback_health() AS snapshot");
   });
@@ -150,6 +192,15 @@ describe("curated System Health diagnostics", () => {
     expect(() => curatedPlaybackHealthSnapshotSchema.parse({
       "24": { ...metrics, rows: [{ userId: "not-allowed" }] },
       "1": metrics,
+      hlsProxy: {
+        windowHours: 24,
+        errorsTotal24h: 0,
+        errorsTotal1h: 0,
+        byReason: {},
+        byReasonLast1h: {},
+        degraded: false,
+        recent: [],
+      },
     })).toThrow();
   });
 

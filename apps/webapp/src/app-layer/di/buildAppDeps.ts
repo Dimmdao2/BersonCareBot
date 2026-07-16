@@ -307,6 +307,9 @@ import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsRead
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
+import { createPgPatientMaintenanceHistoryPort } from "@/infra/repos/pgPatientMaintenanceHistory";
+import { inMemoryPatientMaintenanceHistoryPort } from "@/infra/repos/inMemoryPatientMaintenanceHistory";
+import { createPatientMaintenanceHistoryService } from "@/modules/patient-booking/maintenanceHistory";
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createPgOrganizationMembershipPort } from "@/infra/repos/pgOrganizationMembership";
 import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemoryOrganizationMembership";
@@ -491,6 +494,9 @@ const appointmentProjectionPort = !inMemoryRepos
 const patientBookingsPort = !inMemoryRepos
   ? pgPatientBookingsPort
   : inMemoryPatientBookingsPort;
+const patientMaintenanceHistoryService = createPatientMaintenanceHistoryService(
+  !inMemoryRepos ? createPgPatientMaintenanceHistoryPort() : inMemoryPatientMaintenanceHistoryPort,
+);
 const organizationMembershipPort = !inMemoryRepos
   ? createPgOrganizationMembershipPort()
   : createInMemoryOrganizationMembershipPort();
@@ -1318,6 +1324,7 @@ function _buildAppDeps() {
       listEmergencyTopics: () => listEmergencyTopics(contentPagesPort),
     },
     patientBooking: patientBookingService,
+    patientMaintenanceHistory: patientMaintenanceHistoryService,
     doctorCabinet: {
       getDoctorWorkspaceState,
       getOverviewState,

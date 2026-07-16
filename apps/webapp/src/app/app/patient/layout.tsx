@@ -11,7 +11,6 @@ import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDenie
 import { canAccessPatient } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
@@ -87,12 +86,8 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     if (patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)) {
       let upcoming: PatientMaintenanceBooking[] = [];
       try {
-        if (patientOrganizationId) {
-          const records = await runWithWebappDbOperationFamily("patient_booking_history", () =>
-            deps.clientHistory.listVisitHistory(patientOrganizationId, session.user.userId, 100),
-          );
-          upcoming = selectMaintenanceUpcomingBookings(records);
-        }
+        const records = await deps.patientMaintenanceHistory.listCurrentPatientHistory();
+        upcoming = selectMaintenanceUpcomingBookings(records);
       } catch (err) {
         logger.warn({
           scope: "patient_layout",

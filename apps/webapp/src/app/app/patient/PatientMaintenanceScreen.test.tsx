@@ -7,7 +7,7 @@ import {
   selectMaintenanceUpcomingBookings,
   type PatientMaintenanceBooking,
 } from "./PatientMaintenanceScreen";
-import type { ClientVisitHistoryRow } from "@/modules/client-history/types";
+import type { PatientMaintenanceAppointment } from "@/modules/patient-booking/maintenanceHistory";
 import type { SessionUser } from "@/shared/types/session";
 
 vi.mock("next/navigation", () => ({
@@ -36,8 +36,7 @@ const baseRow: PatientMaintenanceBooking = {
   id: "b1",
   startAt: "2026-06-01T10:00:00.000Z",
   status: "confirmed",
-  branchTitle: "Филиал",
-  serviceTitle: "Услуга",
+  subtitle: "Услуга · Филиал",
 };
 
 describe("PatientMaintenanceScreen", () => {
@@ -100,33 +99,26 @@ describe("PatientMaintenanceScreen", () => {
   });
 
   it("selects canonical active future visits and sorts them ascending", () => {
-    const visit = (overrides: Partial<ClientVisitHistoryRow>): ClientVisitHistoryRow => ({
-      appointmentId: "visit",
+    const visit = (overrides: Partial<PatientMaintenanceAppointment>): PatientMaintenanceAppointment => ({
+      id: "visit",
       startAt: "2026-07-20T10:00:00.000Z",
       endAt: "2026-07-20T11:00:00.000Z",
-      durationMinutes: 60,
       status: "confirmed",
+      subtitle: "Приём",
       specialistName: null,
       branchTitle: null,
       roomTitle: null,
       serviceTitle: null,
-      wasViaPackage: false,
-      packageUsageSummary: null,
-      prepaymentAmountMinor: null,
-      prepaymentCurrency: null,
-      finalPaymentAmountMinor: null,
-      finalPaymentCurrency: null,
-      staffComment: null,
       ...overrides,
     });
 
     expect(
       selectMaintenanceUpcomingBookings(
         [
-          visit({ appointmentId: "later", startAt: "2026-07-21T10:00:00.000Z" }),
-          visit({ appointmentId: "cancelled", status: "cancelled" }),
-          visit({ appointmentId: "past", startAt: "2026-07-10T10:00:00.000Z" }),
-          visit({ appointmentId: "earlier", startAt: "2026-07-20T10:00:00.000Z" }),
+          visit({ id: "later", startAt: "2026-07-21T10:00:00.000Z" }),
+          visit({ id: "cancelled", status: "cancelled" }),
+          visit({ id: "past", startAt: "2026-07-10T10:00:00.000Z" }),
+          visit({ id: "earlier", startAt: "2026-07-20T10:00:00.000Z" }),
         ],
         new Date("2026-07-16T00:00:00.000Z"),
       ).map((row) => row.id),

@@ -1366,6 +1366,20 @@
       "when": 1792588800000,
       "tag": "0194_e1_patient_identity_exception",
       "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1792675200000,
+      "tag": "0195_e1_patient_maintenance_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1792761600000,
+      "tag": "0196_curated_system_health_media_upgrade",
+      "breakpoints": true
     }
   ]
 }

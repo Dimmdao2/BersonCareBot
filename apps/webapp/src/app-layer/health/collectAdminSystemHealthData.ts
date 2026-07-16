@@ -5,11 +5,7 @@ import {
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
   ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED,
 } from "@/app-layer/media/adminPlaybackHealthMetrics";
-import { loadAdminPlaybackClientHealthMetrics } from "@/app-layer/media/playbackClientEvents";
-import {
-  ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
-  loadAdminHlsProxyHealthMetrics,
-} from "@/app-layer/media/adminHlsProxyHealthMetrics";
+import { ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS } from "@/app-layer/media/adminHlsProxyHealthMetrics";
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -47,10 +43,6 @@ import {
   type NotificationDeliveryHealthPayload,
 } from "@/app-layer/health/adminNotificationDeliveryHealthMetrics";
 import {
-  loadAdminMediaPreviewGroupedCounts,
-  loadAdminMediaPreviewStalePendingCount,
-} from "@/infra/repos/pgAdminMediaPreviewHealth";
-import {
   SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION,
   emptySaasIsolationTrend,
   type SaasIsolationHealthPayload,
@@ -86,7 +78,6 @@ type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
 
 const PREVIEW_STATUSES: PreviewStatus[] = ["pending", "ready", "failed", "skipped"];
 const PREVIEW_MIMES: PreviewMime[] = ["video/quicktime", "image/heic", "image/heif"];
-const STALE_PENDING_MINUTES = 30;
 
 type VideoPlaybackHealthStatus = "ok" | "error";
 type VideoPlaybackClientHealthStatus = "ok" | "degraded" | "error";
@@ -461,7 +452,7 @@ export function computeMediaPreviewStatus(
   const failedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].failed, 0);
   // #53: «pending» (preview ещё генерируется) и «skipped» (генерация осознанно
   // пропущена) — это НОРМАЛЬНАЯ асинхронная работа, не деградация. Деградацию даёт
-  // только ЗАСТРЯВШИЙ pending (> STALE_PENDING_MINUTES, отдельный запрос ниже);
+  // только ЗАСТРЯВШИЙ pending (> 30 минут, считается внутри curated-агрегата);
   // реальный сбой генерации (failed) — это error. Иначе любая свежезагруженная
   // картинка с pending-превью ложно красила всю панель в «degraded».
   if (failedCount > 0) return "error";
@@ -469,23 +460,18 @@ export function computeMediaPreviewStatus(
   return "ok";
 }
 
-async function probeMediaPreview(): Promise<
+async function probeMediaPreview(snapshot: CuratedSystemHealthSnapshot): Promise<
   ProbeResult<{ status: MediaPreviewStatus; stalePendingCount: number; byMimeAndStatus: MediaPreviewCounters }>
 > {
   const startedAt = Date.now();
   try {
-    const [grouped, stale] = await Promise.all([
-      loadAdminMediaPreviewGroupedCounts(PREVIEW_MIMES),
-      loadAdminMediaPreviewStalePendingCount(PREVIEW_MIMES, STALE_PENDING_MINUTES),
-    ]);
-
     const counters = initMediaPreviewCounters();
-    for (const row of grouped) {
-      const mime = PREVIEW_MIMES.find((m) => m === row.mime_type);
-      const status = PREVIEW_STATUSES.find((s) => s === row.preview_status);
-      if (!mime || !status) continue;
-      counters[mime][status] = Number.parseInt(row.cnt, 10) || 0;
+    for (const mime of PREVIEW_MIMES) {
+      for (const status of PREVIEW_STATUSES) {
+        counters[mime][status] = snapshot.mediaPreview.byMimeAndStatus[mime][status];
+      }
     }
+    const stale = snapshot.mediaPreview.stalePendingCount;
     return {
       ok: true,
       value: {
@@ -590,7 +576,10 @@ function emptyVideoTranscodePayload(
   };
 }
 
-async function probeVideoPlayback(playbackApiEnabled: boolean): Promise<ProbeResult<VideoPlaybackHealthPayload>> {
+async function probeVideoPlayback(
+  playbackApiEnabled: boolean,
+  curatedPlayback: Promise<CuratedPlaybackHealthSnapshot> | null,
+): Promise<ProbeResult<VideoPlaybackHealthPayload>> {
   const startedAt = Date.now();
   try {
     if (!playbackApiEnabled) {
@@ -613,7 +602,8 @@ async function probeVideoPlayback(playbackApiEnabled: boolean): Promise<ProbeRes
       };
     }
 
-    const metrics: CuratedPlaybackHealthSnapshot = await loadCuratedPlaybackHealthSnapshot();
+    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    const metrics = await curatedPlayback;
     const metrics24 = metrics["24"];
     const metrics1 = metrics["1"];
 
@@ -644,12 +634,12 @@ async function probeVideoPlayback(playbackApiEnabled: boolean): Promise<ProbeRes
   }
 }
 
-async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClientHealthPayload>> {
+async function probeVideoPlaybackClient(
+  snapshot: CuratedSystemHealthSnapshot,
+): Promise<ProbeResult<VideoPlaybackClientHealthPayload>> {
   const startedAt = Date.now();
   try {
-    const m = await loadAdminPlaybackClientHealthMetrics({
-      windowHours: ADMIN_PLAYBACK_METRICS_WINDOW_HOURS,
-    });
+    const m = snapshot.videoPlaybackClient;
     const status: VideoPlaybackClientHealthStatus =
       m.totalErrorsLast1h >= ADMIN_PLAYBACK_CLIENT_ERRORS_1H_DEGRADED ? "degraded" : "ok";
     return {
@@ -677,7 +667,10 @@ async function probeVideoPlaybackClient(): Promise<ProbeResult<VideoPlaybackClie
   }
 }
 
-async function probeVideoHlsProxy(playbackApiEnabled: boolean): Promise<ProbeResult<VideoHlsProxyHealthPayload>> {
+async function probeVideoHlsProxy(
+  playbackApiEnabled: boolean,
+  curatedPlayback: Promise<CuratedPlaybackHealthSnapshot> | null,
+): Promise<ProbeResult<VideoHlsProxyHealthPayload>> {
   const startedAt = Date.now();
   try {
     if (!playbackApiEnabled) {
@@ -688,9 +681,8 @@ async function probeVideoHlsProxy(playbackApiEnabled: boolean): Promise<ProbeRes
       };
     }
 
-    const m = await loadAdminHlsProxyHealthMetrics({
-      windowHours: ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS,
-    });
+    if (!curatedPlayback) throw new Error("curated_playback_snapshot_missing");
+    const m = (await curatedPlayback).hlsProxy;
     const status: VideoHlsProxyHealthStatus = m.degraded ? "degraded" : "ok";
     return {
       ok: true,
@@ -875,6 +867,9 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const curatedFailureCode = curatedResult.ok
     ? "curated_system_health_unavailable"
     : curatedResult.errorCode;
+  const curatedPlayback = curatedResult.ok && playbackEnabled
+    ? loadCuratedPlaybackHealthSnapshot()
+    : null;
 
   const [
     webappDb,
@@ -890,18 +885,36 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       probeWebappDb(),
       probeIntegratorApi(),
       probeProjection(),
-      probeMediaPreview(),
       curatedResult.ok
-        ? probeVideoPlayback(playbackEnabled)
+        ? probeMediaPreview(curatedResult.value)
+        : Promise.resolve<ProbeResult<{
+            status: MediaPreviewStatus;
+            stalePendingCount: number;
+            byMimeAndStatus: MediaPreviewCounters;
+          }>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_system_health_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
+      curatedResult.ok
+        ? probeVideoPlayback(playbackEnabled, curatedPlayback)
         : Promise.resolve<ProbeResult<VideoPlaybackHealthPayload>>({
             ok: false,
             status: "error",
             errorCode: "curated_config_unavailable",
             durationMs: curatedResult.durationMs,
           }),
-      probeVideoPlaybackClient(),
       curatedResult.ok
-        ? probeVideoHlsProxy(playbackEnabled)
+        ? probeVideoPlaybackClient(curatedResult.value)
+        : Promise.resolve<ProbeResult<VideoPlaybackClientHealthPayload>>({
+            ok: false,
+            status: "error",
+            errorCode: "curated_system_health_unavailable",
+            durationMs: curatedResult.durationMs,
+          }),
+      curatedResult.ok
+        ? probeVideoHlsProxy(playbackEnabled, curatedPlayback)
         : Promise.resolve<ProbeResult<VideoHlsProxyHealthPayload>>({
             ok: false,
             status: "error",

@@ -62,6 +62,26 @@ const notificationChannelSchema = z
   })
   .strict();
 
+const previewStatusCountsSchema = z
+  .object({
+    pending: nonNegativeNumber,
+    ready: nonNegativeNumber,
+    failed: nonNegativeNumber,
+    skipped: nonNegativeNumber,
+  })
+  .strict();
+
+const playbackEventCountsSchema = z
+  .object({
+    hls_fatal: nonNegativeNumber,
+    video_error: nonNegativeNumber,
+    hls_import_failed: nonNegativeNumber,
+    playback_refetch_failed: nonNegativeNumber,
+    playback_refetch_exception: nonNegativeNumber,
+    hls_js_unsupported: nonNegativeNumber,
+  })
+  .strict();
+
 export const curatedSystemHealthSnapshotSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -88,6 +108,32 @@ export const curatedSystemHealthSnapshotSchema = z
         oldestPendingAgeSeconds: nonNegativeNumber.nullable(),
         legacyReconcileCandidateCountWithinSizeCap: nonNegativeNumber,
         readableVideoReadyWithHlsCount: nonNegativeNumber,
+      })
+      .strict(),
+    mediaPreview: z
+      .object({
+        stalePendingCount: nonNegativeNumber,
+        byMimeAndStatus: z
+          .object({
+            "video/quicktime": previewStatusCountsSchema,
+            "image/heic": previewStatusCountsSchema,
+            "image/heif": previewStatusCountsSchema,
+          })
+          .strict(),
+      })
+      .strict(),
+    videoPlaybackClient: z
+      .object({
+        windowHours: z.literal(24),
+        totalErrors: nonNegativeNumber,
+        totalErrorsLast1h: nonNegativeNumber,
+        byEvent: playbackEventCountsSchema,
+        byEventLast1h: playbackEventCountsSchema,
+        byDelivery: z
+          .object({ hls: nonNegativeNumber, mp4: nonNegativeNumber, file: nonNegativeNumber })
+          .strict(),
+        likelyLooping: z.boolean(),
+        recent: z.tuple([]),
       })
       .strict(),
     operatorJobs: z.array(operatorJobSchema).max(32),
@@ -167,6 +213,17 @@ export const curatedPlaybackHealthSnapshotSchema = z
   .object({
     "24": curatedPlaybackHealthMetricsSchema,
     "1": curatedPlaybackHealthMetricsSchema,
+    hlsProxy: z
+      .object({
+        windowHours: z.literal(24),
+        errorsTotal24h: nonNegativeNumber,
+        errorsTotal1h: nonNegativeNumber,
+        byReason: z.record(z.string(), nonNegativeNumber),
+        byReasonLast1h: z.record(z.string(), nonNegativeNumber),
+        degraded: z.boolean(),
+        recent: z.tuple([]),
+      })
+      .strict(),
   })
   .strict();
 

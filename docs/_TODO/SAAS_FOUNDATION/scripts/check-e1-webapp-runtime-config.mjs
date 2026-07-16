@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const files = {
   migration: "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
   identityMigration: "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
+  historyMigration: "apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
   adapter: "apps/webapp/src/modules/system-settings/configAdapter.ts",
@@ -19,6 +20,7 @@ const files = {
   operationContext: "apps/webapp/src/infra/db/saasIsolationOperationContext.ts",
   pgRuntime: "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
   pgSystemSettings: "apps/webapp/src/infra/repos/pgSystemSettings.ts",
+  pgMaintenanceHistory: "apps/webapp/src/infra/repos/pgPatientMaintenanceHistory.ts",
   patientLayout: "apps/webapp/src/app/app/patient/layout.tsx",
   smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-e1-webapp-runtime-config.mjs",
   poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
@@ -92,8 +94,30 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.user_channel_bindings TO app_patient",
     "GRANT SELECT ON TABLE public.org_enrollments TO app_patient",
   ]);
+  requireText(files.historyMigration, loaded.historyMigration, [
+    "0195_e1_patient_maintenance_history",
+    "CREATE OR REPLACE FUNCTION app.read_current_patient_appointment_history()",
+    "RETURNS TABLE (", "SECURITY DEFINER", "SET search_path = pg_catalog",
+    "v_organization_id uuid := app.current_org_id()",
+    "v_patient_user_id uuid := app.current_patient_user_id()",
+    "FROM public.org_enrollments AS enrollment", "enrollment.status = 'active'",
+    "FROM public.be_appointments AS appointment",
+    "appointment.organization_id = v_organization_id",
+    "appointment.platform_user_id = v_patient_user_id",
+    "appointment.deleted_at IS NULL",
+    "specialist.organization_id = v_organization_id",
+    "branch.organization_id = v_organization_id",
+    "room.organization_id = v_organization_id",
+    "service.organization_id = v_organization_id",
+    "ORDER BY appointment.start_at DESC, appointment.id DESC", "LIMIT 100",
+    "REVOKE ALL ON FUNCTION app.read_current_patient_appointment_history() FROM PUBLIC",
+  ]);
+  forbidText(files.historyMigration, loaded.historyMigration, [
+    "OWNER TO app_owner", "TO app_patient", "p_organization_id", "p_patient_user_id",
+  ]);
   requireText(files.overlay, loaded.overlay, [
-    "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql", "e1_webapp_runtime_role",
+    "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
+    "0195_e1_patient_maintenance_history.sql", "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
     "REVOKE ALL PRIVILEGES ON FUNCTION",
@@ -109,14 +133,21 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner",
     "ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner",
     "ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner",
-    "GRANT SELECT ON TABLE\n  public.app_runtime_settings,\n  public.system_settings,\n  public.platform_users,\n  public.user_channel_bindings,\n  public.org_enrollments\n  TO app_owner",
+    "ALTER FUNCTION app.read_current_patient_appointment_history() OWNER TO app_owner",
+    "public.be_appointments", "public.be_specialists", "public.be_branches",
+    "public.be_rooms", "public.be_clinic_services", "TO app_owner",
     "REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account()\n  FROM app_patient CASCADE",
     "DO $acl_scrub$", "SELECT DISTINCT privilege.grantee, role.rolname",
     "privilege.grantee <> procedure.proowner",
     "privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
     "FROM PUBLIC CASCADE", "FROM %I CASCADE",
     "GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account()\n  TO app_patient",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_appointment_history()\n  FROM app_patient CASCADE",
+    "DO $history_acl_scrub$",
+    "GRANT EXECUTE ON FUNCTION app.read_current_patient_appointment_history()\n  TO app_patient",
+    "'app.read_current_patient_appointment_history()'::regprocedure",
     "'app.is_current_patient_test_account()'::regprocedure",
+    "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (",
     "privilege.grantee NOT IN (",
     "privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable",
     "NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')",
@@ -131,6 +162,11 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.platform_users TO app_patient",
     "GRANT SELECT ON TABLE public.user_channel_bindings TO app_patient",
     "GRANT SELECT ON TABLE public.org_enrollments TO app_patient",
+    "GRANT SELECT ON TABLE public.be_appointments TO app_patient",
+    "GRANT SELECT ON TABLE public.be_specialists TO app_patient",
+    "GRANT SELECT ON TABLE public.be_branches TO app_patient",
+    "GRANT SELECT ON TABLE public.be_rooms TO app_patient",
+    "GRANT SELECT ON TABLE public.be_clinic_services TO app_patient",
   ]);
   requireText(files.smoke, loaded.smoke, [
     "TO app_patient WITH GRANT OPTION",
@@ -143,6 +179,10 @@ function runChecks(overrides = {}) {
     "NOT has_function_privilege('${publicRole}','app.is_current_patient_test_account()','EXECUTE')",
     "NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE')",
     "psql(runtimeAcl);",
+    "0195_e1_patient_maintenance_history.sql",
+    "read_current_patient_appointment_history()",
+    "60000000-0000-4000-8000-000000000002",
+    "appointment_id IN (",
   ]);
   requireText(files.runtime, loaded.runtime, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
@@ -200,12 +240,20 @@ function runChecks(overrides = {}) {
     "SELECT app.is_current_patient_test_account() AS allowed",
   ]);
   requireText(files.patientLayout, loaded.patientLayout, [
-    'runWithWebappDbOperationFamily("patient_booking_history"',
-    "deps.clientHistory.listVisitHistory(patientOrganizationId, session.user.userId, 100)",
+    "deps.patientMaintenanceHistory.listCurrentPatientHistory()",
     "deps.systemSettings.isCurrentPatientTestAccount()",
   ]);
   forbidText(files.patientLayout, loaded.patientLayout, [
-    "patientBooking.listMyBookings", "isTestPatientSession", "test_account_identifiers",
+    "patientBooking.listMyBookings", "clientHistory.listVisitHistory",
+    "isTestPatientSession", "test_account_identifiers",
+  ]);
+  requireText(files.pgMaintenanceHistory, loaded.pgMaintenanceHistory, [
+    'runWithWebappDbOperationFamily("patient_booking_history"',
+    "SELECT * FROM app.read_current_patient_appointment_history()",
+    "result.rows.map(mapRow)",
+  ]);
+  forbidText(files.pgMaintenanceHistory, loaded.pgMaintenanceHistory, [
+    "be_appointments", "organizationId", "patientUserId", "platformUserId",
   ]);
   requireText(files.poolProvider, loaded.poolProvider, [
     'getCurrentWebappDbOperationFamily() ?? "webapp_db_request"',
@@ -250,6 +298,7 @@ function runChecks(overrides = {}) {
   requireText(files.journal, loaded.journal, [
     '"idx": 193', '"tag": "0193_e1_safe_runtime_config"',
     '"idx": 194', '"tag": "0194_e1_patient_identity_exception"',
+    '"idx": 195', '"tag": "0195_e1_patient_maintenance_history"',
   ]);
   requireText(files.dbRegression, loaded.dbRegression, [
     '"docs/_TODO/SAAS_FOUNDATION/scripts/check-e1-webapp-runtime-config.mjs"',
@@ -281,7 +330,12 @@ if (process.argv.includes("--self-test")) {
     ["identity active enrollment", { identityMigration: read(files.identityMigration).replace("enrollment.status = 'active'", "true") }],
     ["identity raw source grant", { identityMigration: `${read(files.identityMigration)}\nGRANT SELECT ON TABLE public.system_settings TO app_patient;\n` }],
     ["identity capability callsite", { pgSystemSettings: read(files.pgSystemSettings).replace("SELECT app.is_current_patient_test_account() AS allowed", "SELECT false AS allowed") }],
-    ["booking history attribution", { patientLayout: read(files.patientLayout).replace('runWithWebappDbOperationFamily("patient_booking_history"', 'runWithWebappDbOperationFamily("patient_runtime_config"') }],
+    ["history migration signed identity", { historyMigration: read(files.historyMigration).replace("app.current_patient_user_id()", "NULL::uuid") }],
+    ["history migration active enrollment", { historyMigration: read(files.historyMigration).replace("enrollment.status = 'active'", "true") }],
+    ["history migration bound", { historyMigration: read(files.historyMigration).replace("LIMIT 100", "") }],
+    ["history migration raw grant", { historyMigration: `${read(files.historyMigration)}\nGRANT SELECT ON TABLE public.be_appointments TO app_patient;\n` }],
+    ["booking history attribution", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace('runWithWebappDbOperationFamily("patient_booking_history"', 'runWithWebappDbOperationFamily("patient_runtime_config"') }],
+    ["booking history accessor", { pgMaintenanceHistory: read(files.pgMaintenanceHistory).replace("SELECT * FROM app.read_current_patient_appointment_history()", "SELECT * FROM be_appointments") }],
     ["legacy booking callsite", { patientLayout: `${read(files.patientLayout)}\nvoid patientBooking.listMyBookings;\n` }],
     ["oauth source cardinality", { migration: read(files.migration).replaceAll("count(*) FILTER (WHERE NULLIF(btrim(value_json->>'value'), '') IS NOT NULL) = 5", "true") }],
     ["public generic fallback", { adapter: read(files.adapter).replace("return envFallback;", "return getConfigBool(key, envFallback);") }],
@@ -301,8 +355,8 @@ if (process.argv.includes("--self-test")) {
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
     ["overlay stale accessor grant option", { overlay: read(files.overlay).replaceAll("AND NOT privilege.is_grantable", "AND privilege.is_grantable") }],
     ["patient capability stale grant option", { overlay: read(files.overlay).replace("FROM app_patient CASCADE", "FROM app_patient") }],
-    ["patient capability arbitrary grantee scrub", { overlay: read(files.overlay).replace("SELECT DISTINCT privilege.grantee, role.rolname", "SELECT DISTINCT 0::oid, NULL::text") }],
-    ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("privilege.grantee NOT IN (", "privilege.grantee IN (") }],
+    ["patient capability arbitrary grantee scrub", { overlay: read(files.overlay).replace("DO $acl_scrub$", "DO $removed_acl_scrub$") }],
+    ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (", "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee IN (") }],
     ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],
     ["patient capability adversarial smoke", { smoke: read(files.smoke).replace("TO app_patient WITH GRANT OPTION", "TO app_patient") }],
     ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],

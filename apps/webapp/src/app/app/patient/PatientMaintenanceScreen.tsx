@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import type { SessionUser } from "@/shared/types/session";
-import type { ClientVisitHistoryRow } from "@/modules/client-history/types";
+import type { PatientMaintenanceAppointment } from "@/modules/patient-booking/maintenanceHistory";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { buttonVariants } from "@/shared/ui/patient/primitives/button-variants";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
@@ -25,8 +25,7 @@ export type PatientMaintenanceBooking = {
   id: string;
   startAt: string;
   status: string;
-  serviceTitle: string | null;
-  branchTitle: string | null;
+  subtitle: string;
 };
 
 const ACTIVE_UPCOMING_STATUSES = new Set([
@@ -39,19 +38,18 @@ const ACTIVE_UPCOMING_STATUSES = new Set([
 ]);
 
 export function selectMaintenanceUpcomingBookings(
-  rows: ClientVisitHistoryRow[],
+  rows: PatientMaintenanceAppointment[],
   now: Date = new Date(),
 ): PatientMaintenanceBooking[] {
   const threshold = now.getTime();
   return rows
     .filter((row) => ACTIVE_UPCOMING_STATUSES.has(row.status) && Date.parse(row.startAt) >= threshold)
     .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt))
-    .map(({ appointmentId, startAt, status, serviceTitle, branchTitle }) => ({
-      id: appointmentId,
+    .map(({ id, startAt, status, subtitle }) => ({
+      id,
       startAt,
       status,
-      serviceTitle,
-      branchTitle,
+      subtitle,
     }));
 }
 
@@ -116,7 +114,7 @@ export function PatientMaintenanceScreen({
                     {formatBookingDateTimeMediumRu(row.startAt, appDisplayTimeZone)}
                   </p>
                   <p className={cn(patientMutedTextClass, "mt-1 truncate text-xs")}>
-                    {[row.serviceTitle, row.branchTitle].filter(Boolean).join(" · ") || "Приём"}
+                    {row.subtitle}
                   </p>
                 </li>
               ))}

@@ -7,6 +7,16 @@ const zeroMetrics = {
   uniquePlaybackPairsFirstSeenInWindow: 0,
 };
 
+const zeroHlsProxyMetrics = {
+  windowHours: 24 as const,
+  errorsTotal24h: 0,
+  errorsTotal1h: 0,
+  byReason: {} as Record<string, number>,
+  byReasonLast1h: {} as Record<string, number>,
+  degraded: false,
+  recent: [] as [],
+};
+
 const zeroTranscodeMetrics = {
   pendingCount: 0,
   processingCount: 0,
@@ -57,11 +67,7 @@ const {
   poolQueryMock,
   getConfigBoolMock,
   loadCuratedPlaybackHealthSnapshotMock,
-  loadAdminPlaybackClientHealthMetricsMock,
-  loadAdminHlsProxyHealthMetricsMock,
   loadAdminTranscodeHealthMetricsMock,
-  loadAdminMediaPreviewGroupedCountsMock,
-  loadAdminMediaPreviewStalePendingCountMock,
   listOpenIncidentsMock,
   listBackupJobStatusMock,
   getOutgoingDeliveryQueueHealthMock,
@@ -85,11 +91,7 @@ const {
   poolQueryMock: vi.fn(),
   getConfigBoolMock: vi.fn(),
   loadCuratedPlaybackHealthSnapshotMock: vi.fn(),
-  loadAdminPlaybackClientHealthMetricsMock: vi.fn(),
-  loadAdminHlsProxyHealthMetricsMock: vi.fn(),
   loadAdminTranscodeHealthMetricsMock: vi.fn(),
-  loadAdminMediaPreviewGroupedCountsMock: vi.fn(),
-  loadAdminMediaPreviewStalePendingCountMock: vi.fn(),
   listOpenIncidentsMock: vi.fn(),
   listBackupJobStatusMock: vi.fn(),
   getOutgoingDeliveryQueueHealthMock: vi.fn(),
@@ -167,22 +169,12 @@ vi.mock("@/app-layer/media/adminPlaybackHealthMetrics", () => ({
   ADMIN_PLAYBACK_METRICS_WINDOW_HOURS: 24,
 }));
 
-vi.mock("@/app-layer/media/playbackClientEvents", () => ({
-  loadAdminPlaybackClientHealthMetrics: loadAdminPlaybackClientHealthMetricsMock,
-}));
-
 vi.mock("@/app-layer/media/adminHlsProxyHealthMetrics", () => ({
-  loadAdminHlsProxyHealthMetrics: loadAdminHlsProxyHealthMetricsMock,
   ADMIN_HLS_PROXY_METRICS_WINDOW_HOURS: 24,
 }));
 
 vi.mock("@/app-layer/media/adminTranscodeHealthMetrics", () => ({
   loadAdminTranscodeHealthMetrics: loadAdminTranscodeHealthMetricsMock,
-}));
-
-vi.mock("@/infra/repos/pgAdminMediaPreviewHealth", () => ({
-  loadAdminMediaPreviewGroupedCounts: loadAdminMediaPreviewGroupedCountsMock,
-  loadAdminMediaPreviewStalePendingCount: loadAdminMediaPreviewStalePendingCountMock,
 }));
 
 vi.mock("@/app-layer/health/adminReminderPipelineMetrics", () => ({
@@ -229,48 +221,10 @@ describe("GET /api/admin/system-health", () => {
     loadCuratedPlaybackHealthSnapshotMock.mockResolvedValue({
       "24": zeroMetrics,
       "1": zeroMetrics,
-    });
-    loadAdminPlaybackClientHealthMetricsMock.mockReset();
-    loadAdminPlaybackClientHealthMetricsMock.mockResolvedValue({
-      windowHours: 24,
-      totalErrors: 0,
-      totalErrorsLast1h: 0,
-      byEvent: {
-        hls_fatal: 0,
-        video_error: 0,
-        hls_import_failed: 0,
-        playback_refetch_failed: 0,
-        playback_refetch_exception: 0,
-        hls_js_unsupported: 0,
-      },
-      byEventLast1h: {
-        hls_fatal: 0,
-        video_error: 0,
-        hls_import_failed: 0,
-        playback_refetch_failed: 0,
-        playback_refetch_exception: 0,
-        hls_js_unsupported: 0,
-      },
-      byDelivery: { hls: 0, mp4: 0, file: 0 },
-      likelyLooping: false,
-      recent: [],
-    });
-    loadAdminHlsProxyHealthMetricsMock.mockReset();
-    loadAdminHlsProxyHealthMetricsMock.mockResolvedValue({
-      windowHours: 24,
-      errorsTotal24h: 0,
-      errorsTotal1h: 0,
-      byReason: {},
-      byReasonLast1h: {},
-      degraded: false,
-      recent: [],
+      hlsProxy: zeroHlsProxyMetrics,
     });
     loadAdminTranscodeHealthMetricsMock.mockReset();
     loadAdminTranscodeHealthMetricsMock.mockResolvedValue(zeroTranscodeMetrics);
-    loadAdminMediaPreviewGroupedCountsMock.mockReset();
-    loadAdminMediaPreviewGroupedCountsMock.mockResolvedValue([]);
-    loadAdminMediaPreviewStalePendingCountMock.mockReset();
-    loadAdminMediaPreviewStalePendingCountMock.mockResolvedValue(0);
     listOpenIncidentsMock.mockReset();
     listBackupJobStatusMock.mockReset();
     getOutgoingDeliveryQueueHealthMock.mockReset();
@@ -324,6 +278,38 @@ describe("GET /api/admin/system-health", () => {
           smtpConfigured: false,
         },
         videoTranscode: transcode,
+        mediaPreview: {
+          stalePendingCount: 0,
+          byMimeAndStatus: {
+            "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+            "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+            "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          },
+        },
+        videoPlaybackClient: {
+          windowHours: 24,
+          totalErrors: 0,
+          totalErrorsLast1h: 0,
+          byEvent: {
+            hls_fatal: 0,
+            video_error: 0,
+            hls_import_failed: 0,
+            playback_refetch_failed: 0,
+            playback_refetch_exception: 0,
+            hls_js_unsupported: 0,
+          },
+          byEventLast1h: {
+            hls_fatal: 0,
+            video_error: 0,
+            hls_import_failed: 0,
+            playback_refetch_failed: 0,
+            playback_refetch_exception: 0,
+            hls_js_unsupported: 0,
+          },
+          byDelivery: { hls: 0, mp4: 0, file: 0 },
+          likelyLooping: false,
+          recent: [],
+        },
         operatorJobs: [
           ...jobs.map((job) => ({
             jobKey: job.jobKey,
@@ -642,6 +628,13 @@ describe("GET /api/admin/system-health", () => {
         uniquePlaybackPairsFirstSeenInWindow: 4,
       },
       "1": zeroMetrics,
+      hlsProxy: {
+        ...zeroHlsProxyMetrics,
+        errorsTotal24h: 2,
+        errorsTotal1h: 1,
+        byReason: { missing_object: 2 },
+        byReasonLast1h: { missing_object: 1 },
+      },
     });
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, db: "up" }), {
@@ -671,6 +664,7 @@ describe("GET /api/admin/system-health", () => {
         playbackApiEnabled: boolean;
         uniquePlaybackPairsFirstSeenInWindow: number;
       };
+      videoHlsProxy: { errorsTotal24h: number; errorsTotal1h: number };
     };
     expect(loadCuratedPlaybackHealthSnapshotMock).toHaveBeenCalledTimes(1);
     expect(body.videoPlayback.playbackApiEnabled).toBe(true);
@@ -678,6 +672,7 @@ describe("GET /api/admin/system-health", () => {
     expect(body.videoPlayback.totalResolutions).toBe(6);
     expect(body.videoPlayback.fallbackTotal).toBe(3);
     expect(body.videoPlayback.uniquePlaybackPairsFirstSeenInWindow).toBe(4);
+    expect(body.videoHlsProxy).toMatchObject({ errorsTotal24h: 2, errorsTotal1h: 1 });
   });
 
   it("returns videoPlayback error shell when curated playback aggregate fails", async () => {
