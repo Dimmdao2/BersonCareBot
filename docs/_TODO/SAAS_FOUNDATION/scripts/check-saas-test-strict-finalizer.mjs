@@ -291,7 +291,7 @@ function runSelfTest() {
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replaceAll("--mode=locked", "--mode=dormant") },
     { hard: baseline.hard.replace('webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"', 'webapp_runtime_role="$(discover_webapp_migrator_role)"') },
-    { hard: baseline.hard.replace('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },
+    { hard: baseline.hard.replaceAll('api_runtime_role="$(discover_api_runtime_role)"', 'api_runtime_role="$(discover_webapp_bootstrap_base_role)"') },
     { hard: baseline.hard.replace("  assert_locked_product_smoke_fixture_ready\n  fixture_path=", "  fixture_path=") },
     { fixtureValidator: baseline.fixtureValidator.replace('[ "$fixture_path" = "$canonical_fixture" ]', "true") },
     { fixtureValidator: baseline.fixtureValidator.replace('"$canonical_source"|"$canonical_source"/*|"$canonical_deploy"|"$canonical_deploy"/*)', '"$canonical_source-never")') },
