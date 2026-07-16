@@ -20,6 +20,7 @@ const files = {
   pgRuntime: "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
   pgSystemSettings: "apps/webapp/src/infra/repos/pgSystemSettings.ts",
   patientLayout: "apps/webapp/src/app/app/patient/layout.tsx",
+  smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-e1-webapp-runtime-config.mjs",
   poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
   poolProviderTest: "apps/webapp/src/infra/db/webappPoolProvider.test.ts",
   diagnostics: "apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts",
@@ -109,9 +110,18 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner",
     "ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner",
     "GRANT SELECT ON TABLE\n  public.app_runtime_settings,\n  public.system_settings,\n  public.platform_users,\n  public.user_channel_bindings,\n  public.org_enrollments\n  TO app_owner",
-    "REVOKE ALL ON FUNCTION app.is_current_patient_test_account()",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account()\n  FROM app_patient CASCADE",
+    "DO $acl_scrub$", "SELECT DISTINCT privilege.grantee, role.rolname",
+    "privilege.grantee <> procedure.proowner",
+    "privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
+    "FROM PUBLIC CASCADE", "FROM %I CASCADE",
     "GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account()\n  TO app_patient",
     "'app.is_current_patient_test_account()'::regprocedure",
+    "privilege.grantee NOT IN (",
+    "privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable",
+    "NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')",
+    "NOT pg_has_role('app_staff', 'app_owner', 'MEMBER')",
+    "NOT pg_has_role(:'e1_webapp_runtime_role', 'app_owner', 'MEMBER')",
     "REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient",
     "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient",
   ]);
@@ -121,6 +131,18 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.platform_users TO app_patient",
     "GRANT SELECT ON TABLE public.user_channel_bindings TO app_patient",
     "GRANT SELECT ON TABLE public.org_enrollments TO app_patient",
+  ]);
+  requireText(files.smoke, loaded.smoke, [
+    "TO app_patient WITH GRANT OPTION",
+    `TO \${arbitraryRole}`,
+    "SET SESSION AUTHORIZATION app_patient",
+    "TO PUBLIC",
+    "FROM app_patient CASCADE",
+    "DO $acl_scrub$",
+    "GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO ${arbitraryRole}",
+    "NOT has_function_privilege('${publicRole}','app.is_current_patient_test_account()','EXECUTE')",
+    "NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE')",
+    "psql(runtimeAcl);",
   ]);
   requireText(files.runtime, loaded.runtime, [
     '"public_auth_config"', '"patient_runtime_config"', '"public_booking_config"',
@@ -278,6 +300,11 @@ if (process.argv.includes("--self-test")) {
     ["overlay effective source-table denial", { overlay: read(files.overlay).replace("'public.system_settings',\n    'SELECT'", "'public.system_settings',\n    'UPDATE'") }],
     ["overlay stale effective ACL predicate", { overlay: `${read(files.overlay)}\nSELECT NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT');\n` }],
     ["overlay stale accessor grant option", { overlay: read(files.overlay).replaceAll("AND NOT privilege.is_grantable", "AND privilege.is_grantable") }],
+    ["patient capability stale grant option", { overlay: read(files.overlay).replace("FROM app_patient CASCADE", "FROM app_patient") }],
+    ["patient capability arbitrary grantee scrub", { overlay: read(files.overlay).replace("SELECT DISTINCT privilege.grantee, role.rolname", "SELECT DISTINCT 0::oid, NULL::text") }],
+    ["patient capability final ACL allowlist", { overlay: read(files.overlay).replace("privilege.grantee NOT IN (", "privilege.grantee IN (") }],
+    ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],
+    ["patient capability adversarial smoke", { smoke: read(files.smoke).replace("TO app_patient WITH GRANT OPTION", "TO app_patient") }],
     ["migration diagnostics allowlist", { migrateWrapper: read(files.migrateWrapper).replace("console.error(diagnostic);", "console.error(result.stderr);") }],
   ];
   let detected = 0;

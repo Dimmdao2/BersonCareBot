@@ -27,8 +27,38 @@ REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
   FROM PUBLIC, app_patient, app_staff;
-REVOKE ALL ON FUNCTION app.is_current_patient_test_account()
-  FROM PUBLIC, app_staff, :"e1_webapp_runtime_role";
+-- Reset the patient capability ACL exactly. Revoke app_patient first WITH CASCADE so any grants it
+-- delegated while holding a stale grant option disappear before the remaining direct grantees are
+-- enumerated. Then remove every explicit non-owner/non-patient ACL entry, including unknown roles.
+REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account()
+  FROM app_patient CASCADE;
+DO $acl_scrub$
+DECLARE
+  v_grantee_oid oid;
+  v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+      AND privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account() FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$acl_scrub$;
 REVOKE ALL PRIVILEGES ON FUNCTION
   app.read_public_runtime_setting(text, text),
   app.read_webapp_server_runtime_setting(text, text)
@@ -133,4 +163,28 @@ SELECT 1 / (
       AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
       AND NOT privilege.is_grantable
   )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+      AND privilege.grantee NOT IN (
+        procedure.proowner,
+        (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+      AND (privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)
+  )
+  AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')
+  AND NOT pg_has_role('app_staff', 'app_owner', 'MEMBER')
+  AND NOT pg_has_role(:'e1_webapp_runtime_role', 'app_owner', 'MEMBER')
 )::int AS e1_webapp_runtime_acl_closed;

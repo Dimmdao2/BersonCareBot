@@ -6,9 +6,11 @@ const suffix = `${process.pid}_${Date.now()}`;
 const db = `bcb_saas_e1_config_scratch_${suffix}`;
 const publicRole = `bcb_e1_public_${suffix}`;
 const migrationOwner = `bcb_e1_owner_${suffix}`;
+const arbitraryRole = `bcb_e1_arbitrary_${suffix}`;
 if (!db.startsWith("bcb_saas_") || !db.includes("scratch")) throw new Error("unsafe scratch name");
 if (!/^bcb_e1_public_[0-9_]+$/.test(publicRole)) throw new Error("unsafe scratch role name");
 if (!/^bcb_e1_owner_[0-9_]+$/.test(migrationOwner)) throw new Error("unsafe scratch owner name");
+if (!/^bcb_e1_arbitrary_[0-9_]+$/.test(arbitraryRole)) throw new Error("unsafe scratch role name");
 
 function run(args, input) {
   const result = spawnSync("sudo", ["-n", "-u", "postgres", ...args], { encoding: "utf8", input });
@@ -96,9 +98,8 @@ GRANT USAGE ON SCHEMA app TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${publicRole};
 GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text) TO ${publicRole};
 SELECT 1 / (NOT has_table_privilege('${publicRole}','public.system_settings','SELECT'))::int;
--- Reproduce the TEST pre-D3.4 state: the base login still inherits app_patient,
--- so effective projection SELECT is expected even though E1 grants no table ACL directly.
-SELECT 1 / has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT')::int;
+-- Bootstrap remains NOINHERIT: only the reviewed SECURITY DEFINER accessor is callable.
+SELECT 1 / (NOT has_table_privilege('${publicRole}','public.app_runtime_settings','SELECT'))::int;
 SELECT 1 / (NOT EXISTS (
   SELECT 1
   FROM pg_class AS relation
@@ -144,6 +145,32 @@ SELECT 1 / has_table_privilege('app_patient','public.app_runtime_settings','SELE
 SELECT 1 / (NOT has_function_privilege('app_patient','app.read_webapp_server_runtime_setting(text,text)','EXECUTE'))::int;
 SELECT 1 / has_function_privilege('app_patient','app.is_current_patient_test_account()','EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege('app_staff','app.is_current_patient_test_account()','EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege('${publicRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
+SELECT 1 / (NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
+SELECT 1 / ((
+  SELECT count(*)
+  FROM pg_proc AS procedure
+  CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) AS privilege
+  WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+    AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname='app_patient')
+    AND privilege.privilege_type = 'EXECUTE'
+    AND NOT privilege.is_grantable
+) = 1)::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_proc AS procedure
+  CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) AS privilege
+  WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+    AND (
+      privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname='app_patient'))
+      OR privilege.privilege_type <> 'EXECUTE'
+      OR privilege.is_grantable
+    )
+))::int;
+SELECT 1 / (NOT pg_has_role('app_patient','app_owner','MEMBER'))::int;
+SELECT 1 / (NOT pg_has_role('app_staff','app_owner','MEMBER'))::int;
+SELECT 1 / (NOT pg_has_role('${publicRole}','app_owner','MEMBER'))::int;
+SELECT 1 / (NOT pg_has_role('${arbitraryRole}','app_owner','MEMBER'))::int;
 SELECT 1 / (NOT has_table_privilege('app_patient','public.system_settings','SELECT'))::int;
 INSERT INTO app.principal_context VALUES (
   pg_backend_pid(),
@@ -216,11 +243,39 @@ GRANT SELECT ON TABLE public.system_settings, public.platform_users,
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
+GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient WITH GRANT OPTION;
+GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO ${arbitraryRole};
+SET SESSION AUTHORIZATION app_patient;
+GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO PUBLIC;
+RESET SESSION AUTHORIZATION;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings FROM ${publicRole};
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC, app_patient, app_staff;
-REVOKE ALL ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC, app_staff, ${publicRole};
+REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account() FROM app_patient CASCADE;
+DO $acl_scrub$
+DECLARE v_grantee_oid oid; v_grantee_name text;
+BEGIN
+  FOR v_grantee_oid, v_grantee_name IN
+    SELECT DISTINCT privilege.grantee, role.rolname
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) AS privilege
+    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
+    WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure
+      AND privilege.grantee <> procedure.proowner
+      AND privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
+  LOOP
+    IF v_grantee_oid = 0 THEN
+      EXECUTE 'REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account() FROM PUBLIC CASCADE';
+    ELSE
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account() FROM %I CASCADE',
+        v_grantee_name
+      );
+    END IF;
+  END LOOP;
+END
+$acl_scrub$;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient;
 `;
 
@@ -231,6 +286,7 @@ function asMigrationOwner(sql) {
 try {
   run(["createuser", "--no-login", publicRole]);
   run(["createuser", "--no-login", migrationOwner]);
+  run(["createuser", "--no-login", arbitraryRole]);
   run(["createdb", "--owner", migrationOwner, db]);
   psql(`SELECT 1 / (NOT pg_has_role('${migrationOwner}', 'app_owner', 'MEMBER'))::int;`);
   psql(asMigrationOwner(setup));
@@ -244,7 +300,7 @@ try {
   psql(runtimeAcl);
   psql(`
     ALTER ROLE ${publicRole} INHERIT;
-    GRANT app_patient TO ${publicRole} WITH INHERIT TRUE, SET TRUE;
+    GRANT app_patient TO ${publicRole} WITH INHERIT FALSE, SET TRUE;
     SELECT 1 / (EXISTS (
       SELECT 1
       FROM pg_auth_members AS membership
@@ -252,15 +308,25 @@ try {
       JOIN pg_roles AS member_role ON member_role.oid = membership.member
       WHERE granted_role.rolname = 'app_patient'
         AND member_role.rolname = '${publicRole}'
-        AND membership.inherit_option
+        AND NOT membership.inherit_option
         AND membership.set_option
         AND NOT membership.admin_option
     ))::int;
   `);
   psql(proof);
+  psql(runtimeAcl);
+  psql(`
+    SELECT 1 / (NOT has_function_privilege('${publicRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
+    SELECT 1 / (NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
+    SET SESSION AUTHORIZATION app_patient;
+    GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO ${arbitraryRole};
+    RESET SESSION AUTHORIZATION;
+    SELECT 1 / (NOT has_function_privilege('${arbitraryRole}','app.is_current_patient_test_account()','EXECUTE'))::int;
+  `);
   console.log("smoke-e1-webapp-runtime-config: OK");
 } finally {
   run(["dropdb", "--if-exists", db]);
   run(["dropuser", "--if-exists", publicRole]);
   run(["dropuser", "--if-exists", migrationOwner]);
+  run(["dropuser", "--if-exists", arbitraryRole]);
 }
