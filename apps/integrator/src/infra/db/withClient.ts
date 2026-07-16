@@ -5,6 +5,7 @@ import {
 	buildDbPrincipalApplyOptionsFromEnv,
 	clearDbPrincipalFromConnection,
 	getCurrentDbPrincipal,
+	setDbOperationalRuntimeRole,
 	type DbPrincipal,
 	type DbPrincipalApplyOptions,
 } from '@bersoncare/db-principal';
@@ -68,7 +69,7 @@ export async function prepareIntegratorTechnicalPoolClient(
 ): Promise<void> {
 	if (options.mode !== 'locked') return;
 	const role = getCurrentIntegratorTechnicalRuntimeRole();
-	if (role !== undefined) await client.query(`SET ROLE ${role}`);
+	if (role !== undefined) await setDbOperationalRuntimeRole(client, role);
 }
 
 function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {

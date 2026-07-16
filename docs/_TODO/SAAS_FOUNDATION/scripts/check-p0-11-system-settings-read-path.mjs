@@ -25,6 +25,12 @@ function assertContains(name, text, needle) {
   }
 }
 
+function assertNotContains(name, text, needle) {
+  if (text.includes(needle)) {
+    throw new Error(`${name} contains forbidden text: ${needle}`);
+  }
+}
+
 function runChecks(overrides = {}) {
   const ports = overrides.ports ?? read(files.ports);
   const service = overrides.service ?? read(files.service);
@@ -61,21 +67,25 @@ function runChecks(overrides = {}) {
 
   assertContains(files.mediaPipeline, mediaPipeline, "readServerRuntimeBoolean");
   assertContains(files.mediaWatermark, mediaWatermark, "readServerRuntimeBoolean");
-  assertContains(files.mediaServerRuntime, mediaServerRuntime, "FROM public.app_runtime_settings");
-  assertContains(files.mediaServerRuntime, mediaServerRuntime, "audience = 'server'");
-  assertContains(files.mediaServerRuntime, mediaServerRuntime, "organization_id IS NULL");
+  assertContains(files.mediaServerRuntime, mediaServerRuntime, "app.read_media_worker_runtime_setting($1)");
+  assertContains(files.mediaServerRuntime, mediaServerRuntime, "[key]");
+  assertNotContains(files.mediaServerRuntime, mediaServerRuntime, "public.app_runtime_settings");
+  assertNotContains(files.mediaServerRuntime, mediaServerRuntime, "public.system_settings");
   assertContains(files.accessorGuard, accessorGuard, '"apps/media-worker/src"');
 }
 
 if (process.argv.includes("--self-test")) {
-  const mediaServerRuntime = read(files.mediaServerRuntime).replace("audience = 'server'", "audience <> 'server'");
+  const mediaServerRuntime = read(files.mediaServerRuntime).replace(
+    "app.read_media_worker_runtime_setting($1)",
+    "public.app_runtime_settings",
+  );
   try {
     runChecks({ mediaServerRuntime });
   } catch {
     console.log("check-p0-11-system-settings-read-path self-test: OK");
     process.exit(0);
   }
-  throw new Error("self-test did not detect a broadened media-worker runtime audience query");
+  throw new Error("self-test did not detect a direct media-worker runtime table read");
 }
 
 try {

@@ -14,7 +14,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm run build && pnpm run test:type && node --test test/operational-runtime-role.test.mjs",
+    "test:type": "tsc -p tsconfig.type-tests.json"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",

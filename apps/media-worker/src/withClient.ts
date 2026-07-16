@@ -5,6 +5,7 @@ import {
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   getCurrentDbPrincipal,
+  setDbOperationalRuntimeRole,
   type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
@@ -53,7 +54,7 @@ async function prepareMediaWorkerClient(
 ): Promise<void> {
   await applyCurrentDbPrincipalToConnection(client, options);
   if (options.mode === "locked") {
-    await client.query("SET ROLE app_operational_media_worker");
+    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
   }
 }
 
@@ -63,7 +64,7 @@ async function prepareMediaWorkerTransactionClient(
 ): Promise<void> {
   await applyCurrentDbPrincipalToTransaction(client, options);
   if (options.mode === "locked") {
-    await client.query("SET ROLE app_operational_media_worker");
+    await setDbOperationalRuntimeRole(client, "app_operational_media_worker");
   }
 }
 

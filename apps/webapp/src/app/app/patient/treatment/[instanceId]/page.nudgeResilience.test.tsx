@@ -61,6 +61,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listRulesByUser: vi.fn(async () => []),
     },
     runtimeConfig: {
+      getBoolean: vi.fn(async () => false),
       getInteger: vi.fn(async () => 0),
     },
     systemSettings: {
