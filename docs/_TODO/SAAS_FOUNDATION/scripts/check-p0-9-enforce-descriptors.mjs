@@ -247,6 +247,29 @@ for (const table of ["public.platform_user_contacts", "public.user_phone_history
 
 const bootstrapGlobal = getP09EnforceDescriptorByTable("public.platform_users");
 
+const runtimeAudience = getP09EnforceDescriptorByTable("public.app_runtime_settings");
+const runtimeAudienceSql = renderP09EnforcePolicyStatements(runtimeAudience).join("\n");
+
+if (runtimeAudience.enforceMode.action !== "bootstrap_runtime_audience") {
+  fail("P0.9 app_runtime_settings must use bootstrap_runtime_audience enforce action");
+}
+
+assertIncludes(
+  runtimeAudienceSql,
+  `"audience" IN ('public', 'authenticated_client')`,
+  "P0.9 runtime config must allow only client-safe audiences",
+);
+assertIncludes(
+  runtimeAudienceSql,
+  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
+  "P0.9 runtime config tenant rows must require matching protected organization context",
+);
+assertNotIncludes(
+  runtimeAudienceSql,
+  "'server'",
+  "P0.9 runtime config generic bootstrap policy must never expose server audience",
+);
+
 if (bootstrapGlobal.enforceMode.action !== "bootstrap_global_read") {
   fail("P0.9 bootstrap global rows must use bootstrap_global_read");
 }
@@ -284,7 +307,7 @@ assertNoRawContextSettingsInGeneratedPolicySql(
 console.log(
   [
     "P0.9 enforce descriptors OK:",
-    "232 descriptors,",
+    "233 descriptors,",
     "missing/unknown deny,",
     "SCOPED enforce app.org,",
     "BOOTSTRAP explicit pre-context behavior,",

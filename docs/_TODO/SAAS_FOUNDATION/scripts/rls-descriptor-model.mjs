@@ -42,6 +42,10 @@ const bootstrapHybridOrgGatedTables = new Set([
   "public.user_phone_history",
 ]);
 
+const bootstrapRuntimeAudienceTables = new Set([
+  "public.app_runtime_settings",
+]);
+
 function readLines(path) {
   return readFileSync(path, "utf8").trimEnd().split("\n").filter(Boolean);
 }
@@ -152,6 +156,18 @@ function scopedDescriptorForBeTable(table) {
 }
 
 function bootstrapDescriptor(table) {
+  if (bootstrapRuntimeAudienceTables.has(table)) {
+    return {
+      tier: "BOOTSTRAP",
+      scopingKind: "bootstrap_runtime_audience",
+      predicateTemplate: "safe_audience_global_or_tenant_row",
+      orgColumn: "organization_id",
+      audienceColumn: "audience",
+      safeAudiences: ["public", "authenticated_client"],
+      source: "runtime_config_safe_audience_global_or_tenant_row",
+    };
+  }
+
   if (bootstrapHybridOrgGatedTables.has(table)) {
     return {
       tier: "BOOTSTRAP",
