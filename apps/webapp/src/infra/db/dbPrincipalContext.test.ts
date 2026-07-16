@@ -8,6 +8,7 @@ import {
   getCurrentDbPrincipalOrganizationId,
   normalizeDbPrincipalOrganizationId,
   runWithDbOrganizationPrincipal,
+  runWithDbPatientPrincipal,
 } from "@bersoncare/db-principal";
 import { describe, expect, it, vi } from "vitest";
 
@@ -34,6 +35,20 @@ describe("DB principal context", () => {
       });
 
       expect(getCurrentDbPrincipalOrganizationId()).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    });
+
+    expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("exposes the selected organization from a patient principal without inventing one", () => {
+    const platformUserId = "aaaaaaaa-aaaa-4aaa-8aaa-000000000001";
+    const organizationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    runWithDbPatientPrincipal({ platformUserId }, () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+    });
+    runWithDbPatientPrincipal({ platformUserId, organizationId }, () => {
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(organizationId);
     });
 
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();

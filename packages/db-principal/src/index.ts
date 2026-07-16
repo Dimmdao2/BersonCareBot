@@ -275,6 +275,12 @@ export function getCurrentDbPrincipal(): DbPrincipal | undefined {
 
 export function getCurrentDbPrincipalOrganizationId(): string | undefined {
   const principal = getCurrentDbPrincipal();
+  // A patient identity may be organization-agnostic (multi-clinic overview) or carry the
+  // application-selected organization for clinic-specific screens. Expose only that explicit
+  // selection; never derive or guess an organization here.
+  if (principal?.kind === "patient") {
+    return principal.organizationId;
+  }
   return isOrganizationScopedPrincipal(principal) ? principal.organizationId : undefined;
 }
 

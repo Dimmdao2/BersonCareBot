@@ -9,6 +9,7 @@ import type {
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 import type { WebappSqlExecutor } from "@/infra/db/runWebappSql";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 type SystemSettingRow = {
   key: string;
@@ -35,6 +36,16 @@ type SystemSettingValueRow = {
   organization_id?: string | null;
   value_json: unknown;
 };
+
+const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
+  "patient_home_mood_icons",
+  "patient_home_daily_warmup_repeat_cooldown_minutes",
+  "patient_home_daily_warmup_rotation_enabled",
+  "patient_home_daily_warmup_rotation_times",
+  "patient_home_daily_practice_target",
+  "notifications_topics",
+  "patient_default_promo_treatment_program_template_id",
+]);
 
 function parseSettingEnvelopeValue(valueJson: unknown): unknown | null {
   if (valueJson === null || typeof valueJson !== "object" || Array.isArray(valueJson)) return null;
@@ -206,6 +217,16 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
+      if (getCurrentDbPrincipal()?.kind === "patient" && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
+        const result = await runWithWebappDbOperationFamily("patient_ui_config", () =>
+          runWebappPgText<SystemSettingRow>(
+            `SELECT key, scope, organization_id, value_json, updated_at, updated_by
+               FROM app.read_current_patient_ui_setting($1, $2)`,
+            [key, scope],
+          ),
+        );
+        return result.rows[0] ? rowToSetting(result.rows[0]) : null;
+      }
       const organizationId = options.organizationId?.trim() || null;
       const r = organizationId
         ? await runWebappPgText<SystemSettingRow>(

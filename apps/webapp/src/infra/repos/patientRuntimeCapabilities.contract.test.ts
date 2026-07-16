@@ -38,4 +38,26 @@ describe("locked patient runtime capabilities", () => {
     expect(analyticsMigration).toContain("push.organization_id = v_org");
     expect(analyticsMigration).toContain("push.user_id = v_patient");
   });
+
+  it("keeps patient UI settings and calendar writes behind signed bounded capabilities", () => {
+    const migration = text("../../../db/drizzle-migrations/0202_current_patient_ui_capabilities.sql");
+    const overlay = text("../../../../../deploy/postgres/e1-webapp-runtime-config.sql");
+    const settings = text("./pgSystemSettings.ts");
+    const timezone = text("./pgPatientCalendarTimezone.ts");
+
+    expect(migration).toContain("app.read_current_patient_ui_setting");
+    expect(migration).toContain("app.set_current_patient_calendar_timezone");
+    expect(migration).toContain("v_patient_user_id uuid := app.current_patient_user_id()");
+    expect(migration).toContain("v_organization_id uuid := app.current_org_id()");
+    expect(migration).toContain("enrollment.status = 'active'");
+    expect(migration).toContain("platform_user.id = v_patient_user_id");
+    expect(migration).toContain("NOT p_only_if_empty OR platform_user.calendar_timezone IS NULL");
+    expect(migration).toContain("pg_catalog.pg_timezone_names");
+    expect(migration).not.toContain("p_patient_user_id");
+    expect(migration).not.toContain("p_organization_id");
+    expect(overlay).toContain("NOT has_table_privilege('app_patient','public.system_settings','SELECT')");
+    expect(overlay).toContain("NOT has_table_privilege('app_patient','public.platform_users','UPDATE')");
+    expect(settings).toContain('runWithWebappDbOperationFamily("patient_ui_config"');
+    expect(timezone).toContain('runWithWebappDbOperationFamily("patient_calendar_timezone"');
+  });
 });

@@ -57,6 +57,23 @@ USING (
   )
   );
 
+  DROP POLICY IF EXISTS patient_visible_current_org_select ON public.content_pages;
+  CREATE POLICY patient_visible_current_org_select ON public.content_pages
+FOR SELECT
+USING (
+  app.current_patient_user_id() IS NOT NULL
+  AND organization_id = app.current_org_id()
+  AND is_published = true
+  AND archived_at IS NULL
+  AND deleted_at IS NULL
+  AND EXISTS (
+    SELECT 1 FROM public.org_enrollments AS enrollment
+    WHERE enrollment.organization_id = app.current_org_id()
+      AND enrollment.platform_user_id = app.current_patient_user_id()
+      AND enrollment.status = 'active'
+  )
+  );
+
   DROP POLICY IF EXISTS patient_current_org_select ON public.content_section_slug_history;
   CREATE POLICY patient_current_org_select ON public.content_section_slug_history
 FOR SELECT

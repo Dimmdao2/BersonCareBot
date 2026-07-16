@@ -344,6 +344,10 @@ describe("webapp pool provider", () => {
     "patient_identity_exception_check",
     "patient_booking_history",
     "patient_product_analytics",
+    "patient_ui_config",
+    "patient_calendar_timezone",
+    "patient_content_catalog",
+    "patient_diary",
   ] as const)("preserves the %s operation family through an async pool query failure", async (family) => {
     const rlsError = Object.assign(
       new Error("new row violates row-level security policy for table projected"),

@@ -20,6 +20,7 @@ import {
   readSystemSettingInnerValueByScopes,
 } from "./pgSystemSettings";
 import { getCurrentWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import { runWithDbPatientPrincipal } from "@bersoncare/db-principal";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,37 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(sql).toContain("key = $1 AND scope = $2");
     expect(sql).toContain("organization_id IS NULL");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["support_contact_url", "admin"]);
+  });
+
+  it("routes allowlisted patient UI reads through the signed current-patient capability", async () => {
+    runWebappPgTextMock.mockImplementationOnce(async () => {
+      expect(getCurrentWebappDbOperationFamily()).toBe("patient_ui_config");
+      return {
+        rows: [{
+          key: "patient_home_mood_icons",
+          scope: "admin",
+          organization_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          value_json: { value: [] },
+          updated_at: "2026-07-16T00:00:00.000Z",
+          updated_by: null,
+        }],
+      };
+    });
+    const port = createPgSystemSettingsPort();
+
+    const row = await runWithDbPatientPrincipal({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    }, () => port.getByKey("patient_home_mood_icons", "admin", {
+      organizationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    }));
+
+    expect(row?.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("app.read_current_patient_ui_setting($1, $2)");
+    expect(sql).not.toContain("FROM system_settings");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["patient_home_mood_icons", "admin"]);
+    expect(getCurrentWebappDbOperationFamily()).toBeUndefined();
   });
 
   it("checks the current patient exception through a boolean-only accessor", async () => {

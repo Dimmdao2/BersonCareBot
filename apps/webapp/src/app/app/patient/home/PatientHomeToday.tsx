@@ -72,6 +72,7 @@ import { HOME_WELLBEING_STRIP_DAY_COUNT } from "./buildPatientHomeWellbeingWeekS
 import { resolveFirstPendingProgramTabItemId } from "./resolveFirstPendingProgramTabItemId";
 import { loadPatientHomeProgressMetrics } from "@/modules/patient-home/loadPatientHomeProgressMetrics";
 import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientHomeProgressMetrics";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 type Props = {
   session: AppSession | null;
@@ -120,7 +121,11 @@ function mapUsefulPostForGuest(post: ResolvedUsefulPostCard | null, anonymousGue
   };
 }
 
-export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
+export async function PatientHomeToday(props: Props) {
+  return runWithWebappDbOperationFamily("patient_content_catalog", () => renderPatientHomeToday(props));
+}
+
+async function renderPatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
   const serverRenderInstant = new Date();

@@ -1415,6 +1415,13 @@
       "when": 1793193600000,
       "tag": "0201_e1_webapp_auth_role_runtime_config",
       "breakpoints": true
+    },
+    {
+      "idx": 202,
+      "version": "7",
+      "when": 1793280000000,
+      "tag": "0202_current_patient_ui_capabilities",
+      "breakpoints": true
     }
   ]
 }

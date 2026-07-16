@@ -19,6 +19,7 @@ const allowedHostsEnv = "SAAS_DISPOSABLE_ALLOWED_HOSTS";
 const fixtureSeederPath = "apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts";
 const e1WebappRuntimeConfigPath = "deploy/postgres/e1-webapp-runtime-config.sql";
 const testSettingsOverridePath = "deploy/postgres/test-settings-override.sql";
+const patientContentDiaryProofPath = "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-patient-content-diary-rls.mjs";
 const safeDbNamePattern = /^bcb_saas_[a-z0-9_]+_(scratch|rehearsal)_[a-z0-9_]+$/;
 const fixtureRehearsalDbNamePattern = /^bcb_saas_[a-z0-9_]+_rehearsal_[a-z0-9_]+$/;
 const unsafeNameTokenPattern = /(^|[_-])(prod|production|test|testing|dev|development)([_-]|$)/;
@@ -785,6 +786,51 @@ function runFixtureProof(plan) {
       throw new Error("fixture capability proof failed");
     }
     console.log("[saas-disposable] fixture proof OK: mirror=exact; patientA=true; patientB=true; unrelated=false");
+    run(
+      "psql",
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        "phase4_enforce_locked_context=1",
+        "-d",
+        plan.targetOwnerUrl,
+        "-f",
+        "deploy/postgres/phase4-locked-helper-rls-policies.sql",
+      ],
+      {
+        env: sanitizedChildEnv({ PGOPTIONS: rolePgOptions(plan.ownerRole) }),
+        label: "install canonical locked-helper policies for patient isolation proof",
+        redact: true,
+      },
+    );
+    run(
+      "psql",
+      [
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-d",
+        plan.targetOwnerUrl,
+        "-f",
+        "deploy/postgres/reference-catalog-rls.sql",
+      ],
+      {
+        env: sanitizedChildEnv({ PGOPTIONS: rolePgOptions(plan.ownerRole) }),
+        label: "install canonical reference-catalog patient policies for diary proof",
+        redact: true,
+      },
+    );
+    run(
+      "node",
+      [patientContentDiaryProofPath, "--execute", `--db=${plan.dbName}`],
+      {
+        env: sanitizedChildEnv(),
+        label: "prove patient content/diary A/B/cross-org visibility",
+        redact: true,
+      },
+    );
   } finally {
     setFixtureProofElevation(plan, false);
   }

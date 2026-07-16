@@ -15,6 +15,7 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
@@ -48,6 +49,8 @@ ALTER FUNCTION app.touch_current_patient_plan_last_opened(uuid) OWNER TO app_own
 ALTER FUNCTION app.read_current_patient_booking_rows(text,timestamptz) OWNER TO app_owner;
 ALTER FUNCTION app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb) OWNER TO app_owner;
 ALTER FUNCTION app.record_current_patient_push_open(timestamptz,text,uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_current_patient_ui_setting(text,text) OWNER TO app_owner;
+ALTER FUNCTION app.set_current_patient_calendar_timezone(text,boolean) OWNER TO app_owner;
 GRANT USAGE ON SCHEMA app TO app_owner, app_patient;
 GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id()
   TO app_owner;
@@ -61,7 +64,9 @@ BEGIN
     'app.touch_current_patient_plan_last_opened(uuid)'::regprocedure,
     'app.read_current_patient_booking_rows(text,timestamptz)'::regprocedure,
     'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
-    'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure
+    'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure,
+    'app.read_current_patient_ui_setting(text,text)'::regprocedure,
+    'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure
   ] LOOP
     EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM PUBLIC CASCADE', v_function);
     EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM app_patient CASCADE', v_function);
@@ -168,11 +173,19 @@ GRANT EXECUTE ON FUNCTION app.record_current_patient_analytics_event(timestamptz
   TO app_patient;
 GRANT EXECUTE ON FUNCTION app.record_current_patient_push_open(timestamptz,text,uuid)
   TO app_patient;
+GRANT EXECUTE ON FUNCTION app.read_current_patient_ui_setting(text,text)
+  TO app_patient;
+GRANT EXECUTE ON FUNCTION app.set_current_patient_calendar_timezone(text,boolean)
+  TO app_patient;
 GRANT SELECT ON TABLE
   public.patient_home_blocks,
   public.patient_home_block_items,
   public.content_sections,
-  public.content_section_slug_history
+  public.content_section_slug_history,
+  public.content_pages,
+  public.reference_categories,
+  public.reference_items,
+  public.org_enrollments
   TO app_patient;
 
 SELECT 1 / (bool_and(
@@ -191,7 +204,9 @@ WHERE procedure.oid = ANY(ARRAY[
   'app.touch_current_patient_plan_last_opened(uuid)'::regprocedure,
   'app.read_current_patient_booking_rows(text,timestamptz)'::regprocedure,
   'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
-  'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure
+  'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure,
+  'app.read_current_patient_ui_setting(text,text)'::regprocedure,
+  'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure
 ]);
 
 SELECT 1 / (
@@ -201,6 +216,15 @@ SELECT 1 / (
   AND NOT has_table_privilege('app_patient','public.product_push_notifications','SELECT')
   AND NOT has_table_privilege('app_patient','public.product_analytics_hourly','INSERT,UPDATE')
   AND NOT has_table_privilege('app_patient','public.product_analytics_user_hourly','INSERT,UPDATE')
+  AND NOT has_table_privilege('app_patient','public.system_settings','SELECT')
+  AND NOT has_table_privilege('app_patient','public.platform_users','UPDATE')
+  AND has_table_privilege('app_patient','public.org_enrollments','SELECT')
+  AND has_table_privilege('app_patient','public.reference_categories','SELECT')
+  AND has_table_privilege('app_patient','public.reference_items','SELECT')
+  AND NOT has_table_privilege('app_patient','public.org_enrollments','INSERT,UPDATE,DELETE')
+  AND NOT has_table_privilege('app_patient','public.reference_categories','INSERT,UPDATE,DELETE')
+  AND NOT has_table_privilege('app_patient','public.reference_items','INSERT,UPDATE,DELETE')
+  AND NOT has_table_privilege('app_patient','public.content_pages','INSERT,UPDATE,DELETE')
 )::int AS e1_patient_capability_no_direct_table_dml;
 
 SELECT 1 / (

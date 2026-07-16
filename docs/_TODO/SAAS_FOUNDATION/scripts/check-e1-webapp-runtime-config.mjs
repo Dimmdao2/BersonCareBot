@@ -11,6 +11,7 @@ const files = {
   bookingRowsMigration: "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
+  patientUiMigration: "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   telemetryOverlay: "deploy/postgres/saas-isolation-telemetry.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
@@ -32,6 +33,10 @@ const files = {
   pgPatientBookings: "apps/webapp/src/infra/repos/pgPatientBookings.ts",
   pgTreatmentProgramInstance: "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
   pgProductAnalytics: "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
+  pgPatientCalendarTimezone: "apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts",
+  patientHome: "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
+  patientDiaryPage: "apps/webapp/src/app/app/patient/diary/page.tsx",
+  patientDiaryMain: "apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx",
   patientLayout: "apps/webapp/src/app/app/patient/layout.tsx",
   smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-e1-webapp-runtime-config.mjs",
   poolProvider: "apps/webapp/src/infra/db/webappPoolProvider.ts",
@@ -48,6 +53,7 @@ const files = {
   p05bGenerator: "docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs",
   p05bOverlay: "deploy/postgres/p0-5b-grants.sql",
   capabilityRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs",
+  patientUiRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-current-patient-ui-capabilities.mjs",
 };
 
 function read(path) { return readFileSync(path, "utf8"); }
@@ -183,6 +189,22 @@ function runChecks(overrides = {}) {
     "TO app_patient",
     "GRANT EXECUTE",
   ]);
+  requireText(files.patientUiMigration, loaded.patientUiMigration, [
+    "0202_current_patient_ui_capabilities",
+    "app.read_current_patient_ui_setting", "app.set_current_patient_calendar_timezone",
+    "app.current_org_id()", "app.current_patient_user_id()", "enrollment.status = 'active'",
+    "p_key NOT IN (", "p_scope <> 'admin'", "length(p_value) > 120", "pg_catalog.pg_timezone_names",
+    "platform_user.id = v_patient_user_id", "NOT p_only_if_empty OR platform_user.calendar_timezone IS NULL",
+    "REVOKE ALL ON FUNCTION app.read_current_patient_ui_setting(text,text) FROM PUBLIC",
+    "REVOKE ALL ON FUNCTION app.set_current_patient_calendar_timezone(text,boolean) FROM PUBLIC",
+    "('webapp','patient_ui_config')", "('webapp','patient_calendar_timezone')",
+    "('webapp','patient_content_catalog')", "('webapp','patient_diary')",
+  ]);
+  forbidText(files.patientUiMigration, loaded.patientUiMigration, [
+    "p_patient_user_id", "p_organization_id", "TO app_patient",
+    "GRANT SELECT ON TABLE public.system_settings TO app_patient",
+    "GRANT UPDATE ON TABLE public.platform_users TO app_patient",
+  ]);
   requireText(files.pgPatientBookings, loaded.pgPatientBookings, [
     "app.read_current_patient_booking_rows('upcoming'", "app.read_current_patient_booking_rows('history'",
   ]);
@@ -220,6 +242,7 @@ function runChecks(overrides = {}) {
     "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
     "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
     "0200_current_patient_product_analytics.sql", "0201_e1_webapp_auth_role_runtime_config.sql",
+    "0202_current_patient_ui_capabilities.sql",
     "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
@@ -248,6 +271,23 @@ function runChecks(overrides = {}) {
     "REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_appointment_history()\n  FROM app_patient CASCADE",
     "DO $history_acl_scrub$",
     "GRANT EXECUTE ON FUNCTION app.read_current_patient_appointment_history()\n  TO app_patient",
+    "ALTER FUNCTION app.read_current_patient_ui_setting(text,text) OWNER TO app_owner",
+    "ALTER FUNCTION app.set_current_patient_calendar_timezone(text,boolean) OWNER TO app_owner",
+    "GRANT EXECUTE ON FUNCTION app.read_current_patient_ui_setting(text,text)\n  TO app_patient",
+    "GRANT EXECUTE ON FUNCTION app.set_current_patient_calendar_timezone(text,boolean)\n  TO app_patient",
+    "public.content_pages",
+    "public.reference_categories",
+    "public.reference_items",
+    "public.org_enrollments",
+    "NOT has_table_privilege('app_patient','public.system_settings','SELECT')",
+    "NOT has_table_privilege('app_patient','public.platform_users','UPDATE')",
+    "has_table_privilege('app_patient','public.org_enrollments','SELECT')",
+    "has_table_privilege('app_patient','public.reference_categories','SELECT')",
+    "has_table_privilege('app_patient','public.reference_items','SELECT')",
+    "NOT has_table_privilege('app_patient','public.org_enrollments','INSERT,UPDATE,DELETE')",
+    "NOT has_table_privilege('app_patient','public.reference_categories','INSERT,UPDATE,DELETE')",
+    "NOT has_table_privilege('app_patient','public.reference_items','INSERT,UPDATE,DELETE')",
+    "NOT has_table_privilege('app_patient','public.content_pages','INSERT,UPDATE,DELETE')",
     "'app.read_current_patient_appointment_history()'::regprocedure",
     "'app.is_current_patient_test_account()'::regprocedure",
     "WHERE procedure.oid = 'app.is_current_patient_test_account()'::regprocedure\n      AND privilege.grantee NOT IN (",
@@ -360,6 +400,7 @@ function runChecks(overrides = {}) {
   requireText(files.operationContext, loaded.operationContext, [
     "AsyncLocalStorage", '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     '"patient_identity_exception_check"', '"patient_booking_history"',
+    '"patient_ui_config"', '"patient_calendar_timezone"', '"patient_content_catalog"', '"patient_diary"',
   ]);
   requireText(files.pgRuntime, loaded.pgRuntime, [
     "FROM app.read_public_runtime_setting($1, $2)",
@@ -373,6 +414,31 @@ function runChecks(overrides = {}) {
   requireText(files.pgSystemSettings, loaded.pgSystemSettings, [
     "isCurrentPatientTestAccount", 'runWithWebappDbOperationFamily("patient_identity_exception_check"',
     "SELECT app.is_current_patient_test_account() AS allowed",
+    'getCurrentDbPrincipal()?.kind === "patient"',
+    'runWithWebappDbOperationFamily("patient_ui_config"',
+    "FROM app.read_current_patient_ui_setting($1, $2)",
+  ]);
+  requireText(files.pgPatientCalendarTimezone, loaded.pgPatientCalendarTimezone, [
+    'getCurrentDbPrincipal()?.kind === "patient"',
+    'runWithWebappDbOperationFamily("patient_calendar_timezone"',
+    "app.set_current_patient_calendar_timezone($1, false)",
+    "app.set_current_patient_calendar_timezone($1, true)",
+  ]);
+  requireText(files.patientHome, loaded.patientHome, [
+    'runWithWebappDbOperationFamily("patient_content_catalog"',
+  ]);
+  requireText(files.patientDiaryPage, loaded.patientDiaryPage, [
+    'runWithWebappDbOperationFamily("patient_diary"',
+  ]);
+  requireText(files.patientDiaryMain, loaded.patientDiaryMain, [
+    'runWithWebappDbOperationFamily("patient_diary"',
+  ]);
+  requireText(files.patientUiRehearsal, loaded.patientUiRehearsal, [
+    "bcb_saas_patient_ui_scratch_", "app.read_current_patient_ui_setting",
+    "app.set_current_patient_calendar_timezone", "clinic-a", "clinic-b",
+    "NOT has_table_privilege('app_patient','public.system_settings','SELECT')",
+    "NOT has_table_privilege('app_patient','public.platform_users','UPDATE')",
+    "dropdb", "--if-exists",
   ]);
   requireText(files.patientLayout, loaded.patientLayout, [
     "deps.patientMaintenanceHistory.listCurrentPatientHistory()",
@@ -424,6 +490,7 @@ function runChecks(overrides = {}) {
   requireText(files.diagnostics, loaded.diagnostics, [
     '"public_auth_config"', '"auth_role_config"', '"patient_runtime_config"', '"public_booking_config"',
     '"patient_identity_exception_check"', '"patient_booking_history"',
+    '"patient_ui_config"', '"patient_calendar_timezone"', '"patient_content_catalog"', '"patient_diary"',
   ]);
   requireText(files.deploy, loaded.deploy, [
     "E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql",
@@ -435,6 +502,7 @@ function runChecks(overrides = {}) {
     '"idx": 194', '"tag": "0194_e1_patient_identity_exception"',
     '"idx": 195', '"tag": "0195_e1_patient_maintenance_history"',
     '"idx": 201', '"tag": "0201_e1_webapp_auth_role_runtime_config"',
+    '"idx": 202', '"tag": "0202_current_patient_ui_capabilities"',
   ]);
   requireText(files.visibleCatalogMigration, loaded.visibleCatalogMigration, [
     "to_regprocedure('app.current_org_id()') IS NULL",
@@ -446,6 +514,9 @@ function runChecks(overrides = {}) {
     "CREATE POLICY patient_current_org_select ON public.patient_home_blocks",
     "CREATE POLICY patient_current_org_select ON public.patient_home_block_items",
     "CREATE POLICY patient_visible_current_org_select ON public.content_sections",
+    "CREATE POLICY patient_visible_current_org_select ON public.content_pages",
+    "organization_id = app.current_org_id()", "is_published = true",
+    "archived_at IS NULL", "deleted_at IS NULL",
     "CREATE POLICY patient_current_org_select ON public.content_section_slug_history",
     "enrollment.status = 'active'",
   ]);

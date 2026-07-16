@@ -489,3 +489,20 @@ metadata.legacy_branch_service_id)` contract used by `pgBookingScheduling`; the 
   plus a validated labeled SQLSTATE. It never forwards child message/detail/query/params/stack or other original
   text. Adversarial self-tests cover URLs/paths, bearer/JWT/token material, signed/plain phone shapes, UUIDs, email,
   query values and stack text. E1 checker/mutations, webapp typecheck, SaaS DB regression and hard gates pass.
+
+### Owner-ready patient UI settings and calendar-timezone capabilities (`/root/ci_fix_review/booking_session_debug`)
+
+- Read-only TEST journal diagnosis tied RSC digest `794109813` to the patient home mood-icon read going directly to
+  restricted `system_settings`. The same patient-home call chain contains adjacent safe UI keys, so migration `0202`
+  introduces one closed allowlisted current-patient accessor instead of granting the patient role the settings table.
+  It derives organization and patient identity only from the signed principal, requires their active enrollment,
+  and resolves the selected clinic before the global fallback.
+- The repeated non-fatal `platform_users` denial was the patient shell's initial calendar-timezone bootstrap, not a
+  generic session last-seen update. The row stayed NULL after every denied direct UPDATE, so every navigation retried.
+  Patient checkouts now use a bounded current-patient setter: active enrollment, own client row only, 120-character
+  bound, and an atomic `only-if-empty` predicate. OAuth/bootstrap code without a patient principal keeps its existing
+  identity-owned path.
+- E1 attribution is explicit (`patient_ui_config`, `patient_calendar_timezone`); `app_patient` retains no direct
+  `system_settings` SELECT or `platform_users` UPDATE. Disposable PostgreSQL proof covers Clinic A, Clinic B, an
+  invalid cross-org principal pair, hidden non-allowlisted settings, atomic first-write idempotency, direct ACL
+  denials, and cleanup. No TEST database/service mutation, restart, or deploy was performed.

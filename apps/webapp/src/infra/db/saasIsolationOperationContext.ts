@@ -7,7 +7,11 @@ export type WebappDbOperationFamily =
   | "public_booking_config"
   | "patient_identity_exception_check"
   | "patient_booking_history"
-  | "patient_product_analytics";
+  | "patient_product_analytics"
+  | "patient_ui_config"
+  | "patient_calendar_timezone"
+  | "patient_content_catalog"
+  | "patient_diary";
 
 const operationStore = new AsyncLocalStorage<WebappDbOperationFamily>();
 

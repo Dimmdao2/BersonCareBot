@@ -19,6 +19,7 @@ import { PatientLoadingPatternBody } from "@/shared/ui/patient/patientVisual";
 import { buildDiaryPlanReminderStrip } from "@/modules/patient-diary/buildDiaryPlanReminderStrip";
 import { resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { PatientDiaryAuthenticatedMain } from "./PatientDiaryAuthenticatedMain";
+import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 type PageProps = {
   searchParams?: Promise<{ week?: string | string[] }>;
@@ -46,7 +47,9 @@ export default async function PatientDiaryPage({ searchParams }: PageProps) {
   const week = Array.isArray(weekRaw) ? weekRaw[0] : weekRaw;
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(s);
   const deps = buildAppDeps();
-  const planReminderStrip = await buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent);
+  const planReminderStrip = await runWithWebappDbOperationFamily("patient_diary", () =>
+    buildDiaryPlanReminderStrip(deps, s.user.userId, canViewAuthOnlyContent),
+  );
 
   return (
     <PatientAppShell
