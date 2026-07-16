@@ -29,6 +29,9 @@ const files = {
   operatorProvisioner: 'deploy/host/render-saas-isolation-operator-provisioning.mjs',
   codeOnlyDeploy: 'deploy/host/deploy-test.sh',
   integrator: 'apps/integrator/src/app/server.ts',
+  integratorMain: 'apps/integrator/src/main.ts',
+  integratorRoutes: 'apps/integrator/src/app/routes.ts',
+  integratorDbClient: 'apps/integrator/src/infra/db/client.ts',
   worker: 'apps/integrator/src/infra/runtime/worker/main.ts',
   scheduler: 'apps/integrator/src/infra/runtime/scheduler/main.ts',
   mediaWorker: 'apps/media-worker/src/main.ts',
@@ -197,6 +200,39 @@ async function main() {
     loaded.sharedReporter,
     'if (!isRecognizedSaasIsolationFailure(error)) return',
     'background false-positive guard',
+  );
+  for (const fragment of [
+    'inspectTransportStatus()',
+    'transportFailures',
+    'droppedCircuitOpen',
+    'droppedQueueFull',
+    'probeWriter()',
+    'input.onStatus?.(inspectTransportStatus())',
+  ])
+    requireText(loaded.sharedReporter, fragment, 'observable bounded telemetry transport');
+  for (const fragment of [
+    "await client.query('BEGIN')",
+    'SELECT app.report_saas_isolation_event($1, $2, $3, $4)',
+    "await client.query('ROLLBACK')",
+    'saas_isolation_telemetry_writer_probe_failed',
+    'SaaS isolation telemetry transport degraded',
+  ])
+    requireText(loaded.integratorTelemetryConsumer, fragment, 'rollback-safe actual writer probe');
+  for (const [family, fragment] of [
+    ['integratorMain', 'await assertApiIsolationTelemetryWriterReady()'],
+    ['worker', 'await assertWorkerIsolationTelemetryWriterReady()'],
+    ['scheduler', 'await assertSchedulerIsolationTelemetryWriterReady()'],
+  ])
+    requireText(loaded[family], fragment, `${family} locked startup writer probe`);
+  requireText(
+    loaded.integratorRoutes,
+    'reportIntegratorIsolationFailure(error)',
+    'caught pre-routing/projection failures reach telemetry',
+  );
+  requireText(
+    loaded.integratorDbClient,
+    'reportIntegratorIsolationFailure(error)',
+    'caught health-check failures reach telemetry',
   );
   for (const fragment of [
     'ambient_read_allowed',

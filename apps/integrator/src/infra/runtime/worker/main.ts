@@ -13,6 +13,7 @@ import { runProjectionWorkerTick } from './projectionWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 import {
+  assertWorkerIsolationTelemetryWriterReady,
   reportWorkerOutgoingIsolationFailure,
   reportWorkerProjectionIsolationFailure,
   reportWorkerQueueIsolationFailure,
@@ -23,6 +24,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startWorker(): Promise<void> {
+  await assertWorkerIsolationTelemetryWriterReady();
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
   const projectionDb = createDbPort();

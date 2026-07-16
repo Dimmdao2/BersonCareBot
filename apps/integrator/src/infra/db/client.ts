@@ -12,6 +12,7 @@ import {
   releasePreparedIntegratorClient,
   withIntegratorPoolClient,
 } from './withClient.js';
+import { reportIntegratorIsolationFailure } from '../observability/saasIsolationTelemetry.js';
 
 function databaseUrlDiagnostics(): {
   databaseUrlConfigured: boolean;
@@ -178,7 +179,8 @@ export async function healthCheckDb(): Promise<boolean> {
 	try {
 		const res = await runWithDbInfraPrincipal({ source: 'integrator-health-check' }, () => db.query('SELECT 1'));
 		return res.rowCount === 1;
-	} catch {
+	} catch (error) {
+		reportIntegratorIsolationFailure(error);
 		return false;
 	}
 }
