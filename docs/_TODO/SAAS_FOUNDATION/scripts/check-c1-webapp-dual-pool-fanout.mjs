@@ -64,7 +64,7 @@ function runChecks(overrides = {}) {
   requireFragments(files.provider, loaded.provider, [
     "assertDbPrincipalRequestPoolCheckoutAllowed",
     "assertRoutedWebappPoolCheckoutAllowed",
-    "choosePoolKindForCurrentPrincipal(input.metrics) === \"staff\" ? input.staffPool : input.nonstaffPool",
+    "choosePoolKindForPrincipal(principal, input.metrics) === \"staff\" ? input.staffPool : input.nonstaffPool",
     "principal?.kind === \"organization\" || principal?.kind === \"staff\" ? \"staff\" : \"nonstaff\"",
     "metrics.poolRoleMismatches += 1",
     "getWebappPoolRoutingMetrics",
@@ -72,13 +72,13 @@ function runChecks(overrides = {}) {
   requireFragmentBefore(
     files.provider,
     loaded.provider,
-    "assertRoutedWebappPoolCheckoutAllowed(input.metrics);",
-    "choosePoolKindForCurrentPrincipal(input.metrics)",
+    "assertRoutedWebappPoolCheckoutAllowed(principal, input.metrics);",
+    "choosePoolKindForPrincipal(principal, input.metrics)",
   );
   requireFragmentBefore(
     files.provider,
     loaded.provider,
-    "assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);",
+    "assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);",
     "const client = await pool.connect();",
   );
 
@@ -91,7 +91,7 @@ function runChecks(overrides = {}) {
   requireFragmentBefore(
     files.withClient,
     loaded.withClient,
-    "assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);",
+    "assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);",
     "const client = await pool.connect();",
   );
 
@@ -122,7 +122,7 @@ function runChecks(overrides = {}) {
 
 if (process.argv.includes("--self-test")) {
   const provider = read(files.provider).replace(
-    "assertRoutedWebappPoolCheckoutAllowed(input.metrics);",
+    "assertRoutedWebappPoolCheckoutAllowed(principal, input.metrics);",
     "// removed by self-test",
   );
   try {

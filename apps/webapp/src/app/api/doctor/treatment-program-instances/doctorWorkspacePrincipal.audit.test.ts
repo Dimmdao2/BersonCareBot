@@ -64,7 +64,7 @@ describe("doctor treatment program instance principal cutover", () => {
 
   it("stamps newly inserted instance rows from the active organization principal", () => {
     const src = readSource("src/infra/repos/pgTreatmentProgramInstance.ts");
-    expect(src).toContain("organizationId: currentWriteOrganizationId()");
+    expect(src).toContain("organizationId: currentWriteOrganizationId(input.organizationId)");
     expect(src).toContain("organizationId: currentWriteOrganizationId(stRow.organizationId)");
     expect(src).toContain("organization_principal_mismatch");
     expect(src).toContain("fallbackOrganizationIds.some");

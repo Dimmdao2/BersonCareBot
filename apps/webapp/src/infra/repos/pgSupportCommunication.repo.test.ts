@@ -186,6 +186,7 @@ describe("createPgSupportCommunicationPort", () => {
       const port = createPgSupportCommunicationPort();
       await expect(port.ensureWebappConversationForUser(patientUserId)).resolves.toEqual({
         id: "conv-global",
+        organizationId: null,
       });
 
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
@@ -212,7 +213,7 @@ describe("createPgSupportCommunicationPort", () => {
         port.ensureWebappConversationForUser(patientUserId),
       );
 
-      expect(result).toEqual({ id: "conv-webapp-1" });
+      expect(result).toEqual({ id: "conv-webapp-1", organizationId: orgId });
       expect(runDrizzleMutationTransactionMock).toHaveBeenCalledTimes(1);
       const lookupSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(lookupSql).toContain("organization_id = $1::uuid");
@@ -245,12 +246,12 @@ describe("createPgSupportCommunicationPort", () => {
         runWithDbOrganizationPrincipal(clinicA, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "conv-clinic-a" });
+      ).resolves.toEqual({ id: "conv-clinic-a", organizationId: clinicA });
       await expect(
         runWithDbOrganizationPrincipal(clinicB, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "conv-clinic-b" });
+      ).resolves.toEqual({ id: "conv-clinic-b", organizationId: clinicB });
 
       const clinicALookup = runWebappPgTextMock.mock.calls[0]?.[1];
       const clinicAInsert = runWebappPgTextMock.mock.calls[1]?.[1];
@@ -283,7 +284,7 @@ describe("createPgSupportCommunicationPort", () => {
         runWithDbOrganizationPrincipal(orgId, () =>
           port.ensureWebappConversationForUser(patientUserId),
         ),
-      ).resolves.toEqual({ id: "legacy-current-org" });
+      ).resolves.toEqual({ id: "legacy-current-org", organizationId: orgId });
 
       expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
       expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(

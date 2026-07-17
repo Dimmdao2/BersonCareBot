@@ -106,6 +106,7 @@ describe("POST /api/doctor/clients/[userId]/treatment-program-instances", () => 
     );
     expect(res.status).toBe(200);
     expect(assignMock).toHaveBeenCalledWith({
+      organizationId: workspaceCtx.organizationId,
       templateId: TEMPLATE_ID,
       patientUserId: PATIENT_ID,
       assignedBy: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",

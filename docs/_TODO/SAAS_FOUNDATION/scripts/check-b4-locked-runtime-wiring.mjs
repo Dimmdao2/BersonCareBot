@@ -203,10 +203,15 @@ function runChecks(overrides = {}) {
     [files.mediaWithClient, loaded.mediaWithClient],
     [files.mediaPoolProvider, loaded.mediaPoolProvider],
   ]) {
+    const applyConnectionFragment = label === files.webappWithClient
+      ? "applyDbPrincipalToConnection(client, principal, options)"
+      : label === files.webappPoolProvider
+        ? "applyDbPrincipalToConnection(client, principalSnapshot, principalApplyOptions)"
+        : "applyCurrentDbPrincipalToConnection(client,";
     requireFragments(label, text, [
       "buildDbPrincipalApplyOptionsFromEnv",
       "principalApplyOptions",
-      "applyCurrentDbPrincipalToConnection(client,",
+      applyConnectionFragment,
       "clearDbPrincipalFromConnection(client,",
     ]);
     forbidRuntimeDefaultPrincipalCalls(label, text);
@@ -227,7 +232,9 @@ function runChecks(overrides = {}) {
     [files.mediaWithClient, loaded.mediaWithClient],
   ]) {
     requireFragments(label, text, [
-      "applyCurrentDbPrincipalToTransaction(client,",
+      label === files.webappWithClient
+        ? "applyDbPrincipalToTransaction(client, principal, options)"
+        : "applyCurrentDbPrincipalToTransaction(client,",
     ]);
   }
 
@@ -343,8 +350,8 @@ function runChecks(overrides = {}) {
 
 if (process.argv.includes("--self-test")) {
   const webappPoolProvider = read(files.webappPoolProvider).replace(
-    "applyCurrentDbPrincipalToConnection(client, principalApplyOptions)",
-    "applyCurrentDbPrincipalToConnection(client)",
+    "applyDbPrincipalToConnection(client, principalSnapshot, principalApplyOptions)",
+    "applyDbPrincipalToConnection(client, principalSnapshot)",
   );
   try {
     runChecks({ webappPoolProvider });

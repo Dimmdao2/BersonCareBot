@@ -337,13 +337,16 @@ describe("doctor-broadcasts service", () => {
       patientWebPushNotifyDeps: {} as never,
     });
 
-    await svc.execute({
-      category: "marketing",
-      audienceFilter: "all",
-      message: { title: "Новость", body: "Текст длиннее десяти символов" },
-      actorId: "doctor-1",
-      channels: ["push"],
-    });
+    await svc.execute(
+      {
+        category: "marketing",
+        audienceFilter: "all",
+        message: { title: "Новость", body: "Текст длиннее десяти символов" },
+        actorId: "doctor-1",
+        channels: ["push"],
+      },
+      { organizationId: "11111111-1111-4111-8111-111111111111" },
+    );
 
     expect(committed.length).toBeGreaterThan(0);
     expect(fanOut).toHaveBeenCalledOnce();
@@ -414,6 +417,7 @@ describe("doctor-broadcasts service", () => {
         channels: ["bot_message", "push", "email"],
       },
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         runDeliveryCommit: async (fn) => {
           wrapperState.inside = true;
           try {

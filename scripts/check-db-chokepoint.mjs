@@ -58,7 +58,7 @@ function hasOnlyAllowedDrizzlePrincipalSql(rel, src, rawSqlCount) {
   return (
     rel === "apps/webapp/src/app-layer/db/drizzle.ts" &&
     rawSqlCount > 0 &&
-    src.includes("applyCurrentDbPrincipalToTransaction") &&
+    src.includes("applyDbPrincipalToTransaction") &&
     src.includes("clearDbPrincipalFromTransaction")
   );
 }

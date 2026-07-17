@@ -27,8 +27,14 @@ describe("createPatientMessagingService", () => {
   it("sendText notifies doctor when configured", async () => {
     const notifyDoctorOfPatientMessage = vi.fn().mockResolvedValue(undefined);
     const port = {
-      getConversationIfOwnedByUser: vi.fn().mockResolvedValue({ id: "c1" }),
-      ensureWebappConversationForUser: vi.fn().mockResolvedValue({ id: "c1" }),
+      getConversationIfOwnedByUser: vi.fn().mockResolvedValue({
+        id: "c1",
+        organizationId: "11111111-1111-4111-8111-111111111111",
+      }),
+      ensureWebappConversationForUser: vi.fn().mockResolvedValue({
+        id: "c1",
+        organizationId: "11111111-1111-4111-8111-111111111111",
+      }),
       mergeLegacySupportConversationsForPlatformUser: vi.fn().mockResolvedValue({
         mergedConversationCount: 0,
         movedMessageCount: 0,
@@ -50,7 +56,11 @@ describe("createPatientMessagingService", () => {
     }
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(notifyDoctorOfPatientMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ messageText: "Привет", patientLabel: "Иван" }),
+      expect.objectContaining({
+        organizationId: "11111111-1111-4111-8111-111111111111",
+        messageText: "Привет",
+        patientLabel: "Иван",
+      }),
     );
   });
 

@@ -170,7 +170,7 @@ describe("executeBroadcastAction", () => {
 
     expect(executeMock).toHaveBeenCalledWith(
       { ...baseCommand, actorId: DOCTOR_USER_ID },
-      { runDeliveryCommit: expect.any(Function) },
+      { organizationId: ORGANIZATION_ID, runDeliveryCommit: expect.any(Function) },
     );
     expect(observedCommitPrincipals).toEqual([ORGANIZATION_ID]);
     expect(result.auditEntry).toEqual(auditEntry);

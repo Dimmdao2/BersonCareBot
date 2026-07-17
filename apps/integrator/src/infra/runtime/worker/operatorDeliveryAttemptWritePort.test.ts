@@ -114,15 +114,14 @@ describe('operator delivery attempt production wiring', () => {
     expect(harness.query).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects another infra source and delegates an organization principal', async () => {
+  it('keeps provider success when another infra source cannot audit and delegates an organization principal', async () => {
     process.env.NODE_ENV = 'production';
     _resetDevRedirectActiveCache();
     const wrongInfra = buildHarness();
-    await expect(
-      runWithDbInfraPrincipal({ source: 'worker:job-queue-drain' }, () =>
-        wrongInfra.dispatch.dispatchOutgoing(intent),
-      ),
-    ).rejects.toThrow('requires tenant/integrator or exact delivery-worker principal');
+    await runWithDbInfraPrincipal({ source: 'worker:job-queue-drain' }, () =>
+      wrongInfra.dispatch.dispatchOutgoing(intent),
+    );
+    expect(wrongInfra.send).toHaveBeenCalledTimes(1);
     expect(wrongInfra.query).not.toHaveBeenCalled();
 
     const tenant = buildHarness();
