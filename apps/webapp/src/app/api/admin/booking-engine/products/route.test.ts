@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const listStaffProductsMock = vi.hoisted(() => vi.fn());
 const upsertProductMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
@@ -20,7 +20,8 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
 );
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireAdminBookingEngine: requireClinicManagementBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -62,7 +63,7 @@ describe("/api/admin/booking-engine/products", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: ORG, session: { user: { userId: "u1" } } },
     });

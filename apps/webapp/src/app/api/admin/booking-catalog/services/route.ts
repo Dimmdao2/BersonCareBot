@@ -6,7 +6,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpFromDatabaseError } from "../_httpErrors";
-import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
+import {
+  requireAdminBookingCatalog,
+  requireClinicManagementBookingCatalogRead,
+  withAdminBookingCatalogPrincipal,
+} from "../_requireAdminBookingCatalog";
 
 const PostServiceSchema = z.object({
   title: z.string().min(1).max(200),
@@ -19,7 +23,7 @@ const PostServiceSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingCatalog();
+  const gate = await requireClinicManagementBookingCatalogRead();
   if (!gate.ok) return gate.response;
   const services = await gate.ctx.port.listServicesAdmin();
   return NextResponse.json({ ok: true, services });

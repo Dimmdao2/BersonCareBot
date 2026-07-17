@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
   fullName: z.string().min(1).max(200),
@@ -12,18 +12,24 @@ const PostSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const specialists = await gate.ctx.service.catalog.listSpecialists(gate.ctx.organizationId);
   return NextResponse.json({ ok: true, specialists });
 }
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (parsed.data.branchId) {
+    const branch = await gate.ctx.service.catalog.getBranch(parsed.data.branchId);
+    if (!branch || branch.organizationId !== gate.ctx.organizationId) {
+      return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+    }
+  }
   const specialist = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialists.upsert", async () => {
     const row = await gate.ctx.service.catalog.upsertSpecialist({
       organizationId: gate.ctx.organizationId,

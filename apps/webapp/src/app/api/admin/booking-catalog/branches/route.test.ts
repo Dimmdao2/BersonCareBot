@@ -8,7 +8,7 @@ const resolveOrganizationForUserMock = vi.hoisted(() =>
   vi.fn(async () => ({
     ok: true,
     context: {
-      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      organizationId: "a0000000-0000-4000-8000-000000000001",
       membershipId: "membership-1",
       role: "owner",
       specialistId: null,
@@ -44,13 +44,13 @@ describe("GET /api/admin/booking-catalog/branches", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 403 without adminMode", async () => {
+  it("allows a management-capable membership to read reference branches", async () => {
     getSessionMock.mockResolvedValue({
-      user: { userId: "a1", role: "admin", bindings: {} },
-      adminMode: false,
+      user: { userId: "owner-1", role: "doctor", bindings: {} },
     });
+    listBranchesAdminMock.mockResolvedValue([]);
     const res = await GET();
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it("returns branches for admin", async () => {

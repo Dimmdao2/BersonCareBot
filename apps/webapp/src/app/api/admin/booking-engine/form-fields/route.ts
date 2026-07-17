@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const upsertBody = z.object({
   id: z.string().uuid().optional(),
@@ -18,7 +18,7 @@ const upsertBody = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.bookingForm) {
@@ -29,7 +29,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const parsed = upsertBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

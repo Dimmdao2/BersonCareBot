@@ -49,7 +49,7 @@ describe("requireAdminBookingEngine", () => {
     expect(requireDoctorWorkspaceApiContextMock).not.toHaveBeenCalled();
   });
 
-  it("returns workspace organization context without default organization fallback", async () => {
+  it("returns strict-admin workspace context without a default organization fallback", async () => {
     const session = {
       user: { userId: "admin-1", role: "admin", displayName: "Admin", bindings: {} },
       issuedAt: 1,
@@ -117,4 +117,5 @@ describe("requireAdminBookingEngine", () => {
     expect(gate).toEqual({ ok: false, response });
     expect(getDefaultOrganizationIdMock).not.toHaveBeenCalled();
   });
+
 });

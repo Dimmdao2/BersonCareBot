@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const upsertSchema = z.discriminatedUnion("scope", [
   z.object({
@@ -26,7 +26,7 @@ const upsertSchema = z.discriminatedUnion("scope", [
 ]);
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.payments) {
@@ -37,7 +37,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const parsed = upsertSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -49,6 +49,12 @@ export async function PUT(request: Request) {
   }
   const payments = deps.payments;
   const body = parsed.data;
+  if (body.scope === "service") {
+    const service = await gate.ctx.service.services.getService(body.serviceId);
+    if (!service || service.organizationId !== gate.ctx.organizationId) {
+      return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });
+    }
+  }
   const policy = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.prepayment-policies.upsert", () =>
     payments.upsertPrepaymentPolicy({
       organizationId: gate.ctx.organizationId,

@@ -1429,6 +1429,13 @@
       "when": 1793366400000,
       "tag": "0203_clinic_public_directory_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1793452800000,
+      "tag": "0204_promote_legacy_solo_owner_membership",
+      "breakpoints": true
     }
   ]
 }

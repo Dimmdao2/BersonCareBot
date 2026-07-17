@@ -6,7 +6,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeAdminBranchTimezoneForCreate } from "../_branchTimezone";
-import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
+import {
+  requireAdminBookingCatalog,
+  requireClinicManagementBookingCatalogRead,
+  withAdminBookingCatalogPrincipal,
+} from "../_requireAdminBookingCatalog";
 
 const PostBranchSchema = z.object({
   cityCode: z.string().min(1).max(80),
@@ -19,7 +23,7 @@ const PostBranchSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingCatalog();
+  const gate = await requireClinicManagementBookingCatalogRead();
   if (!gate.ok) return gate.response;
   const branches = await gate.ctx.port.listBranchesAdmin();
   return NextResponse.json({ ok: true, branches });

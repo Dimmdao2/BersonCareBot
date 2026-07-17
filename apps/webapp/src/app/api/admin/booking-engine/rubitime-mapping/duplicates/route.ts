@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../../_requireAdminBookingEngine";
 
 const ResolveSchema = z.object({
   branchId: z.string().uuid(),
@@ -12,7 +12,7 @@ const ResolveSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
@@ -28,7 +28,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();

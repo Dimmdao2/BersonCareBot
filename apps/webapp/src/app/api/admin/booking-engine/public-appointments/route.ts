@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { beAppointments } from "../../../../../../db/schema/bookingEngine";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 export async function GET(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);

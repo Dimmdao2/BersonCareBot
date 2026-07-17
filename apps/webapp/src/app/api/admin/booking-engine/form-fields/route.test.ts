@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback()),
 );
@@ -9,7 +9,7 @@ const upsertAdminFieldMock = vi.hoisted(() => vi.fn());
 const getDefaultOrganizationIdMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
@@ -41,7 +41,7 @@ describe("/api/admin/booking-engine/form-fields", () => {
   });
 
   it("GET lists fields using workspace organization without principal wrapper", async () => {
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1", session: { user: { userId: "user-1" } } },
     });
@@ -59,7 +59,7 @@ describe("/api/admin/booking-engine/form-fields", () => {
 
   it("POST upserts field under workspace principal", async () => {
     const gateCtx = { organizationId: "org-1", session: { user: { userId: "user-1" } } };
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: gateCtx,
     });
@@ -102,7 +102,7 @@ describe("/api/admin/booking-engine/form-fields", () => {
   });
 
   it("POST rejects invalid body before principal wrapper", async () => {
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1", session: { user: { userId: "user-1" } } },
     });

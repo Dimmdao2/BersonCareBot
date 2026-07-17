@@ -1,12 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const getBranchMock = vi.hoisted(() => vi.fn());
+const getServiceMock = vi.hoisted(() => vi.fn());
 const listSpecialistsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -22,7 +23,7 @@ import { GET } from "./route";
 describe("/api/admin/booking-engine/resolve-branch-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
         organizationId: "org-1",
@@ -30,6 +31,9 @@ describe("/api/admin/booking-engine/resolve-branch-service", () => {
           catalog: {
             getBranch: getBranchMock,
             listSpecialists: listSpecialistsMock,
+          },
+          services: {
+            getService: getServiceMock,
           },
         },
       },
@@ -39,6 +43,10 @@ describe("/api/admin/booking-engine/resolve-branch-service", () => {
       organizationId: "org-1",
       cityCode: "msk",
       timezone: "Europe/Moscow",
+    });
+    getServiceMock.mockResolvedValue({
+      id: "service-1",
+      organizationId: "org-1",
     });
     listSpecialistsMock.mockResolvedValue([{ id: "spec-1", isActive: true }]);
     resolveLegacyBranchServiceIdMock.mockResolvedValue("legacy-bs-1");
@@ -55,6 +63,8 @@ describe("/api/admin/booking-engine/resolve-branch-service", () => {
     expect(json.ok).toBe(true);
     expect(json.branchServiceId).toBe("legacy-bs-1");
     expect(json.cityCode).toBe("msk");
+    expect(getBranchMock).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440001");
+    expect(getServiceMock).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440002");
   });
 
   it("returns 404 when mapping missing", async () => {

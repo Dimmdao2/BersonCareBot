@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const QuerySchema = z.object({
   branchId: z.string().uuid(),
@@ -9,7 +9,7 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
@@ -27,12 +27,16 @@ export async function GET(request: Request) {
   }
 
   const { organizationId, service } = gate.ctx;
-  const [branch, specialists] = await Promise.all([
+  const [branch, clinicService, specialists] = await Promise.all([
     service.catalog.getBranch(parsed.data.branchId),
+    service.services.getService(parsed.data.serviceId),
     service.catalog.listSpecialists(organizationId),
   ]);
   if (!branch || branch.organizationId !== organizationId) {
     return NextResponse.json({ ok: false, error: "branch_not_found" }, { status: 404 });
+  }
+  if (!clinicService || clinicService.organizationId !== organizationId) {
+    return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });
   }
 
   const defaultSpecialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;

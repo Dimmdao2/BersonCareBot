@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const listSsaDuplicatesMock = vi.hoisted(() => vi.fn());
 const resolveSsaDuplicateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -22,7 +22,7 @@ import { GET, POST } from "./route";
 describe("rubitime-mapping duplicates route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1" },
     });

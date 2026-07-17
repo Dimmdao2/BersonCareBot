@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
-import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import {
+  requireClinicManagementApiContext,
+  requireDoctorWorkspaceApiContext,
+} from "@/app-layer/guards/requireRole";
 import { getCurrentSession } from "@/modules/auth/service";
 import type { BookingCatalogPort } from "@/modules/booking-catalog/ports";
+import { isLegacyRubitimeOrganization } from "@/modules/booking-engine/legacyRubitimeOrganization";
 
 export type AdminBookingCatalogContext = {
   session: NonNullable<Awaited<ReturnType<typeof getCurrentSession>>>;
@@ -38,6 +42,39 @@ export async function requireAdminBookingCatalog(): Promise<
     ok: true,
     ctx: {
       session,
+      port,
+      organizationId: workspaceGate.ctx.organizationId,
+    },
+  };
+}
+
+/**
+ * Legacy Rubitime catalog reads are needed to configure an organization-scoped mapping.
+ * Mutations remain behind `requireAdminBookingCatalog` because the legacy catalog is global.
+ */
+export async function requireClinicManagementBookingCatalogRead(): Promise<
+  | { ok: true; ctx: AdminBookingCatalogContext }
+  | { ok: false; response: NextResponse }
+> {
+  const workspaceGate = await requireClinicManagementApiContext();
+  if (!workspaceGate.ok) return workspaceGate;
+  if (!isLegacyRubitimeOrganization(workspaceGate.ctx.organizationId)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }),
+    };
+  }
+  const port = buildAppDeps().bookingCatalogPort;
+  if (!port) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 }),
+    };
+  }
+  return {
+    ok: true,
+    ctx: {
+      session: workspaceGate.ctx.session,
       port,
       organizationId: workspaceGate.ctx.organizationId,
     },

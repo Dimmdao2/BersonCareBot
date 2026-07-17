@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+import { isLegacyRubitimeOrganization } from "@/modules/booking-engine/legacyRubitimeOrganization";
+import { requireClinicManagementBookingEngine } from "../../_requireAdminBookingEngine";
 
 const LinkSchema = z.object({
   branchId: z.string().uuid(),
@@ -14,8 +15,11 @@ const LinkSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
+  if (!isLegacyRubitimeOrganization(gate.ctx.organizationId)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
 
   const deps = buildAppDeps();
   if (!deps.rubitimeMapping || !deps.bookingScheduling) {

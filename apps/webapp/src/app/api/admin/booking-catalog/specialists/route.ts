@@ -5,7 +5,11 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminBookingCatalog, withAdminBookingCatalogPrincipal } from "../_requireAdminBookingCatalog";
+import {
+  requireAdminBookingCatalog,
+  requireClinicManagementBookingCatalogRead,
+  withAdminBookingCatalogPrincipal,
+} from "../_requireAdminBookingCatalog";
 
 const PostSpecialistSchema = z.object({
   rubitimeBranchId: z.string().min(1).max(120),
@@ -17,7 +21,7 @@ const PostSpecialistSchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requireAdminBookingCatalog();
+  const gate = await requireClinicManagementBookingCatalogRead();
   if (!gate.ok) return gate.response;
   const url = new URL(request.url);
   const branchId = url.searchParams.get("branchId")?.trim();

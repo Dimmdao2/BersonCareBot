@@ -42,7 +42,7 @@ bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
 - [x] Checks owner doctor phone has exactly one live row.
 - [x] Checks canonical doctor has role `doctor` and the expected doctor email.
 - [x] Checks exactly one active admin and the gmail admin row.
-- [x] Checks doctor and admin active organization memberships exist with the expected role shape.
+- [x] Checks the solo doctor has an active `owner` membership and the global admin has the expected separate admin membership.
 - [x] Checks `admin_phones` TEST override shape when present.
 - [x] Classifies likely failure reasons without guessing a code fix.
 - [x] No patient samples, raw payloads, env reads, SSH, service calls, or DB writes.

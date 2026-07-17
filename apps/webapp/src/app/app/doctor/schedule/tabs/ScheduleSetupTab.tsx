@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { BookingEngineSection } from "@/app/app/settings/BookingEngineSection";
 import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPublicAttributionSection";
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingPrepaymentSection } from "@/app/app/settings/BookingPrepaymentSection";
@@ -10,7 +9,6 @@ import { BookingRubitimeMappingSection } from "@/app/app/settings/BookingRubitim
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
-import { RubitimeSection } from "@/app/app/settings/RubitimeSection";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
 import { ScheduleNotificationsSection } from "./notifications/ScheduleNotificationsSection";
 import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
@@ -822,25 +820,7 @@ function SectionNotifications() {
 }
 
 function SectionIntegrations() {
-  return (
-    <div className="flex flex-col gap-4">
-      <BookingRubitimeMappingSection />
-
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className={doctorSectionTitleClass}>Справочник Rubitime</summary>
-        <div className="mt-3">
-          <RubitimeSection />
-        </div>
-      </details>
-
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Технические настройки</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <BookingEngineSection mode="integrations" />
-      </DoctorSection>
-    </div>
-  );
+  return <BookingRubitimeMappingSection />;
 }
 
 // ---------------------------------------------------------------------------
@@ -849,7 +829,7 @@ function SectionIntegrations() {
 
 /**
  * Таб «Настройки записи» раздела «Расписание».
- * Admin-only: навигация скрыта для не-администраторов.
+ * Clinic-management only: навигация доступна owner/admin своей организации.
  * Под-навигация секций по deep-link `section` ↔ scheduleTabRegistry deepLinkKeys: ["section"].
  */
 export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleTabProps) {

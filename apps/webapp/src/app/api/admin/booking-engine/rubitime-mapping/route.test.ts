@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const listMappingsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -20,7 +20,7 @@ import { GET } from "./route";
 describe("GET /api/admin/booking-engine/rubitime-mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: "org-1" },
     });
@@ -60,7 +60,7 @@ describe("GET /api/admin/booking-engine/rubitime-mapping", () => {
   });
 
   it("returns 401 when admin gate fails", async () => {
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ ok: false, error: "unauthorized" }), { status: 401 }),
     });

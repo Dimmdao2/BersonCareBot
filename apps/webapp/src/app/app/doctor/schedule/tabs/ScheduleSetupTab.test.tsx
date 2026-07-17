@@ -34,9 +34,6 @@ vi.mock("@/app/app/settings/BookingPrepaymentSection", () => ({
 vi.mock("@/app/app/settings/BookingRubitimeMappingSection", () => ({
   BookingRubitimeMappingSection: () => <div data-testid="section-rubitime-mapping" />,
 }));
-vi.mock("@/app/app/settings/RubitimeSection", () => ({
-  RubitimeSection: () => <div data-testid="section-rubitime" />,
-}));
 vi.mock("@/app/app/settings/BookingEngineSection", () => ({
   BookingEngineSection: () => <div data-testid="section-booking-engine" />,
 }));

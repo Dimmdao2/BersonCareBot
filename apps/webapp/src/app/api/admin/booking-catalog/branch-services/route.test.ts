@@ -7,7 +7,7 @@ const resolveOrganizationForUserMock = vi.hoisted(() =>
   vi.fn(async () => ({
     ok: true,
     context: {
-      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      organizationId: "a0000000-0000-4000-8000-000000000001",
       membershipId: "membership-1",
       role: "owner",
       specialistId: null,

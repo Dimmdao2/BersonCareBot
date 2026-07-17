@@ -1,13 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const LEGACY_ORG = "a0000000-0000-4000-8000-000000000001";
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const linkMappingMock = vi.hoisted(() => vi.fn());
 const resolveInPersonContextMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const listSpecialistsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -25,10 +26,10 @@ import { POST } from "./route";
 describe("POST /api/admin/booking-engine/rubitime-mapping/link", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
-        organizationId: "org-1",
+        organizationId: LEGACY_ORG,
         service: { catalog: { listSpecialists: listSpecialistsMock } },
       },
     });
@@ -63,14 +64,14 @@ describe("POST /api/admin/booking-engine/rubitime-mapping/link", () => {
     expect(json.branchServiceId).toBe("bs-1");
     expect(linkMappingMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
+        organizationId: LEGACY_ORG,
         specialistId: "spec-1",
         rubitimeServiceId: "rt-svc-1",
       }),
     );
     expect(resolveLegacyBranchServiceIdMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        organizationId: "org-1",
+        organizationId: LEGACY_ORG,
         branchId: "550e8400-e29b-41d4-a716-446655440001",
         serviceId: "550e8400-e29b-41d4-a716-446655440002",
         specialistId: "spec-1",
@@ -109,5 +110,33 @@ describe("POST /api/admin/booking-engine/rubitime-mapping/link", () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("rejects another clinic before mutating the global legacy catalog", async () => {
+    requireClinicManagementBookingEngineMock.mockResolvedValueOnce({
+      ok: true,
+      ctx: {
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        service: { catalog: { listSpecialists: listSpecialistsMock } },
+      },
+    });
+
+    const res = await POST(
+      new Request("http://localhost/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: "550e8400-e29b-41d4-a716-446655440001",
+          serviceId: "550e8400-e29b-41d4-a716-446655440002",
+          legacyBranchId: "550e8400-e29b-41d4-a716-446655440003",
+          legacyServiceId: "550e8400-e29b-41d4-a716-446655440004",
+          legacySpecialistId: "550e8400-e29b-41d4-a716-446655440005",
+          rubitimeServiceId: "rt-svc-1",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(linkMappingMock).not.toHaveBeenCalled();
   });
 });

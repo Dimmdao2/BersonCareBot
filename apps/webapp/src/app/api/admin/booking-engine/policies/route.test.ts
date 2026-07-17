@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
+const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const listCancellationPoliciesMock = vi.hoisted(() => vi.fn());
 const listReschedulePoliciesMock = vi.hoisted(() => vi.fn());
 const upsertCancellationPolicyMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
-  requireAdminBookingEngine: requireAdminBookingEngineMock,
+  requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -26,7 +26,7 @@ const ORG_ID = "99999999-9999-4999-8999-999999999999";
 
 describe("booking-engine policies route", () => {
   it("GET returns policies list", async () => {
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: ORG_ID },
     });
@@ -40,7 +40,7 @@ describe("booking-engine policies route", () => {
   });
 
   it("POST saves cancellation policy payload", async () => {
-    requireAdminBookingEngineMock.mockResolvedValue({
+    requireClinicManagementBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: { organizationId: ORG_ID },
     });

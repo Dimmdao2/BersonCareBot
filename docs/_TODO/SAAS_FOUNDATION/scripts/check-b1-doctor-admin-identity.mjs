@@ -203,9 +203,9 @@ facts AS (
       SELECT 1 FROM doctor_live d, constants c
       WHERE d.role = 'doctor' AND d.email_normalized = c.doctor_email AND d.is_archived IS FALSE
     ),
-    'doctorActiveMemberships', (
+    'doctorOwnerMemberships', (
       SELECT count(*) FROM doctor_memberships m, constants c
-      WHERE m.role = 'doctor' AND m.status = 'active' AND m.organization_id = c.expected_org_id AND m.specialist_id IS NOT NULL
+      WHERE m.role = 'owner' AND m.status = 'active' AND m.organization_id = c.expected_org_id AND m.specialist_id IS NOT NULL
     ),
     'activeAdminRows', (SELECT count(*) FROM active_admins),
     'gmailAdminRows', (SELECT count(*) FROM gmail_admin WHERE is_archived IS FALSE),
@@ -231,7 +231,7 @@ function classifyFacts(facts) {
   if (facts.clientHasDoctorEmail === true) failures.push("client_still_holds_doctor_email");
   if (facts.doctorRoleOk !== true) failures.push("data_fix_not_applied_or_partial");
   if (facts.activeAdminRows !== 1 || facts.gmailAdminRows !== 1) failures.push("admin_shape_not_normalized");
-  if (facts.doctorActiveMemberships !== 1) failures.push("doctor_membership_missing_or_wrong");
+  if (facts.doctorOwnerMemberships !== 1) failures.push("doctor_owner_membership_missing_or_wrong");
   if (facts.adminActiveMemberships !== 1) failures.push("admin_membership_missing_or_wrong");
 
   const ok = failures.length === 0;
@@ -308,7 +308,7 @@ function validateContract() {
   for (const needle of [
     "doctorLiveRows",
     "doctorRoleOk",
-    "doctorActiveMemberships",
+    "doctorOwnerMemberships",
     "activeAdminRows",
     "gmailAdminRows",
     "adminActiveMemberships",
@@ -372,7 +372,7 @@ function runSelfTest() {
   const okFacts = {
     doctorLiveRows: 1,
     doctorRoleOk: true,
-    doctorActiveMemberships: 1,
+    doctorOwnerMemberships: 1,
     activeAdminRows: 1,
     gmailAdminRows: 1,
     adminActiveMemberships: 1,
@@ -381,12 +381,12 @@ function runSelfTest() {
   };
   assert(classifyFacts(okFacts).ok, "self-test expected ok facts to pass");
 
-  const badFacts = { ...okFacts, doctorRoleOk: false, doctorActiveMemberships: 0 };
+  const badFacts = { ...okFacts, doctorRoleOk: false, doctorOwnerMemberships: 0 };
   const classified = classifyFacts(badFacts);
   assert(!classified.ok, "self-test expected bad facts to fail");
   assert(
     classified.failureReasons.includes("data_fix_not_applied_or_partial") &&
-      classified.failureReasons.includes("doctor_membership_missing_or_wrong"),
+      classified.failureReasons.includes("doctor_owner_membership_missing_or_wrong"),
     "self-test expected data-fix and membership failure reasons",
   );
 

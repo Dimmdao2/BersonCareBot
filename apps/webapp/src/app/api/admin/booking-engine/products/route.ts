@@ -3,7 +3,10 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { BE_PRODUCT_TYPES } from "@/modules/products/types";
-import { requireAdminBookingEngine } from "../_requireAdminBookingEngine";
+import {
+  requireAdminBookingEngine,
+  requireClinicManagementBookingEngine,
+} from "../_requireAdminBookingEngine";
 
 const upsertSchema = z.object({
   id: z.string().uuid().optional(),
@@ -24,7 +27,7 @@ const upsertSchema = z.object({
 });
 
 export async function GET() {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const deps = buildAppDeps();
   if (!deps.products) {

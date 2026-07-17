@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { jsonIfInvalidUuid } from "../../_uuid";
-import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
+import { requireClinicManagementBookingEngine } from "../../_requireAdminBookingEngine";
 
 const PatchSchema = z.object({
   fullName: z.string().min(1).max(200).optional(),
@@ -12,13 +12,15 @@ const PatchSchema = z.object({
 });
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const bad = jsonIfInvalidUuid(id);
   if (bad) return bad;
   const existing = await gate.ctx.service.catalog.getSpecialist(id);
-  if (!existing) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  if (!existing || existing.organizationId !== gate.ctx.organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
   const body = await request.json().catch(() => null);
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
@@ -36,11 +38,15 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireAdminBookingEngine();
+  const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
   const { id } = await ctx.params;
   const bad = jsonIfInvalidUuid(id);
   if (bad) return bad;
+  const existing = await gate.ctx.service.catalog.getSpecialist(id);
+  if (!existing || existing.organizationId !== gate.ctx.organizationId) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
   const ok = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.specialists.deactivate", () =>
     gate.ctx.service.catalog.deactivateSpecialist(id),
   );
