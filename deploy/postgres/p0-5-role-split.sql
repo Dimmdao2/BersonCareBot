@@ -155,6 +155,7 @@ VALUES
   ('public', 'broadcast_audit_recipients', 'SCOPED'),
   ('public', 'broadcast_drafts', 'SCOPED'),
   ('public', 'channel_link_secrets', 'BOOTSTRAP'),
+  ('public', 'clinic_public_directory_entries', 'SCOPED'),
   ('public', 'clinical_anamnesis_illness', 'SCOPED'),
   ('public', 'clinical_anamnesis_lifestyle', 'SCOPED'),
   ('public', 'clinical_anamnesis_trauma', 'SCOPED'),
@@ -420,5 +421,5 @@ SELECT (
 SELECT 1 / 0 AS p0_5_abort;
 \endif
 
-\echo 'P0.5 role split UP complete: 159 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.'
+\echo 'P0.5 role split UP complete: 160 SCOPED tables and 27 BOOTSTRAP tables granted to the app role.'
 \endif

@@ -142,6 +142,7 @@ VALUES
   ('"public"."clinical_diagnosis_catalog"'),
   ('"public"."clinical_test_regions"'),
   ('"public"."clinical_visit"'),
+  ('"public"."clinic_public_directory_entries"'),
   ('"public"."content_access_grants_webapp"'),
   ('"public"."content_pages"'),
   ('"public"."content_sections"'),
@@ -282,8 +283,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-  IF v_expected_count <> 163 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 163, got %', v_expected_count;
+  IF v_expected_count <> 164 THEN
+    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 164, got %', v_expected_count;
   END IF;
 
   SELECT count(*)

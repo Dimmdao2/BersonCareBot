@@ -1436,6 +1436,13 @@
       "when": 1793452800000,
       "tag": "0204_promote_legacy_solo_owner_membership",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1793539200000,
+      "tag": "0205_enforce_clinic_public_directory_rls",
+      "breakpoints": true
     }
   ]
 }

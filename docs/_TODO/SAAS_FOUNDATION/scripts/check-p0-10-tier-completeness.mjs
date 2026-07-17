@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { readActualBaseTables } from "./actual-schema-tables.mjs";
-import { readBeFkPathRows, readTierRows } from "./rls-descriptor-model.mjs";
+import { preScopedDirectOrgTables, readBeFkPathRows, readTierRows } from "./rls-descriptor-model.mjs";
 
 const root = "docs/_TODO/SAAS_FOUNDATION/scope-derivation";
 
@@ -15,7 +15,7 @@ const expectedTierCounts = Object.freeze({
   BOOTSTRAP: 28,
   INFRA: 25,
   LEGACY: 16,
-  SCOPED: 159,
+  SCOPED: 160,
   TELEMETRY: 5,
 });
 
@@ -129,7 +129,9 @@ function buildP0101Facts() {
 
   const scopedTableSet = new Set(scopedTables);
   const scopedBeTables = scopedTables.filter((table) => table.startsWith("public.be_"));
-  const scopedNeedingOrgMaterialization = scopedTables.filter((table) => !table.startsWith("public.be_"));
+  const scopedNeedingOrgMaterialization = scopedTables.filter(
+    (table) => !table.startsWith("public.be_") && !preScopedDirectOrgTables.has(table),
+  );
 
   return {
     tierRows,
@@ -192,8 +194,8 @@ function runP0101Invariant({
     fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
   }
 
-  if (scopedTables.length !== 159) {
-    fail(`Expected 159 SCOPED tables, got ${scopedTables.length}`);
+  if (scopedTables.length !== 160) {
+    fail(`Expected 160 SCOPED tables, got ${scopedTables.length}`);
   }
 
   if (scopedBeTables.length !== 44) {

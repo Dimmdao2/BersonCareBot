@@ -58,6 +58,7 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   "public.clinical_diagnosis_catalog",
   "public.clinical_test_regions",
   "public.clinical_visit",
+  "public.clinic_public_directory_entries",
   "public.content_access_grants_webapp",
   "public.content_pages",
   "public.content_sections",
@@ -140,8 +141,8 @@ export function assertP083PublicDirectOrgTargets(targets) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 107) {
-    throw new Error(`Expected 107 P0.8.3 public direct-org targets, got ${actualTables.length}`);
+  if (actualTables.length !== 108) {
+    throw new Error(`Expected 108 P0.8.3 public direct-org targets, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {

@@ -53,7 +53,7 @@ function expectedPredicateFor(descriptor) {
     : plainOrgPredicate;
 }
 
-assert.equal(targets.length, 107, "P0.8.3 must target exactly 107 public direct-org tables");
+assert.equal(targets.length, 108, "P0.8.3 must target exactly 108 public direct-org tables");
 assert.deepEqual(targets, [...expectedP083PublicDirectOrgTargets].sort(), "P0.8.3 targets must stay stable");
 assert.equal(statements.length, targets.length * 3, "Each dormant target must render ENABLE, DROP, CREATE only");
 assert.doesNotMatch(
@@ -197,5 +197,5 @@ for (const descriptor of patientConditionalOwnedDescriptors) {
 assert.equal(renderStaffActorCheck(), "app.is_staff()");
 
 console.log(
-  `P0.8.3 policy generator OK: 107 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,
+  `P0.8.3 policy generator OK: 108 targets (${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalOwnedDescriptors.length} patient-conditional-owned) and deterministic dormant policy DDL.`,
 );

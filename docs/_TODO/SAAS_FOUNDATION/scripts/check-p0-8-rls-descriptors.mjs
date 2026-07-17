@@ -12,7 +12,7 @@ const expectedTierCounts = new Map([
   ["BOOTSTRAP", 28],
   ["INFRA", 25],
   ["LEGACY", 16],
-  ["SCOPED", 159],
+  ["SCOPED", 160],
   ["TELEMETRY", 5],
 ]);
 
@@ -36,7 +36,7 @@ const expectedScopedFkPathTables = new Set([
   "public.be_patient_package_items",
 ]);
 
-const expectedPublicDirectOrgPolicyTargets = 107;
+const expectedPublicDirectOrgPolicyTargets = 108;
 
 const expectedP083ParentCopyHolds = new Set([
   "public.content_section_slug_history",
@@ -84,8 +84,8 @@ if (duplicates.size > 0) {
   fail(`Duplicate tier rows: ${Array.from(duplicates).sort().join(", ")}`);
 }
 
-if (tierRows.length !== 233) {
-  fail(`Expected 233 tier rows, got ${tierRows.length}`);
+if (tierRows.length !== 234) {
+  fail(`Expected 234 tier rows, got ${tierRows.length}`);
 }
 
 if (descriptors.size !== tierRows.length) {
@@ -250,7 +250,7 @@ if (publicDirectOrgPolicyTargetCount !== expectedPublicDirectOrgPolicyTargets) {
   );
 }
 
-console.log("P0.8.1 RLS descriptor model OK: 233 descriptors cover tiers-218.tsv exactly once.");
+console.log("P0.8.1 RLS descriptor model OK: 234 descriptors cover tiers-218.tsv exactly once.");
 console.log(
   Array.from(actualTierCounts.entries())
     .sort(([left], [right]) => left.localeCompare(right))

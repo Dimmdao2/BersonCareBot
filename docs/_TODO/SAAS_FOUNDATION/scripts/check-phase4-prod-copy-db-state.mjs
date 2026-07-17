@@ -208,7 +208,7 @@ function reportGate(name, count) {
 async function checkDbState() {
   const safe = parseSafeRehearsalUrl(process.env[urlEnv]);
   const targets = loadRlsTargets();
-  if (targets.length !== 163) fail(`static RLS target count mismatch: expected 163, got ${targets.length}`);
+  if (targets.length !== 164) fail(`static RLS target count mismatch: expected 164, got ${targets.length}`);
 
   const { Client } = requireFromWebapp("pg");
   const client = new Client({ connectionString: safe.connectionString, application_name: "phase4-prod-copy-db-state-check" });

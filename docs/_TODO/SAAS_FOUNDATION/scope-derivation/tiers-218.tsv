@@ -139,6 +139,7 @@ SCOPED|public.clinical_diagnosis_status_history
 SCOPED|public.clinical_diagnosis_update
 SCOPED|public.clinical_test_regions
 SCOPED|public.clinical_visit
+SCOPED|public.clinic_public_directory_entries
 SCOPED|public.comments
 SCOPED|public.content_access_grants_webapp
 SCOPED|public.content_pages

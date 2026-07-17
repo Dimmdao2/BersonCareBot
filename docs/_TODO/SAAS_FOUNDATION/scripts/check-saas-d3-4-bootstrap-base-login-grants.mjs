@@ -366,8 +366,8 @@ function runChecks(overrides = {}) {
     fail(`${files.p05bGrantSql} is not in sync with p0-5b-grants-sql.mjs`);
   }
   const appStaffGrantTables = getAppStaffGrantTables();
-  if (appStaffGrantTables.length !== 219) {
-    fail(`P0.5b app_staff grant surface must remain the reviewed 219-table snapshot, got ${appStaffGrantTables.length}`);
+  if (appStaffGrantTables.length !== 220) {
+    fail(`P0.5b app_staff grant surface must remain the reviewed 220-table snapshot, got ${appStaffGrantTables.length}`);
   }
   for (const qualifiedName of overlayManagedAppStaffTables) {
     if (appStaffGrantTables.some((table) => table.qualifiedName === qualifiedName)) {

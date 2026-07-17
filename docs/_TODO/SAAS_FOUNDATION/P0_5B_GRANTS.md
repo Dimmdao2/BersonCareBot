@@ -51,7 +51,7 @@ psql '<database-url>' -f deploy/postgres/p0-5b-grants.sql
 
 Rollback: `-v p0_5b_grants_down=1` (revokes everything this script grants; does not drop the roles).
 
-## app_staff — reviewed P0.5b runtime surface (219 tables)
+## app_staff — reviewed P0.5b runtime surface (220 tables)
 
 Derived from `tiers-218.tsv` (`readTierRows()`): every table in the reviewed P0.5b snapshot across SCOPED,
 BOOTSTRAP, INFRA, LEGACY, and TELEMETRY, **excluding 4 pure migration-bookkeeping tables**
@@ -70,7 +70,7 @@ The UP path also explicitly revokes stale `app_patient` table/column privileges 
 accessor model without manual grant cleanup.
 
 This closes the exact gap the cross-model audit flagged: the older single-role
-`deploy/postgres/p0-5-role-split.sql` only grants SCOPED+BOOTSTRAP (183 tables), which is enough for
+`deploy/postgres/p0-5-role-split.sql` only grants SCOPED+BOOTSTRAP (187 tables), which is enough for
 patient-wall RLS but NOT enough for the webapp/integrator/worker/scheduler/media-worker runtime, which
 also reads/writes INFRA queues and outboxes every request (`projection_outbox`,
 `integrator_push_outbox`, `outgoing_delivery_queue`, `delivery_attempt_logs`, `idempotency_keys`, …),

@@ -46,6 +46,12 @@ const bootstrapRuntimeAudienceTables = new Set([
   "public.app_runtime_settings",
 ]);
 
+// Tenant-owned tables that already carry a direct organization_id but do not use the historical
+// public.be_* prefix and therefore do not belong in the P0.4 materialization batches.
+export const preScopedDirectOrgTables = new Set([
+  "public.clinic_public_directory_entries",
+]);
+
 function readLines(path) {
   return readFileSync(path, "utf8").trimEnd().split("\n").filter(Boolean);
 }
@@ -770,7 +776,7 @@ export function buildRlsDescriptors() {
         continue;
       }
 
-      if (table.startsWith("public.be_")) {
+      if (table.startsWith("public.be_") || preScopedDirectOrgTables.has(table)) {
         descriptors.set(table, { table, ...scopedDescriptorForBeTable(table) });
         continue;
       }
