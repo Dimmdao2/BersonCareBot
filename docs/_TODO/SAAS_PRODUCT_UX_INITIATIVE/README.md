@@ -1,8 +1,10 @@
 # SaaS Product UX Initiative
 
-**Статус:** latest owner clarifications integrated across UX contracts and implementation roadmap; full independent
-re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation has not started;
-solo-first launch has `0` pending owner product decisions.
+**Статус:** planning package passed the 2026-07-16 independent re-audit; implementation has not started. The
+complete 2026-07-18 owner dictation is consolidated in
+[`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). It is the latest product/UX authority and must be
+reconciled into stage checklists before implementation. The earlier statement about `0` pending product decisions
+applies only to the 2026-07-16 packet and does not discard explicit open questions from the 2026-07-18 review.
 **Рабочая ветка:** `feat/saas-interface-work3`.  
 **Taskdb:** `#787`.
 
@@ -39,10 +41,13 @@ solo-first launch закрыты; реализация всё равно нач�
 
 ## Канонические входы
 
+- Единый owner-review от 2026-07-18: [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md) — последний
+  канон глобальных продуктовых решений и UI corrections этой сессии; при конфликте его финальная формулировка
+  побеждает более ранние product/UX документы;
 - Foundation-решения владельца: `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` — высший приоритет в
   foundation/tenant/enforcement scope;
-- UX product-решения владельца: `OWNER_RULINGS_2026-07-16.md` — высший приоритет внутри этой инициативы над всеми
-  более старыми requirements, candidates, prototypes и audits;
+- UX product-решения владельца от 2026-07-16: `OWNER_RULINGS_2026-07-16.md` — предыдущий authority, действующий в
+  части, не изменённой единым owner-review от 2026-07-18;
 - порядок текущей SaaS-работы: `docs/_TODO/SAAS_FOUNDATION/SEQUENCE.md`;
 - текущий SaaS execution plan: `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`;
 - обзор продукта: `docs/PRODUCT_OVERVIEW.md`;
@@ -53,8 +58,9 @@ solo-first launch закрыты; реализация всё равно нач�
 - каналы уведомлений: `docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`;
 - агентная оркестрация: `docs/AGENT_AUTORUN_SCHEME.md` и `docs/ORCHESTRATION_BINDINGS.md`.
 
-Если старый UX text противоречит `OWNER_RULINGS_2026-07-16.md`, побеждает dated UX ruling. Foundation rulings
-2026-07-15 сохраняют приоритет в своей области. Новая product-гипотеза не подписывается как решение владельца.
+Если старый product/UX text противоречит `OWNER_REVIEW_2026-07-18.md`, побеждает финальная формулировка review.
+`OWNER_RULINGS_2026-07-16.md` сохраняет силу в остальной области. Foundation rulings 2026-07-15 сохраняют
+приоритет в foundation/enforcement-инвариантах. Новая product-гипотеза не подписывается как решение владельца.
 
 ## Правило актуальности документов
 
@@ -69,7 +75,10 @@ solo-first launch закрыты; реализация всё равно нач�
 
 ## Артефакты
 
-- `OWNER_RULINGS_2026-07-16.md` — текущий высший product/UX authority и solo-first launch boundary;
+- `OWNER_REVIEW_2026-07-18.md` — единый канон всей диктовки 2026-07-18: продуктовые решения, открытые вопросы,
+  UI-дефекты и acceptance delta;
+- `OWNER_RULINGS_2026-07-16.md` — предыдущий product/UX authority и solo-first launch boundary, действующий в
+  части, не изменённой review 2026-07-18;
 - `OWNER_DECISION_PACKET.md` — superseded исходные варианты/history, подчинённые dated rulings;
 - `REQUIREMENTS.md` — цель, исходные требования, ограничения и стартовые гипотезы;
 - `ROADMAP.md` — этапы исследования, роли исполнителей и критерии закрытия;

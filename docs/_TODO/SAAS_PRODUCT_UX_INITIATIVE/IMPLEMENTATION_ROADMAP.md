@@ -1,10 +1,12 @@
 # UX-09 — implementation roadmap
 
-**Статус:** latest owner clarifications integrated; full independent re-audit
-`SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation ещё не начиналась;
-solo-first launch has `0` pending owner product decisions.
-**Authority:** dated `OWNER_RULINGS_2026-07-16.md` имеет приоритет над всеми производными UX stage contracts;
-Foundation canon остаётся выше только в foundation/tenant/enforcement scope.
+**Статус:** 2026-07-16 package passed full independent re-audit; implementation ещё не начиналась. The complete
+latest owner decisions are consolidated in [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). They are
+a mandatory implementation delta and must be mapped into stage checklists before U0 execution; until that
+reconciliation, the roadmap is not execution-ready as a complete representation of the latest owner review.
+**Authority:** `OWNER_REVIEW_2026-07-18.md` побеждает более ранние product/UX contracts при конфликте;
+`OWNER_RULINGS_2026-07-16.md` действует в неизменённой им области. Foundation canon остаётся выше только в
+foundation/tenant/enforcement scope.
 **Тип документа:** decision-gated plan, не разрешение на implementation, deploy, DB changes или rollout.  
 **Ветка планирования:** `feat/saas-interface-work3`; основной workstream и текущий SaaS enforcement order не
 изменяются.
@@ -36,13 +38,14 @@ states, aliases и shared account surfaces остаются ровно таки�
 1. `AGENTS.md`, `.cursor/rules/*`, `docs/ORCHESTRATION_BINDINGS.md`;
 2. `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md`, `SEQUENCE.md`, `SAAS_ENFORCE_ROADMAP.md` для текущего SaaS/
    TEST workstream;
-3. `OWNER_RULINGS_2026-07-16.md` — высший product/UX authority этой инициативы; он побеждает все более старые
-   UX requirements, candidates, prototypes и audits, но не меняет Foundation scope из пункта 2;
-4. `REQUIREMENTS.md`, `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`;
-5. `ENTRY_AND_INVITE_JOURNEYS.md`, `BRANDING_DOMAIN_CONTRACT.md`, `BRANDING_CAPABILITY_MATRIX.md`;
-6. `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md`;
-7. `UX07_PROTOTYPE_INDEX.md` и `UX07_INDEPENDENT_AUDIT.md` как historical pre-ruling evidence;
-8. `OWNER_DECISION_PACKET.md` — исходные варианты и history/provenance, подчинённые dated rulings.
+3. `OWNER_REVIEW_2026-07-18.md` — последний product/UX authority; финальные решения побеждают более ранние
+   варианты этой сессии и старые product/UX документы, но не меняют Foundation scope из пункта 2;
+4. `OWNER_RULINGS_2026-07-16.md` — предыдущий authority в части, не изменённой пунктом 3;
+5. `REQUIREMENTS.md`, `OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md`;
+6. `ENTRY_AND_INVITE_JOURNEYS.md`, `BRANDING_DOMAIN_CONTRACT.md`, `BRANDING_CAPABILITY_MATRIX.md`;
+7. `TARGET_IA.md`, `SCREEN_COMPOSITION.md`, `ROUTE_MIGRATION_MAP.md`;
+8. `UX07_PROTOTYPE_INDEX.md` и `UX07_INDEPENDENT_AUDIT.md` как historical pre-ruling evidence;
+9. `OWNER_DECISION_PACKET.md` — исходные варианты и history/provenance, подчинённые dated rulings.
 
 Каждая implementation запись и audit report обязаны разделять:
 

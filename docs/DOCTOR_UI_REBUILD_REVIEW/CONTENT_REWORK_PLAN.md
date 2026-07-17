@@ -2,6 +2,14 @@
 
 Generated: 2026-06-14. Branch: `feat/doctor-ui-rebuild` (worktree `doctor-pages`).
 
+> **ВНИМАНИЕ — owner-review supersession, 2026-07-18.** Этот план нельзя исполнять как есть. Новый канон
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> меняет layout и product boundary: материалы выбранного раздела должны быть справа; слева остаются системные и
+> пользовательские разделы; создание раздела открывает форму справа; дублирующий `Медиа` удаляется; текущий CMS
+> является owner-organization capability и не показывается новым клиникам автоматически. Перед implementation
+> нужно переписать Target IA/Gap analysis/checklist этого файла против нового решения владельца.
+> Новые решения владельца в этот файл не добавляются: единственное место их фиксации — единый owner-review.
+
 ---
 
 ## 1. Current implementation map
