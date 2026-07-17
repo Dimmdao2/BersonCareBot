@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
 const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
 const listTimelineMock = vi.hoisted(() => vi.fn());
 const listPaymentHistoryMock = vi.hoisted(() => vi.fn());
 const listVisitHistoryMock = vi.hoisted(() => vi.fn());
-const withExplicitOrganizationPrincipalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/guards/requireRole")>();
@@ -28,10 +28,6 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
-  withExplicitOrganizationPrincipal: withExplicitOrganizationPrincipalMock,
-}));
-
 import { GET as getHistory } from "./history/route";
 import { GET as getPaymentHistory } from "./payment-history/route";
 
@@ -40,14 +36,17 @@ const USER_B = "22222222-2222-4222-8222-222222222222";
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-type PrincipalContext = { organizationId: string; source: string };
-
 describe("patient booking history routes", () => {
-  let activeOrganizationId: string | null;
+  function expectExactPatientPrincipal(organizationId: string, platformUserId: string): void {
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      organizationId,
+      platformUserId,
+    });
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
-    activeOrganizationId = null;
     requirePatientApiBusinessAccessMock.mockResolvedValue({
       ok: true,
       // A verified email/password patient is business-enabled without a trusted phone.
@@ -57,26 +56,16 @@ describe("patient booking history routes", () => {
       ok: true,
       organizationId: ORG_A,
     });
-    withExplicitOrganizationPrincipalMock.mockImplementation(
-      async (ctx: PrincipalContext, fn: () => Promise<unknown>) => {
-        activeOrganizationId = ctx.organizationId;
-        try {
-          return await fn();
-        } finally {
-          activeOrganizationId = null;
-        }
-      },
-    );
     listTimelineMock.mockImplementation(async (organizationId: string, userId: string) => {
-      expect(activeOrganizationId).toBe(organizationId);
+      expectExactPatientPrincipal(organizationId, userId);
       return [{ id: `timeline:${organizationId}:${userId}` }];
     });
     listPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
-      expect(activeOrganizationId).toBe(organizationId);
+      expectExactPatientPrincipal(organizationId, userId);
       return [{ id: `payment:${organizationId}:${userId}` }];
     });
     listVisitHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
-      expect(activeOrganizationId).toBe(organizationId);
+      expectExactPatientPrincipal(organizationId, userId);
       return [{ appointmentId: `visit:${organizationId}:${userId}` }];
     });
   });
@@ -94,14 +83,7 @@ describe("patient booking history routes", () => {
     expect(listPaymentHistoryMock).toHaveBeenCalledTimes(2);
     expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(1, ORG_A, USER_A, 50);
     expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_A, USER_A, 50);
-    expect(withExplicitOrganizationPrincipalMock).toHaveBeenCalledWith(
-      { organizationId: ORG_A, source: "api/booking/history:GET" },
-      expect.any(Function),
-    );
-    expect(withExplicitOrganizationPrincipalMock).toHaveBeenCalledWith(
-      { organizationId: ORG_A, source: "api/booking/payment-history:GET" },
-      expect.any(Function),
-    );
+    expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
   it.each([
@@ -119,7 +101,6 @@ describe("patient booking history routes", () => {
 
     expect(historyResponse.status).toBe(expectedStatus);
     expect(paymentResponse.status).toBe(expectedStatus);
-    expect(withExplicitOrganizationPrincipalMock).not.toHaveBeenCalled();
     expect(listTimelineMock).not.toHaveBeenCalled();
     expect(listPaymentHistoryMock).not.toHaveBeenCalled();
     expect(listVisitHistoryMock).not.toHaveBeenCalled();
@@ -147,5 +128,36 @@ describe("patient booking history routes", () => {
     expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_B, USER_B, 50);
     expect(listPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_A, USER_B, expect.anything());
     expect(listPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_B, USER_A, expect.anything());
+    expect(getCurrentDbPrincipal()).toBeUndefined();
+  });
+
+  it("locked patient principal hides same-org other-patient and null-trust phone orphan rows", async () => {
+    const lockedRows = [
+      { id: "own", organizationId: ORG_A, platformUserId: USER_A },
+      { id: "same-org-other", organizationId: ORG_A, platformUserId: USER_B },
+      { id: "null-trust-phone-orphan", organizationId: ORG_A, platformUserId: null },
+    ];
+    listPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
+      const principal = getCurrentDbPrincipal();
+      expect(principal).toEqual({
+        kind: "patient",
+        organizationId,
+        platformUserId: userId,
+        source: "api/booking/payment-history:GET",
+      });
+      if (principal?.kind !== "patient") throw new Error("patient_principal_required");
+      return lockedRows.filter(
+        (row) =>
+          row.organizationId === principal.organizationId &&
+          row.platformUserId === principal.platformUserId,
+      );
+    });
+
+    const response = await getPaymentHistory();
+    const body = (await response.json()) as { events: Array<{ id: string }> };
+
+    expect(response.status).toBe(200);
+    expect(body.events.map((row) => row.id)).toEqual(["own"]);
+    expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 });

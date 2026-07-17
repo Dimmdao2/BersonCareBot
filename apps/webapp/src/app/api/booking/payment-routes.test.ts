@@ -11,7 +11,7 @@ const resolveIntentOrganizationIdMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
 const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
 const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
-const withExplicitOrganizationPrincipalMock = vi.hoisted(() => vi.fn());
+const withPatientOrganizationPrincipalMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
@@ -24,7 +24,8 @@ vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
 });
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
-  withExplicitOrganizationPrincipal: withExplicitOrganizationPrincipalMock,
+  withExplicitOrganizationPrincipal: async (_ctx: unknown, fn: () => Promise<unknown>) => fn(),
+  withPatientOrganizationPrincipal: withPatientOrganizationPrincipalMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -60,7 +61,7 @@ requirePatientApiBusinessAccessMock.mockResolvedValue({
   session: { user: { userId: "u1", role: "client" as const } },
 });
 resolveActiveOrganizationForPatientMock.mockResolvedValue({ ok: true, organizationId: ORG_ID });
-withExplicitOrganizationPrincipalMock.mockImplementation(async (_ctx, fn: () => Promise<unknown>) => fn());
+withPatientOrganizationPrincipalMock.mockImplementation(async (_ctx, fn: () => Promise<unknown>) => fn());
 resolveIntentOrganizationIdMock.mockResolvedValue(ORG_ID);
 resolveBookingOrganizationIdMock.mockResolvedValue(ORG_ID);
 
@@ -97,8 +98,8 @@ describe("booking payment routes", () => {
     const json = (await res.json()) as { ok?: boolean; events?: unknown[] };
     expect(json.events).toHaveLength(1);
     expect(listPaymentHistoryMock).toHaveBeenCalledWith(ORG_ID, "u1", 50);
-    expect(withExplicitOrganizationPrincipalMock).toHaveBeenCalledWith(
-      { organizationId: ORG_ID, source: "api/booking/payment-history:GET" },
+    expect(withPatientOrganizationPrincipalMock).toHaveBeenCalledWith(
+      { organizationId: ORG_ID, platformUserId: "u1", source: "api/booking/payment-history:GET" },
       expect.any(Function),
     );
   });

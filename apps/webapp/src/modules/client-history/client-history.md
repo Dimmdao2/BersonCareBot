@@ -25,7 +25,8 @@ Read-only aggregation of patient booking timeline for doctor client card and pat
 Timeline merges (tenant-scoped by `organization_id`, patient by `platform_user_id` or phone for orphan product purchases):
 
 - `be_patient_timeline_events`
-- `be_payment_history_events` (+ phone-matched orphan rows via `product_purchase:{id}` in payload)
+- `be_payment_history_events` (+ phone-matched orphan rows via `product_purchase:{id}` in payload only when the
+  current patient's canonical phone has `patient_phone_trust_at`; an untrusted stored phone never claims orphan rows)
 - `be_package_history_events`, fallback `be_package_usages` (consume/penalty/manual_adjust)
 - `be_product_history_events`, `be_product_purchases` (incl. `buyer_phone_normalized` when `platform_user_id` is null)
 - `be_appointment_reschedules`, `be_appointment_cancellations`

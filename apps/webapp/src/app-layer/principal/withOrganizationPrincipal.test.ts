@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from "@bersoncare/db-principal";
 import {
   withDoctorWorkspacePrincipal,
   withExplicitOrganizationPrincipal,
+  withPatientOrganizationPrincipal,
 } from "./withOrganizationPrincipal";
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
+const PATIENT_USER_ID = "33333333-3333-4333-8333-333333333333";
 
 describe("withExplicitOrganizationPrincipal", () => {
   it("runs work under the requested organization principal and clears it afterwards", async () => {
@@ -51,5 +56,26 @@ describe("withDoctorWorkspacePrincipal", () => {
 
     expect(result).toBe(ORGANIZATION_ID);
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+});
+
+describe("withPatientOrganizationPrincipal", () => {
+  it("keeps exact organization and patient identity without staff elevation", async () => {
+    const principal = await withPatientOrganizationPrincipal(
+      {
+        organizationId: ORGANIZATION_ID,
+        platformUserId: PATIENT_USER_ID,
+        source: "patient-unit-test",
+      },
+      async () => getCurrentDbPrincipal(),
+    );
+
+    expect(principal).toEqual({
+      kind: "patient",
+      organizationId: ORGANIZATION_ID,
+      platformUserId: PATIENT_USER_ID,
+      source: "patient-unit-test",
+    });
+    expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 });

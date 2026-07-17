@@ -1,9 +1,16 @@
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import {
+  runWithDbOrganizationPrincipal,
+  runWithDbPatientPrincipal,
+} from "@bersoncare/db-principal";
 import type { DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
 
 export type TenantPrincipalContext = {
   organizationId: string;
   source: string;
+};
+
+export type PatientTenantPrincipalContext = TenantPrincipalContext & {
+  platformUserId: string;
 };
 
 function normalizePrincipalSource(source: string): string {
@@ -20,6 +27,21 @@ export async function withExplicitOrganizationPrincipal<T>(
 ): Promise<T> {
   normalizePrincipalSource(ctx.source);
   return runWithDbOrganizationPrincipal(ctx.organizationId, fn);
+}
+
+export async function withPatientOrganizationPrincipal<T>(
+  ctx: PatientTenantPrincipalContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  normalizePrincipalSource(ctx.source);
+  return runWithDbPatientPrincipal(
+    {
+      organizationId: ctx.organizationId,
+      platformUserId: ctx.platformUserId,
+      source: ctx.source,
+    },
+    fn,
+  );
 }
 
 export async function withDoctorWorkspacePrincipal<T>(

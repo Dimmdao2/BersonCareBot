@@ -97,10 +97,14 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 async function resolveUserPhone(platformUserId: string): Promise<string | null> {
   const db = getDrizzle();
   const rows = await db
-    .select({ phone: platformUsers.phoneNormalized })
+    .select({
+      phone: platformUsers.phoneNormalized,
+      patientPhoneTrustAt: platformUsers.patientPhoneTrustAt,
+    })
     .from(platformUsers)
     .where(eq(platformUsers.id, platformUserId))
     .limit(1);
+  if (!rows[0]?.patientPhoneTrustAt) return null;
   const phone = rows[0]?.phone?.trim();
   return phone || null;
 }

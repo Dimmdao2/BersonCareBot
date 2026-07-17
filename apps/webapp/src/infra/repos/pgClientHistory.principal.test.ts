@@ -133,4 +133,38 @@ describe("pgClientHistory principal-safe appointment comment mutations", () => {
     expect(insert).toHaveBeenCalledTimes(1);
     expect(db.insert).not.toHaveBeenCalled();
   });
+
+  it("does not use an untrusted patient phone to expose orphan payment history", async () => {
+    let selectCall = 0;
+    const select = vi.fn(() => {
+      selectCall += 1;
+      if (selectCall === 1) {
+        return {
+          from: () => ({
+            where: () => ({
+              limit: vi.fn().mockResolvedValue([
+                { phone: "+12025550101", patientPhoneTrustAt: null },
+              ]),
+            }),
+          }),
+        };
+      }
+      if (selectCall === 2) {
+        return {
+          from: () => ({
+            where: () => ({
+              orderBy: () => ({ limit: vi.fn().mockResolvedValue([]) }),
+            }),
+          }),
+        };
+      }
+      throw new Error("untrusted_phone_orphan_query_must_not_run");
+    });
+    getDrizzleMock.mockReturnValue({ select });
+
+    const rows = await createPgClientHistoryPort().listPaymentHistory(ORG, PATIENT, 50);
+
+    expect(rows).toEqual([]);
+    expect(select).toHaveBeenCalledTimes(2);
+  });
 });

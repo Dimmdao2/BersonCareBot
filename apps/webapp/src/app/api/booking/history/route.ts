@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientEnrollmentOrganizationId } from "../bookingTenant";
 
@@ -14,8 +14,8 @@ export async function GET() {
   const resolvedOrg = await resolvePatientEnrollmentOrganizationId(deps, userId);
   if (!resolvedOrg.ok) return resolvedOrg.response;
   const orgId = resolvedOrg.organizationId;
-  const [timeline, payments, visits] = await withExplicitOrganizationPrincipal(
-    { organizationId: orgId, source: "api/booking/history:GET" },
+  const [timeline, payments, visits] = await withPatientOrganizationPrincipal(
+    { organizationId: orgId, platformUserId: userId, source: "api/booking/history:GET" },
     () =>
       Promise.all([
         deps.clientHistory.listTimeline(orgId, userId, 50),
