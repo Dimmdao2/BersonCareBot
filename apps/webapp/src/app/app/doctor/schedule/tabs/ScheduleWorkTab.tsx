@@ -40,6 +40,14 @@ const WH_BASE = "/api/doctor/booking-engine/working-hours";
 const DEFAULT_PANEL_START = "09:00";
 const DEFAULT_PANEL_END = "18:00";
 
+// #829: base-ui's `Select` (used by the "Локация"/city control) renders its dropdown
+// content in a `document.body` portal — it's a React-tree descendant of the panel here
+// but NOT a DOM descendant, so `Element.closest()` can't find `hours-panel`/interactive
+// ancestors through it. Recognize any select part (`select-content`, `select-item`, …,
+// all tagged `data-slot="select-*"` by the primitive) so opening/using that dropdown is
+// never mistaken for a "click outside" that should clear the in-progress selection.
+const SELECT_PORTAL_SELECTOR = "[data-slot^='select']";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -1035,7 +1043,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   function handleSurfaceMouseDown(e: MouseEvent<HTMLElement>) {
     const target = e.target as HTMLElement;
     const interactive = target.closest(
-      "button,[role='button'],[role='combobox'],a,input,label,select,textarea,[data-radix-popper-content-wrapper]",
+      `button,[role='button'],[role='combobox'],a,input,label,select,textarea,${SELECT_PORTAL_SELECTOR}`,
     );
     if (!interactive) {
       handleClearSelection();
@@ -1115,8 +1123,15 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         className="grid gap-3 lg:grid-cols-[1fr_320px]"
         onMouseDown={(e) => {
           const target = e.target as HTMLElement;
-          // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel
-          const inside = target.closest("[data-testid='month-grid'], [data-testid='hours-panel']");
+          // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel.
+          // #829: также не сбрасываем для содержимого Select-дропдауна («Локация»/город) —
+          // оно рендерится в портал в document.body (base-ui `Select`), т.е. НЕ является
+          // DOM-потомком hours-panel, хотя и остаётся React-потомком (событие всё равно
+          // всплывает сюда). Без этого выбор дня недели/дней сбрасывался и панель редактирования
+          // пропадала при простом открытии/выборе города.
+          const inside = target.closest(
+            `[data-testid='month-grid'], [data-testid='hours-panel'], ${SELECT_PORTAL_SELECTOR}`,
+          );
           if (!inside) {
             setSelected(new Set());
             setSelectedPrimaryDate(null);
