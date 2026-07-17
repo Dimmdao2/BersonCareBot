@@ -6,6 +6,8 @@ import {
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromTransaction,
   getCurrentDbPrincipal,
+  runWithDbPrincipalSnapshot,
+  type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import * as schema from "../../../db/schema";
@@ -139,8 +141,145 @@ async function clearCurrentDbPrincipalFromDrizzleTransaction(
   await clearDbPrincipalFromTransaction(queryable, principalApplyOptions);
 }
 
+// ---------------------------------------------------------------------------
+// Phase 1 chokepoint (taskdb #821, Option (a)) — plain (non-`.transaction()`) reads.
+//
+// `db.select()`/`db.execute()`/`db.query.<table>.find*()` all ultimately produce a
+// drizzle-orm `QueryPromise` (or `PgRaw`) — a LAZY THENABLE, not a native `Promise`
+// (see node_modules/drizzle-orm/query-promise.js: `then(onFulfilled, onRejected) { return
+// this.execute().then(...); }`). The real work — including which `pg.Pool.query()` call
+// actually hits the wire, which is where `installPrincipalAwarePoolQuery`
+// (infra/db/webappPoolProvider.ts) reads `getCurrentDbPrincipal()` — does not happen when the
+// query is built, it happens whenever something later calls `.then()` on it.
+//
+// That is fine as long as whoever built the query also awaits it directly inside the same
+// synchronous/async continuation (the common, `enterWith`-persistent-principal case — reading
+// `getCurrentDbPrincipal()` late is harmless because nothing changes it in between). It is NOT
+// fine for the `runWithDbOrganizationPrincipal(orgId, () => ...)` / `withDoctorWorkspacePrincipal`
+// pattern: that principal is only guaranteed live for the synchronous extent of its own callback.
+// A repo function is free to `return db.select()...` (or, generically, `() => T` never requires
+// the caller to await inside the callback — see e.g.
+// `withDoctorWorkspacePrincipal(gate.ctx, () => deps.patientPayments.listPayments(...))` in
+// app/api/doctor/patients/[userId]/payment-timeline/route.ts, whose un-awaited-inside-the-callback
+// return value is awaited later via `Promise.all([...])`). If ANYTHING re-points the ambient DB
+// principal before that deferred `.then()` finally fires — a sibling `Promise.all` entry, a later
+// `enterWithDbStaffPrincipal` call in the same request, another concurrent request's continuation —
+// a naive read of `getCurrentDbPrincipal()` at `.then()`/execute time silently applies the WRONG
+// (or no) principal instead of the one active when the query was issued. Confirmed empirically
+// (see taskdb #821 verification notes): this is a real, deterministic gap, not a theoretical one —
+// it reproduces with plain sequential code, no timing race required, whenever a principal is
+// re-entered between issuing a lazy query and awaiting it.
+//
+// FIX: capture `getCurrentDbPrincipal()` SYNCHRONOUSLY at the moment the query is ISSUED — i.e. the
+// very first call in the chain (`db.select()`, `db.execute()`, `db.query.<table>.find*()`), which
+// always runs synchronously inside the caller's own principal scope — and close over that snapshot.
+// Whenever the query's deferred `.then()` eventually fires (however later, under whatever ambient
+// principal happens to be around by then), replay EXACTLY the captured snapshot via
+// `runWithDbPrincipalSnapshot` so `installPrincipalAwarePoolQuery`'s synchronous
+// `getCurrentDbPrincipal()` read (which happens inside the same synchronous call chain as `.then()`,
+// before `client.query()`'s own internal await) sees the issuer's principal, never a stale/foreign
+// one. `runWithDbPrincipalSnapshot` accepts `undefined` verbatim (unlike `runWithDbPrincipal`), so a
+// query issued with NO principal at all stays fail-closed (empty/denied) at execute time too, rather
+// than accidentally picking up whatever became ambient later.
+//
+// Only `.select()`/`.selectDistinct()`/`.selectDistinctOn()` (session -> builder -> `.from()` ->
+// terminal query) need a two-hop wrap; `.execute()` and `db.query.<table>.find*()` already return the
+// terminal thenable directly (single hop). Mutations (`insert`/`update`/`delete`) are out of scope
+// here: this repo's convention is that every mutation runs inside `db.transaction()`, which
+// `withPrincipalAwareTransactions` above already makes issue-time-safe.
+// ---------------------------------------------------------------------------
+
+type DrizzleThenable = { then: (onFulfilled?: unknown, onRejected?: unknown) => unknown };
+
+/**
+ * Overrides `terminal.then` with an OWN property (shadowing whatever prototype method drizzle-orm
+ * gave it, whether via real inheritance or `applyMixins`'s copied descriptor) so the eventual real
+ * execution — however later `.then()` is actually invoked — runs with `principalSnapshot` applied,
+ * regardless of what's ambient at that moment. Only ever touches this one specific instance; other
+ * concurrent queries and drizzle-orm's own prototypes are untouched.
+ */
+function wrapTerminalReadWithIssueTimePrincipal<T extends DrizzleThenable>(
+  terminal: T,
+  principalSnapshot: DbPrincipal | undefined,
+): T {
+  const originalThen = terminal.then.bind(terminal);
+  (terminal as DrizzleThenable).then = (onFulfilled?: unknown, onRejected?: unknown) =>
+    runWithDbPrincipalSnapshot(principalSnapshot, () => originalThen(onFulfilled, onRejected));
+  return terminal;
+}
+
+type DrizzleSelectBuilderLike = { from: (...args: never[]) => DrizzleThenable };
+
+/** Wraps a `db.select`/`db.selectDistinct`/`db.selectDistinctOn`-shaped entry point. */
+function wrapSelectEntryPoint<F extends (...args: never[]) => DrizzleSelectBuilderLike>(originalEntry: F): F {
+  return ((...args: Parameters<F>) => {
+    // Synchronous, issue-time snapshot — `db.select()` itself never awaits anything.
+    const principalSnapshot = getCurrentDbPrincipal();
+    const builder = originalEntry(...args);
+    const originalFrom = builder.from.bind(builder);
+    builder.from = ((...fromArgs: Parameters<DrizzleSelectBuilderLike["from"]>) =>
+      wrapTerminalReadWithIssueTimePrincipal(originalFrom(...fromArgs), principalSnapshot)) as DrizzleSelectBuilderLike["from"];
+    return builder;
+  }) as F;
+}
+
+type DrizzleRelationalTableQuery = {
+  findMany: (...args: never[]) => DrizzleThenable;
+  findFirst: (...args: never[]) => DrizzleThenable;
+};
+
+/** Wraps every `db.query.<table>.findMany`/`.findFirst` entry point in place. Defensive against a
+ * partial/mocked `db` (e.g. drizzle.test.ts's `.transaction()`-only mock) — production `getDrizzle()`
+ * always builds a real, complete drizzle instance where `.query` is populated per schema table. */
+function withIssueTimePrincipalRelationalReads(rawDb: DrizzleDb): void {
+  const query = rawDb.query as unknown as Record<string, DrizzleRelationalTableQuery> | undefined;
+  if (!query) return;
+  for (const tableQuery of Object.values(query)) {
+    for (const method of ["findMany", "findFirst"] as const) {
+      if (typeof tableQuery[method] !== "function") continue;
+      const original = tableQuery[method].bind(tableQuery);
+      tableQuery[method] = ((...args: Parameters<DrizzleRelationalTableQuery[typeof method]>) => {
+        const principalSnapshot = getCurrentDbPrincipal();
+        return wrapTerminalReadWithIssueTimePrincipal(original(...args), principalSnapshot);
+      }) as DrizzleRelationalTableQuery[typeof method];
+    }
+  }
+}
+
+/** Wraps a single `db.<selectEntryPoint>` method in place (each has its own overload set, so these
+ * are unrolled individually rather than looped over a union key — assigning back through a union
+ * key turns the target type into an unhelpful intersection of all three overload sets). Defensive
+ * against a partial/mocked `db` (e.g. drizzle.test.ts's `.transaction()`-only mock) — production
+ * `getDrizzle()` always builds a real, complete drizzle instance with all three methods present. */
+function wrapSelectEntryPointInPlace<K extends "select" | "selectDistinct" | "selectDistinctOn">(
+  rawDb: DrizzleDb,
+  key: K,
+): void {
+  if (typeof rawDb[key] !== "function") return;
+  const original = rawDb[key].bind(rawDb) as unknown as (...args: never[]) => DrizzleSelectBuilderLike;
+  rawDb[key] = wrapSelectEntryPoint(original) as unknown as DrizzleDb[K];
+}
+
+function withIssueTimePrincipalReads(rawDb: DrizzleDb): DrizzleDb {
+  wrapSelectEntryPointInPlace(rawDb, "select");
+  wrapSelectEntryPointInPlace(rawDb, "selectDistinct");
+  wrapSelectEntryPointInPlace(rawDb, "selectDistinctOn");
+
+  if (typeof rawDb.execute === "function") {
+    const originalExecute = rawDb.execute.bind(rawDb) as (...args: never[]) => DrizzleThenable;
+    rawDb.execute = ((...args: Parameters<typeof originalExecute>) => {
+      const principalSnapshot = getCurrentDbPrincipal();
+      return wrapTerminalReadWithIssueTimePrincipal(originalExecute(...args), principalSnapshot);
+    }) as DrizzleDb["execute"];
+  }
+
+  withIssueTimePrincipalRelationalReads(rawDb);
+
+  return rawDb;
+}
+
 /** Drizzle instance sharing the same `pg.Pool` as legacy `getPool()`. */
 export function getDrizzle(): DrizzleDb {
-  db ??= withPrincipalAwareTransactions(drizzle(getPool(), { schema }));
+  db ??= withIssueTimePrincipalReads(withPrincipalAwareTransactions(drizzle(getPool(), { schema })));
   return db;
 }

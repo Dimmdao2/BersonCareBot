@@ -104,7 +104,7 @@ export type DbInfraPrincipalInput = {
 type DbPrincipalApplyScope = "transaction" | "connection";
 
 type DbPrincipalContextCell = {
-  current: DbPrincipal;
+  current: DbPrincipal | undefined;
 };
 
 type DbPrincipalQueryable = {
@@ -312,6 +312,22 @@ export function getCurrentDbPrincipalIntegratorUserId(): string | undefined {
 
 export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
   return principalStorage.run({ current: normalizeDbPrincipal(principal) }, fn);
+}
+
+/**
+ * Re-enters the DB principal ALS context scoped to EXACTLY `principal` — including `undefined` —
+ * for the duration of `fn`. Unlike `runWithDbPrincipal`, this accepts `undefined` verbatim instead
+ * of requiring an already-normalized principal, because it exists to REPLAY a principal snapshot
+ * that was captured synchronously at an earlier point in time (e.g. taskdb #821: the moment a
+ * Drizzle plain-read query is issued, before its deferred, non-native-Promise `QueryPromise` thenable
+ * actually runs `.then()`) onto that later, disconnected continuation. Reading `getCurrentDbPrincipal()`
+ * fresh at that later point would silently pick up whatever principal happens to be ambient THEN
+ * (possibly a different tenant, or none) instead of the one active when the query was issued — this
+ * function exists specifically so callers can pin the ORIGINAL snapshot instead. Never memoize or
+ * reuse a single call's result across queries/requests; always capture a fresh snapshot per query.
+ */
+export function runWithDbPrincipalSnapshot<T>(principal: DbPrincipal | undefined, fn: () => T): T {
+  return principalStorage.run({ current: principal }, fn);
 }
 
 export function enterWithDbPrincipal(principal: DbPrincipal): void {
