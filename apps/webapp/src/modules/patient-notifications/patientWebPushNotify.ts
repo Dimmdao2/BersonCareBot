@@ -244,6 +244,7 @@ export async function runPatientWebPushNotify(
   const tag = body.stableKey.slice(0, 240);
   const result = await relayOutbound({
     messageId: `patient-web-push:${uid}:${tag}`,
+    organizationId: body.organizationId,
     channel: "web_push",
     recipient: uid,
     text: trackedPayload.body,

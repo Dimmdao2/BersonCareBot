@@ -15,6 +15,8 @@ export type RelayInlineButton = { text: string; callback_data: string };
 
 export type RelayOutboundParams = {
   messageId: string;
+  /** Verified tenant carried into the integrator dispatch principal. */
+  organizationId?: string;
   channel: string;
   recipient: string;
   text: string;
@@ -128,6 +130,9 @@ export async function relayOutbound(
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 
   const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };
+  if (params.organizationId) {
+    bodyObj.organizationId = params.organizationId;
+  }
   const mergedMetadata: Record<string, unknown> = {};
   if (params.metadata) {
     Object.assign(mergedMetadata, params.metadata);

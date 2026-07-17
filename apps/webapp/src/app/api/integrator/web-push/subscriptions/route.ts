@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { assertIntegratorGetRequest } from "@/app-layer/integrator/assertIntegratorGetRequest";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
 
 export async function GET(request: Request) {
   const authError = assertIntegratorGetRequest(request);
@@ -20,11 +21,18 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId")?.trim();
+  const organizationId = url.searchParams.get("organizationId")?.trim() ?? "";
   if (!userId) {
     return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
   }
+  if (!enterVerifiedIntegratorOrganizationPrincipal(organizationId, "integrator-web-push-subscriptions")) {
+    return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
+  }
 
-  const { webPushSubscriptions } = buildAppDeps();
+  const { patientOrganization, webPushSubscriptions } = buildAppDeps();
+  if (!patientOrganization || !(await patientOrganization.hasActiveEnrollment(userId, organizationId))) {
+    return NextResponse.json({ ok: false, error: "notification target is outside organization" }, { status: 403 });
+  }
   const subscriptions = await webPushSubscriptions.listActiveByUserId(userId);
   return NextResponse.json({ ok: true, subscriptions }, { status: 200 });
 }

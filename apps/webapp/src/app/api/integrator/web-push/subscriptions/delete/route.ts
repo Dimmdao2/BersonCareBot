@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
 
 export async function POST(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");
@@ -36,8 +37,12 @@ export async function POST(request: Request) {
   }
 
   const endpoint = typeof parsed.endpoint === "string" ? parsed.endpoint.trim() : "";
+  const organizationId = typeof parsed.organizationId === "string" ? parsed.organizationId.trim() : "";
   if (!endpoint) {
     return NextResponse.json({ ok: false, error: "endpoint required" }, { status: 400 });
+  }
+  if (!enterVerifiedIntegratorOrganizationPrincipal(organizationId, "integrator-web-push-subscription-delete")) {
+    return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
   }
 
   const { webPushSubscriptions } = buildAppDeps();

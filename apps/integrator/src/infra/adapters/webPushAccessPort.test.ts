@@ -26,6 +26,7 @@ const STUB_VAPID = {
 };
 
 const originalFetch = globalThis.fetch;
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
 describe('webPushAccessPort', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
@@ -53,7 +54,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, subscriptions: [STUB_SUBSCRIPTION] }),
       });
 
-      const result = await port.getSubscriptionsForUser('user-uuid-123');
+      const result = await port.getSubscriptionsForUser('user-uuid-123', ORGANIZATION_ID);
       expect(result).toHaveLength(1);
       expect(result![0]!.endpoint).toBe(STUB_SUBSCRIPTION.endpoint);
       expect(result![0]!.keys.p256dh).toBe(STUB_SUBSCRIPTION.keys.p256dh);
@@ -67,11 +68,12 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, subscriptions: [] }),
       });
 
-      await port.getSubscriptionsForUser('specific-user-id');
+      await port.getSubscriptionsForUser('specific-user-id', ORGANIZATION_ID);
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url] = fetchMock.mock.calls[0]!;
       expect(url).toContain('/api/integrator/web-push/subscriptions');
       expect(url).toContain('userId=specific-user-id');
+      expect(url).toContain(`organizationId=${ORGANIZATION_ID}`);
     });
 
     it('returns empty array when user has no subscriptions', async () => {
@@ -81,7 +83,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, subscriptions: [] }),
       });
 
-      const result = await port.getSubscriptionsForUser('user-no-subs');
+      const result = await port.getSubscriptionsForUser('user-no-subs', ORGANIZATION_ID);
       expect(result).toEqual([]);
     });
 
@@ -92,7 +94,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: false, error: 'invalid signature' }),
       });
 
-      const result = await port.getSubscriptionsForUser('user-uuid');
+      const result = await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
@@ -103,13 +105,13 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: false, error: 'some error' }),
       });
 
-      const result = await port.getSubscriptionsForUser('user-uuid');
+      const result = await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
     it('returns null when fetch throws (network error)', async () => {
       fetchMock.mockRejectedValueOnce(new Error('network error'));
-      const result = await port.getSubscriptionsForUser('user-uuid');
+      const result = await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
@@ -129,7 +131,7 @@ describe('webPushAccessPort', () => {
         }),
       });
 
-      const result = await port.getSubscriptionsForUser('user-uuid');
+      const result = await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       // Only the first valid subscription passes
       expect(result).toHaveLength(1);
       expect(result![0]!.endpoint).toBe(STUB_SUBSCRIPTION.endpoint);
@@ -142,7 +144,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, subscriptions: [] }),
       });
 
-      await port.getSubscriptionsForUser('user-uuid');
+      await port.getSubscriptionsForUser('user-uuid', ORGANIZATION_ID);
       const [, options] = fetchMock.mock.calls[0]!;
       const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
@@ -160,7 +162,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, vapid: STUB_VAPID }),
       });
 
-      const result = await port.getVapidCredentials();
+      const result = await port.getVapidCredentials(ORGANIZATION_ID);
       expect(result).toMatchObject({
         publicKey: STUB_VAPID.publicKey,
         privateKey: STUB_VAPID.privateKey,
@@ -168,18 +170,17 @@ describe('webPushAccessPort', () => {
       });
     });
 
-    it('calls correct URL with no query params', async () => {
+    it('calls correct URL with organization query param', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({ ok: true, vapid: STUB_VAPID }),
       });
 
-      await port.getVapidCredentials();
+      await port.getVapidCredentials(ORGANIZATION_ID);
       const [url] = fetchMock.mock.calls[0]!;
       expect(url).toContain('/api/integrator/web-push/vapid');
-      // no query params for vapid
-      expect(url).not.toContain('?');
+      expect(url).toContain(`organizationId=${ORGANIZATION_ID}`);
     });
 
     it('returns null when VAPID not configured (503 from webapp)', async () => {
@@ -189,7 +190,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: false, error: 'web_push_vapid not configured' }),
       });
 
-      const result = await port.getVapidCredentials();
+      const result = await port.getVapidCredentials(ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
@@ -200,7 +201,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true }),
       });
 
-      const result = await port.getVapidCredentials();
+      const result = await port.getVapidCredentials(ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
@@ -211,13 +212,13 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, vapid: { publicKey: 'pub', subject: 'mailto:x@x.com' } }),
       });
 
-      const result = await port.getVapidCredentials();
+      const result = await port.getVapidCredentials(ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
     it('returns null on fetch error', async () => {
       fetchMock.mockRejectedValueOnce(new Error('connection refused'));
-      const result = await port.getVapidCredentials();
+      const result = await port.getVapidCredentials(ORGANIZATION_ID);
       expect(result).toBeNull();
     });
 
@@ -228,7 +229,7 @@ describe('webPushAccessPort', () => {
         json: async () => ({ ok: true, vapid: STUB_VAPID }),
       });
 
-      await port.getVapidCredentials();
+      await port.getVapidCredentials(ORGANIZATION_ID);
       const [, options] = fetchMock.mock.calls[0]!;
       const headers = (options as { headers?: Record<string, string> }).headers as Record<string, string>;
       expect(headers['X-Bersoncare-Timestamp']).toBeDefined();
@@ -254,8 +255,8 @@ describe('webPushAccessPort', () => {
         });
 
       const [subs, vapid] = await Promise.all([
-        port.getSubscriptionsForUser('user-123'),
-        port.getVapidCredentials(),
+        port.getSubscriptionsForUser('user-123', ORGANIZATION_ID),
+        port.getVapidCredentials(ORGANIZATION_ID),
       ]);
 
       expect(subs).toHaveLength(1);

@@ -62,6 +62,23 @@ describe("relayOutbound", () => {
     expect(body.idempotencyKey).toBe("msg-1:telegram:123456789");
   });
 
+  it("carries organizationId into a tenant-scoped relay payload", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ok: true, status: "accepted" }),
+    });
+
+    const { relayOutbound } = await importRelay();
+    await relayOutbound(
+      { ...baseParams, channel: "web_push", organizationId: "11111111-1111-4111-8111-111111111111" },
+      { retryDelaysMs: INSTANT_DELAYS },
+    );
+
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(call[1].body as string) as Record<string, string>;
+    expect(body.organizationId).toBe("11111111-1111-4111-8111-111111111111");
+  });
+
   it("idempotency duplicate → ok: true, status: duplicate", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

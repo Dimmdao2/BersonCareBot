@@ -4,8 +4,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const assertMock = vi.hoisted(() => vi.fn());
+const enterOrganizationPrincipalMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
 vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
   assertIntegratorGetRequest: assertMock,
+}));
+vi.mock("@/app-layer/principal/integratorOrganizationPrincipal", () => ({
+  enterVerifiedIntegratorOrganizationPrincipal: enterOrganizationPrincipalMock,
 }));
 
 const mockGetWebPushVapidKeyPair = vi.hoisted(() =>
@@ -35,9 +39,13 @@ import {
   wireDefaultAssertIntegratorGetForRouteTests,
 } from "../../testUtils/wireAssertIntegratorGetForRouteTests";
 
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const signedUrl = `http://localhost/api/integrator/web-push/vapid?organizationId=${ORGANIZATION_ID}`;
+
 describe("GET /api/integrator/web-push/vapid", () => {
   beforeEach(() => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+    enterOrganizationPrincipalMock.mockReset().mockReturnValue(true);
     mockGetWebPushVapidKeyPair.mockReset().mockResolvedValue({ publicKey: "stub-pub", privateKey: "stub-priv" });
     mockDeriveVapidSubject.mockReset().mockResolvedValue("mailto:noreply@example.com");
   });
@@ -51,7 +59,7 @@ describe("GET /api/integrator/web-push/vapid", () => {
 
   it("returns 401 when signature invalid", async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/vapid", {
+      new Request(signedUrl, {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
       }),
     );
@@ -61,7 +69,7 @@ describe("GET /api/integrator/web-push/vapid", () => {
   it("returns 503 when VAPID not configured", async () => {
     mockGetWebPushVapidKeyPair.mockResolvedValue(null);
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/vapid", {
+      new Request(signedUrl, {
         headers: integratorGetSignedHeadersOk,
       }),
     );
@@ -75,7 +83,7 @@ describe("GET /api/integrator/web-push/vapid", () => {
     mockDeriveVapidSubject.mockResolvedValue("mailto:admin@bersoncare.com");
 
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/vapid", {
+      new Request(signedUrl, {
         headers: integratorGetSignedHeadersOk,
       }),
     );
@@ -93,7 +101,7 @@ describe("GET /api/integrator/web-push/vapid", () => {
     mockDeriveVapidSubject.mockResolvedValue("mailto:noreply@invalid");
 
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/vapid", {
+      new Request(signedUrl, {
         headers: integratorGetSignedHeadersOk,
       }),
     );

@@ -25,6 +25,7 @@ import type { DeliveryAdapter, DeliverySendResult, OutgoingIntent, WebPushAccess
 import { readChannel } from '../../infra/adapters/channelRouting.js';
 import { logger } from '../../infra/observability/logger.js';
 import { sendWebPushViaProvider } from './client.js';
+import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 
 type WebPushDeliveryPayload = {
   recipient?: { pushUserId?: unknown };
@@ -69,11 +70,16 @@ export function createWebPushDeliveryAdapter(deps: {
         (err as { code?: number }).code = 400;
         throw err;
       }
+      const organizationId = getCurrentOrganizationPrincipalId();
+      if (!organizationId) {
+        // eslint-disable-next-line no-secrets/no-secrets -- stable runtime error code, not a credential
+        throw new Error('WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED');
+      }
 
       // Fetch subscriptions + VAPID in parallel (Model β — M2M read from webapp).
       const [subscriptions, vapid] = await Promise.all([
-        webPushAccessPort.getSubscriptionsForUser(pushUserId),
-        webPushAccessPort.getVapidCredentials(),
+        webPushAccessPort.getSubscriptionsForUser(pushUserId, organizationId),
+        webPushAccessPort.getVapidCredentials(organizationId),
       ]);
 
       if (!vapid) {
@@ -113,7 +119,7 @@ export function createWebPushDeliveryAdapter(deps: {
           ...(extras.occurrenceId !== undefined ? { occurrenceId: extras.occurrenceId } : {}),
         },
         onSubscriptionDead: async (endpoint) => {
-          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(endpoint);
+          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(endpoint, organizationId);
           if (!deleted) {
             logger.warn(
               { scope: 'web_push', event: 'web_push_dead_sub_cleanup_failed', pushUserId },

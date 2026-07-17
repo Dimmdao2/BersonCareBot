@@ -4,8 +4,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const assertMock = vi.hoisted(() => vi.fn());
+const enterOrganizationPrincipalMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
+const hasActiveEnrollmentMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
   assertIntegratorGetRequest: assertMock,
+}));
+vi.mock("@/app-layer/principal/integratorOrganizationPrincipal", () => ({
+  enterVerifiedIntegratorOrganizationPrincipal: enterOrganizationPrincipalMock,
 }));
 
 const mockListActiveByUserId = vi.hoisted(() => vi.fn().mockResolvedValue([]));
@@ -13,6 +18,7 @@ const mockListActiveByUserId = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 // rather than just the factory function.
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    patientOrganization: { hasActiveEnrollment: hasActiveEnrollmentMock },
     webPushSubscriptions: {
       listActiveByUserId: mockListActiveByUserId,
     },
@@ -30,10 +36,15 @@ const STUB_SUBSCRIPTION = {
   expirationTime: null,
   keys: { p256dh: "p256dh-value", auth: "auth-value" },
 };
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const signedUrl = (userId: string) =>
+  `http://localhost/api/integrator/web-push/subscriptions?userId=${userId}&organizationId=${ORGANIZATION_ID}`;
 
 describe("GET /api/integrator/web-push/subscriptions", () => {
   beforeEach(() => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+    enterOrganizationPrincipalMock.mockReset().mockReturnValue(true);
+    hasActiveEnrollmentMock.mockReset().mockResolvedValue(true);
     mockListActiveByUserId.mockReset().mockResolvedValue([]);
   });
 
@@ -67,7 +78,7 @@ describe("GET /api/integrator/web-push/subscriptions", () => {
   it("returns 200 with empty subscriptions when user has none", async () => {
     mockListActiveByUserId.mockResolvedValue([]);
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/subscriptions?userId=user-with-no-subs", {
+      new Request(signedUrl("user-with-no-subs"), {
         headers: integratorGetSignedHeadersOk,
       }),
     );
@@ -79,7 +90,7 @@ describe("GET /api/integrator/web-push/subscriptions", () => {
   it("returns 200 with subscriptions for user", async () => {
     mockListActiveByUserId.mockResolvedValue([STUB_SUBSCRIPTION]);
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/subscriptions?userId=user-uuid-123", {
+      new Request(signedUrl("user-uuid-123"), {
         headers: integratorGetSignedHeadersOk,
       }),
     );
@@ -95,11 +106,18 @@ describe("GET /api/integrator/web-push/subscriptions", () => {
 
   it("calls listActiveByUserId with the provided userId", async () => {
     const res = await GET(
-      new Request("http://localhost/api/integrator/web-push/subscriptions?userId=specific-user-id", {
+      new Request(signedUrl("specific-user-id"), {
         headers: integratorGetSignedHeadersOk,
       }),
     );
     expect(res.status).toBe(200);
     expect(mockListActiveByUserId).toHaveBeenCalledWith("specific-user-id");
+  });
+
+  it("returns 403 when the user is outside the verified organization", async () => {
+    hasActiveEnrollmentMock.mockResolvedValue(false);
+    const res = await GET(new Request(signedUrl("outside-user"), { headers: integratorGetSignedHeadersOk }));
+    expect(res.status).toBe(403);
+    expect(mockListActiveByUserId).not.toHaveBeenCalled();
   });
 });

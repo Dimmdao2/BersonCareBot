@@ -17,10 +17,15 @@ import { assertIntegratorGetRequest } from "@/app-layer/integrator/assertIntegra
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getWebPushVapidKeyPair } from "@/modules/system-settings/webPushVapidRuntime";
 import { deriveVapidSubject } from "@/modules/web-push/vapidSubject";
+import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
 
 export async function GET(request: Request) {
   const authError = assertIntegratorGetRequest(request);
   if (authError) return authError;
+  const organizationId = new URL(request.url).searchParams.get("organizationId")?.trim() ?? "";
+  if (!enterVerifiedIntegratorOrganizationPrincipal(organizationId, "integrator-web-push-vapid")) {
+    return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
+  }
 
   const deps = buildAppDeps();
 

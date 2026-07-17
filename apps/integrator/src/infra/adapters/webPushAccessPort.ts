@@ -63,15 +63,15 @@ export function createWebPushAccessPort(deps: {
   const { getAppBaseUrl } = deps;
 
   return {
-    async getSubscriptionsForUser(pushUserId: string): Promise<WebPushSubscriptionPayload[] | null> {
+    async getSubscriptionsForUser(pushUserId: string, organizationId: string): Promise<WebPushSubscriptionPayload[] | null> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret) return null;
+      if (!baseUrl || !secret || !organizationId) return null;
 
       return fetchSignedGet<WebPushSubscriptionPayload[]>({
         baseUrl,
         path: '/api/integrator/web-push/subscriptions',
-        query: { userId: pushUserId },
+        query: { userId: pushUserId, organizationId },
         secret,
         parseResponse: (data) => {
           if (!Array.isArray(data.subscriptions)) return null;
@@ -88,15 +88,15 @@ export function createWebPushAccessPort(deps: {
       });
     },
 
-    async getVapidCredentials(): Promise<VapidCredentials | null> {
+    async getVapidCredentials(organizationId: string): Promise<VapidCredentials | null> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret) return null;
+      if (!baseUrl || !secret || !organizationId) return null;
 
       return fetchSignedGet<VapidCredentials>({
         baseUrl,
         path: '/api/integrator/web-push/vapid',
-        query: {},
+        query: { organizationId },
         secret,
         parseResponse: (data) => {
           const v = data.vapid as Record<string, unknown> | undefined;
@@ -110,13 +110,13 @@ export function createWebPushAccessPort(deps: {
       });
     },
 
-    async deleteSubscriptionByEndpoint(endpoint: string): Promise<boolean> {
+    async deleteSubscriptionByEndpoint(endpoint: string, organizationId: string): Promise<boolean> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret) return false;
+      if (!baseUrl || !secret || !organizationId) return false;
 
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/web-push/subscriptions/delete`;
-      const body = JSON.stringify({ endpoint });
+      const body = JSON.stringify({ endpoint, organizationId });
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = signPost(timestamp, body, secret);
       try {

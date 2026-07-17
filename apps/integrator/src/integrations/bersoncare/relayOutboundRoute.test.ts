@@ -6,8 +6,10 @@ import {
   signRelayRequest,
   makeRelayBody,
 } from './relayOutboundRoute.js';
+import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organizationPrincipal.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 
 function makeDispatchPort(overrides: Partial<DispatchPort> = {}): DispatchPort {
   return {
@@ -121,6 +123,43 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
     expect(res.statusCode).toBe(400);
     expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('requires organizationId for web_push', async () => {
+    const body = makeRelayBody({ channel: 'web_push', recipient: 'user-id' });
+    const rawBody = JSON.stringify(body);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('dispatches web_push inside the verified organization principal', async () => {
+    let observedOrganizationId: string | undefined;
+    vi.mocked(dispatchPort.dispatchOutgoing).mockImplementationOnce(async () => {
+      observedOrganizationId = getCurrentOrganizationPrincipalId();
+      return {};
+    });
+    const body = makeRelayBody({
+      organizationId: ORGANIZATION_ID,
+      channel: 'web_push',
+      recipient: 'user-id',
+    });
+    const rawBody = JSON.stringify(body);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(observedOrganizationId).toBe(ORGANIZATION_ID);
   });
 
   it('returns 400 for missing required fields', async () => {

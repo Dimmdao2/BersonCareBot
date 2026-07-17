@@ -714,13 +714,13 @@ export type WebPushAccessPort = {
    * Fetch active web-push subscriptions for a platform user.
    * Returns `null` on network/auth error; empty array when the user has no subscriptions.
    */
-  getSubscriptionsForUser(pushUserId: string): Promise<WebPushSubscriptionPayload[] | null>;
+  getSubscriptionsForUser(pushUserId: string, organizationId: string): Promise<WebPushSubscriptionPayload[] | null>;
 
   /**
    * Fetch the VAPID keypair (publicKey, privateKey) and the centrally-derived subject.
    * Returns `null` when VAPID is not configured in the webapp or on network/auth error.
    */
-  getVapidCredentials(): Promise<VapidCredentials | null>;
+  getVapidCredentials(organizationId: string): Promise<VapidCredentials | null>;
 
   // eslint-disable-next-line no-secrets/no-secrets -- method path in JSDoc, not a secret
   /**
@@ -728,5 +728,5 @@ export type WebPushAccessPort = {
    * Mirrors webapp's `WebPushSubscriptionsPort.deleteByEndpointIfExists`.
    * Returns `true` on successful deletion or if not found; `false` on error.
    */
-  deleteSubscriptionByEndpoint(endpoint: string): Promise<boolean>;
+  deleteSubscriptionByEndpoint(endpoint: string, organizationId: string): Promise<boolean>;
 };

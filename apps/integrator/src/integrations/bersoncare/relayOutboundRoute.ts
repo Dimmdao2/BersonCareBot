@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -17,6 +18,7 @@ type ReqWithRawBody = FastifyRequest & { rawBody?: string };
 
 const relayPayloadSchema = z.object({
   messageId: z.string().min(1),
+  organizationId: z.string().uuid().optional(),
   channel: z.enum(['telegram', 'max', 'email', 'sms', 'web_push'] as const),
   recipient: z.string().min(1),
   text: z.string().min(1),
@@ -24,6 +26,10 @@ const relayPayloadSchema = z.object({
   html: z.string().optional(),
   idempotencyKey: z.string().min(1),
   metadata: z.record(z.string(), z.unknown()).optional(),
+}).superRefine((value, ctx) => {
+  if (value.channel === 'web_push' && !value.organizationId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizationId'], message: 'organizationId required' });
+  }
 });
 
 type RelayPayload = z.infer<typeof relayPayloadSchema>;
@@ -206,7 +212,7 @@ export async function registerBersoncareRelayOutboundRoute(
     }
 
     try {
-      await dispatchPort.dispatchOutgoing(intent);
+      await runWithOptionalOrganizationPrincipal(parsed.organizationId, () => dispatchPort.dispatchOutgoing(intent));
       registerKey(parsed.idempotencyKey);
       logger.info(
         { channel: parsed.channel, messageId: parsed.messageId, recipient: parsed.recipient.slice(0, 6) + '…' },

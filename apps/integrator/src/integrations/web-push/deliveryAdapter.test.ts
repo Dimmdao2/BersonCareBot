@@ -30,6 +30,11 @@ vi.mock('web-push', () => ({
   },
 }));
 
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+vi.mock('../../infra/principal/organizationPrincipal.js', () => ({
+  getCurrentOrganizationPrincipalId: () => ORGANIZATION_ID,
+}));
+
 // ─── Test fixtures ─────────────────────────────────────────────────────────────
 
 const TEST_CHAT_ID = 364943522;
@@ -158,7 +163,7 @@ describe('WebPushDeliveryAdapter — PRIMARY SAFETY TEST: per-channel dev redire
     // (b) The web_push adapter IS reached (channel preserved, not collapsed to telegram).
     // Subscriptions fetched for the DEV push user, not the real recipient.
     expect(webPushAccessPort.getSubscriptionsForUser, 'getSubscriptionsForUser called with dev pushUserId')
-      .toHaveBeenCalledWith(DEV_PUSH_USER_ID);
+      .toHaveBeenCalledWith(DEV_PUSH_USER_ID, ORGANIZATION_ID);
 
     // (c) The original real pushUserId must NOT have been passed to the access port.
     const [firstCallArg] = vi.mocked(webPushAccessPort.getSubscriptionsForUser).mock.calls[0]!;
@@ -307,7 +312,7 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint, ORGANIZATION_ID);
   });
 
   it('404 response: calls deleteSubscriptionByEndpoint for dead endpoint', async () => {
@@ -319,7 +324,7 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint, ORGANIZATION_ID);
   });
 
   it('500 provider error: does NOT call deleteSubscriptionByEndpoint', async () => {
