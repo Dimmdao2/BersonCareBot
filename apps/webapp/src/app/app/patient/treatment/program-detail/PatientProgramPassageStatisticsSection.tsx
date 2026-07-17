@@ -59,11 +59,9 @@ export function PatientProgramPassageStatisticsSection(props: {
   const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (showCollectingCopy) {
-      return;
-    }
     let cancelled = false;
     void (async () => {
+      setShowCollectingCopyFromApi(null);
       setStatsError(null);
       const res = await fetch(
         `/api/patient/treatment-program-instances/${encodeURIComponent(instanceId)}/passage-stats`,
@@ -86,7 +84,7 @@ export function PatientProgramPassageStatisticsSection(props: {
     return () => {
       cancelled = true;
     };
-  }, [instanceId, showCollectingCopy, refreshToken, detailStatus]);
+  }, [instanceId, dayIndex, refreshToken, detailStatus]);
 
   return (
     <section className={patientCardClass} aria-label="Статистика прохождения">

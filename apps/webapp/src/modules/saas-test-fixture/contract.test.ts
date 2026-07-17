@@ -148,6 +148,21 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     expect(source).not.toMatch(/FROM projection_outbox\b/);
   });
 
+  it('seeds coherent historical clinical programs and verifies their runtime shape', () => {
+    const source = readFileSync(
+      new URL('../../../scripts/seed-saas-test-walkthrough-fixtures.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).toContain('assignedDayOffset: -30');
+    expect(source).toContain('assignedDayOffset: -20');
+    expect(source).toContain('createdAt: relativeIso(now, program.assignedDayOffset)');
+    expect(source).toContain('startedAt: relativeIso(now, program.assignedDayOffset)');
+    expect(source).toContain('sortOrder: 1');
+    expect(source).toContain("assertCount('program_pipeline_stages'");
+    expect(source).toContain("'program_created_before_first_action'");
+    expect(source).toContain("'program_created_before_first_snapshot'");
+  });
+
   it('validates two distinct reserved-domain owner credentials', () => {
     const config = readSaasTestFixtureConfig(packetValues);
     expect(config.ownerA.emailNormalized).toBe('clinic-a@example.test');

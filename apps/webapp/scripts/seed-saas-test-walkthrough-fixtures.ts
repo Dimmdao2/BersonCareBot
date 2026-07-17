@@ -1572,6 +1572,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         itemIds: ids.programItemsA,
         exercises: exerciseSpecs.slice(0, 4),
         title: 'Программа восстановления колена',
+        assignedDayOffset: -30,
         actionLatest: relativeIso(now, 0, 11),
       },
       {
@@ -1584,6 +1585,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         itemIds: ids.programItemsB,
         exercises: exerciseSpecs.slice(4, 6),
         title: 'Соло-программа мобильности',
+        assignedDayOffset: -20,
         actionLatest: relativeIso(now, 0, 12),
       },
     ];
@@ -1597,6 +1599,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         title: program.title,
         status: 'active',
         assignmentSource: 'doctor',
+        createdAt: relativeIso(now, program.assignedDayOffset),
         patientPlanLastOpenedAt: relativeIso(now, -1),
         updatedAt: nowIso,
       });
@@ -1607,9 +1610,9 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         sourceStageId: null,
         title: 'Основной этап',
         description: 'Регулярная практика и контроль динамики',
-        sortOrder: 0,
+        sortOrder: 1,
         status: 'in_progress',
-        startedAt: relativeIso(now, -30),
+        startedAt: relativeIso(now, program.assignedDayOffset),
         goals: 'Вернуть уверенность в движении',
         objectives: 'Выполнять упражнения регулярно',
         expectedDurationDays: 30,
@@ -1822,6 +1825,52 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       .from(schema.treatmentProgramInstances)
       .where(inArray(schema.treatmentProgramInstances.id, [...ids.programInstances]));
     assertCount('program_instances', fixturePrograms[0]?.value ?? 0, 2);
+    const fixtureProgramHistoryShape = await tx.execute<{
+      program_count: number;
+      pipeline_stage_count: number;
+      created_before_first_action_count: number;
+      created_before_first_snapshot_count: number;
+    }>(sql`
+      SELECT
+        count(*)::int AS program_count,
+        count(*) FILTER (WHERE EXISTS (
+          SELECT 1
+          FROM treatment_program_instance_stages stage
+          WHERE stage.instance_id = instance.id
+            AND stage.sort_order > 0
+        ))::int AS pipeline_stage_count,
+        count(*) FILTER (WHERE instance.created_at <= (
+          SELECT min(action.created_at)
+          FROM program_action_log action
+          WHERE action.instance_id = instance.id
+            AND action.patient_user_id = instance.patient_user_id
+        ))::int AS created_before_first_action_count,
+        count(*) FILTER (WHERE instance.created_at <= (
+          SELECT min(snapshot.captured_at)
+          FROM patient_diary_day_snapshots snapshot
+          WHERE snapshot.plan_instance_id = instance.id
+            AND snapshot.platform_user_id = instance.patient_user_id
+            AND snapshot.organization_id = instance.organization_id
+        ))::int AS created_before_first_snapshot_count
+      FROM treatment_program_instances instance
+      WHERE instance.id IN (${sql.join(
+        ids.programInstances.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})
+    `);
+    const programHistoryShape = fixtureProgramHistoryShape.rows[0];
+    assertCount('program_history_shape', programHistoryShape?.program_count ?? 0, 2);
+    assertCount('program_pipeline_stages', programHistoryShape?.pipeline_stage_count ?? 0, 2);
+    assertCount(
+      'program_created_before_first_action',
+      programHistoryShape?.created_before_first_action_count ?? 0,
+      2,
+    );
+    assertCount(
+      'program_created_before_first_snapshot',
+      programHistoryShape?.created_before_first_snapshot_count ?? 0,
+      2,
+    );
     const fixtureProgramEvents = await tx
       .select({ value: count() })
       .from(schema.treatmentProgramEvents)

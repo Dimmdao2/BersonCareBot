@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const now = "2026-01-01T00:00:00.000Z";
+let passageStatsShowCollectingCopy = false;
 
 beforeAll(async () => {
   await Promise.all([
@@ -34,6 +35,7 @@ function clickPatientTreatmentTab(which: "program" | "recommendations" | "progre
 }
 
 beforeEach(() => {
+  passageStatsShowCollectingCopy = false;
   Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     value: vi.fn(),
@@ -71,7 +73,7 @@ beforeEach(() => {
             missedDays: 8,
             avgCompletionsPerDay: 1.2,
             neverCompletedChecklistItemCount: 3,
-            showCollectingCopy: false,
+            showCollectingCopy: passageStatsShowCollectingCopy,
           },
         }),
         { status: 200 },
@@ -218,9 +220,10 @@ describe("PatientTreatmentProgramDetailClient", () => {
     }
   });
 
-  it("progress tab shows statistics collecting copy within first three calendar days", () => {
+  it("progress tab keeps the collecting copy when the API confirms it within the first three calendar days", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-03T12:00:00.000Z"));
+    passageStatsShowCollectingCopy = true;
     try {
       render(
         <PatientTreatmentProgramDetailClient
@@ -255,6 +258,59 @@ describe("PatientTreatmentProgramDetailClient", () => {
       clickPatientTreatmentTab("progress");
       expect(screen.getByText("Статистика пока собирается.")).toBeInTheDocument();
       expect(screen.getByText(/Регулярность в занятиях/)).toBeInTheDocument();
+      await act(async () => undefined);
+      expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+        expect.stringContaining("/passage-stats"),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("progress tab lets the API replace the first-three-days fallback when prior activity exists", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-03T12:00:00.000Z"));
+    try {
+      render(
+        <PatientTreatmentProgramDetailClient
+          initial={makeInstance({
+            createdAt: "2026-01-01T08:00:00.000Z",
+            stages: [
+              makeInstance().stages[0]!,
+              {
+                id: "44444444-4444-4444-8444-444444444444",
+                instanceId: "11111111-1111-4111-8111-111111111111",
+                sourceStageId: null,
+                title: "Этап pipeline",
+                description: null,
+                sortOrder: 1,
+                localComment: null,
+                skipReason: null,
+                status: "in_progress",
+                startedAt: "2026-01-01T00:00:00.000Z",
+                goals: null,
+                objectives: null,
+                expectedDurationDays: 14,
+                expectedDurationText: null,
+                groups: [],
+                items: [],
+              },
+            ],
+          })}
+          initialTestResults={[]}
+          {...detailShellProps}
+        />,
+      );
+      clickPatientTreatmentTab("progress");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(screen.getByText("Дней с занятиями: 2")).toBeInTheDocument();
+      expect(screen.queryByText("Статистика пока собирается.")).not.toBeInTheDocument();
+      expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+        expect.stringContaining("/passage-stats"),
+      );
     } finally {
       vi.useRealTimers();
     }

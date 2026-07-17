@@ -902,7 +902,9 @@ export function PatientTabOverview({
                   programCurrentStageIndex = programStages.findIndex((s) => s.id === programCurrentStage!.id);
                   if (programCurrentStageIndex < 0) programCurrentStageIndex = 0;
                 }
-                programStatus = programStages.length === 0 ? "empty" : "ok";
+                // An active instance can legitimately contain only stage 0 (for example a new blank plan).
+                // "empty" means that no active instance exists, not that its pipeline is still empty.
+                programStatus = "ok";
               }
             }
           } catch {

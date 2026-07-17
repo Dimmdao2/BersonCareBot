@@ -57,12 +57,30 @@ type PackageMockItem = {
   } | null;
 };
 
+type ProgramMock = {
+  active: {
+    id: string;
+    title: string;
+    status: "active";
+    createdAt: string;
+    updatedAt: string;
+  };
+  stages: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sortOrder: number;
+    groups: [];
+    items: [];
+  }>;
+};
+
 // ---------------------------------------------------------------------------
 // Fetch stub helpers
 // ---------------------------------------------------------------------------
 
 /** Build a minimal fetch mock with configurable package response. */
-function buildFetchMock(packages: PackageMockItem[] = []) {
+function buildFetchMock(packages: PackageMockItem[] = [], program?: ProgramMock) {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const u = typeof url === "string" ? url : String(url);
 
@@ -78,8 +96,17 @@ function buildFetchMock(packages: PackageMockItem[] = []) {
     if (u.includes("patient-packages")) {
       return new Response(JSON.stringify({ ok: true, packages }), { status: 200 });
     }
-    if (u.includes("treatment-program-instances")) {
-      return new Response(JSON.stringify({ ok: true, items: [] }), { status: 200 });
+    if (u.includes("/api/doctor/treatment-program-instances/")) {
+      return new Response(
+        JSON.stringify({ ok: true, item: program ? { ...program.active, stages: program.stages } : null }),
+        { status: program ? 200 : 404 },
+      );
+    }
+    if (u.includes("/treatment-program-instances")) {
+      return new Response(
+        JSON.stringify({ ok: true, items: program ? [program.active] : [] }),
+        { status: 200 },
+      );
     }
     if (u.includes("/clinical")) {
       return new Response(
@@ -303,5 +330,54 @@ describe("PatientTabOverview — Package KPI widget (ST-07)", () => {
       expect(screen.getByText("Осталось 6 визитов:")).toBeInTheDocument();
     });
     expect(screen.getByText("4 x ЛФК, 2 x Массаж аб #006 от 06.06.2026")).toBeInTheDocument();
+  });
+});
+
+describe("PatientTabOverview — active program state", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("does not report an active stage-zero-only program as unassigned", async () => {
+    vi.stubGlobal(
+      "fetch",
+      buildFetchMock([], {
+        active: {
+          id: "program-stage-zero",
+          title: "Новая программа",
+          status: "active",
+          createdAt: "2026-07-17T00:00:00.000Z",
+          updatedAt: "2026-07-17T00:00:00.000Z",
+        },
+        stages: [
+          {
+            id: "stage-zero",
+            title: "Общие рекомендации",
+            status: "available",
+            sortOrder: 0,
+            groups: [],
+            items: [],
+          },
+        ],
+      }),
+    );
+
+    render(<PatientTabOverview userId="u-program-stage-zero" />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Новая программа").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("Программа не назначена.")).not.toBeInTheDocument();
+  });
+
+  it("reports the program as unassigned only when there is no active instance", async () => {
+    vi.stubGlobal("fetch", buildFetchMock());
+
+    render(<PatientTabOverview userId="u-program-empty" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Программа не назначена.")).toBeInTheDocument();
+    });
   });
 });
