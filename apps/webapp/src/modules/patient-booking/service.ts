@@ -275,12 +275,6 @@ export function createPatientBookingService(input: {
       });
     },
 
-    async listPaymentHistory(userId: string) {
-      if (!input.bookingEngine || !input.payments) return [];
-      void userId;
-      return [];
-    },
-
     async getBookingByCanonicalAppointment(canonicalAppointmentId: string) {
       return input.bookingsPort.getByCanonicalAppointmentId(canonicalAppointmentId);
     },

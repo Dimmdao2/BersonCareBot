@@ -254,9 +254,6 @@ export type PatientBookingService = {
       }
     | { ok: false; error: "not_found" | "forbidden" }
   >;
-  listPaymentHistory(userId: string): Promise<
-    import("@/modules/payments/types").PaymentHistoryEventRecord[]
-  >;
   getBookingByCanonicalAppointment(canonicalAppointmentId: string): Promise<PatientBookingRecord | null>;
   syncLinkedPatientBookingCancelled(input: {
     canonicalAppointmentId: string;

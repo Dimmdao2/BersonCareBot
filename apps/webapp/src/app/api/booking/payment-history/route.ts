@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
+import { resolvePatientEnrollmentOrganizationId } from "../bookingTenant";
 
 export async function GET() {
-  const gate = await requirePatientBookingTrustedPhoneAccess({ returnPath: routePaths.patientBooking });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  const events = await deps.patientBooking.listPaymentHistory(gate.session.user.userId);
+  const userId = gate.session.user.userId;
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(deps, userId);
+  if (!resolvedOrg.ok) return resolvedOrg.response;
+  const organizationId = resolvedOrg.organizationId;
+  const events = await withExplicitOrganizationPrincipal(
+    { organizationId, source: "api/booking/payment-history:GET" },
+    () => deps.clientHistory.listPaymentHistory(organizationId, userId, 50),
+  );
   return NextResponse.json({ ok: true, events });
 }

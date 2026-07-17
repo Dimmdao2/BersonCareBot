@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import { routePaths } from "@/app-layer/routes/paths";
 
@@ -9,15 +9,23 @@ const listPaymentHistoryMock = vi.hoisted(() => vi.fn());
 const captureIntentForBookingMock = vi.hoisted(() => vi.fn());
 const resolveIntentOrganizationIdMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
+const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
+const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
+const withExplicitOrganizationPrincipalMock = vi.hoisted(() => vi.fn());
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/guards/requireRole")>();
   return {
     ...actual,
+    requirePatientApiBusinessAccess: requirePatientApiBusinessAccessMock,
     requirePatientBookingTrustedPhoneAccess: requirePatientBookingTrustedPhoneAccessMock,
   };
 });
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withExplicitOrganizationPrincipal: withExplicitOrganizationPrincipalMock,
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -25,8 +33,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getBookingPaymentStatus: getBookingPaymentStatusMock,
       getBookingPaymentStatusForContact: getBookingPaymentStatusForContactMock,
       resolveBookingOrganizationId: resolveBookingOrganizationIdMock,
-      listPaymentHistory: listPaymentHistoryMock,
     },
+    patientOrganization: {
+      resolveActiveOrganizationForPatient: resolveActiveOrganizationForPatientMock,
+    },
+    clientHistory: { listPaymentHistory: listPaymentHistoryMock },
     payments: {
       captureIntentForBooking: captureIntentForBookingMock,
       resolveIntentOrganizationId: resolveIntentOrganizationIdMock,
@@ -44,10 +55,20 @@ requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({
   ok: true,
   session: { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } },
 });
+requirePatientApiBusinessAccessMock.mockResolvedValue({
+  ok: true,
+  session: { user: { userId: "u1", role: "client" as const } },
+});
+resolveActiveOrganizationForPatientMock.mockResolvedValue({ ok: true, organizationId: ORG_ID });
+withExplicitOrganizationPrincipalMock.mockImplementation(async (_ctx, fn: () => Promise<unknown>) => fn());
 resolveIntentOrganizationIdMock.mockResolvedValue(ORG_ID);
 resolveBookingOrganizationIdMock.mockResolvedValue(ORG_ID);
 
 describe("booking payment routes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("GET /api/booking/payment-status requires bookingId", async () => {
     const res = await getPaymentStatus(new Request("http://localhost/api/booking/payment-status"));
     expect(res.status).toBe(400);
@@ -75,6 +96,11 @@ describe("booking payment routes", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok?: boolean; events?: unknown[] };
     expect(json.events).toHaveLength(1);
+    expect(listPaymentHistoryMock).toHaveBeenCalledWith(ORG_ID, "u1", 50);
+    expect(withExplicitOrganizationPrincipalMock).toHaveBeenCalledWith(
+      { organizationId: ORG_ID, source: "api/booking/payment-history:GET" },
+      expect.any(Function),
+    );
   });
 
   it("GET /api/booking/public/payment-status validates query", async () => {
@@ -107,17 +133,14 @@ describe("booking payment routes", () => {
     expect(captureIntentForBookingMock).toHaveBeenCalled();
   });
 
-  it("patient payment routes require trusted phone gate", async () => {
-    requirePatientBookingTrustedPhoneAccessMock.mockResolvedValueOnce({
+  it("patient payment history requires business access without using the trusted-phone gate", async () => {
+    requirePatientApiBusinessAccessMock.mockResolvedValueOnce({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
     const res = await getPaymentHistory();
     expect(res.status).toBe(401);
-    requirePatientBookingTrustedPhoneAccessMock.mockResolvedValue({
-      ok: true,
-      session: { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } },
-    });
+    expect(requirePatientBookingTrustedPhoneAccessMock).not.toHaveBeenCalled();
     expect(routePaths.patientBooking).toBeTruthy();
   });
 });

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientBookingTrustedPhoneAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientEnrollmentOrganizationId } from "../bookingTenant";
 
 export async function GET() {
-  const gate = await requirePatientBookingTrustedPhoneAccess({ returnPath: routePaths.profile });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
