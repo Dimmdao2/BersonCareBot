@@ -3,11 +3,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { DoctorSupportInbox } from "./DoctorSupportInbox";
 
 vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({
   DoctorChatPanel: ({ conversationId }: { conversationId: string }) => (
     <div>chat:{conversationId}</div>
+  ),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({ children, href, ...props }: { children: ReactNode; href: string; className?: string }) => (
+    <a href={href} {...props}>{children}</a>
   ),
 }));
 
@@ -21,6 +28,7 @@ const BASE_CONV = {
   unreadFromUserCount: 2,
   hasUnreadFromUser: true,
   onSupport: false,
+  patientUserId: "aaaaaaaa-0000-4000-8000-000000000099",
 };
 
 function makeFetch(conversations: object[]) {
@@ -254,6 +262,27 @@ describe("DoctorSupportInbox — deep-link ?id= (#812)", () => {
     await userEvent.click(await screen.findByText("Пациент"));
     await userEvent.click(screen.getByRole("button", { name: "Закрыть тред" }));
     expect(onSelectedConversationChange).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe("DoctorSupportInbox — «Открыть карточку» в шапке треда (#813)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("показывает ссылку на карточку пациента, когда patientUserId известен", async () => {
+    vi.stubGlobal("fetch", makeFetch([BASE_CONV]));
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+    const link = screen.getByRole("link", { name: "Открыть карточку" });
+    expect(link).toHaveAttribute("href", `/app/doctor/patients/${BASE_CONV.patientUserId}`);
+  });
+
+  it("не показывает ссылку, когда patientUserId отсутствует (например, Telegram-диалог)", async () => {
+    vi.stubGlobal("fetch", makeFetch([{ ...BASE_CONV, patientUserId: null }]));
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+    expect(screen.queryByRole("link", { name: "Открыть карточку" })).not.toBeInTheDocument();
   });
 });
 

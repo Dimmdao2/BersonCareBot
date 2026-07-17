@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
@@ -8,9 +9,11 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { patientCardHref } from "../patients/patientCardHref";
 
 const POLL_INTERVAL_MS = 1_000;
 
@@ -26,6 +29,8 @@ type ConvRow = {
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
   onSupport: boolean;
+  /** #813: null for non-webapp-platform conversations (e.g. Telegram/MAX) — no patient card to open. */
+  patientUserId: string | null;
 };
 
 type ConversationApiRow = {
@@ -40,6 +45,7 @@ type ConversationApiRow = {
   unreadFromUserCount?: number;
   hasUnreadFromUser?: boolean;
   onSupport?: boolean;
+  patientUserId?: string | null;
 };
 
 function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
@@ -74,6 +80,7 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
     unreadFromUserCount: c.unreadFromUserCount ?? 0,
     hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
     onSupport: c.onSupport ?? false,
+    patientUserId: c.patientUserId ?? null,
   }));
 }
 
@@ -389,7 +396,7 @@ export function DoctorSupportInbox({
         </DoctorEmptyState>
       ) : (
         <>
-          {/* Thread header: patient name + close button */}
+          {/* Thread header: patient name + «открыть карточку» (#813) + close button */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {selectedConv
@@ -398,6 +405,14 @@ export function DoctorSupportInbox({
                     : selectedConv.displayName)
                 : "—"}
             </span>
+            {selectedConv?.patientUserId ? (
+              <Link
+                href={patientCardHref(selectedConv.patientUserId)}
+                className={cn(doctorInlineLinkClass, "shrink-0 text-xs")}
+              >
+                Открыть карточку
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => selectConversation(null)}

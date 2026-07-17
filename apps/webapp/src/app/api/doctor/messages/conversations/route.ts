@@ -74,6 +74,9 @@ export async function GET(request: Request) {
         unreadFromUserCount: c.unreadFromUserCount,
         hasUnreadFromUser: c.unreadFromUserCount > 0,
         onSupport: clientInfo?.isOnSupport ?? false,
+        // #813: already derived above (no extra query) — lets the chat header link to the
+        // patient's card. null for non-webapp-platform conversations (e.g. Telegram/MAX).
+        patientUserId: patientUserId ?? null,
       };
     }),
   });

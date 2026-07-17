@@ -57,6 +57,19 @@ Split-layout `lg:grid-cols-[1fr_1.2fr]` (чат шире списка). Полл
 и видимом окне (`visibilitychange`). Padding треда: `px-3`, интервал `space-y-3` (doctor-variant).
 Пустое состояние: `DoctorEmptyState`. Поиск + чипы «Непрочитанные»/«★ На сопровождении» — без изменений.
 
+Deep-link `?id=<conversationId>` (#812, тот же паттерн, что intake `?id=`/broadcasts `?archive=`):
+`communicationsChatHref()` в `doctorCommunicationsTabs.ts` строит `?tab=chats&id=…`; шелл читает/
+пишет его через `deepLinkParams`/`onDeepLinkChange` (реестр объявляет `deepLinkKeys: ["id"]` для
+`chats`); `DoctorSupportInbox` открывает диалог из `initialSelectedConversationId` на монтировании
+(и при внешней смене — тот же паттерн, что `DoctorOnlineIntakeClient`/`initialOpenRequestId`) и
+зовёт `onSelectedConversationChange` на каждый выбор/закрытие. «Сегодня» KPI «Сообщения» →
+«открыть переписку» использует этот href вместо голого `?tab=chats`.
+
+Шапка треда: имя пациента + «Открыть карточку» (#813, только если `patientUserId` резолвится —
+non-webapp-platform диалоги вроде Telegram/MAX его не имеют, ссылка не рендерится) → `patientCardHref`.
+`patientUserId` уже вычислен на сервере (`/api/doctor/messages/conversations`) для сборки
+`clientInfoMap` — прокинут в ответ без дополнительного запроса.
+
 ### Комментарии (`comments/DoctorCommentsTab.tsx`) — drill-down модель
 
 **3 состояния правого пейна:**
