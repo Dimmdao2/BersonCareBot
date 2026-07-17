@@ -1,10 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  enterWithDbStaffPrincipal,
+  runWithDbOrganizationPrincipal,
+  runWithDbPatientPrincipal,
+} from "@bersoncare/db-principal";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
+import type { Pool, PoolClient, PoolConfig } from "pg";
+import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 
 const transactionMock = vi.hoisted(() => vi.fn());
 const executeMock = vi.hoisted(() => vi.fn());
+const drizzleHarness = vi.hoisted(() => ({ pool: undefined as unknown }));
 
 vi.mock("@/infra/db/saasIsolationDbFailureReporting", () => ({
   reportDbCleanupFailure: vi.fn(async () => undefined),
@@ -13,12 +20,15 @@ vi.mock("@/infra/db/saasIsolationDbFailureReporting", () => ({
 }));
 
 vi.mock("./client", () => ({
-  getPool: vi.fn(() => ({ query: vi.fn() })),
+  getPool: vi.fn(() => {
+    if (!drizzleHarness.pool) throw new Error("Drizzle test pool is not configured");
+    return drizzleHarness.pool;
+  }),
 }));
 
 vi.mock("drizzle-orm/node-postgres", () => ({
   drizzle: vi.fn(() => ({
-    transaction: transactionMock,
+    transaction: (...args: readonly unknown[]) => transactionMock(drizzleHarness.pool, ...args),
   })),
 }));
 
@@ -26,16 +36,76 @@ import { getDrizzle } from "./drizzle";
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
 
+function restoreEnvValue(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+}
+
+type RoutedPoolTestRecord = {
+  config: PoolConfig;
+  connect: ReturnType<typeof vi.fn>;
+  checkout: () => Promise<PoolClient>;
+  clients: Array<{ query: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn> }>;
+};
+
+function createRoutedPoolTestFactory(): {
+  factory: (config: PoolConfig) => Pool;
+  records: RoutedPoolTestRecord[];
+} {
+  const records: RoutedPoolTestRecord[] = [];
+  const factory = (config: PoolConfig): Pool => {
+    const clients: RoutedPoolTestRecord["clients"] = [];
+    const checkout = async (): Promise<PoolClient> => {
+      const client = {
+        query: vi.fn(async (sql: string) =>
+          sql === "SELECT pg_backend_pid() AS backend_pid"
+            ? { rows: [{ backend_pid: 9191 }], rowCount: 1 }
+            : { rows: [], rowCount: 0 },
+        ),
+        release: vi.fn(),
+      };
+      clients.push(client);
+      return client as unknown as PoolClient;
+    };
+    const record: RoutedPoolTestRecord = { config, connect: vi.fn(checkout), checkout, clients };
+    const partial: Partial<Pool> = {
+      connect: record.connect as unknown as Pool["connect"],
+      end: vi.fn(async () => undefined) as unknown as Pool["end"],
+    };
+    const pool = partial as Pool;
+    partial.on = vi.fn(() => pool) as unknown as Pool["on"];
+    Object.defineProperties(pool, {
+      totalCount: { get: () => 0 },
+      idleCount: { get: () => 0 },
+      waitingCount: { get: () => 0 },
+    });
+    records.push(record);
+    return pool;
+  };
+  return { factory, records };
+}
+
 describe("getDrizzle transaction principal", () => {
   const dialect = new PgDialect();
+  const originalDbPrincipalContextMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
+  const originalDbPrincipalSigningSecret = process.env.DB_PRINCIPAL_SIGNING_SECRET;
 
   beforeEach(() => {
-    vi.resetModules();
     transactionMock.mockReset();
     executeMock.mockReset();
-    transactionMock.mockImplementation(async (callback: (tx: { execute: typeof executeMock }) => Promise<unknown>) =>
-      callback({ execute: executeMock }),
+    drizzleHarness.pool = { query: vi.fn() };
+    transactionMock.mockImplementation(
+      async (_pool: Pool, callback: (tx: { execute: typeof executeMock }) => Promise<unknown>) =>
+        callback({ execute: executeMock }),
     );
+  });
+
+  afterEach(() => {
+    restoreEnvValue("DB_PRINCIPAL_CONTEXT_MODE", originalDbPrincipalContextMode);
+    restoreEnvValue("DB_PRINCIPAL_SIGNING_SECRET", originalDbPrincipalSigningSecret);
   });
 
   it("does not set app.org when no DB principal is active", async () => {
@@ -60,5 +130,88 @@ describe("getDrizzle transaction principal", () => {
     const compiled = dialect.sqlToQuery(principalSql);
     expect(compiled.sql).toBe("SELECT set_config('app.org', $1, true)");
     expect(compiled.params).toEqual([ORGANIZATION_ID]);
+  });
+
+  it("keeps routed Drizzle checkout and signed transaction context on the captured patient contour", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const patientOrganizationId = "33333333-3333-4333-8333-333333333333";
+    const patientUserId = "44444444-4444-4444-8444-444444444444";
+    let finishCheckout: (() => void) | undefined;
+    let checkoutStarted: (() => void) | undefined;
+    const checkoutGate = new Promise<void>((resolve) => {
+      finishCheckout = resolve;
+    });
+    const checkoutSignal = new Promise<void>((resolve) => {
+      checkoutStarted = resolve;
+    });
+    const { factory, records } = createRoutedPoolTestFactory();
+    const routedPool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+    drizzleHarness.pool = routedPool;
+    const nonstaffConnect = records[1]?.connect;
+    nonstaffConnect?.mockImplementation(async () => {
+      checkoutStarted?.();
+      await checkoutGate;
+      const nonstaffRecord = records[1];
+      if (!nonstaffRecord) throw new Error("Missing nonstaff checkout implementation");
+      return nonstaffRecord.checkout();
+    });
+    transactionMock.mockImplementation(
+      async (
+        pool: Pool,
+        callback: (tx: { execute: (statement: SQL) => Promise<unknown> }) => Promise<unknown>,
+      ) => {
+        const client = await pool.connect();
+        const execute = async (statement: SQL): Promise<unknown> => {
+          const compiled = dialect.sqlToQuery(statement);
+          return client.query(compiled.sql, compiled.params);
+        };
+        await client.query("BEGIN");
+        try {
+          const result = await callback({ execute });
+          await client.query("COMMIT");
+          return result;
+        } catch (error) {
+          await client.query("ROLLBACK");
+          throw error;
+        } finally {
+          client.release();
+        }
+      },
+    );
+    const db = getDrizzle();
+
+    await runWithDbPatientPrincipal(
+      { organizationId: patientOrganizationId, platformUserId: patientUserId },
+      async () => {
+        const pending = db.transaction(async () => "ok");
+        await checkoutSignal;
+        enterWithDbStaffPrincipal({
+          organizationId: "55555555-5555-4555-8555-555555555555",
+          platformUserId: "66666666-6666-4666-8666-666666666666",
+        });
+        finishCheckout?.();
+        await expect(pending).resolves.toBe("ok");
+      },
+    );
+
+    const client = records[1]?.clients[0];
+    const statements = client?.query.mock.calls.map(([statement]) => statement) ?? [];
+    const installCall = client?.query.mock.calls.find(([statement]) =>
+      String(statement).includes("app.install_signed_context"),
+    );
+    expect(records[1]?.config.connectionString).toBe("postgres://nonstaff/db");
+    expect(records[0]?.connect).not.toHaveBeenCalled();
+    expect(records[1]?.connect).toHaveBeenCalledOnce();
+    expect(statements).toContain("SET ROLE app_patient");
+    expect(statements).not.toContain("SET ROLE app_staff");
+    expect(installCall?.[1]).toEqual(expect.arrayContaining([patientOrganizationId, patientUserId]));
+    expect(installCall?.[1]).not.toContain("55555555-5555-4555-8555-555555555555");
+    expect(statements.slice(-3)).toEqual(["SELECT app.release_principal_context()", "RESET ROLE", "COMMIT"]);
+    expect(client?.release).toHaveBeenCalledOnce();
   });
 });

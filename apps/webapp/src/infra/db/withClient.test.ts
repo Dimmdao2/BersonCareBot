@@ -2,11 +2,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
+import type { PoolClient, PoolConfig } from "pg";
 import {
   enterWithDbStaffPrincipal,
   runWithDbBootstrapPrincipal,
   runWithDbInfraPrincipal,
   runWithDbOrganizationPrincipal,
+  runWithDbPatientPrincipal,
 } from "@bersoncare/db-principal";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
@@ -23,6 +25,50 @@ function restoreEnvValue(name: string, value: string | undefined): void {
     return;
   }
   process.env[name] = value;
+}
+
+type RoutedPoolTestRecord = {
+  config: PoolConfig;
+  connect: ReturnType<typeof vi.fn>;
+  checkout: () => Promise<PoolClient>;
+  clients: Array<{ query: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn> }>;
+};
+
+function createRoutedPoolTestFactory(): {
+  factory: (config: PoolConfig) => Pool;
+  records: RoutedPoolTestRecord[];
+} {
+  const records: RoutedPoolTestRecord[] = [];
+  const factory = (config: PoolConfig): Pool => {
+    const clients: RoutedPoolTestRecord["clients"] = [];
+    const checkout = async (): Promise<PoolClient> => {
+      const client = {
+        query: vi.fn(async (sql: string) =>
+          sql === "SELECT pg_backend_pid() AS backend_pid"
+            ? { rows: [{ backend_pid: 8181 }], rowCount: 1 }
+            : { rows: [], rowCount: 0 },
+        ),
+        release: vi.fn(),
+      };
+      clients.push(client);
+      return client as unknown as PoolClient;
+    };
+    const record: RoutedPoolTestRecord = { config, connect: vi.fn(checkout), checkout, clients };
+    const partial: Partial<Pool> = {
+      connect: record.connect as unknown as Pool["connect"],
+      end: vi.fn(async () => undefined) as unknown as Pool["end"],
+    };
+    const pool = partial as Pool;
+    partial.on = vi.fn(() => pool) as unknown as Pool["on"];
+    Object.defineProperties(pool, {
+      totalCount: { get: () => 0 },
+      idleCount: { get: () => 0 },
+      waitingCount: { get: () => 0 },
+    });
+    records.push(record);
+    return pool;
+  };
+  return { factory, records };
 }
 
 describe("withClient helpers", () => {
@@ -269,6 +315,70 @@ describe("withClient helpers", () => {
       ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
     ]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps manual transaction checkout and signed context on the captured patient contour", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    const patientOrganizationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const patientUserId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    let finishCheckout: (() => void) | undefined;
+    let checkoutStarted: (() => void) | undefined;
+    const checkoutGate = new Promise<void>((resolve) => {
+      finishCheckout = resolve;
+    });
+    const checkoutSignal = new Promise<void>((resolve) => {
+      checkoutStarted = resolve;
+    });
+    const { factory, records } = createRoutedPoolTestFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+    const nonstaffConnect = records[1]?.connect;
+    nonstaffConnect?.mockImplementation(async () => {
+      checkoutStarted?.();
+      await checkoutGate;
+      const nonstaffRecord = records[1];
+      if (!nonstaffRecord) throw new Error("Missing nonstaff checkout implementation");
+      return nonstaffRecord.checkout();
+    });
+
+    const tx = await runWithDbPatientPrincipal(
+      { organizationId: patientOrganizationId, platformUserId: patientUserId },
+      async () => {
+        const pending = startPoolTransaction(pool);
+        await checkoutSignal;
+        enterWithDbStaffPrincipal({
+          organizationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          platformUserId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        });
+        finishCheckout?.();
+        return pending;
+      },
+    );
+    await tx.rollback();
+    await tx.release();
+
+    const client = records[1]?.clients[0];
+    const statements = client?.query.mock.calls.map(([statement]) => statement) ?? [];
+    const installCalls =
+      client?.query.mock.calls.filter(([statement]) => String(statement).includes("app.install_signed_context")) ?? [];
+    expect(records[1]?.config.connectionString).toBe("postgres://nonstaff/db");
+    expect(records[0]?.connect).not.toHaveBeenCalled();
+    expect(records[1]?.connect).toHaveBeenCalledOnce();
+    expect(statements).toContain("SET ROLE app_patient");
+    expect(statements).not.toContain("SET ROLE app_staff");
+    expect(statements).toContain("ROLLBACK");
+    expect(statements.at(-2)).toBe("SELECT app.release_principal_context()");
+    expect(statements.at(-1)).toBe("RESET ROLE");
+    expect(installCalls).toHaveLength(2);
+    for (const installCall of installCalls) {
+      expect(installCall[1]).toEqual(expect.arrayContaining([patientOrganizationId, patientUserId]));
+      expect(installCall[1]).not.toContain("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+    }
+    expect(client?.release).toHaveBeenCalledOnce();
   });
 
   it("rolls back and releases when transaction principal setup fails", async () => {
