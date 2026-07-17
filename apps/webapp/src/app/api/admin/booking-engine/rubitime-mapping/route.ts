@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isLegacyRubitimeOrganization } from "@/modules/booking-engine/legacyRubitimeOrganization";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 export async function GET(request: Request) {
@@ -23,5 +24,9 @@ export async function GET(request: Request) {
     serviceId,
   });
 
-  return NextResponse.json({ ok: true, ...summary });
+  return NextResponse.json({
+    ok: true,
+    legacyCatalogAvailable: isLegacyRubitimeOrganization(gate.ctx.organizationId),
+    ...summary,
+  });
 }

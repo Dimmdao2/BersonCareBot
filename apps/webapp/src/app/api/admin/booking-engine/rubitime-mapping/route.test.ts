@@ -3,6 +3,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const requireClinicManagementBookingEngineMock = vi.hoisted(() => vi.fn());
 const listMappingsMock = vi.hoisted(() => vi.fn());
 
+vi.mock("@/modules/booking-engine/legacyRubitimeOrganization", () => ({
+  isLegacyRubitimeOrganization: (organizationId: string) => organizationId === "org-1",
+}));
+
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
@@ -47,10 +51,16 @@ describe("GET /api/admin/booking-engine/rubitime-mapping", () => {
 
   it("returns mapping summary", async () => {
     const res = await GET(new Request("http://localhost/api/admin/booking-engine/rubitime-mapping?problemsOnly=true"));
-    const json = (await res.json()) as { ok?: boolean; total?: number; rows?: unknown[] };
+    const json = (await res.json()) as {
+      ok?: boolean;
+      legacyCatalogAvailable?: boolean;
+      total?: number;
+      rows?: unknown[];
+    };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.total).toBe(1);
+    expect(json.legacyCatalogAvailable).toBe(true);
     expect(listMappingsMock).toHaveBeenCalledWith({
       organizationId: "org-1",
       problemsOnly: true,

@@ -14,8 +14,11 @@ function jsonFetchResponse(body: unknown, ok = true) {
   };
 }
 
+let legacyCatalogAvailable = true;
+
 describe("BookingRubitimeMappingSection", () => {
   beforeEach(() => {
+    legacyCatalogAvailable = true;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((url: string) => {
@@ -66,6 +69,7 @@ describe("BookingRubitimeMappingSection", () => {
           return Promise.resolve(
             jsonFetchResponse({
               ok: true,
+              legacyCatalogAvailable,
               total: 2,
               mappedOk: 0,
               problems: 2,
@@ -135,6 +139,15 @@ describe("BookingRubitimeMappingSection", () => {
     const configureButtons = await screen.findAllByRole("button", { name: "Настроить" });
     await user.click(configureButtons[0]!);
     expect(await screen.findByText("Настроить связь Rubitime")).toBeInTheDocument();
+  });
+
+  it("does not request or expose the global legacy catalog for another clinic", async () => {
+    legacyCatalogAvailable = false;
+    render(<BookingRubitimeMappingSection />);
+    expect(await screen.findByText("Связи локация × услуга")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Настроить" })).not.toBeInTheDocument();
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/admin/booking-catalog"))).toBe(false);
   });
 
   it("shows explicit problem messages for price mismatch and blockers", async () => {

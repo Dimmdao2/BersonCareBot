@@ -84,6 +84,7 @@ export function BookingRubitimeMappingSection() {
   const [mappedOk, setMappedOk] = useState(0);
   const [problems, setProblems] = useState(0);
   const [problemsOnly, setProblemsOnly] = useState(false);
+  const [legacyCatalogAvailable, setLegacyCatalogAvailable] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,11 +128,13 @@ export function BookingRubitimeMappingSection() {
       const qs = problemsOnly ? "?problemsOnly=true" : "";
       const data = await apiJson<{
         ok: boolean;
+        legacyCatalogAvailable: boolean;
         total: number;
         mappedOk: number;
         problems: number;
         rows: RubitimeMappingRow[];
       }>(`${MAPPING_BASE}${qs}`);
+      setLegacyCatalogAvailable(data.legacyCatalogAvailable);
       setRows(data.rows);
       setTotal(data.total);
       setMappedOk(data.mappedOk);
@@ -176,8 +179,8 @@ export function BookingRubitimeMappingSection() {
   }, [loadMappings]);
 
   useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
+    if (legacyCatalogAvailable) void loadCatalog();
+  }, [legacyCatalogAvailable, loadCatalog]);
 
   useEffect(() => {
     void loadDuplicates();
@@ -334,9 +337,11 @@ export function BookingRubitimeMappingSection() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
                     <Badge variant={hasProblems ? "destructive" : "secondary"}>{mappingRowBadgeLabel(row)}</Badge>
-                    <Button variant="default" size="sm" onClick={() => openEdit(row)}>
-                      Настроить
-                    </Button>
+                    {legacyCatalogAvailable ? (
+                      <Button variant="default" size="sm" onClick={() => openEdit(row)}>
+                        Настроить
+                      </Button>
+                    ) : null}
                   </div>
                 </li>
               );
