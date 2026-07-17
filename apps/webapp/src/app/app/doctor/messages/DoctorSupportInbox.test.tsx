@@ -228,6 +228,35 @@ describe("DoctorSupportInbox — шапка треда", () => {
   });
 });
 
+describe("DoctorSupportInbox — deep-link ?id= (#812)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", makeFetch([BASE_CONV]));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("открывает диалог из initialSelectedConversationId без клика", async () => {
+    render(<DoctorSupportInbox initialSelectedConversationId={BASE_CONV.conversationId} />);
+    expect(await screen.findByText(`chat:${BASE_CONV.conversationId}`)).toBeInTheDocument();
+  });
+
+  it("вызывает onSelectedConversationChange(id) при клике на строку", async () => {
+    const onSelectedConversationChange = vi.fn();
+    render(<DoctorSupportInbox onSelectedConversationChange={onSelectedConversationChange} />);
+    await userEvent.click(await screen.findByText("Пациент"));
+    expect(onSelectedConversationChange).toHaveBeenCalledWith(BASE_CONV.conversationId);
+  });
+
+  it("вызывает onSelectedConversationChange(null) при закрытии треда", async () => {
+    const onSelectedConversationChange = vi.fn();
+    render(<DoctorSupportInbox onSelectedConversationChange={onSelectedConversationChange} />);
+    await userEvent.click(await screen.findByText("Пациент"));
+    await userEvent.click(screen.getByRole("button", { name: "Закрыть тред" }));
+    expect(onSelectedConversationChange).toHaveBeenLastCalledWith(null);
+  });
+});
+
 describe("DoctorSupportInbox — ошибки", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -9,7 +9,7 @@ import { COMMUNICATIONS_TABS } from "./doctorCommunicationsTabs";
  * НЕ восстановится (молчаливая поломка deep-link). typecheck это не ловит (ключ — строка).
  *
  * Зафиксированные deep-link ключи:
- *   intake → "id", broadcasts → "archive", chats/comments → нет.
+ *   intake → "id", broadcasts → "archive", chats → "id" (#812), comments → нет.
  * При добавлении нового deep-link обёртке — обновить и реестр, и этот тест.
  */
 describe("communicationsTabRegistry — deep-link keys contract", () => {
@@ -29,8 +29,11 @@ describe("communicationsTabRegistry — deep-link keys contract", () => {
     expect(byId.get("broadcasts")?.deepLinkKeys).toContain("archive");
   });
 
-  it("chats and comments declare no deep-link keys", () => {
-    expect(byId.get("chats")?.deepLinkKeys).toEqual([]);
+  it("chats declares deep-link key 'id' (#812: DoctorSupportInbox onSelectedConversationChange('id', …))", () => {
+    expect(byId.get("chats")?.deepLinkKeys).toEqual(["id"]);
+  });
+
+  it("comments declares no deep-link keys", () => {
     expect(byId.get("comments")?.deepLinkKeys).toEqual([]);
   });
 

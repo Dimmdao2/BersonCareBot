@@ -89,11 +89,20 @@ function convSignature(rows: ConvRow[]): string {
 export type DoctorSupportInboxProps = {
   active?: boolean;
   displayIana?: string;
+  /** #812: deep-link ?id= from the Communications shell — opens this conversation on mount. */
+  initialSelectedConversationId?: string | null;
+  /** #812: called on every selection change so the shell can keep ?id= in sync (shareable URL). */
+  onSelectedConversationChange?: (id: string | null) => void;
 };
 
 type FilterMode = "all" | "unread" | "onSupport";
 
-export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow" }: DoctorSupportInboxProps) {
+export function DoctorSupportInbox({
+  active = true,
+  displayIana = "Europe/Moscow",
+  initialSelectedConversationId = null,
+  onSelectedConversationChange,
+}: DoctorSupportInboxProps) {
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -102,6 +111,29 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const sigRef = useRef<string>("");
+  const selectedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // Deep-link: открыть конкретный диалог из URL (?id=), матчит паттерн IntakeTab/
+  // DoctorOnlineIntakeClient. Реагируем только на ВНЕШНИЙ deep-link — если диалог уже
+  // выбран (echo от нашего же onSelectedConversationChange после клика), не перезапускаем.
+  useEffect(() => {
+    const id = initialSelectedConversationId?.trim();
+    if (!id) return;
+    if (selectedIdRef.current === id) return;
+    setSelectedId(id);
+  }, [initialSelectedConversationId]);
+
+  const selectConversation = useCallback(
+    (id: string | null) => {
+      setSelectedId(id);
+      onSelectedConversationChange?.(id);
+    },
+    [onSelectedConversationChange],
+  );
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -297,7 +329,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
             <button
               key={c.conversationId}
               type="button"
-              onClick={() => setSelectedId(c.conversationId)}
+              onClick={() => selectConversation(c.conversationId)}
               className={cn(
                 "flex w-full cursor-pointer gap-2 border-b border-border px-3 py-2.5 text-left transition-colors",
                 selectedId === c.conversationId
@@ -368,7 +400,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
             </span>
             <button
               type="button"
-              onClick={() => setSelectedId(null)}
+              onClick={() => selectConversation(null)}
               aria-label="Закрыть тред"
               className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -396,7 +428,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setSelectedId(null)}
+          onClick={() => selectConversation(null)}
           className="mb-2"
         >
           ← К списку

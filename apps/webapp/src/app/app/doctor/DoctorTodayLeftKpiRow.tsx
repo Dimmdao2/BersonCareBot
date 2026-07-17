@@ -74,7 +74,8 @@ function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationIt
         <p className="mt-0.5 text-xs text-muted-foreground">{item.unreadFromUserCount} непрочитанных</p>
       ) : null}
       <p className="mt-2">
-        <Link href={routePaths.doctorCommunications} className={doctorInlineLinkClass}>
+        {/* #812: deep-link to this exact dialog, not just the chats tab */}
+        <Link href={item.href} className={doctorInlineLinkClass}>
           Открыть переписку
         </Link>
       </p>

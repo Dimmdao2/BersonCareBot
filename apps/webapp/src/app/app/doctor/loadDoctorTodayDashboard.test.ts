@@ -104,8 +104,20 @@ describe("loadDoctorTodayDashboard helpers", () => {
     };
     const item = mapConversationToTodayItem(row);
     expect(item.lastMessagePreview).toBeNull();
-    expect(item.href).toBe("/app/doctor/messages");
     expect(item.unreadFromUserCount).toBe(3);
+  });
+
+  it("mapConversationToTodayItem builds a deep link to the exact conversation (#812)", () => {
+    const row: TodayConversationSourceRow = {
+      conversationId: "c1",
+      displayName: "Мария",
+      phoneNormalized: null,
+      lastMessageAt: "2026-05-02T12:00:00.000Z",
+      lastMessageText: null,
+      unreadFromUserCount: 3,
+    };
+    const item = mapConversationToTodayItem(row);
+    expect(item.href).toBe("/app/doctor/communications?tab=chats&id=c1");
   });
 
   it("getUpcomingAppointments dedupes by id and sorts by recordAtIso", () => {

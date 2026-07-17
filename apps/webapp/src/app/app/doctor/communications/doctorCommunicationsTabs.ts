@@ -26,6 +26,15 @@ export const COMMUNICATIONS_TABS: CommunicationsTab[] = [
 
 export const COMMUNICATIONS_DEFAULT_TAB: CommunicationsTabId = "chats";
 
+/**
+ * Deep-link to a specific conversation on the Chats tab (#812: «Сегодня» KPI
+ * «открыть переписку» must select the exact dialog, not just open the tab).
+ * Consumed by ChatsTab/DoctorSupportInbox via `?tab=chats&id=`.
+ */
+export function communicationsChatHref(conversationId: string): string {
+  return `${COMMUNICATIONS_BASE}?tab=chats&id=${encodeURIComponent(conversationId)}`;
+}
+
 /** Нормализует значение `?tab=` к валидному id вкладки (fallback — chats). */
 export function communicationsTabFromQuery(tab: string | null | undefined): CommunicationsTabId {
   switch (tab) {

@@ -31,7 +31,8 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
   {
     id: "chats",
     loader: () => import("./tabs/ChatsTab").then((m) => ({ default: m.ChatsTab })),
-    deepLinkKeys: [],
+    // #812: ?id= selects the conversation (used by DoctorSupportInbox onSelectedConversationChange).
+    deepLinkKeys: ["id"],
   },
   {
     id: "comments",
