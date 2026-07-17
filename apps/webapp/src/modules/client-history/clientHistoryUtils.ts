@@ -1,4 +1,4 @@
-import type { ClientPaymentHistoryRow, ClientTimelineItem } from "./types";
+import type { ClientPaymentHistoryRow, ClientTimelineItem, ClientVisitHistoryRow } from "./types";
 
 export const PREPAYMENT_EVENT_TYPES = new Set([
   "prepayment_captured",
@@ -153,6 +153,43 @@ export function dedupeTimelineItems(items: ClientTimelineItem[]): ClientTimeline
   }
 
   return out.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+}
+
+/** Статусы записи, которые исключают её из «активных» независимо от даты начала. */
+export const CANCELLED_APPOINTMENT_STATUSES = new Set([
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+]);
+
+export function isCancelledAppointmentStatus(status: string): boolean {
+  return CANCELLED_APPOINTMENT_STATUSES.has(status);
+}
+
+/**
+ * Делит визиты на «активные» (предстоящие, не отменённые) и «историю» (прошедшие + отменённые).
+ * Используется компактной панелью «Обзор и записи» в чате врача (#814) поверх того же
+ * `/api/doctor/clients/:userId/history`, не заводя отдельный эндпоинт.
+ * Активные — по возрастанию startAt (ближайшая запись первой); история — как пришло (desc по startAt, из БД).
+ */
+export function splitVisitsByActivity(
+  visits: ClientVisitHistoryRow[],
+  nowMs: number = Date.now(),
+): { active: ClientVisitHistoryRow[]; history: ClientVisitHistoryRow[] } {
+  const active: ClientVisitHistoryRow[] = [];
+  const history: ClientVisitHistoryRow[] = [];
+  for (const visit of visits) {
+    const startMs = new Date(visit.startAt).getTime();
+    const isUpcoming = Number.isFinite(startMs) && startMs >= nowMs;
+    if (isUpcoming && !isCancelledAppointmentStatus(visit.status)) {
+      active.push(visit);
+    } else {
+      history.push(visit);
+    }
+  }
+  active.sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return { active, history };
 }
 
 export function enrichPaymentHistoryRow(

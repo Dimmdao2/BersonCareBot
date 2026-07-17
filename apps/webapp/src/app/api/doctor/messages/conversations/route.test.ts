@@ -224,13 +224,46 @@ describe("GET /api/doctor/messages/conversations", () => {
 
     const data = (await res.json()) as {
       ok: boolean;
-      conversations: { displayName: string; firstName: string | null; onSupport: boolean }[];
+      conversations: {
+        displayName: string;
+        firstName: string | null;
+        onSupport: boolean;
+        patientUserId: string | null;
+      }[];
     };
     expect(data.ok).toBe(true);
     expect(data.conversations).toHaveLength(2);
     const conv1 = data.conversations.find((c) => c.displayName === "Пациент 1");
     expect(conv1?.firstName).toBe("Иван");
     expect(conv1?.onSupport).toBe(true);
+    // #814: patientUserId — уже вычисленный на сервере platformUserId, нужен клиенту для
+    // панели «Обзор и записи» (fetch /api/doctor/clients/:userId/history без повторного парсинга).
+    expect(conv1?.patientUserId).toBe(p1);
+  });
+
+  it("returns patientUserId=null for non-webapp conversation IDs (#814)", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    });
+    listMock.mockResolvedValue([
+      {
+        conversationId: "00000000-0000-4000-8000-000000000013",
+        integratorConversationId: "telegram:12345",
+        source: "telegram",
+        status: "open",
+        openedAt: "2025-01-01T00:00:00.000Z",
+        lastMessageAt: "2025-01-02T00:00:00.000Z",
+        displayName: "TG User",
+        phoneNormalized: null,
+        lastMessageText: null,
+        lastSenderRole: null,
+        unreadFromUserCount: 0,
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const data = (await res.json()) as { conversations: { patientUserId: string | null }[] };
+    expect(data.conversations[0]?.patientUserId).toBeNull();
   });
 
   it("skips listClients when conversation list is empty (EXTRA-02)", async () => {

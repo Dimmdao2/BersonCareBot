@@ -21,12 +21,24 @@ const BASE_CONV = {
   unreadFromUserCount: 2,
   hasUnreadFromUser: true,
   onSupport: false,
+  patientUserId: null as string | null,
 };
 
 function makeFetch(conversations: object[]) {
   return vi.fn(async () =>
     new Response(JSON.stringify({ ok: true, conversations })),
   );
+}
+
+/** Раздаёт разные ответы conversations-списку и `/history` панели «Обзор и записи» (#814) по URL. */
+function makeInboxAndHistoryFetch(conversations: object[], visits: object[]) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/history")) {
+      return new Response(JSON.stringify({ ok: true, timeline: [], payments: [], visits }));
+    }
+    return new Response(JSON.stringify({ ok: true, conversations }));
+  });
 }
 
 describe("DoctorSupportInbox — базовый рендер", () => {
@@ -225,6 +237,75 @@ describe("DoctorSupportInbox — шапка треда", () => {
     render(<DoctorSupportInbox />);
     await screen.findByText("Пациент");
     expect(screen.queryByRole("button", { name: "Закрыть тред" })).not.toBeInTheDocument();
+  });
+});
+
+describe("DoctorSupportInbox — панель «Обзор и записи» (#814)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("кнопка отключена, если у диалога нет patientUserId (не-webapp канал)", async () => {
+    vi.stubGlobal("fetch", makeFetch([{ ...BASE_CONV, patientUserId: null }]));
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+
+    expect(screen.getByRole("button", { name: /Обзор и записи/i })).toBeDisabled();
+  });
+
+  it("открывает панель поверх списка чатов с активными записями пациента и закрывается по ×", async () => {
+    const patientUserId = "11111111-2222-4000-8000-333333333333";
+    const futureVisit = {
+      appointmentId: "appt-1",
+      startAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      endAt: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+      durationMinutes: 30,
+      status: "confirmed",
+      specialistName: "Др. Иванов",
+      branchTitle: null,
+      roomTitle: null,
+      serviceTitle: "Консультация",
+      wasViaPackage: false,
+      packageUsageSummary: null,
+      prepaymentAmountMinor: null,
+      prepaymentCurrency: null,
+      finalPaymentAmountMinor: null,
+      finalPaymentCurrency: null,
+      staffComment: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      makeInboxAndHistoryFetch([{ ...BASE_CONV, patientUserId }], [futureVisit]),
+    );
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+
+    const trigger = screen.getByRole("button", { name: /Обзор и записи/i });
+    expect(trigger).not.toBeDisabled();
+    await userEvent.click(trigger);
+
+    // Панель поверх списка: заголовок + активная запись из /history видны, чат (DoctorChatPanel) остаётся смонтирован.
+    expect(await screen.findByText("Активные записи")).toBeInTheDocument();
+    expect(screen.getByText("Консультация")).toBeInTheDocument();
+    expect(screen.getByText(`chat:${BASE_CONV.conversationId}`)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Закрыть обзор и записи" }));
+    expect(screen.queryByText("Активные записи")).not.toBeInTheDocument();
+  });
+
+  it("закрывает панель при смене выбранного диалога", async () => {
+    const patientUserId = "11111111-2222-4000-8000-333333333333";
+    const convA = { ...BASE_CONV, conversationId: "c-a", displayName: "Пациент А", patientUserId };
+    const convB = { ...BASE_CONV, conversationId: "c-b", displayName: "Пациент Б", patientUserId };
+    vi.stubGlobal("fetch", makeInboxAndHistoryFetch([convA, convB], []));
+    render(<DoctorSupportInbox />);
+
+    await userEvent.click(await screen.findByText("Пациент А"));
+    await userEvent.click(screen.getByRole("button", { name: /Обзор и записи/i }));
+    expect(await screen.findByText("Активные записи")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("Пациент Б"));
+    expect(screen.queryByText("Активные записи")).not.toBeInTheDocument();
   });
 });
 

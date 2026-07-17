@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { ClipboardList, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -11,6 +11,7 @@ import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayou
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { ChatClientOverviewPanel } from "./ChatClientOverviewPanel";
 
 const POLL_INTERVAL_MS = 1_000;
 
@@ -26,6 +27,8 @@ type ConvRow = {
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
   onSupport: boolean;
+  /** Платформенный userId пациента (null для не-webapp каналов, напр. telegram) — см. #814. */
+  patientUserId: string | null;
 };
 
 type ConversationApiRow = {
@@ -40,6 +43,7 @@ type ConversationApiRow = {
   unreadFromUserCount?: number;
   hasUnreadFromUser?: boolean;
   onSupport?: boolean;
+  patientUserId?: string | null;
 };
 
 function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
@@ -74,6 +78,7 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
     unreadFromUserCount: c.unreadFromUserCount ?? 0,
     hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
     onSupport: c.onSupport ?? false,
+    patientUserId: c.patientUserId ?? null,
   }));
 }
 
@@ -101,7 +106,14 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
   const [searchMode, setSearchMode] = useState<"name" | "text">("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const sigRef = useRef<string>("");
+
+  // Переключили диалог (или закрыли тред) — панель «Обзор и записи» относится к предыдущему
+  // пациенту, закрываем её вместе со сменой выбора.
+  useEffect(() => {
+    setOverviewOpen(false);
+  }, [selectedId]);
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -219,8 +231,15 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
     );
   }
 
+  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
+  const selectedConvDisplayName = selectedConv
+    ? ((selectedConv.lastName ?? selectedConv.firstName)
+        ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
+        : selectedConv.displayName)
+    : "";
+
   const leftPane = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {/* Header: search bar, then filter chips below */}
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
         <div className="flex gap-1.5">
@@ -340,10 +359,16 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
           ))
         )}
       </div>
+
+      {overviewOpen && selectedConv?.patientUserId ? (
+        <ChatClientOverviewPanel
+          patientUserId={selectedConv.patientUserId}
+          patientDisplayName={selectedConvDisplayName}
+          onClose={() => setOverviewOpen(false)}
+        />
+      ) : null}
     </div>
   );
-
-  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
 
   const rightPane = (
     <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
@@ -357,15 +382,22 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         </DoctorEmptyState>
       ) : (
         <>
-          {/* Thread header: patient name + close button */}
+          {/* Thread header: patient name, overview trigger + close button */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {selectedConv
-                ? ((selectedConv.lastName ?? selectedConv.firstName)
-                    ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
-                    : selectedConv.displayName)
-                : "—"}
+              {selectedConvDisplayName || "—"}
             </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 gap-1 px-2 text-xs"
+              disabled={!selectedConv?.patientUserId}
+              onClick={() => setOverviewOpen(true)}
+            >
+              <ClipboardList size={14} aria-hidden />
+              Обзор и записи
+            </Button>
             <button
               type="button"
               onClick={() => setSelectedId(null)}
@@ -391,7 +423,10 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
     <CatalogSplitLayout
       left={leftPane}
       right={rightPane}
-      mobileView={selectedId ? "detail" : "list"}
+      // «Обзор и записи» живёт внутри left-колонки (overlay поверх списка чатов). На desktop
+      // обе колонки видны одновременно — тред остаётся на экране. На мобильном одна колонка за
+      // раз: пока панель открыта, показываем ту, что её содержит (list), иначе как обычно.
+      mobileView={overviewOpen ? "list" : selectedId ? "detail" : "list"}
       mobileBackSlot={
         <Button
           variant="outline"

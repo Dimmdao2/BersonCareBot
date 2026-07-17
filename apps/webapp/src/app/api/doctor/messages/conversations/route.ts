@@ -74,6 +74,9 @@ export async function GET(request: Request) {
         unreadFromUserCount: c.unreadFromUserCount,
         hasUnreadFromUser: c.unreadFromUserCount > 0,
         onSupport: clientInfo?.isOnSupport ?? false,
+        // Platform user behind this conversation (null for non-webapp channels, e.g. telegram) —
+        // lets the client fetch org-scoped patient data (bookings/history) via existing doctor-client APIs.
+        patientUserId,
       };
     }),
   });
