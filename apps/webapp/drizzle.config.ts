@@ -40,6 +40,7 @@ export default defineConfig({
     "./db/schema/specialistSignupIntents.ts",
     "./db/schema/productAnalytics.ts",
     "./db/schema/bookingEngine.ts",
+    "./db/schema/clinicDirectory.ts",
     "./db/schema/platformUserContacts.ts",
     "./db/schema/programItemDiscussion.ts",
     "./db/schema/doctorPatientSupport.ts",

@@ -15,10 +15,14 @@ import { cn } from "@/lib/utils";
 type Props = {
   cities: BookingCity[];
   catalogError: string | null;
+  /** Present only on the canonical per-clinic entry `/book/{slug}`; threaded to keep the org
+   * context through the wizard (re-resolved server-side at every step, never trusted as-is). */
+  orgSlug?: string;
 };
 
-export function PublicFormatStepClient({ cities, catalogError }: Props) {
+export function PublicFormatStepClient({ cities, catalogError, orgSlug }: Props) {
   const sorted = [...cities].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
+  const orgSlugQuery = orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : "";
 
   return (
     <div className={bookingChoiceSectionClass}>
@@ -30,7 +34,7 @@ export function PublicFormatStepClient({ cities, catalogError }: Props) {
             {sorted.map((c) => (
               <Link
                 key={c.id}
-                href={`${publicBookPaths.newService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}`}
+                href={`${publicBookPaths.newService}?cityCode=${encodeURIComponent(c.code)}&cityTitle=${encodeURIComponent(c.title)}${orgSlugQuery}`}
                 prefetch={false}
                 className={bookingChoiceRowClass}
               >

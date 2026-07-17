@@ -1422,6 +1422,13 @@
       "when": 1793280000000,
       "tag": "0202_current_patient_ui_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1793366400000,
+      "tag": "0203_clinic_public_directory_slug",
+      "breakpoints": true
     }
   ]
 }

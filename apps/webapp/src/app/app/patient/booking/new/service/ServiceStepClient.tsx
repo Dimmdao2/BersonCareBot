@@ -62,6 +62,9 @@ export type ServiceStepClientProps = {
   services: InPersonServiceListItem[];
   catalogError: string | null;
   slotBasePath?: string;
+  /** Public per-clinic entry only (`/book/{slug}`); threaded so "back" keeps working after the
+   * slot step. Never used to select tenant — the slug is re-resolved server-side at each step. */
+  orgSlug?: string;
 };
 
 export function ServiceStepClient({
@@ -71,6 +74,7 @@ export function ServiceStepClient({
   services,
   catalogError,
   slotBasePath = routePaths.bookingNewSlot,
+  orgSlug,
 }: ServiceStepClientProps) {
   const router = useRouter();
 
@@ -109,7 +113,8 @@ export function ServiceStepClient({
                       `&branchId=${encodeURIComponent(branchId)}` +
                       `&serviceId=${encodeURIComponent(s.id)}` +
                       `&serviceTitle=${encodeURIComponent(title)}` +
-                      (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : ""),
+                      (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : "") +
+                      (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : ""),
                   )
                 }
               >
