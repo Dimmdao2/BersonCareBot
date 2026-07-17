@@ -2,11 +2,33 @@ import { describe, expect, it } from "vitest";
 import {
   dedupeTimelineItems,
   enrichPaymentHistoryRow,
+  isCancelledAppointmentStatus,
   isFinalPaymentEventType,
   isPrepaymentEventType,
   parsePaymentPayloadRefs,
+  splitVisitsByActivity,
 } from "./clientHistoryUtils";
-import type { ClientTimelineItem } from "./types";
+import type { ClientTimelineItem, ClientVisitHistoryRow } from "./types";
+
+function makeVisit(overrides: Partial<ClientVisitHistoryRow> & { appointmentId: string; startAt: string }): ClientVisitHistoryRow {
+  return {
+    endAt: overrides.startAt,
+    durationMinutes: 30,
+    status: "confirmed",
+    specialistName: null,
+    branchTitle: null,
+    roomTitle: null,
+    serviceTitle: null,
+    wasViaPackage: false,
+    packageUsageSummary: null,
+    prepaymentAmountMinor: null,
+    prepaymentCurrency: null,
+    finalPaymentAmountMinor: null,
+    finalPaymentCurrency: null,
+    staffComment: null,
+    ...overrides,
+  };
+}
 
 describe("clientHistoryUtils", () => {
   it("parses productRef for package and product", () => {
@@ -144,6 +166,48 @@ describe("clientHistoryUtils", () => {
     );
     expect(row.packageTitle).toBe("Абонемент 10");
     expect(row.paymentMethodLabel).toBe("Тестовая оплата");
+  });
+
+  it("classifies cancelled appointment statuses", () => {
+    expect(isCancelledAppointmentStatus("cancelled_by_patient")).toBe(true);
+    expect(isCancelledAppointmentStatus("no_show")).toBe(true);
+    expect(isCancelledAppointmentStatus("confirmed")).toBe(false);
+  });
+
+  it("splits visits into active (future, not cancelled) and history (past + cancelled)", () => {
+    const now = new Date("2026-07-17T12:00:00.000Z").getTime();
+    const past = makeVisit({ appointmentId: "past-1", startAt: "2026-07-01T10:00:00.000Z", status: "completed" });
+    const futureConfirmed = makeVisit({
+      appointmentId: "future-2",
+      startAt: "2026-07-20T10:00:00.000Z",
+      status: "confirmed",
+    });
+    const futureSooner = makeVisit({
+      appointmentId: "future-1",
+      startAt: "2026-07-18T09:00:00.000Z",
+      status: "paid",
+    });
+    const futureCancelled = makeVisit({
+      appointmentId: "future-cancelled",
+      startAt: "2026-07-19T10:00:00.000Z",
+      status: "cancelled_by_patient",
+    });
+
+    const { active, history } = splitVisitsByActivity(
+      [past, futureConfirmed, futureSooner, futureCancelled],
+      now,
+    );
+
+    expect(active.map((v) => v.appointmentId)).toEqual(["future-1", "future-2"]);
+    expect(history.map((v) => v.appointmentId).sort()).toEqual(["future-cancelled", "past-1"].sort());
+  });
+
+  it("treats visits with unparsable startAt as history, not active", () => {
+    const now = new Date("2026-07-17T12:00:00.000Z").getTime();
+    const broken = makeVisit({ appointmentId: "broken", startAt: "not-a-date", status: "confirmed" });
+    const { active, history } = splitVisitsByActivity([broken], now);
+    expect(active).toHaveLength(0);
+    expect(history.map((v) => v.appointmentId)).toEqual(["broken"]);
   });
 
   it("dedupes product_purchased when history event exists", () => {

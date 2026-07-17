@@ -12,6 +12,12 @@ vi.mock("@/modules/messaging/components/DoctorChatPanel", () => ({
   ),
 }));
 
+vi.mock("./ChatClientOverviewPanel", () => ({
+  ChatClientOverviewPanel: ({ patientUserId }: { patientUserId: string }) => (
+    <div>overview:{patientUserId}</div>
+  ),
+}));
+
 vi.mock("next/link", () => ({
   default: ({ children, href, ...props }: { children: ReactNode; href: string; className?: string }) => (
     <a href={href} {...props}>{children}</a>
@@ -20,7 +26,6 @@ vi.mock("next/link", () => ({
 
 const BASE_CONV = {
   conversationId: "00000000-0000-4000-8000-000000000002",
-  patientUserId: "00000000-0000-4000-8000-000000000111",
   displayName: "Пациент",
   phoneNormalized: "+79990000000",
   lastMessageAt: "2025-01-02T12:34:00.000Z",
@@ -217,10 +222,18 @@ describe("DoctorSupportInbox — шапка треда", () => {
     render(<DoctorSupportInbox />);
     await userEvent.click(await screen.findByText("Пациент"));
 
-    expect(screen.getByRole("link", { name: "Профиль" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Открыть карточку" })).toHaveAttribute(
       "href",
       `/app/doctor/patients/${BASE_CONV.patientUserId}`,
     );
+  });
+
+  it("открывает панель обзора и записей для пациента", async () => {
+    render(<DoctorSupportInbox />);
+    await userEvent.click(await screen.findByText("Пациент"));
+    await userEvent.click(screen.getByRole("button", { name: "Обзор и записи" }));
+
+    expect(screen.getByText(`overview:${BASE_CONV.patientUserId}`)).toBeInTheDocument();
   });
 
   it("при выборе чата кнопка × видна и сбрасывает выбор", async () => {

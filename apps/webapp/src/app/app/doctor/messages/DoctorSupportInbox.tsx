@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { ClipboardList, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -14,6 +14,7 @@ import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import { patientCardHref } from "../patients/patientCardHref";
+import { ChatClientOverviewPanel } from "./ChatClientOverviewPanel";
 
 const POLL_INTERVAL_MS = 1_000;
 
@@ -117,6 +118,7 @@ export function DoctorSupportInbox({
   const [searchMode, setSearchMode] = useState<"name" | "text">("name");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const sigRef = useRef<string>("");
   const selectedIdRef = useRef<string | null>(null);
 
@@ -141,6 +143,10 @@ export function DoctorSupportInbox({
     },
     [onSelectedConversationChange],
   );
+
+  useEffect(() => {
+    setOverviewOpen(false);
+  }, [selectedId]);
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -258,8 +264,15 @@ export function DoctorSupportInbox({
     );
   }
 
+  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
+  const selectedConvDisplayName = selectedConv
+    ? ((selectedConv.lastName ?? selectedConv.firstName)
+        ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
+        : selectedConv.displayName)
+    : "";
+
   const leftPane = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {/* Header: search bar, then filter chips below */}
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
         <div className="flex gap-1.5">
@@ -380,10 +393,16 @@ export function DoctorSupportInbox({
           ))
         )}
       </div>
+      {overviewOpen && selectedConv?.patientUserId ? (
+        <ChatClientOverviewPanel
+          patientUserId={selectedConv.patientUserId}
+          patientDisplayName={selectedConvDisplayName}
+          onClose={() => setOverviewOpen(false)}
+        />
+      ) : null}
     </div>
   );
 
-  const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
   const rightPane = (
     <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {!selectedId ? (
@@ -399,11 +418,7 @@ export function DoctorSupportInbox({
           {/* Thread header: patient name + «открыть карточку» (#813) + close button */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {selectedConv
-                ? ((selectedConv.lastName ?? selectedConv.firstName)
-                    ? [selectedConv.lastName, selectedConv.firstName].filter(Boolean).join(" ")
-                    : selectedConv.displayName)
-                : "—"}
+              {selectedConvDisplayName || "—"}
             </span>
             {selectedConv?.patientUserId ? (
               <Link
@@ -413,6 +428,17 @@ export function DoctorSupportInbox({
                 Открыть карточку
               </Link>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!selectedConv?.patientUserId}
+              onClick={() => setOverviewOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <ClipboardList size={14} aria-hidden />
+              Обзор и записи
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -440,7 +466,7 @@ export function DoctorSupportInbox({
     <CatalogSplitLayout
       left={leftPane}
       right={rightPane}
-      mobileView={selectedId ? "detail" : "list"}
+      mobileView={overviewOpen ? "list" : selectedId ? "detail" : "list"}
       mobileBackSlot={
         <Button
           variant="outline"
