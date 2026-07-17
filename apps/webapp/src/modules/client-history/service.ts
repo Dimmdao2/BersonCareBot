@@ -15,6 +15,18 @@ export function createClientHistoryService(port: ClientHistoryPort) {
       return port.listVisitHistory(organizationId, platformUserId, limit);
     },
 
+    listPatientTimeline(organizationId: string, platformUserId: string, limit?: number) {
+      return port.listPatientTimeline(organizationId, platformUserId, limit);
+    },
+
+    listPatientPaymentHistory(organizationId: string, platformUserId: string, limit?: number) {
+      return port.listPatientPaymentHistory(organizationId, platformUserId, limit);
+    },
+
+    listPatientVisitHistory(organizationId: string, platformUserId: string, limit?: number) {
+      return port.listPatientVisitHistory(organizationId, platformUserId, limit);
+    },
+
     getBookingProfile(organizationId: string, platformUserId: string) {
       return port.getBookingProfile(organizationId, platformUserId);
     },

@@ -24,6 +24,21 @@ export type ClientHistoryPort = {
     platformUserId: string,
     limit?: number,
   ): Promise<ClientVisitHistoryRow[]>;
+  listPatientTimeline(
+    organizationId: string,
+    platformUserId: string,
+    limit?: number,
+  ): Promise<ClientTimelineItem[]>;
+  listPatientPaymentHistory(
+    organizationId: string,
+    platformUserId: string,
+    limit?: number,
+  ): Promise<ClientPaymentHistoryRow[]>;
+  listPatientVisitHistory(
+    organizationId: string,
+    platformUserId: string,
+    limit?: number,
+  ): Promise<ClientVisitHistoryRow[]>;
   getBookingProfile(
     organizationId: string,
     platformUserId: string,

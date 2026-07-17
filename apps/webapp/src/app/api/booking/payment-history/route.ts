@@ -16,7 +16,7 @@ export async function GET() {
   const organizationId = resolvedOrg.organizationId;
   const events = await withPatientOrganizationPrincipal(
     { organizationId, platformUserId: userId, source: "api/booking/payment-history:GET" },
-    () => deps.clientHistory.listPaymentHistory(organizationId, userId, 50),
+    () => deps.clientHistory.listPatientPaymentHistory(organizationId, userId, 50),
   );
   return NextResponse.json({ ok: true, events });
 }

@@ -3,9 +3,9 @@ import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const requirePatientApiBusinessAccessMock = vi.hoisted(() => vi.fn());
 const resolveActiveOrganizationForPatientMock = vi.hoisted(() => vi.fn());
-const listTimelineMock = vi.hoisted(() => vi.fn());
-const listPaymentHistoryMock = vi.hoisted(() => vi.fn());
-const listVisitHistoryMock = vi.hoisted(() => vi.fn());
+const listPatientTimelineMock = vi.hoisted(() => vi.fn());
+const listPatientPaymentHistoryMock = vi.hoisted(() => vi.fn());
+const listPatientVisitHistoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/app-layer/guards/requireRole")>();
@@ -21,9 +21,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       resolveActiveOrganizationForPatient: resolveActiveOrganizationForPatientMock,
     },
     clientHistory: {
-      listTimeline: listTimelineMock,
-      listPaymentHistory: listPaymentHistoryMock,
-      listVisitHistory: listVisitHistoryMock,
+      listPatientTimeline: listPatientTimelineMock,
+      listPatientPaymentHistory: listPatientPaymentHistoryMock,
+      listPatientVisitHistory: listPatientVisitHistoryMock,
     },
   }),
 }));
@@ -56,15 +56,15 @@ describe("patient booking history routes", () => {
       ok: true,
       organizationId: ORG_A,
     });
-    listTimelineMock.mockImplementation(async (organizationId: string, userId: string) => {
+    listPatientTimelineMock.mockImplementation(async (organizationId: string, userId: string) => {
       expectExactPatientPrincipal(organizationId, userId);
       return [{ id: `timeline:${organizationId}:${userId}` }];
     });
-    listPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
+    listPatientPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
       expectExactPatientPrincipal(organizationId, userId);
       return [{ id: `payment:${organizationId}:${userId}` }];
     });
-    listVisitHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
+    listPatientVisitHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
       expectExactPatientPrincipal(organizationId, userId);
       return [{ appointmentId: `visit:${organizationId}:${userId}` }];
     });
@@ -78,11 +78,11 @@ describe("patient booking history routes", () => {
 
     expect(historyResponse.status).toBe(200);
     expect(paymentResponse.status).toBe(200);
-    expect(listTimelineMock).toHaveBeenCalledWith(ORG_A, USER_A, 50);
-    expect(listVisitHistoryMock).toHaveBeenCalledWith(ORG_A, USER_A, 50);
-    expect(listPaymentHistoryMock).toHaveBeenCalledTimes(2);
-    expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(1, ORG_A, USER_A, 50);
-    expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_A, USER_A, 50);
+    expect(listPatientTimelineMock).toHaveBeenCalledWith(ORG_A, USER_A, 50);
+    expect(listPatientVisitHistoryMock).toHaveBeenCalledWith(ORG_A, USER_A, 50);
+    expect(listPatientPaymentHistoryMock).toHaveBeenCalledTimes(2);
+    expect(listPatientPaymentHistoryMock).toHaveBeenNthCalledWith(1, ORG_A, USER_A, 50);
+    expect(listPatientPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_A, USER_A, 50);
     expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
@@ -101,9 +101,9 @@ describe("patient booking history routes", () => {
 
     expect(historyResponse.status).toBe(expectedStatus);
     expect(paymentResponse.status).toBe(expectedStatus);
-    expect(listTimelineMock).not.toHaveBeenCalled();
-    expect(listPaymentHistoryMock).not.toHaveBeenCalled();
-    expect(listVisitHistoryMock).not.toHaveBeenCalled();
+    expect(listPatientTimelineMock).not.toHaveBeenCalled();
+    expect(listPatientPaymentHistoryMock).not.toHaveBeenCalled();
+    expect(listPatientVisitHistoryMock).not.toHaveBeenCalled();
   });
 
   it("never crosses patient A/B organization walls", async () => {
@@ -124,10 +124,10 @@ describe("patient booking history routes", () => {
       await getPaymentHistory();
     }
 
-    expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(1, ORG_A, USER_A, 50);
-    expect(listPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_B, USER_B, 50);
-    expect(listPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_A, USER_B, expect.anything());
-    expect(listPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_B, USER_A, expect.anything());
+    expect(listPatientPaymentHistoryMock).toHaveBeenNthCalledWith(1, ORG_A, USER_A, 50);
+    expect(listPatientPaymentHistoryMock).toHaveBeenNthCalledWith(2, ORG_B, USER_B, 50);
+    expect(listPatientPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_A, USER_B, expect.anything());
+    expect(listPatientPaymentHistoryMock).not.toHaveBeenCalledWith(ORG_B, USER_A, expect.anything());
     expect(getCurrentDbPrincipal()).toBeUndefined();
   });
 
@@ -137,7 +137,7 @@ describe("patient booking history routes", () => {
       { id: "same-org-other", organizationId: ORG_A, platformUserId: USER_B },
       { id: "null-trust-phone-orphan", organizationId: ORG_A, platformUserId: null },
     ];
-    listPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
+    listPatientPaymentHistoryMock.mockImplementation(async (organizationId: string, userId: string) => {
       const principal = getCurrentDbPrincipal();
       expect(principal).toEqual({
         kind: "patient",

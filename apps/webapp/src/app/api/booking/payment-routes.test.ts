@@ -5,7 +5,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 const getBookingPaymentStatusMock = vi.hoisted(() => vi.fn());
 const getBookingPaymentStatusForContactMock = vi.hoisted(() => vi.fn());
 const resolveBookingOrganizationIdMock = vi.hoisted(() => vi.fn());
-const listPaymentHistoryMock = vi.hoisted(() => vi.fn());
+const listPatientPaymentHistoryMock = vi.hoisted(() => vi.fn());
 const captureIntentForBookingMock = vi.hoisted(() => vi.fn());
 const resolveIntentOrganizationIdMock = vi.hoisted(() => vi.fn());
 const requirePatientBookingTrustedPhoneAccessMock = vi.hoisted(() => vi.fn());
@@ -38,7 +38,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientOrganization: {
       resolveActiveOrganizationForPatient: resolveActiveOrganizationForPatientMock,
     },
-    clientHistory: { listPaymentHistory: listPaymentHistoryMock },
+    clientHistory: { listPatientPaymentHistory: listPatientPaymentHistoryMock },
     payments: {
       captureIntentForBooking: captureIntentForBookingMock,
       resolveIntentOrganizationId: resolveIntentOrganizationIdMock,
@@ -92,12 +92,12 @@ describe("booking payment routes", () => {
   });
 
   it("GET /api/booking/payment-history returns events", async () => {
-    listPaymentHistoryMock.mockResolvedValue([{ id: "h1", eventType: "payment_captured" }]);
+    listPatientPaymentHistoryMock.mockResolvedValue([{ id: "h1", eventType: "payment_captured" }]);
     const res = await getPaymentHistory();
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok?: boolean; events?: unknown[] };
     expect(json.events).toHaveLength(1);
-    expect(listPaymentHistoryMock).toHaveBeenCalledWith(ORG_ID, "u1", 50);
+    expect(listPatientPaymentHistoryMock).toHaveBeenCalledWith(ORG_ID, "u1", 50);
     expect(withPatientOrganizationPrincipalMock).toHaveBeenCalledWith(
       { organizationId: ORG_ID, platformUserId: "u1", source: "api/booking/payment-history:GET" },
       expect.any(Function),

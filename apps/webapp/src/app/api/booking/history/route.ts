@@ -18,9 +18,9 @@ export async function GET() {
     { organizationId: orgId, platformUserId: userId, source: "api/booking/history:GET" },
     () =>
       Promise.all([
-        deps.clientHistory.listTimeline(orgId, userId, 50),
-        deps.clientHistory.listPaymentHistory(orgId, userId, 50),
-        deps.clientHistory.listVisitHistory(orgId, userId, 50),
+        deps.clientHistory.listPatientTimeline(orgId, userId, 50),
+        deps.clientHistory.listPatientPaymentHistory(orgId, userId, 50),
+        deps.clientHistory.listPatientVisitHistory(orgId, userId, 50),
       ]),
   );
 

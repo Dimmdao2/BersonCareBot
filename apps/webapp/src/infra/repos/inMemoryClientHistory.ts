@@ -14,6 +14,9 @@ export const inMemoryClientHistoryPort: ClientHistoryPort = {
   listTimeline: async () => [],
   listPaymentHistory: async () => [],
   listVisitHistory: async () => [],
+  listPatientTimeline: async () => [],
+  listPatientPaymentHistory: async () => [],
+  listPatientVisitHistory: async () => [],
   getBookingProfile: async () => null,
   upsertBookingProfile: async (input) => ({
     ...emptyProfile,

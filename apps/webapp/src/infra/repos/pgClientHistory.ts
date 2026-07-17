@@ -179,6 +179,311 @@ function mergePaymentHistoryRows(primaryRows: PaymentHistoryRow[], extraRows: Pa
 
 export function createPgClientHistoryPort(): ClientHistoryPort {
   return {
+    async listPatientTimeline(organizationId, platformUserId, limit = 100) {
+      const db = getDrizzle();
+      const fetchLimit = sourceFetchLimit(limit);
+      const [timelineRows, paymentRows, packageHistoryRows, productHistoryRows, productRows, packageUsageRows,
+        rescheduleRows, cancelRows] = await Promise.all([
+        db.select().from(bePatientTimelineEvents).where(and(
+          eq(bePatientTimelineEvents.organizationId, organizationId),
+          eq(bePatientTimelineEvents.platformUserId, platformUserId),
+        )).orderBy(desc(bePatientTimelineEvents.occurredAt)).limit(fetchLimit),
+        db.select().from(bePaymentHistoryEvents).where(and(
+          eq(bePaymentHistoryEvents.organizationId, organizationId),
+          eq(bePaymentHistoryEvents.platformUserId, platformUserId),
+        )).orderBy(desc(bePaymentHistoryEvents.occurredAt)).limit(fetchLimit),
+        db.select({
+          id: bePackageHistoryEvents.id,
+          eventType: bePackageHistoryEvents.eventType,
+          occurredAt: bePackageHistoryEvents.occurredAt,
+          payloadJson: bePackageHistoryEvents.payloadJson,
+          packageTitle: bePatientPackages.title,
+          patientPackageId: bePackageHistoryEvents.patientPackageId,
+        }).from(bePackageHistoryEvents)
+          .innerJoin(bePatientPackages, eq(bePackageHistoryEvents.patientPackageId, bePatientPackages.id))
+          .where(and(
+            eq(bePackageHistoryEvents.organizationId, organizationId),
+            eq(bePatientPackages.platformUserId, platformUserId),
+          )).orderBy(desc(bePackageHistoryEvents.occurredAt)).limit(fetchLimit),
+        db.select({
+          id: beProductHistoryEvents.id,
+          eventType: beProductHistoryEvents.eventType,
+          occurredAt: beProductHistoryEvents.occurredAt,
+          payloadJson: beProductHistoryEvents.payloadJson,
+          productPurchaseId: beProductHistoryEvents.productPurchaseId,
+          purchaseTitle: beProductPurchases.title,
+        }).from(beProductHistoryEvents)
+          .innerJoin(beProductPurchases, eq(beProductHistoryEvents.productPurchaseId, beProductPurchases.id))
+          .where(and(
+            eq(beProductHistoryEvents.organizationId, organizationId),
+            eq(beProductPurchases.platformUserId, platformUserId),
+          )).orderBy(desc(beProductHistoryEvents.occurredAt)).limit(fetchLimit),
+        db.select().from(beProductPurchases).where(and(
+          eq(beProductPurchases.organizationId, organizationId),
+          eq(beProductPurchases.platformUserId, platformUserId),
+        )).orderBy(desc(beProductPurchases.createdAt)).limit(fetchLimit),
+        db.select({
+          id: bePackageUsages.id,
+          usageKind: bePackageUsages.usageKind,
+          occurredAt: bePackageUsages.occurredAt,
+          comment: bePackageUsages.comment,
+          appointmentId: bePackageUsages.appointmentId,
+          packageTitle: bePatientPackages.title,
+        }).from(bePackageUsages)
+          .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
+          .where(and(
+            eq(bePackageUsages.organizationId, organizationId),
+            eq(bePatientPackages.platformUserId, platformUserId),
+          )).orderBy(desc(bePackageUsages.occurredAt)).limit(fetchLimit),
+        db.select({
+          id: beAppointmentReschedules.id,
+          appointmentId: beAppointmentReschedules.appointmentId,
+          fromStartAt: beAppointmentReschedules.fromStartAt,
+          toStartAt: beAppointmentReschedules.toStartAt,
+          reason: beAppointmentReschedules.reason,
+          createdAt: beAppointmentReschedules.createdAt,
+        }).from(beAppointmentReschedules)
+          .innerJoin(beAppointments, eq(beAppointmentReschedules.appointmentId, beAppointments.id))
+          .where(and(
+            eq(beAppointmentReschedules.organizationId, organizationId),
+            eq(beAppointments.platformUserId, platformUserId),
+          )).orderBy(desc(beAppointmentReschedules.createdAt)).limit(fetchLimit),
+        db.select({
+          id: beAppointmentCancellations.id,
+          appointmentId: beAppointmentCancellations.appointmentId,
+          cancellationType: beAppointmentCancellations.cancellationType,
+          reason: beAppointmentCancellations.reason,
+          wasFree: beAppointmentCancellations.wasFree,
+          wasPenalized: beAppointmentCancellations.wasPenalized,
+          createdAt: beAppointmentCancellations.createdAt,
+        }).from(beAppointmentCancellations)
+          .innerJoin(beAppointments, eq(beAppointmentCancellations.appointmentId, beAppointments.id))
+          .where(and(
+            eq(beAppointmentCancellations.organizationId, organizationId),
+            eq(beAppointments.platformUserId, platformUserId),
+          )).orderBy(desc(beAppointmentCancellations.createdAt)).limit(fetchLimit),
+      ]);
+
+      const items: ClientTimelineItem[] = timelineRows.map((row) => ({
+        id: row.id,
+        category: row.domain === "payment" ? "payment" : row.domain === "package" ? "package" : "appointment",
+        eventType: row.eventType,
+        title: timelineEventTitle(row.eventType),
+        summary: null,
+        occurredAt: row.occurredAt,
+        linkedObjectType: row.linkedObjectType,
+        linkedObjectId: row.linkedObjectId,
+        appointmentId: row.linkedObjectType === "appointment" ? row.linkedObjectId : null,
+        payload: row.payload ?? {},
+      }));
+      for (const row of paymentRows) {
+        items.push({
+          id: row.id, category: "payment", eventType: row.eventType, title: timelineEventTitle(row.eventType),
+          summary: formatAmountMinor(row.amountMinor, row.currency), occurredAt: row.occurredAt,
+          linkedObjectType: "payment_history_event", linkedObjectId: row.id, appointmentId: row.appointmentId,
+          payload: { amountMinor: row.amountMinor, currency: row.currency, providerId: row.providerId,
+            status: row.status, purpose: row.purpose, comment: row.comment,
+            ...(row.payloadJson as Record<string, unknown>) },
+        });
+      }
+      for (const row of packageHistoryRows) {
+        items.push({ id: row.id, category: "package", eventType: row.eventType,
+          title: timelineEventTitle(row.eventType), summary: row.packageTitle, occurredAt: row.occurredAt,
+          linkedObjectType: "patient_package", linkedObjectId: row.patientPackageId, appointmentId: null,
+          payload: (row.payloadJson as Record<string, unknown>) ?? {} });
+      }
+      for (const row of productHistoryRows) {
+        items.push({ id: row.id, category: "product", eventType: row.eventType,
+          title: timelineEventTitle(row.eventType), summary: row.purchaseTitle, occurredAt: row.occurredAt,
+          linkedObjectType: "product_history_event", linkedObjectId: row.id, appointmentId: null,
+          payload: { productPurchaseId: row.productPurchaseId,
+            ...((row.payloadJson as Record<string, unknown>) ?? {}) } });
+      }
+      for (const row of productRows) {
+        items.push({ id: row.id, category: "product", eventType: "product_purchased",
+          title: timelineEventTitle("product_purchased"), summary: row.title, occurredAt: row.createdAt,
+          linkedObjectType: "product_purchase", linkedObjectId: row.id, appointmentId: null,
+          payload: { productPurchaseId: row.id, productType: row.productType, status: row.status,
+            priceMinor: row.priceMinor, currency: row.currency } });
+      }
+      for (const row of packageUsageRows) {
+        if (row.usageKind === "reserve" || row.usageKind === "release") continue;
+        const eventType = row.usageKind === "consume" || row.usageKind === "penalty" ? row.usageKind : "package_usage";
+        items.push({ id: row.id, category: "package", eventType,
+          title: timelineEventTitle(row.usageKind === "manual_adjust" ? "manual_adjust" :
+            row.usageKind === "penalty" ? "penalty_consumed" : row.usageKind),
+          summary: row.packageTitle, occurredAt: row.occurredAt, linkedObjectType: "package_usage",
+          linkedObjectId: row.id, appointmentId: row.appointmentId,
+          payload: { usageId: row.id, usageKind: row.usageKind, comment: row.comment } });
+      }
+      for (const row of rescheduleRows) {
+        items.push({ id: row.id, category: "reschedule", eventType: "reschedule",
+          title: timelineEventTitle("reschedule"), summary: row.reason ?? null, occurredAt: row.createdAt,
+          linkedObjectType: "appointment_reschedule", linkedObjectId: row.id, appointmentId: row.appointmentId,
+          payload: { fromStartAt: row.fromStartAt, toStartAt: row.toStartAt } });
+      }
+      for (const row of cancelRows) {
+        items.push({ id: row.id, category: "cancellation", eventType: "cancellation",
+          title: timelineEventTitle("cancellation"), summary: row.reason ?? row.cancellationType,
+          occurredAt: row.createdAt, linkedObjectType: "appointment_cancellation", linkedObjectId: row.id,
+          appointmentId: row.appointmentId, payload: { cancellationType: row.cancellationType,
+            wasFree: row.wasFree, wasPenalized: row.wasPenalized } });
+      }
+      return dedupeTimelineItems(items).slice(0, limit);
+    },
+
+    async listPatientPaymentHistory(organizationId, platformUserId, limit = 100) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(bePaymentHistoryEvents)
+        .where(
+          and(
+            eq(bePaymentHistoryEvents.organizationId, organizationId),
+            eq(bePaymentHistoryEvents.platformUserId, platformUserId),
+          ),
+        )
+        .orderBy(desc(bePaymentHistoryEvents.occurredAt))
+        .limit(limit);
+
+      const packageIds = new Set<string>();
+      const productPurchaseIds = new Set<string>();
+      for (const row of rows) {
+        const refs = parsePaymentPayloadRefs(row.payloadJson as Record<string, unknown>);
+        if (refs.patientPackageId) packageIds.add(refs.patientPackageId);
+        if (refs.productPurchaseId) productPurchaseIds.add(refs.productPurchaseId);
+      }
+      const [packages, products] = await Promise.all([
+        packageIds.size > 0
+          ? db.select({ id: bePatientPackages.id, title: bePatientPackages.title })
+              .from(bePatientPackages)
+              .where(and(
+                eq(bePatientPackages.organizationId, organizationId),
+                eq(bePatientPackages.platformUserId, platformUserId),
+                inArray(bePatientPackages.id, [...packageIds]),
+              ))
+          : Promise.resolve([]),
+        productPurchaseIds.size > 0
+          ? db.select({ id: beProductPurchases.id, title: beProductPurchases.title })
+              .from(beProductPurchases)
+              .where(and(
+                eq(beProductPurchases.organizationId, organizationId),
+                eq(beProductPurchases.platformUserId, platformUserId),
+                inArray(beProductPurchases.id, [...productPurchaseIds]),
+              ))
+          : Promise.resolve([]),
+      ]);
+      const packageTitles = new Map(packages.map((row) => [row.id, row.title]));
+      const productTitles = new Map(products.map((row) => [row.id, row.title]));
+
+      return rows.map((row) => enrichPaymentHistoryRow({
+        id: row.id,
+        occurredAt: row.occurredAt,
+        eventType: row.eventType,
+        amountMinor: row.amountMinor,
+        currency: row.currency,
+        providerId: row.providerId,
+        status: row.status,
+        purpose: row.purpose,
+        appointmentId: row.appointmentId,
+        paymentId: row.paymentId,
+        refundId: row.refundId,
+        comment: row.comment,
+        payloadJson: row.payloadJson as Record<string, unknown>,
+      }, {
+        serviceByAppt: new Map(),
+        packageTitles,
+        productTitles,
+        paymentMethodLabel,
+      }));
+    },
+
+    async listPatientVisitHistory(organizationId, platformUserId, limit = 100) {
+      const db = getDrizzle();
+      const appointments = await db
+        .select({
+          id: beAppointments.id,
+          startAt: beAppointments.startAt,
+          endAt: beAppointments.endAt,
+          durationMinutes: beAppointments.durationMinutes,
+          status: beAppointments.status,
+          packageUsageRef: beAppointments.packageUsageRef,
+        })
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            eq(beAppointments.platformUserId, platformUserId),
+            isNull(beAppointments.deletedAt),
+          ),
+        )
+        .orderBy(desc(beAppointments.startAt))
+        .limit(limit);
+
+      if (appointments.length === 0) return [];
+
+      const appointmentIds = appointments.map((appointment) => appointment.id);
+      const [payments, packageUsages] = await Promise.all([
+        db.select({
+          appointmentId: bePaymentHistoryEvents.appointmentId,
+          eventType: bePaymentHistoryEvents.eventType,
+          amountMinor: bePaymentHistoryEvents.amountMinor,
+          currency: bePaymentHistoryEvents.currency,
+        }).from(bePaymentHistoryEvents).where(and(
+          eq(bePaymentHistoryEvents.organizationId, organizationId),
+          eq(bePaymentHistoryEvents.platformUserId, platformUserId),
+          inArray(bePaymentHistoryEvents.appointmentId, appointmentIds),
+        )),
+        db.select({
+          appointmentId: bePackageUsages.appointmentId,
+          packageTitle: bePatientPackages.title,
+        }).from(bePackageUsages)
+          .innerJoin(bePatientPackages, eq(bePackageUsages.patientPackageId, bePatientPackages.id))
+          .where(and(
+            eq(bePackageUsages.organizationId, organizationId),
+            eq(bePatientPackages.platformUserId, platformUserId),
+            inArray(bePackageUsages.appointmentId, appointmentIds),
+          )),
+      ]);
+
+      const prepaymentByAppointment = new Map<string, { amountMinor: number; currency: string | null }>();
+      const finalPaymentByAppointment = new Map<string, { amountMinor: number; currency: string | null }>();
+      for (const payment of payments) {
+        if (!payment.appointmentId || payment.amountMinor == null) continue;
+        const value = { amountMinor: payment.amountMinor, currency: payment.currency };
+        if (isPrepaymentEventType(payment.eventType)) {
+          prepaymentByAppointment.set(payment.appointmentId, value);
+        } else if (isFinalPaymentEventType(payment.eventType)) {
+          finalPaymentByAppointment.set(payment.appointmentId, value);
+        }
+      }
+      const packageTitleByAppointment = new Map<string, string>();
+      for (const usage of packageUsages) {
+        if (usage.appointmentId) packageTitleByAppointment.set(usage.appointmentId, usage.packageTitle);
+      }
+
+      return appointments.map(
+        (appointment): ClientVisitHistoryRow => ({
+          appointmentId: appointment.id,
+          startAt: appointment.startAt,
+          endAt: appointment.endAt,
+          durationMinutes: appointment.durationMinutes,
+          status: appointment.status,
+          specialistName: null,
+          branchTitle: null,
+          roomTitle: null,
+          serviceTitle: null,
+          wasViaPackage: Boolean(appointment.packageUsageRef) || packageTitleByAppointment.has(appointment.id),
+          packageUsageSummary: packageTitleByAppointment.get(appointment.id) ?? null,
+          prepaymentAmountMinor: prepaymentByAppointment.get(appointment.id)?.amountMinor ?? null,
+          prepaymentCurrency: prepaymentByAppointment.get(appointment.id)?.currency ?? null,
+          finalPaymentAmountMinor: finalPaymentByAppointment.get(appointment.id)?.amountMinor ?? null,
+          finalPaymentCurrency: finalPaymentByAppointment.get(appointment.id)?.currency ?? null,
+          staffComment: null,
+        }),
+      );
+    },
+
     async listTimeline(organizationId, platformUserId, limit = 100) {
       const db = getDrizzle();
       const fetchLimit = sourceFetchLimit(limit);
