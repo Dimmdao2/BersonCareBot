@@ -8,6 +8,7 @@
  *
  * NOT called directly by application code — only by `WebPushDeliveryAdapter.send()`.
  */
+import { Buffer } from 'node:buffer';
 import webpush from 'web-push';
 import type { WebPushSubscriptionPayload, VapidCredentials } from '../../kernel/contracts/index.js';
 
@@ -33,6 +34,7 @@ export type WebPushSendAttemptResult = {
   providerStatusCode?: number;
   reason?: 'provider_404' | 'provider_410' | 'provider_error' | 'send_error';
   errorMessage?: string;
+  providerErrorCode?: string;
 };
 
 export type WebPushSendOptions = {
@@ -47,7 +49,40 @@ export type WebPushSendResult = {
   delivered: number;
   errors: number;
   deactivated: number;
+  failureStatusCode?: number;
+  failureCode?: string;
 };
+
+const SAFE_PROVIDER_CODES = new Set([
+  'BadJwtToken',
+  'BadCertificate',
+  'BadCertificateEnvironment',
+  'ExpiredProviderToken',
+  'InvalidProviderToken',
+  'MissingProviderToken',
+  'TopicDisallowed',
+  'DeviceTokenNotForTopic',
+  'Unregistered',
+]);
+
+function readSafeProviderErrorCode(error: unknown): string | undefined {
+  const body = (error as { body?: unknown } | null)?.body;
+  const bodyText = Buffer.isBuffer(body) ? body.toString("utf8") : typeof body === "string" ? body : "";
+  if (!bodyText || bodyText.length > 4096) return undefined;
+
+  let candidate = bodyText.trim();
+  try {
+    const parsed = JSON.parse(candidate) as unknown;
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      const value = record.reason ?? record.code ?? record.error;
+      candidate = typeof value === "string" ? value.trim() : "";
+    }
+  } catch {
+    // Plain provider reason tokens are accepted by the same strict allowlist below.
+  }
+  return SAFE_PROVIDER_CODES.has(candidate) ? candidate : undefined;
+}
 
 /**
  * Send a web-push notification to all subscriptions for a user.
@@ -84,6 +119,7 @@ export async function sendWebPushViaProvider(opts: WebPushSendOptions): Promise<
   let delivered = 0;
   let errors = 0;
   let deactivated = 0;
+  let representativeFailure: { statusCode?: number; code?: string } | undefined;
 
   for (const sub of subscriptions) {
     // Derive a stable hash of the endpoint for analytics (matches webapp's hashWebPushEndpoint).
@@ -119,6 +155,11 @@ export async function sendWebPushViaProvider(opts: WebPushSendOptions): Promise<
     } catch (e: unknown) {
       const statusCode = (e as { statusCode?: number })?.statusCode;
       const message = e instanceof Error ? e.message : String(e);
+      const providerErrorCode = readSafeProviderErrorCode(e);
+      representativeFailure ??= {
+        ...(typeof statusCode === 'number' ? { statusCode } : {}),
+        ...(providerErrorCode ? { code: providerErrorCode } : {}),
+      };
 
       if (statusCode === 410 || statusCode === 404) {
         await onSubscriptionDead(sub.endpoint);
@@ -130,6 +171,7 @@ export async function sendWebPushViaProvider(opts: WebPushSendOptions): Promise<
           providerStatusCode: statusCode,
           reason,
           errorMessage: message,
+          ...(providerErrorCode ? { providerErrorCode } : {}),
         });
       } else {
         await onAttempt?.({
@@ -138,11 +180,22 @@ export async function sendWebPushViaProvider(opts: WebPushSendOptions): Promise<
           ...(typeof statusCode === 'number' ? { providerStatusCode: statusCode } : {}),
           reason: 'provider_error',
           errorMessage: message,
+          ...(providerErrorCode ? { providerErrorCode } : {}),
         });
       }
       errors += 1;
     }
   }
 
-  return { delivered, errors, deactivated };
+  return {
+    delivered,
+    errors,
+    deactivated,
+    ...(delivered === 0 && errors > 0 && representativeFailure?.statusCode !== undefined
+      ? { failureStatusCode: representativeFailure.statusCode }
+      : {}),
+    ...(delivered === 0 && errors > 0 && representativeFailure?.code
+      ? { failureCode: representativeFailure.code }
+      : {}),
+  };
 }

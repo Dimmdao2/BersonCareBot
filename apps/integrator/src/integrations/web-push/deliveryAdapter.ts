@@ -143,6 +143,7 @@ export function createWebPushDeliveryAdapter(deps: {
                 endpointHash: attemptResult.endpointHash,
                 reason: attemptResult.reason,
                 providerStatusCode: attemptResult.providerStatusCode,
+                providerErrorCode: attemptResult.providerErrorCode,
                 errorMessage: attemptResult.errorMessage,
               },
               '[web-push] push attempt failed',
@@ -170,6 +171,10 @@ export function createWebPushDeliveryAdapter(deps: {
           delivered: result.delivered,
           errors: result.errors,
           deactivated: result.deactivated,
+          ...(result.failureStatusCode !== undefined
+            ? { providerStatusCode: result.failureStatusCode }
+            : {}),
+          ...(result.failureCode ? { providerErrorCode: result.failureCode } : {}),
         },
       };
     },

@@ -180,6 +180,7 @@ type SystemHealthPayload = {
         lastAttemptAt: string | null;
         lastSuccessAt: string | null;
         lastErrorAt: string | null;
+        lastProviderStatusCode: number | null;
         lastErrorReason: string | null;
         lastErrorMessage: string | null;
       }
@@ -517,6 +518,7 @@ function NotificationDeliveryChannelBlock({
     lastAttemptAt: string | null;
     lastSuccessAt: string | null;
     lastErrorAt: string | null;
+    lastProviderStatusCode: number | null;
     lastErrorReason: string | null;
     lastErrorMessage: string | null;
   };
@@ -532,8 +534,8 @@ function NotificationDeliveryChannelBlock({
       <DetailRow
         label="последняя ошибка"
         value={
-          agg?.lastErrorReason || agg?.lastErrorMessage
-            ? `${agg?.lastErrorReason ?? "—"}${agg?.lastErrorMessage ? ` (${agg.lastErrorMessage.slice(0, 80)})` : ""}`
+          agg?.lastProviderStatusCode || agg?.lastErrorReason || agg?.lastErrorMessage
+            ? `${agg?.lastProviderStatusCode ? `HTTP ${agg.lastProviderStatusCode} · ` : ""}${agg?.lastErrorReason ?? "—"}${agg?.lastErrorMessage ? ` (${agg.lastErrorMessage.slice(0, 80)})` : ""}`
             : formatDateTime(agg?.lastErrorAt ?? null)
         }
       />

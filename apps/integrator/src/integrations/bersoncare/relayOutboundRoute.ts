@@ -252,6 +252,12 @@ export async function registerBersoncareRelayOutboundRoute(
               : { reason: 'no_provider_outcome' }),
           eventId: parsed.messageId,
           recipientRef: `web_push:${parsed.recipient.slice(-4)}`,
+          ...(dispatchResult.webPushOutcome?.providerStatusCode !== undefined
+            ? { providerStatusCode: dispatchResult.webPushOutcome.providerStatusCode }
+            : {}),
+          ...(dispatchResult.webPushOutcome?.providerErrorCode
+            ? { errorMessage: dispatchResult.webPushOutcome.providerErrorCode }
+            : {}),
           ...(topicCode ? { topicCode } : {}),
           intentType: 'relay_outbound',
           metadata: dispatchResult.webPushOutcome ?? {},

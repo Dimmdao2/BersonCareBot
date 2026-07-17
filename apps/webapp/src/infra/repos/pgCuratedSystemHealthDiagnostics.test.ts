@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NotificationDeliveryChannelAggregate } from "@/modules/notification-delivery/types";
 
 const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
 
@@ -13,7 +14,7 @@ import {
   loadCuratedSystemHealthSnapshot,
 } from "./pgCuratedSystemHealthDiagnostics";
 
-function channel() {
+function channel(): NotificationDeliveryChannelAggregate {
   return {
     successCount: 0,
     failedCount: 0,
@@ -21,6 +22,7 @@ function channel() {
     lastAttemptAt: null,
     lastSuccessAt: null,
     lastErrorAt: null,
+    lastProviderStatusCode: null,
     lastErrorReason: null,
     lastErrorMessage: null,
   };
@@ -154,6 +156,26 @@ describe("curated System Health diagnostics", () => {
       ...validSnapshot(),
       config: { ...validSnapshot().config, privateKey: "secret" },
     })).toThrow();
+  });
+
+  it("accepts only bounded provider diagnostics", () => {
+    const snapshot = validSnapshot();
+    snapshot.notificationDelivery.byChannel.web_push = {
+      ...channel(),
+      lastProviderStatusCode: 403,
+      lastErrorReason: "provider_error",
+      lastErrorMessage: "BadJwtToken",
+    };
+    expect(() => curatedSystemHealthSnapshotSchema.parse(snapshot)).not.toThrow();
+
+    const unsafe = validSnapshot();
+    unsafe.notificationDelivery.byChannel.web_push = {
+      ...channel(),
+      lastProviderStatusCode: 403,
+      lastErrorReason: "provider_error",
+      lastErrorMessage: "Dmitry_Berson",
+    };
+    expect(() => curatedSystemHealthSnapshotSchema.parse(unsafe)).toThrow();
   });
 
   it("reads playback metrics only through the protected aggregate function", async () => {

@@ -156,6 +156,10 @@ export type DeliverySendResult = {
     delivered: number;
     errors: number;
     deactivated: number;
+    /** Safe provider HTTP status for an all-failed provider outcome. */
+    providerStatusCode?: number;
+    /** Bounded provider reason token, never a raw response body. */
+    providerErrorCode?: string;
   };
 };
 
@@ -699,12 +703,12 @@ export type WebPushSubscriptionPayload = {
 /**
  * VAPID keypair + subject as returned by the webapp M2M route.
  * Crossing M2M is acceptable per N3: already server-side in system_settings.
- * `subject` is centrally derived (Inventory §5.7) — `mailto:<smtp_from>` or fallback.
+ * `subject` is centrally derived (Inventory §5.7) — `mailto:<smtp_from>` or the DB-backed HTTPS app URL.
  */
 export type VapidCredentials = {
   publicKey: string;
   privateKey: string;
-  /** `mailto:` URI; centrally derived by the webapp (see modules/web-push/vapidSubject.ts). */
+  /** RFC 8292 contact URI; centrally derived by the webapp (see modules/web-push/vapidSubject.ts). */
   subject: string;
 };
 

@@ -9,6 +9,7 @@ const overlay = await readFile("deploy/postgres/saas-system-health-diagnostics.s
 const reader = await readFile("apps/webapp/src/infra/repos/pgCuratedSystemHealthDiagnostics.ts", "utf8");
 const collector = await readFile("apps/webapp/src/app-layer/health/collectAdminSystemHealthData.ts", "utf8");
 const deploy = await readFile("deploy/host/deploy-test-saas.sh", "utf8");
+const rehearsal = await readFile("docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-curated-system-health-diagnostics.mjs", "utf8");
 
 function requireMatch(value, pattern, label) {
   if (!pattern.test(value)) throw new Error(`curated_health_check_failed:${label}`);
@@ -91,6 +92,11 @@ if (/\bGRANT\b/.test(upgradeMigration)) {
 }
 requireMatch(journal, /"idx": 196[\s\S]*"tag": "0196_curated_system_health_media_upgrade"/, "upgrade_journal");
 requireMatch(upgradeMigration, /'recent', '\[\]'::jsonb/, "curated_media_no_rows");
+requireMatch(overlay, /CREATE OR REPLACE FUNCTION app\.read_curated_system_health\(\)/, "provider_diagnostics_function");
+requireMatch(overlay, /read_curated_system_health_pre_0196\(\)/, "provider_diagnostics_base");
+requireMatch(overlay, /provider_status_code BETWEEN 100 AND 599/, "provider_status_bounded");
+requireMatch(overlay, /diagnostic\.reason = 'provider_error'/, "provider_reason_allowlisted");
+requireMatch(overlay, /diagnostic\.error_message IN \([\s\S]*'BadJwtToken'[\s\S]*'Unregistered'[\s\S]*\)/, "provider_code_allowlisted");
 if (migration.includes("'mediaPreview'") || migration.includes("'videoPlaybackClient'")) {
   throw new Error("curated_health_check_failed:fresh_base_duplicates_0196_system_media");
 }
@@ -116,11 +122,18 @@ for (const forbiddenDirectProbe of [
   }
 }
 requireMatch(deploy, /saas-system-health-diagnostics\.sql/, "test_deploy_wiring");
+requireMatch(rehearsal, /provider_status_code integer/, "provider_diagnostics_rehearsal_schema");
+requireMatch(rehearsal, /Dmitry_Berson[\s\S]*raw_value_leaked/, "provider_diagnostics_rehearsal_pii_guard");
 validatePlaybackAcl(overlay);
 
 for (const forbidden of ["recipientRef", "userId", "errorMessage", "privateKey", "rawIncidentRows"]) {
   if (migration.includes(`'${forbidden}'`) || upgradeMigration.includes(`'${forbidden}'`)) {
     throw new Error(`curated_health_check_failed:raw_projection_${forbidden}`);
+  }
+}
+for (const forbidden of ["recipient_ref", "user_id", "metadata"]) {
+  if (overlay.includes(forbidden)) {
+    throw new Error(`curated_health_check_failed:provider_diagnostics_raw_projection_${forbidden}`);
   }
 }
 

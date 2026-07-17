@@ -210,6 +210,39 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     );
   });
 
+  it('persists safe provider status and reason from an Apple-style 403 outcome', async () => {
+    vi.mocked(dispatchPort.dispatchOutgoing).mockResolvedValueOnce({
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'provider_error',
+        delivered: 0,
+        errors: 1,
+        deactivated: 0,
+        providerStatusCode: 403,
+        providerErrorCode: 'BadJwtToken',
+      },
+    });
+    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: PUSH_USER_ID });
+    const rawBody = JSON.stringify(body);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(recordNotificationAttemptMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'failed',
+        reason: 'provider_error',
+        providerStatusCode: 403,
+        errorMessage: 'BadJwtToken',
+      }),
+    );
+  });
+
   it('reserves an in-flight org-scoped key so concurrent duplicates send once', async () => {
     let release!: () => void;
     const blocked = new Promise<void>((resolve) => { release = resolve; });

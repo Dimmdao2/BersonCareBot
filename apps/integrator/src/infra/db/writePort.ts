@@ -1255,6 +1255,7 @@ export function createDbWritePort(input: {
             status?: unknown;
             attempt?: unknown;
             reason?: unknown;
+            organizationId?: unknown;
             payload?: unknown;
             occurredAt?: unknown;
           };
@@ -1282,6 +1283,7 @@ export function createDbWritePort(input: {
           const attemptRaw = typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
             ? Math.trunc(dalParams.attempt) : null;
           const reason = asNullableString(dalParams.reason);
+          const organizationId = asNullableString(dalParams.organizationId);
           const payloadJson = typeof dalParams.payload === 'object' && dalParams.payload !== null
             ? (dalParams.payload as Record<string, unknown>) : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
@@ -1295,6 +1297,7 @@ export function createDbWritePort(input: {
               status: status ?? 'failed',
               attempt: attemptRaw ?? 1,
               reason: reason ?? null,
+              organizationId,
               payloadJson,
               occurredAt,
             };

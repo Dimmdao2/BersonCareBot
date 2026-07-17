@@ -97,8 +97,8 @@ describe("GET /api/integrator/web-push/vapid", () => {
     });
   });
 
-  it("uses fallback subject when SMTP not configured", async () => {
-    mockDeriveVapidSubject.mockResolvedValue("mailto:noreply@invalid");
+  it("uses the HTTPS app contact when SMTP is not configured", async () => {
+    mockDeriveVapidSubject.mockResolvedValue("https://test.bersoncare.ru");
 
     const res = await GET(
       new Request(signedUrl, {
@@ -107,6 +107,17 @@ describe("GET /api/integrator/web-push/vapid", () => {
     );
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.vapid.subject).toBe("mailto:noreply@invalid");
+    expect(json.vapid.subject).toBe("https://test.bersoncare.ru");
+  });
+
+  it("returns 503 when no valid VAPID contact URI is configured", async () => {
+    mockDeriveVapidSubject.mockResolvedValue(null);
+
+    const res = await GET(
+      new Request(signedUrl, {
+        headers: integratorGetSignedHeadersOk,
+      }),
+    );
+    expect(res.status).toBe(503);
   });
 });

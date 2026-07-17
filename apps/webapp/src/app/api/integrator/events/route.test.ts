@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIdempotencyStoreForTests } from "@/infra/idempotency/store";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
-const { verifySignatureMock, handleIntegratorEventMock, getPoolMock } = vi.hoisted(() => ({
+const { verifySignatureMock, handleIntegratorEventMock, getPoolMock, getCachedResponseMock, setCachedResponseMock } = vi.hoisted(() => ({
   verifySignatureMock: vi.fn(),
   handleIntegratorEventMock: vi.fn(),
   getPoolMock: vi.fn(() => ({
@@ -11,6 +12,8 @@ const { verifySignatureMock, handleIntegratorEventMock, getPoolMock } = vi.hoist
       release: vi.fn(),
     }),
   })),
+  getCachedResponseMock: vi.fn(),
+  setCachedResponseMock: vi.fn(),
 }));
 
 vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
@@ -33,6 +36,17 @@ vi.mock("@/app-layer/db/client", async (importOriginal) => {
   };
 });
 
+vi.mock("@/app-layer/idempotency/idempotencyStore", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app-layer/idempotency/idempotencyStore")>();
+  getCachedResponseMock.mockImplementation(actual.getCachedResponse);
+  setCachedResponseMock.mockImplementation(actual.setCachedResponse);
+  return {
+    ...actual,
+    getCachedResponse: getCachedResponseMock,
+    setCachedResponse: setCachedResponseMock,
+  };
+});
+
 import { POST } from "./route";
 
 describe("POST /api/integrator/events", () => {
@@ -46,7 +60,75 @@ describe("POST /api/integrator/events", () => {
       accepted: false,
       reason: "durable ingest is not implemented",
     });
+    getCachedResponseMock.mockClear();
+    setCachedResponseMock.mockClear();
   });
+
+  it("installs delivery-attempt tenant principal before idempotency and handler", async () => {
+    const organizationId = "11111111-1111-4111-8111-111111111111";
+    const principalsAtBoundary: unknown[] = [];
+    getCachedResponseMock.mockImplementationOnce(async () => {
+      principalsAtBoundary.push(getCurrentDbPrincipal());
+      return { hit: false };
+    });
+    handleIntegratorEventMock.mockImplementationOnce(async () => {
+      principalsAtBoundary.push(getCurrentDbPrincipal());
+      return { accepted: true };
+    });
+    setCachedResponseMock.mockImplementationOnce(async () => {
+      principalsAtBoundary.push(getCurrentDbPrincipal());
+      return true;
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/integrator/events", {
+        method: "POST",
+        headers: {
+          "x-bersoncare-timestamp": "1700000000",
+          "x-bersoncare-signature": "sig",
+          "x-bersoncare-idempotency-key": "delivery-org-boundary",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType: "support.delivery.attempt.logged",
+          payload: { organizationId },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(202);
+    expect(principalsAtBoundary).toEqual([
+      expect.objectContaining({ kind: "organization", organizationId }),
+      expect.objectContaining({ kind: "organization", organizationId }),
+      expect.objectContaining({ kind: "organization", organizationId }),
+    ]);
+  });
+
+  it.each([undefined, "not-a-uuid"])(
+    "rejects delivery-attempt event organization %s before idempotency and handler",
+    async (organizationId) => {
+      const response = await POST(
+        new Request("http://localhost/api/integrator/events", {
+          method: "POST",
+          headers: {
+            "x-bersoncare-timestamp": "1700000000",
+            "x-bersoncare-signature": "sig",
+            "x-bersoncare-idempotency-key": `delivery-org-invalid-${String(organizationId)}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            eventType: "support.delivery.attempt.logged",
+            payload: organizationId === undefined ? {} : { organizationId },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      expect(getCachedResponseMock).not.toHaveBeenCalled();
+      expect(setCachedResponseMock).not.toHaveBeenCalled();
+      expect(handleIntegratorEventMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns 400 for malformed JSON instead of 500", async () => {
     const response = await POST(

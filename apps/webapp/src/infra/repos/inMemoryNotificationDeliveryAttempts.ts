@@ -34,6 +34,7 @@ export const inMemoryNotificationDeliveryAttemptsPort: NotificationDeliveryAttem
           lastAttemptAt: null as string | null,
           lastSuccessAt: null as string | null,
           lastErrorAt: null as string | null,
+          lastProviderStatusCode: null as number | null,
           lastErrorReason: null as string | null,
           lastErrorMessage: null as string | null,
         },
@@ -50,6 +51,7 @@ export const inMemoryNotificationDeliveryAttemptsPort: NotificationDeliveryAttem
       if (a.status === "success" && (!agg.lastSuccessAt || ts > agg.lastSuccessAt)) agg.lastSuccessAt = ts;
       if ((a.status === "failed" || a.status === "skipped") && (!agg.lastErrorAt || ts > agg.lastErrorAt)) {
         agg.lastErrorAt = ts;
+        agg.lastProviderStatusCode = a.providerStatusCode ?? null;
         agg.lastErrorReason = a.reason ?? null;
         agg.lastErrorMessage = a.errorMessage ?? null;
       }

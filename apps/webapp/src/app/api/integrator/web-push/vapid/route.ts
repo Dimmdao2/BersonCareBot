@@ -34,8 +34,8 @@ export async function GET(request: Request) {
     deriveVapidSubject(deps.systemSettings),
   ]);
 
-  if (!vapid) {
-    return NextResponse.json({ ok: false, error: "web_push_vapid not configured" }, { status: 503 });
+  if (!vapid || !subject) {
+    return NextResponse.json({ ok: false, error: "web_push_vapid or contact not configured" }, { status: 503 });
   }
 
   return NextResponse.json(

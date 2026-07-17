@@ -171,6 +171,7 @@ describe('writePort communication projection events', () => {
         channel: 'telegram',
         status: 'success',
         attempt: 1,
+        organizationId: '11111111-1111-4111-8111-111111111111',
         occurredAt: '2025-01-01T12:00:00.000Z',
       },
     });
@@ -179,5 +180,6 @@ describe('writePort communication projection events', () => {
     expect(ev.eventType).toBe('support.delivery.attempt.logged');
     expect((ev.payload as Record<string, unknown>).intentEventId).toBe('evt-1');
     expect((ev.payload as Record<string, unknown>).channelCode).toBe('telegram');
+    expect((ev.payload as Record<string, unknown>).organizationId).toBe('11111111-1111-4111-8111-111111111111');
   });
 });

@@ -59,6 +59,7 @@ export function emptyNotificationDeliveryHealthPayload(
         lastAttemptAt: null,
         lastSuccessAt: null,
         lastErrorAt: null,
+        lastProviderStatusCode: null,
         lastErrorReason: null,
         lastErrorMessage: null,
       },

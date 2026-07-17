@@ -20,6 +20,137 @@ SELECT 1 / (
   AND to_regprocedure('app.read_curated_playback_health_pre_0196()') IS NOT NULL
 )::int AS curated_system_health_prerequisites_exist;
 
+-- Refresh the protected aggregate only in this privileged overlay. Ordinary Drizzle
+-- migrations deliberately cannot replace the sealed NOLOGIN-owned function.
+CREATE OR REPLACE FUNCTION app.read_curated_system_health()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+WITH media_preview AS MATERIALIZED (
+  SELECT jsonb_build_object(
+    'stalePendingCount', count(*) FILTER (
+      WHERE mime_type IN ('video/quicktime', 'image/heic', 'image/heif')
+        AND preview_status = 'pending'
+        AND created_at < now() - interval '30 minutes'
+    ),
+    'byMimeAndStatus', jsonb_build_object(
+      'video/quicktime', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'video/quicktime' AND preview_status = 'skipped')
+      ),
+      'image/heic', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'image/heic' AND preview_status = 'skipped')
+      ),
+      'image/heif', jsonb_build_object(
+        'pending', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'pending'),
+        'ready', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'ready'),
+        'failed', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'failed'),
+        'skipped', count(*) FILTER (WHERE mime_type = 'image/heif' AND preview_status = 'skipped')
+      )
+    )
+  ) AS value
+  FROM public.media_files
+),
+playback_client AS MATERIALIZED (
+  SELECT jsonb_build_object(
+    'windowHours', 24,
+    'totalErrors', count(*) FILTER (WHERE created_at >= now() - interval '24 hours'),
+    'totalErrorsLast1h', count(*) FILTER (WHERE created_at >= now() - interval '1 hour'),
+    'byEvent', jsonb_build_object(
+      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '24 hours'),
+      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '24 hours'),
+      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '24 hours'),
+      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '24 hours'),
+      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '24 hours'),
+      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '24 hours')
+    ),
+    'byEventLast1h', jsonb_build_object(
+      'hls_fatal', count(*) FILTER (WHERE event_class = 'hls_fatal' AND created_at >= now() - interval '1 hour'),
+      'video_error', count(*) FILTER (WHERE event_class = 'video_error' AND created_at >= now() - interval '1 hour'),
+      'hls_import_failed', count(*) FILTER (WHERE event_class = 'hls_import_failed' AND created_at >= now() - interval '1 hour'),
+      'playback_refetch_failed', count(*) FILTER (WHERE event_class = 'playback_refetch_failed' AND created_at >= now() - interval '1 hour'),
+      'playback_refetch_exception', count(*) FILTER (WHERE event_class = 'playback_refetch_exception' AND created_at >= now() - interval '1 hour'),
+      'hls_js_unsupported', count(*) FILTER (WHERE event_class = 'hls_js_unsupported' AND created_at >= now() - interval '1 hour')
+    ),
+    'byDelivery', jsonb_build_object(
+      'hls', count(*) FILTER (WHERE delivery = 'hls' AND created_at >= now() - interval '24 hours'),
+      'mp4', count(*) FILTER (WHERE delivery = 'mp4' AND created_at >= now() - interval '24 hours'),
+      'file', count(*) FILTER (WHERE delivery = 'file' AND created_at >= now() - interval '24 hours')
+    ),
+    'likelyLooping', EXISTS (
+      SELECT 1
+      FROM public.media_playback_client_events looping
+      WHERE looping.event_class = 'hls_fatal'
+        AND looping.created_at >= date_trunc('hour', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+      GROUP BY looping.media_id
+      HAVING count(*) >= 3
+    ),
+    'recent', '[]'::jsonb
+  ) AS value
+  FROM public.media_playback_client_events
+),
+base AS MATERIALIZED (
+  SELECT app.read_curated_system_health_pre_0196()
+    || jsonb_build_object(
+      'mediaPreview', media_preview.value,
+      'videoPlaybackClient', playback_client.value
+    ) AS value
+  FROM media_preview, playback_client
+),
+channel_diagnostics AS MATERIALIZED (
+  SELECT jsonb_object_agg(
+    channels.channel,
+    (base.value #> ARRAY['notificationDelivery', 'byChannel', channels.channel])
+      || jsonb_build_object(
+        'lastProviderStatusCode', CASE
+          WHEN diagnostic.provider_status_code BETWEEN 100 AND 599
+            THEN diagnostic.provider_status_code
+          ELSE NULL
+        END,
+        'lastErrorReason', CASE
+          WHEN diagnostic.reason = 'provider_error' THEN diagnostic.reason
+          ELSE NULL
+        END,
+        'lastErrorMessage', CASE
+          WHEN diagnostic.error_message IN (
+            'BadJwtToken', 'BadCertificate', 'BadCertificateEnvironment',
+            'ExpiredProviderToken', 'InvalidProviderToken', 'MissingProviderToken',
+            'TopicDisallowed', 'DeviceTokenNotForTopic', 'Unregistered'
+          ) THEN diagnostic.error_message
+          ELSE NULL
+        END
+      )
+  ) AS value
+  FROM base
+  CROSS JOIN (VALUES ('telegram'), ('max'), ('web_push'), ('email')) AS channels(channel)
+  LEFT JOIN LATERAL (
+    SELECT attempt.provider_status_code, attempt.reason, attempt.error_message
+    FROM public.notification_delivery_attempts AS attempt
+    WHERE attempt.channel = channels.channel
+      AND attempt.status IN ('failed', 'skipped')
+      AND attempt.created_at >= now() - interval '24 hours'
+    ORDER BY attempt.created_at DESC
+    LIMIT 1
+  ) AS diagnostic ON true
+  GROUP BY base.value
+)
+SELECT jsonb_set(
+  base.value,
+  ARRAY['notificationDelivery', 'byChannel'],
+  channel_diagnostics.value,
+  false
+)
+FROM base, channel_diagnostics
+$function$;
+
 DO $roles$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'saas_system_health_owner') THEN

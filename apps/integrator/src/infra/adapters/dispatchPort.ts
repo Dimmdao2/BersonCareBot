@@ -13,6 +13,7 @@ import {
   resolveDevRedirect,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
+import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
 
 type DeliveryPayload = {
@@ -69,6 +70,7 @@ async function logDeliveryAttempt(
       status,
       attempt,
       reason: reason ?? null,
+      organizationId: getCurrentOrganizationPrincipalId(),
       payload: sanitizePayloadForLogs(intent),
       occurredAt: new Date().toISOString(),
     },

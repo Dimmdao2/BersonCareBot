@@ -344,7 +344,124 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     expect(webPushAccessPort.deleteSubscriptionByEndpoint).not.toHaveBeenCalled();
     expect(result).toEqual({
-      webPushOutcome: { status: 'failed', reason: 'provider_error', delivered: 0, errors: 1, deactivated: 0 },
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'provider_error',
+        delivered: 0,
+        errors: 1,
+        deactivated: 0,
+        providerStatusCode: 500,
+      },
+    });
+  });
+
+  it('preserves bounded Apple 403 diagnostics without exposing the raw provider body', async () => {
+    const appleErr = Object.assign(new Error('Received unexpected response code'), {
+      statusCode: 403,
+      body: JSON.stringify({ reason: 'BadJwtToken', detail: 'must not be persisted' }),
+    });
+    vi.mocked(webpushMock.sendNotification).mockRejectedValue(appleErr);
+
+    const adapter = createWebPushDeliveryAdapter({ webPushAccessPort: makeWebPushAccessPort() });
+    const result = await adapter.send(makeWebPushIntent());
+
+    expect(result).toEqual({
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'provider_error',
+        delivered: 0,
+        errors: 1,
+        deactivated: 0,
+        providerStatusCode: 403,
+        providerErrorCode: 'BadJwtToken',
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('must not be persisted');
+  });
+
+  it('rejects an unknown token-shaped provider body from diagnostics', async () => {
+    const providerErr = Object.assign(new Error('Provider rejected token'), {
+      statusCode: 403,
+      body: JSON.stringify({ reason: 'Dmitry_Berson' }),
+    });
+    vi.mocked(webpushMock.sendNotification).mockRejectedValue(providerErr);
+
+    const adapter = createWebPushDeliveryAdapter({ webPushAccessPort: makeWebPushAccessPort() });
+    const result = await adapter.send(makeWebPushIntent());
+
+    expect(result).toEqual({
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'provider_error',
+        delivered: 0,
+        errors: 1,
+        deactivated: 0,
+        providerStatusCode: 403,
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('Dmitry_Berson');
+  });
+
+  it('keeps the status and provider code from the same representative failed subscription', async () => {
+    const secondSub: WebPushSubscriptionPayload = {
+      ...STUB_SUB,
+      endpoint: 'https://web.push.apple.com/QHeterogeneousFailure',
+    };
+    const firstErr = Object.assign(new Error('Provider unavailable'), { statusCode: 500 });
+    const secondErr = Object.assign(new Error('Provider rejected token'), {
+      statusCode: 403,
+      body: JSON.stringify({ reason: 'BadJwtToken' }),
+    });
+    vi.mocked(webpushMock.sendNotification)
+      .mockRejectedValueOnce(firstErr)
+      .mockRejectedValueOnce(secondErr);
+
+    const adapter = createWebPushDeliveryAdapter({
+      webPushAccessPort: makeWebPushAccessPort({
+        getSubscriptionsForUser: vi.fn().mockResolvedValue([STUB_SUB, secondSub]),
+      }),
+    });
+    const result = await adapter.send(makeWebPushIntent());
+
+    expect(result).toEqual({
+      webPushOutcome: {
+        status: 'failed',
+        reason: 'provider_error',
+        delivered: 0,
+        errors: 2,
+        deactivated: 0,
+        providerStatusCode: 500,
+      },
+    });
+  });
+
+  it('does not expose aggregate failure diagnostics when another subscription succeeds', async () => {
+    const secondSub: WebPushSubscriptionPayload = {
+      ...STUB_SUB,
+      endpoint: 'https://web.push.apple.com/QPartialSuccess',
+    };
+    const appleErr = Object.assign(new Error('Provider rejected token'), {
+      statusCode: 403,
+      body: JSON.stringify({ reason: 'BadJwtToken' }),
+    });
+    vi.mocked(webpushMock.sendNotification)
+      .mockRejectedValueOnce(appleErr)
+      .mockResolvedValueOnce({ statusCode: 201 });
+
+    const adapter = createWebPushDeliveryAdapter({
+      webPushAccessPort: makeWebPushAccessPort({
+        getSubscriptionsForUser: vi.fn().mockResolvedValue([STUB_SUB, secondSub]),
+      }),
+    });
+    const result = await adapter.send(makeWebPushIntent());
+
+    expect(result).toEqual({
+      webPushOutcome: {
+        status: 'success',
+        delivered: 1,
+        errors: 1,
+        deactivated: 0,
+      },
     });
   });
 

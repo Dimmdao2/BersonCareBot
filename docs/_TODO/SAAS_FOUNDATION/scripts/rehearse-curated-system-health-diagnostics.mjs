@@ -69,7 +69,7 @@ CREATE TABLE public.reminder_occurrence_history (status text, occurred_at timest
 CREATE TABLE public.reminder_delivery_events (status text, created_at timestamptz);
 CREATE TABLE public.idempotency_keys (key text, expires_at timestamptz);
 CREATE TABLE public.user_web_push_subscriptions (user_id uuid, updated_at timestamptz NOT NULL DEFAULT now());
-CREATE TABLE public.notification_delivery_attempts (channel text, status text, created_at timestamptz NOT NULL DEFAULT now(), recipient_ref text, error_message text);
+CREATE TABLE public.notification_delivery_attempts (channel text, status text, created_at timestamptz NOT NULL DEFAULT now(), recipient_ref text, error_message text, reason text, provider_status_code integer);
 CREATE TABLE public.integration_webhook_last_status (source text, received_at timestamptz, processed_ok integer, http_status_returned integer, detail text);
 CREATE TABLE public.operator_health_alert_sent (sent_at timestamptz, dedup_key text);
 ALTER TABLE public.operator_incidents ENABLE ROW LEVEL SECURITY;
@@ -185,8 +185,10 @@ INSERT INTO public.system_settings(key,scope,organization_id,value_json) VALUES
  ('web_push_vapid','admin',NULL,'{"value":{"publicKey":"pub","privateKey":"DO_NOT_EXPOSE"}}'),
  ('smtp_outbound','admin',NULL,'{"value":{"host":"smtp","user":"u","password":"DO_NOT_EXPOSE","from":"f","port":587}}');
 INSERT INTO public.operator_incidents(occurrence_count,last_seen_at) VALUES (2,now()),(3,now());
-INSERT INTO public.notification_delivery_attempts(channel,status,recipient_ref,error_message) VALUES
- ('telegram','failed','PATIENT_SENTINEL','ERROR_SENTINEL'),('email','success','OTHER_SENTINEL',NULL);
+INSERT INTO public.notification_delivery_attempts(channel,status,recipient_ref,error_message,reason,provider_status_code) VALUES
+ ('telegram','failed','PATIENT_SENTINEL','Dmitry_Berson','provider_error',500),
+ ('web_push','failed','PUSH_SENTINEL','BadJwtToken','provider_error',403),
+ ('email','success','OTHER_SENTINEL',NULL,NULL,201);
 INSERT INTO public.outgoing_delivery_queue(status,next_retry_at,channel,kind) VALUES ('pending',now()-interval '1 minute','telegram','reminder_dispatch');
 INSERT INTO public.operator_job_status(job_key,job_family,last_status,last_finished_at,last_success_at,meta_json) VALUES
  ('health.outbound_probe.run','health','success',now(),now(),'{"rubitime":"ok","secret":"DO_NOT_EXPOSE"}');
@@ -227,7 +229,8 @@ DO $proof$ DECLARE snapshot jsonb; BEGIN
   IF snapshot#>>'{config,vapidConfigured}' <> 'true' OR snapshot#>>'{config,smtpConfigured}' <> 'true' THEN RAISE EXCEPTION 'config_projection_wrong'; END IF;
   IF snapshot#>>'{mediaPreview,stalePendingCount}' <> '1' OR snapshot#>>'{mediaPreview,byMimeAndStatus,image/heic,failed}' <> '1' THEN RAISE EXCEPTION 'media_preview_projection_wrong'; END IF;
   IF snapshot#>>'{videoPlaybackClient,totalErrors}' <> '3' OR jsonb_array_length(snapshot->'videoPlaybackClient'->'recent') <> 0 THEN RAISE EXCEPTION 'playback_client_projection_wrong'; END IF;
-  IF snapshot::text ~ '(PATIENT_SENTINEL|ERROR_SENTINEL|OTHER_SENTINEL|DO_NOT_EXPOSE|CLIENT_ERROR_SENTINEL)' THEN RAISE EXCEPTION 'raw_value_leaked'; END IF;
+  IF snapshot#>>'{notificationDelivery,byChannel,web_push,lastProviderStatusCode}' <> '403' OR snapshot#>>'{notificationDelivery,byChannel,web_push,lastErrorMessage}' <> 'BadJwtToken' THEN RAISE EXCEPTION 'safe_provider_diagnostic_missing'; END IF;
+  IF snapshot::text ~ '(PATIENT_SENTINEL|PUSH_SENTINEL|Dmitry_Berson|OTHER_SENTINEL|DO_NOT_EXPOSE|CLIENT_ERROR_SENTINEL)' THEN RAISE EXCEPTION 'raw_value_leaked'; END IF;
   IF jsonb_array_length(snapshot->'notificationDelivery'->'recentIssues') <> 0 THEN RAISE EXCEPTION 'notification_rows_leaked'; END IF;
   RESET ROLE;
 END $proof$;

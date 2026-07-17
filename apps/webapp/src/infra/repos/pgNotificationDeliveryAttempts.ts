@@ -22,6 +22,7 @@ function emptyChannelAggregate(): NotificationDeliveryChannelAggregate {
     lastAttemptAt: null,
     lastSuccessAt: null,
     lastErrorAt: null,
+    lastProviderStatusCode: null,
     lastErrorReason: null,
     lastErrorMessage: null,
   };
@@ -96,6 +97,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         .select({
           createdAt: notificationDeliveryAttempts.createdAt,
           status: notificationDeliveryAttempts.status,
+          providerStatusCode: notificationDeliveryAttempts.providerStatusCode,
           reason: notificationDeliveryAttempts.reason,
           errorMessage: notificationDeliveryAttempts.errorMessage,
         })
@@ -108,6 +110,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         byChannel[channel].lastAttemptAt = lastAttempt.createdAt;
         if (lastAttempt.status === "failed" || lastAttempt.status === "skipped") {
           byChannel[channel].lastErrorAt = lastAttempt.createdAt;
+          byChannel[channel].lastProviderStatusCode = lastAttempt.providerStatusCode ?? null;
           byChannel[channel].lastErrorReason = lastAttempt.reason ?? null;
           byChannel[channel].lastErrorMessage = lastAttempt.errorMessage ?? null;
         }
@@ -132,6 +135,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
       const [lastError] = await db
         .select({
           createdAt: notificationDeliveryAttempts.createdAt,
+          providerStatusCode: notificationDeliveryAttempts.providerStatusCode,
           reason: notificationDeliveryAttempts.reason,
           errorMessage: notificationDeliveryAttempts.errorMessage,
         })
@@ -147,6 +151,7 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         .limit(1);
       if (lastError) {
         byChannel[channel].lastErrorAt = lastError.createdAt;
+        byChannel[channel].lastProviderStatusCode = lastError.providerStatusCode ?? null;
         byChannel[channel].lastErrorReason = lastError.reason ?? null;
         byChannel[channel].lastErrorMessage = lastError.errorMessage ?? null;
       }

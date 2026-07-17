@@ -7,6 +7,18 @@ const nullableIso = z
   .refine((value) => Number.isFinite(Date.parse(value)), "invalid timestamp")
   .nullable();
 
+const safeProviderErrorCodeSchema = z.enum([
+  "BadJwtToken",
+  "BadCertificate",
+  "BadCertificateEnvironment",
+  "ExpiredProviderToken",
+  "InvalidProviderToken",
+  "MissingProviderToken",
+  "TopicDisallowed",
+  "DeviceTokenNotForTopic",
+  "Unregistered",
+]);
+
 const safeMetaSchema = z
   .object({
     failed: nonNegativeNumber.optional(),
@@ -57,8 +69,9 @@ const notificationChannelSchema = z
     lastAttemptAt: nullableIso,
     lastSuccessAt: nullableIso,
     lastErrorAt: nullableIso,
-    lastErrorReason: z.null(),
-    lastErrorMessage: z.null(),
+    lastProviderStatusCode: z.number().int().min(100).max(599).nullable().optional().default(null),
+    lastErrorReason: z.string().regex(/^provider_[a-z0-9_]{1,64}$/).nullable(),
+    lastErrorMessage: safeProviderErrorCodeSchema.nullable(),
   })
   .strict();
 

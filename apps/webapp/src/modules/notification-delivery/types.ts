@@ -30,6 +30,7 @@ export type NotificationDeliveryChannelAggregate = {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
+  lastProviderStatusCode: number | null;
   lastErrorReason: string | null;
   lastErrorMessage: string | null;
 };

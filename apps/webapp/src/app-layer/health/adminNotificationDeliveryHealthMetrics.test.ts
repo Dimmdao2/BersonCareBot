@@ -16,6 +16,7 @@ function emptyByChannel() {
         lastAttemptAt: null,
         lastSuccessAt: null,
         lastErrorAt: null,
+        lastProviderStatusCode: null,
         lastErrorReason: null,
         lastErrorMessage: null,
       },

@@ -13,6 +13,7 @@ import { handleIntegratorEvent } from "@/modules/integrator/events";
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
+import { enterVerifiedIntegratorOrganizationPrincipal } from "@/app-layer/principal/integratorOrganizationPrincipal";
 
 function eventBodyFromParsed(parsed: Record<string, unknown>): {
   eventType: string;
@@ -61,6 +62,22 @@ export async function POST(request: Request) {
   }
   if (eventBody.idempotencyKey && eventBody.idempotencyKey !== idempotencyKey) {
     return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
+  }
+
+  if (eventBody.eventType === "support.delivery.attempt.logged") {
+    const organizationId = eventBody.payload?.organizationId;
+    if (
+      typeof organizationId !== "string"
+      || !enterVerifiedIntegratorOrganizationPrincipal(
+        organizationId,
+        "integrator-support-delivery-attempt-event",
+      )
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "valid payload.organizationId required" },
+        { status: 400 },
+      );
+    }
   }
 
   const requestHash = computeIntegratorEventsRequestHash(parsed);

@@ -3,6 +3,7 @@ import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/ind
 import { createDefaultDispatchPort } from './dispatchPort.js';
 import { _resetDevRedirectActiveCache } from '../../shared/devDeliveryRedirect.js';
 import { readChannel } from './channelRouting.js';
+import { runWithDbOrganizationPrincipal } from '@bersoncare/db-principal';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
@@ -65,6 +66,28 @@ describe('createDefaultDispatchPort', () => {
     expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
     expect(sendSecondaryMock).not.toHaveBeenCalled();
     expect(writeDb).toHaveBeenCalledTimes(1);
+  });
+
+  it('propagates the current organization principal into the delivery attempt log', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-org', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { chatId: 1 },
+        message: { text: 'hi' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await runWithDbOrganizationPrincipal(organizationId, () => dispatchPort.dispatchOutgoing(intent));
+
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'delivery.attempt.log',
+      params: expect.objectContaining({ organizationId }),
+    }));
   });
 
   it('does not turn a successful provider send into a retryable failure when support audit fails', async () => {
