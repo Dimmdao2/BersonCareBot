@@ -52,6 +52,39 @@ describe("ServiceStepClient", () => {
     expect(url).toContain(`serviceTitle=${encodeURIComponent("Реабилитация")}`);
   });
 
+  it("threads orgSlug (public /book/{slug} entry) into the slot step URL for back-nav continuity", async () => {
+    const user = userEvent.setup();
+    render(
+      <ServiceStepClient
+        cityCode="msk"
+        cityTitle="Москва"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        services={[service()]}
+        catalogError={null}
+        orgSlug="saas-test-clinic-a"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    const url = String(push.mock.calls[0][0]);
+    expect(url).toContain(`orgSlug=${encodeURIComponent("saas-test-clinic-a")}`);
+  });
+
+  it("omits orgSlug from the slot step URL when not on the public per-clinic entry", async () => {
+    const user = userEvent.setup();
+    render(
+      <ServiceStepClient
+        cityCode="msk"
+        cityTitle="Москва"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        services={[service()]}
+        catalogError={null}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Реабилитация/ }));
+    const url = String(push.mock.calls[0][0]);
+    expect(url).not.toContain("orgSlug=");
+  });
+
   it("shows empty state when there are no services", () => {
     render(
       <ServiceStepClient
