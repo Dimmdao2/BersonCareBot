@@ -2,6 +2,7 @@
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 // ---------------------------------------------------------------------------
 // Mocks (webapp-tests-lean: тяжёлые импорты в beforeAll)
@@ -214,6 +215,59 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
 
     fireEvent.mouseDown(screen.getByTestId("panel-start"));
+
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+  });
+
+  // ── #829: city/location Select dropdown must not reset the in-progress
+  //          weekday/day selection — its options render in a document.body
+  //          portal (base-ui `Select`), which is NOT a DOM descendant of
+  //          `hours-panel` even though it IS a React-tree descendant. ──────
+
+  it("#829: opening and picking an option in the location Select keeps the selected day and panel open", async () => {
+    const user = userEvent.setup();
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Open the location dropdown
+    await user.click(screen.getByTestId("panel-branch"));
+    const option = await screen.findByRole("option", { name: "Москва" });
+
+    // Merely opening it must not have cleared anything yet.
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("day-cell-2026-06-10")).toHaveAttribute("aria-pressed", "true");
+
+    // Pick the option — its DOM node lives in a body portal outside `hours-panel`.
+    await user.click(option);
+
+    // The day selection and hours panel must survive the city change.
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("day-cell-2026-06-10")).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-branch")).toHaveTextContent("Москва");
+    });
+  });
+
+  it("#829: a mousedown on a location Select option does not clear the selected weekday template panel", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    // Select a weekday (Пн) — enters weekday-template editing mode
+    fireEvent.click(screen.getAllByRole("button").find((b) => b.textContent === "Пн")!);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    // Open the location dropdown (real DOM click on the trigger)
+    fireEvent.mouseDown(screen.getByTestId("panel-branch"));
+    fireEvent.click(screen.getByTestId("panel-branch"));
+    const option = await screen.findByRole("option", { name: "Москва" });
+
+    // Reproduces the exact bug trigger: a mousedown landing on the portal-rendered
+    // option, which used to bubble past `.closest("[data-testid='hours-panel']")`
+    // (it's not a DOM descendant) and get misread as a "click outside".
+    fireEvent.mouseDown(option);
 
     expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
   });
