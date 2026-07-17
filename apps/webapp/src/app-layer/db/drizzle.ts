@@ -155,8 +155,9 @@ async function clearCurrentDbPrincipalFromDrizzleTransaction(
 // That is fine as long as whoever built the query also awaits it directly inside the same
 // synchronous/async continuation (the common, `enterWith`-persistent-principal case — reading
 // `getCurrentDbPrincipal()` late is harmless because nothing changes it in between). It is NOT
-// fine for the `runWithDbOrganizationPrincipal(orgId, () => ...)` / `withDoctorWorkspacePrincipal`
-// pattern: that principal is only guaranteed live for the synchronous extent of its own callback.
+// fine for the `.run()`-scoped organization-principal helpers (packages/db-principal's
+// run-with-db-organization-principal family, wrapped by `withDoctorWorkspacePrincipal`) pattern:
+// that principal is only guaranteed live for the synchronous extent of its own callback.
 // A repo function is free to `return db.select()...` (or, generically, `() => T` never requires
 // the caller to await inside the callback — see e.g.
 // `withDoctorWorkspacePrincipal(gate.ctx, () => deps.patientPayments.listPayments(...))` in
