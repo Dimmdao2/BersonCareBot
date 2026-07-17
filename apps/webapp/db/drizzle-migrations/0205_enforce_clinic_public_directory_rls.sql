@@ -56,12 +56,12 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."clinic_public_direc
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."clinic_public_directory_entries"
   FOR ALL
   USING (
-    app.current_org_id() IS NOT NULL
-    AND "organization_id" = app.current_org_id()
+    NULLIF(current_setting('app.org', true), '') IS NULL
+    OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid
   )
   WITH CHECK (
-    app.current_org_id() IS NOT NULL
-    AND "organization_id" = app.current_org_id()
+    NULLIF(current_setting('app.org', true), '') IS NULL
+    OR "organization_id" = NULLIF(current_setting('app.org', true), '')::uuid
   );
 
 ALTER TABLE "public"."clinic_public_directory_entries" FORCE ROW LEVEL SECURITY;
