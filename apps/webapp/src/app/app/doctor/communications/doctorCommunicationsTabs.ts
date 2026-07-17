@@ -29,10 +29,13 @@ export const COMMUNICATIONS_DEFAULT_TAB: CommunicationsTabId = "chats";
 /**
  * Deep-link to a specific conversation on the Chats tab (#812: «Сегодня» KPI
  * «открыть переписку» must select the exact dialog, not just open the tab).
- * Consumed by ChatsTab/DoctorSupportInbox via `?tab=chats&id=`.
+ * Consumed by ChatsTab/DoctorSupportInbox via `?tab=chats&chatId=`.
+ * Ключ namespaced (`chatId`, не `id`): шелл копирует URL-ключ в КАЖДЫЙ таб,
+ * который его объявляет, а `id` уже занят intake — общий ключ протекал бы
+ * conversationId в intake как request-id (stray 404 fetch).
  */
 export function communicationsChatHref(conversationId: string): string {
-  return `${COMMUNICATIONS_BASE}?tab=chats&id=${encodeURIComponent(conversationId)}`;
+  return `${COMMUNICATIONS_BASE}?tab=chats&chatId=${encodeURIComponent(conversationId)}`;
 }
 
 /** Нормализует значение `?tab=` к валидному id вкладки (fallback — chats). */

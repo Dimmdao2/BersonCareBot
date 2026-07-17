@@ -117,7 +117,7 @@ describe("loadDoctorTodayDashboard helpers", () => {
       unreadFromUserCount: 3,
     };
     const item = mapConversationToTodayItem(row);
-    expect(item.href).toBe("/app/doctor/communications?tab=chats&id=c1");
+    expect(item.href).toBe("/app/doctor/communications?tab=chats&chatId=c1");
   });
 
   it("getUpcomingAppointments dedupes by id and sorts by recordAtIso", () => {

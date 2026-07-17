@@ -43,23 +43,28 @@ describe("ChatsTab (isActive → active passthrough)", () => {
   });
 });
 
-describe("ChatsTab (deep-link ?id= passthrough, #812)", () => {
-  it("passes deepLinkParams.id as initialSelectedConversationId", () => {
-    render(<ChatsTab deepLinkParams={{ id: "conv-1" }} onDeepLinkChange={() => {}} />);
+describe("ChatsTab (deep-link ?chatId= passthrough, #812)", () => {
+  it("passes deepLinkParams.chatId as initialSelectedConversationId", () => {
+    render(<ChatsTab deepLinkParams={{ chatId: "conv-1" }} onDeepLinkChange={() => {}} />);
     expect(receivedProps.current?.initialSelectedConversationId).toBe("conv-1");
   });
 
-  it("passes null when deepLinkParams has no id", () => {
+  it("passes null when deepLinkParams has no chatId", () => {
     render(<ChatsTab deepLinkParams={{}} onDeepLinkChange={() => {}} />);
     expect(receivedProps.current?.initialSelectedConversationId).toBeNull();
   });
 
-  it("onSelectedConversationChange forwards to onDeepLinkChange('id', …)", () => {
+  it("ignores intake's 'id' key — only namespaced 'chatId' selects a conversation", () => {
+    render(<ChatsTab deepLinkParams={{ id: "req-1" }} onDeepLinkChange={() => {}} />);
+    expect(receivedProps.current?.initialSelectedConversationId).toBeNull();
+  });
+
+  it("onSelectedConversationChange forwards to onDeepLinkChange('chatId', …)", () => {
     const onDeepLinkChange = vi.fn();
     render(<ChatsTab deepLinkParams={{}} onDeepLinkChange={onDeepLinkChange} />);
     receivedProps.current?.onSelectedConversationChange?.("conv-2");
-    expect(onDeepLinkChange).toHaveBeenCalledWith("id", "conv-2");
+    expect(onDeepLinkChange).toHaveBeenCalledWith("chatId", "conv-2");
     receivedProps.current?.onSelectedConversationChange?.(null);
-    expect(onDeepLinkChange).toHaveBeenCalledWith("id", null);
+    expect(onDeepLinkChange).toHaveBeenCalledWith("chatId", null);
   });
 });

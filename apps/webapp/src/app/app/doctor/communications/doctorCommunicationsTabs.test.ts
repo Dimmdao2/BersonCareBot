@@ -38,15 +38,15 @@ describe("doctorCommunicationsTabs", () => {
   });
 
   describe("communicationsChatHref (#812)", () => {
-    it("builds a deep link to the chats tab with the conversation id", () => {
+    it("builds a deep link to the chats tab with the conversation id under 'chatId' (not intake's 'id')", () => {
       expect(communicationsChatHref("conv-1")).toBe(
-        "/app/doctor/communications?tab=chats&id=conv-1",
+        "/app/doctor/communications?tab=chats&chatId=conv-1",
       );
     });
 
     it("URL-encodes the conversation id", () => {
       expect(communicationsChatHref("webapp:platform:abc")).toBe(
-        "/app/doctor/communications?tab=chats&id=webapp%3Aplatform%3Aabc",
+        "/app/doctor/communications?tab=chats&chatId=webapp%3Aplatform%3Aabc",
       );
     });
   });

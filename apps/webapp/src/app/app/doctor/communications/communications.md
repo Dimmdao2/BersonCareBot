@@ -57,13 +57,19 @@ Split-layout `lg:grid-cols-[1fr_1.2fr]` (чат шире списка). Полл
 и видимом окне (`visibilitychange`). Padding треда: `px-3`, интервал `space-y-3` (doctor-variant).
 Пустое состояние: `DoctorEmptyState`. Поиск + чипы «Непрочитанные»/«★ На сопровождении» — без изменений.
 
-Deep-link `?id=<conversationId>` (#812, тот же паттерн, что intake `?id=`/broadcasts `?archive=`):
-`communicationsChatHref()` в `doctorCommunicationsTabs.ts` строит `?tab=chats&id=…`; шелл читает/
-пишет его через `deepLinkParams`/`onDeepLinkChange` (реестр объявляет `deepLinkKeys: ["id"]` для
+Deep-link `?chatId=<conversationId>` (#812, тот же паттерн, что intake `?id=`/broadcasts `?archive=`):
+`communicationsChatHref()` в `doctorCommunicationsTabs.ts` строит `?tab=chats&chatId=…`; шелл читает/
+пишет его через `deepLinkParams`/`onDeepLinkChange` (реестр объявляет `deepLinkKeys: ["chatId"]` для
 `chats`); `DoctorSupportInbox` открывает диалог из `initialSelectedConversationId` на монтировании
 (и при внешней смене — тот же паттерн, что `DoctorOnlineIntakeClient`/`initialOpenRequestId`) и
 зовёт `onSelectedConversationChange` на каждый выбор/закрытие. «Сегодня» KPI «Сообщения» →
 «открыть переписку» использует этот href вместо голого `?tab=chats`.
+
+**Ключ namespaced (`chatId`, НЕ `id`):** `readDeepLinksFromSearchParams` в шелле копирует URL-ключ
+в КАЖДЫЙ таб, объявивший его в `deepLinkKeys` — namespacing по табам нет. Общий с intake ключ `id`
+протекал conversationId в intake как request-id (stray 404 fetch). Deep-link ключи обязаны быть
+уникальны между табами — контракт закреплён в `communicationsTabRegistry.test.ts` (uniqueness) и
+`DoctorCommunicationsShellDeepLinks.test.tsx` (изоляция через реальный реестр).
 
 Шапка треда: имя пациента + «Открыть карточку» (#813, только если `patientUserId` резолвится —
 non-webapp-platform диалоги вроде Telegram/MAX его не имеют, ссылка не рендерится) → `patientCardHref`.

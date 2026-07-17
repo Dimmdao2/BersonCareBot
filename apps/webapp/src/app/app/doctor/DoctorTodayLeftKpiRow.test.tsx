@@ -118,14 +118,14 @@ describe("DoctorTodayLeftKpiRow", () => {
             lastMessageText: "Здравствуйте",
             lastMessagePreview: "Здравствуйте",
             unreadFromUserCount: 2,
-            href: "/app/doctor/communications?tab=chats&id=conv-1",
+            href: "/app/doctor/communications?tab=chats&chatId=conv-1",
           },
         ]}
       />,
     );
     await user.click(screen.getByRole("button", { name: /Сообщения/i }));
     const link = screen.getByRole("link", { name: "Открыть переписку" });
-    expect(link).toHaveAttribute("href", "/app/doctor/communications?tab=chats&id=conv-1");
+    expect(link).toHaveAttribute("href", "/app/doctor/communications?tab=chats&chatId=conv-1");
   });
 
   it("clicking Комментарии opens exercise comments dialog", async () => {
