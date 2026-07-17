@@ -84,6 +84,12 @@ const FK_TABLES: { table: string; uniqueOtherCols: string[] }[] = [
     table: "be_specialist_service_availability",
     uniqueOtherCols: ["service_id", "branch_id", "room_id", "city_code"],
   },
+  // Членство доктора в организации несёт его specialist_id. Без этой перецепки консолидация
+  // деактивирует дубль-специалиста, но членство остаётся указывать на мёртвый (is_active=false)
+  // id → resolveDoctorOwnSpecialistId возвращает null → у врача "specialist_not_configured" и
+  // пустое расписание. Unique в be_organization_members не завязан на specialist_id, поэтому
+  // простой repoint без conflict-dedup корректен.
+  { table: "be_organization_members", uniqueOtherCols: [] },
 ];
 
 async function main() {
