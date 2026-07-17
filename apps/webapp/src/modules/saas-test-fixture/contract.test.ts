@@ -155,12 +155,17 @@ describe('SaaS TEST walkthrough reconciliation', () => {
     );
     expect(source).toContain('assignedDayOffset: -30');
     expect(source).toContain('assignedDayOffset: -20');
-    expect(source).toContain('createdAt: relativeIso(now, program.assignedDayOffset)');
+    expect(
+      source.split('createdAt: relativeIso(now, program.assignedDayOffset)').length - 1,
+    ).toBe(2);
     expect(source).toContain('startedAt: relativeIso(now, program.assignedDayOffset)');
     expect(source).toContain('sortOrder: 1');
     expect(source).toContain("assertCount('program_pipeline_stages'");
     expect(source).toContain("'program_created_before_first_action'");
     expect(source).toContain("'program_created_before_first_snapshot'");
+    expect(source).toContain("'program_child_items_after_parent'");
+    expect(source).toContain("'program_child_items_before_first_action'");
+    expect(source).toContain("'program_child_items_before_first_snapshot'");
   });
 
   it('validates two distinct reserved-domain owner credentials', () => {

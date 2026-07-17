@@ -1652,7 +1652,7 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           isActionable: null,
           status: 'active',
           groupId: program.groupId,
-          createdAt: relativeIso(now, -30),
+          createdAt: relativeIso(now, program.assignedDayOffset),
           lastViewedAt: relativeIso(now, -1),
         })),
       );
@@ -1830,6 +1830,9 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       pipeline_stage_count: number;
       created_before_first_action_count: number;
       created_before_first_snapshot_count: number;
+      child_items_after_parent_count: number;
+      child_items_before_first_action_count: number;
+      child_items_before_first_snapshot_count: number;
     }>(sql`
       SELECT
         count(*)::int AS program_count,
@@ -1851,7 +1854,37 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           WHERE snapshot.plan_instance_id = instance.id
             AND snapshot.platform_user_id = instance.patient_user_id
             AND snapshot.organization_id = instance.organization_id
-        ))::int AS created_before_first_snapshot_count
+        ))::int AS created_before_first_snapshot_count,
+        count(*) FILTER (WHERE NOT EXISTS (
+          SELECT 1
+          FROM treatment_program_instance_stages stage
+          JOIN treatment_program_instance_stage_items item ON item.stage_id = stage.id
+          WHERE stage.instance_id = instance.id
+            AND item.created_at < instance.created_at
+        ))::int AS child_items_after_parent_count,
+        count(*) FILTER (WHERE (
+          SELECT max(item.created_at)
+          FROM treatment_program_instance_stages stage
+          JOIN treatment_program_instance_stage_items item ON item.stage_id = stage.id
+          WHERE stage.instance_id = instance.id
+        ) <= (
+          SELECT min(action.created_at)
+          FROM program_action_log action
+          WHERE action.instance_id = instance.id
+            AND action.patient_user_id = instance.patient_user_id
+        ))::int AS child_items_before_first_action_count,
+        count(*) FILTER (WHERE (
+          SELECT max(item.created_at)
+          FROM treatment_program_instance_stages stage
+          JOIN treatment_program_instance_stage_items item ON item.stage_id = stage.id
+          WHERE stage.instance_id = instance.id
+        ) <= (
+          SELECT min(snapshot.captured_at)
+          FROM patient_diary_day_snapshots snapshot
+          WHERE snapshot.plan_instance_id = instance.id
+            AND snapshot.platform_user_id = instance.patient_user_id
+            AND snapshot.organization_id = instance.organization_id
+        ))::int AS child_items_before_first_snapshot_count
       FROM treatment_program_instances instance
       WHERE instance.id IN (${sql.join(
         ids.programInstances.map((id) => sql`${id}::uuid`),
@@ -1869,6 +1902,21 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     assertCount(
       'program_created_before_first_snapshot',
       programHistoryShape?.created_before_first_snapshot_count ?? 0,
+      2,
+    );
+    assertCount(
+      'program_child_items_after_parent',
+      programHistoryShape?.child_items_after_parent_count ?? 0,
+      2,
+    );
+    assertCount(
+      'program_child_items_before_first_action',
+      programHistoryShape?.child_items_before_first_action_count ?? 0,
+      2,
+    );
+    assertCount(
+      'program_child_items_before_first_snapshot',
+      programHistoryShape?.child_items_before_first_snapshot_count ?? 0,
       2,
     );
     const fixtureProgramEvents = await tx
