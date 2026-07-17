@@ -97,6 +97,58 @@ describe("createPgSupportCommunicationPort", () => {
     });
   });
 
+  describe("appendDeliveryEventFromProjection", () => {
+    const clinicA = "10000000-0000-4000-8000-000000000001";
+    const clinicB = "20000000-0000-4000-8000-000000000002";
+    const params = {
+      organizationId: clinicA,
+      conversationMessageId: null,
+      integratorIntentEventId: "evt-org-1",
+      correlationId: "corr-org-1",
+      channelCode: "web_push",
+      status: "success",
+      attempt: 1,
+      reason: null,
+      payloadJson: {},
+      occurredAt: TS,
+    };
+
+    it("inserts the verified organization under the matching principal", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ id: "delivery-1" }] });
+      const port = createPgSupportCommunicationPort();
+
+      await expect(
+        runWithDbOrganizationPrincipal(clinicA, () =>
+          port.appendDeliveryEventFromProjection(params),
+        ),
+      ).resolves.toEqual({ id: "delivery-1" });
+
+      const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+      expect(sql).toContain("organization_id");
+      expect(sql).toContain("$1::uuid");
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]?.[0]).toBe(clinicA);
+    });
+
+    it("rejects a cross-organization write before SQL", async () => {
+      const port = createPgSupportCommunicationPort();
+
+      await expect(
+        runWithDbOrganizationPrincipal(clinicB, () =>
+          port.appendDeliveryEventFromProjection(params),
+        ),
+      ).rejects.toThrow("organization_principal_mismatch");
+      expect(runWebappPgTextMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects the projection write without an organization principal", async () => {
+      const port = createPgSupportCommunicationPort();
+
+      await expect(port.appendDeliveryEventFromProjection(params))
+        .rejects.toThrow("organization_principal_required");
+      expect(runWebappPgTextMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe("listOpenConversationsForAdmin", () => {
     it("passes normalized source, limit and unreadOnly as bound params", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });

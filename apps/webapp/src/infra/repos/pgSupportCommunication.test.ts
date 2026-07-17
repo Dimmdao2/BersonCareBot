@@ -71,6 +71,7 @@ describe("SupportCommunicationPort (in-memory)", () => {
   it("delivery event append is idempotent by integratorIntentEventId", async () => {
     const port = inMemorySupportCommunicationPort;
     const params = {
+      organizationId: "10000000-0000-4000-8000-000000000001",
       conversationMessageId: null,
       integratorIntentEventId: "evt-idemp-1",
       correlationId: "corr-idemp-1",
@@ -106,6 +107,7 @@ describe("SupportCommunicationPort (in-memory)", () => {
       createdAt: new Date().toISOString(),
     });
     await port.appendDeliveryEventFromProjection({
+      organizationId: "10000000-0000-4000-8000-000000000001",
       conversationMessageId: msg.id,
       integratorIntentEventId: "evt-1",
       correlationId: "corr-1",

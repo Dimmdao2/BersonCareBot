@@ -729,13 +729,18 @@ export async function handleIntegratorEvent(
 
   if (sc && event.eventType === "support.delivery.attempt.logged") {
     const p = event.payload ?? {};
+    const organizationId = typeof p.organizationId === "string" ? p.organizationId : "";
     const channelCode = typeof p.channelCode === "string" ? p.channelCode : "";
     const status = typeof p.status === "string" ? p.status : "failed";
     const attempt = typeof p.attempt === "number" && Number.isFinite(p.attempt) ? Math.trunc(p.attempt) : 1;
     const occurredAt = typeof p.occurredAt === "string" ? p.occurredAt : new Date().toISOString();
     const payloadJson = typeof p.payloadJson === "object" && p.payloadJson !== null ? (p.payloadJson as Record<string, unknown>) : {};
+    if (!organizationId) {
+      return { accepted: false, reason: "support.delivery.attempt.logged: organizationId required", retryable: false };
+    }
     try {
       await sc.appendDeliveryEventFromProjection({
+        organizationId,
         conversationMessageId: null,
         integratorIntentEventId: typeof p.intentEventId === "string" ? p.intentEventId : null,
         correlationId: typeof p.correlationId === "string" ? p.correlationId : null,

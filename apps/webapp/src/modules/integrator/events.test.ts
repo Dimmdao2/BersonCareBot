@@ -759,21 +759,55 @@ describe("handleIntegratorEvent: support.* communication ingest", () => {
   });
 
   it("accepts support.delivery.attempt.logged", async () => {
-    const result = await handleIntegratorEvent(
-      {
-        eventType: "support.delivery.attempt.logged",
-        payload: {
-          intentEventId: "evt-test-1",
-          correlationId: "corr-1",
-          channelCode: "telegram",
-          status: "success",
-          attempt: 1,
-          occurredAt: "2025-03-01T10:06:00.000Z",
+    const appendSpy = vi.spyOn(sc, "appendDeliveryEventFromProjection");
+    try {
+      const result = await handleIntegratorEvent(
+        {
+          eventType: "support.delivery.attempt.logged",
+          payload: {
+            organizationId: "10000000-0000-4000-8000-000000000001",
+            intentEventId: "evt-test-1",
+            correlationId: "corr-1",
+            channelCode: "telegram",
+            status: "success",
+            attempt: 1,
+            occurredAt: "2025-03-01T10:06:00.000Z",
+          },
         },
-      },
-      depsWithSc
-    );
-    expect(result.accepted).toBe(true);
+        depsWithSc
+      );
+      expect(result.accepted).toBe(true);
+      expect(appendSpy).toHaveBeenCalledWith(expect.objectContaining({
+        organizationId: "10000000-0000-4000-8000-000000000001",
+      }));
+    } finally {
+      appendSpy.mockRestore();
+    }
+  });
+
+  it("rejects support.delivery.attempt.logged without organizationId", async () => {
+    const appendSpy = vi.spyOn(sc, "appendDeliveryEventFromProjection");
+    try {
+      const result = await handleIntegratorEvent(
+        {
+          eventType: "support.delivery.attempt.logged",
+          payload: {
+            intentEventId: "evt-test-missing-org",
+            channelCode: "web_push",
+            status: "success",
+          },
+        },
+        depsWithSc,
+      );
+      expect(result).toEqual({
+        accepted: false,
+        reason: "support.delivery.attempt.logged: organizationId required",
+        retryable: false,
+      });
+      expect(appendSpy).not.toHaveBeenCalled();
+    } finally {
+      appendSpy.mockRestore();
+    }
   });
 
   it("idempotent: duplicate conversation opened returns accepted", async () => {

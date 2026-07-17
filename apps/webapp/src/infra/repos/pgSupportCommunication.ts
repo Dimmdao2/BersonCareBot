@@ -175,6 +175,7 @@ export type SupportCommunicationPort = {
     createdAt: string;
   }): Promise<{ id: string }>;
   appendDeliveryEventFromProjection(params: {
+    organizationId: string;
     conversationMessageId: string | null;
     integratorIntentEventId: string | null;
     correlationId: string | null;
@@ -715,16 +716,20 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async appendDeliveryEventFromProjection(params) {
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new Error("organization_principal_required");
+      if (organizationId !== params.organizationId) throw new Error("organization_principal_mismatch");
       const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_delivery_events (
-          conversation_message_id, integrator_intent_event_id, correlation_id,
+          organization_id, conversation_message_id, integrator_intent_event_id, correlation_id,
           channel_code, status, attempt, reason, payload_json, occurred_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamptz)
+        ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamptz)
         ON CONFLICT (integrator_intent_event_id)
           WHERE integrator_intent_event_id IS NOT NULL
         DO NOTHING
         RETURNING id`,
         [
+          organizationId,
           params.conversationMessageId,
           params.integratorIntentEventId,
           params.correlationId,
