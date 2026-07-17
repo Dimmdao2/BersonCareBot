@@ -1,10 +1,11 @@
 import { Pool } from "pg";
 import type { PoolClient, PoolConfig } from "pg";
 import {
-  applyCurrentDbPrincipalToConnection,
-  assertDbPrincipalRequestPoolCheckoutAllowed,
+  applyDbPrincipalToConnection,
+  assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
+  type DbPrincipal,
   getCurrentDbPrincipal,
   resetDbOperationalRuntimeRole,
   setDbOperationalRuntimeRole,
@@ -133,11 +134,12 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
 
 function installPrincipalAwarePoolQuery(pool: Pool): void {
   const queryWithPrincipal = async (
+    principalSnapshot: DbPrincipal | undefined,
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
     } catch (error) {
       void reportSaasIsolationEventBestEffort({
         eventClass: "missing_principal",
@@ -149,7 +151,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     const client = await pool.connect();
     try {
       try {
-        await applyCurrentDbPrincipalToConnection(client, principalApplyOptions);
+        await applyDbPrincipalToConnection(client, principalSnapshot, principalApplyOptions);
       } catch (error) {
         await reportSaasIsolationEventBestEffort({
           eventClass: "invalid_signature_or_install",
@@ -196,12 +198,15 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     if (typeof args.at(-1) === "function") {
       throw new Error("Callback-form pool.query is forbidden; use the promise-form DB chokepoint");
     }
-    return queryWithPrincipal(...args);
+    // One snapshot must drive both credential routing and role/context install across async checkout.
+    return queryWithPrincipal(getCurrentDbPrincipal(), ...args);
   }) as unknown as Pool["query"];
 }
 
-function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): WebappRuntimePoolKind {
-  const principal = getCurrentDbPrincipal();
+function choosePoolKindForPrincipal(
+  principal: DbPrincipal | undefined,
+  metrics: WebappPoolRoutingMetrics,
+): WebappRuntimePoolKind {
   const poolKind: WebappRuntimePoolKind =
     principal?.kind === "organization" || principal?.kind === "staff" ? "staff" : "nonstaff";
 
@@ -237,12 +242,14 @@ function choosePoolKindForCurrentPrincipal(metrics: WebappPoolRoutingMetrics): W
   return poolKind;
 }
 
-function assertRoutedWebappPoolCheckoutAllowed(metrics: WebappPoolRoutingMetrics): void {
+function assertRoutedWebappPoolCheckoutAllowed(
+  principal: DbPrincipal | undefined,
+  metrics: WebappPoolRoutingMetrics,
+): void {
   const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
   try {
-    assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+    assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principal, principalApplyOptions);
   } catch (error) {
-    const principal = getCurrentDbPrincipal();
     if (!principal) {
       metrics.missingPrincipalSelections += 1;
       void reportSaasIsolationEventBestEffort({
@@ -264,21 +271,24 @@ function createRoutedWebappPool(input: {
   metrics: WebappPoolRoutingMetrics;
 }): Pool {
   let routedPool: Pool;
-  const selectPool = (): Pool => {
-    if (isWebPushReminderInfraPrincipal()) {
+  const selectPool = (principal: DbPrincipal | undefined): Pool => {
+    if (principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE) {
       if (!input.webPushReminderPool) {
         throw new Error("DATABASE_URL_WEB_PUSH_REMINDER is required for the Web Push reminder infra principal");
       }
       input.metrics.webPushReminderSelections += 1;
       return input.webPushReminderPool;
     }
-    assertRoutedWebappPoolCheckoutAllowed(input.metrics);
-    return choosePoolKindForCurrentPrincipal(input.metrics) === "staff" ? input.staffPool : input.nonstaffPool;
+    assertRoutedWebappPoolCheckoutAllowed(principal, input.metrics);
+    return choosePoolKindForPrincipal(principal, input.metrics) === "staff" ? input.staffPool : input.nonstaffPool;
   };
 
-  const routedConnect = (): Promise<PoolClient> => selectPool().connect();
-  const routedQuery = async (...args: Parameters<Pool["query"]>): Promise<Awaited<ReturnType<Pool["query"]>>> =>
-    selectPool().query(...args);
+  const routedConnect = (): Promise<PoolClient> => selectPool(getCurrentDbPrincipal()).connect();
+  const routedQuery = async (...args: Parameters<Pool["query"]>): Promise<Awaited<ReturnType<Pool["query"]>>> => {
+    // Do not re-read the mutable request cell between pool selection and the raw pool chokepoint.
+    const principalSnapshot = getCurrentDbPrincipal();
+    return selectPool(principalSnapshot).query(...args);
+  };
   const routedEnd = async (): Promise<void> => {
     await Promise.all([input.staffPool.end(), input.nonstaffPool.end(), input.webPushReminderPool?.end()]);
   };

@@ -424,11 +424,17 @@ export function buildDbPrincipalApplyOptionsFromEnv(
 }
 
 export function assertDbPrincipalRequestPoolCheckoutAllowed(options: DbPrincipalApplyOptions = {}): void {
+  assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(getCurrentDbPrincipal(), options);
+}
+
+export function assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(
+  principal: DbPrincipal | undefined,
+  options: DbPrincipalApplyOptions = {},
+): void {
   if (options.mode !== "locked") {
     return;
   }
 
-  const principal = getCurrentDbPrincipal();
   if (!principal) {
     throw new Error("DB principal context is required before scoped DB access in locked mode");
   }
@@ -441,7 +447,14 @@ export async function applyCurrentDbPrincipalToTransaction(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
-  const principal = getCurrentDbPrincipal();
+  return applyDbPrincipalToTransaction(client, getCurrentDbPrincipal(), options);
+}
+
+export async function applyDbPrincipalToTransaction(
+  client: DbPrincipalQueryable,
+  principal: DbPrincipal | undefined,
+  options: DbPrincipalApplyOptions = {},
+): Promise<boolean> {
   if (options.mode === "locked" || options.mode === "shadow") {
     return applySignedDbPrincipal(client, principal, options);
   }
@@ -463,7 +476,14 @@ export async function applyCurrentDbPrincipalToConnection(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
-  const principal = getCurrentDbPrincipal();
+  return applyDbPrincipalToConnection(client, getCurrentDbPrincipal(), options);
+}
+
+export async function applyDbPrincipalToConnection(
+  client: DbPrincipalQueryable,
+  principal: DbPrincipal | undefined,
+  options: DbPrincipalApplyOptions = {},
+): Promise<boolean> {
   if (options.mode === "locked" || options.mode === "shadow") {
     return applySignedDbPrincipal(client, principal, options);
   }

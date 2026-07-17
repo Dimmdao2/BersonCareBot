@@ -1,11 +1,12 @@
 import type { Pool, PoolClient } from "pg";
 import {
-  applyCurrentDbPrincipalToConnection,
-  applyCurrentDbPrincipalToTransaction,
-  assertDbPrincipalRequestPoolCheckoutAllowed,
+  applyDbPrincipalToConnection,
+  applyDbPrincipalToTransaction,
+  assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromConnection,
   getCurrentDbPrincipal,
+  type DbPrincipal,
   type DbPrincipalApplyOptions,
 } from "@bersoncare/db-principal";
 import { getPool } from "@/infra/db/client";
@@ -20,8 +21,7 @@ function getDbPrincipalApplyOptions(): DbPrincipalApplyOptions {
   return buildDbPrincipalApplyOptionsFromEnv(process.env);
 }
 
-function usesOperationalWebPushReminderPool(): boolean {
-  const principal = getCurrentDbPrincipal();
+function usesOperationalWebPushReminderPool(principal: DbPrincipal | undefined): boolean {
   return principal?.kind === "infra" && principal.source === WEB_PUSH_REMINDER_INFRA_SOURCE;
 }
 
@@ -29,8 +29,12 @@ async function releaseOperationalClient(client: PoolClient, error?: Error): Prom
   await (client.release(error) as unknown as Promise<void>);
 }
 
-async function prepareClientForRequest(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
-  await applyCurrentDbPrincipalToConnection(client, options);
+async function prepareClientForRequest(
+  client: PoolClient,
+  principal: DbPrincipal | undefined,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyDbPrincipalToConnection(client, principal, options);
 }
 
 async function releasePreparedClient(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
@@ -67,16 +71,22 @@ async function releasePreparedClientAfterSetupFailure(
   }
 }
 
-async function prepareTransactionClientForRequest(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
-  await applyCurrentDbPrincipalToTransaction(client, options);
+async function prepareTransactionClientForRequest(
+  client: PoolClient,
+  principal: DbPrincipal | undefined,
+  options: DbPrincipalApplyOptions,
+): Promise<void> {
+  await applyDbPrincipalToTransaction(client, principal, options);
 }
 
 export async function withPoolClient<T>(pool: Pool, fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  // Keep selection, checkout and principal install bound to the same request identity.
+  const principalSnapshot = getCurrentDbPrincipal();
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  const operationalWebPushReminder = usesOperationalWebPushReminderPool();
+  const operationalWebPushReminder = usesOperationalWebPushReminderPool(principalSnapshot);
   if (!operationalWebPushReminder) {
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
     } catch (error) {
       await reportPrincipalSetupFailure(error);
       throw error;
@@ -86,7 +96,7 @@ export async function withPoolClient<T>(pool: Pool, fn: (client: PoolClient) => 
   try {
     try {
       if (!operationalWebPushReminder) {
-        await prepareClientForRequest(client, principalApplyOptions);
+        await prepareClientForRequest(client, principalSnapshot, principalApplyOptions);
       }
     } catch (error) {
       await reportPrincipalSetupFailure(error);
@@ -119,11 +129,13 @@ export type PoolTransactionHandle = {
 };
 
 export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionHandle> {
+  // Keep both connection- and transaction-scope installs bound to the pre-checkout identity.
+  const principalSnapshot = getCurrentDbPrincipal();
   const principalApplyOptions = getDbPrincipalApplyOptions();
-  const operationalWebPushReminder = usesOperationalWebPushReminderPool();
+  const operationalWebPushReminder = usesOperationalWebPushReminderPool(principalSnapshot);
   if (!operationalWebPushReminder) {
     try {
-      assertDbPrincipalRequestPoolCheckoutAllowed(principalApplyOptions);
+      assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
     } catch (error) {
       await reportPrincipalSetupFailure(error);
       throw error;
@@ -133,12 +145,12 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
   let transactionStarted = false;
   try {
     if (!operationalWebPushReminder) {
-      await prepareClientForRequest(client, principalApplyOptions);
+      await prepareClientForRequest(client, principalSnapshot, principalApplyOptions);
     }
     await client.query("BEGIN");
     transactionStarted = true;
     if (!operationalWebPushReminder) {
-      await prepareTransactionClientForRequest(client, principalApplyOptions);
+      await prepareTransactionClientForRequest(client, principalSnapshot, principalApplyOptions);
     }
   } catch (err) {
     await reportPrincipalSetupFailure(err);

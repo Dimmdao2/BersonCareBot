@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
-  applyCurrentDbPrincipalToTransaction,
+  applyDbPrincipalToTransaction,
   buildDbPrincipalApplyOptionsFromEnv,
   clearDbPrincipalFromTransaction,
   getCurrentDbPrincipal,
@@ -93,15 +93,17 @@ function drizzlePrincipalQueryable(tx: DrizzleTransaction) {
 function withPrincipalAwareTransactions(rawDb: DrizzleDb): DrizzleDb {
   const rawTransaction = rawDb.transaction.bind(rawDb);
   const wrappedTransaction: DrizzleDb["transaction"] = ((callback, config) => {
+    // Drizzle may await pool checkout before entering this callback; preserve the caller identity.
+    const principalSnapshot = getCurrentDbPrincipal();
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
     return rawTransaction(async (tx) => {
       const queryable = drizzlePrincipalQueryable(tx);
       let applied = false;
       try {
         applied =
-          getCurrentDbPrincipal()?.kind === "infra"
+          principalSnapshot?.kind === "infra"
             ? false
-            : await applyCurrentDbPrincipalToTransaction(queryable, principalApplyOptions);
+            : await applyDbPrincipalToTransaction(queryable, principalSnapshot, principalApplyOptions);
       } catch (error) {
         await reportPrincipalSetupFailure(error);
         throw error;

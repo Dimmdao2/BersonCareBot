@@ -2,7 +2,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Pool } from "pg";
-import { runWithDbInfraPrincipal, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import {
+  enterWithDbStaffPrincipal,
+  runWithDbBootstrapPrincipal,
+  runWithDbInfraPrincipal,
+  runWithDbOrganizationPrincipal,
+} from "@bersoncare/db-principal";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 import { startPoolTransaction, withPoolClient, withPoolTransaction } from "@/infra/db/withClient";
 
@@ -138,6 +143,45 @@ describe("withClient helpers", () => {
     expect(query.mock.calls.at(-2)).toEqual(["SELECT app.release_principal_context()"]);
     expect(query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
     expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the principal captured before checkout instead of a later mutable-context value", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    let finishCheckout: (() => void) | undefined;
+    let checkoutStarted: (() => void) | undefined;
+    const checkoutGate = new Promise<void>((resolve) => {
+      finishCheckout = resolve;
+    });
+    const checkoutSignal = new Promise<void>((resolve) => {
+      checkoutStarted = resolve;
+    });
+    const release = vi.fn();
+    const query = vi.fn(async (_sql: string) => ({ rows: [], rowCount: 0 }));
+    const client = { query, release };
+    const pool = {
+      connect: vi.fn(async () => {
+        checkoutStarted?.();
+        await checkoutGate;
+        return client;
+      }),
+    };
+
+    await runWithDbBootstrapPrincipal({ source: "public-auth-bootstrap" }, async () => {
+      const pending = withPoolClient(pool as never, async () => "ok");
+      await checkoutSignal;
+      enterWithDbStaffPrincipal({
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        platformUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      });
+      finishCheckout?.();
+      await expect(pending).resolves.toBe("ok");
+    });
+
+    const statements = query.mock.calls.map(([statement]) => statement);
+    expect(statements).not.toContain("SET ROLE app_staff");
+    expect(statements.some((statement) => String(statement).includes("app.install_signed_context"))).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
   });
 
   it("fails closed in locked mode before checkout when no DB principal is active", async () => {

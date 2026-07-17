@@ -2,6 +2,7 @@
 
 import type { Pool, PoolClient, PoolConfig } from "pg";
 import {
+  enterWithDbStaffPrincipal,
   getCurrentDbPrincipal,
   runWithDbBootstrapPrincipal,
   runWithDbInfraPrincipal,
@@ -175,6 +176,103 @@ describe("webapp pool provider", () => {
       bootstrapSelections: 1,
       poolRoleMismatches: 0,
     });
+  });
+
+  it("keeps a bootstrap snapshot on the nonstaff pool when the request principal mutates during checkout", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    let finishCheckout: (() => void) | undefined;
+    let checkoutStarted: (() => void) | undefined;
+    const checkoutGate = new Promise<void>((resolve) => {
+      finishCheckout = resolve;
+    });
+    const checkoutSignal = new Promise<void>((resolve) => {
+      checkoutStarted = resolve;
+    });
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+    const client = createFakeClient(async (sql: string) =>
+      sql === "SELECT pg_backend_pid() AS backend_pid"
+        ? { rows: [{ backend_pid: 7171 }], rowCount: 1 }
+        : { rows: [], rowCount: 0 },
+    );
+    pools[1]?.connect.mockImplementation(async () => {
+      checkoutStarted?.();
+      await checkoutGate;
+      pools[1]?.clients.push(client);
+      return client as unknown as PoolClient;
+    });
+
+    await runWithDbBootstrapPrincipal({ source: "public-auth-bootstrap" }, async () => {
+      const pendingQuery = pool.query("SELECT bootstrap_marker");
+      await checkoutSignal;
+      enterWithDbStaffPrincipal({ organizationId: ORG_ID, platformUserId: STAFF_USER_ID });
+      finishCheckout?.();
+      await pendingQuery;
+    });
+
+    const statements = client.query.mock.calls.map(([statement]) => statement);
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).toHaveBeenCalledOnce();
+    expect(statements).toContain("SELECT bootstrap_marker");
+    expect(statements).not.toContain("SET ROLE app_staff");
+    expect(statements.some((statement) => String(statement).includes("app.install_signed_context"))).toBe(false);
+  });
+
+  it("keeps a patient snapshot and role when the request principal mutates to staff during checkout", async () => {
+    process.env.DB_PRINCIPAL_CONTEXT_MODE = "locked";
+    process.env.DB_PRINCIPAL_SIGNING_SECRET = "test-db-principal-signing-secret";
+    let finishCheckout: (() => void) | undefined;
+    let checkoutStarted: (() => void) | undefined;
+    const checkoutGate = new Promise<void>((resolve) => {
+      finishCheckout = resolve;
+    });
+    const checkoutSignal = new Promise<void>((resolve) => {
+      checkoutStarted = resolve;
+    });
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+    const client = createFakeClient(async (sql: string) =>
+      sql === "SELECT pg_backend_pid() AS backend_pid"
+        ? { rows: [{ backend_pid: 7272 }], rowCount: 1 }
+        : { rows: [], rowCount: 0 },
+    );
+    pools[1]?.connect.mockImplementation(async () => {
+      checkoutStarted?.();
+      await checkoutGate;
+      pools[1]?.clients.push(client);
+      return client as unknown as PoolClient;
+    });
+
+    await runWithDbPatientPrincipal({ organizationId: ORG_ID, platformUserId: PATIENT_USER_ID }, async () => {
+      const pendingQuery = pool.query("SELECT patient_marker");
+      await checkoutSignal;
+      enterWithDbStaffPrincipal({
+        organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        platformUserId: STAFF_USER_ID,
+      });
+      finishCheckout?.();
+      await pendingQuery;
+    });
+
+    const statements = client.query.mock.calls.map(([statement]) => statement);
+    const installCall = client.query.mock.calls.find(([statement]) =>
+      String(statement).includes("app.install_signed_context"),
+    );
+    expect(pools[0]?.connect).not.toHaveBeenCalled();
+    expect(pools[1]?.connect).toHaveBeenCalledOnce();
+    expect(statements).toContain("SET ROLE app_patient");
+    expect(statements).not.toContain("SET ROLE app_staff");
+    expect(installCall?.[1]).toEqual(expect.arrayContaining([ORG_ID, PATIENT_USER_ID]));
+    expect(installCall?.[1]).not.toContain("dddddddd-dddd-4ddd-8ddd-dddddddddddd");
   });
 
   it.each([
