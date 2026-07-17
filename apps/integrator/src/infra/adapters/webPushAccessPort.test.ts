@@ -267,4 +267,23 @@ describe('webPushAccessPort', () => {
       });
     });
   });
+
+  describe('deleteSubscriptionByEndpoint', () => {
+    it('carries exact push user and organization with the endpoint', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) });
+      const deleted = await port.deleteSubscriptionByEndpoint(
+        '22222222-2222-4222-8222-222222222222',
+        STUB_SUBSCRIPTION.endpoint,
+        ORGANIZATION_ID,
+      );
+
+      expect(deleted).toBe(true);
+      const [, options] = fetchMock.mock.calls[0]!;
+      expect(JSON.parse((options as { body?: string }).body as string)).toEqual({
+        endpoint: STUB_SUBSCRIPTION.endpoint,
+        pushUserId: '22222222-2222-4222-8222-222222222222',
+        organizationId: ORGANIZATION_ID,
+      });
+    });
+  });
 });

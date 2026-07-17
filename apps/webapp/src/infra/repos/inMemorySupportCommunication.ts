@@ -422,7 +422,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     } else if (c.platformUserId !== platformUserId) {
       c.platformUserId = platformUserId;
     }
-    return { id: c.id };
+    return { id: c.id, organizationId: c.organizationId };
   },
 
   async appendWebappMessage(params) {

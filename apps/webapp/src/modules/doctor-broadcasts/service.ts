@@ -51,6 +51,7 @@ export type DoctorBroadcastsServiceDeps = {
 };
 
 export type DoctorBroadcastExecutionOptions = {
+  organizationId?: string;
   runDeliveryCommit?: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
@@ -174,8 +175,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         deps.fanOutBroadcastWebPush &&
         deps.patientWebPushNotifyDeps
       ) {
+        if (!options?.organizationId) throw new Error("doctor_broadcast_organization_required");
         await deps.fanOutBroadcastWebPush(
           {
+            organizationId: options.organizationId,
             auditId,
             broadcastCategory: command.category,
             broadcastTitle: command.message.title,

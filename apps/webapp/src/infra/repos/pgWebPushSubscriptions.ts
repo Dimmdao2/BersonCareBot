@@ -89,8 +89,11 @@ export function createPgWebPushSubscriptionsPort(): WebPushSubscriptionsPort {
       return res.rows.map(rowToPayload);
     },
 
-    async deleteByEndpointIfExists(endpoint: string): Promise<boolean> {
-      const res = await runWebappPgText(`DELETE FROM user_web_push_subscriptions WHERE endpoint = $1`, [endpoint]);
+    async deleteByEndpointIfExists(userId: string, endpoint: string): Promise<boolean> {
+      const res = await runWebappPgText(
+        `DELETE FROM user_web_push_subscriptions WHERE user_id = $1::uuid AND endpoint = $2`,
+        [userId, endpoint],
+      );
       return (res.rowCount ?? 0) > 0;
     },
   };

@@ -1,6 +1,7 @@
 export const PROGRAM_NOTE_REPLY_STATE_SUFFIX = "#pn:";
 
 export type ProgramNoteReplyContext = {
+  organizationId: string;
   platformUserId: string;
   stageItemId: string;
   exerciseTitle: string;

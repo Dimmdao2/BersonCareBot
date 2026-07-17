@@ -155,6 +155,7 @@ export async function notifySpecialistTaskReminder(
   }
 
   if (channels.includes("web_push")) {
+    if (!task.organizationId) return { sent, undeliverable: !sent };
     // P19 MIGRATION (PLAN S14g): emit a web_push intent to the integrator via relay-outbound
     // instead of calling sendWebPushToSubscriptions directly (G2-guarded webapp sink).
     // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
@@ -172,6 +173,7 @@ export async function notifySpecialistTaskReminder(
         const tag = `specialist_task:${task.id}`;
         const pushResult = await relayOutbound({
           messageId: `specialist-task:${task.id}:web_push:${ownerId}`,
+          organizationId: task.organizationId,
           channel: "web_push",
           recipient: ownerId,
           text: task.title,

@@ -7,6 +7,7 @@ import {
 } from "../../../db/schema/treatmentProgramInstances";
 
 export type ProgramNoteReplyContextRow = {
+  organizationId: string | null;
   patientUserId: string;
   assignmentSource: string;
   itemStatus: string;
@@ -19,6 +20,7 @@ export async function loadProgramNoteReplyContextRow(
   const db = getDrizzle();
   const rows = await db
     .select({
+      organizationId: treatmentProgramInstances.organizationId,
       patientUserId: treatmentProgramInstances.patientUserId,
       assignmentSource: treatmentProgramInstances.assignmentSource,
       itemStatus: treatmentProgramInstanceStageItems.status,
@@ -37,5 +39,5 @@ export async function loadProgramNoteReplyContextRow(
     .limit(1);
 
   const row = rows[0];
-  return row?.patientUserId ? row : null;
+  return row?.patientUserId && row.organizationId ? row : null;
 }

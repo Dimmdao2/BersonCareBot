@@ -37,15 +37,23 @@ export async function POST(request: Request) {
   }
 
   const endpoint = typeof parsed.endpoint === "string" ? parsed.endpoint.trim() : "";
+  const pushUserId = typeof parsed.pushUserId === "string" ? parsed.pushUserId.trim() : "";
   const organizationId = typeof parsed.organizationId === "string" ? parsed.organizationId.trim() : "";
-  if (!endpoint) {
-    return NextResponse.json({ ok: false, error: "endpoint required" }, { status: 400 });
+  if (!endpoint || !pushUserId) {
+    return NextResponse.json({ ok: false, error: "endpoint and pushUserId required" }, { status: 400 });
   }
   if (!enterVerifiedIntegratorOrganizationPrincipal(organizationId, "integrator-web-push-subscription-delete")) {
     return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
   }
 
-  const { webPushSubscriptions } = buildAppDeps();
-  await webPushSubscriptions.deleteByEndpointIfExists(endpoint);
+  const { organizationMembership, patientOrganization, webPushSubscriptions } = buildAppDeps();
+  const [isPatient, isStaff] = await Promise.all([
+    patientOrganization?.hasActiveEnrollment(pushUserId, organizationId) ?? false,
+    organizationMembership?.hasActiveMembership(pushUserId, organizationId) ?? false,
+  ]);
+  if (!isPatient && !isStaff) {
+    return NextResponse.json({ ok: false, error: "notification target is outside organization" }, { status: 403 });
+  }
+  await webPushSubscriptions.deleteByEndpointIfExists(pushUserId, endpoint);
   return NextResponse.json({ ok: true }, { status: 200 });
 }

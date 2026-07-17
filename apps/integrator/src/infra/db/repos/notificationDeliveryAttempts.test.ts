@@ -63,6 +63,22 @@ describe('notificationDeliveryAttempts', () => {
     expect(drizzleSqlFragmentToApproximateSql(fragment)).toContain('organization_id');
   });
 
+  it('projects an org/user-scoped web_push result into the System Health source table', async () => {
+    await recordNotificationDeliveryAttemptBestEffort(makeTxDb(), {
+      organizationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      userId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      channel: 'web_push',
+      status: 'success',
+      eventId: 'controlled-web-push',
+    });
+
+    const fragment = vi.mocked(runIntegratorSql).mock.calls[0]?.[1];
+    const sqlText = drizzleSqlFragmentToApproximateSql(fragment);
+    expect(sqlText).toContain('notification_delivery_attempts');
+    expect(sqlText).toContain('user_id');
+    expect(sqlText).toContain('organization_id');
+  });
+
   it('recordMessengerChannelSkipsBestEffort writes telegram/max skips only', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const db = { query } as never;

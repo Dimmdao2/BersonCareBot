@@ -61,6 +61,8 @@ async function loadAdminRelayTargets(): Promise<{ telegram: string[]; max: strin
 }
 
 export type DispatchOperatorAlertInput = {
+  /** Exact tenant for staff WebPush. Global health alerts omit it and do not synthesize a tenant. */
+  organizationId?: string;
   block: OperatorAlertBlock;
   topic: string;
   dedupKey: string;
@@ -156,7 +158,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
     }
   }
 
-  if (channels.web_push) {
+  if (channels.web_push && input.organizationId) {
     const pushDeps = getAdminIncidentStaffPushDeps();
     if (!pushDeps) {
       logger.info({
@@ -168,6 +170,7 @@ export async function dispatchOperatorAlert(input: DispatchOperatorAlertInput): 
       anyChannelAttempted = true;
       void sendAdminIncidentStaffWebPush(
         {
+          organizationId: input.organizationId,
           topic: input.topic,
           dedupKey: dk,
           pushTitle,

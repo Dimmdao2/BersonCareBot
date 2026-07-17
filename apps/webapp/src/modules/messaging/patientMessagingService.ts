@@ -12,6 +12,7 @@ export type PatientMessagingServiceOptions = {
   isUserMessagingBlocked?: (platformUserId: string) => Promise<boolean>;
   /** Уведомление врача в Telegram/Max после сообщения из PWA. */
   notifyDoctorOfPatientMessage?: (input: {
+    organizationId: string;
     platformUserId: string;
     messageId: string;
     messageText: string;
@@ -82,12 +83,14 @@ export function createPatientMessagingService(
         createdAt: now,
       });
 
-      if (options?.notifyDoctorOfPatientMessage) {
+      if (conv.organizationId && options?.notifyDoctorOfPatientMessage) {
+        const organizationId = conv.organizationId;
         void (async () => {
           const patientLabel = options.resolvePatientLabel
             ? await options.resolvePatientLabel(platformUserId)
             : "Пациент";
           await options.notifyDoctorOfPatientMessage!({
+            organizationId,
             platformUserId,
             messageId: integratorMessageId,
             messageText: trimmed,

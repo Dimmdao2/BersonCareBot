@@ -59,7 +59,7 @@ describe("relayOutbound", () => {
       "X-Bersoncare-Signature": expect.any(String),
     });
     const body = JSON.parse(call[1].body as string) as Record<string, string>;
-    expect(body.idempotencyKey).toBe("msg-1:telegram:123456789");
+    expect(body.idempotencyKey).toBe("global:msg-1:telegram:123456789");
   });
 
   it("carries organizationId into a tenant-scoped relay payload", async () => {

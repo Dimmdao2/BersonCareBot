@@ -29,6 +29,7 @@ export function createIntegratorSupportBridge(deps: {
   notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
   sendProgramNoteReply?: SendProgramNoteReply;
   notifyDoctorOfPatientMessage?: (input: {
+    organizationId: string;
     platformUserId: string;
     messageId: string;
     messageText: string;
@@ -44,7 +45,7 @@ export function createIntegratorSupportBridge(deps: {
       const platformUserId = input.platformUserId.trim();
       if (!platformUserId) return { ok: false, error: "missing_platform_user" };
 
-      const { id: conversationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
+      const { id: conversationId, organizationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
       await deps.port.mergeLegacySupportConversationsForPlatformUser?.(platformUserId).catch((err: unknown) => {
         console.error("[integratorSupportBridge] merge legacy conversations error:", err);
       });
@@ -58,7 +59,7 @@ export function createIntegratorSupportBridge(deps: {
         createdAt: input.createdAt,
       });
 
-      if (deps.notifyDoctorOfPatientMessage) {
+      if (organizationId && deps.notifyDoctorOfPatientMessage) {
         const source: "webapp" | "telegram" | "max" =
           input.source === "max" ? "max" : input.source === "telegram" ? "telegram" : "webapp";
         const patientLabel =
@@ -67,6 +68,7 @@ export function createIntegratorSupportBridge(deps: {
           : "Пациент";
         deps
           .notifyDoctorOfPatientMessage({
+            organizationId,
             platformUserId,
             messageId: input.integratorMessageId,
             messageText: trimmed,
@@ -110,7 +112,7 @@ export function createIntegratorSupportBridge(deps: {
         return { ok: true };
       }
 
-      const { id: conversationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
+      const { id: conversationId, organizationId } = await deps.port.ensureWebappConversationForUser(platformUserId);
       const integratorMessageId = input.integratorMessageId.trim() || `webapp-msg:${crypto.randomUUID()}`;
       const createdAt = input.createdAt || new Date().toISOString();
 
@@ -123,8 +125,9 @@ export function createIntegratorSupportBridge(deps: {
         createdAt,
       });
 
-      if (deps.notifyPatientOfDoctorReply) {
+      if (organizationId && deps.notifyPatientOfDoctorReply) {
         await deps.notifyPatientOfDoctorReply({
+          organizationId,
           platformUserId,
           messageId: integratorMessageId,
           text: trimmed,

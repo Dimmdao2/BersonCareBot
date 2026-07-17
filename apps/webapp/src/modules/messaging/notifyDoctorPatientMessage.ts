@@ -56,6 +56,7 @@ export function doctorReplyCallbackConversationId(platformUserId: string): strin
 }
 
 export type NotifyDoctorPatientMessageInput = {
+  organizationId: string;
   platformUserId: string;
   messageId: string;
   messageText: string;
@@ -91,6 +92,7 @@ export async function notifyDoctorPatientMessage(
   if (opts?.staffDeps) {
     void notifyDoctorPatientMessageToStaff(
       {
+        organizationId: input.organizationId,
         topicCode: "doctor_patient_messages",
         messageId: `patient-msg-notify:${input.messageId}`,
         text,

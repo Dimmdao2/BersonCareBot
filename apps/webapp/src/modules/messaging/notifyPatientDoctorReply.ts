@@ -18,6 +18,7 @@ import { relayOutbound, type RelayOutboundDeps } from "./relayOutbound";
 const EMAIL_SUBJECT = "Новое сообщение в чате";
 
 export type NotifyPatientDoctorReplyParams = {
+  organizationId: string;
   platformUserId: string;
   messageId: string;
   text: string;
@@ -97,6 +98,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
     if (!trimmed) return;
 
     const topicCode = params.topicCode?.trim() || NOTIFICATION_TOPIC_SPECIALIST_MESSAGES;
+    const organizationId = params.organizationId;
     const [prefs, availability, topicRows, gate] = await Promise.all([
       deps.channelPreferences.getPreferences(platformUserId),
       buildAvailability(deps, platformUserId),
@@ -173,6 +175,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
           relayOutbound(
             {
               messageId: `${messageId}:web_push`,
+              organizationId,
               channel: "web_push",
               recipient: platformUserId,
               text: pushCopy.body,

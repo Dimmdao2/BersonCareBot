@@ -92,8 +92,12 @@ describe("pgWebPushSubscriptions (repo SQL parity)", () => {
   it("deleteByEndpointIfExists uses rowCount guard", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const port = createPgWebPushSubscriptionsPort();
-    const deleted = await port.deleteByEndpointIfExists("https://push.example/1");
+    const deleted = await port.deleteByEndpointIfExists("11111111-1111-4111-8111-111111111111", "https://push.example/1");
     expect(deleted).toBe(false);
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("DELETE FROM user_web_push_subscriptions");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "11111111-1111-4111-8111-111111111111",
+      "https://push.example/1",
+    ]);
   });
 });

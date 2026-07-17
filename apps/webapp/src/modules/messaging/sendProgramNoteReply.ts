@@ -82,6 +82,7 @@ export function createSendProgramNoteReply(deps: {
 
     if (supportMessage.created && deps.notifyPatientOfDoctorReply) {
       await deps.notifyPatientOfDoctorReply({
+        organizationId: ctx.organizationId,
         platformUserId,
         messageId: integratorMessageId,
         text: chatText,

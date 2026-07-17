@@ -9,6 +9,6 @@ export function listActiveWebPushSubscriptionsForIntegrator(
   return webPushSubscriptionsPort.listActiveByUserId(userId);
 }
 
-export function deleteWebPushSubscriptionByEndpointForIntegrator(endpoint: string): Promise<boolean> {
-  return webPushSubscriptionsPort.deleteByEndpointIfExists(endpoint);
+export function deleteWebPushSubscriptionByEndpointForIntegrator(userId: string, endpoint: string): Promise<boolean> {
+  return webPushSubscriptionsPort.deleteByEndpointIfExists(userId, endpoint);
 }

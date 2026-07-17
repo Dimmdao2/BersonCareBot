@@ -122,6 +122,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
   return {
     async assignTemplateToPatient(input: {
+      organizationId?: string | null;
       templateId: string;
       patientUserId: string;
       assignedBy: string | null;
@@ -286,6 +287,7 @@ export function createTreatmentProgramInstanceService(deps: {
 
       try {
         return await instances.createInstanceTree({
+          organizationId: input.organizationId,
           templateId: tpl.id,
           patientUserId: input.patientUserId.trim(),
           assignedBy: input.assignedBy,

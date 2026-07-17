@@ -28,5 +28,5 @@ export type WebPushSubscriptionsPort = {
   hasAnyForUserId(userId: string): Promise<boolean>;
   listActiveByUserId(userId: string): Promise<WebPushSubscriptionPayloadV1[]>;
   /** Remove stale subscription after 410/404 from push service; returns whether a row was removed. */
-  deleteByEndpointIfExists(endpoint: string): Promise<boolean>;
+  deleteByEndpointIfExists(userId: string, endpoint: string): Promise<boolean>;
 };

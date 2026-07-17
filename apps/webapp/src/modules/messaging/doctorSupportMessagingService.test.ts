@@ -277,7 +277,11 @@ describe("doctorSupportMessagingService", () => {
   });
 
   it("notifies patient on all message channels when platform user is linked", async () => {
-    const convRow = makeConversationRow({ channelCode: "telegram", channelExternalId: "987654321" });
+    const convRow = makeConversationRow({
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      channelCode: "telegram",
+      channelExternalId: "987654321",
+    });
     const appendWebappMessage = vi.fn(async () => ({ id: "msg-webapp-1", created: true }));
     const notifyPatientOfDoctorReply = vi.fn(async () => undefined);
     const service = createDoctorSupportMessagingService(

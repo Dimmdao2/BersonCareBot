@@ -209,6 +209,7 @@ export async function runPlatformUserReminderWebPushNotify(
   const messageId = `reminder-push:${input.platformUserId}:${input.occurrenceId}`;
   const result = await relayOutbound({
     messageId,
+    organizationId: input.organizationId,
     channel: "web_push",
     recipient: input.platformUserId,
     text: trackedPayload.body,
@@ -249,16 +250,6 @@ export async function runPlatformUserReminderWebPushNotify(
     });
     return { ok: false, error: "web_push_relay_failed" };
   }
-
-  await deps.notificationDelivery?.recordNotificationDeliveryAttempt({
-    userId: input.platformUserId,
-    topicCode: input.topicCode,
-    intentType: PATIENT_REMINDER_INTENT_TYPE,
-    channel: "web_push",
-    status: "success",
-    reason: undefined,
-    occurrenceId: input.occurrenceId,
-  });
 
   logger.info(
     {

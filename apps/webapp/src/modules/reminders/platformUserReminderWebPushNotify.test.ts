@@ -279,7 +279,7 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
 
   // ─── NOTIFICATION DELIVERY RECORDING ─────────────────────────────────────────
 
-  it("records a delivery attempt on successful relay", async () => {
+  it("does not project relay acceptance as successful provider delivery", async () => {
     const recordMock = vi.fn().mockResolvedValue(undefined);
     const notificationDelivery: NotificationDeliveryService = {
       recordNotificationDeliveryAttempt: recordMock,
@@ -287,15 +287,7 @@ describe("platformUserReminderWebPushNotify — P20 MIGRATION (S14b)", () => {
 
     await runPlatformUserReminderWebPushNotify(makeInput(), makeDeps({ notificationDelivery }));
 
-    expect(recordMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: USER_ID,
-        topicCode: "exercise_reminder",
-        channel: "web_push",
-        status: "success",
-        occurrenceId: OCCURRENCE_ID,
-      }),
-    );
+    expect(recordMock).not.toHaveBeenCalled();
   });
 
   it("records a failed delivery attempt when relay returns ok: false", async () => {

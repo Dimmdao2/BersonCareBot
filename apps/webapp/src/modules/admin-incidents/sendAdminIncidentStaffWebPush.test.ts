@@ -19,6 +19,11 @@ import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports
 import type { WebPushSubscriptionsPort } from "@/modules/web-push/ports";
 
 const STAFF_ID = "admin-1";
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
+const incident = (input: { topic: string; dedupKey: string; pushTitle: string; pushBody: string; pushUrl: string }) => ({
+  organizationId: ORGANIZATION_ID,
+  ...input,
+});
 
 function makeDeps(overrides: Partial<AdminIncidentStaffPushDeps> = {}): AdminIncidentStaffPushDeps {
   return {
@@ -44,13 +49,13 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
 
   it("emits a web_push intent via relayOutbound (not sendWebPushToSubscriptions)", async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      {
+      incident({
         topic: "channel_link",
         dedupKey: "abc",
         pushTitle: "Конфликт привязки канала",
         pushBody: "binding conflict body",
         pushUrl: "/app/doctor/admin/technical",
-      },
+      }),
       makeDeps(),
     );
 
@@ -70,7 +75,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
 
   it("skips staff with global web_push disabled (no relay call)", async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps({
         channelPreferences: {
           getPreferences: async () => [{ channelCode: "web_push", isEnabledForNotifications: false }],
@@ -84,7 +89,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
 
   it("skips staff with no subscriptions (hasAnyForUserId returns false)", async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps({
         webPushSubscriptions: {
           hasAnyForUserId: async () => false,
@@ -100,7 +105,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
 
   it("returns 0 when no staff users", async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps({
         staffUsers: { listActiveStaffUserIds: async () => [] },
       }),
@@ -114,7 +119,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     relayOutboundMock.mockResolvedValueOnce({ ok: false, reason: "no_integrator_url" });
 
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps(),
     );
 
@@ -126,7 +131,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     relayOutboundMock.mockRejectedValueOnce(new Error("network error"));
 
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps(),
     );
 
@@ -135,7 +140,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
 
   it("dispatches a relay for each eligible staff member", async () => {
     const result = await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps({
         staffUsers: { listActiveStaffUserIds: async () => ["admin-1", "admin-2"] },
       }),
@@ -154,7 +159,7 @@ describe("sendAdminIncidentStaffWebPush — CANARY MIGRATION (S14a)", () => {
     // We verify by confirming only relayOutbound was called and checking no
     // push-specific mocked side-effects occurred.
     await sendAdminIncidentStaffWebPush(
-      { topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" },
+      incident({ topic: "t", dedupKey: "k", pushTitle: "t", pushBody: "b", pushUrl: "/" }),
       makeDeps(),
     );
 

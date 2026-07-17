@@ -7,9 +7,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DispatchPort } from '../../kernel/contracts/index.js';
+import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -29,6 +30,9 @@ const relayPayloadSchema = z.object({
 }).superRefine((value, ctx) => {
   if (value.channel === 'web_push' && !value.organizationId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['organizationId'], message: 'organizationId required' });
+  }
+  if (value.channel === 'web_push' && !z.string().uuid().safeParse(value.recipient).success) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['recipient'], message: 'web_push recipient must be UUID' });
   }
 });
 
@@ -145,6 +149,7 @@ function buildIntent(parsed: RelayPayload) {
 }
 
 export type BersoncareRelayOutboundDeps = {
+  db?: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
 };
@@ -153,10 +158,17 @@ export async function registerBersoncareRelayOutboundRoute(
   app: FastifyInstance,
   deps: BersoncareRelayOutboundDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret } = deps;
+  const { db, dispatchPort, sharedSecret } = deps;
 
-  // In-memory dedup: key → expiry timestamp
+  // In-memory dedup: key → expiry timestamp. This closes concurrent duplicates in one
+  // process. Persistent exactly-once/outbox across process restarts is deliberately
+  // deferred; the external delivery contract remains at-least-once across a restart.
   const dedupMap = new Map<string, number>();
+  const inFlight = new Set<string>();
+
+  function scopedKey(payload: RelayPayload): string {
+    return `${payload.organizationId ?? "global"}:${payload.idempotencyKey}`;
+  }
 
   function isDuplicate(key: string): boolean {
     const exp = dedupMap.get(key);
@@ -199,27 +211,72 @@ export async function registerBersoncareRelayOutboundRoute(
 
     const parsed = parseResult.data;
 
-    if (isDuplicate(parsed.idempotencyKey)) {
+    const dedupKey = scopedKey(parsed);
+    if (isDuplicate(dedupKey)) {
       logger.info({ idempotencyKey: parsed.idempotencyKey }, 'relay-outbound: duplicate request, skipping');
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
+    if (inFlight.has(dedupKey)) {
+      return reply.code(503).send({ ok: false, error: 'dispatch_in_flight' });
+    }
 
+    inFlight.add(dedupKey);
     const intent = buildIntent(parsed);
     if (!intent) {
       logger.warn({ channel: parsed.channel }, 'relay-outbound: unsupported channel, skipping dispatch');
-      registerKey(parsed.idempotencyKey);
+      registerKey(dedupKey);
+      inFlight.delete(dedupKey);
       return reply.code(200).send({ ok: true, status: 'accepted' });
     }
 
     try {
-      await runWithOptionalOrganizationPrincipal(parsed.organizationId, () => dispatchPort.dispatchOutgoing(intent));
-      registerKey(parsed.idempotencyKey);
+      const dispatchResult = await runWithOptionalOrganizationPrincipal(
+        parsed.organizationId,
+        () => dispatchPort.dispatchOutgoing(intent),
+      );
+      registerKey(dedupKey);
+      inFlight.delete(dedupKey);
+      if (db && parsed.channel === 'web_push') {
+        const topicCode = typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null
+          ? String((parsed.metadata.pushExtras as Record<string, unknown>).topicCode ?? '') || undefined
+          : undefined;
+        await recordNotificationDeliveryAttemptBestEffort(db, {
+          ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),
+          userId: parsed.recipient,
+          channel: 'web_push',
+          status: dispatchResult.webPushOutcome?.status ?? 'skipped',
+          ...(dispatchResult.webPushOutcome?.reason
+            ? { reason: dispatchResult.webPushOutcome.reason }
+            : dispatchResult.webPushOutcome
+              ? {}
+              : { reason: 'no_provider_outcome' }),
+          eventId: parsed.messageId,
+          recipientRef: `web_push:${parsed.recipient.slice(-4)}`,
+          ...(topicCode ? { topicCode } : {}),
+          intentType: 'relay_outbound',
+          metadata: dispatchResult.webPushOutcome ?? {},
+        });
+      }
       logger.info(
         { channel: parsed.channel, messageId: parsed.messageId, recipient: parsed.recipient.slice(0, 6) + '…' },
         'relay-outbound: dispatched',
       );
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {
+      inFlight.delete(dedupKey);
+      if (db && parsed.channel === 'web_push') {
+        await recordNotificationDeliveryAttemptBestEffort(db, {
+          ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),
+          userId: parsed.recipient,
+          channel: 'web_push',
+          status: 'failed',
+          reason: 'dispatch_failed',
+          eventId: parsed.messageId,
+          recipientRef: `web_push:${parsed.recipient.slice(-4)}`,
+          intentType: 'relay_outbound',
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+      }
       const code = (err as { code?: number }).code ?? 0;
       const isClientError = code >= 400 && code < 500;
       logger.error({ err, channel: parsed.channel, messageId: parsed.messageId }, 'relay-outbound: dispatch failed');

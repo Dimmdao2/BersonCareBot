@@ -37,7 +37,7 @@ export type SupportConversationRow = {
 
 export type SupportConversationRelayInfo = Pick<
   SupportConversationRow,
-  "id" | "platformUserId" | "channelCode" | "channelExternalId"
+  "id" | "organizationId" | "platformUserId" | "channelCode" | "channelExternalId"
 >;
 
 export type SupportConversationMessageRow = {
@@ -202,7 +202,7 @@ export type SupportCommunicationPort = {
   listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
   /** Один диалог webapp на пару организация+пользователь; legacy global ID сохраняется без потери истории. */
-  ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string }>;
+  ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string; organizationId?: string | null }>;
   /**
    * Claims legacy pre-SaaS conversation rows before entering principal-scoped writes.
    * Caller must already verify workspace access to the conversation/patient.
@@ -1007,7 +1007,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         const existingRow = existing.rows[0];
         if (existingRow) {
           currentWriteOrganizationId(existingRow.organization_id);
-          return { id: existingRow.id };
+          return { id: existingRow.id, organizationId: existingRow.organization_id };
         }
         const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversations (
@@ -1022,7 +1022,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           [principalOrganizationId, integratorConversationId, platformUserId],
           tx,
         );
-        return { id: r.rows[0]!.id };
+        return { id: r.rows[0]!.id, organizationId: principalOrganizationId };
       });
     },
 
@@ -1166,6 +1166,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async getConversationRelayInfo(conversationId) {
       const r = await runWebappPgText<{
         id: string;
+        organization_id: string | null;
         platform_user_id: string | null;
         channel_code: string | null;
         channel_external_id: string | null;
@@ -1180,6 +1181,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       if (!row) return null;
       return {
         id: row.id,
+        organizationId: row.organization_id,
         platformUserId: row.platform_user_id,
         channelCode: row.channel_code,
         channelExternalId: row.channel_external_id,

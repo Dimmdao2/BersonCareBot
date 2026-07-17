@@ -122,6 +122,7 @@ export function createTreatmentProgramPatientActionService(deps: {
   getPatientCalendarTimezoneIana?: (platformUserId: string) => Promise<string | null>;
   resolvePatientLabel?: (platformUserId: string) => Promise<string>;
   notifyDoctorOfProgramNote?: (input: {
+    organizationId: string;
     patientUserId: string;
     instanceId: string;
     stageItemId: string;
@@ -455,11 +456,12 @@ export function createTreatmentProgramPatientActionService(deps: {
           body: noteTrim,
         });
       }
-      if (detail.assignmentSource === "doctor" && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+      if (detail.assignmentSource === "doctor" && detail.organizationId && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
           typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
         const notifyInput = {
+          organizationId: detail.organizationId,
           patientUserId: input.patientUserId,
           instanceId: input.instanceId,
           stageItemId: input.stageItemId,
@@ -529,11 +531,12 @@ export function createTreatmentProgramPatientActionService(deps: {
           mediaFileId: input.mediaFileId,
         });
       }
-      if (detail.assignmentSource === "doctor" && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
+      if (detail.assignmentSource === "doctor" && detail.organizationId && deps.notifyDoctorOfProgramNote && deps.resolvePatientLabel) {
         const snap = item.snapshot as Record<string, unknown>;
         const title =
           typeof snap.title === "string" && snap.title.trim() ? snap.title.trim() : "Пункт программы";
         const notifyInput = {
+          organizationId: detail.organizationId,
           patientUserId: input.patientUserId,
           instanceId: input.instanceId,
           stageItemId: input.stageItemId,

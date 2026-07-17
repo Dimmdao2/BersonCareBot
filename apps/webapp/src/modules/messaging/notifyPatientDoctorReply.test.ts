@@ -37,6 +37,7 @@ import type { TopicChannelPrefsPort } from "@/modules/patient-notifications/topi
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 const PLATFORM_USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const MESSAGE_ID = "msg-111";
 const TEXT = "Привет, это ответ врача!";
 
@@ -128,6 +129,7 @@ function buildDeps(
 // ── tests ─────────────────────────────────────────────────────────────────────
 
 describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
+  const notifyParams = (text = TEXT) => ({ organizationId: ORGANIZATION_ID, platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text });
   beforeEach(() => {
     // Clear call history between tests to avoid cross-test accumulation.
     vi.clearAllMocks();
@@ -137,7 +139,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
   it("emits web_push intent via relayOutbound when user has subscriptions", async () => {
     const deps = buildDeps({ hasSubs: true });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(1);
@@ -164,7 +166,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     // but hasSubs: false means the inner pre-check in the push block skips the relay.
     const deps = buildDeps({ hasSubs: false, hasActiveSubs: true });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(0);
@@ -174,7 +176,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     // Both hasAnyForUserId and listActiveByUserId return empty/false.
     const deps = buildDeps({ hasSubs: false, hasActiveSubs: false });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(0);
@@ -185,7 +187,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     // path is no longer reachable from this module.
     const deps = buildDeps({ hasSubs: true });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     // Exactly one web_push call, via relayOutbound (not sendWebPushToSubscriptions)
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
@@ -197,7 +199,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
     const deps = buildDeps({ hasSubs: true });
     vi.mocked(deps.readReminderNotifyGate).mockResolvedValue({ muted: true });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     expect(pushCalls).toHaveLength(0);
@@ -213,7 +215,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
       smtpConfigured: true,
     });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const emailCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "email");
     expect(emailCalls).toHaveLength(1);
@@ -229,7 +231,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
   it("telegram leg still uses relayOutbound with channel:telegram (unchanged by this migration)", async () => {
     const deps = buildDeps({ hasSubs: false, hasActiveSubs: false, telegramId: "987654321" });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const tgCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "telegram");
     expect(tgCalls).toHaveLength(1);
@@ -247,7 +249,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
       smtpConfigured: true,
     });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: TEXT });
+    await notify(notifyParams());
 
     const pushCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "web_push");
     const emailCalls = vi.mocked(relayOutbound).mock.calls.filter((c) => c[0].channel === "email");
@@ -258,7 +260,7 @@ describe("notifyPatientDoctorReply — P16 web_push leg migration", () => {
   it("skips sending entirely when text is empty", async () => {
     const deps = buildDeps({ hasSubs: true });
     const notify = createNotifyPatientDoctorReply(deps);
-    await notify({ platformUserId: PLATFORM_USER_ID, messageId: MESSAGE_ID, text: "   " });
+    await notify(notifyParams("   "));
 
     expect(vi.mocked(relayOutbound)).not.toHaveBeenCalled();
   });

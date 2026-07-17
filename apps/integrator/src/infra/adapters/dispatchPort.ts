@@ -254,7 +254,14 @@ export function createDefaultDispatchPort(deps: {
         throw providerError;
       }
       if (intent.type === 'message.send') {
-        await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
+        try {
+          await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
+        } catch (auditError) {
+          logger.error(
+            { auditError, channel, intentType: intent.type },
+            'Delivery succeeded but its support audit could not be persisted',
+          );
+        }
       }
       return sendResult ?? {};
     },

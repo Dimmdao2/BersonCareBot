@@ -16,6 +16,7 @@ function buildPatientNotificationsOpenUrl(): string {
 }
 
 export type FanOutBroadcastWebPushInput = {
+  organizationId: string;
   auditId: string;
   broadcastCategory: BroadcastCategory;
   broadcastTitle: string;
@@ -50,6 +51,7 @@ export async function fanOutBroadcastWebPush(
       const openUrl = buildPatientNotificationsOpenUrl();
       const result = await runPatientWebPushNotify(
         {
+          organizationId: input.organizationId,
           platformUserId: client.userId,
           topicCode,
           intentType: "news",

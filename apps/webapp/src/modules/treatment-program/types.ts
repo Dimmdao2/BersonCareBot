@@ -519,6 +519,7 @@ export type TreatmentProgramInstanceStageInput = {
 };
 
 export type CreateTreatmentProgramInstanceTreeInput = {
+  organizationId?: string | null;
   templateId: string | null;
   patientUserId: string;
   assignedBy: string | null;

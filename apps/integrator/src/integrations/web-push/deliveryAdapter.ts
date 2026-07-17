@@ -87,15 +87,19 @@ export function createWebPushDeliveryAdapter(deps: {
           { scope: 'web_push', event: 'web_push_vapid_missing', pushUserId },
           '[web-push] VAPID credentials not configured or unavailable — skipping push',
         );
-        return {};
+        return { webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 } };
       }
 
-      if (!subscriptions || subscriptions.length === 0) {
+      if (subscriptions === null) {
+        return { webPushOutcome: { status: 'failed', reason: 'subscriptions_unavailable', delivered: 0, errors: 1, deactivated: 0 } };
+      }
+
+      if (subscriptions.length === 0) {
         logger.info(
           { scope: 'web_push', event: 'web_push_no_subscriptions', pushUserId },
           '[web-push] no active subscriptions for user — skipping',
         );
-        return {};
+        return { webPushOutcome: { status: 'skipped', reason: 'no_active_subscriptions', delivered: 0, errors: 0, deactivated: 0 } };
       }
 
       const body = asString(payload.message?.text) ?? '';
@@ -119,7 +123,7 @@ export function createWebPushDeliveryAdapter(deps: {
           ...(extras.occurrenceId !== undefined ? { occurrenceId: extras.occurrenceId } : {}),
         },
         onSubscriptionDead: async (endpoint) => {
-          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(endpoint, organizationId);
+          const deleted = await webPushAccessPort.deleteSubscriptionByEndpoint(pushUserId, endpoint, organizationId);
           if (!deleted) {
             logger.warn(
               { scope: 'web_push', event: 'web_push_dead_sub_cleanup_failed', pushUserId },
@@ -159,7 +163,15 @@ export function createWebPushDeliveryAdapter(deps: {
         '[web-push] push delivery complete',
       );
 
-      return {};
+      return {
+        webPushOutcome: {
+          status: result.delivered > 0 ? 'success' : result.errors > 0 ? 'failed' : 'skipped',
+          ...(result.delivered === 0 && result.errors > 0 ? { reason: 'provider_error' } : {}),
+          delivered: result.delivered,
+          errors: result.errors,
+          deactivated: result.deactivated,
+        },
+      };
     },
   };
 }

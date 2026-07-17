@@ -266,7 +266,9 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     const result = await adapter.send(makeWebPushIntent());
 
-    expect(result).toEqual({});
+    expect(result).toEqual({
+      webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 },
+    });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
 
@@ -278,7 +280,9 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     const result = await adapter.send(makeWebPushIntent());
 
-    expect(result).toEqual({});
+    expect(result).toEqual({
+      webPushOutcome: { status: 'skipped', reason: 'no_active_subscriptions', delivered: 0, errors: 0, deactivated: 0 },
+    });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
 
@@ -290,7 +294,9 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     const result = await adapter.send(makeWebPushIntent());
 
-    expect(result).toEqual({});
+    expect(result).toEqual({
+      webPushOutcome: { status: 'failed', reason: 'subscriptions_unavailable', delivered: 0, errors: 1, deactivated: 0 },
+    });
     expect(webpushMock.sendNotification).not.toHaveBeenCalled();
   });
 
@@ -312,7 +318,7 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint, ORGANIZATION_ID);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith('user-123', STUB_SUB.endpoint, ORGANIZATION_ID);
   });
 
   it('404 response: calls deleteSubscriptionByEndpoint for dead endpoint', async () => {
@@ -324,7 +330,7 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
 
     await adapter.send(makeWebPushIntent());
 
-    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith(STUB_SUB.endpoint, ORGANIZATION_ID);
+    expect(webPushAccessPort.deleteSubscriptionByEndpoint).toHaveBeenCalledWith('user-123', STUB_SUB.endpoint, ORGANIZATION_ID);
   });
 
   it('500 provider error: does NOT call deleteSubscriptionByEndpoint', async () => {
@@ -334,9 +340,12 @@ describe('WebPushDeliveryAdapter.send — production mode (redirect inactive)', 
     const webPushAccessPort = makeWebPushAccessPort();
     const adapter = createWebPushDeliveryAdapter({ webPushAccessPort });
 
-    await adapter.send(makeWebPushIntent());
+    const result = await adapter.send(makeWebPushIntent());
 
     expect(webPushAccessPort.deleteSubscriptionByEndpoint).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      webPushOutcome: { status: 'failed', reason: 'provider_error', delivered: 0, errors: 1, deactivated: 0 },
+    });
   });
 
   // ─── Passes push content fields correctly ────────────────────────────────────

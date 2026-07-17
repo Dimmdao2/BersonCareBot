@@ -60,6 +60,11 @@ export function createOrganizationMembershipService(deps: {
     async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]> {
       return deps.membershipPort.listByOrganization(organizationId);
     },
+
+    async hasActiveMembership(platformUserId: string, organizationId: string): Promise<boolean> {
+      const memberships = await deps.membershipPort.listActiveByPlatformUser(platformUserId);
+      return memberships.some((membership) => membership.organizationId === organizationId);
+    },
   };
 }
 

@@ -67,6 +67,24 @@ describe('createDefaultDispatchPort', () => {
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
+  it('does not turn a successful provider send into a retryable failure when support audit fails', async () => {
+    sendPrimaryMock.mockResolvedValueOnce({ providerMessageId: 'sent-1' });
+    const writeDb = vi.fn().mockRejectedValueOnce(new Error('audit unavailable'));
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-audit-fail', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { chatId: 1 },
+        message: { text: 'hi' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await expect(dispatchPort.dispatchOutgoing(intent)).resolves.toEqual({ providerMessageId: 'sent-1' });
+    expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not fallback after primary failure', async () => {
     const providerError = new Error('adapter down with recipient +79990001122');
     sendPrimaryMock.mockRejectedValueOnce(providerError);

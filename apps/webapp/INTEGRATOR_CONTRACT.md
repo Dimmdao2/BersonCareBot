@@ -332,15 +332,16 @@ Canonical linking rules:
 ```json
 {
   "messageId": "webapp-msg:uuid",
-  "channel": "telegram" | "max" | "sms" | "email",
-  "recipient": "Telegram chat id, MAX platform user id, или phoneNormalized (SMS)",
+  "organizationId": "required UUID for web_push; optional for legacy non-tenant channels",
+  "channel": "telegram" | "max" | "sms" | "email" | "web_push",
+  "recipient": "channel recipient; platform user UUID for web_push",
   "text": "Текст сообщения",
-  "idempotencyKey": "messageId:channel:recipient",
+  "idempotencyKey": "organizationId-or-global:messageId:channel:recipient",
   "metadata": { "optional": "meta" }
 }
 ```
 
-**Idempotency key:** `${messageId}:${channel}:${recipient}` — TTL 24 часа (in-memory).
+**Idempotency key:** `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}` — TTL 24 часа (in-memory). Tenant входит в ключ; одновременный дубль до завершения первой отправки получает retryable `503 dispatch_in_flight`, а `200 duplicate` возвращается только после успешного завершения. Persistent exactly-once после рестарта не заявлен: до отдельного outbox/claim этапа контракт остаётся at-least-once через границу рестарта процесса.
 
 **Ответы integrator:**
 
@@ -349,6 +350,7 @@ Canonical linking rules:
 - `400 { ok: false, error: "invalid_payload" | "missing_headers" }` — невалидный запрос.
 - `401 { ok: false, error: "invalid_signature" }` — неверная подпись.
 - `502 { ok: false, error: "dispatch_failed" }` — ошибка доставки в канал.
+- `503 { ok: false, error: "dispatch_in_flight" }` — тот же tenant-scoped ключ ещё обрабатывается; запрос можно повторить.
 - `503 { ok: false, error: "service_unconfigured" }` — не задан секрет.
 
 ### Retry-политика webapp
@@ -370,7 +372,8 @@ Canonical linking rules:
 | `telegram` | chatId (string/number) | `createTelegramDeliveryAdapter` |
 | `max`      | chatId (string/number) | `createMaxDeliveryAdapter`      |
 | `sms`      | phoneNormalized        | `createSmscDeliveryAdapter`     |
-| `email`    | не реализован          | пропуск с логом                 |
+| `email`    | email address          | `createEmailDeliveryAdapter`    |
+| `web_push` | platform user UUID     | `createWebPushDeliveryAdapter`  |
 
 ---
 

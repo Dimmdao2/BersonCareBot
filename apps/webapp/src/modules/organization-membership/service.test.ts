@@ -73,6 +73,12 @@ describe("createOrganizationMembershipService", () => {
     );
   });
 
+  it("checks active staff membership against the exact organization", async () => {
+    const { service } = serviceFor([membership({ organizationId: "org-1" })]);
+    await expect(service.hasActiveMembership("user-1", "org-1")).resolves.toBe(true);
+    await expect(service.hasActiveMembership("user-1", "org-2")).resolves.toBe(false);
+  });
+
   it.each([
     ["owner", true],
     ["admin", true],

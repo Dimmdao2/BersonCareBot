@@ -36,7 +36,10 @@ describe("createIntegratorSupportBridge", () => {
   });
 
   it("applyAdminReply writes admin message for webapp platform conversation", async () => {
-    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({ id: "conv-internal" });
+    const ensureWebappConversationForUser = vi.fn().mockResolvedValue({
+      id: "conv-internal",
+      organizationId: "11111111-1111-4111-8111-111111111111",
+    });
     const appendWebappMessage = vi.fn().mockResolvedValue({ id: "msg-1", created: true });
     const notifyPatientOfDoctorReply = vi.fn().mockResolvedValue(undefined);
     const port = {

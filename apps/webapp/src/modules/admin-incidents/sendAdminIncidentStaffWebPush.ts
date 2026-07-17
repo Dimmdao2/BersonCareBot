@@ -31,6 +31,7 @@ export type AdminIncidentStaffPushDeps = {
 
 export async function sendAdminIncidentStaffWebPush(
   input: {
+    organizationId: string;
     topic: string;
     dedupKey: string;
     pushTitle: string;
@@ -62,6 +63,7 @@ export async function sendAdminIncidentStaffWebPush(
     const tag = `admin-incident:${input.topic}:${input.dedupKey}`;
     const result = await relayOutbound({
       messageId: `admin-incident-push:${userId}:${tag}`,
+      organizationId: input.organizationId,
       channel: "web_push",
       recipient: userId,
       text: input.pushBody,

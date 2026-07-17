@@ -39,6 +39,7 @@ export type NotifyDoctorPatientMessageToStaffDeps = {
 };
 
 export type NotifyDoctorStaffTopicInput = {
+  organizationId: string;
   topicCode: DoctorNotificationTopicCode;
   messageId: string;
   text: string;
@@ -147,6 +148,7 @@ export async function notifyDoctorPatientMessageToStaff(
       const tag = `${input.topicCode}:${input.messageId}`;
       const result = await relayOutbound({
         messageId: `${input.messageId}:push:${userId}`,
+        organizationId: input.organizationId,
         channel: "web_push",
         recipient: userId,
         text: input.pushBody,

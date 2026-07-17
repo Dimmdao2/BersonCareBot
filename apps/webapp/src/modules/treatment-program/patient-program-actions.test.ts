@@ -557,6 +557,7 @@ describe("patient-program-actions", () => {
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       templateId: tpl.id,
       patientUserId: patient,
       assignedBy: null,
@@ -579,6 +580,7 @@ describe("patient-program-actions", () => {
       }),
     );
     expect(notifyDoctorOfProgramNote).toHaveBeenCalledWith({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       patientUserId: patient,
       instanceId: inst.id,
       stageItemId: item.id,
@@ -692,6 +694,7 @@ describe("patient-program-actions", () => {
     const g1 = await tplSvc.createTemplateStageGroup(s1.id, { title: "G" });
     await tplSvc.addStageItem(s1.id, { itemType: "exercise", itemRefId: refA, comment: null, groupId: g1.id });
     const inst = await instSvc.assignTemplateToPatient({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       templateId: tpl.id,
       patientUserId: patient,
       assignedBy: null,

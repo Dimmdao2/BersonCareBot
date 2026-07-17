@@ -13,6 +13,7 @@ describe("fanOutBroadcastWebPush", () => {
 
     const result = await fanOutBroadcastWebPush(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         auditId: "audit-1",
         broadcastCategory: "marketing",
         broadcastTitle: "Акция",

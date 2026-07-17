@@ -110,13 +110,13 @@ export function createWebPushAccessPort(deps: {
       });
     },
 
-    async deleteSubscriptionByEndpoint(endpoint: string, organizationId: string): Promise<boolean> {
+    async deleteSubscriptionByEndpoint(pushUserId: string, endpoint: string, organizationId: string): Promise<boolean> {
       const baseUrl = await getAppBaseUrl();
       const secret = integratorWebhookSecret();
-      if (!baseUrl || !secret || !organizationId) return false;
+      if (!baseUrl || !secret || !organizationId || !pushUserId) return false;
 
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/web-push/subscriptions/delete`;
-      const body = JSON.stringify({ endpoint, organizationId });
+      const body = JSON.stringify({ endpoint, pushUserId, organizationId });
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = signPost(timestamp, body, secret);
       try {

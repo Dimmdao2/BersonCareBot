@@ -84,6 +84,7 @@ export async function POST(
     const item = await withDoctorWorkspacePrincipal(gate.ctx, () =>
       parsed.data.kind === "from_template"
         ? deps.treatmentProgramInstance.assignTemplateToPatient({
+            organizationId: gate.ctx.organizationId,
             templateId: parsed.data.templateId,
             patientUserId: identity.userId,
             assignedBy: session.user.userId,

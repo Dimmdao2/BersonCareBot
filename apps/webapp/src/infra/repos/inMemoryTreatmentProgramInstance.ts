@@ -204,6 +204,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       const now = isoNow();
       const inst: InstRow = {
         id,
+        organizationId: input.organizationId ?? null,
         patientUserId: input.patientUserId,
         templateId: input.templateId,
         assignedBy: input.assignedBy,

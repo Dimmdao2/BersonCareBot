@@ -211,7 +211,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const [inst] = await tx
           .insert(instTable)
           .values({
-            organizationId: currentWriteOrganizationId(),
+            organizationId: currentWriteOrganizationId(input.organizationId),
             templateId: input.templateId,
             patientUserId: input.patientUserId,
             assignedBy: input.assignedBy,

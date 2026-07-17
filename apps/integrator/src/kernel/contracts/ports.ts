@@ -150,6 +150,13 @@ export type DeliverySendResult = {
   telegramMessageId?: number;
   /** MAX Platform message id (`body.mid`) для `user_reminder_delivery_logs`. */
   maxMessageId?: string;
+  webPushOutcome?: {
+    status: 'success' | 'failed' | 'skipped';
+    reason?: string;
+    delivered: number;
+    errors: number;
+    deactivated: number;
+  };
 };
 
 /** Порт отправки исходящих намерений во внешний транспорт. */
@@ -728,5 +735,5 @@ export type WebPushAccessPort = {
    * Mirrors webapp's `WebPushSubscriptionsPort.deleteByEndpointIfExists`.
    * Returns `true` on successful deletion or if not found; `false` on error.
    */
-  deleteSubscriptionByEndpoint(endpoint: string, organizationId: string): Promise<boolean>;
+  deleteSubscriptionByEndpoint(pushUserId: string, endpoint: string, organizationId: string): Promise<boolean>;
 };

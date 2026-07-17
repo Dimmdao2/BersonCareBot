@@ -29,8 +29,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "valid organizationId required" }, { status: 400 });
   }
 
-  const { patientOrganization, webPushSubscriptions } = buildAppDeps();
-  if (!patientOrganization || !(await patientOrganization.hasActiveEnrollment(userId, organizationId))) {
+  const { organizationMembership, patientOrganization, webPushSubscriptions } = buildAppDeps();
+  const [isPatient, isStaff] = await Promise.all([
+    patientOrganization?.hasActiveEnrollment(userId, organizationId) ?? false,
+    organizationMembership?.hasActiveMembership(userId, organizationId) ?? false,
+  ]);
+  if (!isPatient && !isStaff) {
     return NextResponse.json({ ok: false, error: "notification target is outside organization" }, { status: 403 });
   }
   const subscriptions = await webPushSubscriptions.listActiveByUserId(userId);

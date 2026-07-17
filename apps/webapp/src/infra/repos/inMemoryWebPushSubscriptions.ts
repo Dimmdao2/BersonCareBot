@@ -52,7 +52,9 @@ export const inMemoryWebPushSubscriptionsPort: WebPushSubscriptionsPort = {
     return out;
   },
 
-  async deleteByEndpointIfExists(endpoint) {
+  async deleteByEndpointIfExists(userId, endpoint) {
+    const existing = byEndpoint.get(endpoint);
+    if (!existing || existing.userId !== userId) return false;
     return byEndpoint.delete(endpoint);
   },
 };

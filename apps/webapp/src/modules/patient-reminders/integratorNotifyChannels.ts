@@ -401,6 +401,7 @@ export async function runPatientReminderIntegratorNotify(
       // telegram test chat — ZERO real webpush.sendNotification calls.
       const relayResult = await relayOutbound({
         messageId: `prn:${body.occurrenceId}:web_push`,
+        organizationId: body.organizationId,
         channel: "web_push",
         recipient: uid,
         text: trackedPayload.body,

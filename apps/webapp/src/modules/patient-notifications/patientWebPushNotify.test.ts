@@ -116,6 +116,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     const deps = baseDeps();
     await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "appointment_lifecycle",
@@ -140,6 +141,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     const deps = baseDeps();
     const result = await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "appointment_lifecycle",
@@ -166,6 +168,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     const deps = baseDeps();
     await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "appointment_reminder",
@@ -186,6 +189,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
 
     const result = await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "appointment_reminder",
@@ -208,6 +212,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
 
     const result = await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "news",
@@ -229,6 +234,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
 
     const result = await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "news",
@@ -248,6 +254,7 @@ describe("runPatientWebPushNotify — P15 migration (relay-outbound, no direct s
     const deps = baseDeps();
     await runPatientWebPushNotify(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         platformUserId: "00000000-0000-4000-8000-000000000001",
         topicCode: "appointment_reminders",
         intentType: "news",

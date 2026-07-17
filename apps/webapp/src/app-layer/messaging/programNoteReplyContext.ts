@@ -17,6 +17,7 @@ export async function resolveProgramNoteReplyContext(
 
   const integratorConversationId = webappPlatformConversationId(row.patientUserId);
   return {
+    organizationId: row.organizationId!,
     platformUserId: row.patientUserId,
     stageItemId: id,
     exerciseTitle: exerciseTitleFromSnapshot(row.snapshot),

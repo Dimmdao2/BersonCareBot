@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const assertMock = vi.hoisted(() => vi.fn());
 const enterOrganizationPrincipalMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
 const hasActiveEnrollmentMock = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const hasActiveMembershipMock = vi.hoisted(() => vi.fn().mockResolvedValue(false));
 vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
   assertIntegratorGetRequest: assertMock,
 }));
@@ -18,6 +19,7 @@ const mockListActiveByUserId = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 // rather than just the factory function.
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    organizationMembership: { hasActiveMembership: hasActiveMembershipMock },
     patientOrganization: { hasActiveEnrollment: hasActiveEnrollmentMock },
     webPushSubscriptions: {
       listActiveByUserId: mockListActiveByUserId,
@@ -45,6 +47,7 @@ describe("GET /api/integrator/web-push/subscriptions", () => {
     wireDefaultAssertIntegratorGetForRouteTests(assertMock);
     enterOrganizationPrincipalMock.mockReset().mockReturnValue(true);
     hasActiveEnrollmentMock.mockReset().mockResolvedValue(true);
+    hasActiveMembershipMock.mockReset().mockResolvedValue(false);
     mockListActiveByUserId.mockReset().mockResolvedValue([]);
   });
 
@@ -119,5 +122,13 @@ describe("GET /api/integrator/web-push/subscriptions", () => {
     const res = await GET(new Request(signedUrl("outside-user"), { headers: integratorGetSignedHeadersOk }));
     expect(res.status).toBe(403);
     expect(mockListActiveByUserId).not.toHaveBeenCalled();
+  });
+
+  it("returns subscriptions for active staff in the exact organization", async () => {
+    hasActiveEnrollmentMock.mockResolvedValue(false);
+    hasActiveMembershipMock.mockResolvedValue(true);
+    const res = await GET(new Request(signedUrl("staff-user"), { headers: integratorGetSignedHeadersOk }));
+    expect(res.status).toBe(200);
+    expect(hasActiveMembershipMock).toHaveBeenCalledWith("staff-user", ORGANIZATION_ID);
   });
 });

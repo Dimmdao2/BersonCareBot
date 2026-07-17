@@ -7,7 +7,7 @@ import {
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 
-export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max';
+export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max' | 'web_push';
 
 const MESSENGER_CHANNELS: IntegratorNotificationDeliveryChannel[] = ['telegram', 'max'];
 
@@ -17,6 +17,7 @@ function isMessengerChannel(channel: string): channel is IntegratorNotificationD
 
 export type IntegratorRecordNotificationDeliveryAttemptInput = {
   integratorUserId?: string;
+  userId?: string;
   topicCode?: string;
   intentType?: string;
   channel: IntegratorNotificationDeliveryChannel;
@@ -65,10 +66,11 @@ export async function recordNotificationDeliveryAttemptBestEffort(
         targetDb,
         sql`INSERT INTO public.notification_delivery_attempts (
           organization_id,
-          integrator_user_id, topic_code, intent_type, channel, status, reason,
+          user_id, integrator_user_id, topic_code, intent_type, channel, status, reason,
           provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
         ) VALUES (
           ${input.organizationId ?? null}::uuid,
+          ${input.userId ?? null}::uuid,
           ${input.integratorUserId ?? null},
           ${input.topicCode ?? null},
           ${input.intentType ?? null},

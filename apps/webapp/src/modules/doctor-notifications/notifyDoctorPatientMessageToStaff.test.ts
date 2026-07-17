@@ -22,6 +22,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("delivers telegram to staff with default fallback and binding", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m1",
         text: "hello",
@@ -55,6 +56,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("skips telegram when explicitly disabled in prefs", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m2",
         text: "hello",
@@ -95,6 +97,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("delivers web_push via relay-outbound when subscription exists (P17 migrated)", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m3",
         text: "hello",
@@ -134,6 +137,7 @@ describe("notifyDoctorPatientMessageToStaff", () => {
   it("skips web_push when no subscription exists", async () => {
     const result = await notifyDoctorPatientMessageToStaff(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         topicCode: "doctor_patient_messages",
         messageId: "patient-msg-notify:m4",
         text: "hello",

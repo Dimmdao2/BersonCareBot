@@ -102,6 +102,7 @@ describe("notifyDoctorPatientProgramNote", () => {
   it("notifyDoctorPatientProgramNote uses staff topic delivery when staffDeps provided", async () => {
     await notifyDoctorPatientProgramNote(
       {
+        organizationId: "11111111-1111-4111-8111-111111111111",
         patientUserId,
         instanceId,
         stageItemId,
@@ -132,6 +133,7 @@ describe("notifyDoctorPatientProgramNote", () => {
 
   it("notifyDoctorPatientProgramNote falls back to legacy relay without staffDeps", async () => {
     await notifyDoctorPatientProgramNote({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       patientUserId,
       instanceId,
       stageItemId,
@@ -154,6 +156,7 @@ describe("notifyDoctorPatientProgramNote", () => {
   it("notifyDoctorPatientProgramNote skips relay when no targets and no staffDeps", async () => {
     vi.mocked(loadDoctorNotifyTargets).mockResolvedValue({ telegram: [], max: [] });
     await notifyDoctorPatientProgramNote({
+      organizationId: "11111111-1111-4111-8111-111111111111",
       patientUserId,
       instanceId,
       stageItemId,

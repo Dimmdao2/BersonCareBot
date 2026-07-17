@@ -79,9 +79,10 @@ export function createDoctorSupportMessagingService(
         createdAt: now,
       });
 
-      if (platformUserId && opts?.notifyPatientOfDoctorReply) {
+      if (platformUserId && convInfo.organizationId && opts?.notifyPatientOfDoctorReply) {
         opts
           .notifyPatientOfDoctorReply({
+            organizationId: convInfo.organizationId,
             platformUserId,
             messageId: integratorMessageId,
             text: trimmed,

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
+
+const recordNotificationAttemptMock = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../../infra/db/repos/notificationDeliveryAttempts.js', () => ({
+  recordNotificationDeliveryAttemptBestEffort: recordNotificationAttemptMock,
+}));
 import {
   registerBersoncareRelayOutboundRoute,
   signRelayRequest,
@@ -10,6 +15,7 @@ import { getCurrentOrganizationPrincipalId } from '../../infra/principal/organiz
 
 const TEST_SECRET = 'test-shared-secret-16chars';
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const PUSH_USER_ID = '33333333-3333-4333-8333-333333333333';
 
 function makeDispatchPort(overrides: Partial<DispatchPort> = {}): DispatchPort {
   return {
@@ -32,7 +38,7 @@ async function buildTestApp(dispatchPort: DispatchPort, secret = TEST_SECRET) {
     }
   });
 
-  await registerBersoncareRelayOutboundRoute(app, { dispatchPort, sharedSecret: secret });
+  await registerBersoncareRelayOutboundRoute(app, { db: {} as never, dispatchPort, sharedSecret: secret });
   return app;
 }
 
@@ -51,6 +57,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
   let app: Awaited<ReturnType<typeof buildTestApp>>;
 
   beforeEach(async () => {
+    recordNotificationAttemptMock.mockClear();
     dispatchPort = makeDispatchPort();
     app = await buildTestApp(dispatchPort);
   });
@@ -139,16 +146,29 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
   });
 
+  it('rejects a non-UUID web_push recipient in the real relay schema', async () => {
+    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: 'not-a-uuid' });
+    const rawBody = JSON.stringify(body);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(dispatchPort.dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
   it('dispatches web_push inside the verified organization principal', async () => {
     let observedOrganizationId: string | undefined;
     vi.mocked(dispatchPort.dispatchOutgoing).mockImplementationOnce(async () => {
       observedOrganizationId = getCurrentOrganizationPrincipalId();
-      return {};
+      return { webPushOutcome: { status: 'success', delivered: 1, errors: 0, deactivated: 0 } };
     });
     const body = makeRelayBody({
       organizationId: ORGANIZATION_ID,
       channel: 'web_push',
-      recipient: 'user-id',
+      recipient: PUSH_USER_ID,
     });
     const rawBody = JSON.stringify(body);
     const res = await app.inject({
@@ -160,6 +180,77 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
     expect(res.statusCode).toBe(200);
     expect(observedOrganizationId).toBe(ORGANIZATION_ID);
+    expect(recordNotificationAttemptMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: ORGANIZATION_ID,
+        userId: PUSH_USER_ID,
+        channel: 'web_push',
+        status: 'success',
+      }),
+    );
+  });
+
+  it('projects the actual VAPID-missing outcome as skipped, never success', async () => {
+    vi.mocked(dispatchPort.dispatchOutgoing).mockResolvedValueOnce({
+      webPushOutcome: { status: 'skipped', reason: 'vapid_missing', delivered: 0, errors: 0, deactivated: 0 },
+    });
+    const body = makeRelayBody({ organizationId: ORGANIZATION_ID, channel: 'web_push', recipient: PUSH_USER_ID });
+    const rawBody = JSON.stringify(body);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(recordNotificationAttemptMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: 'skipped', reason: 'vapid_missing' }),
+    );
+  });
+
+  it('reserves an in-flight org-scoped key so concurrent duplicates send once', async () => {
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(dispatchPort.dispatchOutgoing).mockImplementationOnce(() => blocked.then(() => ({})));
+    const body = makeRelayBody({
+      organizationId: ORGANIZATION_ID,
+      channel: 'web_push',
+      recipient: PUSH_USER_ID,
+    });
+    const rawBody = JSON.stringify(body);
+    const request = () => app.inject({
+      method: 'POST' as const,
+      url: '/api/bersoncare/relay-outbound',
+      headers: makeHeaders(rawBody),
+      body: rawBody,
+    });
+
+    const first = request();
+    await vi.waitFor(() => expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1));
+    const duplicate = await request();
+    expect(duplicate.statusCode).toBe(503);
+    expect(JSON.parse(duplicate.body)).toEqual({ ok: false, error: 'dispatch_in_flight' });
+    release();
+    expect((await first).statusCode).toBe(200);
+    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not collide identical idempotency keys across organizations', async () => {
+    for (const organizationId of [ORGANIZATION_ID, '22222222-2222-4222-8222-222222222222']) {
+      const body = makeRelayBody({ organizationId, channel: 'web_push', recipient: PUSH_USER_ID });
+      const rawBody = JSON.stringify(body);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/bersoncare/relay-outbound',
+        headers: makeHeaders(rawBody),
+        body: rawBody,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ ok: true, status: 'accepted' });
+    }
+    expect(dispatchPort.dispatchOutgoing).toHaveBeenCalledTimes(2);
   });
 
   it('returns 400 for missing required fields', async () => {

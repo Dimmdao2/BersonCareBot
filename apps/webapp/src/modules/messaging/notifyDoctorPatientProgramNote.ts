@@ -46,6 +46,7 @@ export function buildDoctorPatientProgramNoteNotifyText(input: {
 }
 
 export type NotifyDoctorPatientProgramNoteInput = {
+  organizationId: string;
   patientUserId: string;
   instanceId: string;
   stageItemId: string;
@@ -88,6 +89,7 @@ export async function notifyDoctorPatientProgramNote(
   if (opts?.staffDeps) {
     void notifyDoctorPatientMessageToStaff(
       {
+        organizationId: input.organizationId,
         topicCode: "doctor_patient_program_notes",
         messageId,
         text,

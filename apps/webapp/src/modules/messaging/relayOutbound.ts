@@ -2,7 +2,7 @@
  * Relay-outbound клиент: отправляет сообщение пациенту через integrator.
  * Контракт: INTEGRATOR_CONTRACT.md, раздел «Flow: relay-outbound».
  * Retry: 0s → 10s → 60s → 5min (4 попытки).
- * Idempotency key: `${messageId}:${channel}:${recipient}`.
+ * Idempotency key: `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}`.
  */
 import { createHmac } from "node:crypto";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
@@ -13,11 +13,9 @@ export type RelayResult =
 
 export type RelayInlineButton = { text: string; callback_data: string };
 
-export type RelayOutboundParams = {
+type RelayOutboundBaseParams<C extends string> = {
   messageId: string;
-  /** Verified tenant carried into the integrator dispatch principal. */
-  organizationId?: string;
-  channel: string;
+  channel: C;
   recipient: string;
   text: string;
   /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
@@ -42,6 +40,11 @@ export type RelayOutboundParams = {
    */
   icsFilename?: string;
 };
+
+export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
+  (C extends "web_push"
+    ? { /** Verified tenant carried into the integrator dispatch principal. */ organizationId: string }
+    : { organizationId?: string });
 
 export type RelayOutboundDeps = {
   /**
@@ -102,8 +105,8 @@ async function attemptRelay(
   return { ok: true, status: data.status ?? "accepted" };
 }
 
-export async function relayOutbound(
-  params: RelayOutboundParams,
+export async function relayOutbound<C extends string>(
+  params: RelayOutboundParams<C>,
   deps: RelayOutboundDeps = {},
 ): Promise<RelayResult> {
   const { messageId, channel, recipient, text } = params;
@@ -126,7 +129,7 @@ export async function relayOutbound(
   }
 
   const secret = (await getIntegratorWebhookSecret()).trim();
-  const idempotencyKey = `${messageId}:${channel}:${recipient}`;
+  const idempotencyKey = `${params.organizationId ?? "global"}:${messageId}:${channel}:${recipient}`;
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 
   const bodyObj: Record<string, unknown> = { messageId, channel, recipient, text, idempotencyKey };

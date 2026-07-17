@@ -71,6 +71,7 @@ export async function executeBroadcastAction(
       actorId: workspace.session.user.userId,
     },
     {
+      organizationId: workspace.organizationId,
       runDeliveryCommit: (fn) =>
         withDoctorWorkspacePrincipal(workspace, "doctor.broadcasts.execute", fn),
     },
