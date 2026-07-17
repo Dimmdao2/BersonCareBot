@@ -52,6 +52,7 @@ import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatm
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
 import { TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
+import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -81,9 +82,9 @@ function mapInstance(row: typeof instTable.$inferSelect): TreatmentProgramInstan
     assignmentSource: (row.assignmentSource ?? "doctor") as TreatmentProgramInstanceSummary["assignmentSource"],
     title: row.title,
     status: row.status as TreatmentProgramInstanceStatus,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    patientPlanLastOpenedAt: row.patientPlanLastOpenedAt ?? null,
+    createdAt: toIsoStringSafe(row.createdAt),
+    updatedAt: toIsoStringSafe(row.updatedAt),
+    patientPlanLastOpenedAt: nullableToIsoStringSafe(row.patientPlanLastOpenedAt),
   };
 }
 

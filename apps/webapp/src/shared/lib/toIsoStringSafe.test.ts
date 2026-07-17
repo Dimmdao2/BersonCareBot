@@ -11,6 +11,10 @@ describe("toIsoStringSafe", () => {
     expect(toIsoStringSafe("2026-06-06T01:40:00.000Z")).toBe("2026-06-06T01:40:00.000Z");
   });
 
+  it("normalizes a PostgreSQL timestamptz string with a numeric offset", () => {
+    expect(toIsoStringSafe("2026-06-17 12:00:00+02")).toBe("2026-06-17T10:00:00.000Z");
+  });
+
   it("nullable returns null for empty", () => {
     expect(nullableToIsoStringSafe(null)).toBeNull();
     expect(nullableToIsoStringSafe(undefined)).toBeNull();

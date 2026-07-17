@@ -14,4 +14,13 @@ describe("pgTreatmentProgramInstance started_at contract", () => {
     expect(src).toContain('patch.status === "in_progress" && !stRow.startedAt');
     expect(src).toContain("startedAtForPatch !== undefined ? { startedAt: startedAtForPatch }");
   });
+
+  it("normalizes instance timestamps at the repository boundary", () => {
+    const src = readFileSync(join(__dirname, "pgTreatmentProgramInstance.ts"), "utf8");
+    expect(src).toContain("createdAt: toIsoStringSafe(row.createdAt)");
+    expect(src).toContain("updatedAt: toIsoStringSafe(row.updatedAt)");
+    expect(src).toContain(
+      "patientPlanLastOpenedAt: nullableToIsoStringSafe(row.patientPlanLastOpenedAt)",
+    );
+  });
 });
