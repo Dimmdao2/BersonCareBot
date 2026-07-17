@@ -25,6 +25,16 @@ export const SAAS_TEST_FIXTURE_PATIENT_PHONES = Object.freeze({
   patientB: '+12025550102',
 });
 
+/**
+ * Public booking slugs for the canonical `/book/{publicSlug}` link (owner canon
+ * OWNER_RULINGS_2026-07-17.md §1), reconciled onto the same two synthetic clinics so the
+ * click-through flow is verifiable on TEST: `/book/saas-test-clinic-a`, `/book/saas-test-clinic-b`.
+ */
+export const SAAS_TEST_FIXTURE_CLINIC_SLUGS = Object.freeze({
+  organizationA: 'saas-test-clinic-a',
+  organizationB: 'saas-test-clinic-b',
+});
+
 const ids = {
   organizationA: '53000000-0000-4000-8000-0000000000a1',
   organizationB: '53000000-0000-4000-8000-0000000000b1',
@@ -870,9 +880,9 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
     await tx.delete(schema.mediaFiles).where(inArray(schema.mediaFiles.id, [...ids.mediaFiles]));
     await tx.delete(schema.messageLog).where(inArray(schema.messageLog.id, [...ids.messageLogs]));
 
-    for (const [organizationId, title] of [
-      [ids.organizationA, 'SaaS TEST Clinic A'],
-      [ids.organizationB, 'SaaS TEST Solo Clinic B'],
+    for (const [organizationId, title, slug] of [
+      [ids.organizationA, 'SaaS TEST Clinic A', SAAS_TEST_FIXTURE_CLINIC_SLUGS.organizationA],
+      [ids.organizationB, 'SaaS TEST Solo Clinic B', SAAS_TEST_FIXTURE_CLINIC_SLUGS.organizationB],
     ] as const) {
       await tx
         .insert(schema.beOrganizations)
@@ -882,6 +892,22 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: { title, isActive: true, updatedAt: nowIso },
         });
       await tx.execute(sql`SELECT app.seed_reference_catalog_snapshot(${organizationId}::uuid)`);
+      // Canonical public booking link `/book/{publicSlug}` (OWNER_RULINGS_2026-07-17.md §1):
+      // reconcile the published directory entry so the demo clinics are click-through-verifiable.
+      await tx
+        .insert(schema.clinicPublicDirectoryEntries)
+        .values({
+          organizationId,
+          slug,
+          displayName: title,
+          isPublished: true,
+          publishedAt: nowIso,
+          updatedAt: nowIso,
+        })
+        .onConflictDoUpdate({
+          target: schema.clinicPublicDirectoryEntries.organizationId,
+          set: { slug, displayName: title, isPublished: true, publishedAt: nowIso, updatedAt: nowIso },
+        });
     }
 
     const globalAdmin = {
