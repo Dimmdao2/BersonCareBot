@@ -42,6 +42,7 @@ REFERENCE_CATALOG_RLS=deploy/postgres/reference-catalog-rls.sql
 PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql
 PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
 PUBLIC_BOOKING_BOOTSTRAP_RESOLVER=deploy/postgres/public-booking-bootstrap-resolver.sql
+PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER=deploy/postgres/public-clinic-slug-bootstrap-resolver.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql
@@ -386,6 +387,7 @@ rehydrate_post_restore_runtime_overlays(){
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VISIBLE_CATALOG_RLS"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
     sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"
+    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"
   fi
   sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
     -v e1_webapp_runtime_role="$e1_runtime_role" \
@@ -973,7 +975,8 @@ assert_strict_closure_deploy_checkout_ready(){
     "$OVERRIDE" "$P0_5B_ROLES" "$P0_5B_GRANTS" "$P2_B_CONTEXT" \
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
-    "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
+    "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
+    "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_WEB_PUSH_REMINDER_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
@@ -1053,6 +1056,7 @@ esac
 [ -r "$SRC_REPO/$PATIENT_VISIBLE_CATALOG_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VISIBLE_CATALOG_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_VAPID_ACCESSOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_VAPID_ACCESSOR"; exit 1; }
 [ -r "$SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"; exit 1; }
+[ -r "$SRC_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
 [ -r "$SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"; exit 1; }
