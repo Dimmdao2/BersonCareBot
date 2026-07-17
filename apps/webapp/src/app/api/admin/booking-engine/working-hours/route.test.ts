@@ -148,8 +148,8 @@ describe("/api/admin/booking-engine/working-hours", () => {
     );
     expect(res.status).toBe(200);
     expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(
-      "org-1",
       "11111111-1111-4111-8111-111111111111",
+      "org-1",
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "org-1" }),

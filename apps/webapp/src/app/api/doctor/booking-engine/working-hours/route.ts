@@ -179,7 +179,7 @@ export async function DELETE(request: Request) {
   }
   const bookingScheduling = deps.bookingScheduling;
   await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.working-hours.deactivate", () =>
-    bookingScheduling.deactivateWorkingHours(gate.ctx.organizationId, id),
+    bookingScheduling.deactivateWorkingHours(id, gate.ctx.organizationId),
   );
   return NextResponse.json({ ok: true });
 }

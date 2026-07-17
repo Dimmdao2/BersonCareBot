@@ -228,7 +228,7 @@ describe("/api/doctor/booking-engine/working-hours (self-scope)", () => {
       new Request(`http://localhost/api/doctor/booking-engine/working-hours?id=${OWN_ROW_ID}`),
     );
     expect(res.status).toBe(200);
-    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith("org-1", OWN_ROW_ID);
+    expect(deactivateWorkingHoursMock).toHaveBeenCalledWith(OWN_ROW_ID, "org-1");
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "org-1" }),
       "doctor.booking-engine.working-hours.deactivate",
