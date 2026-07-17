@@ -169,9 +169,39 @@ describe("GET /api/doctor/messages/conversations", () => {
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     const data = (await res.json()) as {
       ok: boolean;
-      conversations: { onSupport: boolean }[];
+      conversations: { onSupport: boolean; patientUserId: string | null }[];
     };
     expect(data.conversations[0]?.onSupport).toBe(false);
+    expect(data.conversations[0]?.patientUserId).toBeNull();
+  });
+
+  it("includes patientUserId (already derived, no extra query) for webapp conversations (#813)", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "d1", role: "doctor", bindings: {} },
+    });
+    const patientId = "aaaaaaaa-0000-4000-8000-000000000001";
+    listMock.mockResolvedValue([
+      {
+        conversationId: "00000000-0000-4000-8000-000000000020",
+        integratorConversationId: `webapp:platform:${patientId}`,
+        source: "webapp",
+        status: "open",
+        openedAt: "2025-01-01T00:00:00.000Z",
+        lastMessageAt: "2025-01-02T00:00:00.000Z",
+        displayName: "Пациент",
+        phoneNormalized: null,
+        lastMessageText: null,
+        lastSenderRole: null,
+        unreadFromUserCount: 0,
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
+    const data = (await res.json()) as {
+      ok: boolean;
+      conversations: { patientUserId: string | null }[];
+    };
+    expect(data.conversations[0]?.patientUserId).toBe(patientId);
   });
 
   it("calls listClients with scoped userIds extracted from conversations (EXTRA-02)", async () => {

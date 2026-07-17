@@ -103,6 +103,31 @@ describe("DoctorTodayLeftKpiRow", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("«Открыть переписку» deep-links to the exact conversation, not just the chats tab (#812)", async () => {
+    const user = userEvent.setup();
+    render(
+      <DoctorTodayLeftKpiRow
+        {...emptyProps()}
+        unreadTotal={1}
+        unreadConversations={[
+          {
+            conversationId: "conv-1",
+            displayName: "Иванова",
+            phoneNormalized: "+79990001122",
+            lastMessageAtLabel: "01.01.2026",
+            lastMessageText: "Здравствуйте",
+            lastMessagePreview: "Здравствуйте",
+            unreadFromUserCount: 2,
+            href: "/app/doctor/communications?tab=chats&chatId=conv-1",
+          },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /Сообщения/i }));
+    const link = screen.getByRole("link", { name: "Открыть переписку" });
+    expect(link).toHaveAttribute("href", "/app/doctor/communications?tab=chats&chatId=conv-1");
+  });
+
   it("clicking Комментарии opens exercise comments dialog", async () => {
     const user = userEvent.setup();
     render(

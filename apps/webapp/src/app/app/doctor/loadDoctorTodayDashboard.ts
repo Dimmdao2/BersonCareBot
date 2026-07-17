@@ -32,6 +32,7 @@ import {
   type TodayProactiveInsightItem,
 } from "./mapProactiveInsightsForToday";
 import { patientCardHref } from "./patients/patientCardHref";
+import { communicationsChatHref } from "./communications/doctorCommunicationsTabs";
 import { formatDateTimeRu, truncateText } from "./doctorTodayFormat";
 import {
   loadDoctorExerciseCommentAttention,
@@ -200,8 +201,6 @@ const INTAKE_TYPE_LABELS: Record<IntakeType, string> = {
   nutrition: "Нутрициология",
 };
 
-const MESSAGES_HREF = "/app/doctor/messages";
-
 export const ON_SUPPORT_LIST_HREF = "/app/doctor/patients?segment=on_support";
 
 export const PROGRAM_WITHOUT_SUPPORT_LIST_HREF =
@@ -264,7 +263,9 @@ export function mapConversationToTodayItem(row: TodayConversationSourceRow): Tod
     lastMessageText: row.lastMessageText,
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
-    href: MESSAGES_HREF,
+    // #812: deep-link to the exact dialog (not just the chats tab) — Today KPI
+    // «открыть переписку» must select this conversation, not land on an empty list.
+    href: communicationsChatHref(row.conversationId),
   };
 }
 

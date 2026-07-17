@@ -31,7 +31,10 @@ export const COMMUNICATIONS_TAB_REGISTRY: CommunicationsTabRegistryEntry[] = [
   {
     id: "chats",
     loader: () => import("./tabs/ChatsTab").then((m) => ({ default: m.ChatsTab })),
-    deepLinkKeys: [],
+    // #812: ?chatId= selects the conversation (DoctorSupportInbox onSelectedConversationChange).
+    // NOT "id" — the shell copies a URL key into EVERY tab declaring it, and "id" is intake's key;
+    // sharing it leaks the conversationId into intake as a request-id (stray 404 fetch).
+    deepLinkKeys: ["chatId"],
   },
   {
     id: "comments",

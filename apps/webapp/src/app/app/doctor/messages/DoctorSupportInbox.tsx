@@ -9,15 +9,16 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { DoctorChatPanel } from "@/modules/messaging/components/DoctorChatPanel";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { patientCardHref } from "../patients/patientCardHref";
 
 const POLL_INTERVAL_MS = 1_000;
 
 type ConvRow = {
   conversationId: string;
-  patientUserId: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -28,11 +29,12 @@ type ConvRow = {
   unreadFromUserCount: number;
   hasUnreadFromUser: boolean;
   onSupport: boolean;
+  /** #813: null for non-webapp-platform conversations (e.g. Telegram/MAX) — no patient card to open. */
+  patientUserId: string | null;
 };
 
 type ConversationApiRow = {
   conversationId: string;
-  patientUserId?: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
@@ -43,6 +45,7 @@ type ConversationApiRow = {
   unreadFromUserCount?: number;
   hasUnreadFromUser?: boolean;
   onSupport?: boolean;
+  patientUserId?: string | null;
 };
 
 function formatConversationTime(value: string, tz = "Europe/Moscow"): string {
@@ -67,7 +70,6 @@ function getSenderPrefix(conv: ConvRow): string {
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
   return conversations.map((c) => ({
     conversationId: c.conversationId,
-    patientUserId: c.patientUserId ?? null,
     displayName: c.displayName,
     firstName: c.firstName ?? null,
     lastName: c.lastName ?? null,
@@ -78,6 +80,7 @@ function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
     unreadFromUserCount: c.unreadFromUserCount ?? 0,
     hasUnreadFromUser: c.hasUnreadFromUser ?? (c.unreadFromUserCount ?? 0) > 0,
     onSupport: c.onSupport ?? false,
+    patientUserId: c.patientUserId ?? null,
   }));
 }
 
@@ -93,11 +96,20 @@ function convSignature(rows: ConvRow[]): string {
 export type DoctorSupportInboxProps = {
   active?: boolean;
   displayIana?: string;
+  /** #812: deep-link ?id= from the Communications shell — opens this conversation on mount. */
+  initialSelectedConversationId?: string | null;
+  /** #812: called on every selection change so the shell can keep ?id= in sync (shareable URL). */
+  onSelectedConversationChange?: (id: string | null) => void;
 };
 
 type FilterMode = "all" | "unread" | "onSupport";
 
-export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow" }: DoctorSupportInboxProps) {
+export function DoctorSupportInbox({
+  active = true,
+  displayIana = "Europe/Moscow",
+  initialSelectedConversationId = null,
+  onSelectedConversationChange,
+}: DoctorSupportInboxProps) {
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -106,6 +118,29 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const sigRef = useRef<string>("");
+  const selectedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
+  // Deep-link: открыть конкретный диалог из URL (?id=), матчит паттерн IntakeTab/
+  // DoctorOnlineIntakeClient. Реагируем только на ВНЕШНИЙ deep-link — если диалог уже
+  // выбран (echo от нашего же onSelectedConversationChange после клика), не перезапускаем.
+  useEffect(() => {
+    const id = initialSelectedConversationId?.trim();
+    if (!id) return;
+    if (selectedIdRef.current === id) return;
+    setSelectedId(id);
+  }, [initialSelectedConversationId]);
+
+  const selectConversation = useCallback(
+    (id: string | null) => {
+      setSelectedId(id);
+      onSelectedConversationChange?.(id);
+    },
+    [onSelectedConversationChange],
+  );
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -302,7 +337,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
               key={c.conversationId}
               type="button"
               variant="ghost"
-              onClick={() => setSelectedId(c.conversationId)}
+              onClick={() => selectConversation(c.conversationId)}
               className={cn(
                 "flex h-auto w-full cursor-pointer gap-2 rounded-none border-b border-border px-3 py-2.5 text-left transition-colors",
                 selectedId === c.conversationId
@@ -349,10 +384,6 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
   );
 
   const selectedConv = selectedId ? (allList.find((c) => c.conversationId === selectedId) ?? null) : null;
-  const selectedProfileHref = selectedConv?.patientUserId
-    ? `/app/doctor/patients/${encodeURIComponent(selectedConv.patientUserId)}`
-    : null;
-
   const rightPane = (
     <div className="flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
       {!selectedId ? (
@@ -365,7 +396,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         </DoctorEmptyState>
       ) : (
         <>
-          {/* Thread header: patient name + close button */}
+          {/* Thread header: patient name + «открыть карточку» (#813) + close button */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {selectedConv
@@ -374,19 +405,19 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
                     : selectedConv.displayName)
                 : "—"}
             </span>
-            {selectedProfileHref ? (
+            {selectedConv?.patientUserId ? (
               <Link
-                href={selectedProfileHref}
-                className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground/80 hover:bg-muted hover:text-foreground"
+                href={patientCardHref(selectedConv.patientUserId)}
+                className={cn(doctorInlineLinkClass, "shrink-0 text-xs")}
               >
-                Профиль
+                Открыть карточку
               </Link>
             ) : null}
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              onClick={() => setSelectedId(null)}
+              onClick={() => selectConversation(null)}
               aria-label="Закрыть тред"
               className="shrink-0 text-muted-foreground hover:text-foreground"
             >
@@ -414,7 +445,7 @@ export function DoctorSupportInbox({ active = true, displayIana = "Europe/Moscow
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setSelectedId(null)}
+          onClick={() => selectConversation(null)}
           className="mb-2"
         >
           ← К списку

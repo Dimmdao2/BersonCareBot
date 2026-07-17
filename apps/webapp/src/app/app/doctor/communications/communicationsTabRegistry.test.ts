@@ -9,8 +9,13 @@ import { COMMUNICATIONS_TABS } from "./doctorCommunicationsTabs";
  * НЕ восстановится (молчаливая поломка deep-link). typecheck это не ловит (ключ — строка).
  *
  * Зафиксированные deep-link ключи:
- *   intake → "id", broadcasts → "archive", chats/comments → нет.
+ *   intake → "id", broadcasts → "archive", chats → "chatId" (#812), comments → нет.
  * При добавлении нового deep-link обёртке — обновить и реестр, и этот тест.
+ *
+ * ВАЖНО: ключи обязаны быть УНИКАЛЬНЫ между табами. readDeepLinksFromSearchParams
+ * (DoctorCommunicationsShell) копирует URL-ключ в КАЖДЫЙ таб, который его объявляет —
+ * общий ключ протекает значением в чужой таб (chats "id" утекал в intake как
+ * request-id → stray 404 fetch). Отсюда namespaced "chatId" вместо "id".
  */
 describe("communicationsTabRegistry — deep-link keys contract", () => {
   const byId = new Map(COMMUNICATIONS_TAB_REGISTRY.map((e) => [e.id, e]));
@@ -29,9 +34,17 @@ describe("communicationsTabRegistry — deep-link keys contract", () => {
     expect(byId.get("broadcasts")?.deepLinkKeys).toContain("archive");
   });
 
-  it("chats and comments declare no deep-link keys", () => {
-    expect(byId.get("chats")?.deepLinkKeys).toEqual([]);
+  it("chats declares deep-link key 'chatId' (#812, namespaced — NOT intake's 'id')", () => {
+    expect(byId.get("chats")?.deepLinkKeys).toEqual(["chatId"]);
+  });
+
+  it("comments declares no deep-link keys", () => {
     expect(byId.get("comments")?.deepLinkKeys).toEqual([]);
+  });
+
+  it("deep-link keys are unique across tabs (shared key leaks values between tabs)", () => {
+    const allKeys = COMMUNICATIONS_TAB_REGISTRY.flatMap((e) => [...e.deepLinkKeys]);
+    expect(new Set(allKeys).size).toBe(allKeys.length);
   });
 
   it("every entry has a loader", () => {

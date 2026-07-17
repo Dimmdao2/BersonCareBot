@@ -3,6 +3,7 @@ import {
   COMMUNICATIONS_TABS,
   COMMUNICATIONS_DEFAULT_TAB,
   communicationsTabFromQuery,
+  communicationsChatHref,
 } from "./doctorCommunicationsTabs";
 
 describe("doctorCommunicationsTabs", () => {
@@ -33,6 +34,20 @@ describe("doctorCommunicationsTabs", () => {
       expect(communicationsTabFromQuery(null)).toBe(COMMUNICATIONS_DEFAULT_TAB);
       expect(communicationsTabFromQuery(undefined)).toBe(COMMUNICATIONS_DEFAULT_TAB);
       expect(communicationsTabFromQuery("nonsense")).toBe(COMMUNICATIONS_DEFAULT_TAB);
+    });
+  });
+
+  describe("communicationsChatHref (#812)", () => {
+    it("builds a deep link to the chats tab with the conversation id under 'chatId' (not intake's 'id')", () => {
+      expect(communicationsChatHref("conv-1")).toBe(
+        "/app/doctor/communications?tab=chats&chatId=conv-1",
+      );
+    });
+
+    it("URL-encodes the conversation id", () => {
+      expect(communicationsChatHref("webapp:platform:abc")).toBe(
+        "/app/doctor/communications?tab=chats&chatId=webapp%3Aplatform%3Aabc",
+      );
     });
   });
 });
