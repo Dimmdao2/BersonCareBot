@@ -14,6 +14,8 @@ const files = {
     'apps/webapp/src/modules/operator-health/saasIsolationPostRuntimeGate.test.ts',
   ui: 'apps/webapp/src/app/app/settings/SystemHealthSection.tsx',
   testScenarioRunner: 'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.ts',
+  testScenarioRunnerTest:
+    'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioRunner.test.ts',
   testScenarioCli: 'apps/webapp/scripts/run-saas-isolation-test-scenarios.ts',
   testScenarioCliArgs:
     'apps/webapp/src/modules/operator-health/saasIsolationTestScenarioCliArgs.ts',
@@ -176,8 +178,17 @@ async function main() {
     'finally {',
     "await deps.apply('clean')",
     'assertSaasIsolationTestFixtureClean(await deps.readFixtureCounts())',
+    'baseline = await deps.readHealth()',
+    'assertEventComponentRestored(await deps.readHealth(), baseline)',
+    'expectedUnexplained = baseline.active.unexplained',
   ])
     requireText(loaded.testScenarioRunner, fragment, 'TEST scenario guaranteed cleanup');
+  for (const fragment of [
+    'proves fixture deltas without hiding a pre-existing real E1 event',
+    'fails if the okay fixture changes the real E1 event component',
+    'role_pool_mismatch: 14',
+  ])
+    requireText(loaded.testScenarioRunnerTest, fragment, 'TEST scenario baseline-aware coverage');
   for (const fragment of [
     "const REQUIRED_DATABASE = 'bersoncarebot_test'",
     'saas_telemetry_operator',
