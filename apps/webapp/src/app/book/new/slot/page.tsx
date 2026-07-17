@@ -52,8 +52,10 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
   const cityTitle = first(raw.cityTitle) ?? "";
   const serviceTitle = first(raw.serviceTitle) ?? "";
   const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
+  const orgSlug = first(raw.orgSlug)?.trim();
   const backHref =
-    `${publicBookPaths.newService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}`;
+    `${publicBookPaths.newService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}` +
+    (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : "");
 
   return (
     <PublicBookingShell title="Выберите дату и время" step={3} totalSteps={4} backHref={backHref}>
