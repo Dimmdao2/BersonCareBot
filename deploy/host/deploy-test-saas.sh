@@ -172,7 +172,10 @@ cleanup_pre_destructive_exit(){
 
 stage_hash_bound_rubitime_csv(){
   local staged_hash staged_meta
-  sudo install -d -o root -g deploy -m 0750 /run/bersoncarebot
+  sudo test -d /run/bersoncarebot && sudo test ! -L /run/bersoncarebot || {
+    echo "FATAL: canonical /run/bersoncarebot directory is missing or symlinked" >&2
+    exit 2
+  }
   STAGED_INPUT_DIR="$(sudo mktemp -d -p /run/bersoncarebot full-reset-input.XXXXXX)"
   sudo chown root:deploy "$STAGED_INPUT_DIR"
   sudo chmod 0750 "$STAGED_INPUT_DIR"
