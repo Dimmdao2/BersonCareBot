@@ -1868,3 +1868,40 @@ is still used, but client/subscriber classification no longer filters this page 
 The owner then chose the reversible variant: keep the existing typed category mechanism dormant, update membership
 evidence, hide its UI and do not apply it to the default list. This avoids destructive removal while the final
 long-term need for the segment remains undecided.
+
+### C1 Today + Clients closeout (`#850`)
+
+The accepted implementation is `9957bd71c` (stage range `0b73236e2..9957bd71c`). Today now keeps all three
+appointment KPI cards equal-height and renders split-card labels above their values without changing shared doctor
+visual tokens. Clients shows all organization people by default, keeps the typed client/subscriber classifier
+dormant and reversible, adds membership as client evidence, and hides the category UI. The left pane contains only
+search plus the initial `Недавние приёмы` / `ФИО А–Я` sorting control. Recent sorting uses the last occurred,
+non-deleted, non-cancelled canonical appointment in the current organization, puts null interaction dates last and
+uses stable FIO/display-name/user-id tie-breaks. The right desktop panel retains factual filters. Row indicators are
+non-interactive and limited to future appointment count, membership, support and program without duplicate support.
+
+Independent full-stage re-audit `bcb-c1-850-reaudit-20260718`, audit id
+`bcb-c1-850-final-reaudit-20260718-9957bd71c`, returned **PASS** with no A/B findings. Its D-only notes were
+pre-existing visual-guide drift and dormant legacy-filter cleanup recommendations; neither expands this stage.
+
+Lead validation on the integrated commit:
+
+- focused Vitest: 3 files, 43 tests passed;
+- affected-file ESLint: passed;
+- clean detached-worktree webapp `tsc --noEmit`: passed;
+- `git diff --check`: passed;
+- live DEV `dev:doctor`: `/app/doctor` and `/app/doctor/patients` returned HTTP 200 and were visually inspected at
+  `1480x1024` and `390x844`;
+- evidence: `/home/dev/brain/runs/c1-850-ui/today-desktop.png`, `today-mobile.png`,
+  `clients-desktop.png`, `clients-mobile.png`.
+
+The live DEV doctor fixture had zero clients, so default layout, sorting control, hidden category UI, right-panel
+placement and responsive behavior were verified live; populated row-indicator and ordering states are covered by
+the focused component/repository tests rather than synthetic DEV data. The first in-place typecheck attempt was
+invalidated by stale `.next/dev/types` from the running Next server; the server and its cache were left intact and
+the same commit passed a clean detached-worktree typecheck instead.
+
+Both worker commits were fast-forwarded into `feat/doctor-ui-rebuild`. The stage branch, stage worktree, detached
+validation worktree and their temporary dependency links were removed. The persistent DEV server was not stopped,
+no TEST/PROD/deploy/data action occurred, and the owner's untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched.
