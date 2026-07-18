@@ -172,7 +172,7 @@ describe("ScheduleWorkTab", () => {
     fireEvent.click(await screen.findByTestId("day-cell-2026-08-03"));
     await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId("day-cell-empty-0"));
+    fireEvent.mouseDown(screen.getByTestId("day-cell-empty-0"));
 
     await waitFor(() => {
       expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
@@ -641,7 +641,7 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
-  it("E4: clearing selection hides hours panel", async () => {
+  it("E4: a second click on the selected day clears selection; no explicit clear-selection button is rendered", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
@@ -649,10 +649,23 @@ describe("ScheduleWorkTab", () => {
     fireEvent.click(cell);
     await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId("btn-clear-selection"));
+    expect(screen.queryByTestId("btn-clear-selection")).not.toBeInTheDocument();
+    fireEvent.click(cell);
     await waitFor(() => {
       expect(screen.queryByTestId("hours-panel")).not.toBeInTheDocument();
     });
+  });
+
+  it("enables clear schedule only when at least one selected date already has a schedule", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+    expect(screen.getByTestId("btn-clear-schedule")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("day-cell-2026-06-02"), { ctrlKey: true });
+    await waitFor(() => expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled());
   });
 
   // ── E5: Шаблоны с N перерывами ──────────────────────────────────────────

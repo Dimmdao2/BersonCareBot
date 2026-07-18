@@ -346,19 +346,14 @@ type DayCellProps = {
   branches: Branch[];
   isSelected: boolean;
   onToggle: (date: string, shift: boolean, meta: boolean) => void;
-  onClearSelection?: () => void;
   effectiveHours?: EffectiveHours;
 };
 
-function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, onClearSelection, effectiveHours }: DayCellProps) {
+function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onToggle, effectiveHours }: DayCellProps) {
   if (!dateKey) {
     return (
-      <Button
-        type="button"
-        variant="ghost"
+      <div
         className="min-h-[52px] rounded-md border border-dashed border-transparent bg-transparent transition-colors hover:border-border/70 hover:bg-muted/20"
-        aria-label="Сбросить выбор дней"
-        onClick={() => onClearSelection?.()}
         data-testid={cellIndex != null ? `day-cell-empty-${cellIndex}` : undefined}
       />
     );
@@ -1001,6 +996,9 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const selectedDates = [...selected].sort();
   const firstSelectedDate = selectedPrimaryDate ?? selectedDates[0] ?? null;
   const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
+  const hasScheduleForSelection = selectionMode === "weekday" && selectedWeekday !== null
+    ? resolvePanelDefaultsForWeekday(selectedWeekday, workingHours) !== null
+    : selectedDates.some((date) => resolvePanelDefaultsForDate(date, dayMap, workingHours) !== null);
 
   useEffect(() => {
     if (!firstSelectedDate && selectedWeekday === null) return;
@@ -1183,7 +1181,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   branches={branches}
                   isSelected={dateKey ? selected.has(dateKey) : false}
                   onToggle={toggleDay}
-                  onClearSelection={handleClearSelection}
                   effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, workingHours) : undefined}
                 />
               ))}
@@ -1300,25 +1297,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={pending || (
-                    // #234: кнопка «Очистить шаблон» disabled если нет активного шаблона для этого дня
-                    selectionMode === "weekday" &&
-                    selectedWeekday !== null &&
-                    !workingHours.some((r) => r.weekday === selectedWeekday && r.isActive)
-                  )}
+                  disabled={pending || !hasScheduleForSelection}
                   onClick={handleClearSchedule}
                   data-testid="btn-clear-schedule"
                 >
                   {selectionMode === "weekday" ? "Очистить шаблон" : "Очистить расписание"}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleClearSelection}
-                  data-testid="btn-clear-selection"
-                >
-                  Очистить выбор
                 </Button>
               </div>
             </DoctorSection>
