@@ -2026,3 +2026,33 @@ collapsed/expanded long/error broadcast rows. Then one independent full C1-corre
 owner checklist. No serial cosmetic correction/audit rounds are permitted; any unmatched requirement becomes an
 owner question. One accumulated full CI runs only at the corrected C1 TEST checkpoint, followed by the already
 authorized code-only TEST deploy and a new owner click-through; C2 remains stopped until acceptance.
+
+### Corrected C1 pre-deploy closeout
+
+The two non-overlapping correction slices were integrated as `bc10645fe` (Communications) and `98cb5455f`
+(Today/Clients), with the lead's mobile KPI readability correction in `cba12a08d`. All temporary worker branches
+and worktrees were removed immediately after integration. The protected untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched.
+
+Lead live DEV acceptance on `127.0.0.1:5200` covered Today, Clients and all four Communications tabs at desktop
+`1480x1024` and mobile `390x844`. Evidence is under
+`/home/dev/brain/runs/c1-owner-correction-live/{desktop,mobile}`; the final mobile Today geometry after the
+canonical two-column wrap is `mobile/today-canonical.png`. The populated Clients indicator/order cases remain
+component-test evidence because the DEV clinic fixture has zero clients. The combined focused gate passed 7 files
+and 140 tests; the final Today delta passed 21/21 plus scoped ESLint and diff-check.
+
+The single independent corrected-C1 audit returned **PASS** on `cba12a08d`. Its only interim finding was the lead's
+too-small mobile KPI label; before terminal verdict the lead removed the non-canonical font override, changed the
+mobile row to a semantic 2x2 wrap (four columns from `sm` upward), added the layout assertion and supplied the
+fresh live screenshot above. No serial correction agent or second audit was opened.
+
+The accumulated milestone CI gate is green. Lint passed in the integration checkout. Typecheck initially read
+mixed `.next/types` and `.next/dev/types` while the required persistent DEV server was running, so the gate resumed
+at typecheck in a clean detached worktree on the same SHA. Typecheck, HLS helper check, webapp tests (7995 passed),
+media-worker tests (56 passed), integrator tests, both production builds and the complete SaaS/security audit
+passed. The integrator suite first exposed a pre-existing non-hermetic empty `src/content/rubitime` directory that
+Git cannot carry into a clean worktree; after recreating that empty canonical directory, its focused registry suite
+passed 15/15 and the gate resumed after the completed integrator step. No tracked fix or C1 scope growth was made.
+
+C1 is ready for the authorized code-only TEST redeploy and owner live click-through. Taskdb `accepted` remains
+owner-only, and C2 must not start before that owner checkpoint.
