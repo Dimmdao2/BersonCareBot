@@ -347,10 +347,12 @@ card; запрещено строить временный resolver, второ�
      собственной высотой строки. Уже принятую ссылку «Открыть карточку» не переделывать.
 - **Dependencies:** slices могут идти параллельно после code/taskdb dedup, если файловые scope не пересекаются;
   Rubitime UI removal координируется с C0. Existing BCB2 triage не может закрыть эти новые acceptance по совпадению
-  названия страницы. Live acceptance клиентских appointment-фильтров дополнительно зависит от C0/R1: текущая
-  code-only TEST DB имеет неполную canonical историю (`be_appointments`) относительно legacy PROD-снимка. Не
-  возвращать `appointment_records` fallback; использовать только существующий owner-gated TEST fresh-restore/backfill
-  flow после отдельного разрешения владельца на сброс TEST-данных.
+  названия страницы. Исторический live-acceptance blocker клиентских appointment-фильтров был неполной canonical
+  историей (`be_appointments`) в прежней code-only TEST DB. Он закрыт owner-authorized full-chain rehearsal
+  2026-07-19: Rubitime/history и reviewed FIO применены до strict closure, owner organization снова имеет `228`
+  активных client rows, из них `98` с canonical appointment и `19` с будущей записью. Legacy
+  `appointment_records` fallback не возвращался. Эта подготовленная TEST-БД теперь сохраняется между обычными
+  code-only deploy; новый full reset требует отдельного решения владельца.
 - **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
   состояния из owner-review; независимый UI audit.
 

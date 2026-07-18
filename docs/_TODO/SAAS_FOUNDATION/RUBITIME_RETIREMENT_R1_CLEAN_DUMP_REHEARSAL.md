@@ -13,6 +13,39 @@ All evidence below is aggregate-only. No production DB or `/opt/env` path was ac
 was modified, and no patient row identifiers, names, phones, emails, payloads, or message bodies are
 recorded.
 
+## Canonical TEST full-chain replay — PASS (2026-07-19)
+
+The owner-authorized TEST rehearsal used the already protected local fresh dump and exact hash-bound owner inputs;
+it did not fetch another production dump. The sole destructive entrypoint was
+`deploy/host/deploy-test-full-reset.sh --confirm-full-reset`. Ordinary `deploy-test.sh` was not involved in restore
+and remains code-only.
+
+The executed order was: restore -> doctor/admin data-fix -> current Drizzle migrations -> TEST settings ->
+placeholder purge -> specialist consolidation -> full Rubitime cleanup/import -> second non-confirmed cleanup ->
+aggregate retirement gates -> reviewed FIO apply -> B1 assertion -> strict SaaS/FORCE closure -> synthetic fixtures
+-> five-unit restart -> health/product smoke. No writer ran between restore and data normalization.
+
+Aggregate final proof before/after fixture boundaries:
+
+| Check | Result |
+| --- | ---: |
+| Rubitime one-pass resume mutations | 0 |
+| Legacy live rows | 315 |
+| Canonical live `rubitime_projection` rows | 313 |
+| Stale / unmapped / duplicate / non-confirmed blockers | 0 |
+| Owner-organization active specialists after closure | 1 |
+| Appointments on null/inactive specialist | 0 |
+| Reviewed FIO result | 165 updated; 3 matched; 1 expected missing; 1 preserved |
+| Locked product smoke | 22/22 + clinical-write denial PASS |
+| TEST services / health | 5/5 active; DB up |
+
+The first run stopped at a static retirement checker whose R0 baseline and R5-template expectation had become stale
+relative to the already approved current contracts. Those repo gates were corrected and passed targeted self-tests;
+the database was not restored again. The chain resumed from the failed Rubitime gate, proved the one-pass sequence
+idempotent, then continued through FIO and the shared post-migration closure. This is the canonical evidence that the
+current from-dump algorithm is understandable, ordered and repeatable without making database reset part of normal
+deploys.
+
 ## Fresh current prod dump replay — PASS
 
 Run id: `R1-CLEAN-DUMP-REHEARSAL-codex-2026-07-14-fresh-0415`

@@ -1,5 +1,18 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-19 — Owner-reviewed TEST Apply Re-established After Fresh Restore
+
+- Applied the exact hash-bound owner-reviewed manifest to the prepared `bersoncarebot_test` after canonical
+  Rubitime/history normalization and before restarting writers.
+- Aggregate result: `165` updated, `3` already matched, `1` expected missing, `1` preserved at its reviewed
+  current state, `0` unexpected missing and `0` unexpected drift.
+- A unique private rollback artifact was written with mode `0600` and fsynced before the first conditional update.
+  Manifest rows, names and other PII were not printed or copied into repository documentation.
+- Temporary TEST owner membership and `BYPASSRLS` were removed immediately after apply and independently asserted
+  absent. Production was not accessed or changed.
+- This restores the TEST evidence lost when the earlier TEST snapshot was replaced. It does not close production
+  task `#857`, registrations/writers `#855/#856`, or parser retirement `#858`.
+
 ## 2026-07-19 — TEST Manifest Apply/rollback And Clean-Dump Binding
 
 - Reclassified taskdb `#849` as historical TEST evidence: the 2026-07-18 fresh production-dump restore replaced the

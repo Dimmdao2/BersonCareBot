@@ -2128,3 +2128,37 @@ focused tests, а live data acceptance остаётся за owner-gated TEST re
   TEST updates are historical because the 2026-07-18 fresh restore replaced that snapshot; production was untouched.
 - No DB, deployment, environment, production, external delivery, or PII artifact read occurred in this repository
   integration step. Full-reset runtime proof remains a separate explicit owner-authorized operation.
+
+### Owner-authorized TEST rehearsal and corrected C1 data checkpoint — PASS
+
+The owner-authorized one-time TEST rehearsal completed against a protected local fresh dump; it did not pull a new
+production dump and did not touch production. The run proved the complete stopped-writers order: restore, owner
+doctor/admin data-fix, Drizzle migrations, TEST settings, placeholder cleanup, specialist consolidation, complete
+Rubitime cleanup/import with repeat non-confirmed cleanup, aggregate retirement gates, exact reviewed FIO apply,
+strict SaaS/FORCE closure, fixtures, restart, health and locked product smoke.
+
+Runtime evidence is aggregate-only:
+
+- Rubitime one-pass converged idempotently: its resume pass found zero new placeholder, duplicate-specialist,
+  unmapped, stale, non-confirmed or duplicate-cluster work; live state is `315` legacy rows and `313` canonical
+  Rubitime projections;
+- before synthetic TEST fixtures, the owner organization had exactly one active canonical specialist and no
+  appointment on a null/inactive specialist; after closure the owner organization still has one active specialist;
+- the exact owner-reviewed FIO manifest produced `165` updates, `3` already-matched rows, `1` expected missing row
+  and `1` preserved-current row, with zero unexpected missing/drift; a unique private mode `0600` rollback artifact
+  was fsynced before mutation;
+- B1 doctor/admin identity assertion passed; all five TEST units are active, health reports DB up, the locked product
+  smoke passed `22/22` plus the global-admin clinical-write denial, and the post-runtime tenant-isolation gate is
+  complete/clean;
+- the owner organization now exposes `228` active client rows; `98` have a non-cancelled canonical appointment and
+  `19` have a future appointment. This closes the missing-canonical-history cause behind the abnormally short C1
+  client list/counts without restoring a legacy read fallback.
+
+Live TEST desktop captures for Today, Clients, Chats and Broadcasts at `1440x900` confirm the C1 presentation state:
+one-line names, Today calendar at the top with the deferred appointment KPI row hidden, Clients `40/60` with compact
+search/sort and factual KPI cards, and Communications `40/60` without broadcast journal overlap. The synthetic
+doctor session intentionally contains five clinic-A clients; the `228/98/19` owner-organization population is proven
+by the post-migration aggregate gate and remains available for the owner's ordinary TEST login.
+
+No full reset is needed for subsequent UI/code deploys. From this point the prepared TEST database is persistent and
+ordinary deployments use only `deploy/host/deploy-test.sh`; another dump restore requires a new explicit owner gate.

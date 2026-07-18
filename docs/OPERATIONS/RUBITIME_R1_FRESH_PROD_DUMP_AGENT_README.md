@@ -1,14 +1,16 @@
 # Rubitime retirement agent README
 
-Статус: единая операционная точка входа для агентов, рабочая ветка `feat/doctor-ui-rebuild`, 2026-07-14.
+Статус: единая операционная точка входа для агентов, рабочая ветка `feat/doctor-ui-rebuild`, обновлено 2026-07-19.
 
 Цель: один понятный порядок действий для агента, которому нужно продолжать Rubitime retirement или
 подготовить свежий prod dump к canonical booking proof. Не начинать с нового SQL и не придумывать новые
 backfill/data-fix скрипты: в рабочей ветке уже есть выверенные scripts, deploy-wrappers и audit docs.
 
-Последний green proof: dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_20260714_041501.dump`
-→ disposable DB `bcb_webapp_dev_rubitime_fresh_20260714_041501_owner2` → `scripts/deploy-saas-667.sh`
-PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подробный агрегатный отчет:
+Последний green proof: owner-authorized full-chain replay на `bersoncarebot_test` 2026-07-19 через единственный
+destructive entrypoint `deploy/host/deploy-test-full-reset.sh --confirm-full-reset`: data-fix → migrations →
+Rubitime/history normalization → reviewed FIO → strict closure → five-unit health/locked smoke PASS. Он использовал
+уже защищённый локальный fresh dump и не тянул production повторно. Предыдущий disposable proof 2026-07-14 также
+сохраняется как независимое подтверждение. Подробный агрегатный отчет:
 `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R1_CLEAN_DUMP_REHEARSAL.md`.
 
 Главный execution plan: `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`.
@@ -35,6 +37,8 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 10. R6 route/code removal нельзя делать до owner-approved cutoff/drain proof из
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R6_CUTOFF_DRAIN_RUNBOOK.md`.
 11. R7 archive/drop нельзя делать до полного R1-R6 proof и отдельного owner archive/drop решения.
+12. После успешного rehearsal TEST-БД считается подготовленной постоянной рабочей базой. Обычный code deploy идёт
+    только через `deploy-test.sh`; повторный full reset запрещён без нового явного решения владельца.
 
 ## Что сказал Sol / что из этого следует
 
