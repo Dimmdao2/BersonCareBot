@@ -1,7 +1,7 @@
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import { randomUUID } from "node:crypto";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { BeAppointment, BeBranch, BeClinicService } from "@/modules/booking-engine/types";
+import type { BeAppointment, BeBranch, BeClinicService, CreateAppointmentInput } from "@/modules/booking-engine/types";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 import type { createBookingFormService } from "@/modules/booking-form/service";
@@ -329,9 +329,11 @@ export async function createBookingOnCanonicalEngine(
   const rubitimeManageUrl: string | null = null;
 
   const chainId = slotCount > 1 ? randomUUID() : null;
+  const appointmentSource: CreateAppointmentInput["source"] =
+    createInput.bookingChannel === "public_widget" ? "public_widget" : "native";
   let appointments: BeAppointment[];
   try {
-    const appointmentInputs = slotRows.map(({ startAt, endAt, chainPosition }) => {
+    const appointmentInputs: CreateAppointmentInput[] = slotRows.map(({ startAt, endAt, chainPosition }) => {
       return {
       organizationId: orgId,
       branchId: canonicalBranchId,
@@ -344,7 +346,7 @@ export async function createBookingOnCanonicalEngine(
       durationMinutes,
       chainId,
       chainPosition: chainId ? chainPosition : null,
-      source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
+      source: appointmentSource,
       status: initialAppointmentStatus,
       phoneNormalized,
       actorId: createInput.userId,

@@ -63,6 +63,7 @@ describe("createPaymentsService", () => {
       },
       bookingEngine: {
         getAppointment: vi.fn().mockResolvedValue({ id: "appt-1", status: "awaiting_payment", organizationId: "org-1" }),
+        listAppointmentsByChainId: vi.fn().mockResolvedValue([]),
         transitionAppointmentStatus: vi.fn().mockResolvedValue({}),
       },
     });

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
+import type { CreateAppointmentInput } from "@/modules/booking-engine/types";
 import type { PatientBookingRecord } from "./types";
 import { createBookingOnCanonicalEngine, type CanonicalBookingDeps } from "./canonicalCreate";
 
@@ -127,8 +128,8 @@ describe("createBookingOnCanonicalEngine", () => {
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",
     });
-    bookingEngine.createAppointmentChain.mockImplementation(async (inputs) =>
-      inputs.map((input, index) => ({ ...input, id: `appt-${index + 1}` })),
+    bookingEngine.createAppointmentChain.mockImplementation(async (inputs: CreateAppointmentInput[]) =>
+      inputs.map((input: CreateAppointmentInput, index: number) => ({ ...input, id: `appt-${index + 1}` })),
     );
     bookingScheduling.getMaxConsecutiveSlotHours.mockResolvedValue(3);
     bookingEngine.getAppointment.mockResolvedValue({

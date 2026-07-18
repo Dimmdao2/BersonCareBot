@@ -108,6 +108,7 @@ export const SYSTEM_SETTINGS_ORG_SCOPE: Readonly<Record<SystemSettingKey, System
   booking_lifecycle_notifications: "per_org",
   booking_allow_doctor_unlink_past_package_sessions: "per_org",
   booking_min_notice_hours: "per_org",
+  booking_max_consecutive_slot_hours: "per_org",
 
   // --- Patient home cooldowns / icons (clinic-facing display+behavior) ---
   patient_home_daily_warmup_repeat_cooldown_minutes: "per_org",

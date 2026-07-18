@@ -82,6 +82,7 @@ describe('booking-calendar service', () => {
     deactivateWorkingHours: vi.fn(),
     upsertBufferMinutes: vi.fn(),
     getMinNoticeHours: vi.fn(async () => 0),
+    getMaxConsecutiveSlotHours: vi.fn(async () => 3),
     // per-date stubs
     listWorkingDays: vi.fn(async () => []),
     upsertWorkingDays: vi.fn(async () => []),
