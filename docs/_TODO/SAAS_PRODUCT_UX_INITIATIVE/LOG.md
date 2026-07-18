@@ -2056,3 +2056,15 @@ passed 15/15 and the gate resumed after the completed integrator step. No tracke
 
 C1 is ready for the authorized code-only TEST redeploy and owner live click-through. Taskdb `accepted` remains
 owner-only, and C2 must not start before that owner checkpoint.
+
+### Corrected C1 code-only TEST checkpoint
+
+`deploy/host/deploy-test.sh feat/doctor-ui-rebuild` deployed exact commit
+`1aa5690e3c92dc838d3362f0c0e3ea91047fd4d1` to the existing TEST environment without a prod dump or any PROD
+access. All five TEST units are active; internal `127.0.0.1:6300/api/health` and public
+`https://test.bersoncare.ru/api/health` both returned `ok=true` with the DB up. The mandatory locked product smoke
+passed 22/22 positive/role scenarios plus the global-admin clinical-write denial. The deploy did not push or merge
+`main`/`test`, perform external delivery or start another DEV server.
+
+Tasks `#850` and `#852` are implementation-complete, tested and independently audited; taskdb acceptance remains
+unset for the owner. C2 is deliberately paused until the owner completes this corrected TEST click-through.
