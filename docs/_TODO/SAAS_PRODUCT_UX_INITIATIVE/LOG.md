@@ -1984,3 +1984,13 @@ The canonical `deploy/host/deploy-test.sh feat/doctor-ui-rebuild` code-only path
 force-aligned to that SHA; all five TEST services (API, worker, scheduler, webapp and media worker) are active.
 Both the local TEST API health endpoint and `https://test.bersoncare.ru/api/health` returned `ok=true` with the DB
 up. C2 remains stopped pending the owner's live C1 click-through; taskdb acceptance remains owner-only.
+
+### C1 owner-gate process audit
+
+While C1 waits for live owner acceptance, the lead re-read `docs/ORCHESTRATION_BINDINGS.md` and the complete current
+roadmap. Execution remains aligned with §7.3: no C2 work started, no repeated CI/audit loop was opened, and the
+integration worktree has no agent branches or extra worktrees. One stale C1 roadmap phrase still required the old
+`Клиенты / Подписчики` default segment; it was reconciled in place to the later owner-review §2 decision (all
+organization people by default, left search/sort, dormant hidden classifier, factual right-side filters/indicators).
+Taskdb `#850` note records the same superseding owner decision. This documentation-only reconciliation used
+`git diff --check`; application CI was intentionally not repeated.

@@ -329,8 +329,10 @@ card; запрещено строить временный resolver, второ�
 
 - **Outcome:** исправлены подтверждённые владельцем дефекты без изменения продуктовой модели.
 - **Цельные независимые slices:**
-  1. `Сегодня + Клиенты` — owner-review §§1-2: единый KPI contract, сегмент Клиенты/Подписчики, default Клиенты,
-     right-side filters и недублирующиеся row indicators.
+  1. `Сегодня + Клиенты` — owner-review §§1-2: единый KPI contract; default показывает всех людей текущей
+     organization; слева остаются поиск и сортировка по недавним canonical interactions, а не фильтры;
+     Клиенты/Подписчики classifier остаётся dormant/reversible без UI-сегмента и не применяется к default list;
+     right-side factual filters и недублирующиеся non-interactive row indicators.
   2. `Расписание` — §§3-4: desktop default week, услуги, специалисты календаря, short name в create-location и
      отсутствие Rubitime tab; перенос всей booking settings IA отменён и сюда не входит.
   3. `Коммуникации` — §§5-8: shared 50/50 split, comments empty/selected layouts и toggle filters, intake
