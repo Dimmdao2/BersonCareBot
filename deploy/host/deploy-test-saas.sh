@@ -1175,8 +1175,11 @@ assert_hash_bound_protected_input(){
   local label="$1" path="$2" expected_hash="$3" owner_mode actual_hash
   [[ "$expected_hash" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: $label SHA-256 must be 64 hex characters" >&2; exit 2; }
   [[ "$path" = /* ]] || { echo "FATAL: $label path must be absolute" >&2; exit 2; }
-  [ -f "$path" ] && [ ! -L "$path" ] || { echo "FATAL: $label must be a regular non-symlink file" >&2; exit 2; }
-  owner_mode="$(stat -Lc '%U:%a' -- "$path")"
+  sudo -u deploy test -f "$path" && sudo -u deploy test ! -L "$path" || {
+    echo "FATAL: $label must be a regular non-symlink file" >&2
+    exit 2
+  }
+  owner_mode="$(sudo -u deploy stat -Lc '%U:%a' -- "$path")"
   [ "$owner_mode" = "deploy:600" ] || {
     echo "FATAL: $label must be owned by deploy with mode 0600 (got $owner_mode)" >&2
     exit 2
