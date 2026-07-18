@@ -152,9 +152,12 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
-    const rightPanel = screen.getByText("Каналы связи").closest("div.hidden");
-    expect(rightPanel).toHaveClass("hidden", "lg:flex");
-    expect(rightPanel).not.toHaveClass("order-first");
+    const rightPanel = screen.getByText("Каналы связи").closest("section");
+    expect(rightPanel).toBeVisible();
+    const splitLayout = Array.from(document.querySelectorAll("div")).find((element) =>
+      element.className.includes("lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"),
+    );
+    expect(splitLayout).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 
@@ -221,15 +224,31 @@ describe("PatientsPageClient", () => {
       "doctor-patients-item-null",
     ]);
 
-    const sort = screen.getByRole("combobox", { name: "Сортировка клиентов" });
-    expect(sort).toHaveTextContent("Недавние приёмы");
-    await user.click(sort);
-    await user.click(screen.getByRole("option", { name: "ФИО А–Я" }));
+    const recentSort = screen.getByRole("button", { name: "Недавние: недавние сверху" });
+    expect(recentSort).toHaveAttribute("aria-pressed", "true");
+    await user.click(recentSort);
     expect(listIds()).toEqual([
       "doctor-patients-item-same-a",
       "doctor-patients-item-same-b",
       "doctor-patients-item-newest",
       "doctor-patients-item-null",
+    ]);
+
+    const fioSort = screen.getByRole("button", { name: "По фамилии: А–Я" });
+    await user.click(fioSort);
+    expect(listIds()).toEqual([
+      "doctor-patients-item-same-a",
+      "doctor-patients-item-same-b",
+      "doctor-patients-item-newest",
+      "doctor-patients-item-null",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "По фамилии: А–Я" }));
+    expect(listIds()).toEqual([
+      "doctor-patients-item-null",
+      "doctor-patients-item-newest",
+      "doctor-patients-item-same-b",
+      "doctor-patients-item-same-a",
     ]);
 
     await user.type(screen.getByRole("searchbox", { name: "Поиск пациентов" }), "Вера");
@@ -271,10 +290,28 @@ describe("PatientsPageClient", () => {
 
     for (const row of [historyRow, futureRow, supportRow, programRow, programSupportRow, membershipRow]) {
       expect(row.queryByLabelText(/Переписка|История|Telegram|MAX|Телефон|email|приложение/i)).not.toBeInTheDocument();
+      const indicatorRail = row.getByLabelText("Статусы клиента");
+      expect(indicatorRail).toHaveClass("grid", "w-[7.75rem]", "grid-cols-4");
+      expect(indicatorRail.children).toHaveLength(4);
     }
   });
 
-  it("opens an inline preview from a patient row with communication actions and visit summary", async () => {
+  it("shows one structured FIO line without repeating the legacy display name", async () => {
+    await renderPatientsPage([
+      client({
+        userId: "structured-fio",
+        displayName: "Старая строка",
+        lastName: "Петров",
+        firstName: "Иван",
+        patronymic: "Сергеевич",
+      }),
+    ]);
+
+    expect(await screen.findByText("Петров Иван Сергеевич")).toBeInTheDocument();
+    expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
+  });
+
+  it("opens an Exercises-style detail view from a patient row with communication actions and visit summary", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -316,7 +353,11 @@ describe("PatientsPageClient", () => {
 
     const listItem = document.getElementById("doctor-patients-item-u1");
     expect(listItem).not.toBeNull();
-    const preview = within(listItem as HTMLElement);
+    expect(within(listItem as HTMLElement).queryByText("Прошлый визит:")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();
+    const previewRoot = screen.getByRole("button", { name: "Закрыть" }).closest("div.rounded-xl");
+    expect(previewRoot).not.toBeNull();
+    const preview = within(previewRoot as HTMLElement);
     expect(preview.getByRole("button", { name: /Чат/i })).toBeEnabled();
     expect(preview.getByRole("link", { name: /Позвонить/i })).toHaveAttribute("href", "tel:+79990000001");
     expect(preview.getByRole("link", { name: /Карта/i })).toHaveAttribute("href", "/app/doctor/patients/u1");

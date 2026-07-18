@@ -229,7 +229,7 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toHaveTextContent("Будущие");
   });
 
-  it("keeps single and split appointment KPIs in one vertical, equal-height contract", () => {
+  it("keeps all seven KPIs across both dashboard panes in one vertical, equal-height contract", () => {
     const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
     render(
       <DoctorTodayDashboard
@@ -245,12 +245,20 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
 
+    const cardIds = [
+      "doctor-today-left-kpi-messages",
+      "doctor-today-left-kpi-comments",
+      "doctor-today-left-kpi-intake",
+      "doctor-today-left-kpi-tests",
+      "doctor-today-right-kpi-today",
+      "doctor-today-right-kpi-week",
+      "doctor-today-right-kpi-month",
+    ];
+    for (const id of cardIds) {
+      expect(document.getElementById(id)).toHaveClass("flex", "h-[5.5rem]", "flex-col");
+    }
+
     const todayCard = document.getElementById("doctor-today-right-kpi-today");
-    const weekCard = document.getElementById("doctor-today-right-kpi-week");
-    const monthCard = document.getElementById("doctor-today-right-kpi-month");
-    expect(todayCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
-    expect(weekCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
-    expect(monthCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
 
     const todayMarkup = todayCard?.innerHTML ?? "";
     expect(todayMarkup.indexOf("Записи сегодня")).toBeLessThan(todayMarkup.indexOf(">3<"));

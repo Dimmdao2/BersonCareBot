@@ -8,12 +8,12 @@
  *   RIGHT – filter panel (segment stat cards + channel row + additional filters)
  *           + PatientPreviewPane when a row is selected
  *
- * Search logic: debounced API call (/api/doctor/patients?q=…), min 3 chars.
+ * Search logic: debounced client-side match across the loaded organization roster.
  */
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, X, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, X, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
@@ -21,13 +21,13 @@ import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { formatFioForDoctor } from "@/lib/parseFullName";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 import { patientCardHref } from "./patientCardHref";
 
 // ---------------------------------------------------------------------------
@@ -47,15 +47,7 @@ import { patientCardHref } from "./patientCardHref";
  */
 export type ClientCategory = "all" | "client" | "subscriber_only";
 type ClientListSort = "recent_appointments" | "fio";
-
-const CLIENT_LIST_SORT_OPTIONS: { value: ClientListSort; label: string }[] = [
-  { value: "recent_appointments", label: "Недавние приёмы" },
-  { value: "fio", label: "ФИО А–Я" },
-];
-
-function setSortIfValid(value: string | null, onSortChange: (sort: ClientListSort) => void) {
-  if (value === "recent_appointments" || value === "fio") onSortChange(value);
-}
+type ClientListSortDirection = "asc" | "desc";
 
 type InitialFilters = {
   q: string;
@@ -217,24 +209,29 @@ function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): 
 }
 
 function clientFioSortKey(item: ClientListItem): string {
-  const fio = [item.lastName, item.firstName, item.patronymic].filter(Boolean).join(" ");
-  return fio || item.displayName;
+  const fio = [item.lastName, item.firstName, item.patronymic]
+    .map((part) => part?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  return fio || item.displayName.trim();
 }
 
 function compareClientsByFio(a: ClientListItem, b: ClientListItem): number {
   const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), "ru");
   if (fioCompare !== 0) return fioCompare;
-  const displayNameCompare = a.displayName.localeCompare(b.displayName, "ru");
-  if (displayNameCompare !== 0) return displayNameCompare;
   return a.userId.localeCompare(b.userId, "ru");
 }
 
-function sortClients(list: ClientListItem[], sort: ClientListSort): ClientListItem[] {
+function sortClients(list: ClientListItem[], sort: ClientListSort, direction: ClientListSortDirection): ClientListItem[] {
   return [...list].sort((a, b) => {
-    if (sort === "fio") return compareClientsByFio(a, b);
+    if (sort === "fio") {
+      const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), "ru");
+      if (fioCompare !== 0) return direction === "asc" ? fioCompare : -fioCompare;
+      return a.userId.localeCompare(b.userId, "ru");
+    }
     if (a.lastAppointmentAt && b.lastAppointmentAt) {
-      const appointmentCompare = b.lastAppointmentAt.localeCompare(a.lastAppointmentAt);
-      if (appointmentCompare !== 0) return appointmentCompare;
+      const appointmentCompare = a.lastAppointmentAt.localeCompare(b.lastAppointmentAt);
+      if (appointmentCompare !== 0) return direction === "asc" ? appointmentCompare : -appointmentCompare;
     } else if (a.lastAppointmentAt) {
       return -1;
     } else if (b.lastAppointmentAt) {
@@ -242,6 +239,14 @@ function sortClients(list: ClientListItem[], sort: ClientListSort): ClientListIt
     }
     return compareClientsByFio(a, b);
   });
+}
+
+function clientPrimaryName(item: ClientListItem): string {
+  const structured = [item.lastName, item.firstName, item.patronymic]
+    .map((part) => part?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  return structured || item.displayName.trim() || "—";
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +298,7 @@ type IconSlotProps = {
 
 function IconSlot({ visible, label, title, badge, className, children }: IconSlotProps) {
   if (!visible) {
-    return null;
+    return <span className="size-7" aria-hidden />;
   }
   return (
     <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
@@ -315,7 +320,7 @@ function IconSlot({ visible, label, title, badge, className, children }: IconSlo
 
 function PatientListSkeleton() {
   return (
-    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
       {/* List skeleton — left */}
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
@@ -499,16 +504,9 @@ function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Mosco
       {/* Header row: name + close button */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          {(item.lastName ?? item.firstName) ? (
-            <>
-              <span className="block truncate text-sm font-bold text-foreground">
-                {formatFioForDoctor(item.lastName, item.firstName, item.patronymic)}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">{item.displayName}</span>
-            </>
-          ) : (
-            <span className="block truncate text-sm font-bold text-foreground">{item.displayName}</span>
-          )}
+          <span className="block truncate text-sm font-medium text-foreground">
+            {clientPrimaryName(item)}
+          </span>
         </div>
         <Button
           type="button"
@@ -673,8 +671,9 @@ type PatientsContentProps = {
   isListPending: boolean;
   selectedUserId: string | null;
   sort: ClientListSort;
+  sortDirection: ClientListSortDirection;
   displayIana?: string;
-  onSortChange: (sort: ClientListSort) => void;
+  onSortSelect: (sort: ClientListSort) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onClearSearch: () => void;
@@ -695,8 +694,9 @@ function PatientsContent({
   isListPending,
   selectedUserId,
   sort,
+  sortDirection,
   displayIana,
-  onSortChange,
+  onSortSelect,
   onSegmentToggle,
   onChannelChange,
   onClearSearch,
@@ -731,7 +731,7 @@ function PatientsContent({
         c.phone?.toLowerCase().includes(q),
     );
   }
-  filtered = sortClients(filtered, sort);
+  filtered = sortClients(filtered, sort, sortDirection);
 
   // Context base for segment card counts (PAT-02/06/#540):
   // KPI cards are multi-select filters with AND policy. Each card shows the
@@ -764,26 +764,29 @@ function PatientsContent({
 
   return (
     <>
-    <DoctorPageHeader
-      id="doctor-patients-header"
-      title={patientPluralLabel}
-    />
-    <div className="grid min-w-0 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.4fr_1fr] lg:items-start">
-      {/* ===== LEFT: patient list ===== */}
-      <section
-        className={cn(
-          "flex flex-col rounded-lg border border-border bg-card",
-          "lg:min-h-0 lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)] lg:overflow-hidden",
-        )}
-      >
+      <DoctorPageHeader
+        id="doctor-patients-header"
+        title={patientPluralLabel}
+      />
+      <CatalogSplitLayout
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+        mobileView={selectedUserId ? "detail" : "list"}
+        mobileBackSlot={
+          selectedUserId ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => onSelectPatient(null)}>
+              ← Назад
+            </Button>
+          ) : null
+        }
+        className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
+        left={(
+          <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
         {/* Search — above sticky header, non-sticky */}
         <div className="shrink-0 px-2 pt-2">
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search
-                className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
-                aria-hidden
-              />
+          <div className="relative min-w-0">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+              <Search className="size-3.5" aria-hidden />
+            </span>
               <Input
                 type="search"
                 placeholder="Поиск…"
@@ -796,34 +799,20 @@ function PatientsContent({
                 <Button
                   type="button"
                   variant="ghost"
+                  size="icon-sm"
                   onClick={onClearSearch}
-                  className="absolute right-2.5 text-muted-foreground hover:text-foreground"
+                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
                   aria-label="Сбросить поиск"
                 >
                   <X className="size-3.5" />
                 </Button>
               )}
             </div>
-            <Select value={sort} onValueChange={(value) => setSortIfValid(value, onSortChange)}>
-              <SelectTrigger
-                aria-label="Сортировка клиентов"
-                className="w-40 shrink-0"
-                displayLabel={CLIENT_LIST_SORT_OPTIONS.find((option) => option.value === sort)?.label}
-              />
-              <SelectContent>
-                {CLIENT_LIST_SORT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value} label={option.label}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
-        {/* Sticky header: count */}
+        {/* Sticky header: count + reversible sorting */}
         {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-        <div className="lg:sticky lg:top-0 z-10 shrink-0 border-b border-border/60 bg-card px-2 py-2 md:px-5">
+        <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-2 py-2">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
               ? <>найдено {filtered.length} / {categoryBase.length}</>
@@ -832,6 +821,37 @@ function PatientsContent({
                 : <>Пациентов: {categoryBase.length}</>}
             {isListPending && <span className="ml-1 animate-pulse">…</span>}
           </p>
+          <div className="flex shrink-0 items-center gap-1.5" aria-label="Сортировка клиентов">
+            <span className="text-xs text-muted-foreground">Сортировать</span>
+            <Button
+              type="button"
+              size="sm"
+              variant={sort === "recent_appointments" ? "default" : "outline"}
+              className="h-8 gap-1.5 px-2 text-xs"
+              aria-pressed={sort === "recent_appointments"}
+              aria-label={`Недавние: ${sort === "recent_appointments" && sortDirection === "asc" ? "давние сверху" : "недавние сверху"}`}
+              onClick={() => onSortSelect("recent_appointments")}
+            >
+              Недавние
+              {sort === "recent_appointments" ? (
+                sortDirection === "desc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />
+              ) : null}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sort === "fio" ? "default" : "outline"}
+              className="h-8 gap-1.5 px-2 text-xs"
+              aria-pressed={sort === "fio"}
+              aria-label={`По фамилии: ${sort === "fio" && sortDirection === "desc" ? "Я–А" : "А–Я"}`}
+              onClick={() => onSortSelect("fio")}
+            >
+              По фамилии
+              {sort === "fio" ? (
+                sortDirection === "asc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />
+              ) : null}
+            </Button>
+          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -841,7 +861,7 @@ function PatientsContent({
               : "Нет пациентов по заданным фильтрам."}
           </p>
         ) : (
-          <ul id="doctor-patients-list" className="m-0 list-none space-y-1.5 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
             {filtered.map((c) => {
               const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
               const isSelected = c.userId === selectedUserId;
@@ -860,18 +880,11 @@ function PatientsContent({
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      {(c.lastName ?? c.firstName) ? (
-                        <>
-                          <span className="block truncate text-sm font-semibold text-foreground">
-                            {formatFioForDoctor(c.lastName, c.firstName, c.patronymic)}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">{c.displayName}</span>
-                        </>
-                      ) : (
-                        <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
-                      )}
+                      <span className="block truncate text-sm font-medium text-foreground">
+                        {clientPrimaryName(c)}
+                      </span>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="grid w-[7.75rem] shrink-0 grid-cols-4 gap-1" aria-label="Статусы клиента">
                       <IconSlot
                         visible={futureAppointmentCount > 0}
                         label={`Будущие записи: ${futureAppointmentCount}`}
@@ -903,25 +916,15 @@ function PatientsContent({
                       </IconSlot>
                     </div>
                   </Button>
-                  {isSelected ? (
-                    <div className="mt-1 lg:hidden">
-                      <PatientPreviewPane
-                        userId={c.userId}
-                        item={c}
-                        onClose={() => onSelectPatient(null)}
-                        displayIana={displayIana}
-                      />
-                    </div>
-                  ) : null}
                 </li>
               );
             })}
           </ul>
         )}
-      </section>
-
-      {/* ===== RIGHT: filter panel + desktop preview pane ===== */}
-      <div className="hidden flex-col gap-3 lg:flex lg:min-h-0">
+          </section>
+        )}
+        right={(
+          <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
         {/* Filter panel */}
         <section
           className={cn(
@@ -1017,7 +1020,7 @@ function PatientsContent({
 
         {/* Preview pane — shown when a row is selected */}
         {selectedUserId && selectedItem ? (
-          <div className="hidden lg:block">
+          <div className="order-first lg:order-none">
             <PatientPreviewPane
               userId={selectedUserId}
               item={selectedItem}
@@ -1026,8 +1029,9 @@ function PatientsContent({
             />
           </div>
         ) : null}
-      </div>
-    </div>
+          </CatalogRightPane>
+        )}
+      />
     </>
   );
 }
@@ -1063,6 +1067,7 @@ export function PatientsPageClient({
 
   // Category mechanism remains dormant/reversible; this page defaults to all organization people.
   const [sort, setSort] = useState<ClientListSort>("recent_appointments");
+  const [sortDirection, setSortDirection] = useState<ClientListSortDirection>("desc");
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -1124,6 +1129,15 @@ export function PatientsPageClient({
     setSelectedUserId(userId);
   }, []);
 
+  const handleSortSelect = useCallback((nextSort: ClientListSort) => {
+    if (nextSort === sort) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSort(nextSort);
+    setSortDirection(nextSort === "recent_appointments" ? "desc" : "asc");
+  }, [sort]);
+
   return (
     <Suspense fallback={<PatientListSkeleton />}>
       <PatientsContent
@@ -1139,8 +1153,9 @@ export function PatientsPageClient({
         isListPending={isListPending}
         selectedUserId={selectedUserId}
         sort={sort}
+        sortDirection={sortDirection}
         displayIana={displayIana}
-        onSortChange={setSort}
+        onSortSelect={handleSortSelect}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onClearSearch={clearSearch}
