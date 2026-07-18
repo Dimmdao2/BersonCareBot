@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatView } from "./ChatView";
@@ -59,6 +59,10 @@ describe("ChatView delivery ticks", () => {
 });
 
 describe("ChatView message links and actions", () => {
+  afterEach(() => {
+    delete window.Telegram;
+  });
+
   it("linkifies only http(s) URLs and opens them in a new tab", () => {
     Element.prototype.scrollIntoView = vi.fn();
     render(
@@ -79,6 +83,28 @@ describe("ChatView message links and actions", () => {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.queryByRole("link", { name: /javascript/i })).not.toBeInTheDocument();
+  });
+
+  it.each(["doctor", "patient"] as const)("opens a pasted URL externally in a hosted %s chat", async (variant) => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const openLink = vi.fn();
+    window.Telegram = { WebApp: { initData: "hosted-init-data", openLink } };
+    const user = userEvent.setup();
+
+    render(
+      <ChatView
+        variant={variant}
+        messages={[supportMessage({ senderRole: "user", text: "Откройте https://example.com/path" })]}
+        composer={null}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "https://example.com/path" });
+    await user.click(link);
+
+    expect(openLink).toHaveBeenCalledWith("https://example.com/path");
+    expect(link).toHaveAttribute("href", "https://example.com/path");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("calls onReplyToMessage from the explicit reply action", async () => {

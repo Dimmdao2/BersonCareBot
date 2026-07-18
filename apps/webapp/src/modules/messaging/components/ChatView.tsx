@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
+import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { chatMessageDeliveryStatus } from "../chatMessageDeliveryStatus";
 import {
@@ -49,7 +51,12 @@ function renderMessageText(text: string) {
         target="_blank"
         rel="noopener noreferrer"
         className="font-medium underline decoration-current/50 underline-offset-2 hover:decoration-current"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (!isMessengerMiniAppHost()) return;
+          event.preventDefault();
+          openExternalLinkInMessenger(url);
+        }}
       >
         {url}
       </a>,
