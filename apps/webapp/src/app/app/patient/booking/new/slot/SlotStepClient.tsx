@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -131,13 +131,18 @@ export function SlotStepClient(props: Props) {
   const canExtend = (slotCount + 1) * unitMinutes <= maxConsecutiveMinutes;
   const currentSlots = effectiveDate ? slotsState.slotsForDate(effectiveDate) : [];
 
-  useEffect(() => {
-    if (slotsState.loading || !selectedSlot || !effectiveDate) return;
-    if (currentSlots.some((slot) => slot.startAt === selectedSlot.startAt)) return;
-    // The next chain-length availability read invalidated the selected start.
+  // If a fresh availability read no longer contains the selected start, drop the selection.
+  // Adjust during render (React re-renders immediately) rather than in an effect; the guard
+  // clears itself once selectedSlot becomes null, so it cannot loop.
+  if (
+    !slotsState.loading &&
+    selectedSlot &&
+    effectiveDate &&
+    !currentSlots.some((slot) => slot.startAt === selectedSlot.startAt)
+  ) {
     setSelectedSlot(null);
     setSlotCount(1);
-  }, [currentSlots, effectiveDate, selectedSlot, slotsState.loading]);
+  }
 
   const canContinue = Boolean(effectiveDate && selectedSlot);
 
