@@ -15,9 +15,19 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import type { TreatmentProgramInstanceStageItemView } from "@/modules/treatment-program/types";
-import { TreatmentProgramLibraryPickerToolbar } from "./TreatmentProgramLibraryPickerToolbar";
+import {
+  DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
+import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
+import { VirtualizedItemGrid } from "@/shared/ui/doctor/catalog/VirtualizedItemGrid";
+import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
 import type { TreatmentProgramLibraryPickers, TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 import { useTreatmentProgramLibraryPickerList } from "./useTreatmentProgramLibraryPickerList";
 import { useInstanceEditorDraft } from "./InstanceEditorDraftContext";
@@ -57,7 +67,7 @@ function LibraryMediaThumb({
   itemType: TreatmentProgramLibraryPickType;
 }) {
   const shell =
-    "flex size-[70px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-muted/40";
+    "flex h-[135px] w-full shrink-0 items-center justify-center overflow-hidden rounded-[calc(var(--radius-md)*0.5)] border border-border/60 bg-muted/40";
   const icon =
     itemType === "recommendation" ? (
       <MessageSquare className="size-7 text-muted-foreground" aria-hidden />
@@ -78,7 +88,7 @@ function LibraryMediaThumb({
       <img
         src={src.trim()}
         alt=""
-        className="size-[70px] shrink-0 rounded-md border border-border/60 object-cover"
+        className="h-[135px] w-full shrink-0 rounded-[calc(var(--radius-md)*0.5)] border border-border/60 object-cover"
       />
     );
   }
@@ -228,7 +238,7 @@ export function InstanceAddLibraryItemDialog(props: {
 
   const targetGroupId = spec?.context === "custom_group" ? (spec.customGroupId ?? null) : null;
 
-  const { filteredRows: pickerList, emptyMessage, applyRegionLoadFilters } = useTreatmentProgramLibraryPickerList({
+  const { filteredRows: pickerList, emptyMessage } = useTreatmentProgramLibraryPickerList({
     rows: pickerBaseList,
     searchQuery: itemSearch,
     regionCode: selectedRegionCode,
@@ -358,10 +368,19 @@ export function InstanceAddLibraryItemDialog(props: {
 
   const showCustomKindToggle = spec?.context === "custom_group";
   const isPhaseZero = spec?.context === "phase_zero_recommendations";
+  const targetLabel =
+    spec?.context === "custom_group"
+      ? "Текущая группа этапа"
+      : spec?.context === "stage_system_tests"
+        ? "Блок тестов этапа"
+        : isPhaseZero
+          ? "Общие рекомендации"
+          : "Системная группа этапа";
+  const selectedRowsCount = pickerBaseList.filter((row) => selectedItemIdsForRow(row).length > 0).length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="grid max-h-[calc(100dvh-2rem)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden sm:h-[min(760px,calc(100dvh-2rem))] sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>{isPhaseZero ? "Рекомендация" : "Элемент из библиотеки"}</DialogTitle>
           {!isPhaseZero ? (
@@ -450,7 +469,7 @@ export function InstanceAddLibraryItemDialog(props: {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
           {showCustomKindToggle ? (
             <div className="flex flex-col gap-2">
               <Label>Тип элемента</Label>
@@ -549,64 +568,121 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
             </div>
           ) : null}
-          <TreatmentProgramLibraryPickerToolbar
-            idPrefix="inst-lib"
-            searchQuery={itemSearch}
-            onSearchQueryChange={setItemSearch}
-            regionCode={selectedRegionCode}
-            onRegionCodeChange={setSelectedRegionCode}
-            loadType={selectedLoadType}
-            onLoadTypeChange={setSelectedLoadType}
-            showRegionLoadFilters={applyRegionLoadFilters}
-            disabled={false}
+          <DoctorCatalogFiltersToolbar
+            className="static rounded-lg border border-border/60 bg-card shadow-none"
+            filters={
+              <DoctorCatalogToolbarFiltersSlot>
+                <DoctorCatalogFiltersForm
+                  idPrefix="inst-lib"
+                  q={itemSearch}
+                  regionCode={selectedRegionCode ?? undefined}
+                  loadType={selectedLoadType ?? undefined}
+                  onFiltersChange={({ q, regionCode, loadType }) => {
+                    setItemSearch(q);
+                    setSelectedRegionCode(regionCode);
+                    setSelectedLoadType(loadType);
+                  }}
+                />
+              </DoctorCatalogToolbarFiltersSlot>
+            }
           />
-          <ul className="max-h-[46vh] space-y-1 overflow-y-auto rounded-md border border-border/50 bg-muted/10 p-1">
-            {pickerList.length === 0 ? (
-              <li className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                {emptyMessage}
-              </li>
-            ) : (
-              pickerList.map((row) => (
-                <li key={row.id}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={editLocked}
-                    aria-pressed={selectedItemIdsForRow(row).length > 0}
-                    onClick={() => togglePick(row)}
-                    className={cn(
-                      "flex w-full items-start gap-3 rounded-md border px-2 py-2 text-left text-sm transition-colors disabled:pointer-events-none disabled:opacity-50",
-                      selectedItemIdsForRow(row).length > 0
-                        ? "border-primary/60 bg-primary/10 text-foreground ring-1 ring-primary/25 hover:bg-primary/15"
-                        : "border-border/50 bg-background hover:border-border hover:bg-muted/50",
-                    )}
-                  >
-                    <LibraryMediaThumb
-                      src={row.thumbUrl}
-                      itemType={
-                        spec?.context === "stage_system_tests" && testsAddMode === "expand_set"
-                          ? "clinical_test"
-                          : resolvedItemType
-                      }
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium leading-snug">{row.title}</span>
-                      {row.subtitle?.trim() ? (
-                        <span className="mt-0.5 block text-xs text-muted-foreground line-clamp-2">
-                          {row.subtitle.trim()}
-                        </span>
-                      ) : null}
-                    </span>
-                    {selectedItemIdsForRow(row).length > 0 ? (
-                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Check className="size-3.5" aria-hidden />
-                      </span>
-                    ) : null}
-                  </Button>
-                </li>
-              ))
-            )}
-          </ul>
+          <CatalogSplitLayout
+            className="min-h-0 flex-1 lg:min-h-0"
+            mobileView="list"
+            desktopColsClassName="lg:grid-cols-[minmax(0,3fr)_minmax(16rem,1fr)]"
+            left={
+              <CatalogLeftPane
+                stickySplit={false}
+                className="h-full"
+                headerSlot={
+                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2 text-xs text-muted-foreground">
+                    <span>{pickerList.length === 0 ? "Нет позиций" : `Позиций: ${pickerList.length}`}</span>
+                    <span className="truncate">В группу: {targetLabel}</span>
+                  </div>
+                }
+              >
+                {pickerList.length === 0 ? (
+                  <p className="m-0 flex flex-1 items-center justify-center rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+                    {emptyMessage}
+                  </p>
+                ) : (
+                  <VirtualizedItemGrid
+                    items={pickerList}
+                    columns={2}
+                    estimatedRowHeight={206}
+                    overscan={2}
+                    keyExtractor={(row) => row.id}
+                    containerClassName="h-full min-h-0"
+                    gridClassName="pb-2"
+                    renderItem={(row) => {
+                      const selected = selectedItemIdsForRow(row).length > 0;
+                      return (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={editLocked}
+                          aria-pressed={selected}
+                          onClick={() => togglePick(row)}
+                          className={cn(
+                            doctorInteractiveSurfaceButtonClass,
+                            "h-full w-full rounded-[calc(var(--radius-xl)*0.5)] p-0 text-left disabled:pointer-events-none disabled:opacity-50",
+                          )}
+                        >
+                          <Card
+                            size="sm"
+                            className={cn(
+                              "relative h-full w-full min-w-0 rounded-[calc(var(--radius-xl)*0.5)] transition-shadow data-[size=sm]:py-1.5",
+                              selected && "ring-1 ring-primary/60 ring-offset-1 ring-offset-background",
+                            )}
+                          >
+                            <CardContent className="flex h-full flex-col gap-2 py-px group-data-[size=sm]/card:px-1.5">
+                              <LibraryMediaThumb
+                                src={row.thumbUrl}
+                                itemType={
+                                  spec?.context === "stage_system_tests" && testsAddMode === "expand_set"
+                                    ? "clinical_test"
+                                    : resolvedItemType
+                                }
+                              />
+                              <span className="min-w-0 text-center">
+                                <span className="block line-clamp-2 text-xs font-medium leading-snug">{row.title}</span>
+                                {row.subtitle?.trim() ? (
+                                  <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
+                                    {row.subtitle.trim()}
+                                  </span>
+                                ) : null}
+                              </span>
+                              {selected ? (
+                                <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                  <Check className="size-3.5" aria-hidden />
+                                </span>
+                              ) : null}
+                            </CardContent>
+                          </Card>
+                        </Button>
+                      );
+                    }}
+                  />
+                )}
+              </CatalogLeftPane>
+            }
+            right={
+              <CatalogRightPane className="h-full" contentClassName="p-4">
+                <div className="flex h-full flex-col gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Добавление в программу</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Цель: {targetLabel}.</p>
+                  </div>
+                  <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
+                    В этой группе выбрано: {selectedRowsCount}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Нажмите карточку, чтобы добавить позицию; повторный клик убирает её только из текущей группы.
+                  </p>
+                </div>
+              </CatalogRightPane>
+            }
+          />
         </div>
         )}
         <DialogFooter>

@@ -34,6 +34,12 @@ export type DoctorCatalogTertiaryFilter = {
 
 export type DoctorCatalogToolbarLayout = "compact" | "expanded";
 
+export type DoctorCatalogFiltersChange = {
+  q: string;
+  regionCode: string | null;
+  loadType: string | null;
+};
+
 export type DoctorCatalogFiltersFormProps = {
   q: string;
   /** Код `reference_items.code` категории `body_region` (в URL `?region=`). */
@@ -55,6 +61,8 @@ export type DoctorCatalogFiltersFormProps = {
   leadingSlot?: ReactNode;
   /** Синхронизация высоты split-pane: всегда одна строка фильтров (`compact`). */
   onFilterToolbarLayoutChange?: (layout: DoctorCatalogToolbarLayout) => void;
+  /** Локальный режим для каталогов внутри диалогов: без изменения URL и server navigation. */
+  onFiltersChange?: (filters: DoctorCatalogFiltersChange) => void;
 };
 
 function applyParamsPatch(sp: URLSearchParams, patch: Record<string, string | null | undefined>): URLSearchParams {
@@ -84,6 +92,7 @@ export function DoctorCatalogFiltersForm({
   catalogPubArch,
   leadingSlot,
   onFilterToolbarLayoutChange,
+  onFiltersChange,
 }: DoctorCatalogFiltersFormProps) {
   const pathname = usePathname();
 
@@ -152,6 +161,14 @@ export function DoctorCatalogFiltersForm({
         clearTimeout(qDebounceRef.current);
         qDebounceRef.current = null;
       }
+      if (onFiltersChange) {
+        onFiltersChange({
+          q: qInputRef.current.trim(),
+          regionCode: patch.region === undefined ? selectedRegionCode : patch.region ?? null,
+          loadType: patch.load === undefined ? selectedExerciseLoad : patch.load ?? null,
+        });
+        return;
+      }
       const base = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
       const qTrim = qInputRef.current.trim();
       const next = applyParamsPatch(base, {
@@ -161,13 +178,21 @@ export function DoctorCatalogFiltersForm({
       mergeWorkspaceInto(next);
       replaceSearch(next);
     },
-    [mergeWorkspaceInto, replaceSearch],
+    [mergeWorkspaceInto, onFiltersChange, replaceSearch, selectedExerciseLoad, selectedRegionCode],
   );
 
   const scheduleCommitQ = useCallback(() => {
     if (qDebounceRef.current) clearTimeout(qDebounceRef.current);
     qDebounceRef.current = setTimeout(() => {
       qDebounceRef.current = null;
+      if (onFiltersChange) {
+        onFiltersChange({
+          q: qInputRef.current.trim(),
+          regionCode: selectedRegionCode,
+          loadType: selectedExerciseLoad,
+        });
+        return;
+      }
       const sp = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
       const qTrim = qInputRef.current.trim();
       if (qTrim) sp.set("q", qTrim);
@@ -175,7 +200,7 @@ export function DoctorCatalogFiltersForm({
       mergeWorkspaceInto(sp);
       replaceSearch(sp);
     }, Q_DEBOUNCE_MS);
-  }, [mergeWorkspaceInto, replaceSearch]);
+  }, [mergeWorkspaceInto, onFiltersChange, replaceSearch, selectedExerciseLoad, selectedRegionCode]);
 
   useEffect(() => {
     setSelectedRegionCode(regionCode ?? null);
