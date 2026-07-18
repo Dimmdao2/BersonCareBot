@@ -718,15 +718,19 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
   it("reconciles promo + promo by completing the duplicate promo before repoint", async () => {
     const sqlLog: string[] = [];
     const baseClient = makeClient(sqlLog);
+    const promoTemplateId = uid(200);
+    const targetPromoId = uid(201);
     const duplicatePromoId = uid(202);
     const query = vi.fn(async (sql: string, params?: unknown[]) => {
       if (String(sql).includes("FROM treatment_program_instances t")) {
         return {
           rows: [{
-            target_instance_id: uid(201),
+            target_instance_id: targetPromoId,
             target_assignment_source: "promo",
+            target_template_id: promoTemplateId,
             duplicate_instance_id: duplicatePromoId,
             duplicate_assignment_source: "promo",
+            duplicate_template_id: promoTemplateId,
           }],
         };
       }
@@ -741,6 +745,41 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     expect(closeCall?.[1]).toEqual([duplicatePromoId]);
     expect(String(closeCall?.[0])).toContain("supersededBy', 'platform_user_merge'");
     expect(String(closeCall?.[0])).toContain("organization_id");
+
+    const consolidateCall = query.mock.calls.find(([sql]) => String(sql).includes("stage_map AS MATERIALIZED"));
+    expect(consolidateCall?.[1]).toEqual([targetPromoId, duplicatePromoId]);
+    expect(String(consolidateCall?.[0])).toContain("SET completed_at = CASE");
+    expect(String(consolidateCall?.[0])).toContain("UPDATE program_action_log pal");
+    expect(String(consolidateCall?.[0])).toContain("instance_stage_item_id = im.target_item_id");
+  });
+
+  it("does not consolidate promo progress when promo templates differ", async () => {
+    const sqlLog: string[] = [];
+    const baseClient = makeClient(sqlLog);
+    const duplicatePromoId = uid(212);
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (String(sql).includes("FROM treatment_program_instances t")) {
+        return {
+          rows: [{
+            target_instance_id: uid(211),
+            target_assignment_source: "promo",
+            target_template_id: uid(213),
+            duplicate_instance_id: duplicatePromoId,
+            duplicate_assignment_source: "promo",
+            duplicate_template_id: uid(214),
+          }],
+        };
+      }
+      return baseClient.query(sql, params as never);
+    });
+
+    await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+      resolution: baseResolution(),
+    });
+
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("stage_map AS MATERIALIZED"))).toBe(false);
+    const closeCall = query.mock.calls.find(([sql]) => String(sql).includes("WITH closed AS"));
+    expect(closeCall?.[1]).toEqual([duplicatePromoId]);
   });
 
   it("reconciles promo + doctor by completing promo and keeping the real assignment active", async () => {

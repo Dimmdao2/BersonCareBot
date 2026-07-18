@@ -903,9 +903,100 @@ async function assertPatientLfkAssignmentsSafe(
 type ActiveTreatmentProgramMergePair = {
   target_instance_id: string;
   target_assignment_source: string;
+  target_template_id: string | null;
   duplicate_instance_id: string;
   duplicate_assignment_source: string;
+  duplicate_template_id: string | null;
 };
+
+/**
+ * Two promo instances created from the same template have equivalent immutable structure. Preserve
+ * the canonical instance as the patient-facing plan, union item/stage progress into it, and move the
+ * append-only completion log to the matching canonical items. The superseded instance itself stays
+ * in history and is completed by the caller.
+ */
+async function consolidateMatchingPromoProgress(
+  client: PlatformMergeDbClient,
+  targetInstanceId: string,
+  duplicateInstanceId: string,
+): Promise<void> {
+  await client.query(
+    `WITH stage_map AS MATERIALIZED (
+       SELECT ts.id AS target_stage_id, ds.id AS duplicate_stage_id
+       FROM treatment_program_instance_stages ts
+       INNER JOIN treatment_program_instance_stages ds
+         ON ts.instance_id = $1::uuid
+        AND ds.instance_id = $2::uuid
+        AND ts.source_stage_id IS NOT DISTINCT FROM ds.source_stage_id
+        AND ts.sort_order = ds.sort_order
+     ),
+     item_map AS MATERIALIZED (
+       SELECT ti.id AS target_item_id, di.id AS duplicate_item_id
+       FROM stage_map sm
+       INNER JOIN treatment_program_instance_stage_items ti ON ti.stage_id = sm.target_stage_id
+       INNER JOIN treatment_program_instance_stage_items di
+         ON di.stage_id = sm.duplicate_stage_id
+        AND ti.item_type = di.item_type
+        AND ti.item_ref_id = di.item_ref_id
+        AND ti.sort_order = di.sort_order
+     ),
+     merged_items AS (
+       UPDATE treatment_program_instance_stage_items ti
+       SET completed_at = CASE
+             WHEN ti.completed_at IS NULL THEN di.completed_at
+             WHEN di.completed_at IS NULL THEN ti.completed_at
+             ELSE GREATEST(ti.completed_at, di.completed_at)
+           END,
+           last_viewed_at = CASE
+             WHEN ti.last_viewed_at IS NULL THEN di.last_viewed_at
+             WHEN di.last_viewed_at IS NULL THEN ti.last_viewed_at
+             ELSE GREATEST(ti.last_viewed_at, di.last_viewed_at)
+           END
+       FROM item_map im
+       INNER JOIN treatment_program_instance_stage_items di ON di.id = im.duplicate_item_id
+       WHERE ti.id = im.target_item_id
+       RETURNING ti.id
+     ),
+     moved_actions AS (
+       UPDATE program_action_log pal
+       SET instance_id = $1::uuid,
+           instance_stage_item_id = im.target_item_id
+       FROM item_map im
+       WHERE pal.instance_id = $2::uuid
+         AND pal.instance_stage_item_id = im.duplicate_item_id
+       RETURNING pal.id
+     ),
+     merged_stages AS (
+       UPDATE treatment_program_instance_stages ts
+       SET status = CASE
+             WHEN ts.status = 'completed' OR ds.status = 'completed' THEN 'completed'
+             WHEN ts.status = 'in_progress' OR ds.status = 'in_progress' THEN 'in_progress'
+             WHEN ts.status = 'available' OR ds.status = 'available' THEN 'available'
+             ELSE ts.status
+           END,
+           started_at = CASE
+             WHEN ts.started_at IS NULL THEN ds.started_at
+             WHEN ds.started_at IS NULL THEN ts.started_at
+             ELSE LEAST(ts.started_at, ds.started_at)
+           END
+       FROM stage_map sm
+       INNER JOIN treatment_program_instance_stages ds ON ds.id = sm.duplicate_stage_id
+       WHERE ts.id = sm.target_stage_id
+       RETURNING ts.id
+     )
+     UPDATE treatment_program_instances ti
+     SET patient_plan_last_opened_at = CASE
+           WHEN ti.patient_plan_last_opened_at IS NULL THEN di.patient_plan_last_opened_at
+           WHEN di.patient_plan_last_opened_at IS NULL THEN ti.patient_plan_last_opened_at
+           ELSE GREATEST(ti.patient_plan_last_opened_at, di.patient_plan_last_opened_at)
+         END,
+         updated_at = GREATEST(ti.updated_at, di.updated_at)
+     FROM treatment_program_instances di
+     WHERE ti.id = $1::uuid
+       AND di.id = $2::uuid`,
+    [targetInstanceId, duplicateInstanceId],
+  );
+}
 
 async function assertAutoMergePasswordCredentialsSafe(
   client: PlatformMergeDbClient,
@@ -941,8 +1032,10 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
   const r = await client.query<ActiveTreatmentProgramMergePair>(
     `SELECT t.id::text AS target_instance_id,
             t.assignment_source AS target_assignment_source,
+            t.template_id::text AS target_template_id,
             d.id::text AS duplicate_instance_id,
-            d.assignment_source AS duplicate_assignment_source
+            d.assignment_source AS duplicate_assignment_source,
+            d.template_id::text AS duplicate_template_id
      FROM treatment_program_instances t
      INNER JOIN treatment_program_instances d
        ON t.patient_user_id = $1::uuid
@@ -961,6 +1054,15 @@ async function reconcileActiveTreatmentProgramInstancesForMerge(
       targetId,
       duplicateId,
     ]);
+  }
+
+  if (
+    targetIsPromo &&
+    duplicateIsPromo &&
+    typeof pair.target_template_id === "string" &&
+    pair.target_template_id === pair.duplicate_template_id
+  ) {
+    await consolidateMatchingPromoProgress(client, pair.target_instance_id, pair.duplicate_instance_id);
   }
 
   const closingInstanceId = targetIsPromo && !duplicateIsPromo
