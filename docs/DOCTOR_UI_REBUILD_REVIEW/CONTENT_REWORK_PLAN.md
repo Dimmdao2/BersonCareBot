@@ -1,4 +1,4 @@
-# Контент page rework — implementation plan
+# УСТАРЕЛ / SUPERSEDED — Контент page rework implementation plan
 
 Generated: 2026-06-14. Branch: `feat/doctor-ui-rebuild` (worktree `doctor-pages`).
 
