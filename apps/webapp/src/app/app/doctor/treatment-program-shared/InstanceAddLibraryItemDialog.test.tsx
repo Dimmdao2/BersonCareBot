@@ -16,6 +16,27 @@ vi.mock("./InstanceEditorDraftContext", () => ({
   useInstanceEditorDraft: () => ({ addItemCreate, deleteItem, displayDetail }),
 }));
 
+// Render the canonical virtualized grid fully (no viewport virtualization in jsdom):
+// map every item through the real renderItem so selection/filter logic stays under test.
+vi.mock("@/shared/ui/doctor/catalog/VirtualizedItemGrid", () => ({
+  VirtualizedItemGrid: ({
+    items,
+    renderItem,
+    keyExtractor,
+  }: {
+    items: unknown[];
+    renderItem: (item: unknown, index: number) => React.ReactNode;
+    keyExtractor: (item: unknown) => string;
+  }) =>
+    items.length === 0 ? null : (
+      <div data-testid="mock-virtual-grid">
+        {items.map((item, index) => (
+          <div key={keyExtractor(item)}>{renderItem(item, index)}</div>
+        ))}
+      </div>
+    ),
+}));
+
 vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ReferenceSelect: (props: {
     id?: string;
