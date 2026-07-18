@@ -4,7 +4,7 @@
  * PatientsPageClient — unified patients list.
  *
  * Layout (desktop, 2-column):
- *   LEFT  – patient list with search on top + icon-filter rail header
+ *   LEFT  – patient list with search on top
  *   RIGHT – filter panel (segment stat cards + channel row + additional filters)
  *           + PatientPreviewPane when a row is selected
  *
@@ -13,7 +13,7 @@
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Search, X, Ban, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
+import { Search, X, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
@@ -58,22 +58,6 @@ export type PatientsPageClientProps = {
   initialFilters: InitialFilters;
   patientPluralLabel?: string;
   displayIana?: string;
-};
-
-type TriFilterState = "off" | "positive" | "negative";
-type RichFilterState = "off" | "positive" | "new" | "negative";
-
-type IconFiltersState = {
-  appointments: RichFilterState;
-  messages: RichFilterState;
-  comments: RichFilterState;
-  memberships: TriFilterState;
-  support: TriFilterState;
-  telegram: TriFilterState;
-  max: TriFilterState;
-  email: TriFilterState;
-  phone: TriFilterState;
-  app: TriFilterState;
 };
 
 // Legacy per-button filter state (mirrors old DoctorClientsPanel ClientFiltersState)
@@ -126,8 +110,6 @@ const SEGMENTS: SegmentDef[] = [
   { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
 ];
 
-const CLIENT_ICON_RAIL_CLASS = "grid shrink-0 grid-cols-[repeat(4,1.75rem)] gap-1 md:grid-cols-[repeat(10,1.75rem)]";
-
 function segmentKeyFromUrl(value: string | null): SegmentKey[] {
   if (!value || value === "all") return [];
   const segment = SEGMENTS.find((item) => item.urlValue === value);
@@ -135,84 +117,6 @@ function segmentKeyFromUrl(value: string | null): SegmentKey[] {
 }
 
 // ---------------------------------------------------------------------------
-// Icon filter helpers (icon-rail on list header)
-// ---------------------------------------------------------------------------
-
-function cycleTriFilterState(state: TriFilterState): TriFilterState {
-  if (state === "off") return "positive";
-  if (state === "positive") return "negative";
-  return "off";
-}
-
-function cycleRichFilterState(state: RichFilterState): RichFilterState {
-  if (state === "off") return "positive";
-  if (state === "positive") return "new";
-  if (state === "new") return "negative";
-  return "off";
-}
-
-function applyTriFilter(
-  list: ClientListItem[],
-  state: TriFilterState,
-  predicate: (item: ClientListItem) => boolean,
-): ClientListItem[] {
-  if (state === "off") return list;
-  if (state === "positive") return list.filter(predicate);
-  return list.filter((item) => !predicate(item));
-}
-
-function applyRichFilter(
-  list: ClientListItem[],
-  state: RichFilterState,
-  hasPredicate: (item: ClientListItem) => boolean,
-  newPredicate: (item: ClientListItem) => boolean,
-): ClientListItem[] {
-  if (state === "off") return list;
-  if (state === "positive") return list.filter(hasPredicate);
-  if (state === "new") return list.filter(newPredicate);
-  return list.filter((item) => !hasPredicate(item));
-}
-
-function applyIconFilters(
-  list: ClientListItem[],
-  iconFilters: IconFiltersState,
-): ClientListItem[] {
-  list = applyRichFilter(
-    list,
-    iconFilters.appointments,
-    (c) => (c.hasAppointmentHistory ?? false) || (c.activeAppointmentsCount ?? 0) > 0,
-    (c) => (c.activeAppointmentsCount ?? 0) > 0,
-  );
-  list = applyRichFilter(
-    list,
-    iconFilters.messages,
-    (c) => (c.hasConversation ?? false) || (c.unreadMessagesCount ?? 0) > 0,
-    (c) => (c.unreadMessagesCount ?? 0) > 0,
-  );
-  list = applyRichFilter(
-    list,
-    iconFilters.comments,
-    (c) => c.activeTreatmentProgram,
-    (c) => (c.unreadExerciseCommentsCount ?? 0) > 0,
-  );
-  list = applyTriFilter(list, iconFilters.memberships, (c) => c.hasMemberships === true);
-  list = applyTriFilter(list, iconFilters.support, (c) => c.isOnSupport === true);
-  list = applyTriFilter(
-    list,
-    iconFilters.telegram,
-    (c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked,
-  );
-  list = applyTriFilter(
-    list,
-    iconFilters.max,
-    (c) => Boolean(c.bindings.maxId?.trim()) && !c.bindings.maxBotBlocked,
-  );
-  list = applyTriFilter(list, iconFilters.email, (c) => c.hasEmail === true);
-  list = applyTriFilter(list, iconFilters.phone, (c) => Boolean(c.phone?.trim()));
-  list = applyTriFilter(list, iconFilters.app, (c) => c.hasApp === true);
-  return list;
-}
-
 function applyChannelFilter(list: ClientListItem[], activeChannel: string | null): ClientListItem[] {
   if (activeChannel === "telegram") {
     return list.filter((c) => Boolean(c.bindings.telegramId?.trim()) && !c.bindings.telegramBotBlocked);
@@ -231,19 +135,6 @@ function applyChannelFilter(list: ClientListItem[], activeChannel: string | null
   }
   return list;
 }
-
-const DEFAULT_ICON_FILTERS: IconFiltersState = {
-  appointments: "off",
-  messages: "off",
-  comments: "off",
-  memberships: "off",
-  support: "off",
-  telegram: "off",
-  max: "off",
-  email: "off",
-  phone: "off",
-  app: "off",
-};
 
 const DEFAULT_LEGACY_FILTERS: LegacyFiltersState = {
   telegram: false,
@@ -362,7 +253,7 @@ type IconSlotProps = {
 
 function IconSlot({ visible, label, title, badge, className, children }: IconSlotProps) {
   if (!visible) {
-    return <span className={cn("inline-flex size-7 shrink-0", className)} aria-hidden />;
+    return null;
   }
   return (
     <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
@@ -375,55 +266,6 @@ function IconSlot({ visible, label, title, badge, className, children }: IconSlo
         {iconBadge(badge ?? 0)}
       </span>
     </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// HeaderIconButton (icon filter rail)
-// ---------------------------------------------------------------------------
-
-type HeaderIconButtonProps = {
-  label: string;
-  title: string;
-  state: TriFilterState | RichFilterState;
-  onClick: () => void;
-  className?: string;
-  children: ReactNode;
-};
-
-function HeaderIconButton({ label, title, state, onClick, className, children }: HeaderIconButtonProps) {
-  const isPositive = state === "positive" || state === "new";
-  const isNegative = state === "negative";
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-label={label}
-      title={title}
-      onClick={onClick}
-      className={cn(
-        "relative inline-flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
-        isPositive
-          ? "border-primary/50 bg-primary/15 text-primary"
-          : isNegative
-            ? "border-slate-500/60 bg-slate-600/20 text-slate-700 dark:text-slate-300"
-            : "border-border/60 bg-muted/40 text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-      {state === "new" ? (
-        <span
-          className="absolute -right-1 -top-1 inline-flex size-2.5 rounded-full bg-destructive"
-          aria-hidden
-        />
-      ) : null}
-      {isNegative ? (
-        <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-full bg-background">
-          <Ban className="size-3 text-destructive" aria-hidden />
-        </span>
-      ) : null}
-    </Button>
   );
 }
 
@@ -788,7 +630,6 @@ type PatientsContentProps = {
   searchQuery: string;
   searchInput: string;
   legacyFilters: LegacyFiltersState;
-  iconFilters: IconFiltersState;
   isListPending: boolean;
   selectedUserId: string | null;
   activeCategory: ClientCategory;
@@ -796,8 +637,6 @@ type PatientsContentProps = {
   onCategoryChange: (category: ClientCategory) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
-  onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
-  onCycleTriIconFilter: (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
   onSelectPatient: (userId: string | null) => void;
@@ -813,7 +652,6 @@ function PatientsContent({
   searchQuery,
   searchInput,
   legacyFilters,
-  iconFilters,
   isListPending,
   selectedUserId,
   activeCategory,
@@ -821,8 +659,6 @@ function PatientsContent({
   onCategoryChange,
   onSegmentToggle,
   onChannelChange,
-  onCycleRichIconFilter,
-  onCycleTriIconFilter,
   onClearSearch,
   onSearchInput,
   onSelectPatient,
@@ -830,11 +666,10 @@ function PatientsContent({
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
 
-  // Apply category filter first, then segment, then icon filters, then legacy filters
+  // Apply category filter first, then segment, channel, and legacy filters.
   let filtered = applyCategoryFilter(allClients, activeCategory);
   filtered = applySegmentFilters(filtered, activeSegments);
   filtered = applyChannelFilter(filtered, activeChannel);
-  filtered = applyIconFilters(filtered, iconFilters);
   // Legacy filters (AND-logic)
   if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
   if (legacyFilters.visitedMonth) filtered = filtered.filter((c) => c.visitedThisCalendarMonth === true);
@@ -868,7 +703,6 @@ function PatientsContent({
     activeCategory !== "all" ||
     activeSegments.length > 0 ||
     activeChannel !== null ||
-    Object.values(iconFilters).some((v) => v !== "off") ||
     legacyFilters.cancellations ||
     legacyFilters.visitedMonth ||
     legacyFilters.withoutAppointments ||
@@ -929,9 +763,9 @@ function PatientsContent({
           </div>
         </div>
 
-        {/* Sticky header: count + icon filter rail */}
+        {/* Sticky header: count */}
         {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-        <div className="lg:sticky lg:top-0 z-10 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border/60 bg-card px-2 py-2 md:gap-3 md:px-5">
+        <div className="lg:sticky lg:top-0 z-10 shrink-0 border-b border-border/60 bg-card px-2 py-2 md:px-5">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
             {isAnyFilterActive
               ? <>найдено {filtered.length} / {categoryBase.length}</>
@@ -940,85 +774,6 @@ function PatientsContent({
                 : <>Пациентов: {categoryBase.length}</>}
             {isListPending && <span className="ml-1 animate-pulse">…</span>}
           </p>
-          <div className={CLIENT_ICON_RAIL_CLASS} aria-label="Фильтры списка">
-            <HeaderIconButton
-              label="Фильтр записей"
-              title="Записи: все состояния -> с записями -> с активными -> без записей"
-              state={iconFilters.appointments}
-              onClick={() => onCycleRichIconFilter("appointments")}
-            >
-              <CalendarDays className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр программы упражнений"
-              title="Программа упражнений: все -> с программой -> с новыми комментариями -> без программы"
-              state={iconFilters.comments}
-              onClick={() => onCycleRichIconFilter("comments")}
-            >
-              <Dumbbell className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр сопровождения"
-              title="Сопровождение: все -> на сопровождении -> не на сопровождении"
-              state={iconFilters.support}
-              onClick={() => onCycleTriIconFilter("support")}
-            >
-              <Handshake className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр абонементов"
-              title="Абонементы: все -> с абонементами -> без абонементов"
-              state={iconFilters.memberships}
-              onClick={() => onCycleTriIconFilter("memberships")}
-            >
-              <Ticket className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр телефона"
-              title="Телефон: все -> есть телефон -> нет телефона"
-              state={iconFilters.phone}
-              onClick={() => onCycleTriIconFilter("phone")}
-              className="hidden md:inline-flex"
-            >
-              <Phone className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр Telegram"
-              title="Telegram: все -> подключен -> не подключен"
-              state={iconFilters.telegram}
-              onClick={() => onCycleTriIconFilter("telegram")}
-              className="hidden md:inline-flex"
-            >
-              <Send className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр MAX"
-              title="MAX: все -> подключен -> не подключен"
-              state={iconFilters.max}
-              onClick={() => onCycleTriIconFilter("max")}
-              className="hidden md:inline-flex"
-            >
-              <span className="text-[10px] font-semibold leading-none">М</span>
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр email"
-              title="Email: все -> указан -> не указан"
-              state={iconFilters.email}
-              onClick={() => onCycleTriIconFilter("email")}
-              className="hidden md:inline-flex"
-            >
-              <Mail className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-            <HeaderIconButton
-              label="Фильтр приложения"
-              title="Приложение: все -> есть приложение -> нет приложения"
-              state={iconFilters.app}
-              onClick={() => onCycleTriIconFilter("app")}
-              className="hidden md:inline-flex"
-            >
-              <Smartphone className="size-3.5" aria-hidden />
-            </HeaderIconButton>
-          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -1030,10 +785,7 @@ function PatientsContent({
         ) : (
           <ul id="doctor-patients-list" className="m-0 list-none space-y-1.5 p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {filtered.map((c) => {
-              const appointmentCount = c.activeAppointmentsCount ?? (c.nextAppointmentLabel ? 1 : 0);
-              const unreadMessagesCount = c.unreadMessagesCount ?? 0;
-              const unreadExerciseCommentsCount = c.unreadExerciseCommentsCount ?? 0;
-              const hasApptHistory = (c.hasAppointmentHistory ?? false) || appointmentCount > 0;
+              const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
               const isSelected = c.userId === selectedUserId;
               return (
                 <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
@@ -1061,29 +813,19 @@ function PatientsContent({
                         <span className="block truncate text-sm font-semibold text-foreground">{c.displayName}</span>
                       )}
                     </div>
-                    <div className={CLIENT_ICON_RAIL_CLASS}>
+                    <div className="flex shrink-0 items-center gap-1">
                       <IconSlot
-                        visible={hasApptHistory}
-                        label={`История записей${appointmentCount > 0 ? `, активных: ${appointmentCount}` : ""}`}
-                        title="История записей"
-                        badge={appointmentCount > 0 ? appointmentCount : undefined}
+                        visible={futureAppointmentCount > 0}
+                        label={`Будущие записи: ${futureAppointmentCount}`}
+                        title="Будущие записи"
+                        badge={futureAppointmentCount}
                       >
                         <CalendarDays className="size-3.5" aria-hidden />
                       </IconSlot>
                       <IconSlot
-                        visible={(c.hasConversation ?? false) || unreadMessagesCount > 0}
-                        label={`Переписка${unreadMessagesCount > 0 ? `, непрочитанных: ${unreadMessagesCount}` : ""}`}
-                        title="Переписка"
-                        badge={unreadMessagesCount > 0 ? unreadMessagesCount : undefined}
-                        className="hidden md:inline-flex"
-                      >
-                        <MessageSquare className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.activeTreatmentProgram}
-                        label={`Программа тренировок${unreadExerciseCommentsCount > 0 ? `, новых комментариев: ${unreadExerciseCommentsCount}` : ""}`}
-                        title="Назначенная программа тренировок"
-                        badge={unreadExerciseCommentsCount > 0 ? unreadExerciseCommentsCount : undefined}
+                        visible={c.activeTreatmentProgram && c.isOnSupport !== true}
+                        label="Назначенная программа"
+                        title="Назначенная программа"
                       >
                         <Dumbbell className="size-3.5" aria-hidden />
                       </IconSlot>
@@ -1100,31 +842,6 @@ function PatientsContent({
                         title="Есть абонемент"
                       >
                         <Ticket className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot visible={Boolean(c.phone?.trim())} label="Телефон указан" title="Телефон указан" className="hidden md:inline-flex">
-                        <Phone className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={Boolean(c.bindings.telegramId?.trim())}
-                        label="Подключён Telegram"
-                        title="Подключён Telegram"
-                        className="hidden md:inline-flex"
-                      >
-                        <Send className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={Boolean(c.bindings.maxId?.trim())}
-                        label="Подключён MAX"
-                        title="Подключён MAX"
-                        className="hidden md:inline-flex"
-                      >
-                        <span className="text-[10px] font-semibold leading-none">М</span>
-                      </IconSlot>
-                      <IconSlot visible={c.hasEmail === true} label="Указан email" title="Указан email" className="hidden md:inline-flex">
-                        <Mail className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot visible={c.hasApp === true} label="Есть приложение" title="Есть приложение" className="hidden md:inline-flex">
-                        <Smartphone className="size-3.5" aria-hidden />
                       </IconSlot>
                     </div>
                   </Button>
@@ -1145,8 +862,8 @@ function PatientsContent({
         )}
       </section>
 
-      {/* ===== RIGHT: filter panel + preview pane ===== */}
-      <div className="hidden flex-col gap-3 lg:flex lg:min-h-0">
+      {/* ===== RIGHT: filter panel + desktop preview pane ===== */}
+      <div className="order-first flex flex-col gap-3 lg:order-none lg:min-h-0">
         {/* Filter panel */}
         <section
           className={cn(
@@ -1267,12 +984,14 @@ function PatientsContent({
 
         {/* Preview pane — shown when a row is selected */}
         {selectedUserId && selectedItem ? (
-          <PatientPreviewPane
-            userId={selectedUserId}
-            item={selectedItem}
-            onClose={() => onSelectPatient(null)}
-            displayIana={displayIana}
-          />
+          <div className="hidden lg:block">
+            <PatientPreviewPane
+              userId={selectedUserId}
+              item={selectedItem}
+              onClose={() => onSelectPatient(null)}
+              displayIana={displayIana}
+            />
+          </div>
         ) : null}
       </div>
     </div>
@@ -1305,9 +1024,6 @@ export function PatientsPageClient({
   const [activeSegments, setActiveSegments] = useState<SegmentKey[]>(() => segmentKeyFromUrl(initialFilters.segment));
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [archivedOnly, setArchivedOnly] = useState(initialFilters.archivedOnly);
-
-  // Icon filter state (client-side only, not reflected in URL)
-  const [iconFilters, setIconFilters] = useState<IconFiltersState>(DEFAULT_ICON_FILTERS);
 
   // Legacy per-button filter state (client-side only)
   const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
@@ -1371,20 +1087,6 @@ export function PatientsPageClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
 
-  const handleCycleRichIconFilter = useCallback(
-    (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
-      setIconFilters((prev) => ({ ...prev, [key]: cycleRichFilterState(prev[key]) }));
-    },
-    [],
-  );
-
-  const handleCycleTriIconFilter = useCallback(
-    (key: Exclude<keyof IconFiltersState, "appointments" | "messages" | "comments">) => {
-      setIconFilters((prev) => ({ ...prev, [key]: cycleTriFilterState(prev[key]) }));
-    },
-    [],
-  );
-
   const handleSelectPatient = useCallback((userId: string | null) => {
     setSelectedUserId(userId);
   }, []);
@@ -1401,7 +1103,6 @@ export function PatientsPageClient({
         searchQuery={searchQuery}
         searchInput={searchInput}
         legacyFilters={legacyFilters}
-        iconFilters={iconFilters}
         isListPending={isListPending}
         selectedUserId={selectedUserId}
         activeCategory={activeCategory}
@@ -1409,8 +1110,6 @@ export function PatientsPageClient({
         onCategoryChange={setActiveCategory}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
-        onCycleRichIconFilter={handleCycleRichIconFilter}
-        onCycleTriIconFilter={handleCycleTriIconFilter}
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
         onSelectPatient={handleSelectPatient}

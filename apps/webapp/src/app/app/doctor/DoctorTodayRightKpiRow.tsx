@@ -85,38 +85,38 @@ function SplitAppointmentStatCard({
   onFutureClick,
 }: SplitAppointmentStatCardProps) {
   const segmentClass =
-    "min-w-0 rounded-md px-2 py-1 text-left transition-colors enabled:hover:bg-muted/55 disabled:cursor-default disabled:opacity-55";
+    "min-w-0 rounded-md px-2 text-left transition-colors enabled:hover:bg-muted/55 disabled:cursor-default disabled:opacity-55";
 
   return (
     <article id={id} className={doctorStatCardShellClass}>
       <p className={doctorMetricLabelClass}>{title}</p>
-      <div className="mt-1 grid grid-cols-2 divide-x divide-border/70">
+      <div className="mt-auto grid grid-cols-2 divide-x divide-border/70 pt-1">
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(segmentClass, "h-auto pr-3")}
+          className={cn(segmentClass, "h-full py-0.5 pr-3")}
           onClick={onTotalClick}
           disabled={total <= 0}
           aria-label={`${title}: всего ${total}`}
         >
-          <div className="flex items-baseline gap-1.5">
-            <span className={doctorMetricValueClass}>{total}</span>
+          <div className="flex flex-col gap-0.5">
             <span className="text-[10px] leading-none text-muted-foreground">Всего</span>
+            <span className={doctorMetricValueClass}>{total}</span>
           </div>
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className={cn(segmentClass, "h-auto pl-3")}
+          className={cn(segmentClass, "h-full py-0.5 pl-3")}
           onClick={onFutureClick}
           disabled={future <= 0}
           aria-label={`${title}: будущие ${future}`}
         >
-          <div className="flex items-baseline gap-1.5">
-            <span className={doctorMetricValueClass}>{future}</span>
+          <div className="flex flex-col gap-0.5">
             <span className="text-[10px] leading-none text-muted-foreground">Будущие</span>
+            <span className={doctorMetricValueClass}>{future}</span>
           </div>
         </Button>
       </div>

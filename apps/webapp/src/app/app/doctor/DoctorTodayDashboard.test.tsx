@@ -229,6 +229,39 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toHaveTextContent("Будущие");
   });
 
+  it("keeps single and split appointment KPIs in one vertical, equal-height contract", () => {
+    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
+    render(
+      <DoctorTodayDashboard
+        {...defaultProps()}
+        appointmentsTodayCount={3}
+        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 12 } }}
+        monthAppointmentCount={45}
+        data={{
+          ...emptyData(),
+          weekAppointments: [appointmentItem({ id: "week-future" })],
+          monthAppointments: [appointmentItem({ id: "month-future" })],
+        }}
+      />,
+    );
+
+    const todayCard = document.getElementById("doctor-today-right-kpi-today");
+    const weekCard = document.getElementById("doctor-today-right-kpi-week");
+    const monthCard = document.getElementById("doctor-today-right-kpi-month");
+    expect(todayCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
+    expect(weekCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
+    expect(monthCard).toHaveClass("flex", "min-h-[5.5rem]", "flex-col");
+
+    const todayMarkup = todayCard?.innerHTML ?? "";
+    expect(todayMarkup.indexOf("Записи сегодня")).toBeLessThan(todayMarkup.indexOf(">3<"));
+
+    const weekTotal = screen.getByRole("button", { name: /Записи неделя: всего 12/i });
+    const weekFuture = screen.getByRole("button", { name: /Записи неделя: будущие 1/i });
+    expect(weekTotal.innerHTML.indexOf("Всего")).toBeLessThan(weekTotal.innerHTML.indexOf(">12<"));
+    expect(weekFuture.innerHTML.indexOf("Будущие")).toBeLessThan(weekFuture.innerHTML.indexOf(">1<"));
+    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 1`, "i") })).toBeInTheDocument();
+  });
+
   it("opens total and future appointment KPI segments with matching lists", async () => {
     const user = userEvent.setup();
     const data: TodayDashboardData = {
