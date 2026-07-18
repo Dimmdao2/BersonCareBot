@@ -2,22 +2,19 @@
 
 import { Check, CornerDownLeft, SendHorizontal } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DoctorModal } from "@/shared/ui/doctor/DoctorModal";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { proactiveInsightKindLabelRu } from "@/modules/doctor-proactive-insights/computeProactiveInsights";
 import { doctorInlineLinkClass, doctorSectionItemClass } from "@/shared/ui/doctor/doctorVisual";
-import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 import { cn } from "@/lib/utils";
 import { sendDoctorProgramDiscussionReply } from "@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/doctorProgramDiscussionReply";
 import type { TodayPendingProgramTestItem } from "./mapPendingProgramTestsForToday";
 import type { TodayProactiveInsightItem } from "./mapProactiveInsightsForToday";
 import { markDoctorProgramDiscussionRead } from "./doctorProgramDiscussionMarkRead";
-import {
-  groupExerciseCommentAttentionByPatient,
-  type TodayExerciseCommentAttentionItem,
-} from "./loadDoctorExerciseCommentAttention";
+import type { TodayExerciseCommentAttentionItem } from "./loadDoctorExerciseCommentAttention";
+import { ExerciseCommentPreviewItemContent } from "./comments/ExerciseCommentPreviewItem";
 import type { TodayIntakeItem, TodayUnreadConversationItem } from "./loadDoctorTodayDashboard";
 
 export type DoctorTodayAttentionKind =
@@ -165,10 +162,8 @@ function ExerciseCommentAttentionRow(props: {
         setTouchActionVisible((prev) => !prev);
       }}
     >
-      <p className="text-xs text-muted-foreground">{item.stageItemTitle}</p>
-      <p className="text-[11px] text-muted-foreground">{item.latestMessageAtLabel}</p>
       <div
-        className="max-w-[min(100%,30rem)] rounded-md border border-border bg-muted/20 px-3 py-2 text-sm"
+        className="max-w-[min(100%,30rem)]"
         onTouchStart={
           touchEnabled
             ? (event) => {
@@ -218,7 +213,7 @@ function ExerciseCommentAttentionRow(props: {
             : undefined
         }
       >
-        <ProgramItemDiscussionMessageBody message={item.latestMessage} mine={false} />
+        <ExerciseCommentPreviewItemContent item={item} />
       </div>
 
       <div
@@ -316,11 +311,6 @@ export function DoctorTodayAttentionDialog({
   onExerciseCommentResolved,
 }: Props) {
   const title = kind ? TITLES[kind] : "";
-  const exerciseCommentsByPatient = useMemo(
-    () => groupExerciseCommentAttentionByPatient(exerciseCommentAttentionItems),
-    [exerciseCommentAttentionItems],
-  );
-
   return (
     <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
       <div className="max-h-[65vh] overflow-y-auto pr-1">
@@ -481,22 +471,15 @@ export function DoctorTodayAttentionDialog({
               {exerciseCommentAttentionItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{EMPTY_MESSAGES.exerciseComments}</p>
               ) : (
-                <div className="space-y-3">
-                  {exerciseCommentsByPatient.map((group) => (
-                    <section key={group.patientUserId} className="space-y-2">
-                      <h3 className="text-sm font-semibold text-foreground">{group.patientDisplayName}</h3>
-                      <ul className="m-0 list-none space-y-2 p-0">
-                        {group.items.map((item) => (
-                          <ExerciseCommentAttentionRow
-                            key={item.stageItemId}
-                            item={item}
-                            onResolved={onExerciseCommentResolved}
-                          />
-                        ))}
-                      </ul>
-                    </section>
+                <ul className="m-0 list-none space-y-2 p-0">
+                  {exerciseCommentAttentionItems.map((item) => (
+                    <ExerciseCommentAttentionRow
+                      key={item.stageItemId}
+                      item={item}
+                      onResolved={onExerciseCommentResolved}
+                    />
                   ))}
-                </div>
+                </ul>
               )}
               {exerciseCommentAttentionTruncated ? (
                 <p className="mt-2 text-xs text-muted-foreground">
