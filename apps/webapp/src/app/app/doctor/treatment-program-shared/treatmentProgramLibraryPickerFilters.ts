@@ -2,6 +2,7 @@ import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { Template } from "@/modules/lfk-templates/types";
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import { isDoctorCatalogMissingFilter } from "@/shared/lib/doctorCatalogEmptyFieldFilter";
 import type { TreatmentProgramLibraryRow } from "./treatmentProgramLibraryTypes";
 
 export function buildExerciseMetaById(
@@ -85,12 +86,16 @@ export function filterTreatmentProgramLibraryPickerRows(
   if (!input.applyRegionLoadFilters) return out;
 
   const regionCode = input.regionCode?.trim() ?? "";
-  if (regionCode) {
+  if (isDoctorCatalogMissingFilter(regionCode)) {
+    out = out.filter((row) => (row.regionCodes ?? []).length === 0);
+  } else if (regionCode) {
     out = out.filter((row) => rowMatchesRegion(row, regionCode));
   }
 
   const loadType = input.loadType ?? null;
-  if (loadType) {
+  if (isDoctorCatalogMissingFilter(loadType)) {
+    out = out.filter((row) => (row.loadTypes ?? (row.loadType ? [row.loadType] : [])).length === 0);
+  } else if (loadType) {
     out = out.filter((row) => rowMatchesLoad(row, loadType));
   }
 
