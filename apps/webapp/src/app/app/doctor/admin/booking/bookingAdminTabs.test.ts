@@ -26,9 +26,9 @@ describe("bookingAdminTabFromPathname", () => {
   it("has three unique tab ids and hrefs", () => {
     expect(BOOKING_ADMIN_TABS).toHaveLength(3);
     const ids = new Set(BOOKING_ADMIN_TABS.map((t) => t.id));
-    expect(ids.size).toBe(4);
+    expect(ids.size).toBe(3);
     const hrefs = new Set(BOOKING_ADMIN_TABS.map((t) => t.href));
-    expect(hrefs.size).toBe(4);
+    expect(hrefs.size).toBe(3);
   });
 
   it("tabs include expected ids", () => {
