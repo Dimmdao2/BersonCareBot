@@ -162,6 +162,7 @@ export type TodayOnSupportClientItem = {
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
+  patronymic?: string | null;
   href: string;
   unreadMessagesCount: number;
   exerciseDoneTodayCount: number;
@@ -247,6 +248,7 @@ export function mapOnSupportClientToTodayItem(row: ClientListItem): TodayOnSuppo
     displayName: row.displayName.trim() || "—",
     firstName: row.firstName ?? null,
     lastName: row.lastName ?? null,
+    patronymic: row.patronymic ?? null,
     href: patientCardHref(uid),
     unreadMessagesCount: 0,
     exerciseDoneTodayCount: 0,

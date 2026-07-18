@@ -163,6 +163,9 @@ describe("loadDoctorTodayDashboard helpers", () => {
     const item = mapOnSupportClientToTodayItem({
       userId: "  uuid-1  ",
       displayName: "  Иван  ",
+      firstName: "Иван",
+      lastName: "Иванов",
+      patronymic: "Иванович",
       phone: null,
       bindings: {},
       nextAppointmentLabel: "Есть запись",
@@ -172,6 +175,9 @@ describe("loadDoctorTodayDashboard helpers", () => {
     });
     expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.displayName).toBe("Иван");
+    expect(item.firstName).toBe("Иван");
+    expect(item.lastName).toBe("Иванов");
+    expect(item.patronymic).toBe("Иванович");
     expect(item.userId).toBe("uuid-1");
   });
 

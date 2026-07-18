@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DoctorTodayDashboard } from "./DoctorTodayDashboard";
+import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
 import type { TodayAppointmentItem, TodayDashboardData } from "./loadDoctorTodayDashboard";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 
@@ -175,135 +176,17 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("button", { name: /Тесты/i })).toBeInTheDocument();
   });
 
-  it("renders right KPI row with 3 appointment counters as modal-opening buttons", () => {
-    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
+  it("keeps appointment KPI cards hidden and puts the calendar first in the right pane", () => {
+    render(<DoctorTodayDashboard {...defaultProps()} appointmentsTodayCount={3} monthAppointmentCount={45} />);
 
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-        appointmentsTodayCount={3}
-        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 12 } }}
-        monthAppointmentCount={45}
-      />,
+    expect(document.getElementById("doctor-today-right-kpi-today")).not.toBeInTheDocument();
+    expect(document.getElementById("doctor-today-right-kpi-week")).not.toBeInTheDocument();
+    expect(document.getElementById("doctor-today-right-kpi-month")).not.toBeInTheDocument();
+
+    const rightPane = document.getElementById("doctor-today-right-pane");
+    expect(rightPane?.firstElementChild).toContainElement(
+      screen.getByRole("heading", { name: "Расписание на сегодня" }),
     );
-    // SEG-04: today opens KpiPreviewModal; week/month have separate segment buttons.
-    expect(screen.getByRole("button", { name: /Записи сегодня/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Записи неделя: всего 12/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: всего 45`, "i") })).toBeInTheDocument();
-  });
-
-  it("splits week and month appointment KPI into total and future counters", () => {
-    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      weekAppointments: [
-        appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-cancelled", clientLabel: "Отмена неделя", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
-      ],
-      monthAppointments: [
-        appointmentItem({ id: "month-future-1", clientLabel: "Будущий месяц 1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
-        appointmentItem({ id: "month-future-2", clientLabel: "Будущий месяц 2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
-        appointmentItem({ id: "month-past", clientLabel: "Прошлый месяц", recordAtIso: "2000-02-01T10:00:00.000Z" }),
-      ],
-    };
-
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-        data={data}
-        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 3 } }}
-        monthAppointmentCount={3}
-      />,
-    );
-
-    const weekTotalButton = screen.getByRole("button", { name: /Записи неделя: всего 3/i });
-    const weekFutureButton = screen.getByRole("button", { name: /Записи неделя: будущие 1/i });
-    const monthCard = screen.getByRole("button", {
-      name: new RegExp(`Записи ${monthName}: всего 3`, "i"),
-    });
-
-    expect(weekTotalButton).toHaveTextContent("Всего");
-    expect(weekFutureButton).toHaveTextContent("Будущие");
-    expect(monthCard).toHaveTextContent("Всего");
-    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toHaveTextContent("Будущие");
-  });
-
-  it("keeps all seven KPIs across both dashboard panes in one vertical, equal-height contract", () => {
-    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-        appointmentsTodayCount={3}
-        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 12 } }}
-        monthAppointmentCount={45}
-        data={{
-          ...emptyData(),
-          weekAppointments: [appointmentItem({ id: "week-future" })],
-          monthAppointments: [appointmentItem({ id: "month-future" })],
-        }}
-      />,
-    );
-
-    const cardIds = [
-      "doctor-today-left-kpi-messages",
-      "doctor-today-left-kpi-comments",
-      "doctor-today-left-kpi-intake",
-      "doctor-today-left-kpi-tests",
-      "doctor-today-right-kpi-today",
-      "doctor-today-right-kpi-week",
-      "doctor-today-right-kpi-month",
-    ];
-    for (const id of cardIds) {
-      expect(document.getElementById(id)).toHaveClass("flex", "h-[5.5rem]", "flex-col");
-    }
-
-    expect(screen.getByLabelText("Входящий поток")).toHaveClass("grid-cols-2", "sm:grid-cols-4");
-
-    const todayCard = document.getElementById("doctor-today-right-kpi-today");
-
-    const todayMarkup = todayCard?.innerHTML ?? "";
-    expect(todayMarkup.indexOf("Записи сегодня")).toBeLessThan(todayMarkup.indexOf(">3<"));
-
-    const weekTotal = screen.getByRole("button", { name: /Записи неделя: всего 12/i });
-    const weekFuture = screen.getByRole("button", { name: /Записи неделя: будущие 1/i });
-    expect(weekTotal.innerHTML.indexOf("Всего")).toBeLessThan(weekTotal.innerHTML.indexOf(">12<"));
-    expect(weekFuture.innerHTML.indexOf("Будущие")).toBeLessThan(weekFuture.innerHTML.indexOf(">1<"));
-    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 1`, "i") })).toBeInTheDocument();
-  });
-
-  it("opens total and future appointment KPI segments with matching lists", async () => {
-    const user = userEvent.setup();
-    const data: TodayDashboardData = {
-      ...emptyData(),
-      weekAppointments: [
-        appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
-        appointmentItem({ id: "week-cancelled", clientLabel: "Отмена неделя", recordAtIso: "2999-01-02T10:00:00.000Z", status: "cancelled_by_patient" }),
-      ],
-    };
-
-    render(
-      <DoctorTodayDashboard
-        {...defaultProps()}
-        data={data}
-        kpiStats={{ ...emptyKpi, appointments: { ...emptyKpi.appointments, total: 3 } }}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 3/i }));
-    expect(screen.getByRole("dialog", { name: /Все записи на неделе/i })).toBeInTheDocument();
-    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
-    expect(screen.getByText("Прошлая неделя")).toBeInTheDocument();
-    expect(screen.getByText("Отмена неделя")).toBeInTheDocument();
-    expect(screen.queryByRole("searchbox", { name: "Поиск" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Close/i }));
-    await user.click(screen.getByRole("button", { name: /Записи неделя: будущие 1/i }));
-    expect(screen.getByRole("dialog", { name: /Будущие записи на неделе/i })).toBeInTheDocument();
-    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
-    expect(screen.queryByText("Прошлая неделя")).not.toBeInTheDocument();
-    expect(screen.queryByText("Отмена неделя")).not.toBeInTheDocument();
   });
 
   it("does not open empty KPI modals and removes search from today KPI modals", async () => {
@@ -331,10 +214,6 @@ describe("DoctorTodayDashboard", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: /Записи сегодня/i })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 0/i }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
     await user.click(screen.getByRole("button", { name: /Сообщения/i }));
     expect(screen.getByRole("dialog", { name: /Сообщения/i })).toBeInTheDocument();
     expect(screen.queryByRole("searchbox", { name: "Поиск" })).not.toBeInTheDocument();
@@ -359,7 +238,10 @@ describe("DoctorTodayDashboard", () => {
       onSupportClients: [
         {
           userId: "u-a",
-          displayName: "Анна",
+          displayName: "Старая строка",
+          lastName: "Иванова",
+          firstName: "Анна",
+          patronymic: "Петровна",
           href: "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
           unreadMessagesCount: 2,
           exerciseDoneTodayCount: 1,
@@ -378,10 +260,11 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     expect(screen.getByText(/Клиентов: 2/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Анна" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Иванова Анна Петровна" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u-a?scope=appointments#doctor-client-section-treatment-programs",
     );
+    expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Борис" })).toHaveAttribute(
       "href",
       "/app/doctor/clients/u-b?scope=appointments#doctor-client-section-treatment-programs",
@@ -678,5 +561,86 @@ describe("DoctorTodayDashboard", () => {
         />,
       ),
     ).not.toThrow();
+  });
+});
+
+describe("DoctorTodayRightKpiRow deferred mechanism", () => {
+  const weekAppointments = [
+    appointmentItem({ id: "week-future", clientLabel: "Будущая неделя", recordAtIso: "2999-01-01T10:00:00.000Z" }),
+    appointmentItem({ id: "week-past", clientLabel: "Прошлая неделя", recordAtIso: "2000-01-01T10:00:00.000Z" }),
+    appointmentItem({
+      id: "week-cancelled",
+      clientLabel: "Отмена неделя",
+      recordAtIso: "2999-01-02T10:00:00.000Z",
+      status: "cancelled_by_patient",
+    }),
+  ];
+  const monthAppointments = [
+    appointmentItem({ id: "month-future-1", recordAtIso: "2999-02-01T10:00:00.000Z" }),
+    appointmentItem({ id: "month-future-2", recordAtIso: "2999-02-02T10:00:00.000Z" }),
+    appointmentItem({ id: "month-past", recordAtIso: "2000-02-01T10:00:00.000Z" }),
+  ];
+
+  function renderDeferredRow() {
+    return render(
+      <DoctorTodayRightKpiRow
+        appointmentsTodayCount={3}
+        weekAppointmentsCount={3}
+        monthAppointmentCount={3}
+        displayIana={DEFAULT_DISPLAY_IANA}
+        todayAppointments={[appointmentItem({ clientLabel: "Сегодняшняя запись" })]}
+        weekAppointments={weekAppointments}
+        monthAppointments={monthAppointments}
+      />,
+    );
+  }
+
+  it("preserves total/future counters and the equal-height card contract while hidden from Today", () => {
+    const monthName = currentMonthName(DEFAULT_DISPLAY_IANA);
+    renderDeferredRow();
+
+    for (const id of [
+      "doctor-today-right-kpi-today",
+      "doctor-today-right-kpi-week",
+      "doctor-today-right-kpi-month",
+    ]) {
+      expect(document.getElementById(id)).toHaveClass("flex", "h-[5.5rem]", "flex-col");
+    }
+    expect(screen.getByRole("button", { name: /Записи неделя: всего 3/i })).toHaveTextContent("Всего");
+    expect(screen.getByRole("button", { name: /Записи неделя: будущие 1/i })).toHaveTextContent("Будущие");
+    expect(screen.getByRole("button", { name: new RegExp(`Записи ${monthName}: будущие 2`, "i") })).toBeInTheDocument();
+  });
+
+  it("preserves total and future preview modal contents", async () => {
+    const user = userEvent.setup();
+    renderDeferredRow();
+
+    await user.click(screen.getByRole("button", { name: /Записи неделя: всего 3/i }));
+    expect(screen.getByRole("dialog", { name: /Все записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
+    expect(screen.getByText("Прошлая неделя")).toBeInTheDocument();
+    expect(screen.getByText("Отмена неделя")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Close/i }));
+    await user.click(screen.getByRole("button", { name: /Записи неделя: будущие 1/i }));
+    expect(screen.getByRole("dialog", { name: /Будущие записи на неделе/i })).toBeInTheDocument();
+    expect(screen.getByText("Будущая неделя")).toBeInTheDocument();
+    expect(screen.queryByText("Прошлая неделя")).not.toBeInTheDocument();
+    expect(screen.queryByText("Отмена неделя")).not.toBeInTheDocument();
+  });
+
+  it("keeps zero-value controls non-interactive", () => {
+    render(
+      <DoctorTodayRightKpiRow
+        appointmentsTodayCount={0}
+        weekAppointmentsCount={0}
+        monthAppointmentCount={0}
+        displayIana={DEFAULT_DISPLAY_IANA}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /Записи сегодня/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Записи неделя: всего 0/i })).toBeDisabled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -152,6 +152,7 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "true");
     const rightPanel = screen.getByText("Каналы связи").closest("section");
     expect(rightPanel).toBeVisible();
     const splitLayout = Array.from(document.querySelectorAll("div")).find((element) =>
@@ -160,6 +161,11 @@ describe("PatientsPageClient", () => {
     expect(splitLayout).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
+
+    expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /С записями/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /С записями/i })).toHaveClass("bg-primary/15", "text-primary");
+    expect(screen.getByRole("button", { name: /С записями/i })).not.toHaveClass("bg-destructive/5");
 
     const supportCard = document.getElementById("doctor-patients-segment-on_support");
     expect(supportCard).not.toBeNull();
@@ -183,6 +189,49 @@ describe("PatientsPageClient", () => {
     expect(membershipsCard).not.toBeNull();
     expect(within(appointmentsCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
+  });
+
+  it("separates all-time records, occurred visits, and visit history without future appointments", async () => {
+    const user = userEvent.setup();
+    await renderPatientsPage([
+      client({ userId: "future", displayName: "Только будущая", activeAppointmentsCount: 1 }),
+      client({
+        userId: "past",
+        displayName: "Только прошлый визит",
+        hasAppointmentHistory: true,
+        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+      }),
+      client({
+        userId: "both",
+        displayName: "Прошлый и будущий",
+        hasAppointmentHistory: true,
+        lastAppointmentAt: "2026-07-02T09:00:00.000Z",
+        activeAppointmentsCount: 1,
+      }),
+      client({ userId: "none", displayName: "Без записей" }),
+    ]);
+
+    expect(screen.getByRole("button", { name: /С визитами/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Новые/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Без будущих/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Бывшие/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /С записями/i }));
+    expect(screen.getByText("Только будущая")).toBeInTheDocument();
+    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
+    expect(screen.getByText("Прошлый и будущий")).toBeInTheDocument();
+    expect(screen.queryByText("Без записей")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /С записями/i }));
+    await user.click(screen.getByRole("button", { name: /С визитами/i }));
+    expect(screen.queryByText("Только будущая")).not.toBeInTheDocument();
+    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
+    expect(screen.getByText("Прошлый и будущий")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /С визитами/i }));
+    await user.click(screen.getByRole("button", { name: /Без будущих/i }));
+    expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
+    expect(screen.queryByText("Прошлый и будущий")).not.toBeInTheDocument();
   });
 
   it("filters channel buttons client-side without reloading the list", async () => {

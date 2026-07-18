@@ -38,4 +38,47 @@ describe("DoctorStatCard", () => {
     await user.keyboard(" ");
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the explanation on hover and keyboard focus without nesting another button", async () => {
+    const user = userEvent.setup();
+    render(
+      <DoctorStatCard
+        id="kpi-tooltip"
+        title="С визитами"
+        value={4}
+        tooltip="Есть хотя бы один состоявшийся визит."
+        onClick={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /С визитами/i });
+    expect(trigger.querySelector("button")).toBeNull();
+
+    await user.hover(trigger);
+    expect(await screen.findByText("Есть хотя бы один состоявшийся визит.")).toBeVisible();
+
+    await user.unhover(trigger);
+    trigger.focus();
+    expect(await screen.findByText("Есть хотя бы один состоявшийся визит.")).toBeVisible();
+  });
+
+  it("exposes selected filter state with the shared primary-soft styling", () => {
+    render(
+      <DoctorStatCard
+        id="kpi-selected"
+        title="Все"
+        value={12}
+        selected
+        onClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Все/i })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Все/i })).toHaveClass(
+      "border-primary/35",
+      "bg-primary/15",
+      "text-primary",
+      "ring-primary/25",
+    );
+  });
 });

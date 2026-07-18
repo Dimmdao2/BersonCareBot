@@ -141,6 +141,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-messages"
           title="Сообщения"
           value={unreadTotal}
+          tooltip="Непрочитанные сообщения от клиентов."
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           tone={unreadTotal > 0 ? "warning" : "neutral"}
@@ -151,6 +152,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-comments"
           title="Комментарии"
           value={displayTotal}
+          tooltip="Новые комментарии клиентов к упражнениям."
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           tone={displayTotal > 0 ? "warning" : "neutral"}
@@ -161,6 +163,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-intake"
           title="Заявки"
           value={intakeCount}
+          tooltip="Новые заявки на консультацию."
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           tone={intakeCount > 0 ? "warning" : "neutral"}
@@ -171,6 +174,7 @@ export function DoctorTodayLeftKpiRow({
           id="doctor-today-left-kpi-tests"
           title="Тесты"
           value={pendingTestsTotal}
+          tooltip="Тесты по программам, ожидающие проверки."
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           tone={pendingTestsTotal > 0 ? "warning" : "neutral"}

@@ -13,7 +13,6 @@ import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
-import { DoctorTodayRightKpiRow } from "./DoctorTodayRightKpiRow";
 import { DoctorTodaySignalsSection } from "./DoctorTodaySignalsSection";
 import { TodayMiniCalendarWithModal } from "./TodayMiniCalendarWithModal";
 import {
@@ -40,12 +39,16 @@ type Props = {
   todayWorkingBounds?: { startMinute: number; endMinute: number } | null;
 };
 
+function onSupportClientName(client: TodayDashboardData["onSupportClients"][number]): string {
+  const structuredName = [client.lastName, client.firstName, client.patronymic]
+    .map((part) => part?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  return structuredName || client.displayName.trim() || "—";
+}
+
 export function DoctorTodayDashboard({
   data,
-  kpiStats,
-  appointmentsTodayCount,
-  weekAppointmentsCount,
-  monthAppointmentCount,
   displayIana,
   adminHealthBanner,
   adminRegistrationFailureBanner,
@@ -163,19 +166,8 @@ export function DoctorTodayDashboard({
                       id={`doctor-today-on-support-${c.userId}`}
                       className="flex items-center justify-between gap-2 text-sm"
                     >
-                      <Link href={c.href} className={`${doctorInlineLinkClass} min-w-0 font-medium`}>
-                        {(c.lastName ?? c.firstName) ? (
-                          <>
-                            <span className="block truncate">
-                              {[c.lastName, c.firstName].filter(Boolean).join(" ")}
-                            </span>
-                            <span className="block truncate text-xs font-normal text-muted-foreground">
-                              {c.displayName}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="truncate">{c.displayName}</span>
-                        )}
+                      <Link href={c.href} className={`${doctorInlineLinkClass} min-w-0 font-normal`}>
+                        <span className="block truncate">{onSupportClientName(c)}</span>
                       </Link>
                       <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                         <span
@@ -255,18 +247,10 @@ export function DoctorTodayDashboard({
 
         {/* ───── Правое полотно: приём и время ───── */}
         <div id="doctor-today-right-pane" className="flex flex-col gap-3">
-          {/* 3 KPI: Записи сегодня, Записи неделя, Записи месяц */}
-          <DoctorTodayRightKpiRow
-            appointmentsTodayCount={appointmentsTodayCount}
-            weekAppointmentsCount={weekAppointmentsCount ?? kpiStats.appointments.total}
-            monthAppointmentCount={monthAppointmentCount}
-            todayAppointments={data.todayAppointments}
-            weekAppointments={data.weekAppointments}
-            monthAppointments={data.monthAppointments}
-            displayIana={displayIana}
-          />
+          {/* Owner-deferred: appointment KPI row is intentionally not rendered;
+              DoctorTodayRightKpiRow remains intact for a later product decision. */}
 
-          {/* §1.1: Мини-календарь — расписание на сегодня (выше «Следующей записи») */}
+          {/* §1.1: Мини-календарь — первое содержимое правой колонки. */}
           <TodayMiniCalendarWithModal
             appointments={data.todayAppointments}
             nowMinutes={nowMinutes}

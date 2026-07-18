@@ -87,7 +87,7 @@ type SegmentKey =
   | "on_support"
   | "with_program"
   | "without_appointments"
-  | "new"
+  | "visits"
   | "former"
   | "cancellations"
   | "memberships"
@@ -96,21 +96,67 @@ type SegmentKey =
 type SegmentDef = {
   key: SegmentKey;
   title: string;
+  tooltip: string;
   /** URL param value (null = no filter / "Все") */
   urlValue: string | null;
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all",                  title: "Все",                  urlValue: null },
-  { key: "appointments",         title: "С записями",           urlValue: "appointments" },
-  { key: "on_support",           title: "На сопровождении",     urlValue: "on_support" },
-  { key: "with_program",         title: "С программой",         urlValue: "with_program" },
-  { key: "without_appointments", title: "Без приёмов",          urlValue: "without_appointments" },
-  { key: "new",                  title: "Новые",                urlValue: "new" },
-  { key: "former",               title: "Бывшие",               urlValue: "former" },
-  { key: "cancellations",        title: "С отменами",           urlValue: "cancellations" },
-  { key: "memberships",          title: "С абонементами",       urlValue: "memberships" },
-  { key: "visited_month",        title: "Приём в этом мес.",    urlValue: "visited_month" },
+  { key: "all", title: "Все", tooltip: "Все люди текущей организации.", urlValue: null },
+  {
+    key: "appointments",
+    title: "С записями",
+    tooltip: "Есть хотя бы одна будущая или прошедшая запись без отмены.",
+    urlValue: "appointments",
+  },
+  {
+    key: "on_support",
+    title: "На сопровождении",
+    tooltip: "Сейчас находятся на активном сопровождении.",
+    urlValue: "on_support",
+  },
+  {
+    key: "with_program",
+    title: "С программой",
+    tooltip: "Есть активная назначенная программа.",
+    urlValue: "with_program",
+  },
+  {
+    key: "without_appointments",
+    title: "Без приёмов",
+    tooltip: "Нет ни состоявшихся визитов, ни будущих записей.",
+    urlValue: "without_appointments",
+  },
+  {
+    key: "visits",
+    title: "С визитами",
+    tooltip: "Есть хотя бы один состоявшийся визит.",
+    urlValue: "visits",
+  },
+  {
+    key: "former",
+    title: "Без будущих",
+    tooltip: "Визиты уже были, но будущих записей сейчас нет.",
+    urlValue: "former",
+  },
+  {
+    key: "cancellations",
+    title: "С отменами",
+    tooltip: "Есть отмены за последние 30 дней.",
+    urlValue: "cancellations",
+  },
+  {
+    key: "memberships",
+    title: "С абонементами",
+    tooltip: "Есть купленный действующий или ожидающий оплаты абонемент.",
+    urlValue: "memberships",
+  },
+  {
+    key: "visited_month",
+    title: "Приём в этом мес.",
+    tooltip: "Есть состоявшийся визит в текущем календарном месяце.",
+    urlValue: "visited_month",
+  },
 ];
 
 function segmentKeyFromUrl(value: string | null): SegmentKey[] {
@@ -168,10 +214,10 @@ function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean 
       return item.activeTreatmentProgram === true;
     case "without_appointments":
       return !(item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
-    case "new":
-      return (item.activeAppointmentsCount ?? 0) > 0 && !(item.hasAppointmentHistory ?? false);
+    case "visits":
+      return item.lastAppointmentAt != null;
     case "former":
-      return (item.hasAppointmentHistory ?? false) && (item.activeAppointmentsCount ?? 0) === 0;
+      return item.lastAppointmentAt != null && (item.activeAppointmentsCount ?? 0) === 0;
     case "cancellations":
       return item.cancellationCount30d > 0;
     case "memberships":
@@ -752,14 +798,6 @@ function PatientsContent({
     legacyFilters.reschedules ||
     !!searchQuery.trim();
 
-  // Segment tone: highlight active segment card
-  function segmentTone(key: SegmentKey): "neutral" | "warning" {
-    const isActive =
-      (key === "all" && activeSegments.length === 0 && !archivedOnly) ||
-      activeSegments.includes(key);
-    return isActive ? "warning" : "neutral";
-  }
-
   const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
 
   return (
@@ -880,7 +918,7 @@ function PatientsContent({
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
+                      <span className="block truncate text-sm font-normal text-foreground">
                         {clientPrimaryName(c)}
                       </span>
                     </div>
@@ -952,7 +990,8 @@ function PatientsContent({
                   id={`doctor-patients-segment-${seg.key}`}
                   title={seg.title}
                   value={renderSegmentMetricValue(currentValue, totalValue)}
-                  tone={segmentTone(seg.key)}
+                  tooltip={seg.tooltip}
+                  selected={seg.key === "all" ? activeSegments.length === 0 && !archivedOnly : activeSegments.includes(seg.key)}
                   onClick={() => onSegmentToggle(seg.key)}
                 />
               );
