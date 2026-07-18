@@ -14,6 +14,33 @@ import { DateTime } from "luxon";
 
 type AppointmentOption = { id: string; label: string };
 
+function notifyPackagesChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("patient:packages-changed"));
+  }
+}
+
+function formatPackagePrice(priceMinor: number | null | undefined): string | null {
+  if (priceMinor == null) return null;
+  return `${(priceMinor / 100).toLocaleString("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ₽`;
+}
+
+function formatConsumeItemLabel(
+  item: PatientPackageCardRow["balance"]["items"][number],
+  pkg: PatientPackageCardRow,
+): string {
+  const price = formatPackagePrice(pkg.priceMinor);
+  const details = [
+    `остаток ${item.remaining}`,
+    price ? `стоимость ${price}` : null,
+    pkg.notes ? pkg.notes.slice(0, 80) + (pkg.notes.length > 80 ? "…" : "") : null,
+  ].filter(Boolean);
+  return `${item.serviceTitle ?? item.serviceId} (${details.join(" · ")})`;
+}
+
 const ERROR_LABELS: Record<string, string> = {
   invalid_form: "Проверьте цену и состав абонемента.",
   appointment_already_linked_to_package:
@@ -179,6 +206,7 @@ export function DoctorClientMembershipsPanel({
       setItems([]);
       void loadPackages();
       router.refresh();
+      notifyPackagesChanged();
     });
   }
 
@@ -217,6 +245,7 @@ export function DoctorClientMembershipsPanel({
       setCatalogNotes("");
       void loadPackages();
       router.refresh();
+      notifyPackagesChanged();
     });
   }
 
@@ -239,6 +268,7 @@ export function DoctorClientMembershipsPanel({
       setError(null);
       void loadPackages();
       router.refresh();
+      notifyPackagesChanged();
     });
   }
 
@@ -263,6 +293,7 @@ export function DoctorClientMembershipsPanel({
       toast.success(msg);
       void loadPackages();
       router.refresh();
+      notifyPackagesChanged();
     } catch {
       toast.error("Ошибка сети при пересчёте");
     }
@@ -463,9 +494,10 @@ export function DoctorClientMembershipsPanel({
                 <SelectTrigger
                   displayLabel={
                     selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)
-                      ? (selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceTitle ??
-                          selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.serviceId) +
-                        ` (остаток ${selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!.remaining})`
+                      ? formatConsumeItemLabel(
+                          selectedPkg.balance.items.find((it) => it.patientPackageItemId === consumeItemId)!,
+                          selectedPkg,
+                        )
                       : "—"
                   }
                   className="w-full"
@@ -474,7 +506,7 @@ export function DoctorClientMembershipsPanel({
                   <SelectItem value="">—</SelectItem>
                   {selectedPkg.balance.items.map((it) => (
                     <SelectItem key={it.patientPackageItemId} value={it.patientPackageItemId}>
-                      {(it.serviceTitle ?? it.serviceId) + ` (остаток ${it.remaining})`}
+                      {formatConsumeItemLabel(it, selectedPkg)}
                     </SelectItem>
                   ))}
                 </SelectContent>

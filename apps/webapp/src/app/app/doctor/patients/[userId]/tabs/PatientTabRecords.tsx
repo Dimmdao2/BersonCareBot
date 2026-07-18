@@ -626,6 +626,30 @@ function MembershipPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  useEffect(() => {
+    let active = true;
+    const loadPackages = () => {
+      fetch(`/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`, { credentials: "include" })
+        .then((r) => {
+          if (!r.ok) throw new Error(`status ${r.status}`);
+          return r.json() as Promise<{ ok: boolean; packages: ApiPackage[] }>;
+        })
+        .then((data) => {
+          if (!active) return;
+          setPackages(data.packages ?? []);
+          setError(false);
+        })
+        .catch(() => {
+          if (active) setError(true);
+        });
+    };
+    window.addEventListener("patient:packages-changed", loadPackages);
+    return () => {
+      active = false;
+      window.removeEventListener("patient:packages-changed", loadPackages);
+    };
+  }, [userId]);
+
   const classifiedPackages = useMemo(() => {
     const source = packages ?? [];
     const active: ApiPackage[] = [];

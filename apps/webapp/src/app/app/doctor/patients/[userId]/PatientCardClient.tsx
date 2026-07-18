@@ -876,7 +876,11 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         <PatientTabComms userId={identity.userId} initialProgramInstances={initialProgramInstances} />
       </div>
       <div className={cn(activeTab !== "finances" && "hidden")}>
-        <PatientTabFinances userId={identity.userId} initialData={initialFinancesData} />
+        <PatientTabFinances
+          userId={identity.userId}
+          initialData={initialFinancesData}
+          initialAppointments={initialAppointments}
+        />
       </div>
     </div>
   );

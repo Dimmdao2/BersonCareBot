@@ -11,7 +11,7 @@
  * FIN-05
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
@@ -24,6 +24,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
 import { DoctorClientMembershipsPanel } from "@/app/app/doctor/clients/DoctorClientMembershipsPanel";
+import type { PatientAppointmentItem } from "@/modules/doctor-clients/ports";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,9 +163,30 @@ type Props = {
   userId: string;
   /** SSR-provided timeline data. When present, skips the initial client fetch. */
   initialData?: FinancesInitialData | null;
+  /** Same patient appointment list already loaded for the Records tab. */
+  initialAppointments?: PatientAppointmentItem[] | null;
 };
 
-export function PatientTabFinances({ userId, initialData }: Props) {
+function formatAppointmentOption(item: PatientAppointmentItem): { id: string; label: string } {
+  const date = new Date(item.dateTime);
+  const dateLabel = Number.isNaN(date.getTime())
+    ? item.dateTime
+    : date.toLocaleString("ru-RU", {
+        timeZone: "Europe/Moscow",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  return { id: item.id, label: [dateLabel, item.serviceName, item.location].filter(Boolean).join(" · ") };
+}
+
+export function PatientTabFinances({ userId, initialData, initialAppointments }: Props) {
+  const appointments = useMemo(
+    () => (initialAppointments ?? []).map(formatAppointmentOption),
+    [initialAppointments],
+  );
   // ---- Timeline state ----
   const [loading, setLoading] = useState(initialData == null);
   const [timeline, setTimeline] = useState<PaymentTimelineEntry[]>(() => initialData?.timeline ?? []);
@@ -350,7 +372,7 @@ export function PatientTabFinances({ userId, initialData }: Props) {
       ================================================================ */}
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>Абонементы</p>
-        <DoctorClientMembershipsPanel platformUserId={userId} showCreateForm />
+        <DoctorClientMembershipsPanel platformUserId={userId} appointments={appointments} showCreateForm />
       </div>
 
       {/* ================================================================

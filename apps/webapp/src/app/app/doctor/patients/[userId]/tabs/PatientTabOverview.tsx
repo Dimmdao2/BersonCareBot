@@ -707,6 +707,34 @@ export function PatientTabOverview({
 
   useEffect(() => {
     let active = true;
+    const loadPackages = () => {
+      fetch(
+        `/api/doctor/booking-engine/patient-packages?platformUserId=${userId}`,
+        { credentials: "include" },
+      )
+        .then((r) => r.ok ? (r.json() as Promise<PackagesApiResponse>) : null)
+        .catch(() => null)
+        .then((packages) => {
+          if (!active) return;
+          const activePackages = normalizeActivePackages(packages?.packages);
+          const activePackage = activePackages[0] ?? null;
+          setData((prev) => prev ? {
+            ...prev,
+            packageStatus: !packages ? "error" : activePackage === null ? "empty" : "ok",
+            activePackage,
+            activePackages,
+          } : prev);
+        });
+    };
+    window.addEventListener("patient:packages-changed", loadPackages);
+    return () => {
+      active = false;
+      window.removeEventListener("patient:packages-changed", loadPackages);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    let active = true;
 
     // patient-packages: skip when SSR data provided
     const fetchPackages = initialPackages != null
