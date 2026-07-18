@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { and, eq, inArray, isNull, sql, type SQL, type SQLWrapper } from "drizzle-orm";
-import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
+import type { DrizzleDb } from "@/app-layer/db/drizzle";
 import { platformUsers } from "../../db/schema";
 import {
   assertTestTarget,
@@ -167,6 +167,7 @@ async function main(): Promise<void> {
     return;
   }
 
+  const { getDrizzle } = await import("@/app-layer/db/drizzle");
   const db = getDrizzle();
   await verifyLiveTestTarget(db);
   const dbPort = buildDbPort(db);
