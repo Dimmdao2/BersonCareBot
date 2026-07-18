@@ -1976,3 +1976,11 @@ Both temporary branches and worktrees were removed after integration. The single
 PROD action, prod dump, external delivery or push/merge to `main`/`test` occurred. The owner's untracked
 `docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched. C1 is ready for the owner-authorized code-only TEST
 deployment and live click-through checkpoint; C2 must not start before that owner acceptance.
+
+### C1 code-only TEST checkpoint
+
+The canonical `deploy/host/deploy-test.sh feat/doctor-ui-rebuild` code-only path deployed exact commit
+`9886320881f259d7eeeda70e07f5f865496e16ff` to TEST without a prod dump or any PROD access. The TEST checkout was
+force-aligned to that SHA; all five TEST services (API, worker, scheduler, webapp and media worker) are active.
+Both the local TEST API health endpoint and `https://test.bersoncare.ru/api/health` returned `ok=true` with the DB
+up. C2 remains stopped pending the owner's live C1 click-through; taskdb acceptance remains owner-only.
