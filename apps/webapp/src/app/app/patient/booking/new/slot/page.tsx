@@ -58,7 +58,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
         (branch && serviceId
           ? await deps.bookingScheduling.resolveLegacyBranchServiceId({
               organizationId: branch.organizationId,
-              branchId,
+              branchId: branchId!,
               serviceId,
             })
           : null);
