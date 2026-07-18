@@ -1994,3 +1994,35 @@ integration worktree has no agent branches or extra worktrees. One stale C1 road
 organization people by default, left search/sort, dormant hidden classifier, factual right-side filters/indicators).
 Taskdb `#850` note records the same superseding owner decision. This documentation-only reconciliation used
 `git diff --check`; application CI was intentionally not repeated.
+
+## 2026-07-18 — C1 live TEST correction after owner review (`#850`, `#852`)
+
+**Owner result:** C1 was not accepted on the first live TEST pass. Schedule `#851` is acceptable for this stage;
+Today/Clients `#850` and Communications `#852` returned to `doing`. Four owner screenshots at TEST SHA
+`9886320881f259d7eeeda70e07f5f865496e16ff` prove the remaining visual deltas: unequal Today KPI geometry, duplicate
+client names/misaligned search and indicator rail, old narrow Chats master pane, default Intake `Новые` filter and a
+compressed/overlapping Broadcast journal. The exact later decisions are reconciled in owner-review §§1-2 and §§5-8.
+
+**Launch checkpoint:** integration branch/HEAD before the correction manifest is `feat/doctor-ui-rebuild` at
+`39e465a0807781b867c80550620ed8d299199852`, aligned with origin. The parallel universal execution-mode rules were
+cleanly integrated by their owner in that commit; the only protected worktree delta is
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md`, which correction commits must not include or overwrite. No agent branch
+or extra worktree exists at launch. TEST remains healthy on the earlier C1 code SHA above; no production access,
+real delivery, data change or second Next server is allowed.
+
+**Parallel file ownership:** worker A owns only Today/Clients presentation and existing focused tests:
+`DoctorTodayDashboard*`, `DoctorTodayLeftKpiRow*`, `DoctorTodayRightKpiRow*`, `patients/PatientsPageClient*` and the
+existing doctor catalog primitives only if reuse proves a missing sanctioned prop. Worker B owns only
+`messages/DoctorSupportInbox*`, `comments/DoctorCommentsTab*`, `online-intake/DoctorOnlineIntakeClient*`,
+`communications/tabs/*`, `broadcasts/BroadcastAuditLog*` and their focused tests. Neither worker edits docs, API,
+modules, repositories, schema/migrations, patient UI, booking/schedule or the other worker's files. Shared
+`CatalogSplitLayout` is reuse-first and should not require modification.
+
+**Acceptance/evidence:** desktop `1440x900` and mobile `390x844`, role `dev:admin`, URLs `/app/doctor`,
+`/app/doctor/patients` and all four `/app/doctor/communications` tabs. Targeted component tests, scoped ESLint,
+webapp typecheck and diff-check run per worker. After integration the lead performs the full live screenshot matrix
+first, including client sorting in both directions, selected/unselected master-detail, clearable intake statuses and
+collapsed/expanded long/error broadcast rows. Then one independent full C1-correction visual audit runs against the
+owner checklist. No serial cosmetic correction/audit rounds are permitted; any unmatched requirement becomes an
+owner question. One accumulated full CI runs only at the corrected C1 TEST checkpoint, followed by the already
+authorized code-only TEST deploy and a new owner click-through; C2 remains stopped until acceptance.

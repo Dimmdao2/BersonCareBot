@@ -329,15 +329,18 @@ card; запрещено строить временный resolver, второ�
 
 - **Outcome:** исправлены подтверждённые владельцем дефекты без изменения продуктовой модели.
 - **Цельные независимые slices:**
-  1. `Сегодня + Клиенты` — owner-review §§1-2: единый KPI contract; default показывает всех людей текущей
+  1. `Сегодня + Клиенты` — owner-review §§1-2 и live TEST correction 20:48: единый KPI contract через обе
+     dashboard-колонки; default показывает всех людей текущей
      organization; слева остаются поиск и сортировка по недавним canonical interactions, а не фильтры;
      Клиенты/Подписчики classifier остаётся dormant/reversible без UI-сегмента и не применяется к default list;
-     right-side factual filters и недублирующиеся non-interactive row indicators.
+     одна строка structured ФИО; отдельная строка count + reversible `Недавние`/`По фамилии`; 40/60 desktop,
+     Exercises-style mobile master/detail; right-side factual filters и недублирующиеся non-interactive row indicators.
   2. `Расписание` — §§3-4: desktop default week, услуги, специалисты календаря, short name в create-location и
      отсутствие Rubitime tab; перенос всей booking settings IA отменён и сюда не входит.
-  3. `Коммуникации` — §§5-8: shared 50/50 split, comments empty/selected layouts и toggle filters, intake
-     single-select/status rows, broadcasts collapsed/expanded layout. Уже принятую ссылку «Открыть карточку» не
-     переделывать.
+  3. `Коммуникации` — §§5-8 и live TEST correction 20:48: shared 40/60 desktop split во всех четырёх вкладках и
+     Exercises-style mobile master/detail; comments empty/selected layouts и toggle filters; intake без default
+     фильтра, clearable single-select, newest-first и жирные new rows; broadcasts collapsed/expanded layout с
+     собственной высотой строки. Уже принятую ссылку «Открыть карточку» не переделывать.
 - **Dependencies:** slices могут идти параллельно после code/taskdb dedup, если файловые scope не пересекаются;
   Rubitime UI removal координируется с C0. Existing BCB2 triage не может закрыть эти новые acceptance по совпадению
   названия страницы.
