@@ -134,7 +134,7 @@ export function DoctorTodayLeftKpiRow({
       <DoctorMetricList
         id="doctor-today-left-kpi"
         aria-label="Входящий поток"
-        className="grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 [&>*]:flex [&>*]:h-[5.5rem] [&>*]:flex-col [&>*>p]:text-[8px] [&>*>p]:tracking-normal sm:[&>*>p]:text-[10px] sm:[&>*>p]:tracking-wide"
+        className="grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 [&>*]:flex [&>*]:h-[5.5rem] [&>*]:flex-col"
       >
         {/* Сообщения → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard

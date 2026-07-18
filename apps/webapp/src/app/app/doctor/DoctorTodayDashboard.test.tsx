@@ -258,6 +258,8 @@ describe("DoctorTodayDashboard", () => {
       expect(document.getElementById(id)).toHaveClass("flex", "h-[5.5rem]", "flex-col");
     }
 
+    expect(screen.getByLabelText("Входящий поток")).toHaveClass("grid-cols-2", "sm:grid-cols-4");
+
     const todayCard = document.getElementById("doctor-today-right-kpi-today");
 
     const todayMarkup = todayCard?.innerHTML ?? "";
