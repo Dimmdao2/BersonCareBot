@@ -126,12 +126,13 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
         mobileBackSlot={
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setMobileView("list")}
-            className="mb-2"
+            className="mb-2 h-9 px-2"
           >
             ← Форма
           </Button>

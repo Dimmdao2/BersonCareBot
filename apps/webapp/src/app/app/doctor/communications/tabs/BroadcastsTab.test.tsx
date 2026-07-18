@@ -89,6 +89,9 @@ describe("BroadcastsTab", () => {
     await waitFor(() => {
       expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
     });
+    expect(document.querySelector("#broadcasts-main-view")?.firstElementChild).toHaveClass(
+      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+    );
   });
 
   it("renders Новая рассылка and Журнал рассылок headings in main view", async () => {

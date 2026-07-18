@@ -66,9 +66,12 @@ describe("DoctorSupportInbox — базовый рендер", () => {
   });
 
   it("показывает 'Выберите чат слева' при отсутствии выбранного диалога", async () => {
-    render(<DoctorSupportInbox />);
+    const { container } = render(<DoctorSupportInbox />);
     await screen.findByText("Пациент");
     expect(screen.getByText("Выберите чат слева")).toBeInTheDocument();
+    expect(container.firstElementChild).toHaveClass(
+      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+    );
   });
 
   it("открывает DoctorChatPanel при клике на строку", async () => {

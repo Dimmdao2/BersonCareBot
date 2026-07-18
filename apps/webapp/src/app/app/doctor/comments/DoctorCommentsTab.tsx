@@ -1094,19 +1094,19 @@ export function DoctorCommentsTab({
 
   const mobileBackSlot = selectedExercise ? (
     <Button
-      variant="outline"
+      variant="ghost"
       size="sm"
       onClick={handleCloseThread}
-      className="mb-2"
+      className="mb-2 h-9 px-2"
     >
       ← Назад
     </Button>
   ) : selectedPatient ? (
     <Button
-      variant="outline"
+      variant="ghost"
       size="sm"
       onClick={handleDeselectPatient}
-      className="mb-2"
+      className="mb-2 h-9 px-2"
     >
       ← Назад
     </Button>
@@ -1122,6 +1122,7 @@ export function DoctorCommentsTab({
         right={rightPane}
         mobileView={mobileView}
         mobileBackSlot={mobileBackSlot}
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
         className="h-full"
       />
     </div>

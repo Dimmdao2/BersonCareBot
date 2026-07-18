@@ -20,6 +20,16 @@ const ITEM_ROW = {
   updatedAt: "2026-01-01T10:00:00.000Z",
 };
 
+const IN_REVIEW_ROW = {
+  ...ITEM_ROW,
+  id: "00000000-0000-0000-0000-0000000000dd",
+  patientUserId: "00000000-0000-0000-0000-0000000000bb",
+  status: "in_review",
+  patientName: "Более старая заявка",
+  patientPhone: "+79007770099",
+  createdAt: "2025-12-31T10:00:00.000Z",
+};
+
 const DETAIL_RECORD = {
   id: REQUEST_ID,
   patientUserId: PATIENT_ID,
@@ -92,20 +102,22 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.getAllByText(/\+79007770088/).length).toBeGreaterThan(0);
   });
 
-  it("показывает empty-state по текущему статусу при пустом списке", async () => {
+  it("показывает общий empty-state при пустом списке без фильтра", async () => {
     vi.stubGlobal("fetch", makeFetch({ list: { items: [], total: 0 } }));
     render(<DoctorOnlineIntakeClient />);
-    // дефолт — статус «Новые»; пустой список → empty-state с названием текущего статуса
     await waitFor(() => {
-      expect(screen.getByText(/нет заявок в статусе «новая»/i)).toBeInTheDocument();
+      expect(screen.getByText(/заявок пока нет/i)).toBeInTheDocument();
     });
   });
 
-  it("по умолчанию выбран статус «Новые» (single-select)", async () => {
+  it("по умолчанию не фильтрует статусы и показывает все заявки", async () => {
+    vi.stubGlobal("fetch", makeFetch({ list: { items: [IN_REVIEW_ROW, ITEM_ROW], total: 2 } }));
     render(<DoctorOnlineIntakeClient />);
     const newBtn = await screen.findByRole("tab", { name: /Новые/i });
-    expect(newBtn).toHaveAttribute("aria-selected", "true");
+    expect(newBtn).toHaveAttribute("aria-selected", "false");
     expect(newBtn).toHaveAttribute("tabIndex", "0");
+    expect(screen.getByText("Список Имя")).toBeInTheDocument();
+    expect(screen.getByText("Более старая заявка")).toBeInTheDocument();
   });
 
   it("нет кнопки «Все» — фильтр убран", async () => {
@@ -114,32 +126,33 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
   });
 
-  it("дефолт «Новые» — заявка со статусом new видна без клика", async () => {
+  it("новая заявка видна без клика", async () => {
     render(<DoctorOnlineIntakeClient />);
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
   });
 
-  it("клик по другому статусу выбирает его и снимает предыдущий (взаимоисключающий выбор)", async () => {
+  it("выбирает один статус, а повторный клик снимает фильтр", async () => {
+    vi.stubGlobal("fetch", makeFetch({ list: { items: [ITEM_ROW, IN_REVIEW_ROW], total: 2 } }));
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
 
     const newBtn = screen.getByRole("tab", { name: /Новые/i });
     const inReviewBtn = screen.getByRole("tab", { name: /В работе/i });
-    expect(newBtn).toHaveAttribute("aria-selected", "true");
+    expect(newBtn).toHaveAttribute("aria-selected", "false");
 
-    // Выбираем «В работе» — заявка со статусом new исчезает, предыдущий статус снят
     await userEvent.click(inReviewBtn);
     expect(inReviewBtn).toHaveAttribute("aria-selected", "true");
     expect(newBtn).toHaveAttribute("aria-selected", "false");
     await waitFor(() => {
       expect(screen.queryByText("Список Имя")).not.toBeInTheDocument();
     });
+    expect(screen.getByText("Более старая заявка")).toBeInTheDocument();
 
-    // Повторный клик по «Новые» — возвращает выборку, всегда ровно один статус активен
-    await userEvent.click(newBtn);
-    expect(newBtn).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(inReviewBtn);
     expect(inReviewBtn).toHaveAttribute("aria-selected", "false");
+    expect(newBtn).toHaveAttribute("aria-selected", "false");
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
+    expect(screen.getByText("Более старая заявка")).toBeInTheDocument();
   });
 
   it("стрелка вправо переключает фокус и выбор на следующий статус (tablist keyboard contract)", async () => {
@@ -155,12 +168,40 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(newBtn).toHaveAttribute("aria-selected", "false");
   });
 
-  it("статус-фильтры образуют tablist ровно с одним активным табом", async () => {
+  it("статус-фильтры образуют tablist не более чем с одним активным табом", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
     const tabs = screen.getAllByRole("tab");
     expect(tabs).toHaveLength(4);
+    expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(0);
+    await userEvent.click(tabs[2]!);
     expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(1);
+  });
+
+  it("сортирует все заявки от новых к старым", async () => {
+    vi.stubGlobal("fetch", makeFetch({ list: { items: [IN_REVIEW_ROW, ITEM_ROW], total: 2 } }));
+    render(<DoctorOnlineIntakeClient />);
+    const newest = await screen.findByText("Список Имя");
+    const older = screen.getByText("Более старая заявка");
+    expect(newest.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("выделяет new-строку жирнее без изменения ширины строки", async () => {
+    vi.stubGlobal("fetch", makeFetch({ list: { items: [ITEM_ROW, IN_REVIEW_ROW], total: 2 } }));
+    render(<DoctorOnlineIntakeClient />);
+    const newRow = (await screen.findByText("Список Имя")).closest("button");
+    const oldRow = screen.getByText("Более старая заявка").closest("button");
+    expect(newRow).toHaveClass("w-full", "items-stretch", "font-semibold");
+    expect(oldRow).toHaveClass("w-full", "items-stretch");
+    expect(oldRow).not.toHaveClass("font-semibold");
+  });
+
+  it("использует единый desktop split 40/60", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    await screen.findByText("Список Имя");
+    expect(document.querySelector("#doctor-communications-intake")?.firstElementChild).toHaveClass(
+      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+    );
   });
 });
 

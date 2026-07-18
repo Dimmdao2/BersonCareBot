@@ -179,7 +179,18 @@ function stubFetchAllMode(overridePatientsData?: CommentPatientRow[]) {
   });
 }
 
-describe("DoctorCommentsTab — состояние A (лента)", () => {
+describe("DoctorCommentsTab — состояние A (клиент не выбран)", () => {
+  it("использует единый desktop split 40/60", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => {
+      expect(document.querySelector("#doctor-communications-comments")?.firstElementChild).toHaveClass(
+        "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+      );
+      expect(screen.getAllByRole("button", { name: /Иванов Иван/i }).length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it("показывает пациентов в левой панели (all-mode)", async () => {

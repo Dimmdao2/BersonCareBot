@@ -469,15 +469,16 @@ export function DoctorSupportInbox({
       mobileView={overviewOpen ? "list" : selectedId ? "detail" : "list"}
       mobileBackSlot={
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           onClick={() => selectConversation(null)}
-          className="mb-2"
+          className="mb-2 h-9 px-2"
         >
           ← К списку
         </Button>
       }
-      className={cn("lg:grid-cols-[0.8fr_1.6fr]", DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE)}
+      desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+      className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
     />
   );
 }

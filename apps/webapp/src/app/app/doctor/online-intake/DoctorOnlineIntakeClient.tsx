@@ -96,7 +96,7 @@ const STATUS_BADGE_CLASS: Record<IntakeStatus, string> = {
 
 const TYPE_LABELS: Record<string, string> = { lfk: "ЛФК", nutrition: "Нутрициология" };
 
-/** Статусы, по которым доступна фильтрация. Взаимоисключающий single-select — всегда выбран ровно один. */
+/** Статусы clearable single-select: пустой выбор означает весь список. */
 const FILTER_CHIPS: { status: IntakeStatus; label: string }[] = [
   { status: "new", label: "Новые" },
   { status: "in_review", label: "В работе" },
@@ -301,11 +301,9 @@ export function DoctorOnlineIntakeClient({
 }: DoctorOnlineIntakeClientProps) {
   const [allItems, setAllItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
-  /**
-   * Взаимоисключающий single-select фильтр статусов: выбран ровно один статус,
-   * клик по другому чипу снимает предыдущий (сегмент-контрол, не мультитоггл).
-   */
-  const [selectedStatus, setSelectedStatus] = useState<IntakeStatus>("new");
+  /** null — default без фильтра по статусу. */
+  const [selectedStatus, setSelectedStatus] = useState<IntakeStatus | null>(null);
+  const [filterFocusIndex, setFilterFocusIndex] = useState(0);
   const filterTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IntakeDetail | null>(null);
@@ -477,15 +475,20 @@ export function DoctorOnlineIntakeClient({
     }
   }
 
-  // Single-select фильтр: всегда ровно один статус активен.
-  const filteredItems = allItems.filter((item) => item.status === selectedStatus);
+  const newestFirstItems = [...allItems].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+  const filteredItems = selectedStatus
+    ? newestFirstItems.filter((item) => item.status === selectedStatus)
+    : newestFirstItems;
 
   const newCount = allItems.filter((i) => i.status === "new").length;
   const inReviewCount = allItems.filter((i) => i.status === "in_review").length;
 
-  /** Сегмент-контрол: клик/Enter/Space выбирает статус, снимая предыдущий. */
-  function selectStatus(status: IntakeStatus) {
-    setSelectedStatus(status);
+  /** Клик/Enter/Space выбирает статус; повторное нажатие снимает фильтр. */
+  function selectStatus(status: IntakeStatus, index: number) {
+    setFilterFocusIndex(index);
+    setSelectedStatus((current) => (current === status ? null : status));
   }
 
   /** Roving-tabindex keyboard contract для tablist: стрелки перемещают фокус и выбор. */
@@ -503,7 +506,8 @@ export function DoctorOnlineIntakeClient({
     if (nextIndex === null) return;
     e.preventDefault();
     const status = FILTER_STATUSES[nextIndex]!;
-    selectStatus(status);
+    setFilterFocusIndex(nextIndex);
+    setSelectedStatus(status);
     filterTabRefs.current[nextIndex]?.focus();
   }
 
@@ -532,14 +536,14 @@ export function DoctorOnlineIntakeClient({
               role="tab"
               variant={isActive ? "ghost" : "outline"}
               size="sm"
-              onClick={() => selectStatus(status)}
+              onClick={() => selectStatus(status, index)}
               onKeyDown={(e) => handleFilterKeyDown(e, index)}
               className={cn(
                 "h-auto rounded-md px-2 py-1 text-xs",
                 isActive && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
               )}
               aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
+              tabIndex={filterFocusIndex === index ? 0 : -1}
             >
               {label}
               {count !== undefined && count > 0 ? ` · ${count}` : ""}
@@ -556,7 +560,7 @@ export function DoctorOnlineIntakeClient({
           </DoctorEmptyState>
         ) : filteredItems.length === 0 ? (
           <DoctorEmptyState className="flex-1 items-center justify-center py-8">
-            Нет заявок в статусе «{STATUS_LABELS[selectedStatus]}»
+            {selectedStatus ? `Нет заявок в статусе «${STATUS_LABELS[selectedStatus]}»` : "Заявок пока нет"}
           </DoctorEmptyState>
         ) : (
           filteredItems.map((item) => (
@@ -566,16 +570,20 @@ export function DoctorOnlineIntakeClient({
               variant="ghost"
               onClick={() => void openDetail(item.id)}
               className={cn(
-                "flex h-auto min-w-0 w-full flex-col gap-0.5 rounded-none border-b border-border px-3 py-2.5 text-left transition-colors overflow-hidden",
+                "flex h-auto min-w-0 w-full flex-col items-stretch justify-start gap-0.5 overflow-hidden rounded-none border-b border-border px-3 py-2.5 text-left transition-colors",
                 selectedId === item.id ? "bg-primary/15 hover:bg-primary/20" : "hover:bg-muted/40",
+                item.status === "new" && "font-semibold",
               )}
             >
-              <div className="flex min-w-0 items-baseline justify-between gap-2">
+              <div className="flex w-full min-w-0 items-baseline justify-between gap-2">
                 <div className="min-w-0 flex flex-col">
                   <Link
                     href={patientCardHref(item.patientUserId)}
                     onClick={(e) => e.stopPropagation()}
-                    className="min-w-0 truncate text-sm font-semibold hover:underline"
+                    className={cn(
+                      "min-w-0 truncate text-sm hover:underline",
+                      item.status === "new" ? "font-semibold" : "font-medium",
+                    )}
                   >
                     {(item.lastName || item.firstName)
                       ? formatFioForDoctor(item.lastName, item.firstName, undefined)
@@ -587,18 +595,26 @@ export function DoctorOnlineIntakeClient({
                 </div>
                 <span
                   className={cn(
-                    "shrink-0 text-xs font-semibold",
-                    item.status === "new" ? "text-destructive" : "text-muted-foreground",
+                    "shrink-0 text-xs",
+                    item.status === "new"
+                      ? "font-semibold text-destructive"
+                      : "font-normal text-muted-foreground",
                   )}
                 >
                   {item.status === "new" ? "Новая" : formatIntakeDate(item.createdAt, displayIana)}
                 </span>
               </div>
-              <div className="min-w-0 truncate text-xs text-muted-foreground">
+              <div className={cn(
+                "min-w-0 truncate text-xs",
+                item.status === "new" ? "text-foreground/80" : "text-muted-foreground",
+              )}>
                 {item.patientPhone} · {STATUS_LABELS[item.status]}
               </div>
               {item.summary && (
-                <div className="min-w-0 truncate text-xs text-foreground/80">{item.summary}</div>
+                <div className={cn(
+                  "min-w-0 truncate text-xs",
+                  item.status === "new" ? "font-semibold text-foreground" : "text-foreground/80",
+                )}>{item.summary}</div>
               )}
             </Button>
           ))
@@ -832,12 +848,13 @@ export function DoctorOnlineIntakeClient({
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
+        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
         mobileBackSlot={
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setSelectedId(null)}
-            className="mb-2"
+            className="mb-2 h-9 px-2"
           >
             ← К заявкам
           </Button>

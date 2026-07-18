@@ -145,6 +145,35 @@ describe("BroadcastAuditLog", () => {
     expect(screen.getByText(longBody)).toBeInTheDocument();
   });
 
+  it("keeps long collapsed and expanded content in auto-height document flow", async () => {
+    const longTitle = `Длинный заголовок ${"без наложения ".repeat(8)}`;
+    const longBody = `Первая строка\n${"Длинная деталь ".repeat(20)}`;
+    const entries = [
+      makeEntry({ id: "e1", messageTitle: longTitle, messageBody: longBody, errorCount: 2 }),
+      makeEntry({ id: "e2", messageTitle: "Следующая рассылка" }),
+    ];
+    render(<BroadcastAuditLog entries={entries} onArchive={() => {}} />);
+
+    const firstButton = screen.getByRole("button", { name: /Длинный заголовок/ });
+    expect(firstButton).toHaveClass("h-auto", "whitespace-normal", "text-left");
+    await userEvent.click(firstButton);
+
+    const details = document.querySelector("#broadcast-audit-details-e1");
+    const nextButton = screen.getByRole("button", { name: /Следующая рассылка/ });
+    expect(details).toBeInTheDocument();
+    expect(details).not.toHaveClass("absolute");
+    expect(details?.querySelector("p.whitespace-pre-wrap")).toHaveClass(
+      "whitespace-pre-wrap",
+      "break-words",
+    );
+    expect(details).toHaveTextContent("Первая строка");
+    expect(screen.getByText("Не удалось доставить: 2")).toBeInTheDocument();
+    expect(details!.compareDocumentPosition(nextButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await userEvent.click(firstButton);
+    expect(document.querySelector("#broadcast-audit-details-e1")).not.toBeInTheDocument();
+  });
+
   // ----- Audience + channels in summary -----
 
   it("shows audience and channels summary in collapsed row", () => {

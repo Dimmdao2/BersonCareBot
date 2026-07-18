@@ -46,28 +46,33 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
       {entries.map((entry) => {
         const isOpen = openId === entry.id;
         return (
-          <div key={entry.id} className="group">
+          <div key={entry.id} className="group min-w-0">
             {/* Шапка строки: кликабельная сводка */}
             <Button
               type="button"
               variant="ghost"
               aria-expanded={isOpen}
               onClick={() => setOpenId(isOpen ? null : entry.id)}
-              className="flex w-full cursor-pointer select-none flex-wrap items-baseline gap-x-3 gap-y-0.5 px-1 py-2.5 text-left"
+              className="block h-auto min-h-0 w-full cursor-pointer select-none whitespace-normal px-2 py-2.5 text-left"
             >
-              <span className="whitespace-nowrap text-xs text-muted-foreground">
-                {formatBroadcastDate(entry.executedAt)}
+              <span className="flex min-w-0 items-start gap-2">
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+                  {formatBroadcastDate(entry.executedAt)}
+                </span>
+                <span className="min-w-0 text-xs font-medium">
+                  {formatCategoryLabel(entry.category)}
+                </span>
+                <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-muted-foreground">
+                  {deliveryProgressLine(entry)}
+                </span>
               </span>
-              <span className="text-xs font-medium">{formatCategoryLabel(entry.category)}</span>
-              <span className="text-sm">{entry.messageTitle}</span>
-              {/* Сводка: Аудитория · Каналы */}
-              <span className="text-xs text-muted-foreground">
+              <span className="mt-1 block break-words text-sm font-medium leading-5">
+                {entry.messageTitle}
+              </span>
+              <span className="mt-0.5 block break-words text-xs text-muted-foreground">
                 {formatAudienceLabel(entry.audienceFilter)}
                 {" · "}
                 {formatChannelsSummary(entry.channels)}
-              </span>
-              <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
-                {deliveryProgressLine(entry)}
               </span>
             </Button>
 
@@ -75,7 +80,7 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
             {isOpen && (
               <div
                 id={`broadcast-audit-details-${entry.id}`}
-                className="space-y-1.5 pb-3 pl-2 pr-1 text-xs text-muted-foreground"
+                className="min-w-0 space-y-1.5 px-2 pb-3 text-xs text-muted-foreground"
               >
                 <p>
                   <span className="font-medium text-foreground">Аудитория: </span>
@@ -86,9 +91,9 @@ export function BroadcastAuditLog({ entries, onArchive, onCreateFrom }: Props) {
                   {formatChannelsSummary(entry.channels)}
                 </p>
                 {entry.messageBody.trim().length > 0 && (
-                  <p>
+                  <p className="break-words whitespace-pre-wrap">
                     <span className="font-medium text-foreground">Текст: </span>
-                    {entry.messageBody.replace(/\s+/g, " ").trim()}
+                    {entry.messageBody.trim()}
                   </p>
                 )}
                 {entry.attachMenuAfterSend ? <p>Меню в чате обновлялось.</p> : null}
