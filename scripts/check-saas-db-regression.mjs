@@ -55,6 +55,14 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-rls-descriptors.mjs"],
   },
   {
+    label: "SAAS new public org-table RLS coverage",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs"],
+  },
+  {
+    label: "SAAS new public org-table RLS coverage self-test",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs", "--self-test"],
+  },
+  {
     label: "SAAS P0.8.2 RLS SQL renderer predicates",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs"],
   },
