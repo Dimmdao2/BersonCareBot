@@ -1,13 +1,11 @@
 import { emitBookingDeletedEvent } from "@/app-layer/booking/emitBookingDeletedEvent";
-import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
 import { resolveRubitimeIdForAppointment } from "@/app-layer/booking/staffRubitimeMirrorOutbound";
 import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isStaffDeletableCancelledStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
-import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { resolveDoctorProjectionIntegratorRecordId } from "@/modules/patient-booking/projectCanonicalAppointment";
 
 export type StaffPurgeCancelledAppointmentResult =
-  | { ok: true; rubitimeMirrorFailed?: true }
+  | { ok: true }
   | { ok: false; error: "not_found" | "not_cancelled" };
 
 export async function staffPurgeCancelledAppointment(input: {
@@ -53,17 +51,6 @@ export async function staffPurgeCancelledAppointment(input: {
     return { ok: false, error: "not_found" };
   }
 
-  let rubitimeMirrorFailed: true | undefined;
-  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(input.deps);
-  if (rubitimeId && bridgeEnabled) {
-    try {
-      const syncPort = createBookingSyncPort();
-      await syncPort.deleteRecord(rubitimeId);
-    } catch {
-      rubitimeMirrorFailed = true;
-    }
-  }
-
   const integratorRecordId = resolveDoctorProjectionIntegratorRecordId(
     input.appointmentId,
     rubitimeId,
@@ -79,5 +66,5 @@ export async function staffPurgeCancelledAppointment(input: {
     // GCal cleanup is best-effort after local purge.
   }
 
-  return rubitimeMirrorFailed ? { ok: true, rubitimeMirrorFailed } : { ok: true };
+  return { ok: true };
 }

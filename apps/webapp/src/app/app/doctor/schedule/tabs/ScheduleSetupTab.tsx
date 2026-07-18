@@ -5,7 +5,6 @@ import { BookingPublicAttributionSection } from "@/app/app/settings/BookingPubli
 import { BookingPublicWidgetSection } from "@/app/app/settings/BookingPublicWidgetSection";
 import { BookingPrepaymentSection } from "@/app/app/settings/BookingPrepaymentSection";
 import { BookingPaymentsSection } from "@/app/app/settings/BookingPaymentsSection";
-import { BookingRubitimeMappingSection } from "@/app/app/settings/BookingRubitimeMappingSection";
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
@@ -40,7 +39,6 @@ type SetupSectionId =
   | "payments"
   | "rules"
   | "notifications"
-  | "integrations"
   | "packages";
 
 type SetupSectionDef = {
@@ -55,7 +53,6 @@ const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: "payments",      label: "Оплаты" },
   { id: "rules",         label: "Правила записи" },
   { id: "notifications", label: "Тексты уведомлений" },
-  { id: "integrations",  label: "Интеграции · Rubitime" },
   { id: "packages",      label: "Абонементы (шаблоны)" },
 ];
 
@@ -819,10 +816,6 @@ function SectionNotifications() {
   return <ScheduleNotificationsSection />;
 }
 
-function SectionIntegrations() {
-  return <BookingRubitimeMappingSection />;
-}
-
 // ---------------------------------------------------------------------------
 // ScheduleSetupTab — main component
 // ---------------------------------------------------------------------------
@@ -875,7 +868,6 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
         {activeSection === "payments"     && <SectionPayments />}
         {activeSection === "rules"        && <SectionRules />}
         {activeSection === "notifications" && <SectionNotifications />}
-        {activeSection === "integrations" && <SectionIntegrations />}
         {activeSection === "packages"     && <SectionPackages />}
       </div>
     </div>

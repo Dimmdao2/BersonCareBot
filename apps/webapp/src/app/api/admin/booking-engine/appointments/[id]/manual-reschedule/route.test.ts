@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
 const staffRescheduleMock = vi.hoisted(() => vi.fn());
+const updateRecordMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async <T,>(
@@ -31,7 +32,7 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 }));
 
 vi.mock("@/modules/integrator/bookingM2mApi", () => ({
-  createBookingSyncPort: () => null,
+  createBookingSyncPort: () => ({ updateRecord: updateRecordMock, emitBookingEvent: vi.fn() }),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -57,6 +58,7 @@ describe("POST admin manual-reschedule", () => {
   });
 
   it("returns ok when lifecycle accepts reschedule", async () => {
+    updateRecordMock.mockRejectedValue(new Error("rubitime unavailable"));
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -106,6 +108,7 @@ describe("POST admin manual-reschedule", () => {
       "admin.booking-engine.appointments.manual-reschedule",
       expect.any(Function),
     );
+    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
   it("returns slot_overlap when lifecycle throws overlap error", async () => {

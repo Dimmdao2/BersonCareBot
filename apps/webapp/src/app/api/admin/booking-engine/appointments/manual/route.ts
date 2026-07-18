@@ -6,12 +6,6 @@ import {
   staffBookingContactNameFromAppointment,
   staffBookingServiceTitleFromAppointment,
 } from "@/app-layer/booking/staffBookingIntegratorEvent";
-import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
-import {
-  rollbackStaffManualAppointment,
-  syncStaffManualAppointmentToRubitime,
-  type StaffRubitimeSyncContext,
-} from "@/app-layer/booking/staffRubitimeManualBooking";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireAdminBookingEngine } from "../../_requireAdminBookingEngine";
 
@@ -39,34 +33,6 @@ async function resolveDefaultSpecialistId(
   return active?.id ?? null;
 }
 
-async function resolveRubitimeSyncContext(input: {
-  deps: ReturnType<typeof buildAppDeps>;
-  organizationId: string;
-  branchId: string | null;
-  serviceId: string | null;
-  specialistId: string | null;
-}): Promise<StaffRubitimeSyncContext | null> {
-  if (!input.branchId || !input.serviceId) return null;
-  if (!input.deps.bookingScheduling || !input.deps.bookingCatalog) {
-    throw new Error("rubitime_sync_unavailable");
-  }
-  const specialistId = input.specialistId ?? (await resolveDefaultSpecialistId(input.deps, input.organizationId));
-  if (!specialistId) throw new Error("rubitime_sync_context_missing");
-  const branchServiceId = await input.deps.bookingScheduling.resolveLegacyBranchServiceId({
-    organizationId: input.organizationId,
-    branchId: input.branchId,
-    serviceId: input.serviceId,
-    specialistId,
-  });
-  if (!branchServiceId) throw new Error("rubitime_mapping_missing");
-  const resolved = await input.deps.bookingCatalog.resolveBranchService(branchServiceId);
-  return {
-    rubitimeBranchId: resolved.branch.rubitimeBranchId,
-    rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
-    rubitimeServiceId: resolved.branchService.rubitimeServiceId,
-  };
-}
-
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
@@ -79,7 +45,6 @@ export async function POST(request: Request) {
   const principalCtx = { ...ctx, organizationId: orgId };
   const deps = buildAppDeps();
   const syncPort = createBookingSyncPort();
-  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
 
   // Staff manual creates are in-person and MUST have a concrete specialist.
   // A NULL specialist_id bypasses the be_appointments_specialist_no_overlap
@@ -90,25 +55,6 @@ export async function POST(request: Request) {
     parsed.data.specialistId ?? (await resolveDefaultSpecialistId(deps, orgId));
   if (!resolvedSpecialistId) {
     return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 400 });
-  }
-
-  let syncContext: StaffRubitimeSyncContext | null = null;
-  if (bridgeEnabled) {
-    try {
-      syncContext = await resolveRubitimeSyncContext({
-        deps,
-        organizationId: orgId,
-        branchId: parsed.data.branchId ?? null,
-        serviceId: parsed.data.serviceId ?? null,
-        specialistId: resolvedSpecialistId,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "rubitime_mapping_missing";
-      if (message === "rubitime_mapping_missing" || message === "rubitime_sync_context_missing") {
-        return NextResponse.json({ ok: false, error: message }, { status: 400 });
-      }
-      return NextResponse.json({ ok: false, error: message }, { status: 502 });
-    }
   }
 
   try {
@@ -143,43 +89,6 @@ export async function POST(request: Request) {
         }),
     );
 
-    let syncedRubitimeId: string | null = null;
-    let projectionWarning: string | undefined;
-    if (syncContext && bridgeEnabled) {
-      const syncResult = await syncStaffManualAppointmentToRubitime({
-        syncPort,
-        appointment,
-        syncContext,
-      });
-      if (!syncResult.ok) {
-        await rollbackStaffManualAppointment({
-          deleteAppointmentHard: ctx.service.deleteAppointmentHard,
-          transitionAppointmentStatus: ctx.service.transitionAppointmentStatus,
-          organizationId: orgId,
-          appointmentId: appointment.id,
-          actorId: ctx.session.user.userId,
-          reason:
-            syncResult.error === "external_slot_taken"
-              ? "external_slot_taken_rollback"
-              : "rubitime_sync_failed_rollback",
-        });
-        if (syncResult.error === "external_slot_taken") {
-          return NextResponse.json(
-            { ok: false, error: "external_slot_taken", hint: "refresh_calendar" },
-            { status: 409 },
-          );
-        }
-        return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
-      }
-      syncedRubitimeId = syncResult.rubitimeId;
-      projectionWarning = syncResult.projectionWarning;
-      await ctx.service.upsertRubitimeAppointmentMapping({
-        organizationId: orgId,
-        appointmentId: appointment.id,
-        rubitimeId: syncedRubitimeId,
-      });
-    }
-
     const bookingRow = deps.patientBooking
       ? await deps.patientBooking.getBookingByCanonicalAppointment(appointment.id)
       : null;
@@ -191,7 +100,7 @@ export async function POST(request: Request) {
           organizationId: appointment.organizationId,
           bookingId: bookingRow?.id ?? appointment.id,
           userId: bookingRow?.userId ?? appointment.platformUserId ?? appointment.id,
-          rubitimeId: bookingRow?.rubitimeId ?? syncedRubitimeId ?? null,
+          rubitimeId: bookingRow?.rubitimeId ?? null,
           bookingType: bookingRow?.bookingType ?? "in_person",
           city: bookingRow?.city ?? undefined,
           category: bookingRow?.category ?? "general",
@@ -209,11 +118,7 @@ export async function POST(request: Request) {
     } catch {
       // Lifecycle event is best-effort.
     }
-    return NextResponse.json({
-      ok: true,
-      appointment,
-      ...(projectionWarning ? { projectionWarning } : {}),
-    });
+    return NextResponse.json({ ok: true, appointment });
   } catch (err) {
     const message = err instanceof Error ? err.message : "create_failed";
     if (message === "slot_overlap" || (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01")) {

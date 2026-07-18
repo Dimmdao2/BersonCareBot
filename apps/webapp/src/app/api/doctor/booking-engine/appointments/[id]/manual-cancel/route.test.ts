@@ -56,7 +56,7 @@ describe("POST manual-cancel", () => {
     principalState.inside = false;
   });
 
-  it("returns ok with partial failure flags from after-canonical step", async () => {
+  it("returns canonical partial outcome flags without a Rubitime flag", async () => {
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -75,10 +75,7 @@ describe("POST manual-cancel", () => {
     });
     runStaffManualCancelAfterCanonicalMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(false);
-      return {
-        rubitimeMirrorFailed: true,
-        paymentOutcomeFailed: true,
-      };
+      return { paymentOutcomeFailed: true };
     });
 
     const res = await POST(
@@ -96,7 +93,7 @@ describe("POST manual-cancel", () => {
     };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBe(true);
+    expect(json.rubitimeMirrorFailed).toBeUndefined();
     expect(json.paymentOutcomeFailed).toBe(true);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "org-1" }),

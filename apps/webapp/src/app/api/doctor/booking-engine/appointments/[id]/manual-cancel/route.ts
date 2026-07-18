@@ -63,7 +63,6 @@ export async function POST(request: Request, context: RouteContext) {
     decisionType: parsed.data.decisionType,
     reason: parsed.data.reason,
     notifyPatient: parsed.data.notifyPatient,
-    getRubitimeAppointmentId: gate.ctx.service?.getRubitimeAppointmentId,
     appointment: result.appointment,
     cancelPolicy: result.cancelPolicy,
   });

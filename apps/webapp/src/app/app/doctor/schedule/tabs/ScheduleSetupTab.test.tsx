@@ -31,9 +31,6 @@ vi.mock("@/app/app/settings/BookingPaymentsSection", () => ({
 vi.mock("@/app/app/settings/BookingPrepaymentSection", () => ({
   BookingPrepaymentSection: () => <div data-testid="section-prepayment" />,
 }));
-vi.mock("@/app/app/settings/BookingRubitimeMappingSection", () => ({
-  BookingRubitimeMappingSection: () => <div data-testid="section-rubitime-mapping" />,
-}));
 vi.mock("@/app/app/settings/BookingEngineSection", () => ({
   BookingEngineSection: () => <div data-testid="section-booking-engine" />,
 }));
@@ -83,7 +80,8 @@ describe("ScheduleSetupTab", () => {
     expect(screen.getByTestId("setup-nav-payments")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-rules")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-notifications")).toBeInTheDocument();
-    expect(screen.getByTestId("setup-nav-integrations")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-nav-packages")).toBeInTheDocument();
+    expect(screen.queryByTestId("setup-nav-integrations")).not.toBeInTheDocument();
   });
 
   it("default section is calendar (no deepLinkParams)", async () => {
@@ -140,13 +138,10 @@ describe("ScheduleSetupTab", () => {
     expect(onDeepLinkChange).toHaveBeenCalledWith("section", "form");
   });
 
-  it("switching to integrations renders rubitime components", async () => {
-    await renderSetupTab();
-    fireEvent.click(screen.getByTestId("setup-nav-integrations"));
-    await waitFor(() => {
-      expect(screen.getByTestId("setup-section-integrations")).toBeInTheDocument();
-      expect(screen.getByTestId("section-rubitime-mapping")).toBeInTheDocument();
-    });
+  it("ignores the retired integrations deep link", async () => {
+    await renderSetupTab({ section: "integrations" });
+    expect(screen.getByTestId("setup-section-calendar")).toBeInTheDocument();
+    expect(screen.queryByText(/Rubitime/i)).not.toBeInTheDocument();
   });
 
   it("switching back to default section (calendar) calls onDeepLinkChange with null", async () => {

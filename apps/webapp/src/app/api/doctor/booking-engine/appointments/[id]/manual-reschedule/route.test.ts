@@ -115,11 +115,16 @@ describe("POST manual-reschedule", () => {
     expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
-  it("returns external_slot_taken without extra canonical reschedule when Rubitime slot is busy", async () => {
+  it("reschedules canonically despite legacy bridge enablement and a failing Rubitime port", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
       rubitimeId: "rt-1",
     });
     updateRecordMock.mockRejectedValue(new Error("slot_already_taken"));
+    staffRescheduleMock.mockResolvedValue({
+      ok: true,
+      appointment: { id: "appt-1", platformUserId: "u1" },
+      reschedulePolicy: { notifyPatient: true, notifyStaff: true },
+    });
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -151,19 +156,17 @@ describe("POST manual-reschedule", () => {
       }),
       { params: Promise.resolve({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }) },
     );
-    const json = (await res.json()) as { ok?: boolean; error?: string };
-    expect(res.status).toBe(409);
-    expect(json.ok).toBe(false);
-    expect(json.error).toBe("external_slot_taken");
-    expect(staffRescheduleMock).not.toHaveBeenCalled();
-    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+    const json = (await res.json()) as { ok?: boolean };
+    expect(res.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(staffRescheduleMock).toHaveBeenCalled();
+    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 
-  it("rolls back Rubitime update when canonical reschedule throws slot_overlap", async () => {
+  it("returns canonical slot_overlap without any Rubitime rollback", async () => {
     getBookingByCanonicalAppointmentMock.mockResolvedValue({
       rubitimeId: "rt-1",
     });
-    updateRecordMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined);
     staffRescheduleMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
       throw new Error("slot_overlap");
@@ -203,15 +206,6 @@ describe("POST manual-reschedule", () => {
     expect(res.status).toBe(409);
     expect(json.ok).toBe(false);
     expect(json.error).toBe("slot_overlap");
-    expect(updateRecordMock).toHaveBeenNthCalledWith(1, {
-      rubitimeId: "rt-1",
-      slotStart: "2026-06-01T10:00:00.000Z",
-      slotEnd: "2026-06-01T11:00:00.000Z",
-    });
-    expect(updateRecordMock).toHaveBeenNthCalledWith(2, {
-      rubitimeId: "rt-1",
-      slotStart: "2026-06-01T09:00:00.000Z",
-      slotEnd: "2026-06-01T10:00:00.000Z",
-    });
+    expect(updateRecordMock).not.toHaveBeenCalled();
   });
 });

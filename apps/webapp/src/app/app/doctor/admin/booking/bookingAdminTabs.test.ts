@@ -23,8 +23,8 @@ describe("bookingAdminTabFromPathname", () => {
     expect(bookingAdminTabFromPathname(`${BOOKING_ADMIN_BASE}/catalog`)).toBe("overview");
   });
 
-  it("has four unique tab ids and hrefs", () => {
-    expect(BOOKING_ADMIN_TABS).toHaveLength(4);
+  it("has three unique tab ids and hrefs", () => {
+    expect(BOOKING_ADMIN_TABS).toHaveLength(3);
     const ids = new Set(BOOKING_ADMIN_TABS.map((t) => t.id));
     expect(ids.size).toBe(4);
     const hrefs = new Set(BOOKING_ADMIN_TABS.map((t) => t.href));
@@ -36,6 +36,6 @@ describe("bookingAdminTabFromPathname", () => {
     expect(ids).toContain("overview");
     expect(ids).toContain("form-public");
     expect(ids).toContain("payments");
-    expect(ids).toContain("integrations");
+    expect(ids).not.toContain("integrations");
   });
 });

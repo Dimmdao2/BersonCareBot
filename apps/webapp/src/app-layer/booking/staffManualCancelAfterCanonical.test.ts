@@ -1,13 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const syncStaffCancelToRubitimeMock = vi.hoisted(() => vi.fn());
 const applyStaffCancelSideEffectsMock = vi.hoisted(() => vi.fn());
-const createBookingSyncPortMock = vi.hoisted(() => vi.fn(() => ({ cancelRecord: vi.fn() })));
-
-vi.mock("@/app-layer/booking/staffRubitimeMirrorOutbound", () => ({
-  resolveRubitimeIdForAppointment: vi.fn().mockResolvedValue("rt-1"),
-  syncStaffCancelToRubitime: syncStaffCancelToRubitimeMock,
-}));
+const cancelRecordMock = vi.hoisted(() => vi.fn());
+const createBookingSyncPortMock = vi.hoisted(() => vi.fn(() => ({ cancelRecord: cancelRecordMock })));
 
 vi.mock("@/app-layer/booking/staffAppointmentLifecycleEffects", () => ({
   applyStaffCancelSideEffects: applyStaffCancelSideEffectsMock,
@@ -62,7 +57,7 @@ const baseAppointment = {
 describe("runStaffManualCancelAfterCanonical", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    syncStaffCancelToRubitimeMock.mockResolvedValue(undefined);
+    cancelRecordMock.mockRejectedValue(new Error("rubitime unavailable"));
     applyStaffCancelSideEffectsMock.mockResolvedValue(undefined);
   });
 
@@ -99,21 +94,7 @@ describe("runStaffManualCancelAfterCanonical", () => {
       canonicalAppointmentId: "appt-1",
       reason: "staff reason",
     });
-  });
-
-  it("returns rubitimeMirrorFailed when Rubitime sync fails", async () => {
-    syncStaffCancelToRubitimeMock.mockRejectedValue(new Error("network"));
-    const flags = await runStaffManualCancelAfterCanonical({
-      deps: deps(),
-      organizationId: "org-1",
-      appointmentId: "appt-1",
-      actorId: "staff-1",
-      actorType: "specialist",
-      decisionType: "free",
-      appointment: baseAppointment,
-      cancelPolicy: cancelPolicy(),
-    });
-    expect(flags).toEqual({ rubitimeMirrorFailed: true });
+    expect(cancelRecordMock).not.toHaveBeenCalled();
   });
 
   it("returns membershipOutcomeFailed when package outcome apply fails", async () => {
@@ -167,20 +148,4 @@ describe("runStaffManualCancelAfterCanonical", () => {
     expect(flags).toEqual({ notificationOutcomeFailed: true });
   });
 
-  it("skips Rubitime sync when bridge is disabled", async () => {
-    const flags = await runStaffManualCancelAfterCanonical({
-      deps: deps({
-        rubitimeCanonicalProjection: { isBridgeEnabled: async () => false },
-      }),
-      organizationId: "org-1",
-      appointmentId: "appt-1",
-      actorId: "staff-1",
-      actorType: "specialist",
-      decisionType: "free",
-      appointment: baseAppointment,
-      cancelPolicy: cancelPolicy(),
-    });
-    expect(flags).toEqual({});
-    expect(syncStaffCancelToRubitimeMock).not.toHaveBeenCalled();
-  });
 });

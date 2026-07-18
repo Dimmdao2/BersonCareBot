@@ -29,6 +29,5 @@ export async function POST(_request: Request, context: RouteContext) {
   }
   return NextResponse.json({
     ok: true,
-    ...(result.rubitimeMirrorFailed ? { rubitimeMirrorFailed: true } : {}),
   });
 }

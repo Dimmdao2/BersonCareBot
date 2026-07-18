@@ -3,18 +3,12 @@
  * @see docs/BOOKING_REWORK_INITIATIVE/BOOKING_MIRROR_INTEGRITY_CONTRACT.md
  */
 import { applyStaffCancelSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
-import {
-  resolveRubitimeIdForAppointment,
-  syncStaffCancelToRubitime,
-} from "@/app-layer/booking/staffRubitimeMirrorOutbound";
-import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
 import type { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { BeAppointment } from "@/modules/booking-engine/types";
 import type { BookingSyncPort } from "@/modules/patient-booking/ports";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 
 export type StaffManualCancelFlags = {
-  rubitimeMirrorFailed?: true;
   notificationOutcomeFailed?: true;
   paymentOutcomeFailed?: true;
   membershipOutcomeFailed?: true;
@@ -31,10 +25,6 @@ export async function runStaffManualCancelAfterCanonical(input: {
   staffComment?: string;
   /** R21: false → не уведомлять пациента об отмене. По умолчанию уведомляем. */
   notifyPatient?: boolean;
-  getRubitimeAppointmentId?: (params: {
-    organizationId: string;
-    appointmentId: string;
-  }) => Promise<string | null>;
   appointment: BeAppointment;
   cancelPolicy: Parameters<typeof applyStaffCancelSideEffects>[0]["cancelPolicy"];
 }): Promise<StaffManualCancelFlags> {
@@ -42,27 +32,7 @@ export async function runStaffManualCancelAfterCanonical(input: {
   const bookingRow = input.deps.patientBooking
     ? await input.deps.patientBooking.getBookingByCanonicalAppointment(input.appointmentId)
     : null;
-  const rubitimeId = await resolveRubitimeIdForAppointment({
-    appointmentId: input.appointmentId,
-    organizationId: input.organizationId,
-    bookingRow,
-    getRubitimeAppointmentId: input.getRubitimeAppointmentId,
-  });
   const syncPort: BookingSyncPort = createBookingSyncPort();
-  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(input.deps);
-  if (rubitimeId && bridgeEnabled) {
-    try {
-      await syncStaffCancelToRubitime({
-        rubitimeId,
-        appointmentId: input.appointmentId,
-        appointmentMirrorSync: input.deps.appointmentMirrorSync,
-        syncPort,
-      });
-    } catch {
-      flags.rubitimeMirrorFailed = true;
-    }
-  }
-
   if (input.deps.memberships) {
     try {
       await input.deps.memberships.applyCancelPackageOutcome({

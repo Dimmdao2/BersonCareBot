@@ -132,10 +132,10 @@ describe("POST admin delete", () => {
     expect(principalState.inside).toBe(false);
   });
 
-  it("returns 200 with rubitimeMirrorFailed flag", async () => {
+  it("does not expose a Rubitime flag after canonical purge", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: gateCtx() });
     vi.mocked(buildAppDeps).mockReturnValue({ appointmentProjection: {} } as never);
-    staffPurgeCancelledAppointmentMock.mockResolvedValue({ ok: true, rubitimeMirrorFailed: true });
+    staffPurgeCancelledAppointmentMock.mockResolvedValue({ ok: true });
 
     const res = await POST(
       new Request("http://localhost/delete", { method: "POST" }),
@@ -144,6 +144,6 @@ describe("POST admin delete", () => {
     const json = (await res.json()) as { ok?: boolean; rubitimeMirrorFailed?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBe(true);
+    expect(json.rubitimeMirrorFailed).toBeUndefined();
   });
 });

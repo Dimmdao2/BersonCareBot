@@ -54,7 +54,7 @@ describe("POST admin manual-cancel", () => {
     principalState.inside = false;
   });
 
-  it("returns ok with rubitimeMirrorFailed flag when mirror fails after canonical cancel", async () => {
+  it("returns canonical cancel success without a Rubitime flag", async () => {
     requireAdminBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -73,7 +73,7 @@ describe("POST admin manual-cancel", () => {
     });
     runStaffManualCancelAfterCanonicalMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(false);
-      return { rubitimeMirrorFailed: true };
+      return {};
     });
 
     const res = await POST(
@@ -87,7 +87,7 @@ describe("POST admin manual-cancel", () => {
     const json = (await res.json()) as { ok?: boolean; rubitimeMirrorFailed?: boolean };
     expect(res.status).toBe(200);
     expect(json.ok).toBe(true);
-    expect(json.rubitimeMirrorFailed).toBe(true);
+    expect(json.rubitimeMirrorFailed).toBeUndefined();
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: "org-1" }),
       "admin.booking-engine.appointments.manual-cancel",

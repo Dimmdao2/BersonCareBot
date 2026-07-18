@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { applyStaffRescheduleSideEffects } from "@/app-layer/booking/staffAppointmentLifecycleEffects";
-import {
-  resolveRubitimeIdForAppointment,
-  syncStaffRescheduleToRubitime,
-} from "@/app-layer/booking/staffRubitimeMirrorOutbound";
-import { isStaffRubitimeOutboundEnabled } from "@/app-layer/booking/staffRubitimeBridgePolicy";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
@@ -23,17 +18,6 @@ const bodySchema = z.object({
 });
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-const RUBITIME_CONFLICT_ERRORS = new Set([
-  "slot_already_taken",
-  "duplicate_local_booking_id",
-  "rubitime_slot_conflict",
-  "external_slot_taken",
-]);
-
-function isExternalSlotConflict(error: string): boolean {
-  return RUBITIME_CONFLICT_ERRORS.has(error);
-}
 
 function isSlotOverlapError(err: unknown): boolean {
   if (err instanceof Error && err.message === "slot_overlap") return true;
@@ -53,66 +37,10 @@ export async function POST(request: Request, context: RouteContext) {
   if (!lifecycle) {
     return NextResponse.json({ ok: false, error: "lifecycle_unavailable" }, { status: 503 });
   }
-  const beforeAppointment = await gate.ctx.service.getAppointment(appointmentId);
-  if (!beforeAppointment) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
   const syncPort = createBookingSyncPort();
   const bookingRow = deps.patientBooking
     ? await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId)
     : null;
-  const rubitimeId = await resolveRubitimeIdForAppointment({
-    appointmentId,
-    organizationId: gate.ctx.organizationId,
-    bookingRow,
-    getRubitimeAppointmentId: gate.ctx.service.getRubitimeAppointmentId,
-  });
-  let syncedExternally = false;
-  const rollbackExternalReschedule = async () => {
-    if (!syncedExternally || !rubitimeId) return;
-    try {
-      await syncStaffRescheduleToRubitime({
-        rubitimeId,
-        appointmentId,
-        appointment: beforeAppointment,
-        appointmentMirrorSync: deps.appointmentMirrorSync,
-        syncPort,
-      });
-    } catch {
-      // Best-effort rollback.
-    }
-  };
-  const outboundAppointment = {
-    ...beforeAppointment,
-    startAt: parsed.data.newStartAt,
-    endAt: parsed.data.newEndAt,
-    durationMinutes: parsed.data.durationMinutes,
-    branchId: parsed.data.branchId ?? beforeAppointment.branchId,
-    specialistId: parsed.data.specialistId ?? beforeAppointment.specialistId,
-    serviceId: parsed.data.serviceId ?? beforeAppointment.serviceId,
-  };
-  const bridgeEnabled = await isStaffRubitimeOutboundEnabled(deps);
-  if (rubitimeId && bridgeEnabled) {
-    try {
-      await syncStaffRescheduleToRubitime({
-        rubitimeId,
-        appointmentId,
-        appointment: outboundAppointment,
-        appointmentMirrorSync: deps.appointmentMirrorSync,
-        syncPort,
-      });
-      syncedExternally = true;
-    } catch (syncErr) {
-      const syncCode = syncErr instanceof Error ? syncErr.message : "rubitime_update_failed";
-      if (isExternalSlotConflict(syncCode)) {
-        return NextResponse.json(
-          { ok: false, error: "external_slot_taken", hint: "refresh_calendar" },
-          { status: 409 },
-        );
-      }
-      return NextResponse.json({ ok: false, error: "rubitime_sync_failed" }, { status: 502 });
-    }
-  }
   let result:
     | Awaited<ReturnType<typeof lifecycle.staffReschedule>>
     | null = null;
@@ -138,7 +66,6 @@ export async function POST(request: Request, context: RouteContext) {
         }),
     );
   } catch (err) {
-    await rollbackExternalReschedule();
     if (isSlotOverlapError(err)) {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
     }
@@ -148,7 +75,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ ok: false, error: "reschedule_failed" }, { status: 500 });
   }
   if (!result.ok) {
-    await rollbackExternalReschedule();
     const status = result.error === "not_found" ? 404 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
