@@ -2100,3 +2100,12 @@ PASS без P0/P1: full structured ФИО и облегчённый вес по�
 composition, а компонент и его поведенческие тесты сохранены; календарь первый справа; tooltips доступны по
 hover/focus; клиентские предикаты/primary active-state соответствуют owner contract. Повторный audit/correction
 loop не открывался. Live screenshot и count acceptance выполняются после интеграции и разрешённого TEST data gate.
+
+Lead интегрировал worker/docs как `636a4ec00` и `cd70c7db3` поверх параллельно завершённого auth commit
+`3912ea7ac`. На единственном существующем DEV-сервере сняты source-bound desktop `1480x1024` и mobile `390x844`
+экраны «Сегодня / Клиенты» в `/home/dev/brain/runs/c1-round3-live/`: appointment KPI row отсутствует, календарь
+первый справа на desktop, mobile сохраняет последовательный layout, клиентские KPI имеют primary selected-state и
+новые понятные подписи. DEV fixture пуст, поэтому он не доказывает populated ФИО/counts; эти состояния закрыты
+focused tests, а live data acceptance остаётся за owner-gated TEST refresh/backfill. Временный worktree и ветка
+удалены после patch-equivalence proof; integration worktree снова единственный, protected
+`SESSION_HANDOFF_2026-07-17.md` не затронут.
