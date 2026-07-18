@@ -2068,3 +2068,35 @@ passed 22/22 positive/role scenarios plus the global-admin clinical-write denial
 
 Tasks `#850` and `#852` are implementation-complete, tested and independently audited; taskdb acceptance remains
 unset for the owner. C2 is deliberately paused until the owner completes this corrected TEST click-through.
+
+## 2026-07-18 — C1 повторная owner-коррекция «Сегодня / Клиенты» (`#850`)
+
+Повторная живая TEST-приёмка не приняла `#850`. Новый scope остаётся presentation-only: на «Сегодня» в списках
+людей должна остаться одна строка structured ФИО; правый appointment KPI row временно скрывается без удаления
+компонента, а мини-календарь поднимается вверх. Это явно отложенное решение владельца, а не retirement метрик.
+
+На «Клиентах» фактическая семантика зафиксирована без новой модели данных: `С записями` включает человека с
+любой будущей активной либо прошедшей неотменённой canonical appointment; вместо `Новые` показывается
+`С визитами` для истории прошедших визитов; `Бывшие` переименовывается в понятное `Без будущих` (визиты были,
+будущей активной записи нет). Все видимые KPI получают короткие hover/focus-подсказки, а выбранный KPI-фильтр —
+общий primary active-state doctor UI вместо warning/destructive-окраски.
+
+Task `#850` снова в `doing`. Из-за одновременно выполняемой identity-задачи `#860` и её незакоммиченных файлов в
+интеграционном worktree весь UI-срез изолирован в `agent/c1-owner-round3-today-clients` от commit `57aa704a0`.
+Режим §7.3 не меняется: один worker, один независимый audit, targeted checks и live desktop/mobile; новый full CI
+только на TEST milestone, без повторных прогонов уже зелёных шагов.
+
+**Обнаруженный data gate:** owner сравнил экран с PROD: при почти одинаковом roster (`228` против `227`) PROD
+legacy UI показывал `139` людей с записями и `114` без будущей записи, тогда как текущий TEST canonical UI — около
+`48` и `24`. Трассировка подтвердила: лимита строк в `listClients` нет; production branch на снимке агрегирует
+`appointment_records`, feature branch — `be_appointments`. Последний C1 deploy был намеренно code-only, поэтому
+текущая TEST DB не доказывает полноту canonical backfill. Возвращать legacy fallback запрещено R2. Визуальная
+коррекция продолжается, но live acceptance счётчиков заблокирована до существующего `#757` C0/R1 TEST
+fresh-restore/backfill flow; сброс TEST-данных требует отдельного owner gate.
+
+Presentation worker commit `1c52de23f` закрыл кодовый scope одним проходом. Focused Vitest прошёл `55/55`,
+scoped ESLint, webapp typecheck и `git diff --check` — PASS. Единственный независимый presentation audit вернул
+PASS без P0/P1: full structured ФИО и облегчённый вес подтверждены; appointment KPI row отключён только на уровне
+composition, а компонент и его поведенческие тесты сохранены; календарь первый справа; tooltips доступны по
+hover/focus; клиентские предикаты/primary active-state соответствуют owner contract. Повторный audit/correction
+loop не открывался. Live screenshot и count acceptance выполняются после интеграции и разрешённого TEST data gate.

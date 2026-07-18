@@ -335,6 +335,10 @@ card; запрещено строить временный resolver, второ�
      Клиенты/Подписчики classifier остаётся dormant/reversible без UI-сегмента и не применяется к default list;
      одна строка structured ФИО; отдельная строка count + reversible `Недавние`/`По фамилии`; 40/60 desktop,
      Exercises-style mobile master/detail; right-side factual filters и недублирующиеся non-interactive row indicators.
+     Повторная живая TEST-приёмка временно отключает показ правого appointment KPI row на «Сегодня» без удаления
+     реализации, поднимает календарь, требует hover/focus-подсказки всех видимых KPI и уточняет клиентские KPI:
+     `С записями` = любая будущая либо прошедшая неотменённая запись, `С визитами` заменяет `Новые`, `Без будущих`
+     заменяет неоднозначное `Бывшие`; active filter использует общий primary selected-state.
   2. `Расписание` — §§3-4: desktop default week, услуги, специалисты календаря, short name в create-location и
      отсутствие Rubitime tab; перенос всей booking settings IA отменён и сюда не входит.
   3. `Коммуникации` — §§5-8 и live TEST correction 20:48: shared 40/60 desktop split во всех четырёх вкладках и
@@ -343,7 +347,10 @@ card; запрещено строить временный resolver, второ�
      собственной высотой строки. Уже принятую ссылку «Открыть карточку» не переделывать.
 - **Dependencies:** slices могут идти параллельно после code/taskdb dedup, если файловые scope не пересекаются;
   Rubitime UI removal координируется с C0. Existing BCB2 triage не может закрыть эти новые acceptance по совпадению
-  названия страницы.
+  названия страницы. Live acceptance клиентских appointment-фильтров дополнительно зависит от C0/R1: текущая
+  code-only TEST DB имеет неполную canonical историю (`be_appointments`) относительно legacy PROD-снимка. Не
+  возвращать `appointment_records` fallback; использовать только существующий owner-gated TEST fresh-restore/backfill
+  flow после отдельного разрешения владельца на сброс TEST-данных.
 - **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
   состояния из owner-review; независимый UI audit.
 
