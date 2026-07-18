@@ -331,7 +331,7 @@ function runChecks(overrides = {}) {
     'node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs',
     '--allow-test-target',
     '--database-url \\"\\$DATABASE_URL\\"',
-    "export PGOPTIONS='-c role=$DBROLE' && \\\n    $deploy_command",
+    "export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \\\n    $deploy_command",
     'command_status=$?',
     'cleanup_status=$?',
     '[ "$cleanup_status" -eq 0 ] || return "$cleanup_status"',
@@ -642,6 +642,8 @@ function runChecks(overrides = {}) {
     "export SAAS_TEST_FIXTURE_ENV_FILE='$SAAS_TEST_FIXTURE_ENV' && pnpm --dir apps/webapp run seed:saas-test-walkthrough",
     'run_deploy_repo_with_test_db_owner_bypass(){',
     'ALTER ROLE \\"$DBROLE\\" BYPASSRLS;',
+    'unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER',
+    'export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS=',
     'LOCKED_SMOKE_FIXTURE_VALIDATOR=deploy/host/validate-saas-product-smoke-fixture.sh',
     'bash "$validator" --validate "$fixture_path" "$SRC_REPO" "$DEPLOY_REPO"',
     'sudo -u deploy test -r "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"',
@@ -1050,6 +1052,12 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         'run_deploy_repo_with_test_db_owner_bypass(){',
         'run_deploy_repo_with_test_db_owner_bypass_disabled(){',
+      ),
+    },
+    {
+      deployTestSaas: read(files.deployTestSaas).replaceAll(
+        'unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER',
+        '# operational runtime pools were left enabled inside the migration window',
       ),
     },
     {

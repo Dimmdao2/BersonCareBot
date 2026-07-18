@@ -807,7 +807,8 @@ run_deploy_repo_with_test_db_owner_role(){
   grant_migrator_owner_membership "$MIGRATOR_ROLE"
   set +e
   sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    export PGOPTIONS='-c role=$DBROLE' && \
+    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER && \
+    export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
     $deploy_command"
   command_status=$?
   cleanup_elevation
@@ -827,7 +828,8 @@ run_deploy_repo_with_test_db_owner_bypass(){
   sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
   set +e
   sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    export PGOPTIONS='-c role=$DBROLE' && \
+    unset DATABASE_URL_STAFF DATABASE_URL_NONSTAFF DATABASE_URL_WEB_PUSH_REMINDER && \
+    export DB_PRINCIPAL_CONTEXT_MODE=legacy-guc PGOPTIONS='-c role=$DBROLE' && \
     $deploy_command"
   command_status=$?
   cleanup_elevation
