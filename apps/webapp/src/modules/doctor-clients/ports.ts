@@ -76,6 +76,8 @@ export type ClientListItem = {
   nextAppointmentLabel: string | null;
   /** Есть хотя бы одна неотменённая canonical appointment. */
   hasAppointmentHistory?: boolean;
+  /** Последняя состоявшаяся non-cancelled canonical appointment в текущей organization. */
+  lastAppointmentAt?: string | null;
   activeAppointmentsCount?: number;
   /** Хотя бы одна строка `treatment_program_instances` со статусом `active` для этого клиента. */
   activeTreatmentProgram: boolean;

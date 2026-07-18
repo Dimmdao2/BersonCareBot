@@ -209,6 +209,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         runWebappPgText<{
             user_id: string;
             history_count: number;
+            last_appointment_at: Date | string | null;
             active_count: number;
             cancellation_count_30d: number;
             reschedule_count_30d: number;
@@ -221,6 +222,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
                    AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS history_count,
+               MAX(bea.start_at) FILTER (
+                 WHERE bea.deleted_at IS NULL
+                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                   AND bea.start_at IS NOT NULL
+                   AND bea.start_at <= NOW()
+                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+               ) AS last_appointment_at,
                COUNT(DISTINCT bea.id) FILTER (
                  WHERE bea.deleted_at IS NULL
                    AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
@@ -376,6 +384,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           row.user_id,
           {
             hasHistory: Number(row.history_count ?? 0) > 0,
+            lastAppointmentAt: row.last_appointment_at ? toIsoStringSafe(row.last_appointment_at) : null,
             activeCount: Number(row.active_count ?? 0),
             cancellationCount30d: Number(row.cancellation_count_30d ?? 0),
             rescheduleCount30d: Number(row.reschedule_count_30d ?? 0),
@@ -428,6 +437,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             hasWebPush: webPushEnabledUserIds.has(r.id),
             nextAppointmentLabel: activeAppointmentsCount > 0 ? "Есть запись" : null,
             hasAppointmentHistory: appointmentAgg?.hasHistory ?? false,
+            lastAppointmentAt: appointmentAgg?.lastAppointmentAt ?? null,
             activeAppointmentsCount,
             activeTreatmentProgram: activeInstanceId != null,
             activeTreatmentProgramInstanceId: activeInstanceId,

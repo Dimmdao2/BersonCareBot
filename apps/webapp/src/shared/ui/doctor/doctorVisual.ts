@@ -59,18 +59,17 @@ export const doctorPageTitleClass = "text-base font-semibold tracking-tight text
 export const doctorSectionTitleClass = "text-sm font-semibold text-foreground";
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
-export const doctorMetricValueClass = "text-2xl font-semibold tabular-nums leading-tight text-foreground";
+export const doctorMetricValueClass = "text-xl font-semibold tabular-nums leading-tight text-foreground";
 
 /** KPI stat card label (uppercase, compact). */
 export const doctorMetricLabelClass =
   "text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-3";
 
 /** Shell for KPI stat cards (`DoctorStatCard`). */
-export const doctorStatCardShellClass =
-  "flex min-h-[5.5rem] min-w-0 flex-col rounded-lg border border-border/60 bg-card p-2.5";
+export const doctorStatCardShellClass = "rounded-lg border border-border/60 bg-card p-2.5 min-w-0";
 
 export const doctorStatCardShellWarningClass =
-  "flex min-h-[5.5rem] min-w-0 flex-col rounded-lg border border-destructive/40 bg-destructive/5 p-2.5";
+  "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 min-w-0";
 
 /** Whole-card click/hover for KPI stat cards (analytics, today). */
 export const doctorStatCardInteractiveClass =

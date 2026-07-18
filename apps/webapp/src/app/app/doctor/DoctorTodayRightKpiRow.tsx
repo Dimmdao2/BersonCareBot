@@ -88,7 +88,7 @@ function SplitAppointmentStatCard({
     "min-w-0 rounded-md px-2 text-left transition-colors enabled:hover:bg-muted/55 disabled:cursor-default disabled:opacity-55";
 
   return (
-    <article id={id} className={doctorStatCardShellClass}>
+    <article id={id} className={cn(doctorStatCardShellClass, "flex min-h-[5.5rem] flex-col")}>
       <p className={doctorMetricLabelClass}>{title}</p>
       <div className="mt-auto grid grid-cols-2 divide-x divide-border/70 pt-1">
         <Button
@@ -173,13 +173,15 @@ export function DoctorTodayRightKpiRow({
       <DoctorMetricList
         id="doctor-today-right-kpi"
         aria-label="Записи"
-        className="grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3"
+        className="grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 [&>*]:flex [&>*]:min-h-[5.5rem] [&>*]:flex-col"
       >
         {/* Renamed: «Сегодня» → «Записи сегодня» */}
         <DoctorStatCard
           id="doctor-today-right-kpi-today"
           title="Записи сегодня"
           value={appointmentsTodayCount}
+          className="flex min-h-[5.5rem] flex-col"
+          valueClassName="mt-auto pt-1"
           onClick={
             appointmentsTodayCount > 0
               ? () =>

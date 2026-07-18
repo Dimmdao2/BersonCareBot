@@ -183,6 +183,42 @@ describe("pgDoctorClients repo", () => {
     expect(list.find((item) => item.userId === "u2")?.hasAppointmentHistory).toBe(true);
   });
 
+  it("maps the latest occurred canonical appointment with deleted, cancelled, and organization predicates", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [{ id: "u1", display_name: "Recent", phone_normalized: null, created_at: "2026-01-01" }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          user_id: "u1",
+          history_count: 2,
+          last_appointment_at: "2026-07-02T09:00:00.000Z",
+          active_count: 1,
+          cancellation_count_30d: 0,
+          reschedule_count_30d: 0,
+          visited_month_count: 1,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({ organizationId: "org-1" });
+
+    const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(appointmentAggSql).toContain("MAX(bea.start_at) FILTER");
+    expect(appointmentAggSql).toContain("bea.deleted_at IS NULL");
+    expect(appointmentAggSql).toContain("bea.status NOT IN");
+    expect(appointmentAggSql).toContain("bea.start_at <= NOW()");
+    expect(appointmentAggSql).toContain("bea.organization_id = $2::uuid");
+    expect(list[0]?.lastAppointmentAt).toBe("2026-07-02T09:00:00.000Z");
+  });
+
   it("listPatientAppointments reads patient rows from canonical appointments", async () => {
     resolveCanonicalUserIdMock.mockResolvedValue("canonical-1");
     runWebappPgTextMock.mockResolvedValueOnce({

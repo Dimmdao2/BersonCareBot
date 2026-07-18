@@ -21,6 +21,7 @@ import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/doctor/primitives/select";
 import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
 import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -36,7 +37,7 @@ import { patientCardHref } from "./patientCardHref";
 /**
  * Категория клиента — грубая классификация по вовлечённости.
  *
- *  - `client`          — есть записи/визиты, активное сопровождение или программа
+ *  - `client`          — есть записи/визиты, активное сопровождение, программа или абонемент
  *  - `subscriber_only` — зарегистрирован, но ничего из вышеперечисленного
  *  - `all`             — все пациенты (нет фильтра по категории)
  *
@@ -45,6 +46,16 @@ import { patientCardHref } from "./patientCardHref";
  * незадействованную категорию.
  */
 export type ClientCategory = "all" | "client" | "subscriber_only";
+type ClientListSort = "recent_appointments" | "fio";
+
+const CLIENT_LIST_SORT_OPTIONS: { value: ClientListSort; label: string }[] = [
+  { value: "recent_appointments", label: "Недавние приёмы" },
+  { value: "fio", label: "ФИО А–Я" },
+];
+
+function setSortIfValid(value: string | null, onSortChange: (sort: ClientListSort) => void) {
+  if (value === "recent_appointments" || value === "fio") onSortChange(value);
+}
 
 type InitialFilters = {
   q: string;
@@ -190,18 +201,47 @@ function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[
 // ---------------------------------------------------------------------------
 
 /** Определяет категорию клиента по флагам из ClientListItem. */
-function getClientCategory(item: ClientListItem): Exclude<ClientCategory, "all"> {
+export function getClientCategory(item: ClientListItem): Exclude<ClientCategory, "all"> {
   const isClient =
     item.isOnSupport === true ||
     item.activeTreatmentProgram === true ||
     (item.hasAppointmentHistory ?? false) ||
-    (item.activeAppointmentsCount ?? 0) > 0;
+    (item.activeAppointmentsCount ?? 0) > 0 ||
+    item.hasMemberships === true;
   return isClient ? "client" : "subscriber_only";
 }
 
 function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): ClientListItem[] {
   if (category === "all") return list;
   return list.filter((item) => getClientCategory(item) === category);
+}
+
+function clientFioSortKey(item: ClientListItem): string {
+  const fio = [item.lastName, item.firstName, item.patronymic].filter(Boolean).join(" ");
+  return fio || item.displayName;
+}
+
+function compareClientsByFio(a: ClientListItem, b: ClientListItem): number {
+  const fioCompare = clientFioSortKey(a).localeCompare(clientFioSortKey(b), "ru");
+  if (fioCompare !== 0) return fioCompare;
+  const displayNameCompare = a.displayName.localeCompare(b.displayName, "ru");
+  if (displayNameCompare !== 0) return displayNameCompare;
+  return a.userId.localeCompare(b.userId, "ru");
+}
+
+function sortClients(list: ClientListItem[], sort: ClientListSort): ClientListItem[] {
+  return [...list].sort((a, b) => {
+    if (sort === "fio") return compareClientsByFio(a, b);
+    if (a.lastAppointmentAt && b.lastAppointmentAt) {
+      const appointmentCompare = b.lastAppointmentAt.localeCompare(a.lastAppointmentAt);
+      if (appointmentCompare !== 0) return appointmentCompare;
+    } else if (a.lastAppointmentAt) {
+      return -1;
+    } else if (b.lastAppointmentAt) {
+      return 1;
+    }
+    return compareClientsByFio(a, b);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -632,9 +672,9 @@ type PatientsContentProps = {
   legacyFilters: LegacyFiltersState;
   isListPending: boolean;
   selectedUserId: string | null;
-  activeCategory: ClientCategory;
+  sort: ClientListSort;
   displayIana?: string;
-  onCategoryChange: (category: ClientCategory) => void;
+  onSortChange: (sort: ClientListSort) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onClearSearch: () => void;
@@ -654,9 +694,9 @@ function PatientsContent({
   legacyFilters,
   isListPending,
   selectedUserId,
-  activeCategory,
+  sort,
   displayIana,
-  onCategoryChange,
+  onSortChange,
   onSegmentToggle,
   onChannelChange,
   onClearSearch,
@@ -665,6 +705,7 @@ function PatientsContent({
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
+  const activeCategory: ClientCategory = "all";
 
   // Apply category filter first, then segment, channel, and legacy filters.
   let filtered = applyCategoryFilter(allClients, activeCategory);
@@ -690,6 +731,7 @@ function PatientsContent({
         c.phone?.toLowerCase().includes(q),
     );
   }
+  filtered = sortClients(filtered, sort);
 
   // Context base for segment card counts (PAT-02/06/#540):
   // KPI cards are multi-select filters with AND policy. Each card shows the
@@ -736,30 +778,46 @@ function PatientsContent({
       >
         {/* Search — above sticky header, non-sticky */}
         <div className="shrink-0 px-2 pt-2">
-          <div className="relative flex items-center">
-            <Search
-              className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              placeholder="Поиск…"
-              value={searchInput}
-              onChange={(e) => onSearchInput(e.target.value)}
-              className="pl-8 pr-8 text-sm"
-              aria-label="Поиск пациентов"
-            />
-            {searchInput && (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={onClearSearch}
-                className="absolute right-2.5 text-muted-foreground hover:text-foreground"
-                aria-label="Сбросить поиск"
-              >
-                <X className="size-3.5" />
-              </Button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                placeholder="Поиск…"
+                value={searchInput}
+                onChange={(e) => onSearchInput(e.target.value)}
+                className="pl-8 pr-8 text-sm"
+                aria-label="Поиск пациентов"
+              />
+              {searchInput && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={onClearSearch}
+                  className="absolute right-2.5 text-muted-foreground hover:text-foreground"
+                  aria-label="Сбросить поиск"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+            <Select value={sort} onValueChange={(value) => setSortIfValid(value, onSortChange)}>
+              <SelectTrigger
+                aria-label="Сортировка клиентов"
+                className="w-40 shrink-0"
+                displayLabel={CLIENT_LIST_SORT_OPTIONS.find((option) => option.value === sort)?.label}
+              />
+              <SelectContent>
+                {CLIENT_LIST_SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value} label={option.label}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -863,40 +921,15 @@ function PatientsContent({
       </section>
 
       {/* ===== RIGHT: filter panel + desktop preview pane ===== */}
-      <div className="order-first flex flex-col gap-3 lg:order-none lg:min-h-0">
+      <div className="hidden flex-col gap-3 lg:flex lg:min-h-0">
         {/* Filter panel */}
         <section
           className={cn(
             "rounded-lg border border-border bg-card p-3",
           )}
         >
-          <div className="border-b border-border/60 pb-3">
-            <p className="mb-2 text-xs text-muted-foreground">Категория клиентов</p>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Категория клиентов">
-              {(
-                [
-                  ["client", "Клиенты"],
-                  ["subscriber_only", "Подписчики"],
-                  ["all", "Все"],
-                ] as const
-              ).map(([category, label]) => (
-                <Button
-                  key={category}
-                  type="button"
-                  size="sm"
-                  variant={activeCategory === category ? "default" : "outline"}
-                  className="h-7 px-2 text-xs"
-                  onClick={() => onCategoryChange(category)}
-                  aria-pressed={activeCategory === category}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
-          <DoctorMetricList className="mt-3 grid-cols-3 gap-1.5 lg:grid-cols-5 xl:grid-cols-5">
+          {/* Factual filters in the desktop right panel. */}
+          <DoctorMetricList className="grid-cols-3 gap-1.5 lg:grid-cols-5 xl:grid-cols-5">
             {SEGMENTS.map((seg) => {
               const segmentContextBase =
                 seg.key === "all"
@@ -1028,8 +1061,8 @@ export function PatientsPageClient({
   // Legacy per-button filter state (client-side only)
   const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
-  // Category filter state (client-side only, S4.2)
-  const [activeCategory, setActiveCategory] = useState<ClientCategory>("client");
+  // Category mechanism remains dormant/reversible; this page defaults to all organization people.
+  const [sort, setSort] = useState<ClientListSort>("recent_appointments");
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -1105,9 +1138,9 @@ export function PatientsPageClient({
         legacyFilters={legacyFilters}
         isListPending={isListPending}
         selectedUserId={selectedUserId}
-        activeCategory={activeCategory}
+        sort={sort}
         displayIana={displayIana}
-        onCategoryChange={setActiveCategory}
+        onSortChange={setSort}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onClearSearch={clearSearch}

@@ -29,7 +29,7 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     filters: DoctorClientsFilters,
     _audience?: { excludedUserIds?: string[] },
   ): Promise<ClientListItem[]> {
-    let list = [...STUB_CLIENTS];
+    let list = STUB_CLIENTS.map((item) => ({ ...item, lastAppointmentAt: item.lastAppointmentAt ?? null }));
     if (filters.search?.trim()) {
       list = list.filter((item) => matchesSearch(item, filters.search!));
     }

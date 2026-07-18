@@ -1849,3 +1849,22 @@ responsive risk, not permission for a broader IA redesign. Shared KPI token chan
 and therefore require minimal scope plus regression evidence. No product inference beyond §§1–2, TEST/PROD action,
 real delivery, deploy, schema/data change or owner-gated FIO/Rubitime work is authorized. Accepted worker work must
 be integrated into this feature branch and its temporary branch/worktree removed after independent PASS.
+
+### Owner clarification during C1 execution
+
+The owner clarified the Clients contract after the first audit: the left list area has no interactive filter rail;
+it contains search and sorting, with the default ordered by recent interactions/appointments. Remaining row icons
+are informational only. Filters continue to belong to the right control area and are not row actions. The owner
+also ruled that an acquired active/awaiting-payment membership is itself client evidence, even without appointment,
+support or program evidence. This later ruling supersedes the four-evidence wording in the original launch
+checkpoint and must be reflected in classification tests, sorting evidence and the final full-stage re-audit.
+
+A later clarification in the same owner conversation simplified the page further and supersedes the mandatory
+Clients/Subscribers segment/default from the launch checkpoint: the initial list shows every person in the current
+organization, ordered by recent occurred canonical appointments with no-interaction rows below. Search handles a
+known person; right-side factual filters handle appointments, memberships and other selections. The exact future
+extension across upcoming appointments/messages is deferred. Membership remains client evidence wherever that term
+is still used, but client/subscriber classification no longer filters this page by default or requires a segment.
+The owner then chose the reversible variant: keep the existing typed category mechanism dormant, update membership
+evidence, hide its UI and do not apply it to the default list. This avoids destructive removal while the final
+long-term need for the segment remains undecided.

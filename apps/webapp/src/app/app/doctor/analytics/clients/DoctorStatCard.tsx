@@ -19,6 +19,8 @@ type Props = {
   hint?: string;
   href?: string;
   onClick?: () => void;
+  className?: string;
+  valueClassName?: string;
 };
 
 export function DoctorStatCard({
@@ -29,16 +31,19 @@ export function DoctorStatCard({
   hint,
   href,
   onClick,
+  className,
+  valueClassName,
 }: Props) {
   const shellClass = cn(
     tone === "warning" ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
     (href || onClick) && doctorStatCardInteractiveClass,
+    className,
   );
 
   const inner = (
     <>
       <p className={doctorMetricLabelClass}>{title}</p>
-      <div className={`mt-auto pt-1 ${doctorMetricValueClass}`}>{value}</div>
+      <div className={cn("mt-0.5", doctorMetricValueClass, valueClassName)}>{value}</div>
       {hint ? <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p> : null}
     </>
   );

@@ -3,7 +3,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PatientsPageClient } from "./PatientsPageClient";
+import { getClientCategory, PatientsPageClient } from "./PatientsPageClient";
 import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
 
 vi.mock("next/navigation", () => ({
@@ -24,6 +24,7 @@ function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
     hasWebPush: overrides.hasWebPush ?? false,
     nextAppointmentLabel: overrides.nextAppointmentLabel ?? null,
     hasAppointmentHistory: overrides.hasAppointmentHistory ?? false,
+    lastAppointmentAt: overrides.lastAppointmentAt ?? null,
     activeAppointmentsCount: overrides.activeAppointmentsCount ?? 0,
     activeTreatmentProgram: overrides.activeTreatmentProgram ?? false,
     activeTreatmentProgramInstanceId: overrides.activeTreatmentProgramInstanceId ?? null,
@@ -110,7 +111,7 @@ afterEach(() => {
 });
 
 describe("PatientsPageClient", () => {
-  it("uses KPI cards as AND filters and shows compact current/total values", async () => {
+  it("shows all organization people by default and keeps factual KPI and channel filters on the desktop right panel", async () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({
@@ -133,29 +134,27 @@ describe("PatientsPageClient", () => {
         userId: "subscriber-only",
         displayName: "Подписчик",
       }),
+      client({
+        userId: "membership-only",
+        displayName: "Только абонемент",
+        hasMemberships: true,
+      }),
     ]);
 
     await screen.findByRole("searchbox", { name: "Поиск пациентов" });
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
-    const categoryControl = screen.getByRole("group", { name: "Категория клиентов" });
-    expect(categoryControl.closest("section")).toContainElement(screen.getByText("Каналы связи"));
-    expect(categoryControl.closest(".order-first")).not.toHaveClass("hidden");
-    expect(within(categoryControl).getByRole("button", { name: "Клиенты" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(categoryControl).getByRole("button", { name: "Подписчики" })).toHaveAttribute("aria-pressed", "false");
-    expect(within(categoryControl).getByRole("button", { name: "Все" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByText("Подписчик")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
+    expect(screen.getByText("Подписчик")).toBeInTheDocument();
+    expect(screen.getByText("Только абонемент")).toBeInTheDocument();
     expect(screen.getByText("Каналы связи")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр записей" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр программы упражнений" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
-
-    await user.click(within(categoryControl).getByRole("button", { name: "Подписчики" }));
-    expect(screen.getByText("Подписчик")).toBeInTheDocument();
-    expect(screen.queryByText("С записью и сопровождением")).not.toBeInTheDocument();
-
-    await user.click(within(categoryControl).getByRole("button", { name: "Клиенты" }));
+    const rightPanel = screen.getByText("Каналы связи").closest("div.hidden");
+    expect(rightPanel).toHaveClass("hidden", "lg:flex");
+    expect(rightPanel).not.toHaveClass("order-first");
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 
@@ -176,7 +175,9 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Только сопровождение")).not.toBeInTheDocument();
 
     const appointmentsCard = document.getElementById("doctor-patients-segment-appointments");
+    const membershipsCard = document.getElementById("doctor-patients-segment-memberships");
     expect(appointmentsCard).not.toBeNull();
+    expect(membershipsCard).not.toBeNull();
     expect(within(appointmentsCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(appointmentsCard as HTMLElement).getByText("2")).toBeInTheDocument();
   });
@@ -190,7 +191,6 @@ describe("PatientsPageClient", () => {
       client({ userId: "plain", displayName: "Plain client" }),
     ]);
 
-    await user.click(within(screen.getByRole("group", { name: "Категория клиентов" })).getByRole("button", { name: "Все" }));
     expect(await screen.findByText("Telegram client")).toBeInTheDocument();
     expect(screen.getByText("Push client")).toBeInTheDocument();
     expect(screen.getByText("Plain client")).toBeInTheDocument();
@@ -204,8 +204,43 @@ describe("PatientsPageClient", () => {
     expect(window.location.search).toBe("");
   });
 
-  it("keeps category controls mobile-accessible and shows only approved clinical row indicators", async () => {
+  it("sorts recent occurred appointments first, supports FIO sorting, and preserves search", async () => {
     const user = userEvent.setup();
+    await renderPatientsPage([
+      client({ userId: "null", displayName: "Яна", lastName: "Яна" }),
+      client({ userId: "same-b", displayName: "Борис", lastName: "Борис", lastAppointmentAt: "2026-07-01T09:00:00.000Z" }),
+      client({ userId: "newest", displayName: "Вера", lastName: "Вера", lastAppointmentAt: "2026-07-02T09:00:00.000Z" }),
+      client({ userId: "same-a", displayName: "Алексей", lastName: "Алексей", lastAppointmentAt: "2026-07-01T09:00:00.000Z" }),
+    ]);
+
+    const listIds = () => Array.from(document.querySelectorAll("#doctor-patients-list > li")).map((item) => item.id);
+    expect(listIds()).toEqual([
+      "doctor-patients-item-newest",
+      "doctor-patients-item-same-a",
+      "doctor-patients-item-same-b",
+      "doctor-patients-item-null",
+    ]);
+
+    const sort = screen.getByRole("combobox", { name: "Сортировка клиентов" });
+    expect(sort).toHaveTextContent("Недавние приёмы");
+    await user.click(sort);
+    await user.click(screen.getByRole("option", { name: "ФИО А–Я" }));
+    expect(listIds()).toEqual([
+      "doctor-patients-item-same-a",
+      "doctor-patients-item-same-b",
+      "doctor-patients-item-newest",
+      "doctor-patients-item-null",
+    ]);
+
+    await user.type(screen.getByRole("searchbox", { name: "Поиск пациентов" }), "Вера");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 220));
+    });
+
+    expect(listIds()).toEqual(["doctor-patients-item-newest"]);
+  });
+
+  it("keeps membership-only classification dormant and shows only approved informational row indicators", async () => {
     await renderPatientsPage([
       client({ userId: "subscriber", displayName: "Подписчик" }),
       client({ userId: "history", displayName: "Только история", hasAppointmentHistory: true }),
@@ -216,11 +251,8 @@ describe("PatientsPageClient", () => {
       client({ userId: "membership", displayName: "С абонементом", hasMemberships: true }),
     ]);
 
-    const categoryControl = screen.getByRole("group", { name: "Категория клиентов" });
-    expect(categoryControl.closest(".order-first")).toHaveClass("order-first");
-    expect(categoryControl.closest(".order-first")).not.toHaveClass("hidden");
-    expect(within(categoryControl).getByRole("button", { name: "Клиенты" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByText("Подписчик")).not.toBeInTheDocument();
+    expect(getClientCategory(client({ hasMemberships: true }))).toBe("client");
+    expect(screen.getByText("Подписчик")).toBeInTheDocument();
 
     const historyRow = within(document.getElementById("doctor-patients-item-history") as HTMLElement);
     const futureRow = within(document.getElementById("doctor-patients-item-future") as HTMLElement);
@@ -240,10 +272,6 @@ describe("PatientsPageClient", () => {
     for (const row of [historyRow, futureRow, supportRow, programRow, programSupportRow, membershipRow]) {
       expect(row.queryByLabelText(/Переписка|История|Telegram|MAX|Телефон|email|приложение/i)).not.toBeInTheDocument();
     }
-
-    await user.click(within(categoryControl).getByRole("button", { name: "Подписчики" }));
-    expect(screen.getByText("Подписчик")).toBeInTheDocument();
-    expect(screen.queryByText("Только история")).not.toBeInTheDocument();
   });
 
   it("opens an inline preview from a patient row with communication actions and visit summary", async () => {
