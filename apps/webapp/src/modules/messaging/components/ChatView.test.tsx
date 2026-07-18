@@ -88,7 +88,12 @@ describe("ChatView message links and actions", () => {
   it.each(["doctor", "patient"] as const)("opens a pasted URL externally in a hosted %s chat", async (variant) => {
     Element.prototype.scrollIntoView = vi.fn();
     const openLink = vi.fn();
-    window.Telegram = { WebApp: { initData: "hosted-init-data", openLink } };
+    type TelegramWebAppWithOpenLink = NonNullable<typeof window.Telegram>["WebApp"] & {
+      openLink: (url: string, options?: { try_instant_view?: boolean }) => void;
+    };
+    window.Telegram = {
+      WebApp: { initData: "hosted-init-data", openLink } as TelegramWebAppWithOpenLink,
+    };
     const user = userEvent.setup();
 
     render(

@@ -106,7 +106,10 @@ beforeAll(async () => {
 // Shared setup helper
 // ---------------------------------------------------------------------------
 
-async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
+async function renderWorkTab(
+  deepLinkParams: Record<string, string> = {},
+  { workingDayRows = WORKING_DAY_ROWS }: { workingDayRows?: typeof WORKING_DAY_ROWS } = {},
+) {
   const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
   (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
     organizationTitle: "Клиника",
@@ -117,7 +120,7 @@ async function renderWorkTab(deepLinkParams: Record<string, string> = {}) {
   const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
     if (url.includes("working-hours")) return { ok: true, rows: WORKING_HOUR_ROWS };
-    if (url.includes("working-days")) return { ok: true, rows: WORKING_DAY_ROWS };
+    if (url.includes("working-days")) return { ok: true, rows: workingDayRows };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
     return { ok: true };
   });
@@ -608,7 +611,23 @@ describe("ScheduleWorkTab", () => {
   });
 
   it("§3.15: PUT clear (delete day) with action:'clear' when «Очистить расписание» is clicked", async () => {
-    const { apiJson } = await renderWorkTab({ month: "2026-06" });
+    const { apiJson } = await renderWorkTab(
+      { month: "2026-06" },
+      {
+        workingDayRows: [
+          ...WORKING_DAY_ROWS,
+          {
+            id: "wd-15",
+            workDate: "2026-06-15",
+            startMinute: 540,
+            endMinute: 1080,
+            breaks: [],
+            isClosed: false,
+            branchId: "branch-spb",
+          },
+        ],
+      },
+    );
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
 
     const cell = await screen.findByTestId("day-cell-2026-06-15");
@@ -617,6 +636,7 @@ describe("ScheduleWorkTab", () => {
 
     // «Закрыть выбранные дни» is gone; «Очистить расписание» replaces it.
     expect(screen.queryByTestId("btn-close-days")).not.toBeInTheDocument();
+    expect(screen.getByTestId("btn-clear-schedule")).toBeEnabled();
 
     (apiJson as ReturnType<typeof vi.fn>).mockClear();
     (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {

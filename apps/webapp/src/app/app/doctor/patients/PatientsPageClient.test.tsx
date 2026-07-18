@@ -191,6 +191,7 @@ describe("PatientsPageClient", () => {
       client({ userId: "plain", displayName: "Plain client" }),
     ]);
 
+    await user.click(within(screen.getByRole("group", { name: "Категория клиентов" })).getByRole("button", { name: "Все" }));
     expect(await screen.findByText("Telegram client")).toBeInTheDocument();
     expect(screen.getByText("Push client")).toBeInTheDocument();
     expect(screen.getByText("Plain client")).toBeInTheDocument();
