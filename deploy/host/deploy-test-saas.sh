@@ -179,7 +179,7 @@ stage_hash_bound_rubitime_csv(){
   trap cleanup_pre_destructive_exit EXIT
   sudo install -o root -g deploy -m 0440 -- "$RUBITIME_CSV" "$STAGED_INPUT_DIR/rubitime.csv"
   sudo sync -f "$STAGED_INPUT_DIR/rubitime.csv"
-  staged_meta="$(stat -Lc '%U:%G:%a' -- "$STAGED_INPUT_DIR/rubitime.csv")"
+  staged_meta="$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$STAGED_INPUT_DIR/rubitime.csv")"
   [ "$staged_meta" = "root:deploy:440" ] || {
     echo "FATAL: staged Rubitime CSV protection mismatch" >&2
     exit 2
@@ -199,11 +199,11 @@ assert_staged_rubitime_csv_ready(){
     echo "FATAL: Rubitime chain must read only the staged snapshot" >&2
     exit 2
   }
-  [ -f "$RUBITIME_CSV" ] && [ ! -L "$RUBITIME_CSV" ] || {
+  sudo -u deploy test -f "$RUBITIME_CSV" && sudo -u deploy test ! -L "$RUBITIME_CSV" || {
     echo "FATAL: staged Rubitime CSV is not a regular non-symlink file" >&2
     exit 2
   }
-  staged_meta="$(stat -Lc '%U:%G:%a' -- "$RUBITIME_CSV")"
+  staged_meta="$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$RUBITIME_CSV")"
   [ "$staged_meta" = "root:deploy:440" ] || {
     echo "FATAL: staged Rubitime CSV protection changed" >&2
     exit 2
