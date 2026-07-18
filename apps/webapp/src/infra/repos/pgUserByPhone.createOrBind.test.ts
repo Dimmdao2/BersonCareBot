@@ -53,6 +53,7 @@ import { pgUserByPhonePort } from "./pgUserByPhone";
 
 const phone = "+79991234567";
 const telegramCtx = { channel: "telegram" as const, chatId: "tg-100", displayName: "Pat" };
+const webCtx = { channel: "web" as const, chatId: "web-100" };
 
 function mockSessionUserLoad(userId: string) {
   runWebappPgTextMock
@@ -153,6 +154,34 @@ describe("pgUserByPhonePort.createOrBind", () => {
       expect.anything(),
       "user-a",
       "user-b",
+      "phone_bind",
+    );
+    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+  });
+
+  it("profile bind merges the existing phone owner into the authenticated patient", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "phone-owner", display_name: "Phone", role: "client" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "profile-user", display_name: "Profile", role: "client" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    mergePlatformUsersInTransactionMock.mockResolvedValueOnce({
+      targetId: "profile-user",
+      duplicateId: "phone-owner",
+    });
+    mockSessionUserLoad("profile-user");
+
+    const result = await pgUserByPhonePort.createOrBind(phone, webCtx, {
+      profileBindUserId: "profile-user",
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    });
+
+    expect(result.wasCreated).toBe(false);
+    expect(result.user.userId).toBe("profile-user");
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "profile-user",
+      "phone-owner",
       "phone_bind",
     );
     expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");

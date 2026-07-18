@@ -18,6 +18,9 @@ import {
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
 import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
+import { getCurrentSession } from "@/modules/auth/service";
+import { canAccessPatient } from "@/modules/roles/service";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -25,6 +28,7 @@ const bodySchema = z.object({
   channel: z.enum(["web", "telegram"]).optional(),
   chatId: z.string().optional(),
   deliveryChannel: z.enum(["sms", "telegram", "max", "email"]).optional(),
+  purpose: z.enum(["login", "profile_bind"]).optional(),
 });
 
 /**
@@ -117,7 +121,21 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const user = await deps.userByPhone.findByPhone(normalized);
-  const isRegistrationIntent = !user;
+  const purpose = parsed.data.purpose ?? "login";
+  let profileBindUserId: string | undefined;
+  let profileBindOrganizationId: string | undefined;
+  if (purpose === "profile_bind") {
+    const session = await getCurrentSession();
+    if (!session || !canAccessPatient(session.user.role)) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    }
+    profileBindUserId = session.user.userId;
+    profileBindOrganizationId = getCurrentDbPrincipalOrganizationId();
+    if (!profileBindOrganizationId) {
+      return NextResponse.json({ ok: false, error: "organization_context_required" }, { status: 409 });
+    }
+  }
+  const isRegistrationIntent = purpose === "login" && !user;
   const registrationAttemptId = isRegistrationIntent ? newRegistrationAttemptId() : undefined;
   const entryChannel = channel === "telegram" ? ("telegram" as const) : ("browser" as const);
 
@@ -173,6 +191,8 @@ export async function POST(request: Request) {
   const result = await deps.auth.startPhoneAuth(normalized, context, {
     delivery,
     ...(registrationAttemptId ? { registrationAttemptId, isRegistrationIntent: true } : {}),
+    ...(profileBindUserId ? { profileBindUserId } : {}),
+    ...(profileBindOrganizationId ? { profileBindOrganizationId } : {}),
   });
 
   if (!result.ok) {

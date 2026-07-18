@@ -22,7 +22,7 @@ export type PlatformMergeDbClient = {
   ): Promise<{ rows: R[]; rowCount?: number }>;
 };
 
-export type MergePlatformUsersReason = "projection" | "phone_bind" | "manual";
+export type MergePlatformUsersReason = "projection" | "phone_bind" | "email_bind" | "manual";
 
 export type { MergeContactsSaved } from "./mergeContactFallback.js";
 
@@ -269,9 +269,10 @@ export async function mergePlatformUsersInTransaction(
   }
 
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
+  await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
   await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
   await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
-  await assertActiveTreatmentProgramInstancesSafe(client, targetId, duplicateId);
+  await reconcileActiveTreatmentProgramInstancesForMerge(client, targetId, duplicateId);
   await assertOpenTestAttemptsSafe(client, targetId, duplicateId);
 
   if (manualResolution) {
@@ -899,13 +900,49 @@ async function assertPatientLfkAssignmentsSafe(
   }
 }
 
-async function assertActiveTreatmentProgramInstancesSafe(
+type ActiveTreatmentProgramMergePair = {
+  target_instance_id: string;
+  target_assignment_source: string;
+  duplicate_instance_id: string;
+  duplicate_assignment_source: string;
+};
+
+async function assertAutoMergePasswordCredentialsSafe(
+  client: PlatformMergeDbClient,
+  targetId: string,
+  duplicateId: string,
+  reason: MergePlatformUsersReason,
+): Promise<void> {
+  if (reason === "manual") return;
+  const credentials = await client.query<{ user_id: string }>(
+    `SELECT user_id::text
+     FROM user_password_credentials
+     WHERE user_id IN ($1::uuid, $2::uuid)
+     ORDER BY user_id
+     FOR UPDATE`,
+    [targetId, duplicateId],
+  );
+  if (credentials.rows.length > 1) {
+    throw new MergeConflictError("merge: both users have password credentials", [targetId, duplicateId]);
+  }
+}
+
+/**
+ * A promo instance is the platform default, not a clinician/course assignment. When duplicate
+ * identities each materialized an active plan, promo must not prevent identity reconciliation:
+ * close the promo side first, then let the normal patient_user_id repoint preserve both histories.
+ * Two real active assignments remain a hard blocker.
+ */
+async function reconcileActiveTreatmentProgramInstancesForMerge(
   client: PlatformMergeDbClient,
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const r = await client.query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c
+  const r = await client.query<ActiveTreatmentProgramMergePair>(
+    `SELECT t.id::text AS target_instance_id,
+            t.assignment_source AS target_assignment_source,
+            d.id::text AS duplicate_instance_id,
+            d.assignment_source AS duplicate_assignment_source
      FROM treatment_program_instances t
      INNER JOIN treatment_program_instances d
        ON t.patient_user_id = $1::uuid
@@ -914,13 +951,50 @@ async function assertActiveTreatmentProgramInstancesSafe(
       AND d.status = 'active'`,
     [targetId, duplicateId],
   );
-  const n = parseInt(r.rows[0]?.c ?? "0", 10);
-  if (n > 0) {
+  const pair = r.rows[0];
+  if (!pair) return;
+
+  const targetIsPromo = pair.target_assignment_source === "promo";
+  const duplicateIsPromo = pair.duplicate_assignment_source === "promo";
+  if (!targetIsPromo && !duplicateIsPromo) {
     throw new MergeDependentConflictError("treatment_program_instances: active program on both merge candidates", [
       targetId,
       duplicateId,
     ]);
   }
+
+  const closingInstanceId = targetIsPromo && !duplicateIsPromo
+    ? pair.target_instance_id
+    : pair.duplicate_instance_id;
+
+  await client.query(
+    `WITH closed AS (
+       UPDATE treatment_program_instances
+       SET status = 'completed', updated_at = now()
+       WHERE id = $1::uuid
+         AND status = 'active'
+         AND assignment_source = 'promo'
+       RETURNING id, organization_id
+     )
+     INSERT INTO treatment_program_events (
+       organization_id, instance_id, actor_id, event_type, target_type, target_id, payload, reason
+     )
+     SELECT organization_id,
+            id,
+            NULL,
+            'status_changed',
+            'program',
+            id,
+            jsonb_build_object(
+              'scope', 'program',
+              'from', 'active',
+              'to', 'completed',
+              'supersededBy', 'platform_user_merge'
+            ),
+            'platform_user_merge'
+     FROM closed`,
+    [closingInstanceId],
+  );
 }
 
 async function assertOpenTestAttemptsSafe(

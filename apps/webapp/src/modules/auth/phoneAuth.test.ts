@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   startPhoneAuth,
   confirmPhoneAuth,
@@ -141,5 +141,38 @@ describe("confirmPhoneAuth", () => {
     if (!start.ok) return;
     const stored = await inMemoryPhoneChallengeStore.get(start.challengeId);
     expect(stored?.channelContext).toEqual(ctx);
+  });
+
+  it("carries authenticated profile owner from start challenge into phone binding", async () => {
+    const createOrBind = vi.fn().mockResolvedValue({
+      user: {
+        userId: "profile-user",
+        role: "client",
+        displayName: "Profile",
+        phone: "+79998887766",
+        bindings: {},
+      },
+      wasCreated: false,
+    });
+    const profileDeps = {
+      ...deps,
+      userByPhonePort: { ...inMemoryUserByPhonePort, createOrBind },
+    };
+    const start = await startPhoneAuth("+79998887766", webContext, profileDeps, {
+      profileBindUserId: "profile-user",
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    });
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(challenge?.profileBindUserId).toBe("profile-user");
+    expect(challenge?.profileBindOrganizationId).toBe("00000000-0000-4000-8000-000000000001");
+
+    const confirmed = await confirmPhoneAuth(start.challengeId, challenge!.code!, profileDeps);
+    expect(confirmed.ok).toBe(true);
+    expect(createOrBind).toHaveBeenCalledWith("+79998887766", webContext, {
+      profileBindUserId: "profile-user",
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    });
   });
 });

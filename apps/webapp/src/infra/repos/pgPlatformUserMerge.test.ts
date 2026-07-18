@@ -651,7 +651,7 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     expect(normTargetIdx).toBeGreaterThan(clearDupEmailIdx);
   });
 
-  it("MergeDependentConflictError for active treatment program on both users", async () => {
+  it("MergeDependentConflictError for non-promo active treatment programs on both users", async () => {
     const query = vi.fn(async (sql: string) => {
       const s = String(sql);
       if (s.includes("FOR UPDATE")) {
@@ -687,7 +687,14 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
         };
       }
       if (s.includes("FROM treatment_program_instances t")) {
-        return { rows: [{ c: "1" }] };
+        return {
+          rows: [{
+            target_instance_id: uid(101),
+            target_assignment_source: "doctor",
+            duplicate_instance_id: uid(102),
+            duplicate_assignment_source: "course",
+          }],
+        };
       }
       if (s.includes("patient_bookings pb1") || s.includes("patient_lfk_assignments a")) {
         return { rows: [{ c: "0" }] };
@@ -706,6 +713,86 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
       expect(e).toBeInstanceOf(MergeDependentConflictError);
       expect((e as MergeDependentConflictError).message).toContain("treatment_program_instances");
     }
+  });
+
+  it("reconciles promo + promo by completing the duplicate promo before repoint", async () => {
+    const sqlLog: string[] = [];
+    const baseClient = makeClient(sqlLog);
+    const duplicatePromoId = uid(202);
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (String(sql).includes("FROM treatment_program_instances t")) {
+        return {
+          rows: [{
+            target_instance_id: uid(201),
+            target_assignment_source: "promo",
+            duplicate_instance_id: duplicatePromoId,
+            duplicate_assignment_source: "promo",
+          }],
+        };
+      }
+      return baseClient.query(sql, params as never);
+    });
+
+    await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+      resolution: baseResolution(),
+    });
+
+    const closeCall = query.mock.calls.find(([sql]) => String(sql).includes("WITH closed AS"));
+    expect(closeCall?.[1]).toEqual([duplicatePromoId]);
+    expect(String(closeCall?.[0])).toContain("supersededBy', 'platform_user_merge'");
+    expect(String(closeCall?.[0])).toContain("organization_id");
+  });
+
+  it("reconciles promo + doctor by completing promo and keeping the real assignment active", async () => {
+    const sqlLog: string[] = [];
+    const baseClient = makeClient(sqlLog);
+    const targetPromoId = uid(301);
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (String(sql).includes("FROM treatment_program_instances t")) {
+        return {
+          rows: [{
+            target_instance_id: targetPromoId,
+            target_assignment_source: "promo",
+            duplicate_instance_id: uid(302),
+            duplicate_assignment_source: "doctor",
+          }],
+        };
+      }
+      return baseClient.query(sql, params as never);
+    });
+
+    await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+      resolution: baseResolution(),
+    });
+
+    const closeCall = query.mock.calls.find(([sql]) => String(sql).includes("WITH closed AS"));
+    expect(closeCall?.[1]).toEqual([targetPromoId]);
+  });
+
+  it("reconciles doctor + promo by completing the duplicate promo", async () => {
+    const sqlLog: string[] = [];
+    const baseClient = makeClient(sqlLog);
+    const duplicatePromoId = uid(402);
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (String(sql).includes("FROM treatment_program_instances t")) {
+        return {
+          rows: [{
+            target_instance_id: uid(401),
+            target_assignment_source: "doctor",
+            duplicate_instance_id: duplicatePromoId,
+            duplicate_assignment_source: "promo",
+          }],
+        };
+      }
+      return baseClient.query(sql, params as never);
+    });
+
+    await mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "manual", {
+      resolution: baseResolution(),
+    });
+
+    const closeCall = query.mock.calls.find(([sql]) => String(sql).includes("WITH closed AS"));
+    expect(closeCall?.[1]).toEqual([duplicatePromoId]);
   });
 
   it("MergeDependentConflictError for open test attempts on same stage item", async () => {
@@ -747,11 +834,13 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
         return { rows: [{ c: "1" }] };
       }
       if (
-        s.includes("FROM treatment_program_instances t") ||
         s.includes("patient_bookings pb1") ||
         s.includes("patient_lfk_assignments a")
       ) {
         return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("FROM treatment_program_instances t")) {
+        return { rows: [] };
       }
       if (s.includes("FROM user_pins") || s.includes("user_oauth_bindings")) {
         return { rows: [] };
@@ -849,6 +938,58 @@ describe("MergeDependentConflictError", () => {
   it("exposes candidateIds like MergeConflictError", () => {
     const e = new MergeDependentConflictError("x", ["a", "b"]);
     expect(e.candidateIds).toEqual(["a", "b"]);
+  });
+});
+
+describe("mergePlatformUsersInTransaction (automatic credential safety)", () => {
+  it("blocks auto-merge when both users have password credentials", async () => {
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FROM platform_users") && s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              patient_phone_trust_at: new Date(),
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              patronymic: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date("2020-01-01"),
+            },
+            {
+              id: D,
+              phone_normalized: null,
+              patient_phone_trust_at: null,
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              patronymic: null,
+              email: "b@example.com",
+              email_verified_at: new Date(),
+              role: "client",
+              created_at: new Date("2021-01-01"),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM user_password_credentials") && s.includes("FOR UPDATE")) {
+        return { rows: [{ user_id: T }, { user_id: D }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    await expect(
+      mergePlatformUsersInTransaction({ query } as unknown as PoolClient, T, D, "phone_bind"),
+    ).rejects.toThrow("both users have password credentials");
   });
 });
 

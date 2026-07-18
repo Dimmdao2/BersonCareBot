@@ -15,6 +15,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { confirmLatestEmailChallengeCodeForUser } from "@/modules/auth/emailAuth";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const bodySchema = z.object({
   code: z.string().trim().min(4).max(12),
@@ -37,7 +38,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await confirmLatestEmailChallengeCodeForUser(session.user.userId, parsed.data.code);
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  const result = await confirmLatestEmailChallengeCodeForUser(
+    session.user.userId,
+    parsed.data.code,
+    organizationId ? { profileBindOrganizationId: organizationId } : undefined,
+  );
   if (!result.ok) {
     const status =
       result.code === "too_many_attempts"

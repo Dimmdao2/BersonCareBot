@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -22,7 +23,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "validation_error", message: "Некорректные данные" }, { status: 400 });
   }
 
-  const result = await confirmEmailChallenge(session.user.userId, parsed.data.challengeId, parsed.data.code);
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  const result = await confirmEmailChallenge(
+    session.user.userId,
+    parsed.data.challengeId,
+    parsed.data.code,
+    organizationId ? { profileBindOrganizationId: organizationId } : undefined,
+  );
   if (!result.ok) {
     const status =
       result.code === "too_many_attempts" ? 429 : result.code === "email_conflict" ? 409 : 400;

@@ -7,6 +7,13 @@ export type CreateOrBindResult = {
   wasCreated: boolean;
 };
 
+export type CreateOrBindOptions = {
+  /** Current authenticated patient for profile phone binding; never accepted from confirm request. */
+  profileBindUserId?: string;
+  /** Organization scope resolved from that authenticated session; never accepted from confirm request. */
+  profileBindOrganizationId?: string;
+};
+
 /**
  * Порт: поиск и создание/привязка пользователя по номеру телефона.
  * Используется после успешной верификации SMS для привязки канала к пользователю.
@@ -20,5 +27,5 @@ export type UserByPhonePort = {
   /** Подтверждённый email для OTP (если есть). */
   getVerifiedEmailForUser(userId: string): Promise<string | null>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
-  createOrBind(phone: string, context: ChannelContext): Promise<CreateOrBindResult>;
+  createOrBind(phone: string, context: ChannelContext, options?: CreateOrBindOptions): Promise<CreateOrBindResult>;
 };

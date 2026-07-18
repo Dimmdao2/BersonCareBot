@@ -59,7 +59,7 @@ Commands were run against non-test TypeScript files unless otherwise noted.
 | Files using `runWebappPgText` | 66 |
 | Runtime `.connect(` files | 4 |
 | Runtime `new Pool` files | 7 |
-| Runtime files using `runWithDbOrganizationPrincipal` | 9 |
+| Runtime files using `runWithDbOrganizationPrincipal` | 10 |
 | Guarded-layer raw SQL allowlist files in `check-db-chokepoint.mjs` | 12 |
 
 Guard status:
@@ -145,8 +145,10 @@ Files using `runWithDbOrganizationPrincipal` in runtime code:
 - `apps/webapp/src/app-layer/principal/withOrganizationPrincipal.ts`
 - `apps/webapp/src/app/api/payments/patient-acquiring-webhook/[provider]/route.ts`
 - `apps/webapp/src/app/api/payments/webhook/[provider]/route.ts`
+- `apps/webapp/src/infra/repos/pgEmailAuth.ts`
 - `apps/webapp/src/infra/repos/pgPatientPayments.ts`
 - `apps/webapp/src/infra/repos/pgPayments.ts`
+- `apps/webapp/src/infra/repos/pgUserByPhone.ts`
 - `packages/db-principal/src/index.ts`
 
 Known coverage:

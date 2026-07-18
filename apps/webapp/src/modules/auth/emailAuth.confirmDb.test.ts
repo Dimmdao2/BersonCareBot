@@ -19,6 +19,7 @@ const dbMock: EmailAuthDbPort = {
   updateEmailChallengeAttempts: vi.fn(),
   findEmailOwnerConflict: vi.fn(),
   verifyUserEmail: vi.fn(),
+  claimVerifiedEmail: vi.fn(),
   findEmailChallengeForConsume: vi.fn(),
   findLatestEmailChallengeForUser: vi.fn(),
   findLatestPendingEmailChallengeForUser: vi.fn(),
@@ -31,6 +32,7 @@ describe("confirmEmailChallenge (database)", () => {
     vi.mocked(dbMock.updateEmailChallengeAttempts).mockReset();
     vi.mocked(dbMock.findEmailOwnerConflict).mockReset();
     vi.mocked(dbMock.verifyUserEmail).mockReset();
+    vi.mocked(dbMock.claimVerifiedEmail).mockReset();
     vi.mocked(dbMock.deleteEmailChallengesForUser).mockReset();
     bindEmailAuthDbPort(dbMock);
     bindEmailSendPort({ sendCode: vi.fn().mockResolvedValue({ ok: true }) });
@@ -49,7 +51,7 @@ describe("confirmEmailChallenge (database)", () => {
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
     });
-    vi.mocked(dbMock.findEmailOwnerConflict).mockResolvedValueOnce(true);
+    vi.mocked(dbMock.claimVerifiedEmail).mockResolvedValueOnce({ ok: false, code: "email_conflict" });
 
     const result = await confirmEmailChallenge(userId, challengeId, code);
     expect(result).toEqual({ ok: false, code: "email_conflict" });
@@ -69,12 +71,11 @@ describe("confirmEmailChallenge (database)", () => {
       expires_at: String(Math.floor(Date.now() / 1000) + 600),
       attempts: "0",
     });
-    vi.mocked(dbMock.findEmailOwnerConflict).mockResolvedValueOnce(false);
-    vi.mocked(dbMock.verifyUserEmail).mockResolvedValueOnce(undefined);
+    vi.mocked(dbMock.claimVerifiedEmail).mockResolvedValueOnce({ ok: true, merged: false });
 
     const result = await confirmEmailChallenge(userId, challengeId, code);
     expect(result).toEqual({ ok: true });
-    expect(dbMock.verifyUserEmail).toHaveBeenCalledWith(userId, "free@example.org");
+    expect(dbMock.claimVerifiedEmail).toHaveBeenCalledWith(userId, "free@example.org", undefined);
     expect(dbMock.deleteEmailChallengesForUser).toHaveBeenCalledWith(userId);
   });
 });

@@ -44,6 +44,8 @@ export type StartPhoneAuthOptions = {
   delivery?: PhoneOtpDelivery;
   registrationAttemptId?: string;
   isRegistrationIntent?: boolean;
+  profileBindUserId?: string;
+  profileBindOrganizationId?: string;
 };
 
 function generateChallengeId(): string {
@@ -126,6 +128,12 @@ export async function startPhoneAuth(
         ? { registrationAttemptId: options.registrationAttemptId.trim() }
         : {}),
       ...(options?.isRegistrationIntent === true ? { isRegistrationIntent: true } : {}),
+      ...(options?.profileBindUserId?.trim()
+        ? { profileBindUserId: options.profileBindUserId.trim() }
+        : {}),
+      ...(options?.profileBindOrganizationId?.trim()
+        ? { profileBindOrganizationId: options.profileBindOrganizationId.trim() }
+        : {}),
     });
   }
 
@@ -162,7 +170,12 @@ export async function confirmPhoneAuth(
   }
 
   const context = challenge.channelContext ?? defaultWebContext();
-  const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context);
+  const bindResult = await deps.userByPhonePort.createOrBind(challenge.phone, context, {
+    ...(challenge.profileBindUserId ? { profileBindUserId: challenge.profileBindUserId } : {}),
+    ...(challenge.profileBindOrganizationId
+      ? { profileBindOrganizationId: challenge.profileBindOrganizationId }
+      : {}),
+  });
   return {
     ok: true,
     user: bindResult.user,

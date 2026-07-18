@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentSessionMock = vi.fn();
 const confirmEmailChallengeMock = vi.fn();
+const getCurrentDbPrincipalOrganizationIdMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
@@ -11,12 +12,18 @@ vi.mock("@/modules/auth/emailAuth", () => ({
   confirmEmailChallenge: (...args: unknown[]) => confirmEmailChallengeMock(...args),
 }));
 
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => getCurrentDbPrincipalOrganizationIdMock(),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/email/confirm", () => {
   beforeEach(() => {
     getCurrentSessionMock.mockReset();
     confirmEmailChallengeMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("00000000-0000-4000-8000-000000000001");
   });
 
   it("returns 401 when session is missing", async () => {
@@ -52,5 +59,11 @@ describe("POST /api/auth/email/confirm", () => {
       error: "email_conflict",
       message: "Этот email уже используется другим аккаунтом",
     });
+    expect(confirmEmailChallengeMock).toHaveBeenCalledWith(
+      "u-1",
+      "00000000-0000-4000-8000-000000000001",
+      "123456",
+      { profileBindOrganizationId: "00000000-0000-4000-8000-000000000001" },
+    );
   });
 });

@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 /**
  * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
@@ -7,7 +8,7 @@ import { getPool } from "@/infra/db/client";
 import { withPoolTransaction } from "@/infra/db/withClient";
 import type { SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
-import type { UserByPhonePort, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
+import type { UserByPhonePort, CreateOrBindOptions, CreateOrBindResult } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
@@ -127,14 +128,18 @@ export const pgUserByPhonePort: UserByPhonePort = {
     return loadSessionUser(pool, canonicalId);
   },
 
-  async createOrBind(phone: string, context: ChannelContext): Promise<CreateOrBindResult> {
+  async createOrBind(
+    phone: string,
+    context: ChannelContext,
+    options?: CreateOrBindOptions,
+  ): Promise<CreateOrBindResult> {
     const parsedContext = parseChannelContext(context);
     const normalized = normalizeRuPhoneE164(phone);
     const pool = getPool();
     const key = channelToBindingKey(parsedContext.channel);
     const channelCode = parsedContext.channel;
 
-    const bound = await withPoolTransaction(pool, async (client) => {
+    const bindInTransaction = () => withPoolTransaction(pool, async (client) => {
       await runIdentityClientPgText(
         client,
         `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
@@ -173,13 +178,53 @@ export const pgUserByPhonePort: UserByPhonePort = {
       );
 
       let userId: string;
-      let displayName: string;
       let wasCreated = false;
+      const requestedProfileId = options?.profileBindUserId?.trim() || null;
+      const canonicalProfileId = requestedProfileId
+        ? ((await resolveCanonicalUserId(client, requestedProfileId)) ?? requestedProfileId)
+        : null;
 
-      if (phoneRow.rows.length > 0) {
+      if (canonicalProfileId) {
+        const profileRow = await runIdentityClientPgText(
+          client,
+          `SELECT id, display_name, role FROM platform_users
+           WHERE id = $1::uuid AND merged_into_id IS NULL
+           FOR UPDATE`,
+          [canonicalProfileId],
+        );
+        if (profileRow.rows.length === 0) {
+          throw new MergeConflictError("createOrBind: profile_bind user missing", [canonicalProfileId]);
+        }
+        const profile = parseIdentityRow(platformUserPhoneRoleRowSchema, profileRow.rows[0], "profile_bind_user");
+        if (profile.role !== "client") {
+          throw new MergeConflictError("createOrBind: profile_bind requires role=client", [canonicalProfileId]);
+        }
+
+        if (phoneRow.rows.length > 0) {
+          const owner = parseIdentityRow(platformUserPhoneRoleRowSchema, phoneRow.rows[0], "profile_phone_owner");
+          const canonicalOwnerId = (await resolveCanonicalUserId(client, owner.id)) ?? owner.id;
+          if (canonicalOwnerId !== canonicalProfileId) {
+            await mergePlatformUsersInTransaction(client, canonicalProfileId, canonicalOwnerId, "phone_bind");
+          }
+        } else {
+          await runIdentityClientPgText(
+            client,
+            `UPDATE platform_users
+             SET phone_normalized = $1, updated_at = now()
+             WHERE id = $2::uuid`,
+            [normalized, canonicalProfileId],
+          );
+          await applyPlatformUserPhoneHistoryTransition(client, {
+            platformUserId: canonicalProfileId,
+            newPhoneNormalized: normalized,
+            source: "otp",
+          });
+        }
+        userId = canonicalProfileId;
+      } else if (phoneRow.rows.length > 0) {
         const u = parseIdentityRow(platformUserPhoneRoleRowSchema, phoneRow.rows[0], "phone_row");
         userId = u.id;
-        displayName = parsedContext.displayName ?? u.display_name ?? normalized;
+        const displayName = parsedContext.displayName ?? u.display_name ?? normalized;
         await runIdentityClientPgText(client, "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2", [
           displayName,
           userId,
@@ -194,7 +239,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
         );
         const inserted = parseIdentityRow(platformUserInsertRowSchema, insert.rows[0], "insert_user");
         userId = inserted.id;
-        displayName = inserted.display_name;
         await applyPlatformUserPhoneHistoryTransition(client, {
           platformUserId: userId,
           newPhoneNormalized: normalized,
@@ -248,6 +292,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
       );
       return { userId, wasCreated };
     });
+
+    const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
+    const bound = profileBindOrganizationId
+      ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
+      : await bindInTransaction();
 
     return { user: await loadSessionUser(pool, bound.userId), wasCreated: bound.wasCreated };
   },

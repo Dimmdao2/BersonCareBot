@@ -1,4 +1,20 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import type { QueryResultRow } from "pg";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import {
+  runWebappPgText,
+  runWebappTransaction,
+  type WebappSqlTransactionExecutor,
+} from "@/infra/db/runWebappSql";
+import {
+  MergeConflictError,
+  MergeDependentConflictError,
+  mergePlatformUsersInTransaction,
+  type PlatformMergeDbClient,
+} from "@bersoncare/platform-merge";
+import type {
+  ClaimVerifiedEmailOptions,
+  ClaimVerifiedEmailResult,
+} from "@/modules/auth/emailAuthPort";
 
 export type EmailChallengeRow = {
   id: string;
@@ -14,6 +30,17 @@ export type EmailChallengeCodeRow = {
   expires_at: string;
   attempts: string;
 };
+
+class EmailClaimConflictError extends Error {}
+
+function mergeDbClientFromTx(tx: WebappSqlTransactionExecutor): PlatformMergeDbClient {
+  return {
+    async query<R extends QueryResultRow = QueryResultRow>(queryText: string, values: unknown[] = []) {
+      const result = await runWebappPgText<R>(queryText, values, tx);
+      return { rows: result.rows, rowCount: result.rowCount };
+    },
+  };
+}
 
 export async function findEmailSendCooldown(
   userId: string,
@@ -92,6 +119,68 @@ export async function verifyUserEmail(userId: string, email: string): Promise<vo
   );
 }
 
+export async function claimVerifiedEmail(
+  userId: string,
+  email: string,
+  options?: ClaimVerifiedEmailOptions,
+): Promise<ClaimVerifiedEmailResult> {
+  const emailNormalized = email.trim().toLowerCase();
+  const hasConflict = await findEmailOwnerConflict(userId, emailNormalized);
+  if (!hasConflict) {
+    await verifyUserEmail(userId, email);
+    return { ok: true, merged: false };
+  }
+
+  const organizationId = options?.profileBindOrganizationId?.trim();
+  if (!organizationId) {
+    return { ok: false, code: "email_conflict" };
+  }
+
+  try {
+    return await runWithDbOrganizationPrincipal(organizationId, () => runWebappTransaction(async (tx) => {
+      const users = await runWebappPgText<{
+        id: string;
+        email_normalized: string | null;
+        merged_into_id: string | null;
+        role: string;
+      }>(
+        `SELECT id::text, email_normalized, merged_into_id::text, role::text
+         FROM platform_users
+         WHERE id = $1::uuid
+            OR (email_normalized = $2 AND merged_into_id IS NULL)
+         ORDER BY id
+         FOR UPDATE`,
+        [userId, emailNormalized],
+        tx,
+      );
+      const current = users.rows.find((row) => row.id === userId);
+      if (!current || current.merged_into_id || current.role !== "client") {
+        throw new EmailClaimConflictError("current_user_not_mergeable");
+      }
+      const owner = users.rows.find(
+        (row) => row.id !== userId && row.email_normalized === emailNormalized && row.merged_into_id === null,
+      );
+      if (!owner) return { ok: false, code: "email_conflict" };
+      if (owner.role !== "client") {
+        throw new EmailClaimConflictError("email_owner_not_client");
+      }
+
+      await mergePlatformUsersInTransaction(mergeDbClientFromTx(tx), userId, owner.id, "email_bind");
+      await runWebappPgText("SELECT app.email_auth_verify_user_email($1::uuid, $2)", [userId, email], tx);
+      return { ok: true, merged: true };
+    }));
+  } catch (err) {
+    if (
+      err instanceof EmailClaimConflictError
+      || err instanceof MergeConflictError
+      || err instanceof MergeDependentConflictError
+    ) {
+      return { ok: false, code: "email_conflict" };
+    }
+    throw err;
+  }
+}
+
 export async function findEmailChallengeForConsume(
   challengeId: string,
   userId: string,
@@ -138,6 +227,7 @@ export const pgEmailAuthPort = {
   updateEmailChallengeAttempts,
   findEmailOwnerConflict,
   verifyUserEmail,
+  claimVerifiedEmail,
   findEmailChallengeForConsume,
   findLatestEmailChallengeForUser,
   findLatestPendingEmailChallengeForUser,

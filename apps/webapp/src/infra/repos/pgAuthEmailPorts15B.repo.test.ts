@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { MergeConflictError } from "@bersoncare/platform-merge";
 
 const {
   runWebappPgTextMock,
@@ -43,6 +45,7 @@ import { pgOAuthBindingsPort } from "./pgOAuthBindings";
 import { pgLoginTokensPort } from "./pgLoginTokens";
 import { createPgPhoneChallengeStore } from "./pgPhoneChallengeStore";
 import { pgEmailSetupTokensPort } from "./pgEmailSetupTokens";
+import { claimVerifiedEmail } from "./pgEmailAuth";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -161,8 +164,18 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
   it("createPgPhoneChallengeStore set upserts phone_challenges", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
     const store = createPgPhoneChallengeStore();
-    await store.set("ch-1", { phone: "+79001234567", expiresAt: 9999999999 });
+    await store.set("ch-1", {
+      phone: "+79001234567",
+      expiresAt: 9999999999,
+      profileBindUserId: "00000000-0000-4000-8000-000000000010",
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000011",
+    });
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("INSERT INTO phone_challenges");
+    const context = JSON.parse(String(runWebappPgTextMock.mock.calls[0]?.[1]?.[4])) as Record<string, unknown>;
+    expect(context).toMatchObject({
+      profileBindUserId: "00000000-0000-4000-8000-000000000010",
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000011",
+    });
   });
 
   it("pgEmailSetupTokensPort markUsedById updates active token row", async () => {
@@ -293,5 +306,68 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     expect(state).toEqual({ kind: "needs_email_setup", userId: "u1" });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(expect.anything(), "u1", "u2", "projection");
+  });
+
+  it("claimVerifiedEmail merges the sole password owner into the authenticated patient", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ conflict: true }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "current", email_normalized: null, merged_into_id: null, role: "client" },
+          { id: "owner", email_normalized: "taken@example.com", merged_into_id: null, role: "client" },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    runWebappTransactionMock.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => {
+      expect(getCurrentDbPrincipal()).toMatchObject({
+        kind: "organization",
+        organizationId: "00000000-0000-4000-8000-000000000001",
+      });
+      return fn({ rollback: vi.fn() });
+    });
+
+    await expect(claimVerifiedEmail("current", "Taken@Example.com", {
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    })).resolves.toEqual({
+      ok: true,
+      merged: true,
+    });
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "current",
+      "owner",
+      "email_bind",
+    );
+    expect(String(runWebappPgTextMock.mock.calls[2]?.[0])).toContain("app.email_auth_verify_user_email");
+  });
+
+  it("claimVerifiedEmail maps merge-engine password conflicts to email_conflict", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ conflict: true }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "current", email_normalized: null, merged_into_id: null, role: "client" },
+          { id: "owner", email_normalized: "taken@example.com", merged_into_id: null, role: "client" },
+        ],
+      });
+    mergePlatformUsersInTransactionMock.mockRejectedValueOnce(
+      new MergeConflictError(
+        "merge: both users have password credentials",
+        ["current", "owner"],
+      ),
+    );
+
+    await expect(claimVerifiedEmail("current", "taken@example.com", {
+      profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+    })).resolves.toEqual({
+      ok: false,
+      code: "email_conflict",
+    });
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "current",
+      "owner",
+      "email_bind",
+    );
   });
 });

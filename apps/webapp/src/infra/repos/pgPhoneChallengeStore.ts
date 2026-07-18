@@ -28,14 +28,39 @@ function otpDeliveryFromRow(row: { channel_context: unknown }): PhoneChallengePa
   return v as PhoneChallengePayload["deliveryChannel"];
 }
 
+function profileBindUserIdFromRow(row: { channel_context: unknown }): string | undefined {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const value = (raw as Record<string, unknown>).profileBindUserId;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function profileBindOrganizationIdFromRow(row: { channel_context: unknown }): string | undefined {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const value = (raw as Record<string, unknown>).profileBindOrganizationId;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function mergeChannelContextJson(payload: PhoneChallengePayload): string | null {
-  if (!payload.channelContext && !payload.deliveryChannel) return null;
+  if (
+    !payload.channelContext
+    && !payload.deliveryChannel
+    && !payload.profileBindUserId
+    && !payload.profileBindOrganizationId
+  ) return null;
   const o: Record<string, unknown> = {};
   if (payload.channelContext) {
     Object.assign(o, payload.channelContext as Record<string, unknown>);
   }
   if (payload.deliveryChannel) {
     o.otpDelivery = payload.deliveryChannel;
+  }
+  if (payload.profileBindUserId) {
+    o.profileBindUserId = payload.profileBindUserId;
+  }
+  if (payload.profileBindOrganizationId) {
+    o.profileBindOrganizationId = payload.profileBindOrganizationId;
   }
   return JSON.stringify(o);
 }
@@ -83,6 +108,8 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       }
       const channelContext = channelContextFromRow(row);
       const deliveryChannel = otpDeliveryFromRow(row);
+      const profileBindUserId = profileBindUserIdFromRow(row);
+      const profileBindOrganizationId = profileBindOrganizationIdFromRow(row);
       return {
         phone: row.phone,
         expiresAt,
@@ -90,6 +117,8 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         verifyAttempts: Number(row.verify_attempts ?? 0),
         channelContext,
         deliveryChannel,
+        profileBindUserId,
+        profileBindOrganizationId,
       };
     },
     async delete(challengeId: string): Promise<void> {

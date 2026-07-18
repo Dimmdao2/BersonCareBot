@@ -20,6 +20,10 @@ export type PhoneChallengePayload = {
   registrationAttemptId?: string;
   /** Новый пользователь (нет строки по phone на start). */
   isRegistrationIntent?: boolean;
+  /** Authenticated patient whose profile is claiming this verified phone. */
+  profileBindUserId?: string;
+  /** Server-resolved organization scope for the authenticated profile merge. */
+  profileBindOrganizationId?: string;
 };
 
 export type PhoneChallengeStore = {

@@ -382,7 +382,7 @@ export function analyzeMergePreviewModel(
   if (opts.activeTreatmentProgramConflictCount > 0) {
     hardBlockers.push({
       code: "active_treatment_program_conflict",
-      message: "Both users have an active treatment_program_instances row (one active per patient invariant).",
+      message: "Both users have a non-promo active treatment program (one active per patient invariant).",
       details: { conflictingActiveProgramRows: opts.activeTreatmentProgramConflictCount },
     });
   }
@@ -755,7 +755,9 @@ async function countActiveTreatmentProgramConflict(pool: Pool, targetId: string,
        ON t.patient_user_id = $1::uuid
       AND d.patient_user_id = $2::uuid
       AND t.status = 'active'
-      AND d.status = 'active'`,
+      AND d.status = 'active'
+      AND t.assignment_source <> 'promo'
+      AND d.assignment_source <> 'promo'`,
     [targetId, duplicateId],
   );
   return parseInt(r.rows[0]?.c ?? "0", 10);

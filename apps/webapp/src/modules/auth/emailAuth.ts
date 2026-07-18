@@ -101,6 +101,11 @@ export type EmailConfirmResult =
       retryAfterSeconds?: number;
     };
 
+export type ConfirmEmailOptions = {
+  /** Server-resolved organization scope; enables safe merge with an existing client account. */
+  profileBindOrganizationId?: string;
+};
+
 async function verifyChallengeCodeRow(params: {
   userId: string;
   challengeId: string;
@@ -196,7 +201,12 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
   return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
 }
 
-export async function confirmEmailChallenge(userId: string, challengeId: string, codeRaw: string): Promise<EmailConfirmResult> {
+export async function confirmEmailChallenge(
+  userId: string,
+  challengeId: string,
+  codeRaw: string,
+  options?: ConfirmEmailOptions,
+): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
     return { ok: false, code: "invalid_code" };
@@ -245,12 +255,12 @@ export async function confirmEmailChallenge(userId: string, challengeId: string,
     code,
     row,
     onSuccess: async () => {
-      if (await db.findEmailOwnerConflict(userId, row.email)) {
-        await db.deleteEmailChallengesForUser(userId);
-        return { ok: false, code: "email_conflict" };
-      }
       try {
-        await db.verifyUserEmail(userId, row.email);
+        const claimed = await db.claimVerifiedEmail(userId, row.email, options);
+        if (!claimed.ok) {
+          await db.deleteEmailChallengesForUser(userId);
+          return { ok: false, code: "email_conflict" };
+        }
       } catch (err: unknown) {
         const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
         if (pgCode === "23505") {
@@ -323,6 +333,7 @@ export async function consumeEmailChallengeCode(
 export async function confirmLatestEmailChallengeCodeForUser(
   userId: string,
   codeRaw: string,
+  options?: ConfirmEmailOptions,
 ): Promise<EmailConfirmResult> {
   const code = codeRaw.trim();
   if (!code) {
@@ -382,12 +393,12 @@ export async function confirmLatestEmailChallengeCodeForUser(
     code,
     row,
     onSuccess: async () => {
-      if (await db.findEmailOwnerConflict(userId, row.email)) {
-        await db.deleteEmailChallengesForUser(userId);
-        return { ok: false, code: "email_conflict" };
-      }
       try {
-        await db.verifyUserEmail(userId, row.email);
+        const claimed = await db.claimVerifiedEmail(userId, row.email, options);
+        if (!claimed.ok) {
+          await db.deleteEmailChallengesForUser(userId);
+          return { ok: false, code: "email_conflict" };
+        }
       } catch (err: unknown) {
         const pgCode = typeof err === "object" && err !== null ? String((err as { code?: unknown }).code ?? "") : "";
         if (pgCode === "23505") {

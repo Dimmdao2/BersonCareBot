@@ -182,7 +182,7 @@ export function PhoneMessengerAuthFlow({
       const res = await fetch("/api/auth/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: normalized, channel: "web", chatId, deliveryChannel }),
+        body: JSON.stringify({ phone: normalized, channel: "web", chatId, deliveryChannel, purpose }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;

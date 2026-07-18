@@ -16,7 +16,7 @@
 
 2. **Email + пароль** — когда OAuth всё выключено, браузер сразу открывает шаг **`email_password`**: вход, регистрация, код из письма, **восстановление пароля**. Состояние «ожидается код»/`reset` сохраняется в **`sessionStorage`** (`authFlowPendingStorage.ts`), чтобы пережить обновление и возврат с **`/app/contact-support?from=`**.
 
-3. **Телефон в публичном браузере / PWA** — с **`oauth_first`**: ссылка **«Войти по номеру телефона»** → `PhoneMessengerAuthFlow` (`purpose: login`): `check-phone` → при привязанном TG/Max — `phone/start` + `phone/confirm`; иначе **`POST /api/auth/phone/messenger-bind/start`** → deep link `auth_*` в боте → контакт → **`POST /api/integrator/phone-messenger-bind/complete`** → бот присылает код → poll **`messenger-bind/status`** до `otp_ready` → ввод кода в приложении через **`POST /api/auth/phone/confirm`**. **Email в этом потоке не участвует.** SMS для `channel: web` недоступен. В Telegram/MAX Mini App по-прежнему шаг **`phone`** в `AuthFlowV2`. Привязка/смена номера в профиле — redirect из `PatientProfileHero` на **`/app/patient/bind-phone?next=/app/patient/profile`**, далее `PhoneMessengerAuthFlow` (`purpose: profile_bind`) в браузере без inline «Назад» над полем номера; **`bind-phone`** не редиректит только из‑за `tier === patient` без **`phoneTrustedForPatient`**.
+3. **Телефон в публичном браузере / PWA** — с **`oauth_first`**: ссылка **«Войти по номеру телефона»** → `PhoneMessengerAuthFlow` (`purpose: login`): `check-phone` → при привязанном TG/Max — `phone/start` + `phone/confirm`; иначе **`POST /api/auth/phone/messenger-bind/start`** → deep link `auth_*` в боте → контакт → **`POST /api/integrator/phone-messenger-bind/complete`** → бот присылает код → poll **`messenger-bind/status`** до `otp_ready` → ввод кода в приложении через **`POST /api/auth/phone/confirm`**. **Email в этом потоке не участвует.** SMS для `channel: web` недоступен. В Telegram/MAX Mini App по-прежнему шаг **`phone`** в `AuthFlowV2`. Привязка/смена номера в профиле — redirect из `PatientProfileHero` на **`/app/patient/bind-phone?next=/app/patient/profile`**, далее `PhoneMessengerAuthFlow` (`purpose: profile_bind`) в браузере без inline «Назад» над полем номера; сервер сохраняет текущие `userId` и organization-scope в OTP challenge, а после проверки кода merge-ит владельца телефона **в текущий профиль**, не переключает сессию на другой аккаунт. **`bind-phone`** не редиректит только из‑за `tier === patient` без **`phoneTrustedForPatient`**.
 
 **PIN** на плоскости входа **не показывается**; re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 
@@ -43,6 +43,7 @@
 - **`POST /api/auth/email-password/forgot`** — сброс: код на почту для **verified + password**; для **contact-only** (`needs_email_setup`) — setup-код и `challengeId` для текущей формы (после lookup UI уже знает, что это setup flow). Если вкладка потеряла `challengeId`, `setup-code/complete` принимает код через latest active challenge пользователя.
 - **`POST /api/auth/email-password/setup-code/complete`** — contact-only setup по коду: подтверждает email, создаёт/обновляет пароль и ставит сессию.
 - **`POST /api/auth/email-password/reset`** — проверка кода через `consumeEmailChallengeCode` (если передан `challengeId`) или `consumeLatestEmailChallengeCodeForUser`, обновление хэша пароля; ошибки верификации кода (включая случай отсутствия пользователя) нормализуются в нейтральный `invalid_code`.
+- **Подтверждение email из авторизованного профиля** (`/api/auth/email/confirm`, `/api/patient/email-change/confirm`) после верного OTP выполняет транзакционный claim. Если адрес принадлежит другому безопасно сливаемому client-аккаунту, он merge-ится в текущего пациента под server-resolved organization principal; два password-login аккаунта и остальные hard blockers по-прежнему дают `409 email_conflict`.
 
 ## Мессенджеры и обмен токенами
 
@@ -166,6 +167,7 @@ Tier **`patient`** (доступ к основному пациентскому 
 - **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`: **4** неверных ввода → блок 10 мин, resend cooldown **60 с**), верификация кода; успешный verify **не** удаляет челлендж (удаление — `consumePhoneOtpChallenge` после post-steps в DI). Доставка — `PhoneOtpDelivery` (telegram / max / email / sms).
 - HTTP `POST /api/auth/phone/start` для **`channel: web`** не принимает доставку **SMS** (`sms_disabled_web`).
 - `POST /api/auth/phone/confirm`: опционально **`browserCalendarIana`** (IANA из `Intl`, до 120 символов) — после успешного входа выставляет `platform_users.calendar_timezone`, если поле ещё `null`.
+- Для direct OTP **`profile_bind`** `userId` и organization-scope берутся только из сессии на `/phone/start`, сохраняются в challenge и не принимаются телом `/phone/confirm`.
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
 
 ## Роль пользователя

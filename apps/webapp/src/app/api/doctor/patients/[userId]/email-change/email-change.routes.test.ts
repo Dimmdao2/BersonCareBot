@@ -30,6 +30,7 @@ const {
   getPendingEmailChallengeMock,
   confirmLatestEmailChallengeCodeForUserMock,
   ensureAuthModulePortsBoundMock,
+  getCurrentDbPrincipalOrganizationIdMock,
 } = vi.hoisted(() => ({
   getCurrentSessionMock: vi.fn(),
   requireDoctorWorkspaceApiContextMock: vi.fn(),
@@ -45,6 +46,7 @@ const {
   getPendingEmailChallengeMock: vi.fn(),
   confirmLatestEmailChallengeCodeForUserMock: vi.fn(),
   ensureAuthModulePortsBoundMock: vi.fn(),
+  getCurrentDbPrincipalOrganizationIdMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -81,6 +83,10 @@ vi.mock("@/modules/auth/emailAuth", () => ({
 
 vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
   ensureAuthModulePortsBound: () => ensureAuthModulePortsBoundMock(),
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => getCurrentDbPrincipalOrganizationIdMock(),
 }));
 
 import { POST as adminPost, GET as adminGet } from "./route";
@@ -135,6 +141,8 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     normalizeEmailMock.mockReset();
     normalizeEmailMock.mockImplementation((email: string) => email.trim().toLowerCase());
     ensureAuthModulePortsBoundMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_ID);
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -329,6 +337,8 @@ describe("POST /api/patient/email-change/confirm", () => {
     getCurrentSessionMock.mockReset();
     confirmLatestEmailChallengeCodeForUserMock.mockReset();
     ensureAuthModulePortsBoundMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_ID);
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -370,6 +380,7 @@ describe("POST /api/patient/email-change/confirm", () => {
     expect(confirmLatestEmailChallengeCodeForUserMock).toHaveBeenCalledWith(
       PATIENT_SESSION.user.userId,
       "654321",
+      { profileBindOrganizationId: ORG_ID },
     );
   });
 

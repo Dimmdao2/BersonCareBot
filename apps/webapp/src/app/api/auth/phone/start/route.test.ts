@@ -3,9 +3,17 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const startPhoneAuth = vi.fn();
 const findByPhone = vi.fn();
 const getPublicRuntimeBool = vi.hoisted(() => vi.fn());
+const getCurrentSession = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationId = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getPublicRuntimeBool,
+}));
+
+vi.mock("@/modules/auth/service", () => ({ getCurrentSession }));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -28,6 +36,10 @@ describe("POST /api/auth/phone/start", () => {
     findByPhone.mockReset();
     getPublicRuntimeBool.mockReset();
     getPublicRuntimeBool.mockResolvedValue(true);
+    getCurrentSession.mockReset();
+    getCurrentSession.mockResolvedValue(null);
+    getCurrentDbPrincipalOrganizationId.mockReset();
+    getCurrentDbPrincipalOrganizationId.mockReturnValue("00000000-0000-4000-8000-000000000001");
     findByPhone.mockResolvedValue(null);
     startPhoneAuth.mockResolvedValue({
       ok: true as const,
@@ -130,6 +142,65 @@ describe("POST /api/auth/phone/start", () => {
     expect(typeof data.challengeId).toBe("string");
     expect(data.challengeId.length).toBeGreaterThan(0);
     expect(data.retryAfterSeconds).toBe(60);
+  });
+
+  it("binds an existing phone to the authenticated profile instead of starting a login", async () => {
+    findByPhone.mockResolvedValue({
+      userId: "phone-owner",
+      bindings: { telegramId: "tg-1", maxId: null },
+    });
+    getCurrentSession.mockResolvedValue({
+      user: { userId: "profile-user", role: "client" },
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: "+79991234567",
+          deliveryChannel: "telegram",
+          purpose: "profile_bind",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(startPhoneAuth).toHaveBeenCalledWith(
+      "+79991234567",
+      expect.objectContaining({ channel: "web" }),
+      expect.objectContaining({
+        delivery: { channel: "telegram", recipientId: "tg-1" },
+        profileBindUserId: "profile-user",
+        profileBindOrganizationId: "00000000-0000-4000-8000-000000000001",
+      }),
+    );
+  });
+
+  it("fails closed when profile bind has no unambiguous organization scope", async () => {
+    findByPhone.mockResolvedValue({
+      userId: "phone-owner",
+      bindings: { telegramId: "tg-1", maxId: null },
+    });
+    getCurrentSession.mockResolvedValue({
+      user: { userId: "profile-user", role: "client" },
+    });
+    getCurrentDbPrincipalOrganizationId.mockReturnValue(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          phone: "+79991234567",
+          deliveryChannel: "telegram",
+          purpose: "profile_bind",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 
   it("returns 503 with user message when delivery_failed", async () => {

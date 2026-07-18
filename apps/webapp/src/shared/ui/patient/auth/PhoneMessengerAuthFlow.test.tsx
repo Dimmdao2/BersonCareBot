@@ -297,25 +297,26 @@ describe("PhoneMessengerAuthFlow", () => {
   it("profile_bind calls onProfileComplete without redirect", async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn();
+    const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({
+          ok: true,
+          exists: true,
+          methods: { sms: false, telegram: true },
+        });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        return jsonRes({ ok: true, challengeId: "ch-2", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true });
+      }
+      throw new Error(`unexpected: ${url}`);
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({
-            ok: true,
-            exists: true,
-            methods: { sms: false, telegram: true },
-          });
-        }
-        if (url.includes("/api/auth/phone/start")) {
-          return jsonRes({ ok: true, challengeId: "ch-2", retryAfterSeconds: 60 });
-        }
-        if (url.includes("/api/auth/phone/confirm")) {
-          return jsonRes({ ok: true });
-        }
-        throw new Error(`unexpected: ${url}`);
-      }),
+      fetchMock,
     );
 
     render(
@@ -328,6 +329,9 @@ describe("PhoneMessengerAuthFlow", () => {
     await user.click(screen.getByRole("button", { name: "Подтвердить" }));
 
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    const startCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/api/auth/phone/start"));
+    const startBody = JSON.parse(String(startCall?.[1]?.body)) as Record<string, unknown>;
+    expect(startBody.purpose).toBe("profile_bind");
   });
 
   it("uses phone/start when messenger already bound (no messenger-bind)", async () => {
