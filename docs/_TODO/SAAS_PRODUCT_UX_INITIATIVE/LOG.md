@@ -1939,3 +1939,40 @@ diff-check, then returns exact files/commit/results/risks. Lead performs one ind
 fast-forwards accepted commits into the feature branch, deletes both temporary branches/worktrees, serially checks
 named desktop/mobile states on live DEV where fixtures make them reachable, then runs the single accumulated C1
 full CI and prepares the owner-authorized code-only TEST checkpoint.
+
+### C1 Schedule + Communications closeout (`#851`, `#852`)
+
+Both parallel slices are integrated into `feat/doctor-ui-rebuild`: Schedule commit `f7c10e7bf`, Communications
+commit `78e331a9a`, and accumulated stale-contract test correction `b35524674`. Schedule now defaults to the week
+view without overriding explicit deep links; booking settings expose canonical services, calendar specialists and
+location short name while Rubitime remains absent. Communications uses the shared equal split; comments have two
+independent filters and a real no-client empty state; intake has one mutually exclusive status; broadcasts keep the
+composer and journal in equal non-overlapping panels.
+
+Risk-sized audit evidence under roadmap §7.3:
+
+- `bcb-c1-851-audit-20260718` — **PASS**, no A/B findings;
+- `bcb-c1-852-audit-20260718` — one exact owner-review §6 finding: the unselected comments pane still rendered the
+  old background feed. The lead removed that retired feed/render/pagination path, added the required empty-state
+  assertion and reran the focused gate. Because the requirement was explicit rather than ambiguous, it was closed
+  directly; no serial correction agent or second audit was started.
+
+Validation:
+
+- Schedule focused Vitest: 3 files, 88 tests passed; scoped ESLint, webapp typecheck and diff-check passed;
+- Communications focused Vitest after the audit delta: 3 files, 61 tests passed; scoped ESLint, webapp typecheck and
+  diff-check passed;
+- live DEV `dev:admin`, desktop `1440x1000` and comments mobile `390x844`: week selection, services, specialists,
+  comments empty state/toggles, intake single-select and broadcast layout visually passed;
+- screenshots: `/home/dev/brain/runs/c1-final-ui/schedule-week.png`, `schedule-services.png`,
+  `schedule-specialists.png`, `comments-desktop.png`, `comments-mobile.png`, `intake-desktop.png`,
+  `broadcasts-desktop.png`;
+- accumulated `pnpm run ci`: **PASS** from lint through registry audit. Integrator: 1270 passed; webapp: 7989 passed;
+  media-worker: 56 passed; production builds and all SaaS/static audit contracts passed. The first milestone run
+  exposed two stale assertions left behind by C0 Rubitime retirement; both were corrected as tests (no runtime
+  behavior change), passed 26/26 targeted tests, and the required milestone full run then passed end to end.
+
+Both temporary branches and worktrees were removed after integration. The single DEV server stayed in place. No
+PROD action, prod dump, external delivery or push/merge to `main`/`test` occurred. The owner's untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched. C1 is ready for the owner-authorized code-only TEST
+deployment and live click-through checkpoint; C2 must not start before that owner acceptance.
