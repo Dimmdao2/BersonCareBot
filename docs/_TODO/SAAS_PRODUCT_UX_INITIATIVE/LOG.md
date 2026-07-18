@@ -1905,3 +1905,37 @@ Both worker commits were fast-forwarded into `feat/doctor-ui-rebuild`. The stage
 validation worktree and their temporary dependency links were removed. The persistent DEV server was not stopped,
 no TEST/PROD/deploy/data action occurred, and the owner's untracked
 `docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched.
+
+## 2026-07-18 — remaining C1 parallel launch: Schedule `#851` + Communications `#852`
+
+**Binding mode:** owner reinforcement in roadmap §7.3 applies: these presentation/mechanical slices run in
+parallel, each with one worker and exactly one independent audit. Serial correction rounds are forbidden. An audit
+delta without a matching owner-review line is an owner question, not new scope. Live DEV screenshots serialize on
+the single existing `127.0.0.1:5200` server. After both slices land, C1 receives one full CI gate and a code-only
+TEST acceptance checkpoint before C2 starts.
+
+**Base/environment:** `feat/doctor-ui-rebuild` at `b02c32ef5a9609dc6c6eebb59077a7168f269529`, aligned with
+origin. Current TEST ref is `a130741b0b028fc1f3d4de17db24d66b08fce645`; no TEST deploy occurs inside either
+worker. The integration worktree is the only registered worktree at launch and its sole delta is the owner's
+protected untracked `docs/_TODO/SESSION_HANDOFF_2026-07-17.md`.
+
+**Schedule `#851`, owner-review §§3–4:** clean desktop entry/reload defaults to week while explicit user/deep-link
+choice remains stable; the existing booking-settings area exposes service create/edit/deactivate and a distinct
+calendar-specialist management surface; location create and edit both include short name; Rubitime remains absent
+from normal UI. Notification copy and cancellation/reschedule policy are protected. Backend/data retirement,
+settings relocation, TEST/prod operations and unrelated schedule behavior are out of scope. Primary file ownership
+is `doctor/schedule/**` plus existing booking-settings components/routes/tests only where the checklist requires.
+
+**Communications `#852`, owner-review §§5–8:** reuse the existing equal `CatalogSplitLayout`; comments have correct
+unselected/selected states and independent unread/on-support toggles; intake rows are left-aligned and status is a
+mutually exclusive single-select segmented control; broadcast audit rows contain both collapsed and expanded
+content without overlay. The accepted Open-card link, routing/deep links, data contracts and delivery behavior are
+protected. Primary file ownership is `doctor/communications/**`, `doctor/comments/DoctorCommentsTab*`,
+`doctor/online-intake/DoctorOnlineIntakeClient*` and `doctor/broadcasts/BroadcastAuditLog*` with their existing tests.
+
+**No overlap and acceptance:** neither worker edits this initiative log, shared route trees, patient UI, DB schema,
+migrations or the other worker's files. Each runs focused component tests, affected ESLint, webapp typecheck and
+diff-check, then returns exact files/commit/results/risks. Lead performs one independent static/UI audit per slice,
+fast-forwards accepted commits into the feature branch, deletes both temporary branches/worktrees, serially checks
+named desktop/mobile states on live DEV where fixtures make them reachable, then runs the single accumulated C1
+full CI and prepares the owner-authorized code-only TEST checkpoint.
