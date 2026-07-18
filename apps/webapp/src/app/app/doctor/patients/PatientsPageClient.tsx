@@ -793,6 +793,7 @@ type PatientsContentProps = {
   selectedUserId: string | null;
   activeCategory: ClientCategory;
   displayIana?: string;
+  onCategoryChange: (category: ClientCategory) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onCycleRichIconFilter: (key: Extract<keyof IconFiltersState, "appointments" | "messages" | "comments">) => void;
@@ -817,6 +818,7 @@ function PatientsContent({
   selectedUserId,
   activeCategory,
   displayIana,
+  onCategoryChange,
   onSegmentToggle,
   onChannelChange,
   onCycleRichIconFilter,
@@ -1151,8 +1153,33 @@ function PatientsContent({
             "rounded-lg border border-border bg-card p-3",
           )}
         >
+          <div className="border-b border-border/60 pb-3">
+            <p className="mb-2 text-xs text-muted-foreground">Категория клиентов</p>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Категория клиентов">
+              {(
+                [
+                  ["client", "Клиенты"],
+                  ["subscriber_only", "Подписчики"],
+                  ["all", "Все"],
+                ] as const
+              ).map(([category, label]) => (
+                <Button
+                  key={category}
+                  type="button"
+                  size="sm"
+                  variant={activeCategory === category ? "default" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => onCategoryChange(category)}
+                  aria-pressed={activeCategory === category}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           {/* Segment stat cards — 3 per row on mobile, 5 on lg+ */}
-          <DoctorMetricList className="grid-cols-3 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
+          <DoctorMetricList className="mt-3 grid-cols-3 gap-1.5 lg:grid-cols-5 xl:grid-cols-5">
             {SEGMENTS.map((seg) => {
               const segmentContextBase =
                 seg.key === "all"
@@ -1286,7 +1313,7 @@ export function PatientsPageClient({
   const [legacyFilters] = useState<LegacyFiltersState>(DEFAULT_LEGACY_FILTERS);
 
   // Category filter state (client-side only, S4.2)
-  const [activeCategory] = useState<ClientCategory>("all");
+  const [activeCategory, setActiveCategory] = useState<ClientCategory>("client");
 
   // Selected patient for preview
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -1379,6 +1406,7 @@ export function PatientsPageClient({
         selectedUserId={selectedUserId}
         activeCategory={activeCategory}
         displayIana={displayIana}
+        onCategoryChange={setActiveCategory}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onCycleRichIconFilter={handleCycleRichIconFilter}

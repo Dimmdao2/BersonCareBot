@@ -137,8 +137,12 @@ describe("PatientsPageClient", () => {
 
     await screen.findByRole("searchbox", { name: "Поиск пациентов" });
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Клиенты 3/i })).not.toBeInTheDocument();
+    const categoryControl = screen.getByRole("group", { name: "Категория клиентов" });
+    expect(categoryControl.closest("section")).toContainElement(screen.getByText("Каналы связи"));
+    expect(within(categoryControl).getByRole("button", { name: "Клиенты" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(categoryControl).getByRole("button", { name: "Подписчики" })).toHaveAttribute("aria-pressed", "false");
+    expect(within(categoryControl).getByRole("button", { name: "Все" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("Подписчик")).not.toBeInTheDocument();
     expect(screen.getByText("Каналы связи")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Приём в этом месяце" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Есть отмены" })).not.toBeInTheDocument();
@@ -147,6 +151,12 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByRole("button", { name: "Архив" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Есть переносы" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
+
+    await user.click(within(categoryControl).getByRole("button", { name: "Подписчики" }));
+    expect(screen.getByText("Подписчик")).toBeInTheDocument();
+    expect(screen.queryByText("С записью и сопровождением")).not.toBeInTheDocument();
+
+    await user.click(within(categoryControl).getByRole("button", { name: "Клиенты" }));
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 
