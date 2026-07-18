@@ -306,11 +306,20 @@ Global admin получает отдельную операционную пов
 - Сегмент «Клиенты / Подписчики», который владелец видел раньше, исчез.
 - На текущем экране показываются «Все», поэтому клиентская рабочая выборка не является default.
 
-### До реализации нужно формализовать
+### Зафиксированная data-семантика сегмента
 
-- точный источник истины для «клиент»: appointment, specialist relation, active/any program assignment;
-- точный источник истины для «подписчик» и поведение человека, который одновременно подписчик и клиент;
-- что именно считается сопровождением и каким доменным статусом оно подтверждается.
+Требование «вернуть прежнее поведение» сопоставлено с уже существующим typed contract страницы:
+
+- **Клиент:** есть хотя бы одно из четырёх доказательств в текущей organization: активное сопровождение,
+  активная назначенная программа, история canonical appointment либо будущая active canonical appointment.
+- **Подписчик:** зарегистрированный/привязанный пользователь без любого из перечисленных клиентских доказательств.
+- Категории взаимоисключающие: появление любого client evidence переводит человека в «Клиенты»; дублирования в обоих
+  сегментах нет. Дополнительный явный «Все» допустим как вспомогательный view, но не заменяет сегмент и не является
+  default.
+- **Сопровождение:** только канонический активный статус `doctor_patient_support.on_support`; наличие программы само
+  по себе не объявляется сопровождением.
+- Реализатор обязан сохранить organization scope и сначала сверить эти поля с текущими
+  `ClientListItem/getClientCategory`/repo projections. Новую relation или классификатор ради UI не создавать.
 
 ## 3. «Расписание»: desktop default
 
@@ -719,7 +728,77 @@ Global admin получает отдельную операционную пов
 - [x] Устные замечания этого блока записаны без сокращения продуктового смысла.
 - [x] Семь приложенных скриншотов просмотрены; подтверждённые визуальные дефекты отделены от иных наблюдений.
 - [x] Диктовка владельца завершена; документ повторно сверен с сообщениями, при нескольких вариантах сохранено
-  последнее решение.
-- [ ] Выполнен code/taskdb dedup каждого пункта.
-- [ ] Пункты разнесены по существующим plans/stages и отдельным implementation cards.
-- [ ] Для каждого блока создана проверяемая desktop/mobile acceptance с актуальным TEST scenario.
+      последнее решение.
+- [x] Выполнен code/taskdb dedup на уровне planning authority: старые punch-list/triage подчинены этому документу,
+      существующие карты переиспользованы, отсутствующие цельные implementation cards добавлены.
+- [x] Пункты разнесены в binding stages `C0…C7` и residual identity stage `C2F` существующего
+      [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §7.3 и технический S4-план; новый параллельный
+      roadmap не создавался.
+- [x] Для каждого блока записан проверяемый acceptance; перед implementation исполнитель обязан привязать его к
+      актуальному TEST SHA, synthetic scenario/role и desktop/mobile viewport.
+
+## 18. Карта исполнения без дублирования требований
+
+| Stage | Scope owner-review | Taskdb |
+|---|---|---|
+| C0 | §10 canonical booking без Rubitime | `#839`; operational proof отдельно `#757` |
+| C1 | §§1-8 текущие UI-коррекции | `#850` Сегодня/Клиенты; `#851` Расписание; `#852` Коммуникации |
+| C2 | §14 membership identity и invite | `#840`, `#841` |
+| C2F | §19 structured FIO residual | `#855` registration; `#856` writers/display; `#857` production closeout; `#858` parser retirement; TEST evidence `#849` |
+| C3 | §15 единый settings hub | `#842`; billing body приходит из `#845` |
+| C4 | §§P1, P4, 11-13, 15 capabilities/content | `#843`, `#724`, `#853`, `#26` |
+| C5 | §§P1-P3 commercial contour | `#751`, `#844`, `#845` |
+| C6 | §P5 analytics/capacity | `#854` |
+| C7 | общий TEST/production-candidate gate | создаётся только при готовности зависимостей, не заранее |
+
+Taskdb хранит состояние и ссылку, а не копию решения. Детальные формулировки в карточках подчинены этому файлу;
+если старая карточка указывает несуществующий/устаревший документ, действует эта карта и roadmap §7.3.
+
+## 19. Structured FIO: остаток после принятого раннего транша
+
+### Фактическое состояние
+
+- Структурные поля `last_name`, `first_name`, `patronymic`, общий parser/scorer, source priority, booking form и
+  защита сильного ФИО уже находятся в интеграционной ветке.
+- Историческая taskdb `#24` принята владельцем, но эта приёмка относится к ранее доставленному траншу и не закрывает
+  обнаруженные registration writers, display cleanup, production backfill и parser retirement.
+- Owner-reviewed backfill применён только на TEST (`#849`): 165 строк обновлены, 3 уже совпадали, 1 отсутствовала,
+  1 изменилась после XLSX-review и намеренно не была перезаписана. Production apply не выполнялся.
+- Проверенный владельцем XLSX, локальный CSV и TEST before/after JSON содержат персональные данные, остаются вне
+  git и не переносятся в этот документ построчно. Их ручные решения имеют приоритет над новым расчётом parser-а.
+
+### Финальная последовательность владельца
+
+1. **Patient email registration:** заменить единый `displayName` на required `lastName` + `firstName` и optional
+   `patronymic`; `display_name` только выводится как compatibility-поле.
+2. **Specialist/clinic registration:** заменить единый `specialistName` на структурированное ФИО специалиста,
+   сохранив provisioning, и никогда не смешивать его с названием организации.
+3. **Остальные writers:** manual edit, booking, provisioning, OAuth, Telegram и MAX используют существующие поля.
+   Provider name — слабая подсказка: заполняет только пустое, не ухудшает manual/booking/Rubitime FIO, конфликт
+   остаётся видимым для ручного решения.
+4. **Display cleanup:** doctor surfaces показывают `Фамилия Имя Отчество`; patient greeting — `first_name`;
+   `display_name` остаётся только legacy fallback. Проверить clients, patient card, schedule, communications, search
+   и booking prefill.
+5. **Production backfill:** разобрать два TEST-исключения, подготовить preview на актуальной production-копии,
+   предъявить точный artifact владельцу и получить отдельное разрешение. Затем — transaction + row-drift guard +
+   rollback audit + post-apply reconciliation + выборочный UI-контроль. Никакие PII XLSX/CSV/JSON не коммитить.
+6. **Legacy fallback audit:** доказать, что все owned registrations/writers и активные пользователи имеют structured
+   FIO, а consumers не восстанавливают его через `display_name`.
+7. **Parser retirement:** словарный one-off parser перестаёт быть нужным после backfill; runtime
+   `display_name -> FIO` удаляется только после всех предыдущих gates, полного поиска вызовов и regression-тестов.
+
+### Отдельный notification track
+
+Booking lifecycle templates из прежней FIO Phase 8 не относятся к структурированной identity-модели и не блокируют
+её закрытие. Они продолжаются в notification workstream с DB-backed настройками.
+
+### Acceptance
+
+- patient registration API/UI и specialist registration API/UI принимают structured FIO;
+- фамилия/имя required, отчество optional, compatibility `display_name` выводится детерминированно;
+- organization name и specialist FIO не смешиваются при provisioning;
+- OAuth/Telegram/MAX не перезаписывают сильные поля;
+- booking prefill использует structured fields без parser при их наличии;
+- doctor label показывает полное ФИО, patient greeting — имя;
+- production mutation невозможна без актуального preview и отдельного owner gate;
+- runtime parser не удалён до положительного legacy audit.

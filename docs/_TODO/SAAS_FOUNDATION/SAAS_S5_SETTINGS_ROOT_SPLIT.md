@@ -2,6 +2,11 @@
 
 Статус: **план; инженерное решение принято, код и БД этим документом не менялись**.
 
+> **Boundary:** это storage/runtime settings split, не план нового settings UI. Единый settings hub, ownership
+> полей и отмена текущего переноса всей schedule-settings вкладки исполняются только по
+> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §15 и `IMPLEMENTATION_ROADMAP.md` C3. S5 не создаёт второй UI contract.
+
 Этот этап относится только к полностью рабочей системе на **тестовом сервере**. Любые действия за его пределами
 в scope не входят.
 

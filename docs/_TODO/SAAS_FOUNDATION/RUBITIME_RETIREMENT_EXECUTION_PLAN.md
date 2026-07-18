@@ -1,7 +1,11 @@
 # Rubitime retirement — execution plan
 
-Статус: R1-R4 closed in working branch, 2026-07-14. R5-R7 продолжаются только как TEST-доказательства,
-удаление runtime-зависимости и TEST archive/drop proof.
+Статус: R1-R4 имели code/proof status `closed` в working branch 2026-07-14, но live owner reproduction на TEST
+2026-07-18 обнаружил regression: создание пациента прошло, appointment упал с `Rubitime sync failed`. Поэтому
+R3/R4 runtime acceptance **переоткрыт как incident taskdb `#839` / roadmap C0** до доказательства create/reschedule/
+cancel без Rubitime и без partial patient write. Старые `[x]` ниже остаются provenance выполненных проходов, но не
+являются текущим PASS пользовательского пути. R5-R7 продолжаются только как TEST-доказательства, удаление
+runtime-зависимости и TEST archive/drop proof; destructive cleanup не опережает R1 gates.
 Это план удаления Rubitime как runtime-зависимости. Код, миграции, БД и runtime-настройки меняются только
 отдельными phase-коммитами с proof-документами ниже.
 

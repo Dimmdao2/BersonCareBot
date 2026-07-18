@@ -1,10 +1,10 @@
 # SaaS Product UX Initiative
 
-**Статус:** planning package passed the 2026-07-16 independent re-audit; implementation has not started. The
-complete 2026-07-18 owner dictation is consolidated in
-[`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). It is the latest product/UX authority and must be
-reconciled into stage checklists before implementation. The earlier statement about `0` pending product decisions
-applies only to the 2026-07-16 packet and does not discard explicit open questions from the 2026-07-18 review.
+**Статус:** planning package 2026-07-16 supplemented by the complete 2026-07-18 owner review. Requirements are
+consolidated in [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md), and execution stages/dependencies are
+reconciled in [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §7.3. Implementation has not started as one
+program; individual existing mechanics keep their own taskdb/code status. The earlier statement about `0` pending
+product decisions applies only to the 2026-07-16 packet.
 **Рабочая ветка:** `feat/saas-interface-work3`.  
 **Taskdb:** `#787`.
 
@@ -27,9 +27,13 @@ solo-first launch закрыты; реализация всё равно нач�
 
 ## Граница с текущим SAAS_FOUNDATION
 
-Текущий канон `docs/_TODO/SAAS_FOUNDATION/` ведёт систему к полностью рабочему multi-organization состоянию на TEST. Эта инициатива не меняет его порядок, enforcement, tenant walls, Rubitime retirement, тарифы или settings-root работы.
+Текущий канон `docs/_TODO/SAAS_FOUNDATION/` сохраняет ownership над enforcement, tenant walls и физическими
+Rubitime/DB/release gates. Последний owner-review при этом **изменил** product sequencing и contracts тарифов,
+settings, billing и capability activation; эти delta уже reconciled в `IMPLEMENTATION_ROADMAP.md` §7.3 и
+подчинённых foundation-планах. Ни один старый foundation checklist не исполняется вопреки этой delta.
 
-Здесь отдельно прорабатываются продуктовая IA и будущие пользовательские потоки. Результаты передаются в основной SaaS-план только как согласованные UX-контракты и implementation epics.
+Здесь прорабатываются product authority, IA и пользовательские потоки; foundation определяет технические gates.
+Исполнение идёт только через общий roadmap, а не через две независимые последовательности.
 
 Запрещено в рамках discovery:
 
@@ -111,8 +115,8 @@ solo-first launch закрыты; реализация всё равно нач�
 - `UX07_PROTOTYPE_INDEX.md`, `UX07_USABILITY_FINDINGS.md` и `ux07-prototype/index.html` — навигируемый прототип
   ключевых сценариев и наблюдения по нему;
 - `UX07_INDEPENDENT_AUDIT.md` — historical pre-ruling visual/usability PASS and seals; current acceptance superseded;
-- `IMPLEMENTATION_ROADMAP.md` — независимо проверенный roadmap из 19 зависимых стадий, обновлённый под solo-first
-  launch;
+- `IMPLEMENTATION_ROADMAP.md` — binding roadmap: existing U-stage DAG plus owner-review correction program C0-C7
+  and residual structured-identity stage C2F;
 - `UX09_INDEPENDENT_AUDIT.md` — исторический PASS pre-ruling owner packet/roadmap; актуальный полный
   cross-contract audit записан в `LOG.md`;
 - `LOG.md` — журнал фактов, решений и проверок.

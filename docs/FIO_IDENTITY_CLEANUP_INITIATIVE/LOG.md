@@ -1,5 +1,32 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-18 — Owner Review TEST Apply And Residual Scope
+
+- Confirmed that the structured FIO core commits are already ancestors of `feat/doctor-ui-rebuild`; there is no
+  separate committed FIO branch left to merge.
+- Taskdb `#849` records the owner-reviewed TEST apply. Aggregate result:
+  - 165 rows updated;
+  - 3 rows already matched;
+  - 1 missing row skipped;
+  - 1 row changed after review and was not overwritten.
+- Production backfill has not been executed.
+- The authoritative owner-review workbook, its local CSV projection, and TEST before/after audit remain ignored
+  local PII artifacts. Their rows are not reproduced in repository documentation. A future production apply must
+  verify the exact artifact, build a current preview, and receive a separate owner approval; parser guesses may not
+  replace reviewed decisions.
+- Reopened the initiative through residual phases without changing owner-only acceptance of historical task `#24`:
+  structured patient/specialist registration writers, remaining provider writers, display cleanup, production
+  closeout, legacy fallback audit, and runtime parser retirement.
+- Residual task mapping: `#855` = structured registrations (Phase 6); `#856` = writers/provider priority + display
+  (Phases 7-8); `#857` = owner-gated production closeout (Phase 9); `#858` = legacy audit + runtime parser retirement
+  (Phases 10-11). Task `#849` remains TEST apply evidence only.
+- Moved booking lifecycle notification templates out of the FIO completion gate into the notification workstream.
+- Four uncommitted helper scripts found in the old worktree are not treated as a mergeable branch. They require a
+  separate safety decision before integration because the draft apply flow does not fully enforce current-preview
+  approval, stale-row protection, pre-commit rollback durability, and PII-free output.
+- Independent read-only safety audit: agent-port run `bcb-fio-integration-audit-20260718b` (`gpt-5.6-terra`, high),
+  verdict verified; none of the four draft helpers is safe to integrate unchanged.
+
 ## 2026-07-02 — Backfill Infrastructure
 
 - Added local-only Zenodo dataset downloader:

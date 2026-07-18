@@ -1,5 +1,10 @@
 # Store P0 — entitlement foundation (dormant, backward-compatible)
 
+> **Статус:** historical P0 checklist, не текущий product plan. Реализованные schema/resolver facts переиспользуются,
+> но product defaults, конечный mechanic list и `manual tariff / no billing` заменены
+> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> и [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md).
+
 Owner model (2026-07-13): **tariff → entitlements (per-mechanic toggles) → clinic**; prices + inclusions are
 ADMIN-CONFIGURED DATA. Decisions: no real billing yet (admin manually assigns tariff); tariff sets defaults + PER-CLINIC
 OVERRIDE; full per-mechanic constructor; store packages admin-curated only. Build SELF/Sol, NOT Codex. Adversarial

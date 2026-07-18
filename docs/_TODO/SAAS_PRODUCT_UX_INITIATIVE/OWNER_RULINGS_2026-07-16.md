@@ -1,10 +1,15 @@
 # Решения владельца по SaaS Product UX — 2026-07-16
 
+> **Authority scope:** этот dated ruling действует только в части, не изменённой более поздним
+> [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). Формулировки ниже про `0 pending`, solo scope и
+> future clinic относятся к пакету 16.07 и не отменяют решения 18.07 о clinic entitlement/seats, settings, billing,
+> libraries и текущих TEST corrections.
+
 **Статус:** уточнения владельца от 2026-07-16 интегрированы и подтверждены полным независимым re-audit
 `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Implementation не начиналась; для
 solo-first launch осталось `0` pending owner product decisions.
 
-**Приоритет:** это высший product/UX authority внутри `SAAS_PRODUCT_UX_INITIATIVE` и он побеждает более старые
+**Приоритет на дату 16.07:** документ побеждает более старые
 requirements, operating models, journeys, branding candidates, IA, prototypes и audits. Foundation owner rulings
 2026-07-15 сохраняют приоритет в foundation/tenant/enforcement scope; этот документ их не переопределяет.
 

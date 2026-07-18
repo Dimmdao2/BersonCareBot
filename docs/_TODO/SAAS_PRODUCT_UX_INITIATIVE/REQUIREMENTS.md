@@ -1,7 +1,9 @@
 # Requirements — SaaS Product UX
 
 **Authority:** производный contract. При конфликте побеждает
-[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md); Foundation rulings сохраняют приоритет в своём scope.
+[`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md) в изменённом product/UX scope, затем
+[`OWNER_RULINGS_2026-07-16.md`](./OWNER_RULINGS_2026-07-16.md) в неизменённой области; Foundation rulings сохраняют
+приоритет в своём tenant/enforcement scope. Этот файл не является отдельным источником новых решений.
 
 ## 1. Исходная задача владельца
 

@@ -1,5 +1,11 @@
 # Doctor cabinet — pages rebuild (phase after patient-card)
 
+> **Статус:** historical implementation map. Старые targets для Content, Courses, Settings и Communications не
+> являются execution authority после
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md).
+> Уникальные сведения о существующих routes/components можно переиспользовать; решения и acceptance берутся из
+> owner-review и `IMPLEMENTATION_ROADMAP.md` C0-C7.
+
 Working branch: `claude/doctor-pages-rebuild` (worktree `.claude/worktrees/doctor-pages`,
 based on `feat/doctor-ui-rebuild`). Source of truth = owner backlog (Notion «Кабинет
 доктора — пересборка страниц 2026-06-13/14») + in-repo wireframe

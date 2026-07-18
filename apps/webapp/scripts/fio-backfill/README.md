@@ -53,11 +53,40 @@ Use the extracted JSONL files only for dry-run scoring of existing names:
 2. parse into `last_name`, `first_name`, `patronymic`;
 3. assign confidence and source priority;
 4. write a review report under `.tmp/fio-backfill/reports/`;
-5. apply only reviewed high-confidence changes in a separate `--commit` pass.
+5. keep the scorer dry-run only; a reviewed write is a separate Phase 9 operation with its own manifest and gates.
 
 The future product path should not depend on this dataset: new registrations
 and booking forms should collect surname, given name, and patronymic as separate
 fields.
+
+## Reviewed apply status and safety gate
+
+The owner-reviewed artifact was applied and checked on TEST under taskdb `#849`.
+Production was not changed. Aggregate TEST result: 165 updated, 3 already
+matched, 1 missing, and 1 changed-after-review row intentionally not
+overwritten.
+
+There is currently no committed production-safe apply command. Draft helpers
+from an old worktree are not canonical: hostname/localhost is not an environment
+guard on this host, they do not provide sufficient stale-row protection, and
+their rollback artifact is written too late.
+
+Before adding a production apply entrypoint, Phase 9 of
+`.cursor/plans/fio_identity_cleanup.plan.md` requires all of the following:
+
+- immutable versioned reviewed manifest with unique IDs, explicit approval,
+  expected-before snapshots, run ID, and hash;
+- exact `current_database()` target verification for dev/test/production;
+- canonical host backup and a durable local `0600` rollback artifact before
+  commit;
+- conditional apply and conditional rollback so later edits are not
+  overwritten;
+- no patient names or other PII in stdout;
+- current preview approved separately by the owner before production mutation.
+
+The reviewed XLSX/CSV/JSON, previews, decisions, and before/after artifacts stay
+under ignored local storage and must never be committed. Owner-reviewed decisions
+must not be recalculated by the parser.
 
 ## Source audit
 

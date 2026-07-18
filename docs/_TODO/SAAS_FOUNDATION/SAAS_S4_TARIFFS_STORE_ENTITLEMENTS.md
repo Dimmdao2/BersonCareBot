@@ -2,6 +2,9 @@
 
 > План этапа 4 из [`SEQUENCE.md`](./SEQUENCE.md). При конфликте старых формулировок с
 > [`OWNER_RULINGS_2026-07-15.md`](./OWNER_RULINGS_2026-07-15.md) приоритет имеют дословные рулинги владельца.
+> Для product/commercial scope последняя обязательная delta —
+> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §§P1-P5, 13, 15. Она побеждает старые defaults и варианты, не меняя foundation safety gates.
 > Этот файл задаёт только работу для полностью функционирующей системы на тестовом сервере.
 
 ## 0. Результат
@@ -13,8 +16,10 @@
 Поверх него работают:
 
 - global_admin-конструктор тарифов, цен, состава механик и точечных override для клиники;
-- магазин курируемых пакетов упражнений, где купленный пакет и собственные упражнения клиники сосуществуют;
-- org-facing биллинг, достроенный поверх существующих PSP adapters, payment intents, refunds и webhook verification;
+- boolean entitlements, numeric/unlimited quotas, настраиваемая trial-policy и clinic seats/add-ons;
+- три режима упражнений: own-only, новая platform base library и независимо подключаемый позднее store;
+- два billing surface: global platform operations и org-facing «Тариф и биллинг», достроенные поверх существующих
+  PSP adapters, payment intents, refunds и webhook verification;
 - аналитика по клиникам как клиентам платформы: биллинг, агрегированное использование и общая нагрузка;
 - существующие пациентские абонементы без повторной реализации.
 
@@ -36,9 +41,15 @@
 | Персональная аналитика пациентов чужих клиник, выполнение упражнений и переписка не входят в platform view | [`OWNER_RULINGS_2026-07-15.md:50-63`](./OWNER_RULINGS_2026-07-15.md) |
 | Точный набор метрик определяется в конце | [`OWNER_RULINGS_2026-07-15.md:60-63`](./OWNER_RULINGS_2026-07-15.md) |
 | Система абонементов существует; сначала проверить наличие кнопки пересчёта | [`OWNER_RULINGS_2026-07-15.md:115-120`](./OWNER_RULINGS_2026-07-15.md) |
+| Названия/число тарифов не фиксируются; global admin собирает их из boolean mechanics и quotas | [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md) §P1 |
+| Trial ссылается на выбранный управляемый тариф и имеет настраиваемую длительность | тот же источник, §P2 |
+| Clinic mode и приглашённые специалисты ограничиваются entitlement/местами либо доплатой | тот же источник, §§P1,15 |
+| Exercise model = own-only / новая base library / future store; owner-clinic content не становится global | тот же источник, §P4 |
+| Billing принадлежит организации; нужны отдельные global-operator и org-payer surfaces | тот же источник, §§P3,15 |
 
 Порядок S4-0…S4-6 ниже — **инженерное предложение**, а не решение владельца. Он выбран по зависимостям данных:
-сначала registry и chokepoint, затем управляющий UI, store, billing, PII-free analytics и общий тестовый gate.
+сначала registry и chokepoint, затем независимо активируемые tariff/ownership/billing/analytics branches. Future
+store исполняется только после отдельной активации C5D и не является промежуточным gate для billing или launch.
 
 ### Инженерный канон исполнения
 
@@ -98,19 +109,38 @@
 
 ## 4. Порядок исполнения
 
-`S4-0 → S4-1 → S4-2 → S4-3 → S4-4 → S4-5 → S4-6`
+```text
+S4-0 -> S4-1 -> S4-2 ---------------------------> S4-6(included scope)
+          +----> C4D own/base ownership --------> S4-6(included scope)
+          +----> S4-4/C5B billing -> S4-5/C6 ---> S4-6(included scope)
+          +----> S4-3/C5D future store (deferred, explicit activation only)
+```
 
 - S4-0 фиксирует полный registry и ownership/data contracts.
 - S4-1 создаёт один проверяемый entitlement boundary.
-- S4-2 даёт global_admin управление тарифами и override.
-- S4-3 строит store grants без копирования контента.
-- S4-4 подключает существующий PSP foundation к SaaS billing и store orders.
+- S4-2 даёт global_admin управление тарифами, quotas, trial-policy, clinic seats и overrides.
+- C4D сначала доказывает own/base ownership. S4-3 добавляет future store grants только после отдельного C5D gate.
+- S4-4 подключает существующий PSP foundation к двум SaaS billing surfaces; store orders — отдельное C5D extension.
 - S4-5 создаёт PII-free aggregate boundary; точные метрики утверждаются только в конце этапа.
 - S4-6 доказывает весь контур на тестовом сервере.
 
 Каждый checkbox закрывается записью: **изменение · точные `file:line` после изменения · доказательство и результат**.
 Если новый файл ещё не существует, стартовой точкой служит указанный существующий anchor, а окончательные строки
 фиксируются в execution log.
+
+### Crosswalk к единственному product roadmap
+
+| S4 technical stage | Product stage |
+|---|---|
+| S4-0/S4-1 registry + chokepoint | C4A-D и C5A-D shared foundation |
+| S4-2 tariffs/quotas/trial/seats | C5A; seat enforcement C4A, commerce C5C |
+| S4-3 own/base/store grants | C4D own/base; C5D future store commerce |
+| S4-4 SaaS billing | C5B; organization tab в C3 shell |
+| S4-5 analytics | C6 |
+| S4-6 TEST proof | C7 только для фактически включённых substages |
+
+S4 — технический sub-plan, не второй источник product sequencing. Future store/course/full CMS не становятся
+launch dependencies из-за наличия checklist ниже.
 
 ## 5. S4-0 — mechanic, ownership и payment-contract inventory
 
@@ -181,6 +211,14 @@
   assign/unassign, override list/upsert/delete. Новый соседний tariffs module не создаётся.
 - [ ] Хранить name, description, `priceMinor`, currency, billing period и полный mechanic map как DB data.
   Hardcoded tier names/prices/compositions отсутствуют.
+- [ ] Registry различает boolean entitlement и numeric/unlimited quota. Для каждой quota до enforcement записаны
+  unit, reset/period, soft/hard behavior, upgrade/downgrade/overage semantics и source of usage; `null`, `0` и
+  `unlimited` не смешиваются.
+- [ ] Добавить global trial-policy: ссылка на существующий active tariff, duration и start event. `Light/Pro`, 14/30
+  дней и фиксированный стартовый состав отсутствуют. Post-trial/grace и судьба созданных данных реализуются только
+  после decision gate §13.
+- [ ] Clinic entitlement хранит included specialist seats и/или per-seat add-on policy. Team UI/API показывают
+  used/available seats; invitation проверяет limit server-side. Downgrade/overage не удаляет membership молча.
 - [ ] Валидировать mechanics только по registry S4-0; отсутствующий UI-toggle не может тихо потерять mechanic key.
 - [ ] Реализовать узкий platform write port для manual tariff assignment. До S4-4 он транзакционно меняет только
   compatibility `be_organizations.tariff_id`; S4-4 мигрирует такие назначения в source=`manual` и оставляет колонку
@@ -197,7 +235,32 @@
 
 **Выход:** тарифная сетка, цены, период, mechanics и clinic override управляются global_admin как данные.
 
-## 8. S4-3 — магазин пакетов и org grants без копирования
+## 8A. C4D — own-only и platform-base ownership (исполняется без store)
+
+- [ ] Code-search-first inventory: для exercise/template/media list, direct ID, count, search, picker, assignment и
+  playback зафиксировать ownership source и current tenant guard; неизвестный path остаётся gap, не становится global.
+- [ ] Режим `own_only` показывает organization только её exercises/templates/media и не читает owner-clinic content
+  другой organization ни через list, ни через direct ID.
+- [ ] Режим `platform_base` добавляет отдельную platform library, создаваемую с нуля global admin. Existing
+  owner-clinic exercises не мигрируют и не публикуются автоматически.
+- [ ] Global admin управляет composition platform base; тариф может включать base-library entitlement без purchase,
+  grant или store surface.
+- [ ] Publication clinic→platform отсутствует до отдельного workflow/licensing/moderation owner decision.
+- [ ] Entitlement OFF/ON/downgrade проверяется server-side и в UI. Hidden navigation не заменяет direct API/media
+  denial; current program instances не теряют canonical content без явной downgrade policy.
+- [ ] Synthetic org A/B acceptance закрывает list/direct/count/search/picker/assignment/media negatives, owner-only
+  content privacy, base visibility и отсутствие copied rows/object keys.
+- [ ] Desktop/mobile acceptance показывает own-only и own+base состояния; future store отсутствует, а не рендерится
+  пустым/сломавшимся экраном.
+
+**Выход C4D:** private organization library и новая platform base library сосуществуют без смешивания ownership;
+магазин не нужен для выполнения или приёмки этого этапа.
+
+## 8B. S4-3 — future store packages (deferred; только после активации C5D)
+
+**Execution gate:** этот checklist не берётся агентом автоматически после S4-2/C4D и не входит в launch acceptance.
+Начало разрешено только после owner decisions по commerce/licensing/moderation и явной активации C5D. До этого
+исполняются только own-only + platform-base ownership пункты C4D, перечисленные в общем roadmap.
 
 **Стартовые точки:** [`schema.ts:906-1023`](../../../apps/webapp/db/schema/schema.ts),
 [`entitlements/ports.ts:1-20`](../../../apps/webapp/src/modules/entitlements/ports.ts),
@@ -205,7 +268,7 @@
 [`pgEntitlements.ts:9-76`](../../../apps/webapp/src/infra/repos/pgEntitlements.ts),
 [`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
-- [ ] Добавить минимальную platform package entity с commercial metadata, price/currency/access duration и ссылкой
+- [ ] После активации C5D добавить platform package entity с commercial metadata, price/currency/access duration и ссылкой
   на существующий ordered `lfk_complex_template`; exercises/media остаются canonical rows.
 - [ ] Platform package composition может ссылаться только на platform exercises/templates. Clinic-owned exercise
   create/edit/list продолжает жить в текущем LFK flow и не становится store content.
@@ -242,14 +305,15 @@
 
 - [ ] Создать отдельный `modules/saas-billing` domain с ports/service/typed state machine; он переиспользует
   `PaymentProviderPort` через DI и не импортирует infra registry напрямую.
-- [ ] Добавить минимальные org-owned records: billing account, source-aware subscription, invoice/order и normalized provider
-  event. Invoice фиксирует tariff/package, amount/currency/period snapshot; webhook event имеет provider event ID и
+- [ ] Добавить минимальные org-owned records: billing account, source-aware tariff subscription, invoice/order и
+  normalized provider event. Invoice фиксирует tariff, amount/currency/period snapshot; webhook event имеет provider event ID и
   idempotency, но не хранит patient data.
 - [ ] Перенести существующие manual `tariff_id` assignments в subscription/access rows с source=`manual`; переключить
   resolver на один access contract и проверять, что compatibility projection совпадает. Mismatch checker даёт non-zero.
-- [ ] Реализовать prepaid lifecycle `pending_payment → active → expired/cancelled` с идемпотентным повторным checkout,
-  capture, refund и периодическим expiry evaluation. Автоматическое списание без provider token contract не
-  имитируется; новый оплачиваемый период создаётся подтверждённым checkout.
+- [ ] До кода зафиксировать subscription state machine минимум для `trial/pending_payment/active/grace/past_due/
+  cancelled/expired`, allowed transitions, source event, retry/dunning и capability effect. Реализовать только
+  transitions, подтверждаемые выбранным provider contract; автоматическое списание без provider token contract не
+  имитируется.
 - [ ] Добавить global DB setting `saas_billing_payment_provider` в `ALLOWED_KEYS`, Settings UI, redaction/secret-retain
   service и sanctioned accessor; запись идёт через `updateSetting` с обычным mirror contract. Он не читает и не
   перезаписывает per-org `booking_payment_providers`.
@@ -263,17 +327,27 @@
 - [ ] Tariff capture активирует/продлевает source=`paid_subscription`; expiry/cancel/refund завершает только этот
   source. Manual global_admin assignment или более новый paid source сохраняют доступ; compatibility tariff projection
   обновляется тем же service transaction.
-- [ ] Store package capture выдаёт source-aware org grants; refund/reversal отзывают только grants этого order.
+- [ ] Не включать store-package capture в C5B acceptance. Если C5D позднее активирован, его adapter extension
+  выдаёт source-aware org grants и имеет собственный refund/reversal checklist.
 - [ ] Payment failure/expiry не затрагивают другую клинику и не удаляют clinic-owned exercises/content.
+- [ ] Global billing surface показывает organizations/payers/subscriptions, trial/grace/past_due, attempts,
+  refunds/cancellations, provider events, invoices/receipts, filters/aggregates и только безопасные PSP-supported
+  support actions. Любая mutation идемпотентна и попадает в immutable admin audit; manual «успешно оплачено» нет.
+- [ ] Organization settings tab «Тариф и биллинг» показывает current tariff/capabilities/usage/seats, next payment,
+  lifecycle status, upgrade/downgrade effect/date, add-ons, payment history and documents. Она доступна owner/payment
+  admin; ordinary invited specialist не видит tab и получает server denial.
+- [ ] B2B bank-transfer invoice/status и fiscal receipt/invoice obligations имеют provider/legal decision gate;
+  неподдержанный flow не симулируется фиктивной кнопкой.
 - [ ] Реальные provider credentials, когда владелец их предоставит, вводятся только через Settings на тестовом сервере.
   До этого architecture, mock checkout и recorded provider contract fixtures должны проходить полностью; отсутствие
   ключей не блокирует schema/service/UI/webhook implementation.
 
 **Проверка:** state-machine and idempotency tests; provider adapter contract tests; signed webhook success/replay/
-forgery/amount mismatch; tariff and package capture/refund integration; A/B authz; secret redaction scan; checkout UI.
+forgery/amount mismatch; tariff capture/refund integration; A/B authz; secret redaction scan; checkout UI. Store
+capture tests добавляются только в активированном C5D.
 
-**Выход:** клиника может оплатить тариф или отдельный package через существующий provider layer; успешное событие
-идемпотентно меняет subscription/grants, а refund корректно отзывает только свой источник доступа.
+**Выход C5B:** организация может оплатить тариф через существующий provider layer; успешное событие идемпотентно
+меняет subscription, а refund корректно отзывает только свой источник доступа. Store grants не входят без C5D.
 
 ## 10. Абонементы — факт проверен, работа закрыта
 
@@ -316,7 +390,8 @@ forgery/amount mismatch; tariff and package capture/refund integration; A/B auth
   clinic_admin A не может запросить B query/filter/direct ID.
 - [ ] До финального решения владельца UI показывает только технический preview структуры aggregate buckets без
   объявления набора KPI окончательным.
-- [ ] **ФИНАЛЬНОЕ РЕШЕНИЕ ВЛАДЕЛЬЦА:** утвердить точный список метрик и формулы после работающих tariffs/store/billing.
+- [ ] **OWNER GATE:** утвердить точный список метрик и формулы после работающих tariffs/billing/usage sources;
+  future store становится источником метрик только если C5D к тому моменту активирован.
   Кандидаты из рулинга — клиники, специалисты, клиенты как counts, загрузки видео, биллинг и использование — не
   расширяются персональными drill-down.
 - [ ] После решения реализовать только утверждённые metric keys, формулы и layout; каждый metric получает source
@@ -330,19 +405,20 @@ global_admin visual acceptance после финального metric decision.
 
 ## 12. S4-6 — интеграционная приёмка на тестовом сервере
 
-- [ ] Подготовить непересекающиеся synthetic fixtures: global_admin; clinic_admin/doctor A и B; разные tariffs/
-  overrides; platform package; grant только A; clinic-owned exercises у A и B; SaaS invoice/subscription/order.
+- [ ] Подготовить непересекающиеся synthetic fixtures только для включённых substages: global_admin;
+  clinic_admin/doctor A и B; разные tariffs/overrides; clinic-owned/base exercises; SaaS invoice/subscription/order.
+  Package/grant fixtures добавляются только если C5D явно активирован.
   Доказательство: fixture manifest без реальных PII.
-- [ ] Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, курирует package,
-  видит billing state и утверждённые aggregate metrics.
-- [ ] Clinic A проходит checkout mock/recorded-provider flow, получает tariff/package access и продолжает видеть свои
-  clinic exercises отдельно от store content.
-- [ ] Clinic B не видит tariff override, invoice, grant, package/content/media или analytics A; её собственные
+- [ ] Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing
+  state и утверждённые aggregate metrics. Package curation проверяется только в C5D acceptance.
+- [ ] Clinic A проходит checkout mock/recorded-provider flow, получает tariff access и продолжает видеть свои
+  clinic exercises отдельно от platform base content.
+- [ ] Clinic B не видит tariff override, invoice или analytics A; её собственные
   exercises и mechanics работают по её tariff.
 - [ ] Payment negatives: duplicate checkout/webhook, forged signature/org ID, wrong amount/currency, unknown provider
   ref, refund replay. Ни один отказ не меняет subscription/grant.
-- [ ] Entitlement/store negatives: unauthenticated, doctor вместо global_admin, direct IDs, expired/revoked grant,
-  mechanic OFF with active package grant.
+- [ ] Entitlement negatives обязательны. Store direct-ID/expired-grant/mechanic-vs-grant negatives добавляются только
+  для активированного C5D.
 - [ ] Analytics negatives: platform JSON/schema/visual artifacts не содержат patient identity, message text,
   exercise execution details или clinic drill-down rows; clinic A не получает B.
 - [ ] UI-фазы получают desktop/mobile screenshots; executor, independent audit и fixer закрывают один и тот же
@@ -350,28 +426,35 @@ global_admin visual acceptance после финального metric decision.
 - [ ] После всех фаз выполнить один финальный `pnpm install --frozen-lockfile && pnpm run ci`; повторять полный gate
   без изменений кода не требуется.
 
-**Выход:** tariffs, one chokepoint, store, real-provider-ready SaaS billing, безопасная analytics и coexistence с
-clinic exercises работают на тестовом сервере для A/B.
+**Выход:** включённые substages — tariffs, one chokepoint, own/base ownership, real-provider-ready SaaS billing и
+безопасная analytics — работают на TEST для A/B. Store не симулируется и не требуется, пока C5D deferred.
 
-## 13. Единственные открытые решения владельца
+## 13. Decision gates, не общий стоп инициативы
 
-1. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА:** как выглядит ручная «покупка» store package, пока PSP keys ещё не переданы:
-   отдельное действие global_admin, clinic_admin request с последующим подтверждением или другой UX. Foundation
-   order/grant API не угадывает этот интерфейс; tariff-included path и PSP checkout path строятся независимо.
-2. **ТРЕБУЕТСЯ РЕШЕНИЕ ВЛАДЕЛЬЦА В КОНЦЕ:** точный набор metric keys, formulas и layout platform analytics.
+1. Для каждой quota: unit/period, soft или hard limit, overage и downgrade behavior.
+2. Trial start event, post-trial/grace и судьба созданных branding/content/data при снижении тарифа.
+3. Первый PSP для SaaS billing и реально поддержанные им recurring/retry/refund/receipt/B2B operations. Provider
+   choice не блокирует ownership, state-machine design, mock/recorded contracts и UI IA.
+4. Store package commerce: manual bootstrap до PSP, разовая покупка, допподписка или обе модели; publisher,
+   moderation, licensing и payouts. Base library и own-only mode не ждут store model.
+5. Clinic seats: included count, per-seat price, purchase moment и policy для existing over-limit memberships.
+6. В конце работающего billing/usage foundation — точные metric keys, formulas, windows и platform analytics layout.
 
-Все остальные детали этого плана — инженерная работа. Порядок фаз, table/route names, state machine, provider
-contract, grant lifecycle, default compatibility и DB-role implementation не подписываются именем владельца и не
-останавливаются вопросом к нему.
+Инженерные детали не подписываются именем владельца. Открытый gate блокирует только зависимую ветку: он не
+разрешает агенту угадать policy и не останавливает независимые registry/chokepoint/ownership/test slices.
 
 ## 14. Definition of Done
 
-- [ ] Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md` либо непереопределённую Часть Б
-  `OWNER_DECISIONS_FOR_REVIEW.md`; инженерные решения подписаны как инженерные.
+- [ ] Каждая owner attribution ссылается на `OWNER_RULINGS_2026-07-15.md`, непереопределённую Часть Б
+  `OWNER_DECISIONS_FOR_REVIEW.md` либо latest `OWNER_REVIEW_2026-07-18.md`; инженерные решения подписаны как
+  инженерные.
 - [ ] Полный mechanic registry доказан method-level matrix; все protected actions используют один chokepoint.
-- [ ] Global_admin управляет tariffs/prices/periods/mechanics/assignments/overrides как DB data.
-- [ ] Store packages и clinic-owned exercises сосуществуют; grants source-aware; canonical content/media не копируются.
+- [ ] Global_admin управляет tariffs/prices/periods/mechanics/quotas/trial/seats/assignments/overrides как DB data.
+- [ ] Own-only и base library разведены, clinic content приватен. Если C5D активирован, future store/grants проходят
+  отдельный source-aware/no-copy acceptance; иначе этот подпункт явно отмечается deferred, не failed.
 - [ ] Existing provider adapters обслуживают SaaS checkout/capture/refund/webhook; keys DB-backed и redacted.
+- [ ] Global operator billing и organization «Тариф и биллинг» имеют разные authorization surfaces и общий
+  reconciled ledger; ordinary specialist не получает финансовые права.
 - [ ] Platform analytics содержит только утверждённые org/platform aggregates и проходит PII canary/static gate.
 - [x] Bulk «Пересчитать» в memberships подтверждён существующим UI, route, service, tests и DB invariant.
 - [ ] A/B acceptance, security negatives, screenshots/audits и один финальный CI gate закрыты на тестовом сервере.

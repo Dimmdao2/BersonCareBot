@@ -1,6 +1,6 @@
 ---
 name: FIO Identity Cleanup
-overview: Master execution plan for structured patient FIO, Rubitime-first backfill, booking form cleanup, merge priority, and lifecycle notification templates.
+overview: Execution plan for structured identity writers, FIO display cleanup, owner-gated production backfill, legacy audit, and runtime parser retirement.
 isProject: true
 todos:
   - id: fio-0
@@ -22,19 +22,30 @@ todos:
     content: Update merge/projection/OAuth/messenger priority so stronger FIO sources cannot be overwritten.
     status: completed
   - id: fio-6
-    content: Apply reviewed high-confidence backfill on dev/test with audit artifact and manual spot-checks.
+    content: Make patient email and specialist/clinic registrations write structured FIO and derived display_name.
     status: pending
   - id: fio-7
-    content: Move doctor and patient displays to structured FIO helpers while keeping display_name compatibility.
+    content: Audit/correct remaining manual, booking, provisioning, OAuth, Telegram, and MAX writers.
     status: pending
   - id: fio-8
-    content: Extend booking lifecycle notification settings with per-channel templates and verified-email delivery.
+    content: Move doctor and patient displays to structured FIO helpers while keeping display_name compatibility.
+    status: pending
+  - id: fio-9
+    content: Run current-preview and separately owner-approved production backfill with drift and rollback gates; TEST evidence is already complete.
+    status: pending
+  - id: fio-10
+    content: Audit active legacy rows and all consumers that parse display_name into FIO.
+    status: pending
+  - id: fio-11
+    content: Retire runtime parser fallback only after registration, production, and legacy-audit gates pass.
     status: pending
 ---
 
 # FIO Identity Cleanup
 
-Canonical plan: `docs/FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`.
+Owner requirements authority: `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §19.
+
+Initiative overview/status: `docs/FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`.
 
 ## Execution Principle
 
@@ -50,9 +61,19 @@ The work is intentionally ordered so product behavior changes happen only after 
 - [x] Dry-run report proves which users can be safely backfilled.
 - [x] Booking form collects surname and given name as required fields and prefills known phone/email.
 - [x] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
-- [ ] Backfill apply writes only reviewed high-confidence rows and emits an audit artifact.
+- [x] Owner-reviewed backfill was transactionally applied and checked on TEST only.
+- [ ] Patient email registration writes required `last_name` + `first_name`, optional `patronymic`, and derives
+      `display_name`.
+- [ ] Specialist/clinic registration writes structured specialist FIO without mixing it with organization name.
+- [ ] Every remaining writer/provider path preserves strong structured FIO and exposes unresolved conflicts.
 - [ ] Doctor surfaces use full FIO; patient surfaces use first name.
-- [ ] Booking lifecycle templates are editable through DB-backed settings, not env.
+- [ ] Production backfill has current-copy preview, explicit owner approval, transactional apply, rollback artifact,
+      post-apply audit, and UI spot-check.
+- [ ] Active consumers no longer require `display_name -> FIO` parsing; only then is the runtime parser fallback
+      removed with regression tests.
+
+Booking lifecycle notification templates are a separate notification workstream and do not block structured
+identity completion.
 
 ## Scope
 
@@ -73,9 +94,9 @@ Allowed:
   - `apps/webapp/src/modules/booking-notifications/**`
   - `apps/integrator/src/integrations/rubitime/**`
 
-Out of scope unless explicitly added later:
+Out of scope unless explicitly added later or opened by the named owner gate:
 
-- production DB writes;
+- production DB writes before the Phase 9 owner gate;
 - removing `display_name` from schema;
 - committing downloaded or derived large dictionary files;
 - multi-tenant identity policy;
@@ -248,7 +269,8 @@ Status: completed.
 Actions:
 
 - Add `apps/webapp/scripts/fio-backfill/backfill-platform-user-fio.ts`.
-- Default mode is dry-run. `--commit` must not exist until Phase 6.
+- The Phase 3 scorer remains dry-run only. Any write entrypoint belongs to Phase 9 and must satisfy its independent
+  manifest, target, backup, owner-approval, drift, and rollback gates.
 - Load local dictionaries from `.tmp/fio-backfill/russiannames/jsonl/`.
 - Collect candidates per user from:
   - Rubitime appointment payloads and `contact_name`;
@@ -402,32 +424,49 @@ Validation run:
 - `bash /home/dev/orch/run-tests.sh "pnpm --dir apps/webapp exec eslint src/infra/repos/pgUserProjection.ts src/infra/repos/pgUserProjection.repo.test.ts src/infra/repos/autoMergeScalarEffective.ts src/infra/repos/autoMergeScalarEffective.test.ts src/infra/platformUserMergePreview.ts src/infra/platformUserMergePreview.test.ts"`
 - `bash /home/dev/orch/run-tests.sh "pnpm --dir packages/platform-merge run typecheck"`
 
-## Phase 6 — Reviewed Backfill Apply
+## Phase 6 — Structured FIO At Identity Creation
+
+Status: pending.
 
 Goal:
 
-Apply only safe reviewed changes.
+Stop creating new ambiguous identities before completing migration cleanup.
 
 Actions:
 
-- Add `--commit` to the Phase 3 script only after dry-run review.
-- Require input report id/path and confidence filter.
-- Refuse production-looking DB URLs.
-- Update only targeted fields:
-  `last_name`, `first_name`, `patronymic`, and derived `display_name` if compatibility requires it.
-- Write audit artifact with before/after under `.tmp/fio-backfill/applied/`.
-
-Validation:
-
-- Transactional dev/test apply.
-- Post-apply read-only diff report.
-- Manual spot-check in doctor clients and patient profile.
+- Patient email registration accepts separate `lastName`, `firstName`, and optional `patronymic`; surname and given
+  name are required.
+- Derive `display_name` as a compatibility projection. Do not accept it as the source of truth in owned registration
+  flows.
+- Specialist/clinic registration accepts structured specialist FIO and keeps organization name as a separate value.
+- Preserve provisioning intent, membership, and specialist-profile contracts.
+- Update UI, API schemas, domain types, ports, repository write paths, and focused tests using existing columns only.
 
 Gate:
 
-- Backfill result is auditable and reversible from artifact.
+- Patient and specialist registration tests prove required surname/given name, optional patronymic, derived
+  `display_name`, and no organization/specialist name mixing.
 
-## Phase 7 — Display Cleanup
+## Phase 7 — Remaining Writers And Provider Priority
+
+Status: pending audit/correction.
+
+Goal:
+
+Make every runtime identity writer respect the same source-priority contract.
+
+Actions:
+
+- Audit manual edit, booking, provisioning, OAuth, Telegram, and MAX write paths.
+- Provider names are weak hints: fill only empty fields and never overwrite manual/booking/Rubitime FIO.
+- Keep provider conflicts visible for manual resolution; do not guess through a silent overwrite.
+- Preserve `display_name` only as a derived compatibility field/fallback.
+
+Gate:
+
+- Contract and regression tests cover every writer and prove weak providers cannot degrade strong structured FIO.
+
+## Phase 8 — Display Cleanup
 
 Goal:
 
@@ -439,11 +478,14 @@ Actions:
   - client list;
   - patient card;
   - appointments;
+  - communications;
+  - search;
   - broadcasts/audience previews where patient labels appear.
 - Patient surfaces use first-name helper:
   - shell greeting;
   - profile hero;
   - booking prefill.
+- Booking prefill uses structured fields directly when present and does not invoke a parser for those rows.
 - Keep `display_name` fallback while legacy rows exist.
 - Do not remove `display_name` schema.
 
@@ -457,41 +499,82 @@ Gate:
 
 - Doctor sees full FIO where available; patient sees given name.
 
-## Phase 8 — Booking Lifecycle Templates And Verified Email
+## Phase 9 — Production Backfill Closeout
 
 Goal:
 
-Make booking notifications configurable and send email only when safe.
+Apply only the owner-reviewed decisions to production through a separately approved data operation.
 
 Actions:
 
-- Extend existing `booking_lifecycle_notifications` in `system_settings`.
-- Do not add env vars.
-- Add per-event/per-channel template fields for:
-  - messenger;
-  - email;
-  - SMS;
-  - web push where applicable.
-- Template variables:
-  `{patientFirstName}`, `{patientFullName}`, `{date}`, `{time}`, `{service}`, `{branch}`, `{address}`, `{manageUrl}`.
-- Verified email rule:
-  send booking-created email only when canonical user has `email_verified_at IS NOT NULL`.
-- Move hardcoded lifecycle text behind template rendering incrementally.
+- Preserve the owner-reviewed artifact as authoritative input; never recompute its decisions with the parser.
+- Resolve the two TEST exceptions: one missing identity and one row changed after review and intentionally not
+  overwritten.
+- Build a preview from an up-to-date production copy and emit a redacted aggregate plus local PII audit artifact.
+- Require explicit owner approval of that exact preview artifact before production apply.
+- Use one canonical apply entrypoint with an immutable reviewed manifest: schema/version, unique IDs, explicit
+  approval, expected-before snapshot, run ID and hash. Do not commit the draft XLSX generator/extractor.
+- Verify exact `current_database()` against an explicit dev/test/production target; localhost is not proof of DEV.
+- Before mutation, verify the canonical host backup/runbook gate and create a durable `0600` rollback manifest.
+- Apply in one transaction with conditional expected-before updates, abort/skip accounting for drift, and no PII
+  console samples. Rollback is conditional on the recorded post-apply state and must not overwrite later edits.
+- Run post-apply reconciliation and selective doctor/patient UI checks.
+- Keep XLSX, CSV, decisions, backups, and before/after audit files under ignored local storage; never commit them.
 
 Validation:
 
-- Settings parser tests.
-- Template renderer tests.
-- Integrator lifecycle tests for channel branches.
-- Dev/test delivery safety only through existing redirect protections.
+- Preview/apply/rollback contract tests against an isolated database fixture.
+- Exact target database and mode guards.
+- Malformed/duplicate manifest rejection; transaction rollback, stale-row abort/skip, rollback-conflict, and
+  pre-commit artifact failure tests.
+- Post-apply aggregate reconciliation and owner-selected UI spot-check.
 
 Gate:
 
-- Doctor can edit lifecycle notification templates in settings.
-- Booking-created email is attempted only for verified emails.
+- Production mutation remains blocked until the owner explicitly approves the current preview.
+
+## Phase 10 — Legacy Fallback Audit
+
+Status: pending after Phase 9.
+
+Actions:
+
+- Audit active identities for missing structured fields.
+- Search every consumer that parses `display_name` and classify it as migrated, required legacy fallback, or dead
+  code.
+- Confirm all owned registrations, booking, manual edit, provisioning, OAuth/Telegram/MAX, and production backfill
+  gates are complete.
+
+Gate:
+
+- No active identity requires parsing `display_name` to recover structured FIO, and no consumer silently relies on
+  that parser.
+
+## Phase 11 — Runtime Parser Retirement
+
+Status: blocked by Phase 10 evidence.
+
+Actions:
+
+- The dictionary-backed one-off backfill parser may be retired after migration closeout; it is not a runtime
+  dependency.
+- Remove runtime `display_name -> FIO` fallback only after every Phase 10 gate passes.
+- Search all call sites, remove dead compatibility branches, and add regression tests for doctor full-FIO labels,
+  patient first-name greetings, and booking prefill.
+
+Gate:
+
+- Structured fields are the sole source of truth for active identities; `display_name` remains only a compatibility
+  label where schema/API compatibility still requires it.
+
+## Separate Notification Track
+
+The former Phase 8 (booking lifecycle templates and verified-email delivery) belongs to the notification roadmap.
+It must continue to use DB-backed `system_settings`, but it neither proves nor blocks completion of structured FIO.
 
 ## Final Acceptance
 
-- Taskdb `#24` can be `done` only after phases implemented and targeted validation is recorded.
+- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. It does not close Phases 6-11;
+  those phases use residual taskdb `#855`-`#858` (TEST evidence remains `#849`).
 - `accepted` remains owner-only.
 - Full CI is run only when explicitly preparing push or when repo-wide changes justify it.

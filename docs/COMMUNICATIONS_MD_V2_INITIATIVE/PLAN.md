@@ -1,5 +1,12 @@
 # COMMUNICATIONS_MD_V2 — План выполнения (для агентов sonnet)
 
+> **Статус:** завершённый historical plan, не текущий UI contract. Последний owner-review
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §§5-8 заменяет конфликтующие решения: desktop split ≈50/50; comments без выбранного клиента имеют корректный
+> empty state; `Непрочитанные` и `На сопровождении` — независимые toggles без дублей; intake statuses —
+> взаимоисключающий single-select, не мультитоггл; broadcast expanded row занимает собственную высоту. Новая работа
+> идёт по roadmap C1/taskdb `#852`, а старые ✅ ниже доказывают только прежний scope.
+
 ---
 
 ## Статус выполнения (2026-06-13)

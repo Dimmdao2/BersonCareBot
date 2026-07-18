@@ -1,4 +1,10 @@
-# Store / Tariff / Entitlements — RIGID execution plan (for desktop Codex)
+# УСТАРЕЛ / SUPERSEDED — Store / Tariff / Entitlements execution plan
+
+> **Не исполнять как текущий план.** P0 facts могут использоваться как historical implementation evidence.
+> Актуальные требования: [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §P4; актуальная декомпозиция: [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md)
+> и `IMPLEMENTATION_ROADMAP.md` stage C4/C5. Manual-tariff/no-billing first cut и конечный boolean mechanic list
+> больше не являются product contract; store — future capability, own/base library должны работать независимо.
 
 Owner model (2026-07-13): **tariff → entitlements (per-mechanic toggles) → clinic**. Prices + inclusions are
 ADMIN-CONFIGURED DATA (never hardcoded). Decisions: no real billing in the first cut (admin manually assigns a tariff);

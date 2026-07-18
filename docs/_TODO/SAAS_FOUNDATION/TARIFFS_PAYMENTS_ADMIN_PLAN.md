@@ -2,6 +2,13 @@
 
 > Статус: **план; код/схема/конфиг этим документом не менялись.** DOCS-ONLY проход, реальность проверена
 > `code-search`/точечным чтением 2026-07-17. Реализация — отдельный проход по чек-листам ниже.
+>
+> **Обязательная delta 2026-07-18:** перед реализацией этот checklist читается вместе с
+> [`../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §§P1-P3,15 и [`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md`](./SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md). Утверждения ниже
+> про конечный boolean list, отсутствие открытых вопросов или узкий prepaid billing устарели. Канон: произвольные
+> тарифы, boolean+quota registry, trial-policy, clinic seats, global billing operations и organization
+> «Тариф и биллинг»; policy/PSP gates блокируют только зависимые branches.
 
 ## 0. Провенанс и re-scope
 
@@ -32,63 +39,64 @@
 - Правило прода: только «взять свежий дамп» может встречаться в планах — [`OWNER_RULINGS_2026-07-15.md:118-124`](./OWNER_RULINGS_2026-07-15.md).
   Весь документ ниже — **только тестовый сервер** (`bersoncarebot_test`, https://test.bersoncare.ru).
 
-**Хорошая новость для этого re-scope:** оба «требуется решение владельца» пункта из S4-doc §13 (ручная покупка
-store-пакета без ключей; точный набор метрик аналитики) относятся к S4-3/S4-5 — оба **вне scope** этого документа.
-В границах #751 (тарифы + оплата + admin-грид) **нет ни одного открытого вопроса владельцу** — весь список ниже
-инженерный.
+**Historical note 17.07:** на тот момент оба известных вопроса S4 относились к store/analytics вне #751. Это больше
+не текущий gate statement. Owner-review 18.07 добавил для #751 quota semantics, trial end/start, clinic seats,
+первый PSP и billing lifecycle/operations decisions. Независимые registry/chokepoint/ownership slices остаются
+инженерными; зависимые branches не исполняются по догадке.
 
 ## 0a. UX/IA канон (мёрджнут в feat вчера, commit `12cdef5d6`) — обязателен для UI-фаз
 
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/` — аудированный product/UX canon, отдельная иерархия приоритета от
-foundation-рулингов: [`OWNER_RULINGS_2026-07-16.md:7-9`](../../SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md)
-прямо пишет, что этот пакет — «высший product/UX authority» для UI/IA-вопросов, а `OWNER_RULINGS_2026-07-15.md`
+foundation-рулингов: latest authority
+[`OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md) побеждает изменённый
+product/UX scope, `OWNER_RULINGS_2026-07-16.md` действует в остальной области, а `OWNER_RULINGS_2026-07-15.md`
 сохраняет приоритет в foundation/tenant/enforcement scope. Они не конфликтуют — governance разных доменов
 (architecture/tenant vs UI/IA), обе стороны обязательны для этого документа.
 
 Зоны, применимые к тарифам/оплате/admin-гриду (`ROLE_CAPABILITY_MATRIX.md`, `TARGET_IA.md`, `ROUTE_MIGRATION_MAP.md`):
 
 - **`PLAT-02` Organizations** — «Search, organization detail, lifecycle, **entitlement/tariff assignment**» —
-  [`TARGET_IA.md:84,182`](../../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Global-admin назначение тарифа клинике.
+  [`TARGET_IA.md:84,182`](../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Global-admin назначение тарифа клинике.
 - **`PLAT-03` Commercial** — «Plans, tariffs, usage, billing exceptions… contract actions audited; no clinical
-  authority implied» — [`TARGET_IA.md:85,183`](../../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Конструктор
+  authority implied» — [`TARGET_IA.md:85,183`](../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Конструктор
   тарифов/цен/mechanics-грид.
 - **`PLAT-05` Configuration** — «Platform integrations… platform defaults; DB-backed settings and secret-safe
-  states» — [`TARGET_IA.md:87,185,205`](../../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Новый глобальный ключ
+  states» — [`TARGET_IA.md:87,185,205`](../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Новый глобальный ключ
   `saas_billing_payment_provider` (Phase 4) живёт здесь, не в org-owned booking payments.
 - **`MGMT-08` Plan, usage and billing** — «Current plan, limits, invoices, recovery | Owner; delegated view/pay if
-  explicitly allowed» — [`TARGET_IA.md:99,206`](../../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Клиника видит свой
+  explicitly allowed» — [`TARGET_IA.md:99,206`](../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Клиника видит свой
   тариф/usage/инвойсы и платит — это **другая** поверхность, внутри обычного tenant-дерева `/app/doctor/**`, не
   внутри platform shell.
 - **Разделение org vs platform payment config уже канонизировано:** `ROUTE_MIGRATION_MAP.md` строка **S25** —
   текущая `admin/booking/payments/page.tsx` расщепляется на MGMT-03 booking + MGMT-07 integrations + **PLAT-05
   legacy/platform ops**, явно: «Organization ownership first; Rubitime/platform controls must not leak into
-  ordinary setup» — [`ROUTE_MIGRATION_MAP.md:64`](../../SAAS_PRODUCT_UX_INITIATIVE/ROUTE_MIGRATION_MAP.md). Это
+  ordinary setup» — [`ROUTE_MIGRATION_MAP.md:64`](../SAAS_PRODUCT_UX_INITIATIVE/ROUTE_MIGRATION_MAP.md). Это
   подтверждает инвариант §3/§5.4 ниже: `booking_payment_providers` (org) и `saas_billing_payment_provider`
   (platform) — разные identity, не смешивать.
 - **Platform admin = отдельный shell, НЕ расширенный doctor-сайдбар:** «Platform administration uses a separate
   shell and route namespace. It is never an expanded clinical sidebar» /
   «Global admin has its own platform shell and never inherits clinical navigation» —
-  [`TARGET_IA.md:177,328`](../../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Это меняет план размещения нового UI в
+  [`TARGET_IA.md:177,328`](../SAAS_PRODUCT_UX_INITIATIVE/TARGET_IA.md). Это меняет план размещения нового UI в
   Phase 3 — см. правку там: **не** добавлять пункт в старый кластер `doctorNavLinks.ts` «Настройки» (тот кластер сам
   помечен на миграцию — `ROUTE_MIGRATION_MAP.md` строка **S23**: «move/split → PLAT-05 configuration»,
-  [`ROUTE_MIGRATION_MAP.md:62`](../../SAAS_PRODUCT_UX_INITIATIVE/ROUTE_MIGRATION_MAP.md)).
+  [`ROUTE_MIGRATION_MAP.md:62`](../SAAS_PRODUCT_UX_INITIATIVE/ROUTE_MIGRATION_MAP.md)).
 - **Владелец платформы работает с агрегатами/организациями, не с карточками пациентов** —
-  [`OWNER_RULINGS_2026-07-16.md:98-104`](../../SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) (UX08-10) —
+  [`OWNER_RULINGS_2026-07-16.md:98-104`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md) (UX08-10) —
   согласуется с тем, что этот документ и так не планирует patient-level admin UI.
 - **Владелец workstream'а, которому принадлежит финальный platform shell:** `IMPLEMENTATION_ROADMAP.md` **U9 —
   global administration and bounded support** явно перечисляет «tariff/entitlement commercial operations per
   existing owner rulings» в своём scope и зависит от «existing tariff/settings foundation» —
-  [`IMPLEMENTATION_ROADMAP.md:699-717`](../../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md). **Значит:** этот
+  [`IMPLEMENTATION_ROADMAP.md:699-717`](../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md). **Значит:** этот
   документ строит backend/API/data-слой (Phase 1-3), которым U9 воспользуется для финального единого platform shell;
   этот документ **не берёт на себя** полную переборку shell/навигации — это scope U9, отдельная инициатива. Phase 3
   UI здесь — промежуточное, IA-совместимое размещение (верные zone-ID, верный route-namespace), не финальный shell.
 - **Entitlement denial имеет 4 состояния в каноне** (`upgrade/grace/read-only/blocked`), не просто вкл/выкл —
-  [`ROLE_CAPABILITY_MATRIX.md:17`](../../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md). Phase 1-2 этого
+  [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md). Phase 1-2 этого
   документа сознательно строят только бинарный `entitlement_required` (403) — этого достаточно для scope #751
   (тариф либо даёт механику, либо нет). Полная деградация `grace`/`read-only` при истечении подписки — задача Phase 4
   (см. правку там), не переоткрывается как пробел здесь.
 - **Платформенная cross-org операция обязана идти через выделенный capability/port, без org-membership fallback** —
-  [`ROLE_CAPABILITY_MATRIX.md:38,73`](../../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md): «tariff editing
+  [`ROLE_CAPABILITY_MATRIX.md:38,73`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md): «tariff editing
   is platform capability»; «Dedicated platform capability/port before query or mutation; no organization membership
   fallback». Прямое подтверждение риска §8.1 этого документа (RLS-статус `be_organizations` под cross-org listing).
 
@@ -121,7 +129,8 @@ foundation-рулингов: [`OWNER_RULINGS_2026-07-16.md:7-9`](../../SAAS_PROD
 - `apps/webapp/src/modules/org-entitlements/**` (write-порт, admin CRUD service).
 - `apps/webapp/src/app-layer/guards/requireEntitlement.ts` (redesign) + новый Server Action adapter рядом.
 - `apps/webapp/src/infra/repos/pgOrgEntitlements.ts` (+ write-методы), новый `apps/webapp/src/infra/repos/inMemoryOrgEntitlements.ts` (уже существует для DI fake — расширить, не дублировать).
-- `apps/webapp/db/schema/saasEntitlements.ts` + новая drizzle-миграция (добавить `is_default` на `saas_tariffs`, ничего не удалять).
+- `apps/webapp/db/schema/saasEntitlements.ts` + backward-compatible migration for the owner-configured trial policy;
+  не добавлять hardcoded/default-tariff semantics.
 - `apps/webapp/src/app/api/admin/tariffs/**`, `apps/webapp/src/app/api/admin/organizations/**` (новые файлы).
 - `apps/webapp/src/app/app/(global-admin)/doctor/tariffs/**` (новая platform-scoped страница, PLAT-02/PLAT-03 —
   см. §0a/Phase 3; **не** старый `/app/doctor/admin/**` кластер) + `doctorNavLinks.ts` — ровно **одна** строка:
@@ -144,11 +153,12 @@ foundation-рулингов: [`OWNER_RULINGS_2026-07-16.md:7-9`](../../SAAS_PROD
 ## 3. Целевая модель
 
 ```
-тариф (данные, admin-конфигурируемые: имя, цена, период, mechanics jsonb — ВСЕ 14 ключей)
-  └─ дефолт для клиники БЕЗ явного назначения = «базовый» тариф (is_default=true), НЕ empty и НЕ all-on
-       └─ per-clinic override (saas_org_entitlement_overrides) — точечно меняет 1 механику для 1 клиники
-            └─ requireEntitlement(organizationId, mechanic) — единственный chokepoint
-                 └─ разрешённое/запрещённое действие
+тариф (admin-конфигурируемые имя/цена/период + typed entitlements/quotas)
+  ├─ trial policy → выбранный global_admin тариф + duration/start/post-trial policy
+  ├─ subscription/manual assignment → текущий effective tariff организации
+  └─ per-org override → точечное исключение
+       └─ requireEntitlement(organizationId, mechanic) — единственный chokepoint
+            └─ разрешённое/запрещённое действие
 ```
 
 ### 3.1. `requireEntitlement` — redesign (устраняет двойной auth + добавляет Server Action shape)
@@ -174,23 +184,20 @@ Definition of Done для этого пункта: `courses/route.ts` вызыв
 `content/sections/actions.ts` реально гейтятся; статический чекер (grep-правило) ловит прямой вызов
 `isMechanicEnabled`/чтение tariff вне `requireEntitlement*`.
 
-### 3.2. Новая клиника — «базовый тариф», не empty и не all-on
+### 3.2. Новая организация — owner-configured trial policy, не фиксированный default
 
-- `saas_tariffs` получает один добавленный булев столбец `is_default boolean not null default false` +
-  частичный уникальный индекс (`WHERE is_default`) — гарантирует не больше одного дефолтного тарифа одновременно.
-- Ровно один сид-тариф на test с `is_default=true` (например «Базовый», mechanics = осмысленный starter-набор —
-  какие именно флаги true/false решает admin через тот же UI, что и остальные тарифы; инженерия не хардкодит состав).
-- Org-creation путь (`app.provision_specialist_owner`, [`pgOrganizationProvisioning.ts:102-127`](../../../apps/webapp/src/infra/repos/pgOrganizationProvisioning.ts))
-  дописывается: после успешного `INSERT INTO be_organizations` в той же транзакции проставляет
-  `tariff_id = (SELECT id FROM saas_tariffs WHERE is_default LIMIT 1)`. Если дефолтного тарифа нет — создание
-  организации не должно тихо остаться без тарифа: fail loud в этом редком случае (лучше явная 500 при
-  misconfiguration, чем молчаливый all-true для новой платящей клиники).
-- **Существующие** орг (боевая «Точка Здоровья» на test + demo A/B) с `tariff_id IS NULL` — отдельный
-  backfill-скрипт (idempotent, dry-run сначала) назначает им явный «Grandfathered/Legacy» тариф с mechanics = все
-  true (сохраняет сегодняшнее поведение явно, а не через implicit default). После backfill implicit `?? true`
-  в резолвере остаётся только защитной сеткой на случай гонки, а не рабочим путём для новых клиник.
+- Global admin выбирает любой созданный тариф как trial tariff и отдельно задаёт duration; названия/состав/число
+  тарифов и срок не seedятся как product truth.
+- До DDL закрыть branch-local gates: trial start event, post-trial/grace/read-only/block behavior и судьбу созданных
+  capabilities/data. Неизбранная policy не блокирует tariff registry/chokepoint, но блокирует автоматическое
+  provisioning нового trial.
+- Org-creation path сохраняет organization identity и атомарно применяет активную trial policy через typed service;
+  он не ищет `is_default` и не выбирает тариф по имени.
+- Existing org с `tariff_id IS NULL` сначала инвентаризируются. Их compatibility behavior сохраняется до отдельного
+  dry-run/backfill решения; агент не назначает им придуманный «Базовый/Legacy» тариф без owner-approved mapping.
+- Compatibility `?? true` должен быть устранён после явного migration gate, но не ценой скрытого изменения доступа.
 
-### 3.3. Единственный источник дефолта — не два расходящихся
+### 3.3. Один effective access contract — не два расходящихся
 
 Compatibility-projection `be_organizations.tariff_id` остаётся источником для P1/P2. S4-4-подобный «источник
 истины между manual assignment и paid subscription» переносится в Phase 4 этого документа (§5.4) в урезанном виде
@@ -247,12 +254,12 @@ Compatibility-projection `be_organizations.tariff_id` остаётся исто�
 **Выход:** все механики с реальной write-поверхностью гейтятся одним и тем же chokepoint; поверхности без
 write-пути честно помечены `declared_no_surface` (не изобретены).
 
-### Phase 3 — global-admin конструктор тарифов + assign-to-clinic + новый-tenant-default
+### Phase 3 — global-admin конструктор тарифов + assign-to-org + trial policy
 
-- [ ] Drizzle-миграция: `saas_tariffs.is_default boolean not null default false` + частичный unique index
-  `WHERE is_default`. Не удалять существующие столбцы/таблицы.
+- [ ] Спроектировать backward-compatible trial-policy storage как ссылку на существующий admin-created tariff с
+  duration/start/post-trial полями; не добавлять фиксированный тариф или `is_default` product semantics.
 - [ ] Расширить `modules/org-entitlements` write-портом: `listTariffs`, `getTariff`, `createTariff`, `updateTariff`,
-  `deactivateTariff`, `setDefaultTariff`, `assignTariffToOrg`, `unassignTariffFromOrg`, `upsertOverride`,
+  `deactivateTariff`, `getTrialPolicy`, `setTrialPolicy`, `assignTariffToOrg`, `unassignTariffFromOrg`, `upsertOverride`,
   `deleteOverride`. Валидировать mechanic-ключи только по `MECHANICS` (registry §4) — отсутствующий UI-toggle не
   теряет ключ молча.
 - [ ] Подтвердить фактическое RLS-состояние `be_organizations` (см. риск в Reality lock) **до** реализации
@@ -264,17 +271,17 @@ write-пути честно помечены `declared_no_surface` (не изо�
   `requireAdminBookingEngine`/`requireClinicManagementApiContext` (те org-scoped, см. риск именования в Reality lock).
 - [ ] `GET /api/admin/organizations` — cross-org список для picker'а (только id/title/tariffId), тот же guard.
 - [ ] `POST /api/admin/organizations/:id/tariff` — назначить/снять тариф; `POST/DELETE /api/admin/organizations/:id/entitlement-overrides`
-  — override CRUD с identity `(organizationId, mechanic)`; delete возвращает tariff default, не хранит копию.
-- [ ] Org-creation: дописать проставление `tariff_id = default` внутри `app.provision_specialist_owner` (или
-  прямым follow-up UPDATE в той же транзакции сразу после успешного provisioning) — см. §3.2.
-- [ ] Backfill-скрипт (dry-run → отчёт → commit) для существующих org с `tariff_id IS NULL` на test —
-  назначает явный «Grandfathered» тариф (все mechanics true). Отчёт: `unassigned_after = 0`.
+  — override CRUD с identity `(organizationId, mechanic)`; delete возвращает effective tariff result, не хранит копию.
+- [ ] Org-creation: применить выбранную global-admin trial policy через typed service в атомарной provisioning
+  boundary; не выбирать тариф по имени/`is_default` и не скрывать неполную policy под all-on fallback — см. §3.2.
+- [ ] Для существующих org с `tariff_id IS NULL` сначала выполнить read-only inventory/dry-run. Apply разрешён только
+  по owner-approved mapping; до него сохранить compatibility behavior, не назначать придуманный all-true тариф.
 - [ ] UI-размещение — **PLAT-02/PLAT-03**, НЕ старый паттерн S23 (см. §0a). Не добавлять пункт в кластер
   «Настройки» `doctorNavLinks.ts` рядом с `admin-app-settings`/`admin-auth` — тот кластер сам помечен на миграцию
   прочь из doctor-сайдбара. Вместо этого — новый route-group маршрут по образцу уже существующего PLAT-07
   (`system-health`): `apps/webapp/src/app/app/(global-admin)/doctor/tariffs/page.tsx` + свой `layout.tsx`
   (`requireGlobalAdminDoctorPage()` + `DoctorWorkspaceShell` c `enableTenantRuntime={false}`, тот же shape, что
-  [`system-health/layout.tsx:15-27`](../../../apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx)).
+  [`system-health/layout.tsx:15-27`](<../../../apps/webapp/src/app/app/(global-admin)/doctor/system-health/layout.tsx>)).
   Точное имя route-сегмента (`tariffs` / `organizations` / `commercial`) — инженерный выбор фазы, не финальная
   IA-навигация (та — scope workstream'а U9, см. §0a; эта страница не дублирует и не подменяет его будущий shell).
 - [ ] Точка входа в навигации: зеркалируемый паттерн PLAT-07 **имеет** пункт меню — `system-health`/`health-archive`/
@@ -308,7 +315,7 @@ write-пути честно помечены `declared_no_surface` (не изо�
 **Проверка:** module/PG тесты на write-порт; authz A/B матрица (`demo-clinic-a` не может дойти до `/api/admin/tariffs`
 ни страницы, ни API); constructor RTL-тест; desktop+mobile screenshot приёмка.
 **Выход:** тарифная сетка, цены, mechanics, назначение клинике и override — управляются как данные глобальным
-админом; новая клиника стартует на базовом тарифе, не на «все включено».
+админом; новая организация использует выбранную trial policy, а не hardcoded/default/all-on тариф.
 
 ### Phase 4 — достройка SaaS billing поверх существующих PSP (keyless-safe)
 
@@ -359,7 +366,7 @@ write-пути честно помечены `declared_no_surface` (не изо�
 - [ ] Успешный capture продлевает `source="paid_subscription"`; expiry/cancel/refund завершает только этот source;
   manual global-admin assignment не перетирается истёкшей подпиской молча.
 - [ ] Деградация при `expired`/`past_due` — сверить с каноном 4-состояний entitlement denial (`upgrade/grace/
-  read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
+  read-only/blocked`, [`ROLE_CAPABILITY_MATRIX.md:17`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md),
   см. §0a) при проектировании state machine: истечение подписки не обязано мгновенно бить `blocked` на все
   mechanics — решить явно (grace-период до hard block — инженерный выбор этой фазы, не молчаливый пробел).
 
@@ -371,14 +378,14 @@ capture/refund integration тест на mock-адаптере; secret redaction
 ### Phase 5 — интеграционная приёмка на тестовом сервере
 
 - [ ] Fixture-манифест: global_admin; demo-clinic-a/b с разными тарифами и override; новая org через signup flow
-  (проверяет §3.2 — стартует на базовом тарифе, не all-true).
+  (проверяет §3.2 — использует выбранный trial tariff/duration, без hardcoded/default/all-true).
 - [ ] Global admin создаёт/меняет тариф, полный mechanic grid, назначает A, меняет override, видит billing state.
 - [ ] Clinic A проходит mock checkout, получает активную подписку на тариф; clinic B её не видит/не затронута.
 - [ ] Negatives: unauthenticated, doctor вместо global_admin на `/api/admin/tariffs` (403), forged org id, forged
   webhook signature, amount mismatch, replay, mechanic OFF при активной подписке (доступ всё равно закрыт по
   entitlement, подписка не значит automatic mechanic override).
-- [ ] Полный regression sweep: существующая единственная боевая клиника (после backfill Phase 3) не теряет доступ
-  ни к одной механике.
+- [ ] Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
+  отдельного mapping apply ни одна организация не теряет доступ вопреки preview.
 - [ ] Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
   каждого шага.
 
@@ -391,8 +398,9 @@ capture/refund integration тест на mock-адаптере; secret redaction
   используют его; статический guard подтверждает отсутствие обходов.
 - [ ] Все 14 механик из реестра §4 либо гейтятся на реальной write-поверхности, либо честно помечены
   `declared_no_surface` — ни одна не осталась «предполагается, но не проверено».
-- [ ] Новая клиника при создании получает явный базовый тариф; существующие org без тарифа явно забэкфиллены (не
-  оставлены на implicit `?? true`).
+- [ ] Новая организация применяет выбранную global-admin trial policy; если зависимая policy не утверждена/неполна,
+  автоматическое trial provisioning fail-closed без подстановки придуманного тарифа. Existing NULL-org проходят
+  отдельный owner-approved migration mapping до удаления compatibility behavior.
 - [ ] Global-admin управляет тарифами/ценами/периодом/mechanics/назначением/override как данными; `clinic_admin`
   получает 403 везде.
 - [ ] SaaS billing проходит полный цикл (checkout → capture → активная `saas_billing_subscription` → expiry/refund)
@@ -415,13 +423,13 @@ owner ruling vs инженерное решение раздельно, оста
    picker должен пройти через явный, аудируемый path — не унаследовать случайную дыру и не изобрести новый DB bypass.
    Канон подтверждает это требование отдельно от foundation-доков: «Dedicated platform capability/port before query
    or mutation; no organization membership fallback» —
-   [`ROLE_CAPABILITY_MATRIX.md:38,73`](../../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md).
+   [`ROLE_CAPABILITY_MATRIX.md:38,73`](../SAAS_PRODUCT_UX_INITIATIVE/ROLE_CAPABILITY_MATRIX.md).
 2. **Три разных «admin»-гейта с похожими именами** (`requireAdminWorkspaceApiContext` = настоящий platform admin;
    `requireAdminBookingEngine`/`requireClinicManagementApiContext` = org-level). Риск: скопировать не тот гейт для
    `/api/admin/tariffs` и случайно открыть тарифную сетку clinic_admin.
-3. **Org-creation происходит внутри SECURITY DEFINER SQL-функции** (`app.provision_specialist_owner`). Проставление
-   default-тарифа либо меняет саму SQL-функцию, либо требует надёжного follow-up шага в той же транзакции — решить
-   при реализации Phase 3, не откладывать на «потом почини».
+3. **Org-creation происходит внутри SECURITY DEFINER SQL-функции** (`app.provision_specialist_owner`). Применение
+   выбранной trial policy должно быть атомарно согласовано с provisioning, но нельзя зашивать `is_default`, имя или
+   состав тарифа в SQL. Точную transaction boundary решить до Phase 3 write path.
 4. **S5 (settings root split) частично реализован** (`f846eb920`: `app_runtime_settings` + provider-слой уже в
    коде, см. Reality lock) — но runtime-таблица by-contract без секретов, поэтому `saas_billing_payment_provider`
    (секреты) живёт в `system_settings` **по дизайну** (см. Phase 4). Остаточный риск другой: если S5 продолжит
@@ -432,7 +440,7 @@ owner ruling vs инженерное решение раздельно, оста
    redesign должен принимать любой `{ organizationId: string }`-совместимый ctx, а не завязываться на конкретный тип
    `DoctorWorkspaceAccessContext`, иначе Phase 2 придётся форкать guard под каждый composed-гейт.
 6. **Phase 3 UI — временное размещение, не финальный shell.** Полная выделенная platform-навигация (без
-   наследования doctor-сайдбара) — scope workstream'а **U9** ([`IMPLEMENTATION_ROADMAP.md:699-728`](../../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md),
+   наследования doctor-сайдбара) — scope workstream'а **U9** ([`IMPLEMENTATION_ROADMAP.md:699-728`](../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md),
    см. §0a), которая этим документом не начинается и не переоткрывается. Риск: если U9 стартует параллельно, две
    команды могут независимо построить два разных «platform shell» — Phase 3 здесь должен явно ссылаться на этот
    документ (и наоборот), не молчать о пересечении.

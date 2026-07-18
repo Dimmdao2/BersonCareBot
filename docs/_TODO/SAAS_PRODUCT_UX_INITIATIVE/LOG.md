@@ -1,5 +1,35 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-18 — owner-review normalization and execution-readiness cycle (`#838`)
+
+- Consolidated the complete owner dictation into one requirements authority:
+  `OWNER_REVIEW_2026-07-18.md`; implementation order lives only in `IMPLEMENTATION_ROADMAP.md`.
+- Added correction stages C0-C7 and residual structured-identity stage C2F; mapped unique implementation cards and
+  marked historical plans subordinate/superseded instead of creating a parallel roadmap.
+- Added mandatory stage-launch manifest: branch/HEAD/TEST SHA, tasks/authority, prerequisite handoff, sanctioned
+  contracts, synthetic scenario/viewports, PII/send-safe constraints, file scope/no-overlap, audit cycle and stop gate.
+- Resolved Clients/Subscribers/Support semantics by matching the owner's request to the existing typed category
+  contract; no new relation/classifier is introduced.
+- Verified FIO core commits are already ancestors of `feat/doctor-ui-rebuild`. TEST owner-review evidence remains
+  `#849`; residual execution is `#855`-`#858`. Four uncommitted old-worktree helpers were rejected as unsafe and not
+  integrated; production remains a separate exact-preview owner gate.
+- Reconciled tariff/trial/store plans: arbitrary admin-created tariffs, trial policy references a selected tariff,
+  existing NULL-org mapping is owner-gated, C4D own/base has an autonomous checklist, C5D store is deferred, and C5C
+  seat commerce has a dormant post-owner-gate checklist.
+- Independent agent-port runs used in this cycle:
+  - `bcb-838-owner-trace-20260718` — owner-decision trace;
+  - `bcb-838-doc-conflicts-20260718` — stale/conflicting plan scan;
+  - `bcb-838-plan-architecture-20260718` — stage architecture;
+  - `bcb-fio-integration-audit-20260718b` — FIO worktree/script safety;
+  - `bcb-838-fio-final-audit-20260718` — combined audit, initially BLOCKED on four stale contracts;
+  - `bcb-plan-executor-sim-a-20260718` and `bcb-plan-executor-sim-b-20260718` — executor simulations; their actionable
+    plan gaps were corrected before final re-audit.
+- Open owner decisions remain explicit branch-local gates (quota behavior, trial/post-trial, PSP/legal operations,
+  clinic-seat pricing/downgrade, future store commerce/licensing, analytics formulas, solo settings label). They do
+  not authorize guesses and do not block independent registry/ownership/UI/foundation slices.
+
+No application code, DB, TEST runtime or production data was changed by this planning cycle.
+
 ## 2026-07-15 — discovery setup
 
 - Создан изолированный worktree `/home/dev/dev-projects/BersonCareBot-work3`.

@@ -1,5 +1,10 @@
 # COMMUNICATIONS_MD_V2_INITIATIVE — ТЗ
 
+> **Статус:** historical ТЗ завершённой инициативы. Для текущей доработки обязательны
+> [`../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md`](../_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md)
+> §§5-8 и roadmap C1/taskdb `#852`; они побеждают multi-toggle intake, прежнюю ширину split и старые comments/
+> broadcasts states ниже. Этот файл сохраняет прежний implementation context, но не выдаёт новый scope.
+
 Доработка раздела **«Коммуникации»** кабинета врача (`/app/doctor/communications`) по итогам
 живого ревью всех четырёх вкладок. Документ самодостаточный: рассчитан на агента, который входит
 в задачу «с холода». Сначала прочитай раздел **0. Контекст и правила**, затем работай по фазам.

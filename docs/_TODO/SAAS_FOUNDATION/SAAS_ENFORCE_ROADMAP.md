@@ -14,9 +14,10 @@
 needed; exercise every role, clinic admin capability, settings flow, and the doctor/client routes. Product smoke
 must detect 401/403/5xx, empty-result regressions, Server Action errors, and new application errors; a health
 endpoint alone is not evidence. UI, route infrastructure, the landing page, and separate specialist/client entry
-flows are part of the product work still required before launch. The investor-facing finish line also includes
-payments, a store with several exercise packages, and a configured tariff grid; walls are foundation work, not a
-substitute for those product surfaces.
+flows are part of the product work still required before launch. The product finish line includes payments, a
+configurable tariff/trial/billing contour and the own-only/base-library exercise modes; walls are foundation work,
+not a substitute for those product surfaces. The commercial store is a deferred capability per owner-review
+2026-07-18 §P4 and is not simulated as a mandatory TEST finish line before its model is selected.
 
 **R2 — TEST enforced product parity plus isolation.** TEST runs with locked principal context and strict/FORCE RLS.
 Multiple clinics and a shared/multi-clinic patient prove the staff-org and patient-own-data matrix. Legitimate
@@ -478,7 +479,8 @@ roadmap deliverable.
 - [ ] Record every failure found, its owner path/principal, the bounded repair evidence, and the final rerun. Keep
   fixture values, cookies, response bodies, and PII out of repository artifacts.
 - [ ] Before declaring TEST investor-demo-ready, bind the owner-stated product requirements — interface,
-  payment, store with exercise packages, and tariff grid — to their own approved checklists and TEST evidence.
+  payment, configurable tariffs/trial/billing and own/base exercise-library modes — to their own approved checklists
+  and TEST evidence. Commercial store remains a deferred capability until its model is selected.
   The requirement is documented in `SEQUENCE.md:8-14` and `OWNER_DECISIONS_FOR_REVIEW.md:88-96`; this walls
   roadmap does not invent their UX or billing details. Missing detail is **требуется решение** before a
   product checklist claims it is complete.

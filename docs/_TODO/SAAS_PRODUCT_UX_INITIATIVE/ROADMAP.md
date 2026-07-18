@@ -1,5 +1,10 @@
 # Roadmap — SaaS Product UX Discovery
 
+> **Статус:** discovery history и provenance. Последний product/UX authority —
+> [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md); исполнимый порядок —
+> [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §7.3. Старые phase statuses этого файла не закрывают
+> новые пункты owner-review.
+
 ## Принцип исполнения
 
 Каждый этап отвечает на один целостный класс вопросов и создаёт только заранее предусмотренный проверяемый

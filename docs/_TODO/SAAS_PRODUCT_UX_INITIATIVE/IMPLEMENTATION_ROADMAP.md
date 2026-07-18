@@ -1,9 +1,9 @@
 # UX-09 — implementation roadmap
 
-**Статус:** 2026-07-16 package passed full independent re-audit; implementation ещё не начиналась. The complete
-latest owner decisions are consolidated in [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). They are
-a mandatory implementation delta and must be mapped into stage checklists before U0 execution; until that
-reconciliation, the roadmap is not execution-ready as a complete representation of the latest owner review.
+**Статус:** owner-review 2026-07-18 reconciled into the binding correction program §7.3. Implementation ещё не
+начиналась как единая программа; отдельные существующие механики и исправления имеют собственный code/taskdb
+status и должны перепроверяться перед выполнением. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)
+остаётся единственным источником требований, этот roadmap задаёт только порядок, зависимости и gates.
 **Authority:** `OWNER_REVIEW_2026-07-18.md` побеждает более ранние product/UX contracts при конфликте;
 `OWNER_RULINGS_2026-07-16.md` действует в неизменённой им области. Foundation canon остаётся выше только в
 foundation/tenant/enforcement scope.
@@ -117,9 +117,11 @@ states, aliases и shared account surfaces остаются ровно таки�
 
 ## 5. Decision gates
 
-Все двенадцать ответов классифицированы в dated rulings artifact. Для solo-first launch pending owner gates = `0`.
-`Resolved future capability` не означает initial scope; engineering configuration и research backlog не являются
-owner decisions.
+Все двенадцать ответов пакета 16.07 классифицированы в dated rulings artifact. Review 18.07 добавил новые final
+decisions и branch-local decision gates. Execution gate теперь означает `0 unclassified owner decisions`, а не
+ложное `0 unresolved`: каждый открытый вопрос обязан иметь owner, зависимую ветку и безопасный stop. `Resolved
+future capability` не означает initial scope; engineering configuration и research backlog не являются owner
+decisions.
 
 | Decision | Current classification | Initial-release execution | Implementation policy / non-blocking backlog |
 |---|---|---|---|
@@ -252,6 +254,209 @@ or authentication policies into one object.
 reasoning; механический route census, visual render matrix и lint/build не получают повышенный effort без причины.
 Timeout или недостаток контекста не считаются substantive failure.
 
+### 7.3 Binding owner-review correction program — 2026-07-18
+
+Этот раздел является исполнимой декомпозицией последнего owner-review. Он не копирует требования: acceptance
+каждого пункта берётся из точного раздела `OWNER_REVIEW_2026-07-18.md`. При расхождении формулировок owner-review
+побеждает. Старые планы и punch-lists могут давать только implementation evidence по уникальным пунктам.
+
+#### Stage launch manifest — обязателен перед первым worker
+
+Для каждого C-stage оркестратор сначала фиксирует в существующем initiative `LOG.md` и taskdb note, не создавая
+нового плана:
+
+1. текущий branch/HEAD и TEST SHA, на котором будет acceptance;
+2. exact task IDs, owner-review section и stage checklist;
+3. prerequisite tasks/commits и их фактический status; для U0/U1/U2 — sanctioned principal/membership/settings
+   accessors, ownership paths и список ещё отсутствующих contracts;
+4. synthetic roles/org/data scenario, desktop/mobile viewport и send-safe/PII-safe ограничения;
+5. file-scope после code-search, no-overlap statement с соседними workers и запрещённый adjacent scope;
+6. worker → independent audit → correction → re-audit commands/evidence и stop/owner-gate condition.
+
+Если prerequisite не доказан, первый исполнимый slice — именно его evidence/handoff либо уже заведённая foundation
+card; запрещено строить временный resolver, второй settings tree или compatibility write-path. Отсутствие заранее
+записанного текущего SHA/file list не является пробелом плана: это intentionally launch-bound evidence, которое
+устаревает при каждом merge.
+
+#### C-1 — authority, dedup и task mapping
+
+- **Outcome:** taskdb `#838` закрывает только planning normalization: один requirements canon, один execution
+  roadmap, подчинённые/superseded документы явно промаркированы, каждый owner-review block имеет stage/card.
+- **Gate:** `0 unclassified` решений; open decisions перечислены в owner-review/S4 и блокируют только зависимые
+  substages. Code/runtime implementation в C-1 не входит.
+
+#### C0 — аварийно убрать Rubitime из canonical booking runtime
+
+- **Outcome:** create/reschedule/cancel работает при отсутствующей Rubitime-конфигурации; внешний sync не блокирует
+  и не откатывает canonical appointment.
+- **Scope:** taskdb `#839`; расследование partial patient write, `staffRubitimeManualBooking`, migrated settings и
+  duplicate profiles; UI-вкладка Rubitime исчезает. Исторические данные и physical retirement выполняются только по
+  `RUBITIME_RETIREMENT_EXECUTION_PLAN.md` и R1/R4-R7 gates.
+- **Dependency:** немедленный самостоятельный incident stage; он не ждёт UI polish, S4 или U0. При этом destructive
+  cleanup не начинается до operational proof.
+- **Acceptance:** owner-review §10 целиком; отдельный TEST scenario «новый пациент + запись без Rubitime»;
+  regression lifecycle; доказательство отсутствия runtime call. Будущий CSV/import остаётся provider-neutral и не
+  входит в ежедневный lifecycle.
+
+#### C1 — текущие исправления интерфейса TEST
+
+- **Outcome:** исправлены подтверждённые владельцем дефекты без изменения продуктовой модели.
+- **Цельные независимые slices:**
+  1. `Сегодня + Клиенты` — owner-review §§1-2: единый KPI contract, сегмент Клиенты/Подписчики, default Клиенты,
+     right-side filters и недублирующиеся row indicators.
+  2. `Расписание` — §§3-4: desktop default week, услуги, специалисты календаря, short name в create-location и
+     отсутствие Rubitime tab; перенос всей booking settings IA отменён и сюда не входит.
+  3. `Коммуникации` — §§5-8: shared 50/50 split, comments empty/selected layouts и toggle filters, intake
+     single-select/status rows, broadcasts collapsed/expanded layout. Уже принятую ссылку «Открыть карточку» не
+     переделывать.
+- **Dependencies:** slices могут идти параллельно после code/taskdb dedup, если файловые scope не пересекаются;
+  Rubitime UI removal координируется с C0. Existing BCB2 triage не может закрыть эти новые acceptance по совпадению
+  названия страницы.
+- **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
+  состояния из owner-review; независимый UI audit.
+
+#### C2 — identity команды и фактический invite journey
+
+- **Outcome:** один `platform_user` имеет одну строку membership в организации; owner включает admin capability;
+  specialist binding не создаёт второго человека. Текущий email invite доказан end-to-end.
+- **Scope:** taskdb `#840` и `#841`; сначала identity/membership evidence, затем data repair только по ID, никогда по
+  совпадению имени; new/existing email, replay, expiry, revoke, reinvite, doctor first-login specialist provisioning
+  и admin-without-specialist.
+- **Dependencies:** стабильные U0/U1 membership/principal contracts. C2 может доказать текущий flow до коммерческого
+  clinic entitlement, но не открывает team UI не entitled организации.
+- **Gate:** owner-review §14; unique `(organization_id, platform_user_id)` path, concurrency/idempotency, direct API
+  negatives и TEST e2e без реальной prod-доставки.
+
+#### C2F — structured FIO residual и migration closeout
+
+- **Outcome:** все собственные identity writers создают structured FIO; doctor/patient surfaces читают правильные
+  поля; owner-reviewed production backfill и parser retirement проходят отдельные доказуемые gates.
+- **Scope/order:** owner-review §19 и каноны
+  [FIO initiative](../../FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) / [`fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md):
+  1. patient email + specialist/clinic registration writers;
+  2. manual/booking/provisioning/OAuth/Telegram/MAX writer audit and correction;
+  3. doctor full-FIO + patient first-name display cleanup;
+  4. current-copy production preview, exact artifact owner gate, transactional apply/rollback/reconciliation;
+  5. legacy fallback audit;
+  6. runtime parser retirement only after every preceding gate.
+- **Existing evidence:** core structured model/source priority and booking form are already integrated; taskdb `#849`
+  proves TEST apply only (165 updated, 3 unchanged, 1 missing, 1 changed-after-review skipped). Historical accepted
+  `#24` cannot close this residual scope. PII artifacts stay outside git and owner-reviewed decisions are never
+  recalculated by parser.
+- **Task mapping:** `#855` structured registrations; `#856` remaining writers + display; `#857` owner-gated
+  production closeout; `#858` fallback audit + parser retirement. All start `auto_ok=false`.
+- **Dependencies:** registration/writer work can proceed after U0/U1 identity contracts; display follows writer
+  correction. Production data mutation is independently blocked on explicit owner approval of the current preview.
+  Parser retirement follows production reconciliation and legacy audit. Notification templates are a separate track.
+- **Gate:** registration/provisioning/provider tests; clients/card/schedule/communications/search/prefill and patient
+  greeting acceptance; exact-target/stale-row/rollback tests; owner-gated production evidence; zero active
+  parser-dependent identities/consumers before parser removal.
+
+#### C3 — единый settings hub и один owner каждой настройки
+
+- **Outcome:** одна nav-ссылка «Настройки» и role/capability-driven вкладки; route не меняет состав меню; одно поле
+  имеет один write-path.
+- **Scope:** taskdb `#842`; organization/practice, specialist, install, team (только при clinic entitlement) и
+  «Тариф и биллинг» (только payer role). Appointment reminders становятся organization-level booking setting;
+  owner-only patient-home controls уходят из общих settings; daily bot reminder удаляется из UI/scheduler/delivery.
+  Остальные отложенные настройки остаются как в owner-review §15.
+- **Explicit non-scope:** текущую вкладку настроек расписания сейчас не переносить и не превращать в «Модуль записи»;
+  это отменённый текущий запрос и только future IA option.
+- **Dependencies:** U1/U2 + settings-root split; team/billing tab bodies активируются C4/C5, но shell/guards не
+  должны создавать второй settings tree.
+- **Gate:** role × nav × direct route/API matrix; one-write-path tests; desktop/mobile; отсутствие regressions у
+  сохранённых notification/event settings.
+
+#### C4 — независимые capability/ownership substages
+
+- **Outcome:** capability скрыта и запрещена server-side без entitlement; активный тариф открывает ровно
+  оплаченный scope.
+- **C4A — clinic boundary (`#843`):** entitlement, included/extra seats, server-side invite limit and
+  over-limit/downgrade states. Цена add-on остаётся gate C5.
+- **C4B — CMS (`#853`):** owner-org isolation и минимальная master-detail IA из §§11-12; full blog/CMS polish
+  deferred.
+- **C4C — courses (`#26`):** немедленный hide/deny вне owner organization; будущая модель и redesign без
+  обязательного template — отдельный deferred pass.
+- **C4D — library ownership (`#724`):** own-only и новая platform base library; owner-clinic exercises никогда не
+  становятся global. Future store surface/commerce не блокирует C4D.
+- **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
+  library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
+  останавливает готовую tenant isolation.
+- **Gate:** two-org list/direct/count/search/picker/media negatives, entitlement OFF/ON/downgrade, seats limit and
+  overage policy; owner-review §§P1, P4, 11-13, 15.
+
+#### C5 — независимые commercial substages
+
+- **Outcome:** global admin собирает любое число произвольно названных тарифов из boolean entitlements и
+  numeric/unlimited quotas; trial-policy ссылается на выбранный тариф и duration; billing обслуживается на уровне
+  platform operator и organization payer.
+- **C5A — constructor/trial (`#751`):** arbitrary tariffs, typed entitlements/quotas, trial tariff+duration and
+  branch-local post-trial/quota gates.
+- **C5B — billing (`#844`, `#845`):** platform operator + organization payer surfaces, subscription lifecycle,
+  checkout/invoice, reconciliation, failed payment/grace, upgrade/downgrade, refunds/cancel, receipts/invoices/B2B
+  transfer and immutable audit. Оплата услуг пациентом остаётся отдельным commerce contour.
+- **C5C — clinic seat commerce (`#843`):** add-on purchase/price and subscription effect, only after C4A seat
+  enforcement exists.
+- **C5D — future store commerce (`#724`):** purchase/subscription/licensing/moderation only after its owner decisions;
+  absent from launch acceptance unless explicitly activated.
+- **Decision gates:** первый PSP и его точные юридические/кассовые операции; quota units/period/soft-hard behavior;
+  post-trial/downgrade/proration; store purchase/subscription model. Неизбранный PSP не блокирует registry,
+  ownership, state-machine contract, mock/recorded adapter tests или UI IA.
+- **Dependencies:** S4-0/S4-1, C3 shell и relevant C4 ownership substage. C5A/B/C/D не образуют один общий стоп:
+  provider-neutral inventory/ports/security tests могут идти до policy choice, business transitions — нет. Billing
+  mutations только server-authorized, идемпотентны и не могут вручную объявить деньги полученными.
+- **Gate:** owner-review §§P1-P3; global operator vs organization payer vs ordinary specialist; webhook replay/
+  amount/org negatives; audit, reconciliation, TEST provider-safe acceptance.
+
+**C5C post-owner-gate checklist:** после утверждения included seats, per-seat price/purchase moment и downgrade/
+over-limit policy исполнитель:
+
+1. переиспользует C4A server-side seat usage/limit contract и C5B billing account/order/subscription primitives;
+2. строит payer-authorized add-on checkout/order → idempotent confirmed payment → subscription seat allocation; client
+   payload не задаёт org, цену, количество или payment success;
+3. обрабатывает replay, failed/past_due/refund/cancel/downgrade строго по утверждённой policy; existing memberships не
+   удаляются молча, а новые invites блокируются/разрешаются сервером по effective paid limit;
+4. скрывает billing mutation от ordinary specialist и проверяет direct API denial;
+5. закрывает org A/B isolation, immutable before/after audit, reconciliation, mock/recorded-provider TEST и
+   organization «Тариф и биллинг» acceptance. Без owner gate этот checklist остаётся dormant и не блокирует C4A/C5B.
+
+#### C6 — platform analytics и capacity threshold
+
+- **Outcome:** global admin видит организации как клиентов платформы, billing/subscription/use aggregates и
+  диагностическую карточку организации без просмотра клинической жизни пациента.
+- **Scope:** taskdb card платформенной аналитики; glossary для `active`, сопровождения, временных окон и источников;
+  PII-bounded event/aggregate path; storage/retention/overhead; load profile и измеримый threshold выноса аналитики.
+- **Dependencies:** C5 billing source of truth и утверждённые metric definitions. Сбор сырых трекеров не начинается
+  без overhead budget/SLO; отдельная analytics DB не создаётся до load evidence.
+- **Gate:** owner-review §P5; formula fixtures, two-org/privacy negatives, load test текущей конфигурации и записанный
+  migration threshold.
+
+#### C7 — общий TEST acceptance и production-candidate handoff
+
+- **Outcome:** correction program и launch-included U-stages сведены в один проверяемый TEST candidate; deploy не
+  подразумевается автоматически.
+- **Dependencies:** C0-C6 и C2F в фактически включённом launch scope, foundation enforcement handoff и U10. Deferred
+  store/course/full CMS branches отмечены отсутствующими и не симулируются пустыми экранами.
+- **Gate:** актуальный TEST SHA, synthetic role/org fixtures, full CI, security/tenant matrices, source-bound
+  screenshots, два независимых visual/usability seals, rollback/runbook readiness. Переход в `main`/`test`, deploy
+  и production data operations остаются отдельным прямым разрешением владельца.
+
+#### Dependency summary
+
+```text
+C-1 -> C0 ------------------------> C7
+C-1 -> C1 ------------------------> C7
+U0/U1 -> C2 -> C4A ----+
+U0/U1 -> C2F ----------+-----------------------------> C7
+U1/U2/settings-root -> C3 --------+-> C5A/B/C -> C6 -> C7
+S4-0/S4-1 -----------> C4A-D -----+
+launch-included U-stages + U10 ---------------------> C7
+```
+
+Taskdb хранит status/owner/acceptance links, а не копию требований. Любая новая карта обязана ссылаться на
+конкретный раздел owner-review и один stage `C0…C7`/`C2F`; найденный аудитором scope без такого owner-пункта не
+добавляется.
+
 ## 8. Stages
 
 ### U0 — contract, ownership and data-gap readiness
@@ -269,7 +474,8 @@ Timeout или недостаток контекста не считаются s
   table names alone.
 - **Boundaries:** every clinical/patient/staff object has direct org or documented scoped-parent path; global catalogs
   require evidence; identity and relationship remain separate.
-- **Decision gates:** no owner outcome is reopened. Inventory records `0` pending launch owner decisions; generated
+- **Decision gates:** no owner outcome is reopened. Inventory records `0` unclassified owner decisions; classified
+  open questions block only their named branch. Generated
   org PWA and custom origin are future capability, native org app/assistant/clinic communications are non-blocking
   backlog, and sender timing/retention is engineering configuration.
 - **Dependencies:** current foundation artifacts and route inventories readable; no deploy dependency.
@@ -323,9 +529,9 @@ URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as p
 solo-first clinical shell; personal account screens are shared once. Future assistant OPS surfaces remain absent.
 
 - **Screens/flows:** launch management/account shell (`MGMT-01`, applicable solo settings/booking/plan destinations,
-  `ACC-01…04`) and management↔clinical scenario. Team `MGMT-02` and `OPS-01…04` are registry-only future IDs with
-  no route, component, port or acceptance work in this stage; publication/branding/integration panels remain owned
-  by their later launch or deferred stages.
+  `ACC-01…04`) and management↔clinical scenario. Team `MGMT-02` is absent for an unentitled solo organization and
+  becomes the C3/U3A settings-team surface only after clinic entitlement; `OPS-01…04` remain registry-only future
+  IDs. Publication/branding/integration panels remain owned by their later launch or deferred stages.
 - **Reuse/gaps:** clinic members/settings, booking tabs, `/app/settings`, install and current navigation primitives;
   split mixed ownership instead of copying forms.
 - **Scope:** canonical shell composition; capability-driven nav; MGMT overview/setup; shared ACC destinations;
@@ -426,28 +632,31 @@ required security/recovery setup and reaches a truthful first workspace.
   [ ] no duplicate tenant/persona overwrite; [ ] full audit PASS.
 - **Merge dependency:** U0/U1/U2 plus stable provisioning/auth foundation.
 
-### U3A — deferred future clinic staff invitation
+### U3A — clinic staff invitation under paid entitlement (post-solo capability)
 
-**Outcome:** registry placeholder for a future multi-staff clinic product. It is absent from the solo initial-release
-DAG and cannot block patient activation, public launch or U10.
+**Outcome:** current doctor/admin invitation flow becomes a verified clinic capability guarded by the paid
+entitlement and seat policy. It remains absent from the solo initial-release DAG and cannot block patient activation
+or public launch, but its product direction is no longer an unanswered future placeholder.
 
-- **Screens/flows:** reserved future `MGMT-02`, `STF-01…08`; no initial staff-invite workspace.
-- **Reuse/gaps:** future analysis may reuse identity/security/delivery primitives; exact clinic roles and grants are
-  not approved here.
-- **Scope:** none for initial release. Future scope begins only after multi-staff clinic product boundaries are set.
-- **Forbidden:** implementing assistant/reception roles, team seats, staff invite UI or first-workspace routing as
-  launch work.
+- **Screens/flows:** `MGMT-02`, `STF-01…08` only after clinic entitlement; unentitled solo navigation/API remains
+  absent/denied.
+- **Reuse/gaps:** reuse the existing email invite/OTP/membership/specialist-provisioning flow; first prove C2, then
+  add C4 seat and entitlement enforcement. Assistant/reception remains outside approved scope.
+- **Scope:** C2 TEST e2e and identity repair; after C4 activation, doctor/admin invitations, seat usage and limit
+  states in the settings hub.
+- **Forbidden:** assistant/reception roles, bypassing seat limits, client-side-only gating or a second membership
+  system.
 - **Boundaries:** registry reservation grants no membership capability or destination.
-- **Owner ruling:** solo-first release must not wait for clinic staffing; assistant grants are outside current scope
-  and are not a pending owner gate.
-- **Dependencies:** future activation may consume U0/U1/U2; there is no launch edge.
-- **Workstreams:** deferred; no data/API/UI/delivery work is specified now.
-- **Migration/compat:** none in initial release.
-- **Validation:** launch acceptance proves staff/team invite UI and future roles are absent. Future validation is
-  defined with the future clinic contract.
+- **Owner ruling:** solo-first release need not wait for clinic staffing; when a tariff includes clinic mode, team
+  management and invited-specialist seats are active in settings. Ordinary specialists do not gain billing rights.
+- **Dependencies:** U0/U1/U2, C2 identity evidence, C4 entitlement/seats and C3 settings shell; no solo launch edge.
+- **Workstreams:** membership/invite verification, entitlement/seat policy, settings team UI and billing handoff.
+- **Migration/compat:** current memberships/invites are preserved and normalized by identity, not display name.
+- **Validation:** owner-review §§P1, 14-15; new/existing email, replay/revoke/expiry, one membership row, entitlement
+  OFF/ON, seat exhaustion/downgrade and direct API negatives.
 - **Rollback/degradation:** not applicable while absent.
-- **Completion:** [ ] future clinic staffing scope approved; [ ] future implementation independently audited. These
-  boxes are not launch completion criteria.
+- **Completion:** [ ] C2 identity/invite PASS; [ ] C4 entitlement/seats PASS; [ ] C3 team settings projection PASS;
+  [ ] independently audited. These boxes are not solo launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U3B, U4 and U10 launch dependencies.
 
 ### U3B — patient invite, delivery, activation, install and public-booking continuation
@@ -707,10 +916,12 @@ system identity diagnostics from a dedicated shell without patient browsing or p
 - **Screens/flows:** `PLAT-01…09`; current analytics/settings/health/audit routes plus aggregate system diagnostics.
 - **Reuse/gaps:** existing global analytics, system health/archive, audit and admin settings; ownership currently
   mixed under doctor/admin navigation. Existing patient merge/name-match pages are retired/reclassified, not moved.
-- **Scope:** platform shell; org lifecycle/detail; tariff/entitlement commercial operations per existing owner
-  rulings; aggregate analytics; DB-backed configuration; reliability; true platform catalog governance only after
-  ownership split; aggregate identity-integrity diagnostics and support reports; one extension contract through which
-  optional domain/sender/PWA readiness can later appear without changing core ownership or settings paths.
+- **Scope:** platform shell; org lifecycle/detail; C5 global billing operations (subscriptions/payers,
+  paid/trial/grace/past-due states, payment attempts, refunds/cancellations, invoice/receipt/provider-event detail,
+  reconciliation, safe support actions and immutable audit); tariff/entitlement commercial operations; C6 aggregate
+  analytics; DB-backed configuration; reliability; true platform catalog governance only after ownership split;
+  aggregate identity-integrity diagnostics and support reports; one extension contract through which optional
+  domain/sender/PWA readiness can later appear without changing core ownership or settings paths.
 - **Forbidden:** `adminMode` as universal authority, silent organization membership, moving org assets to global by
   route relocation, patient behavior as ordinary analytics, any patient-level browsing/session/record repair.
 - **Boundaries:** explicit platform capability and target org; aggregate/privacy thresholds; support diagnostics are
@@ -725,13 +936,15 @@ system identity diagnostics from a dedicated shell without patient browsing or p
 - **Migration/compat:** route moves do not reclassify data. Settings writes keep sanctioned service/mirror. Existing
   patient merge/name-match admin links are not redirected into PLAT; any future self-correction/identity-resolution
   workflow requires its own reviewed authorization contract. Other admin links move only after capability equivalence.
-- **Validation:** global-admin vs clinic-admin/doctor direct-route matrix; target-org isolation; aggregate threshold;
-  secret masking; aggregate diagnostic/support-report audit; no patient browse or mutation; typecheck/lint/build; DEV role smoke/screenshots; full CI
-  at P5 checkpoint.
+- **Validation:** global-admin vs clinic-admin/doctor direct-route matrix; billing operation authorization,
+  reconciliation/idempotency and audit; target-org isolation; aggregate threshold; secret masking; aggregate
+  diagnostic/support-report audit; no patient browse or mutation; typecheck/lint/build; DEV role smoke/screenshots;
+  full CI at P5 checkpoint.
 - **Rollback/degradation:** old privileged entry may remain guarded; degraded data sources show stale/unavailable,
   never fall back to clinical query. No support session exists under safe default.
-- **Completion:** [ ] PLAT ownership split; [ ] dedicated guards; [ ] settings mirror path; [ ] aggregate system
-  diagnostics purpose/audit; [ ] one optional-adapter extension path; [ ] no patient workflow/repair; [ ] full audit PASS.
+- **Completion:** [ ] PLAT ownership split; [ ] dedicated guards; [ ] settings mirror path; [ ] C5 global billing
+  operations baseline; [ ] aggregate system diagnostics purpose/audit; [ ] one optional-adapter extension path;
+  [ ] no patient workflow/repair; [ ] full audit PASS.
 - **Merge dependency:** U1/U7 and ownership classification. UX08-10 is rejected and creates no pending branch.
 
 ### Deferred commercial capability family U8 — custom domain, sender and generated organization PWA
@@ -875,7 +1088,8 @@ responsive, accessibility and visual acceptance.
   object × state; launch J1/J3-J7 traces plus explicit J2 absence reconciled to dated rulings; desktop/mobile/platform app;
   keyboard/focus/semantics/contrast; console/network/overflow; targeted tests,
   typecheck, lint, affected builds and final full CI; migration/DB gates from included stages; DEV smoke and
-  owner-authorized TEST acceptance separately; source-bound screenshot manifests and two independent visual seals.
+  owner-authorized TEST acceptance separately; every included C0-C6/C2F owner-review acceptance; source-bound screenshot
+  manifests and two independent visual seals.
 - **Rollback/degradation:** compatibility map allows reverting links/shell without weakening new server guards;
   unavailable optional mechanics degrade to explicit recovery; no owner-gated feature is silently enabled.
 - **Completion:** [ ] 57/57 accounted with deferred IDs absent; [ ] 150/150 reconciled to current denominator; [ ] no duplicate route/component
