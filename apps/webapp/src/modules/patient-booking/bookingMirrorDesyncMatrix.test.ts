@@ -251,7 +251,7 @@ describe("booking mirror desync matrix (P2)", () => {
     expect(skip).toBe(true);
   });
 
-  it("10 staff delete after cancel → projection purged, booking.deleted not booking.cancelled", async () => {
+  it("10 staff delete after cancel → projection purged, no Rubitime call, booking.deleted not booking.cancelled", async () => {
     const { staffPurgeCancelledAppointment } = await import(
       "@/app-layer/booking/staffPurgeCancelledAppointment"
     );
@@ -313,7 +313,7 @@ describe("booking mirror desync matrix (P2)", () => {
 
     expect(result.ok).toBe(true);
     expect(await inMemoryAppointmentProjectionPort.isIntegratorRecordPurged("r-staff-del")).toBe(true);
-    expect(syncPort.deleteRecord).toHaveBeenCalledWith("r-staff-del");
+    expect(syncPort.deleteRecord).not.toHaveBeenCalled();
     expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "booking.deleted",
