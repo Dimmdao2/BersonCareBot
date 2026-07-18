@@ -1801,3 +1801,51 @@ proof, plus ordinary UI surfaces that could still expose the retired provider.
 **ИЗМЕНИЛ:** removed Rubitime from the staff appointment lifecycle and ordinary booking UI, independently audited
 the whole C0 checklist to PASS, preserved provider-neutral canonical side effects and integrated the accepted work
 without leaving an agent branch or worktree.
+
+## 2026-07-18 — C1 launch checkpoint: Today + Clients (`#850`)
+
+**Integration base:** `feat/doctor-ui-rebuild` at
+`308cecb3bbcea2981c6121e6856e3f58b8e0e1e9`, aligned with `origin/feat/doctor-ui-rebuild`. C0 is `done` with
+test/audit seals. The only main-worktree delta is the owner's protected untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md`.
+
+**Environment checkpoint:** current remote TEST ref is `a130741b0b028fc1f3d4de17db24d66b08fce645`; no TEST deployment or
+mutation is authorized. The existing single DEV webapp at `http://127.0.0.1:5200` is alive and remains owned by the
+main integration worktree; no second Next server may be started.
+
+**Dedup and readiness:** task `#846` and the BCB2 punch-list are subordinate evidence, not the current product
+authority. No live process, agent-port run, branch or worktree exists for `#846`, so its stale `doing` status was
+returned to `todo`; owner-review §§1–2 are owned only by `#850`. Read-only explorer
+`bcb-c1-850-explorer-20260718` confirmed that the current organization-scoped `ClientListItem`,
+`getClientCategory` and repository projection already implement the approved client/subscriber semantics. No new
+relation, ownership path or backend classifier is needed.
+
+**Selected slice:** roadmap C1.1 / taskdb `#850`, owner-review §§1–2 in full. It is independent of C1 schedule and
+communications slices. One worker owns the whole slice because Today and Clients share doctor KPI presentation
+contracts and must be auditable as one visual result.
+
+**Acceptance:** Today KPI cards keep one label-above-value hierarchy and equal row height for both single and split
+values; separate total/future actions and their existing modal semantics remain. Clients removes the left filter
+rail, keeps the Clients/Subscribers segment in the right control area with Clients as default, preserves mutually
+exclusive organization-scoped classification, shows a calendar count only for future active appointments, keeps
+membership/support indicators, and shows the program dumbbell only without active support. Past appointment history
+alone remains client evidence but is not a row indicator. Desktop and mobile must both preserve semantic order and
+usable segment access.
+
+**File/ownership scope:** presentation and focused tests in `DoctorTodayRightKpiRow.tsx`, shared doctor KPI shell
+only if required (`DoctorStatCard.tsx` / existing doctor visual tokens), `DoctorTodayDashboard.test.tsx`,
+`PatientsPageClient.tsx` and `PatientsPageClient.test.tsx`. The organization-scoped clients port/repository,
+`patients/page.tsx`, DB/migrations, C1 schedule/communications, patient UI, integrations and infrastructure are
+protected unless a concrete acceptance blocker is returned to the lead.
+
+**Checks and live evidence:** focused Today/Clients tests including history-only, future-only, support-only,
+program-only, program+support, membership and subscriber cases; affected-file ESLint; webapp typecheck; diff check.
+Live DEV acceptance uses `dev:doctor` (or `dev:admin` only where the fixture requires it), exact URLs
+`/app/doctor` and `/app/doctor/patients`, desktop `1480x1024` and mobile `390x844`, with source-bound screenshots and
+explicit KPI/segment/indicator states. Shared KPI consumers receive a targeted regression check.
+
+**Risks and gates:** the current Clients right panel is hidden below `lg`, so mobile segment access is a known
+responsive risk, not permission for a broader IA redesign. Shared KPI token changes can affect analytics consumers
+and therefore require minimal scope plus regression evidence. No product inference beyond §§1–2, TEST/PROD action,
+real delivery, deploy, schema/data change or owner-gated FIO/Rubitime work is authorized. Accepted worker work must
+be integrated into this feature branch and its temporary branch/worktree removed after independent PASS.
