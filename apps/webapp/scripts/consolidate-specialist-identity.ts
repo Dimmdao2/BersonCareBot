@@ -2,289 +2,702 @@
 /**
  * One-off: сведение дублей канонического специалиста к одному (solo-specialist модель).
  *
- * Контекст:
- *   Исторически запись шла через Rubitime, где для КАЖДОГО филиала заводился отдельный
- *   «специалист» (дубль одного человека). При проекции в канон это дало несколько строк
- *   be_specialists для одного физлица + часть rubitime-проекций с specialist_id = NULL
- *   (кооператор не был смаплен). Продуктовая модель booking-rework — ОДИН специалист на все
- *   филиалы. Этот скрипт приводит исторические данные к модели:
- *     1) repoint всех FK-ссылок дублей → на канонического (primary) специалиста (8 таблиц);
- *        для link-таблиц с UNIQUE по specialist_id — conflict-safe (удаляем дубль-строку,
- *        которая столкнулась бы с существующей primary-строкой по остальным колонкам ключа);
- *     2) remap be_external_entity_mappings (specialist:rubitime) дублей → primary
- *        (чтобы будущий inbound резолвил одного специалиста);
- *     3) deactivate дубль-строки be_specialists (is_active=false; НЕ hard-delete — сохраняем
- *        ссылочную историю и аудит). После этого в орге ровно один активный специалист →
- *        resolveDefaultSpecialistId и solo-fallback моста детерминированы;
- *     4) (опц., вкл по умолчанию) привязка be_appointments с specialist_id = NULL → primary
- *        (специалист один = владельца). Филиал (branch_id) НЕ трогаем — это отдельное измерение.
- *
- * Код-фикс рецидива — в apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts
- *   (resolveSoloSpecialistId: немапленный кооператор + единственный активный специалист → он).
+ * Исторически Rubitime создавал отдельного «специалиста» для каждого филиала. Скрипт:
+ *   1) repoint-ит ссылки дублей на canonical specialist;
+ *   2) conflict-safe удаляет дубли link-строк перед repoint;
+ *   3) remap-ит Rubitime specialist mappings;
+ *   4) деактивирует duplicate specialists без hard-delete;
+ *   5) по умолчанию назначает NULL-specialist appointments canonical specialist.
  *
  * Безопасность:
- *   - Dry-run по умолчанию; запись ТОЛЬКО с --commit (одна транзакция, ROLLBACK при ошибке).
- *   - Идемпотентно: повторный прогон после сведения не находит дублей и меняет 0 строк.
- *   - Primary авто-детект: активный специалист с наибольшим числом записей среди тёзок;
- *     переопределяется --canonical=<uuid>.
- *   - Дубли = активные специалисты ТОЙ ЖЕ организации с тем же full_name (кроме primary).
- *     --merge-all снимает фильтр по имени (сливает всех прочих — использовать осознанно).
- *   - --no-assign-nulls отключает шаг 4.
- *   - dev = реальные ПДн: печатаем только id/числа/full_name специалиста (это владелец, не пациент).
- *   - Audit-лог (commit): .tmp/specialist-consolidation/applied-<ts>.json.
+ *   - dry-run по умолчанию; запись только с --commit, одной Drizzle-транзакцией;
+ *   - --summary-only не печатает и не сохраняет имена, телефоны, specialist/org/duplicate IDs,
+ *     timestamps или appointment slots;
+ *   - commit audit создаётся приватным regular file (0600 + fsync) ДО транзакции; существующий
+ *     файл или symlink не перезаписывается;
+ *   - подробный ручной режим сохраняет прежний PLAN, но его audit тоже приватный.
  *
  * Запуск:
  *   set -a && source apps/webapp/.env.dev && set +a
- *   pnpm --dir apps/webapp run consolidate-specialist-identity                 # dry-run
+ *   pnpm --dir apps/webapp run consolidate-specialist-identity
  *   pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit
- *   # опц.: -- --canonical=<uuid> --org=<uuid> --merge-all --no-assign-nulls
+ *   pnpm --dir apps/webapp run consolidate-specialist-identity -- --summary-only
+ *   # опц.: --canonical=<uuid> --org=<uuid> --merge-all --no-assign-nulls
  */
 
-import pg from "pg";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve as resolvePath } from "node:path";
+import {
+  closeSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+} from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import {
+  beAppointments,
+  beAvailabilityRules,
+  beExternalEntityMappings,
+  beOrganizationMembers,
+  beScheduleBlocks,
+  beSpecialistLocations,
+  beSpecialistRooms,
+  beSpecialistServiceAvailability,
+  beSpecialists,
+  beWorkingDays,
+  beWorkingHours,
+} from '../db/schema';
 
 const argv = process.argv.slice(2);
-const hasFlag = (n: string) => argv.includes(`--${n}`);
-const getOpt = (n: string): string | null => {
-  const hit = argv.find((a) => a.startsWith(`--${n}=`));
-  return hit ? hit.slice(n.length + 3) : null;
+const hasFlag = (name: string): boolean => argv.includes(`--${name}`);
+const getOpt = (name: string): string | null => {
+  const hit = argv.find((arg) => arg.startsWith(`--${name}=`));
+  return hit ? hit.slice(name.length + 3) : null;
 };
-const COMMIT = hasFlag("commit");
-const MERGE_ALL = hasFlag("merge-all");
-const ASSIGN_NULLS = !hasFlag("no-assign-nulls");
-const CANONICAL = getOpt("canonical");
-const ORG = getOpt("org");
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) {
-  console.error("MISSING DATABASE_URL — сначала: set -a && source apps/webapp/.env.dev && set +a");
-  process.exit(1);
-}
+const COMMIT = hasFlag('commit');
+const MERGE_ALL = hasFlag('merge-all');
+const ASSIGN_NULLS = !hasFlag('no-assign-nulls');
+const SUMMARY_ONLY = hasFlag('summary-only');
+const CANONICAL = getOpt('canonical');
+const ORG = getOpt('org');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-for (const [name, val] of [["canonical", CANONICAL], ["org", ORG]] as const) {
-  if (val !== null && !UUID_RE.test(val)) {
-    console.error(`--${name} должен быть uuid, получено: ${val}`);
-    process.exit(1);
+
+const TERMINAL_APPOINTMENT_STATUSES = [
+  'cancelled_by_patient',
+  'cancelled_by_specialist',
+  'late_cancellation',
+  'no_show',
+  'completed',
+  'visit_confirmed',
+];
+
+type CleanupStats = Record<string, number>;
+
+export type ExplicitCanonicalCandidate = {
+  isActive: boolean;
+  organizationId: string;
+};
+
+export type ExplicitCanonicalValidation =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' | 'inactive' | 'organization_mismatch' };
+
+/** Pure fail-closed gate used before an explicit canonical specialist can enter a mutation plan. */
+export function validateExplicitCanonicalCandidate(
+  candidate: ExplicitCanonicalCandidate | null | undefined,
+  expectedOrganizationId: string | null,
+): ExplicitCanonicalValidation {
+  if (!candidate) {
+    return { ok: false, reason: 'not_found' };
+  }
+  if (!candidate.isActive) {
+    return { ok: false, reason: 'inactive' };
+  }
+  if (expectedOrganizationId !== null && candidate.organizationId !== expectedOrganizationId) {
+    return { ok: false, reason: 'organization_mismatch' };
+  }
+  return { ok: true };
+}
+
+type DetailedAudit = {
+  primaryId: string;
+  primaryName: string;
+  duplicateIds: string[];
+  skippedOverlapAppointments: Array<{ id: string; slot: string }>;
+};
+
+type AuditArtifact =
+  | {
+      state: 'planned' | 'applied';
+      mode: 'summary-only';
+      stats: CleanupStats;
+    }
+  | {
+      state: 'planned' | 'applied';
+      mode: 'detailed';
+      createdAt: string;
+      appliedAt?: string;
+      stats: CleanupStats;
+      audit: DetailedAudit;
+    };
+
+function syncDirectory(path: string): void {
+  const fd = openSync(path, 'r');
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
   }
 }
 
-// FK-таблицы со ссылкой specialist_id. Для link-таблиц с UNIQUE(specialist_id, …) указываем
-// остальные колонки ключа — по ним делаем conflict-safe dedup (равенство `=` = NULLS DISTINCT).
-const FK_TABLES: { table: string; uniqueOtherCols: string[] }[] = [
-  { table: "be_appointments", uniqueOtherCols: [] },
-  { table: "be_availability_rules", uniqueOtherCols: [] },
-  { table: "be_schedule_blocks", uniqueOtherCols: [] },
-  { table: "be_working_hours", uniqueOtherCols: [] },
-  { table: "be_working_days", uniqueOtherCols: [] },
-  { table: "be_specialist_locations", uniqueOtherCols: ["branch_id"] },
-  { table: "be_specialist_rooms", uniqueOtherCols: ["room_id"] },
-  {
-    table: "be_specialist_service_availability",
-    uniqueOtherCols: ["service_id", "branch_id", "room_id", "city_code"],
-  },
-  // Членство доктора в организации несёт его specialist_id. Без этой перецепки консолидация
-  // деактивирует дубль-специалиста, но членство остаётся указывать на мёртвый (is_active=false)
-  // id → resolveDoctorOwnSpecialistId возвращает null → у врача "specialist_not_configured" и
-  // пустое расписание. Unique в be_organization_members не завязан на specialist_id, поэтому
-  // простой repoint без conflict-dedup корректен.
-  { table: "be_organization_members", uniqueOtherCols: [] },
-];
+function createPrivateAuditArtifact(path: string, artifact: AuditArtifact): void {
+  const dir = dirname(path);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const dirStat = lstatSync(dir);
+  if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
+    throw new Error('refusing non-regular specialist consolidation audit directory');
+  }
+
+  const fd = openSync(path, 'wx', 0o600);
+  try {
+    const fileStat = fstatSync(fd);
+    if (!fileStat.isFile()) {
+      throw new Error('refusing non-regular specialist consolidation audit file');
+    }
+    writeFileSync(fd, `${JSON.stringify(artifact, null, 2)}\n`, { encoding: 'utf8' });
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  syncDirectory(dir);
+}
+
+function printSummary(stats: CleanupStats): void {
+  if (SUMMARY_ONLY) {
+    console.log(
+      JSON.stringify({
+        mode: COMMIT ? 'commit' : 'dry-run',
+        stats,
+      }),
+    );
+    return;
+  }
+
+  console.log('\n=== SUMMARY ===');
+  console.table(stats);
+}
+
+function ids(rows: ReadonlyArray<{ id: string }>): string[] {
+  return rows.map((row) => row.id);
+}
+
+function withoutIds(
+  rows: ReadonlyArray<{ id: string }>,
+  excludedIds: ReadonlySet<string>,
+): string[] {
+  return rows.filter((row) => !excludedIds.has(row.id)).map((row) => row.id);
+}
 
 async function main() {
-  const pool = new pg.Pool({ connectionString: DATABASE_URL });
-  const db = await pool.connect();
-  const stats: Record<string, number> = {};
-  const audit: Record<string, unknown> = {};
+  let transactionCommitted = false;
+
+  if (!process.env.DATABASE_URL) {
+    console.error(
+      'MISSING DATABASE_URL — сначала: set -a && source apps/webapp/.env.dev && set +a',
+    );
+    process.exitCode = 1;
+    return;
+  }
+  for (const [name, value] of [
+    ['canonical', CANONICAL],
+    ['org', ORG],
+  ] as const) {
+    if (value !== null && !UUID_RE.test(value)) {
+      console.error(
+        SUMMARY_ONLY
+          ? `--${name} must be a valid uuid`
+          : `--${name} должен быть uuid, получено: ${value}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
 
   try {
-    // ── primary ──────────────────────────────────────────────────────────────
-    const orgFilter = ORG ? `AND s.organization_id = '${ORG}'::uuid` : "";
+    const { getDrizzle } = await import('@/app-layer/db/drizzle');
+    const db = getDrizzle();
+    const stats: CleanupStats = {};
+
+    const appointmentCount = count(beAppointments.id);
     let primaryId = CANONICAL;
-    let primaryName: string | null = null;
-    let primaryOrg: string | null = null;
+    let primaryName: string;
+    let primaryOrg: string;
+
     if (!primaryId) {
-      const r = await db.query<{ id: string; full_name: string; organization_id: string; cnt: number }>(
-        `SELECT s.id, s.full_name, s.organization_id,
-                (SELECT count(*)::int FROM be_appointments a WHERE a.specialist_id = s.id) cnt
-           FROM be_specialists s
-          WHERE s.is_active = true ${orgFilter}
-          ORDER BY cnt DESC, s.created_at ASC
-          LIMIT 1`,
-      );
-      if (r.rowCount === 0) {
-        console.error("Не найдено активных специалистов — нечего сводить.");
+      const primaryRows = await db
+        .select({
+          id: beSpecialists.id,
+          fullName: beSpecialists.fullName,
+          organizationId: beSpecialists.organizationId,
+          appointmentCount,
+        })
+        .from(beSpecialists)
+        .leftJoin(beAppointments, eq(beAppointments.specialistId, beSpecialists.id))
+        .where(
+          and(
+            eq(beSpecialists.isActive, true),
+            ORG ? eq(beSpecialists.organizationId, ORG) : undefined,
+          ),
+        )
+        .groupBy(beSpecialists.id)
+        .orderBy(desc(appointmentCount), asc(beSpecialists.createdAt))
+        .limit(1);
+      const primary = primaryRows[0];
+      if (!primary) {
+        if (SUMMARY_ONLY) {
+          console.log(JSON.stringify({ mode: COMMIT ? 'commit' : 'dry-run', stats }));
+        } else {
+          console.error('Не найдено активных специалистов — нечего сводить.');
+        }
         return;
       }
-      primaryId = r.rows[0]!.id;
-      primaryName = r.rows[0]!.full_name;
-      primaryOrg = r.rows[0]!.organization_id;
+      primaryId = primary.id;
+      primaryName = primary.fullName;
+      primaryOrg = primary.organizationId;
     } else {
-      const r = await db.query<{ full_name: string; organization_id: string }>(
-        `SELECT full_name, organization_id FROM be_specialists WHERE id = $1::uuid`,
-        [primaryId],
-      );
-      if (r.rowCount === 0) {
-        console.error(`--canonical ${primaryId} не найден в be_specialists.`);
+      const primaryRows = await db
+        .select({
+          fullName: beSpecialists.fullName,
+          organizationId: beSpecialists.organizationId,
+          isActive: beSpecialists.isActive,
+        })
+        .from(beSpecialists)
+        .where(eq(beSpecialists.id, primaryId))
+        .limit(1);
+      const primary = primaryRows[0];
+      const validation = validateExplicitCanonicalCandidate(primary, ORG);
+      if (!validation.ok) {
+        const message =
+          validation.reason === 'not_found'
+            ? 'canonical specialist was not found'
+            : validation.reason === 'inactive'
+              ? 'canonical specialist is inactive'
+              : 'canonical specialist belongs to another organization';
+        console.error(message);
         process.exitCode = 1;
         return;
       }
-      primaryName = r.rows[0]!.full_name;
-      primaryOrg = r.rows[0]!.organization_id;
+      // The validation above proves `primary` exists before any mutation plan or audit artifact is built.
+      if (!primary) throw new Error('unreachable canonical validation state');
+      primaryName = primary.fullName;
+      primaryOrg = primary.organizationId;
     }
 
-    // ── duplicates ───────────────────────────────────────────────────────────
-    const nameClause = MERGE_ALL ? "" : "AND full_name = $2";
-    const dupRows = await db.query<{ id: string; full_name: string }>(
-      `SELECT id, full_name FROM be_specialists
-        WHERE organization_id = $1::uuid AND is_active = true AND id <> $3::uuid ${nameClause}`,
-      MERGE_ALL ? [primaryOrg, primaryId] : [primaryOrg, primaryName, primaryId],
-    );
-    const dupIds = dupRows.rows.map((d) => d.id);
-    console.log("\n=== PLAN ===");
-    console.log(`primary: ${primaryId} (${primaryName}) org=${primaryOrg}`);
-    console.log(`duplicates (${dupIds.length}):`, dupIds.join(", ") || "—");
-    audit.primaryId = primaryId;
-    audit.primaryName = primaryName;
-    audit.dupIds = dupIds;
+    const duplicateRows = await db
+      .select({ id: beSpecialists.id })
+      .from(beSpecialists)
+      .where(
+        and(
+          eq(beSpecialists.organizationId, primaryOrg),
+          eq(beSpecialists.isActive, true),
+          ne(beSpecialists.id, primaryId),
+          MERGE_ALL ? undefined : eq(beSpecialists.fullName, primaryName),
+        ),
+      );
+    const duplicateIds = ids(duplicateRows);
 
-    if (dupIds.length === 0 && !ASSIGN_NULLS) {
-      console.log("Нет дублей и assign-nulls выключен — нечего делать.");
+    if (!SUMMARY_ONLY) {
+      console.log('\n=== PLAN ===');
+      console.log(`primary: ${primaryId} (${primaryName}) org=${primaryOrg}`);
+      console.log(`duplicates (${duplicateIds.length}):`, duplicateIds.join(', ') || '—');
+    }
+
+    if (duplicateIds.length === 0 && !ASSIGN_NULLS) {
+      if (SUMMARY_ONLY) {
+        printSummary(stats);
+      } else {
+        console.log('Нет дублей и assign-nulls выключен — нечего делать.');
+      }
       return;
     }
 
-    const dupList = dupIds.map((d) => `'${d}'::uuid`).join(",");
+    const duplicateAppointments = alias(beAppointments, 'duplicate_appointments');
+    const primaryAppointments = alias(beAppointments, 'primary_appointments');
+    const overlapRows =
+      duplicateIds.length === 0
+        ? []
+        : await db
+            .select({ id: duplicateAppointments.id, slot: duplicateAppointments.startAt })
+            .from(duplicateAppointments)
+            .where(
+              and(
+                inArray(duplicateAppointments.specialistId, duplicateIds),
+                isNull(duplicateAppointments.deletedAt),
+                notInArray(duplicateAppointments.status, TERMINAL_APPOINTMENT_STATUSES),
+                exists(
+                  db
+                    .select({ id: primaryAppointments.id })
+                    .from(primaryAppointments)
+                    .where(
+                      and(
+                        eq(primaryAppointments.specialistId, primaryId),
+                        isNull(primaryAppointments.deletedAt),
+                        notInArray(primaryAppointments.status, TERMINAL_APPOINTMENT_STATUSES),
+                        lt(primaryAppointments.startAt, duplicateAppointments.endAt),
+                        gt(primaryAppointments.endAt, duplicateAppointments.startAt),
+                      ),
+                    ),
+                ),
+              ),
+            );
+    const skippedAppointmentIds = new Set(ids(overlapRows));
+    stats.be_appointments_skipped_overlap = overlapRows.length;
 
-    // ── be_appointments: пропускаем активные записи дубля, пересекающиеся с активной
-    //    записью primary (exclusion-constraint be_appointments_specialist_no_overlap) — это
-    //    настоящий double-book (последствие per-branch специалистов), решает владелец вручную.
-    const ACTIVE_STATUS = `status NOT IN ('cancelled_by_patient','cancelled_by_specialist','late_cancellation','no_show','completed','visit_confirmed')`;
-    let apptSkipIds: string[] = [];
-    if (dupIds.length > 0) {
-      const r = await db.query<{ id: string; slot: string }>(
-        `SELECT d.id, to_char(d.start_at,'YYYY-MM-DD HH24:MI') slot
-           FROM be_appointments d
-          WHERE d.specialist_id IN (${dupList}) AND d.deleted_at IS NULL AND d.${ACTIVE_STATUS}
-            AND EXISTS (SELECT 1 FROM be_appointments p
-                         WHERE p.specialist_id = '${primaryId}'::uuid AND p.deleted_at IS NULL AND p.${ACTIVE_STATUS}
-                           AND tstzrange(p.start_at,p.end_at,'[)') && tstzrange(d.start_at,d.end_at,'[)'))`,
+    if (!SUMMARY_ONLY && overlapRows.length > 0) {
+      console.log(
+        '\n⚠ ПРОПУЩЕНЫ (double-book, переносить нельзя) — решает владелец:',
+        overlapRows.map((row) => row.slot).join(', '),
       );
-      apptSkipIds = r.rows.map((x) => x.id);
-      stats.be_appointments_skipped_overlap = apptSkipIds.length;
-      audit.skippedOverlapAppointments = r.rows.map((x) => ({ id: x.id, slot: x.slot }));
-      if (apptSkipIds.length > 0) {
-        console.log(
-          `\n⚠ ПРОПУЩЕНЫ (double-book, переносить нельзя) — решает владелец:`,
-          r.rows.map((x) => x.slot).join(", "),
-        );
-      }
     }
-    const apptSkipClause = apptSkipIds.length
-      ? ` AND id NOT IN (${apptSkipIds.map((i) => `'${i}'::uuid`).join(",")})`
-      : "";
 
-    if (COMMIT) await db.query("BEGIN");
+    const [
+      duplicateAppointmentRows,
+      availabilityRuleRows,
+      scheduleBlockRows,
+      workingHourRows,
+      workingDayRows,
+      specialistLocationRows,
+      primaryLocationRows,
+      specialistRoomRows,
+      primaryRoomRows,
+      specialistServiceRows,
+      primaryServiceRows,
+      organizationMemberRows,
+      externalMappingRows,
+      nullAppointmentRows,
+    ] = await Promise.all([
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beAppointments.id })
+            .from(beAppointments)
+            .where(inArray(beAppointments.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beAvailabilityRules.id })
+            .from(beAvailabilityRules)
+            .where(inArray(beAvailabilityRules.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beScheduleBlocks.id })
+            .from(beScheduleBlocks)
+            .where(inArray(beScheduleBlocks.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beWorkingHours.id })
+            .from(beWorkingHours)
+            .where(inArray(beWorkingHours.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beWorkingDays.id })
+            .from(beWorkingDays)
+            .where(inArray(beWorkingDays.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beSpecialistLocations.id, branchId: beSpecialistLocations.branchId })
+            .from(beSpecialistLocations)
+            .where(inArray(beSpecialistLocations.specialistId, duplicateIds)),
+      db
+        .select({ branchId: beSpecialistLocations.branchId })
+        .from(beSpecialistLocations)
+        .where(eq(beSpecialistLocations.specialistId, primaryId)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beSpecialistRooms.id, roomId: beSpecialistRooms.roomId })
+            .from(beSpecialistRooms)
+            .where(inArray(beSpecialistRooms.specialistId, duplicateIds)),
+      db
+        .select({ roomId: beSpecialistRooms.roomId })
+        .from(beSpecialistRooms)
+        .where(eq(beSpecialistRooms.specialistId, primaryId)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({
+              id: beSpecialistServiceAvailability.id,
+              serviceId: beSpecialistServiceAvailability.serviceId,
+              branchId: beSpecialistServiceAvailability.branchId,
+              roomId: beSpecialistServiceAvailability.roomId,
+              cityCode: beSpecialistServiceAvailability.cityCode,
+            })
+            .from(beSpecialistServiceAvailability)
+            .where(inArray(beSpecialistServiceAvailability.specialistId, duplicateIds)),
+      db
+        .select({
+          serviceId: beSpecialistServiceAvailability.serviceId,
+          branchId: beSpecialistServiceAvailability.branchId,
+          roomId: beSpecialistServiceAvailability.roomId,
+          cityCode: beSpecialistServiceAvailability.cityCode,
+        })
+        .from(beSpecialistServiceAvailability)
+        .where(eq(beSpecialistServiceAvailability.specialistId, primaryId)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beOrganizationMembers.id })
+            .from(beOrganizationMembers)
+            .where(inArray(beOrganizationMembers.specialistId, duplicateIds)),
+      duplicateIds.length === 0
+        ? Promise.resolve([])
+        : db
+            .select({ id: beExternalEntityMappings.id })
+            .from(beExternalEntityMappings)
+            .where(
+              and(
+                eq(beExternalEntityMappings.entityType, 'specialist'),
+                eq(beExternalEntityMappings.externalSystem, 'rubitime'),
+                inArray(beExternalEntityMappings.canonicalId, duplicateIds),
+              ),
+            ),
+      ASSIGN_NULLS
+        ? db
+            .select({ id: beAppointments.id })
+            .from(beAppointments)
+            .where(
+              and(
+                isNull(beAppointments.specialistId),
+                eq(beAppointments.organizationId, ORG ?? primaryOrg),
+              ),
+            )
+        : Promise.resolve([]),
+    ]);
 
-    // ── repoint FK tables ──────────────────────────────────────────────────────
-    for (const { table, uniqueOtherCols } of FK_TABLES) {
-      if (dupIds.length === 0) {
-        stats[`${table}_repointed`] = 0;
-        continue;
-      }
-      const extraClause = table === "be_appointments" ? apptSkipClause : "";
-      // conflict-safe: удаляем дубль-строки, которые столкнулись бы с primary по остальным
-      // колонкам UNIQUE (равенство `=` пропускает NULL — это и есть NULLS DISTINCT семантика).
-      if (uniqueOtherCols.length > 0) {
-        const eqJoin = uniqueOtherCols.map((c) => `p.${c} = d.${c}`).join(" AND ");
-        const delSql = `DELETE FROM ${table} d
-           WHERE d.specialist_id IN (${dupList})
-             AND EXISTS (SELECT 1 FROM ${table} p WHERE p.specialist_id = '${primaryId}'::uuid AND ${eqJoin})`;
-        const collideCount = (
-          await db.query(
-            `SELECT count(*)::int n FROM ${table} d WHERE d.specialist_id IN (${dupList})
-               AND EXISTS (SELECT 1 FROM ${table} p WHERE p.specialist_id = '${primaryId}'::uuid AND ${eqJoin})`,
-          )
-        ).rows[0]!.n as number;
-        stats[`${table}_collisions_deleted`] = collideCount;
-        if (COMMIT && collideCount > 0) await db.query(delSql);
-      }
-      const cnt = (
-        await db.query(
-          `SELECT count(*)::int n FROM ${table} WHERE specialist_id IN (${dupList})${extraClause}`,
+    const primaryBranches = new Set(primaryLocationRows.map((row) => row.branchId));
+    const locationCollisionIds = new Set(
+      specialistLocationRows
+        .filter((row) => primaryBranches.has(row.branchId))
+        .map((row) => row.id),
+    );
+    const primaryRooms = new Set(primaryRoomRows.map((row) => row.roomId));
+    const roomCollisionIds = new Set(
+      specialistRoomRows.filter((row) => primaryRooms.has(row.roomId)).map((row) => row.id),
+    );
+    const primaryServiceKeys = new Set(
+      primaryServiceRows
+        .filter((row) => row.branchId !== null && row.roomId !== null && row.cityCode !== null)
+        .map((row) => `${row.serviceId}|${row.branchId}|${row.roomId}|${row.cityCode}`),
+    );
+    const serviceCollisionIds = new Set(
+      specialistServiceRows
+        .filter(
+          (row) =>
+            row.branchId !== null &&
+            row.roomId !== null &&
+            row.cityCode !== null &&
+            primaryServiceKeys.has(
+              `${row.serviceId}|${row.branchId}|${row.roomId}|${row.cityCode}`,
+            ),
         )
-      ).rows[0]!.n as number;
-      stats[`${table}_repointed`] = cnt;
-      if (COMMIT && cnt > 0) {
-        await db.query(
-          `UPDATE ${table} SET specialist_id = '${primaryId}'::uuid WHERE specialist_id IN (${dupList})${extraClause}`,
-        );
-      }
-    }
+        .map((row) => row.id),
+    );
 
-    // ── remap external mappings (specialist:rubitime) ───────────────────────────
-    if (dupIds.length > 0) {
-      const mapCnt = (
-        await db.query(
-          `SELECT count(*)::int n FROM be_external_entity_mappings
-            WHERE entity_type='specialist' AND external_system='rubitime' AND canonical_id IN (${dupList})`,
-        )
-      ).rows[0]!.n as number;
-      stats.external_mappings_remapped = mapCnt;
-      if (COMMIT && mapCnt > 0) {
-        await db.query(
-          `UPDATE be_external_entity_mappings SET canonical_id = '${primaryId}'::uuid, updated_at = now()
-            WHERE entity_type='specialist' AND external_system='rubitime' AND canonical_id IN (${dupList})`,
-        );
-      }
-    }
+    const repointIds = {
+      beAppointments: withoutIds(duplicateAppointmentRows, skippedAppointmentIds),
+      beAvailabilityRules: ids(availabilityRuleRows),
+      beScheduleBlocks: ids(scheduleBlockRows),
+      beWorkingHours: ids(workingHourRows),
+      beWorkingDays: ids(workingDayRows),
+      beSpecialistLocations: withoutIds(specialistLocationRows, locationCollisionIds),
+      beSpecialistRooms: withoutIds(specialistRoomRows, roomCollisionIds),
+      beSpecialistServiceAvailability: withoutIds(specialistServiceRows, serviceCollisionIds),
+      beOrganizationMembers: ids(organizationMemberRows),
+    };
 
-    // ── deactivate duplicate specialists ────────────────────────────────────────
-    if (dupIds.length > 0) {
-      stats.specialists_deactivated = dupIds.length;
-      if (COMMIT) {
-        await db.query(
-          `UPDATE be_specialists SET is_active = false, updated_at = now() WHERE id IN (${dupList})`,
-        );
-      }
+    stats.be_appointments_repointed = repointIds.beAppointments.length;
+    stats.be_availability_rules_repointed = repointIds.beAvailabilityRules.length;
+    stats.be_schedule_blocks_repointed = repointIds.beScheduleBlocks.length;
+    stats.be_working_hours_repointed = repointIds.beWorkingHours.length;
+    stats.be_working_days_repointed = repointIds.beWorkingDays.length;
+    stats.be_specialist_locations_repointed = repointIds.beSpecialistLocations.length;
+    stats.be_specialist_rooms_repointed = repointIds.beSpecialistRooms.length;
+    stats.be_specialist_service_availability_repointed =
+      repointIds.beSpecialistServiceAvailability.length;
+    stats.be_organization_members_repointed = repointIds.beOrganizationMembers.length;
+    if (duplicateIds.length > 0) {
+      stats.be_specialist_locations_collisions_deleted = locationCollisionIds.size;
+      stats.be_specialist_rooms_collisions_deleted = roomCollisionIds.size;
+      stats.be_specialist_service_availability_collisions_deleted = serviceCollisionIds.size;
+      stats.external_mappings_remapped = externalMappingRows.length;
+      stats.specialists_deactivated = duplicateIds.length;
     }
-
-    // ── assign NULL-specialist appointments → primary ──────────────────────────
     if (ASSIGN_NULLS) {
-      const orgClause = ORG ? `AND organization_id = '${ORG}'::uuid` : `AND organization_id = '${primaryOrg}'::uuid`;
-      const nullCnt = (
-        await db.query(`SELECT count(*)::int n FROM be_appointments WHERE specialist_id IS NULL ${orgClause}`)
-      ).rows[0]!.n as number;
-      stats.null_appointments_assigned = nullCnt;
-      if (COMMIT && nullCnt > 0) {
-        await db.query(
-          `UPDATE be_appointments SET specialist_id = '${primaryId}'::uuid, updated_at = now()
-            WHERE specialist_id IS NULL ${orgClause}`,
-        );
-      }
+      stats.null_appointments_assigned = nullAppointmentRows.length;
     }
+
+    const createdAt = new Date().toISOString();
+    const runSuffix = SUMMARY_ONLY ? randomUUID() : createdAt.replace(/[:.]/g, '-');
+    const auditDir = resolvePath(process.cwd(), '../../.tmp/specialist-consolidation');
+    const plannedAuditPath = resolvePath(auditDir, `planned-${runSuffix}.json`);
+    const appliedAuditPath = resolvePath(auditDir, `applied-${runSuffix}.json`);
+    const detailedAudit: DetailedAudit = {
+      primaryId,
+      primaryName,
+      duplicateIds,
+      skippedOverlapAppointments: overlapRows,
+    };
+    const plannedArtifact: AuditArtifact = SUMMARY_ONLY
+      ? { state: 'planned', mode: 'summary-only', stats }
+      : { state: 'planned', mode: 'detailed', createdAt, stats, audit: detailedAudit };
 
     if (COMMIT) {
-      await db.query("COMMIT");
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const dir = resolvePath(process.cwd(), "../../.tmp/specialist-consolidation");
-      mkdirSync(dir, { recursive: true });
-      const logPath = resolvePath(dir, `applied-${stamp}.json`);
-      writeFileSync(logPath, JSON.stringify({ audit, stats }, null, 2));
-      console.log(`\nAudit log → ${logPath}`);
-    }
-  } catch (err) {
-    if (COMMIT) await db.query("ROLLBACK");
-    console.error("FAILED, rolled back:", err);
-    process.exitCode = 1;
-  } finally {
-    db.release();
-    await pool.end();
-  }
+      createPrivateAuditArtifact(plannedAuditPath, plannedArtifact);
+      const updatedAt = new Date().toISOString();
 
-  console.log("\n=== SUMMARY ===");
-  console.table(stats);
-  if (!COMMIT) console.log("\nDRY-RUN — изменений не вносилось. Повтори с --commit для записи.");
+      await db.transaction(async (tx) => {
+        if (locationCollisionIds.size > 0) {
+          await tx
+            .delete(beSpecialistLocations)
+            .where(inArray(beSpecialistLocations.id, [...locationCollisionIds]));
+        }
+        if (roomCollisionIds.size > 0) {
+          await tx
+            .delete(beSpecialistRooms)
+            .where(inArray(beSpecialistRooms.id, [...roomCollisionIds]));
+        }
+        if (serviceCollisionIds.size > 0) {
+          await tx
+            .delete(beSpecialistServiceAvailability)
+            .where(inArray(beSpecialistServiceAvailability.id, [...serviceCollisionIds]));
+        }
+        if (repointIds.beAppointments.length > 0) {
+          await tx
+            .update(beAppointments)
+            .set({ specialistId: primaryId })
+            .where(inArray(beAppointments.id, repointIds.beAppointments));
+        }
+        if (repointIds.beAvailabilityRules.length > 0) {
+          await tx
+            .update(beAvailabilityRules)
+            .set({ specialistId: primaryId })
+            .where(inArray(beAvailabilityRules.id, repointIds.beAvailabilityRules));
+        }
+        if (repointIds.beScheduleBlocks.length > 0) {
+          await tx
+            .update(beScheduleBlocks)
+            .set({ specialistId: primaryId })
+            .where(inArray(beScheduleBlocks.id, repointIds.beScheduleBlocks));
+        }
+        if (repointIds.beWorkingHours.length > 0) {
+          await tx
+            .update(beWorkingHours)
+            .set({ specialistId: primaryId })
+            .where(inArray(beWorkingHours.id, repointIds.beWorkingHours));
+        }
+        if (repointIds.beWorkingDays.length > 0) {
+          await tx
+            .update(beWorkingDays)
+            .set({ specialistId: primaryId })
+            .where(inArray(beWorkingDays.id, repointIds.beWorkingDays));
+        }
+        if (repointIds.beSpecialistLocations.length > 0) {
+          await tx
+            .update(beSpecialistLocations)
+            .set({ specialistId: primaryId })
+            .where(inArray(beSpecialistLocations.id, repointIds.beSpecialistLocations));
+        }
+        if (repointIds.beSpecialistRooms.length > 0) {
+          await tx
+            .update(beSpecialistRooms)
+            .set({ specialistId: primaryId })
+            .where(inArray(beSpecialistRooms.id, repointIds.beSpecialistRooms));
+        }
+        if (repointIds.beSpecialistServiceAvailability.length > 0) {
+          await tx
+            .update(beSpecialistServiceAvailability)
+            .set({ specialistId: primaryId })
+            .where(
+              inArray(
+                beSpecialistServiceAvailability.id,
+                repointIds.beSpecialistServiceAvailability,
+              ),
+            );
+        }
+        if (repointIds.beOrganizationMembers.length > 0) {
+          await tx
+            .update(beOrganizationMembers)
+            .set({ specialistId: primaryId })
+            .where(inArray(beOrganizationMembers.id, repointIds.beOrganizationMembers));
+        }
+        if (externalMappingRows.length > 0) {
+          await tx
+            .update(beExternalEntityMappings)
+            .set({ canonicalId: primaryId, updatedAt })
+            .where(inArray(beExternalEntityMappings.id, ids(externalMappingRows)));
+        }
+        if (duplicateIds.length > 0) {
+          await tx
+            .update(beSpecialists)
+            .set({ isActive: false, updatedAt })
+            .where(inArray(beSpecialists.id, duplicateIds));
+        }
+        if (nullAppointmentRows.length > 0) {
+          await tx
+            .update(beAppointments)
+            .set({ specialistId: primaryId, updatedAt })
+            .where(inArray(beAppointments.id, ids(nullAppointmentRows)));
+        }
+      });
+      transactionCommitted = true;
+
+      const appliedArtifact: AuditArtifact = SUMMARY_ONLY
+        ? { state: 'applied', mode: 'summary-only', stats }
+        : {
+            state: 'applied',
+            mode: 'detailed',
+            createdAt,
+            appliedAt: new Date().toISOString(),
+            stats,
+            audit: detailedAudit,
+          };
+      createPrivateAuditArtifact(appliedAuditPath, appliedArtifact);
+
+      if (!SUMMARY_ONLY) {
+        console.log(`\nAudit log → ${appliedAuditPath}`);
+      }
+    }
+
+    printSummary(stats);
+    if (!COMMIT && !SUMMARY_ONLY) {
+      console.log('\nDRY-RUN — изменений не вносилось. Повтори с --commit для записи.');
+    }
+  } catch (error) {
+    if (SUMMARY_ONLY) {
+      console.error(
+        transactionCommitted
+          ? 'FAILED after consolidation commit; private audit state requires operator review.'
+          : 'FAILED; no consolidation result was committed.',
+      );
+    } else {
+      console.error(
+        transactionCommitted
+          ? 'FAILED after consolidation commit; audit finalization failed:'
+          : 'FAILED, rolled back:',
+        error,
+      );
+    }
+    process.exitCode = 1;
+  }
 }
 
-main();
+const entryPath = process.argv[1] ? resolvePath(process.argv[1]) : null;
+if (entryPath && import.meta.url === pathToFileURL(entryPath).href) {
+  void main().then(() => {
+    process.exit(process.exitCode ?? 0);
+  });
+}

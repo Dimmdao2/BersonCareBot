@@ -1,5 +1,11 @@
 # Сведение дублей канонического специалиста (solo-specialist)
 
+> **Актуализация 2026-07-19:** снимок DEV от 2026-06-14 ниже исторически выбирал `518ea988…` по числу
+> записей в той копии. Текущий clean-dump executable canon — `c9515025-7224-4d9b-86b6-9cb7d26ea503`, одинаковый
+> в `deploy-test-saas.sh`, `scripts/deploy-saas-667.sh` и Rubitime one-pass. Миграция 0143 временно seed-ит старую
+> связь, а текущий consolidation также перепривязывает `be_organization_members`. Уже сконсолидированную по старому
+> правилу disposable-БД не разворачивать обратно: восстановить fresh dump и запустить текущую цепочку.
+
 Разовое приведение исторических данных к продуктовой модели booking-rework: **один специалист
 на все филиалы**. Плюс код-фикс, чтобы дубли/NULL не возвращались.
 
@@ -39,7 +45,7 @@
    (override `--canonical=<uuid>`).
 2. **Duplicates** — активные специалисты той же организации с тем же `full_name` (кроме primary);
    `--merge-all` снимает фильтр по имени.
-3. **Repoint FK** (8 таблиц) дублей → primary. Для link-таблиц с `UNIQUE(specialist_id, …)`
+3. **Repoint FK** (9 таблиц, включая `be_organization_members`) дублей → primary. Для link-таблиц с `UNIQUE(specialist_id, …)`
    (`be_specialist_locations`, `be_specialist_rooms`, `be_specialist_service_availability`) —
    conflict-safe: дубль-строка, которая столкнулась бы с существующей primary-строкой по
    остальным колонкам ключа, удаляется (равенство `=` пропускает NULL = семантика NULLS DISTINCT).
@@ -58,13 +64,21 @@
 | `--org=<uuid>` | ограничить организацией |
 | `--merge-all` | сливать всех прочих специалистов (без фильтра по имени) — осознанно |
 | `--no-assign-nulls` | не привязывать NULL-записи |
+| `--summary-only` | PII-safe агрегатный stdout/stderr и aggregate-only audit; обязателен внутри one-pass/full-reset |
 
 ### Безопасность
 
 - dry-run по умолчанию; запись только `--commit` (одна транзакция, ROLLBACK при ошибке).
 - Идемпотентно: повторный прогон после сведения не находит дублей и меняет 0 строк.
-- dev = реальные ПДн: печатаются только id/числа/имя специалиста (владелец, не пациент).
-- Audit-лог (commit): `.tmp/specialist-consolidation/applied-<ts>.json`.
+- Ручной detailed-режим печатает specialist/org/duplicate ID, имя и конфликтующие appointment slots. Это
+  PII-sensitive локальный вывод: не переносить его в чат, taskdb, планы или общие логи.
+- `--summary-only` не печатает и не сохраняет имена, телефоны, specialist/org/duplicate ID, timestamps или slots;
+  stdout/stderr и audit содержат только агрегатные счётчики.
+- До первой DB-мутации commit-режим fail-closed создаёт private regular planned-artifact с mode `0600` и `fsync`.
+  После commit отдельным private regular файлом создаётся applied-artifact. Существующие файлы и symlink не
+  перезаписываются. Detailed artifact остаётся PII-sensitive; summary artifact — PII-free.
+- Канонический Rubitime one-pass и полный clean-dump reset обязаны вызывать и dry-run, и commit с
+  `--summary-only`; подробный режим предназначен только для отдельного локального ручного разбора.
 
 ## Runbook
 
@@ -73,6 +87,10 @@ set -a && source apps/webapp/.env.dev && set +a
 pnpm --dir apps/webapp run consolidate-specialist-identity                 # dry-run, сверить PLAN
 pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit     # только по ОК владельца
 pnpm --dir apps/webapp run consolidate-specialist-identity                 # идемпотентность: 0 дублей
+
+# Внутри one-pass/full-reset (обязательный PII-safe режим):
+pnpm --dir apps/webapp run consolidate-specialist-identity -- --summary-only --canonical=<uuid> --org=<uuid>
+pnpm --dir apps/webapp run consolidate-specialist-identity -- --summary-only --commit --canonical=<uuid> --org=<uuid>
 ```
 
 Dry-run на dev (2026-06-14): primary `518ea988`, dup `c9515025`; repoint be_appointments=5,

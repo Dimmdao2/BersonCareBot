@@ -2,7 +2,8 @@
 
 > Superseded hard protocol: for the current fresh-dump hard migration sequence, use
 > [`HARD_MIGRATION_PROTOCOL.md`](HARD_MIGRATION_PROTOCOL.md) and the executable wrapper
-> `deploy/host/deploy-test-saas.sh`. The old commands below are historical context and must not override
+> `deploy/host/deploy-test-full-reset.sh` (public owner-gated entrypoint; `deploy-test-saas.sh` is its internal
+> closure engine). The old commands below are historical context and must not override
 > the wrapper's current fresh live `pg_dump` + owner/cleanup assertions.
 
 > The plain `deploy-test.sh` / `pnpm migrate` is **INSUFFICIENT** for the SaaS branch on a real prod DB.
@@ -34,7 +35,7 @@ are not disabled as recovery.
 Use only:
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
 ```
 
 For a code-only update of the existing TEST database use `deploy/host/deploy-test.sh`; it now owns the same controlled

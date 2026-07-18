@@ -5,7 +5,9 @@ import { resolve } from 'node:path';
 
 const files = {
   protocol: 'docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md',
+  deployTestFullReset: 'deploy/host/deploy-test-full-reset.sh',
   deployTestSaas: 'deploy/host/deploy-test-saas.sh',
+  deployTestCodeOnly: 'deploy/host/deploy-test.sh',
   fixtureSeeder: 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts',
   fixturePacket: 'deploy/host/saas-test-fixture-packet.mjs',
   productSmokeFixtureValidator: 'deploy/host/validate-saas-product-smoke-fixture.sh',
@@ -264,7 +266,7 @@ function runChecks(overrides = {}) {
     '### 6. Temporarily elevate only for migration window',
     '### 7. Cleanup and post-cleanup assertions are mandatory',
     '### 8. TEST-only override and send-safety',
-    '### 9. Specialist consolidation',
+    '### 9. Canonical identity, Rubitime history, and FIO normalization',
     '### 10. B1, A2, and product smoke gates',
     '### 11. Strict/FORCE TEST gate and D2/D3.4 checks',
   ]);
@@ -380,7 +382,10 @@ function runChecks(overrides = {}) {
     "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';",
     "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');",
     'sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"',
-    "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit --canonical='$CANONICAL_SPECIALIST' --org='$ORG_ID'\"",
+    'rubitime:db-cleanup:one-pass',
+    '--commit-cleanup --allow-test-target',
+    'fio:owner-reviewed-test:apply',
+    '--confirm-review-source-sha256',
     'run_deploy_repo_with_test_db_owner_role \\\n    "node docs/_TODO/SAAS_FOUNDATION/scripts/check-b1-doctor-admin-identity.mjs',
     "--required-current-user='$DBROLE'",
     'run_b1_doctor_admin_identity_assertion',
@@ -400,7 +405,7 @@ function runChecks(overrides = {}) {
     'assert_test_units_active',
     'assert_test_health_ok',
     'assert_awg_relay_active',
-    'DONE — fresh-dump strict TEST rehearsal from zero (locked runtime + exact FORCE state verified)',
+    'DONE — full data-ready TEST migration (Rubitime history + reviewed FIO + locked runtime verified)',
   ]);
 
   requireOrderedFragments(
@@ -498,7 +503,7 @@ function runChecks(overrides = {}) {
     deployMain,
     [
       'echo "   drizzle migrations = $CNT (org columns present)"',
-      '# 5. test-only settings override',
+      '# 4. test-only settings override',
       'log "B1 doctor/admin identity assertion"',
       'run_strict_post_migration_closure',
     ],
@@ -590,6 +595,35 @@ function runChecks(overrides = {}) {
     'check:saas-hard-migration-protocol must include check:saas-test-mode-switch',
   ]);
 
+  requireFragments(files.deployTestSaas, loaded.deployTestSaas, [
+    'direct destructive invocation is disabled; use deploy/host/deploy-test-full-reset.sh',
+    '[ "${BCB_TEST_FULL_RESET_ENTRYPOINT:-}" = "deploy-test-full-reset-v1" ]',
+  ]);
+
+  requireFragments(files.deployTestFullReset, loaded.deployTestFullReset, [
+    'Explicit owner-gated entrypoint for the destructive TEST migration rehearsal.',
+    '--confirm-full-reset',
+    'case " ${*:-} " in\n  *" --confirm-full-reset "*) ;;',
+    'For ordinary code deploys use: bash deploy/host/deploy-test.sh [branch]',
+    'export BCB_TEST_FULL_RESET_ENTRYPOINT=deploy-test-full-reset-v1',
+    'exec bash "$SCRIPT_DIR/deploy-test-saas.sh" "$@"',
+  ]);
+
+  requireFragments(files.deployTestCodeOnly, loaded.deployTestCodeOnly, [
+    'code-only путь НИКОГДА не восстанавливает и не пересоздаёт TEST-БД',
+    'STRICT_CLOSURE=deploy/host/deploy-test-saas.sh',
+    'bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight',
+    'bash "$DEPLOY_REPO/$STRICT_CLOSURE" --post-migration-closure',
+  ]);
+  forbidFragments(files.deployTestCodeOnly, loaded.deployTestCodeOnly, [
+    'deploy-test-full-reset.sh',
+    'BCB_TEST_FULL_RESET_ENTRYPOINT',
+    '--confirm-full-reset',
+    'restore-test-db.sh',
+    'pg_dump',
+    'pg_restore',
+  ]);
+
   requireFragments(files.d2Checker, loaded.d2Checker, [
     'assertCleanupIsNotBestEffort',
     'assertPreExistingMigratorMembershipFails',
@@ -613,6 +647,10 @@ function runChecks(overrides = {}) {
     'sudo -u deploy test -r "$LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL"',
     'sudo install -d -o deploy -g deploy -m 0700 "$smoke_dir"',
     'sudo -u deploy node "$DEPLOY_REPO/docs/_TODO/SAAS_FOUNDATION/scripts/smoke-saas-product.mjs"',
+    'stage_hash_bound_rubitime_csv',
+    'assert_staged_rubitime_csv_ready',
+    'root:deploy:440',
+    "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm run rubitime:db-cleanup:one-pass",
   ]);
   forbidFragments(files.deployTestSaas, loaded.deployTestSaas, [
     ". '$SAAS_TEST_FIXTURE_ENV'",
@@ -624,7 +662,8 @@ function runChecks(overrides = {}) {
     'assert_locked_product_smoke_fixture_ready',
     'trap cleanup_exit EXIT',
     'log "test settings override"',
-    'log "consolidate duplicate specialists',
+    'log "canonical Rubitime/history cleanup-import chain"',
+    'log "owner-reviewed FIO manifest apply"',
     'log "B1 doctor/admin identity assertion"',
     'run_strict_post_migration_closure',
   ]);
@@ -824,7 +863,9 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.hostDeployReadme, loaded.hostDeployReadme, [
     '`deploy-test.sh` — **code-only/no-fresh-restore**',
-    'bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild',
+    'deploy-test-full-reset.sh',
+    '--confirm-full-reset',
+    '--fio-manifest-file-sha256',
     'install -o root -g deploy -m 0640 /dev/null /opt/env/bersoncarebot/saas-test-fixture.env',
     'SAAS_TEST_FIXTURE_ENABLED="1"',
     'обычным файлом `root:deploy 0640`',
@@ -832,6 +873,7 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.serverConventions, loaded.serverConventions, [
     'code-only/no-fresh-restore',
+    'deploy-test-full-reset.sh',
     'Любой fresh prod-dump restore поддерживается **только** через',
     'exact `root:deploy 0640`',
     'файл никогда не shell-source-ится',
@@ -917,7 +959,7 @@ function runChecks(overrides = {}) {
   requireFragments(files.saasDeploySequence, loaded.saasDeploySequence, [
     'Superseded hard protocol',
     'HARD_MIGRATION_PROTOCOL.md',
-    'deploy-test-saas.sh',
+    'deploy-test-full-reset.sh',
   ]);
 }
 
@@ -1029,10 +1071,13 @@ function runSelfTest() {
       ),
     },
     {
-      deployTestSaas: read(files.deployTestSaas).replace(
-        'log "TEST runtime mode preflight"\nassert_test_runtime_mode_ready\nlog "SaaS TEST fixture operator packet preflight"\nassert_saas_test_fixture_packet_ready\nlog "locked product-smoke fixture preflight"\nassert_locked_product_smoke_fixture_ready\ntrap cleanup_exit EXIT',
-        'trap cleanup_exit EXIT\nlog "TEST runtime mode preflight"\nassert_test_runtime_mode_ready\nlog "SaaS TEST fixture operator packet preflight"\nassert_saas_test_fixture_packet_ready',
+      deployTestFullReset: read(files.deployTestFullReset).replace(
+        'case " ${*:-} " in\n  *" --confirm-full-reset "*) ;;',
+        'case " ${*:-} " in\n  *) ;;',
       ),
+    },
+    {
+      deployTestCodeOnly: `${read(files.deployTestCodeOnly)}\nbash deploy/host/deploy-test-full-reset.sh --confirm-full-reset\n`,
     },
     {
       deployTestSaas: read(files.deployTestSaas).replace(
@@ -1102,8 +1147,8 @@ function runSelfTest() {
     },
     {
       deployTestSaas: read(files.deployTestSaas).replace(
-        "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit --canonical='$CANONICAL_SPECIALIST' --org='$ORG_ID'\"",
-        "sudo -u deploy bash -lc \"cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \\\n  pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit --canonical='$CANONICAL_SPECIALIST' --org='$ORG_ID'\"",
+        "run_deploy_repo_with_test_db_owner_role \\\n  \"pnpm run rubitime:db-cleanup:one-pass",
+        "sudo -u deploy bash -lc \"cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \\\n  pnpm run rubitime:db-cleanup:one-pass",
       ),
     },
     {

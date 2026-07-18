@@ -107,7 +107,8 @@ bash "$DEPLOY_REPO/$STRICT_CLOSURE" --strict-preflight
 # 4) Stop all TEST writers, migrate in a short audited owner+BYPASS window, clean it up, then
 #    unconditionally restore strict helper policies + FORCE. Migration failure leaves units stopped.
 #    Корневой `pnpm migrate` гоняет integrator + webapp-drizzle (проверено).
-#    Бэкап не делаем: тест-БД всегда восстанавливается restore-test-db.sh из прод-дампа.
+#    Этот code-only путь НИКОГДА не восстанавливает и не пересоздаёт TEST-БД. Отдельный fresh-reset wrapper
+#    используется только по явной команде владельца; здесь применяются лишь новые миграции к текущей TEST-БД.
 for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
 WRITERS_STOPPED=1
 trap cleanup_exit EXIT

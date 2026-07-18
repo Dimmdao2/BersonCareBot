@@ -43,7 +43,7 @@ The owner-authorized TEST workflow is objectively centred on a fresh TEST deploy
 it does not invoke an ON/OFF flip:
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
 pnpm run smoke:saas-product -- \
   --mode=locked \
   --base-url=https://test.bersoncare.ru \

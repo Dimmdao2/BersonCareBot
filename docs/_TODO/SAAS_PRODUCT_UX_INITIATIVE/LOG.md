@@ -2109,3 +2109,22 @@ Lead интегрировал worker/docs как `636a4ec00` и `cd70c7db3` по
 focused tests, а live data acceptance остаётся за owner-gated TEST refresh/backfill. Временный worktree и ветка
 удалены после patch-equivalence proof; integration worktree снова единственный, protected
 `SESSION_HANDOFF_2026-07-17.md` не затронут.
+
+## 2026-07-19 — clean-dump migration chain made explicit (`#757`, FIO `#849` evidence)
+
+- Confirmed two separate TEST operations: `deploy-test.sh` is code-only and never restores the database;
+  `deploy-test-full-reset.sh` is the only public owner-authorized destructive migration rehearsal entrypoint.
+  `deploy-test-saas.sh` remains an internal shared closure engine and rejects direct destructive invocation.
+- Full reset now fails before writers stop unless `--confirm-full-reset` and protected hash-bound Rubitime CSV/FIO
+  manifest inputs are supplied. The CSV is copied into a root-owned hash-verified snapshot for the whole run.
+  Routine UI deploys cannot reference or accidentally select the destructive path.
+- Bound the existing doctor/admin fix, Drizzle migrations, complete Rubitime cleanup/import sequence (including the
+  second non-confirmed cleanup after import), current specialist identity, and reviewed FIO manifest apply into one
+  stopped-writers chain before fixtures/service restart.
+- Unified the current specialist canonical ID across TEST, Rubitime one-pass and #667. Historical `518…` disposable
+  results remain documented as historical evidence; the current chain converges on `c951…` and repoints membership.
+- Added TEST-only FIO apply/rollback via the shared Drizzle port: exact reviewed exceptions, live DB attestation,
+  conditional transaction, unique durable mode `0600` rollback artifacts, aggregate PII-free output. The prior 165
+  TEST updates are historical because the 2026-07-18 fresh restore replaced that snapshot; production was untouched.
+- No DB, deployment, environment, production, external delivery, or PII artifact read occurred in this repository
+  integration step. Full-reset runtime proof remains a separate explicit owner-authorized operation.

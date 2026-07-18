@@ -61,15 +61,15 @@ fields.
 
 ## Reviewed apply status and safety gate
 
-The owner-reviewed artifact was applied and checked on TEST under taskdb `#849`.
-Production was not changed. Aggregate TEST result: 165 updated, 3 already
-matched, 1 missing, and 1 changed-after-review row intentionally not
-overwritten.
+The owner-reviewed artifact was historically applied and checked on TEST under taskdb `#849`.
+Aggregate result: 165 updated, 3 already matched, 1 missing, and 1 changed-after-review row intentionally not
+overwritten. The later fresh production-dump restore on 2026-07-18 replaced that TEST snapshot, so these numbers are
+historical evidence, not the current TEST state. Production was not changed.
 
-There is currently no committed production-safe apply command. Draft helpers
-from an old worktree are not canonical: hostname/localhost is not an environment
-guard on this host, they do not provide sufficient stale-row protection, and
-their rollback artifact is written too late.
+The repository now has a TEST-only reviewed-manifest apply/rollback entrypoint. It is intentionally not a production
+command. Draft helpers from an old worktree remain non-canonical: hostname/localhost alone is not an environment
+guard on this host, they do not provide sufficient stale-row protection, and their rollback artifact is written too
+late.
 
 Before adding a production apply entrypoint, Phase 9 of
 `.cursor/plans/fio_identity_cleanup.plan.md` requires all of the following:
@@ -87,6 +87,63 @@ Before adding a production apply entrypoint, Phase 9 of
 The reviewed XLSX/CSV/JSON, previews, decisions, and before/after artifacts stay
 under ignored local storage and must never be committed. Owner-reviewed decisions
 must not be recalculated by the parser.
+
+### TEST-only manifest contract
+
+The immutable manifest schema is defined in `owner-reviewed-fio-contract.ts`. It contains:
+
+- TEST environment, run ID, owner-approval reference, and source-review SHA-256;
+- unique `platform_users.id` rows with exact expected-before and desired-after name fields;
+- exact expected-missing exceptions and exact preserve-current exceptions for the two reviewed edge cases;
+- a canonical self-hash. Global `skip missing/drift` policies are forbidden: any unlisted or later drift aborts.
+
+The operation requires all of the following simultaneously:
+
+- explicit `--test`;
+- `DATABASE_URL` host exactly `127.0.0.1` and database path exactly `bersoncarebot_test`;
+- live `current_database()` attestation;
+- separately confirmed manifest and source-review hashes;
+- a real non-symlink manifest file and rollback directory chain;
+- a durable mode `0600` rollback artifact written and fsynced before the first conditional update.
+
+Commands below are operator building blocks; the canonical clean-dump TEST reset invokes the apply command itself
+after Rubitime/history normalization and before fixtures/service restart:
+
+```bash
+# One-time no-DB sealing of the exact owner-decision payload. Output is created as 0600 and never overwritten.
+pnpm --dir apps/webapp run fio:owner-reviewed-test:seal -- \
+  --manifest /secure/fio-owner-manifest.payload.json \
+  --output /secure/fio-owner-manifest.json
+
+# No-DB verification used by the full-reset preflight before writers stop or TEST is restored.
+pnpm --dir apps/webapp run fio:owner-reviewed-test:verify -- \
+  --manifest /secure/fio-owner-manifest.json \
+  --confirm-manifest-sha256 <manifest-payload-sha256> \
+  --confirm-review-source-sha256 <owner-review-source-sha256>
+
+# Read-only preview.
+pnpm --dir apps/webapp run fio:owner-reviewed-test:preview -- \
+  --test --manifest /secure/fio-owner-manifest.json
+
+# TEST apply. Values are approved hashes; stdout is aggregate-only.
+pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- \
+  --test \
+  --manifest /secure/fio-owner-manifest.json \
+  --confirm-manifest-sha256 <manifest-payload-sha256> \
+  --confirm-review-source-sha256 <owner-review-source-sha256> \
+  --rollback-dir /absolute/private/rollback-directory
+
+# Conditional rollback: current rows must still equal the recorded post-apply state.
+pnpm --dir apps/webapp run fio:owner-reviewed-test:rollback -- \
+  --test \
+  --artifact /absolute/private/rollback-file.json \
+  --confirm-artifact-sha256 <artifact-sha256>
+```
+
+The protected manifest used by the host full-reset wrapper is installed outside both checkouts as a regular
+`deploy`-owned mode `0600` file. Its raw file SHA-256, canonical manifest SHA-256, and original owner-review source
+SHA-256 are separate inputs. Rollback filenames are unique per apply attempt; earlier artifacts are never overwritten
+or deleted.
 
 ## Source audit
 

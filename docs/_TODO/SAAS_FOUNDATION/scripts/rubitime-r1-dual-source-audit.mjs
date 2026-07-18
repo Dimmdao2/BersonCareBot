@@ -25,7 +25,7 @@ const DEFAULT_ENV_FILES = [
 
 function usage() {
   console.log(`Usage:
-  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs [--threshold-minutes=5] [--sample-size=0]
+  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs [--threshold-minutes=5] [--sample-size=0] [--allow-test-target]
 
 Requires DATABASE_URL for the dev database. The script also loads local .env and
 apps/webapp/.env.dev when present. It refuses /opt env paths and non-dev DB names.
@@ -39,10 +39,12 @@ function parseArgs(argv) {
   const args = {
     thresholdMinutes: 5,
     sampleSize: 0,
+    allowTestTarget: false,
     help: false,
   };
   for (const arg of argv) {
     if (arg === "--help" || arg === "-h") args.help = true;
+    else if (arg === "--allow-test-target") args.allowTestTarget = true;
     else if (arg.startsWith("--threshold-minutes=")) {
       const n = Number(arg.slice("--threshold-minutes=".length));
       if (Number.isFinite(n) && n >= 0) args.thresholdMinutes = Math.trunc(n);
@@ -127,9 +129,13 @@ function databaseInfo(databaseUrl) {
   };
 }
 
-function assertDevDatabase(info) {
+function assertDevDatabase(info, allowTestTarget) {
   const name = info.database.toLowerCase();
-  if (!name.includes("dev") || name.includes("prod")) {
+  const isTest = /(^|[_-])test($|[_-])/i.test(name) || name.endsWith("_test");
+  if (allowTestTarget && isTest && !["127.0.0.1", "localhost", "::1"].includes(info.host)) {
+    throw new Error(`Refusing non-loopback TEST database host: ${info.host || "<empty>"}`);
+  }
+  if (name.includes("prod") || (!name.includes("dev") && !(allowTestTarget && isTest))) {
     throw new Error(`Refusing to query non-dev database name: ${info.database}`);
   }
 }
@@ -148,7 +154,7 @@ function runPsql(databaseUrl, sql) {
   return result.stdout.trim();
 }
 
-function verifyConnectedDevDatabase(databaseUrl) {
+function verifyConnectedDevDatabase(databaseUrl, allowTestTarget) {
   const sql = `
 \\pset format unaligned
 \\pset tuples_only on
@@ -161,7 +167,8 @@ ROLLBACK;
   const parsed = JSON.parse(runPsql(databaseUrl, sql));
   const currentDatabase = String(parsed.current_database ?? "");
   const normalized = currentDatabase.toLowerCase();
-  if (!normalized.includes("dev") || normalized.includes("prod")) {
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
+  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
     throw new Error(`Refusing connected non-dev database: ${currentDatabase || "<empty>"}`);
   }
   return currentDatabase;
@@ -456,8 +463,8 @@ function main() {
     process.exit(2);
   }
   const info = databaseInfo(databaseUrl);
-  assertDevDatabase(info);
-  const connectedDatabase = verifyConnectedDevDatabase(databaseUrl);
+  assertDevDatabase(info, args.allowTestTarget);
+  const connectedDatabase = verifyConnectedDevDatabase(databaseUrl, args.allowTestTarget);
 
   const sql = buildSql(args);
   const raw = runPsql(databaseUrl, sql);
@@ -470,6 +477,7 @@ function main() {
     host: info.host,
     port: info.port,
     sampleSize: args.sampleSize,
+    explicitTestTarget: args.allowTestTarget,
   };
   parsed.masked_samples = maskSamples(parsed.masked_samples, randomBytes(16).toString("hex"));
   console.log(JSON.stringify(parsed, null, 2));

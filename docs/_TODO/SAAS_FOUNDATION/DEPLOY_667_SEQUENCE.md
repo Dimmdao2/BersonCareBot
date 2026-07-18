@@ -5,6 +5,12 @@
 Правило: прод НЕ трогаем, пока эта последовательность не проходит на копии ДВАЖДЫ (чистый прогон +
 повтор = no-op). Сложный код — Codex (Sol) + регулярный аудит.
 
+> **Текущий executable canon (2026-07-19):** канонический specialist —
+> `c9515025-7224-4d9b-86b6-9cb7d26ea503`, одинаково в TEST fresh wrapper, Rubitime one-pass и #667.
+> Упоминания `518ea988…` в датированных результатах 11/14 июля ниже сохранены как историческое evidence старого
+> disposable прогона и не являются текущей командой. Миграция 0143 может временно seed-ить membership на
+> `518ea988…`; текущий consolidation штатно переводит membership и все FK на `c951…`.
+
 ## Что уже готово и ПРОВЕРЕНО на копии прода (дамп 2026-07-11 22:15)
 - [x] **Data-fix аккаунтов** `deploy/postgres/p0-data-fix-doctor-admin-split.sql` (Codex + мой фикс preflight).
       Прогон на копии: doctor=1, admin=1; b0021a38→doctor(yandex,+79643805480,integrator2);
@@ -14,8 +20,10 @@
       выше 0157 (Codex). + guard монотонности в `apps/webapp/scripts/check-drizzle-journal-sync.sh`.
 - [x] **Фаза 1 (integrator base + pre-declare) и Фаза 2 (webapp ALL 0115–0175)** проходят на копии:
       webapp применено 176/176, 0143 seed проходит (1 doctor), RLS 0158–0175 включились.
-- [x] **Слияние специалистов** `consolidate-specialist-identity.ts --canonical=518ea988` — скрипт готов/тестовый,
-      dry-run на копии подтвердил primary=518ea988, dup=c9515025 (218 приёмов вливаются). Запускается ПОСЛЕ migrate.
+- [x] **Историческое evidence слияния специалистов (устаревший canonical):** старый dry-run использовал
+      `--canonical=518ea988` и видел `c9515025` дублем. Текущая executable chain намеренно сходится в обратную,
+      уже установленную identity `c951…`; старую сконсолидированную disposable-БД нельзя переворачивать на месте —
+      нужен новый fresh restore.
 
 ## Свежая проверка на dump 2026-07-14 04:15
 
@@ -43,7 +51,7 @@
 6. **P2-B protected principal context** (`deploy/postgres/p2-b-protected-principal-context.sql`) с
    `p2_b_owner_role=app_owner`, `p2_b_staff_role=app_staff`, `p2_b_patient_role=app_patient`,
    `p2_b_signing_secret` из `P2_B_SIGNING_SECRET` / `DB_PRINCIPAL_SIGNING_SECRET` либо одноразовый для rehearsal.
-7. **Слияние специалистов** (`consolidate-specialist-identity --canonical=518ea988 --commit`) — один активный специалист.
+7. **Слияние специалистов** (`consolidate-specialist-identity --canonical=c9515025-7224-4d9b-86b6-9cb7d26ea503 --commit`) — один активный специалист; старый `518…` становится неактивным дублем.
 8. **Auto-revoke + post-state assertions**: снять `BYPASSRLS` и membership `app_owner` с мигратора
    (явно на success + `EXIT` trap на failure), затем проверять post-state через `SUPERUSER_URL`.
 

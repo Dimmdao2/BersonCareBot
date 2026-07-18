@@ -59,9 +59,10 @@ const REQUIRED_COLUMNS = {
 };
 
 function parseArgs(argv) {
-  const args = { csvPath: null, help: false };
+  const args = { csvPath: null, allowTestTarget: false, help: false };
   for (const arg of argv) {
     if (arg === "--help" || arg === "-h") args.help = true;
+    else if (arg === "--allow-test-target") args.allowTestTarget = true;
     else if (arg.startsWith("--csv=")) args.csvPath = arg.slice("--csv=".length).trim() || null;
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -74,12 +75,14 @@ function usage() {
     node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \\
       --csv=<fresh-rubitime-csv>
 
+Pass --allow-test-target only for an explicitly approved TEST rehearsal.
+
 The database must be isolated, loopback-only, and already migrated to the current HEAD.
 Output is aggregate-only JSON. A non-zero exit means the R1 replay must not start.
 `);
 }
 
-function databaseInfo(databaseUrl) {
+function databaseInfo(databaseUrl, allowTestTarget) {
   let url;
   try {
     url = new URL(databaseUrl);
@@ -92,7 +95,11 @@ function databaseInfo(databaseUrl) {
     throw new Error(`Refusing non-loopback database host: ${host || "<empty>"}`);
   }
   const normalized = database.toLowerCase();
-  if ((!normalized.includes("dev") && !normalized.includes("rehearsal")) || normalized.includes("prod")) {
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
+  if (
+    normalized.includes("prod")
+    || (!normalized.includes("dev") && !normalized.includes("rehearsal") && !(allowTestTarget && isTest))
+  ) {
     throw new Error(`Refusing non-rehearsal database name: ${database || "<empty>"}`);
   }
   return { database, host, port: url.port || null };
@@ -251,7 +258,7 @@ function main() {
   }
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL must be provided explicitly");
-  const info = databaseInfo(databaseUrl);
+  const info = databaseInfo(databaseUrl, args.allowTestTarget);
   const schema = JSON.parse(runPsql(databaseUrl, schemaSql()));
   if (schema.current_database !== info.database) {
     throw new Error(`Connected database mismatch: ${schema.current_database || "<empty>"}`);
@@ -293,7 +300,12 @@ function main() {
     missingRequiredColumns: missing,
     counts,
     failures,
-    safety: { readOnly: true, aggregateOnly: true, loopbackOnly: true },
+    safety: {
+      readOnly: true,
+      aggregateOnly: true,
+      loopbackOnly: true,
+      explicitTestTarget: args.allowTestTarget,
+    },
   };
   console.log(JSON.stringify(output, null, 2));
   if (failures.length > 0) process.exitCode = 2;

@@ -53,7 +53,20 @@ function parseArgs() {
 }
 
 function commandToString([bin, ...args]) {
-  return [bin, ...args.map((arg) => (arg.includes(' ') ? JSON.stringify(arg) : arg))].join(' ');
+  const printableArgs = args.map((arg) => {
+    if (
+      arg.startsWith('--owner-phone=')
+      || arg.startsWith('--historical-owner-doctor-phone=')
+      || arg.startsWith('--canonical=')
+      || arg.startsWith('--canonical-specialist=')
+      || arg.startsWith('--org=')
+      || arg.startsWith('--org-id=')
+    ) {
+      return `${arg.slice(0, arg.indexOf('=') + 1)}<redacted>`;
+    }
+    return arg.includes(' ') ? JSON.stringify(arg) : arg;
+  });
+  return [bin, ...printableArgs].join(' ');
 }
 
 function runStep(step, command, options = {}) {
@@ -89,7 +102,7 @@ function readTargetDatabaseName() {
   return result.stdout.trim();
 }
 
-function assertSafeTarget(dbName, allowTestTarget) {
+function assertSafeTarget(dbName, allowTestTarget, databaseUrl) {
   const exactForbidden = new Set([
     'bcb_webapp_prod',
     'bersoncarebot',
@@ -106,6 +119,10 @@ function assertSafeTarget(dbName, allowTestTarget) {
   if (/(^|[_-])test($|[_-])/i.test(dbName) || dbName.endsWith('_test')) {
     if (!allowTestTarget) {
       throw new Error(`TEST target ${dbName} requires --allow-test-target`);
+    }
+    const host = new URL(databaseUrl).hostname;
+    if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
+      throw new Error(`refusing non-loopback TEST database host: ${host || '<empty>'}`);
     }
     return;
   }
@@ -130,6 +147,20 @@ function makeBackfillCommand(csv, extraArgs) {
   ];
 }
 
+function makePlaceholderPurgeCommand(opts, commit) {
+  return [
+    'pnpm',
+    '--dir',
+    'apps/webapp',
+    'run',
+    'purge-placeholder-bookings',
+    '--',
+    '--summary-only',
+    ...(opts.allowTestTarget ? ['--allow-test-target'] : []),
+    ...(commit ? ['--commit'] : []),
+  ];
+}
+
 function buildPlan(opts) {
   const steps = [];
   if (opts.dump) {
@@ -140,13 +171,21 @@ function buildPlan(opts) {
   }
   steps.push([
     'R1 clean-dump preflight',
-    ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs', `--csv=${opts.csv}`],
+    [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs',
+      ...(opts.allowTestTarget ? ['--allow-test-target'] : []),
+      `--csv=${opts.csv}`,
+    ],
   ]);
-  steps.push(['placeholder bookings dry-run', ['pnpm', '--dir', 'apps/webapp', 'run', 'purge-placeholder-bookings']]);
+  steps.push([
+    'placeholder bookings dry-run',
+    makePlaceholderPurgeCommand(opts, false),
+  ]);
   if (opts.commitCleanup) {
     steps.push([
       'placeholder bookings commit',
-      ['pnpm', '--dir', 'apps/webapp', 'run', 'purge-placeholder-bookings', '--', '--commit'],
+      makePlaceholderPurgeCommand(opts, true),
     ]);
   }
   steps.push([
@@ -158,6 +197,7 @@ function buildPlan(opts) {
       'run',
       'consolidate-specialist-identity',
       '--',
+      '--summary-only',
       `--canonical=${opts.canonicalSpecialist}`,
       `--org=${opts.orgId}`,
     ],
@@ -172,6 +212,7 @@ function buildPlan(opts) {
         'run',
         'consolidate-specialist-identity',
         '--',
+        '--summary-only',
         '--commit',
         `--canonical=${opts.canonicalSpecialist}`,
         `--org=${opts.orgId}`,
@@ -182,6 +223,7 @@ function buildPlan(opts) {
     ['legacy test/canceled duplicate cleanup', ['--cleanup-only', '--delete-test', '--collapse-canceled-dups']],
     ['legacy non-confirmed cleanup', ['--cleanup-only', '--delete-non-confirmed']],
     ['owner CSV historical import/projection', [`--historical-owner-doctor-phone=${opts.ownerPhone}`]],
+    ['post-import legacy non-confirmed cleanup', ['--cleanup-only', '--delete-non-confirmed']],
     ['legacy stale-vs-CSV cleanup', ['--cleanup-only', '--drop-stale-from-csv']],
   ];
   for (const [name, args] of cleanupPasses) {
@@ -192,11 +234,22 @@ function buildPlan(opts) {
   }
   steps.push([
     'R1 classifier',
-    ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs', `--csv=${opts.csv}`],
+    [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs',
+      ...(opts.allowTestTarget ? ['--allow-test-target'] : []),
+      `--csv=${opts.csv}`,
+    ],
   ]);
   steps.push([
     'R1 dual-source audit',
-    ['node', 'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs', '--threshold-minutes=5', '--sample-size=0'],
+    [
+      'node',
+      'docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs',
+      ...(opts.allowTestTarget ? ['--allow-test-target'] : []),
+      '--threshold-minutes=5',
+      '--sample-size=0',
+    ],
   ]);
   steps.push(['current Rubitime retirement gate', ['pnpm', 'run', 'check:rubitime-retirement-current']]);
   steps.push(['R7 table disposition gate', ['pnpm', 'run', 'check:rubitime-r7-table-disposition']]);
@@ -247,8 +300,10 @@ if (!opts.execute) {
 }
 
 try {
+  const configuredDatabase = new URL(process.env.DATABASE_URL).pathname.replace(/^\//, '');
+  assertSafeTarget(configuredDatabase, opts.allowTestTarget, process.env.DATABASE_URL);
   const dbName = readTargetDatabaseName();
-  assertSafeTarget(dbName, opts.allowTestTarget);
+  assertSafeTarget(dbName, opts.allowTestTarget, process.env.DATABASE_URL);
   console.log(`rubitime-db-cleanup-one-pass: target DB ${dbName}`);
   for (const [name, command] of plan) {
     runStep(name, command);

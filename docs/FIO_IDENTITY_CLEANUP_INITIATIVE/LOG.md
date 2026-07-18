@@ -1,5 +1,18 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-19 — TEST Manifest Apply/rollback And Clean-Dump Binding
+
+- Reclassified taskdb `#849` as historical TEST evidence: the 2026-07-18 fresh production-dump restore replaced the
+  prior 165-row TEST result; production still has no FIO apply.
+- Added a TEST-only hash-bound owner-manifest preview/apply/rollback entrypoint using the shared Drizzle port.
+- Manifest exceptions are exact: the known missing identity is pinned by ID and the changed-after-review identity is
+  pinned to its exact preserved state. Any unlisted or later drift fails closed.
+- Apply verifies exact loopback `bersoncarebot_test`, locks rows, writes a unique durable mode `0600` rollback artifact
+  before the first conditional update, and emits aggregate-only output. Rollback refuses rows changed after apply.
+- Bound this entrypoint into the owner-confirmed full clean-dump TEST chain after Rubitime/history normalization and
+  before fixtures/service restart. No DB, TEST deploy, production operation, or PII artifact read was performed in
+  this repository change.
+
 ## 2026-07-18 — Owner Review TEST Apply And Residual Scope
 
 - Confirmed that the structured FIO core commits are already ancestors of `feat/doctor-ui-rebuild`; there is no
@@ -19,7 +32,7 @@
   closeout, legacy fallback audit, and runtime parser retirement.
 - Residual task mapping: `#855` = structured registrations (Phase 6); `#856` = writers/provider priority + display
   (Phases 7-8); `#857` = owner-gated production closeout (Phase 9); `#858` = legacy audit + runtime parser retirement
-  (Phases 10-11). Task `#849` remains TEST apply evidence only.
+  (Phases 10-11). Task `#849` remains historical TEST apply evidence only; it does not describe the post-reset TEST.
 - Moved booking lifecycle notification templates out of the FIO completion gate into the notification workstream.
 - Four uncommitted helper scripts found in the old worktree are not treated as a mergeable branch. They require a
   separate safety decision before integration because the draft apply flow does not fully enforce current-preview

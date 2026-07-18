@@ -284,7 +284,7 @@ DECLARE
 BEGIN
   SELECT full_name INTO v_canonical_name
   FROM public.be_specialists
-  WHERE id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
+  WHERE id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
     AND organization_id = 'a0000000-0000-4000-8000-000000000001'::uuid
     AND is_active IS TRUE;
 
@@ -298,28 +298,28 @@ BEGIN
   WHERE organization_id = 'a0000000-0000-4000-8000-000000000001'::uuid
     AND full_name = v_canonical_name
     AND is_active IS TRUE
-    AND id <> '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid;
+    AND id <> 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid;
 
-  IF v_active_duplicates IS DISTINCT FROM ARRAY['c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid]
+  IF v_active_duplicates IS DISTINCT FROM ARRAY['518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid]
     AND NOT (
       v_active_duplicates = ARRAY[]::uuid[]
       AND EXISTS (
         SELECT 1 FROM public.be_specialists
-        WHERE id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
+        WHERE id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
           AND organization_id = 'a0000000-0000-4000-8000-000000000001'::uuid
           AND full_name = v_canonical_name
           AND is_active IS FALSE
       )
     )
   THEN
-    RAISE EXCEPTION 'SPECIALIST FINGERPRINT FAILED: expected active duplicate {c9515025-7224-4d9b-86b6-9cb7d26ea503} or its exact consolidated inactive state, got active set %',
+    RAISE EXCEPTION 'SPECIALIST FINGERPRINT FAILED: expected a fresh dump with active duplicate {518ea988-9b5e-4ad8-8194-a2d98f43bd7b}, or its exact current-canonical inactive state; restore a fresh dump instead of reversing an old #667-consolidated copy (active set %)',
       v_active_duplicates;
   END IF;
 END
 $specialist_fingerprint$;
 SQL
 pnpm --dir apps/webapp run consolidate-specialist-identity -- \
-  --canonical=518ea988-9b5e-4ad8-8194-a2d98f43bd7b --commit
+  --canonical=c9515025-7224-4d9b-86b6-9cb7d26ea503 --summary-only --commit
 
 header "Post-state assertions"
 required_drizzle_hash_groups="$(node - <<'NODE'
@@ -440,7 +440,7 @@ BEGIN
 
   SELECT count(*) INTO v_count
   FROM public.be_specialists s
-  WHERE s.id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
+  WHERE s.id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
     AND s.is_active IS TRUE
     AND s.organization_id = 'a0000000-0000-4000-8000-000000000001'::uuid
     AND EXISTS (SELECT 1 FROM public.be_appointments a WHERE a.specialist_id = s.id);
@@ -521,7 +521,7 @@ BEGIN
     SELECT 1 FROM public.be_organization_members
     WHERE platform_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'::uuid
       AND organization_id = 'a0000000-0000-4000-8000-000000000001'::uuid
-      AND role = 'doctor' AND specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
+      AND role = 'doctor' AND specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
       AND status = 'active'
   ) THEN RAISE EXCEPTION 'ASSERT FAILED: doctor membership missing, duplicated, or incorrect'; END IF;
 
@@ -542,7 +542,7 @@ SELECT 'admin', count(*), 1
 FROM public.platform_users WHERE role = 'admin' AND merged_into_id IS NULL AND is_archived IS FALSE
 UNION ALL SELECT 'active_specialists', count(*), 1 FROM public.be_specialists WHERE is_active IS TRUE
 UNION ALL SELECT 'canonical_appointments_minimum', count(*), 1
-FROM public.be_appointments WHERE specialist_id = '518ea988-9b5e-4ad8-8194-a2d98f43bd7b'::uuid
+FROM public.be_appointments WHERE specialist_id = 'c9515025-7224-4d9b-86b6-9cb7d26ea503'::uuid
 UNION ALL SELECT 'drizzle_migrations_minimum', count(*), 178 FROM drizzle.__drizzle_migrations
 UNION ALL SELECT 'contacts_null_org', count(*), 0 FROM integrator.contacts WHERE organization_id IS NULL
 UNION ALL SELECT 'required_memberships', count(*), 2 FROM public.be_organization_members

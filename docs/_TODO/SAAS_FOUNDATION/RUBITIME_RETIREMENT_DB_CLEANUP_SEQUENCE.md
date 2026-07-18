@@ -50,30 +50,37 @@ What this executes in order:
 3. R1 clean-dump preflight;
 4. placeholder booking cleanup dry-run and commit;
 5. specialist consolidation dry-run and commit;
-6. canonical legacy/Rubitime cleanup-import passes dry-run and commit;
-7. R1 classifier and dual-source audit;
-8. current Rubitime retirement gate;
-9. R7 table disposition gate;
-10. post-R6 inventory expectation.
+6. test/cancelled-duplicate cleanup dry-run and commit;
+7. pre-import non-confirmed cleanup dry-run and commit;
+8. owner CSV historical import/projection dry-run and commit;
+9. mandatory post-import non-confirmed cleanup dry-run and commit;
+10. stale-vs-owner-CSV cleanup dry-run and commit;
+11. R1 classifier and dual-source audit;
+12. current Rubitime retirement gate;
+13. R7 table disposition gate;
+14. post-R6 inventory expectation.
 
 ### TEST from-zero rehearsal
 
-Use this only in the approved TEST flow. The first command recreates the TEST DB from an approved fresh dump, deploys
-the branch, runs the SaaS migrations in the proven order, applies TEST-safe overrides, consolidates specialists, and
-checks health. The second command runs the Rubitime cleanup package on that same TEST DB. No manual DB cleanup runs
-in between.
+Use this only in an owner-approved destructive TEST flow. The full-reset wrapper requires explicit confirmation and
+hash-bound protected inputs, then owns restore, migrations, Rubitime/history normalization, reviewed FIO apply,
+strict closure, fixtures, restart, and smoke as one fail-closed chain. No service start or manual DB cleanup occurs
+between those stages. Ordinary code deploys use `deploy/host/deploy-test.sh` and never restore the database.
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
-
-sudo -u deploy bash -lc "cd /opt/projects/bersoncarebot-test && \
-  set -a && . /opt/env/bersoncarebot/webapp.test && set +a && \
-  pnpm run rubitime:db-cleanup:one-pass -- \
-    --csv=<fresh-rubitime-csv> \
-    --execute \
-    --commit-cleanup \
-    --allow-test-target"
+bash deploy/host/deploy-test-full-reset.sh \
+  --confirm-full-reset \
+  --rubitime-csv=/secure/owner-rubitime.csv \
+  --rubitime-csv-sha256=<approved-sha256> \
+  --fio-manifest=/secure/fio-owner-manifest.json \
+  --fio-manifest-file-sha256=<approved-file-sha256> \
+  --fio-manifest-sha256=<approved-sha256> \
+  --fio-review-source-sha256=<approved-review-sha256> \
+  feat/doctor-ui-rebuild
 ```
+
+Both protected files are installed outside the repository as regular `deploy`-owned mode `0600` files. The wrapper
+prints only aggregate checks and hashes neither file content into logs beyond pass/fail confirmation.
 
 ### Plan-only check
 

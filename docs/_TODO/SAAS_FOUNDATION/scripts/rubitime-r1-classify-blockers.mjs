@@ -28,7 +28,7 @@ const TEST_BLOCK_NAME_MARKERS = ["тест", "test", "блок окна"];
 
 function usage() {
   console.log(`Usage:
-  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs [--csv=<path>]
+  node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs [--csv=<path>] [--allow-test-target]
 
 Default CSV path:
   ${DEFAULT_CSV}
@@ -38,9 +38,10 @@ The script prints aggregate JSON only. It refuses non-dev DBs and never writes.
 }
 
 function parseArgs(argv) {
-  const args = { csvPath: DEFAULT_CSV, help: false };
+  const args = { csvPath: DEFAULT_CSV, allowTestTarget: false, help: false };
   for (const arg of argv) {
     if (arg === "--help" || arg === "-h") args.help = true;
+    else if (arg === "--allow-test-target") args.allowTestTarget = true;
     else if (arg.startsWith("--csv=")) args.csvPath = arg.slice("--csv=".length).trim();
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -112,9 +113,13 @@ function databaseInfo(databaseUrl) {
   };
 }
 
-function assertDevDatabase(info) {
+function assertDevDatabase(info, allowTestTarget) {
   const normalized = info.database.toLowerCase();
-  if (!normalized.includes("dev") || normalized.includes("prod")) {
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
+  if (allowTestTarget && isTest && !["127.0.0.1", "localhost", "::1"].includes(info.host)) {
+    throw new Error(`Refusing non-loopback TEST database host: ${info.host || "<empty>"}`);
+  }
+  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
     throw new Error(`Refusing to query non-dev database name: ${info.database}`);
   }
 }
@@ -224,7 +229,7 @@ function runPsql(databaseUrl, sql) {
   return result.stdout.trim();
 }
 
-function verifyConnectedDevDatabase(databaseUrl) {
+function verifyConnectedDevDatabase(databaseUrl, allowTestTarget) {
   const sql = `
 \\pset format unaligned
 \\pset tuples_only on
@@ -237,7 +242,8 @@ ROLLBACK;
   const parsed = JSON.parse(runPsql(databaseUrl, sql));
   const currentDatabase = String(parsed.current_database ?? "");
   const normalized = currentDatabase.toLowerCase();
-  if (!normalized.includes("dev") || normalized.includes("prod")) {
+  const isTest = /(^|[_-])test($|[_-])/i.test(normalized) || normalized.endsWith("_test");
+  if (normalized.includes("prod") || (!normalized.includes("dev") && !(allowTestTarget && isTest))) {
     throw new Error(`Refusing connected non-dev database: ${currentDatabase || "<empty>"}`);
   }
   return currentDatabase;
@@ -603,8 +609,8 @@ function main() {
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error("DATABASE_URL is not set after loading local env files");
   const info = databaseInfo(databaseUrl);
-  assertDevDatabase(info);
-  const connectedDatabase = verifyConnectedDevDatabase(databaseUrl);
+  assertDevDatabase(info, args.allowTestTarget);
+  const connectedDatabase = verifyConnectedDevDatabase(databaseUrl, args.allowTestTarget);
   const csv = loadCsvShape(args.csvPath);
   const parsed = JSON.parse(runPsql(databaseUrl, buildSql(csv)));
   parsed.run = {
@@ -628,6 +634,7 @@ function main() {
     noRowSamples: true,
     noPiiFieldsPrinted: true,
     r2NotStarted: true,
+    explicitTestTarget: args.allowTestTarget,
   };
   console.log(JSON.stringify(parsed, null, 2));
 }

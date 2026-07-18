@@ -705,13 +705,25 @@ bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
 health/nginx и обоих product-smoke общая closure фиксирует и перечитывает реальное E1-покрытие всех шести process
 families через отдельный diagnostic login. Активный unexplained signal или отсутствие exact fresh complete coverage
 останавливает deploy до AWG/DONE; synthetic cleanup после runtime-smoke не запускается и реальные события не удаляются.
-Для SaaS fresh-dump rehearsal канон — только:
+Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Он не является вариантом
+обычного деплоя и fail-closed без явного подтверждения и hash-bound owner inputs:
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh \
+  --confirm-full-reset \
+  --rubitime-csv=/secure/owner-rubitime.csv \
+  --rubitime-csv-sha256=<approved-sha256> \
+  --fio-manifest=/secure/fio-owner-manifest.json \
+  --fio-manifest-file-sha256=<approved-file-sha256> \
+  --fio-manifest-sha256=<approved-sha256> \
+  --fio-review-source-sha256=<approved-review-sha256> \
+  feat/doctor-ui-rebuild
 ```
 
+Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
 Hard wrapper останавливает writers, восстанавливает dump, выполняет owner-authority migration/overlay/settings chain,
+затем в том же stopped-writers окне выполняет полную Rubitime/history cleanup-import цепочку и hash-bound
+owner-reviewed FIO apply с durable conditional rollback,
 затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
 точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
 A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
@@ -722,7 +734,11 @@ local-only URL (`127.0.0.1:5432/bersoncarebot_test`), создаёт base/capabi
 discovery-definer роли, применяет оба C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
 До рестарта отдельно проверяется, что systemd webapp читает точный `webapp.test` и в нём доступен
 `DATABASE_URL_WEB_PUSH_REMINDER`. Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
-сохраняются для безопасного повторного запуска. Fresh wrapper намеренно не ставит cron и не вызывает live tick:
+сохраняются для безопасного повторного запуска. `DONE` допустим только после Rubitime post-import cleanup/audits и
+FIO reconciliation; отсутствие защищённого CSV/manifest или несовпадение SHA-256 останавливает прогон до restore.
+Rubitime CSV на весь прогон читается из отдельного root-owned `0440` snapshot в `/run`, повторно сверенного по
+approved SHA-256 непосредственно перед one-pass; исходный deploy-owned файл после preflight больше не читается.
+Fresh wrapper намеренно не ставит cron и не вызывает live tick:
 `web-push-only-reminder-cron.sh install-test` разрешён только отдельным шагом после успешного полного fresh rehearsal.
 Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
 `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
@@ -766,10 +782,11 @@ membership/BYPASS через обязательный cleanup; application runti
 - **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions → restart locked units → health/nginx/product smoke. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
-- **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный поддерживаемый
-  entrypoint — `bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild`; он владеет fresh dump, restore,
+- **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
+  разрушительный entrypoint — `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`; он владеет fresh dump, restore,
   migrations, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
   `/tmp/bcb-test-setup/restore-test-db.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку.
+  `deploy-test-saas.sh` — внутренний shared closure engine; прямой destructive-вызов заблокирован.
 
 ### Отдельный webapp deploy
 

@@ -8,7 +8,11 @@ allowed sequence once a fresh production dump is obtained.
 
 ## Canonical sources
 
-- `deploy/host/deploy-test-saas.sh` - TEST from-zero wrapper.
+- `deploy/host/deploy-test-full-reset.sh` - единственный публичный owner-gated TEST from-zero entrypoint.
+- `deploy/host/deploy-test-saas.sh` - внутренний shared closure/full-reset engine; прямой destructive-вызов запрещён.
+- `deploy/host/deploy-test.sh` - ordinary code-only TEST deploy; it never restores or recreates the database.
+- `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - ordered Rubitime/history normalization.
+- `apps/webapp/scripts/fio-backfill/README.md` - reviewed-manifest FIO apply/rollback contract.
 - `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
 - `scripts/deploy-saas-667.sh` - disposable/prod-copy #667 migration chain model.
@@ -25,7 +29,9 @@ be updated in the same change.
 1. Production is read-only for dump acquisition only. The allowed production touch is a documented
    `pg_dump -Fc --no-owner --no-acl` path. No production writes, no production migrations, no production
    env edits, no service restarts, and no manual production SQL.
-2. TEST is the rehearsal target. Use the documented TEST wrapper, not hand-written restore/migrate steps.
+2. TEST is the rehearsal target. Use the documented TEST wrapper, not hand-written restore/migrate steps. The
+   from-zero wrapper is never an ordinary deploy: it requires `--confirm-full-reset` and hash-bound Rubitime/FIO
+   inputs. Routine code changes use `deploy/host/deploy-test.sh`, which never restores or recreates TEST.
 3. A plain `pnpm migrate`, or `restore + pnpm migrate`, is not valid proof for this migration.
 4. No manual DB surgery. If a step fails, fix the repository script/protocol/checker and rerun from a fresh
    restore. Do not patch rows by hand to get past a gate.
@@ -71,13 +77,38 @@ be updated in the same change.
 
 ## Allowed TEST sequence
 
-Run the sequence as one wrapper:
+Run the destructive sequence as one wrapper only after the owner has explicitly authorized a full reset and the
+exact protected inputs have been prepared:
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh \
+  --confirm-full-reset \
+  --rubitime-csv=/secure/owner-rubitime.csv \
+  --rubitime-csv-sha256=<approved-sha256> \
+  --fio-manifest=/secure/fio-owner-manifest.json \
+  --fio-manifest-file-sha256=<approved-file-sha256> \
+  --fio-manifest-sha256=<approved-sha256> \
+  --fio-review-source-sha256=<approved-review-sha256> \
+  feat/doctor-ui-rebuild
 ```
 
 The wrapper owns the full sequence below.
+
+For an ordinary code deployment, including UI fixes, use only:
+
+```bash
+bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild
+```
+
+That command builds code and applies only pending incremental migrations to the existing TEST database. It does not
+download a dump and does not call the restore script.
+
+For the destructive path, the wrapper first verifies the owner Rubitime CSV, copies it to a root-owned
+`root:deploy 0440` run snapshot, and rechecks the approved SHA-256 immediately before the one-pass reader. The
+deploy user cannot alter that snapshot while the chain reads it. The wrapper also builds the exact branch and runs
+the no-DB FIO manifest verifier from that version-matched checkout. Hash/schema/exception failure therefore occurs
+before writers stop and before TEST is restored. Only after this preflight may the stopped-writers restore/data
+chain begin; the staged CSV is removed by the wrapper exit trap.
 
 ### 1. Assert TEST runtime mode
 
@@ -322,12 +353,27 @@ After migrations, apply the repo-tracked `deploy/postgres/test-settings-override
 allowed TEST override path for maintenance, dev mode, test account identifiers, OAuth redirects, and
 admin/doctor allowlist normalization. It must stay version-matched to the deploy checkout.
 
-### 9. Specialist consolidation
+### 9. Canonical identity, Rubitime history, and FIO normalization
 
-Run the existing specialist consolidation path with the pinned canonical specialist used by the wrapper.
-This command is a write-path over owner-owned booking tables and must not run as the raw runtime
-`DATABASE_URL` role. The TEST wrapper must run it under the same controlled temporary owner-role context as
-owner-only migration work:
+After the schema and TEST settings are current, but while all writers are still stopped, run the existing Rubitime
+one-pass wrapper with `--execute --commit-cleanup --allow-test-target`. This wrapper owns the proven order:
+
+1. aggregate clean-dump preflight;
+2. placeholder booking dry-run and commit in PII-safe summary mode;
+3. specialist consolidation dry-run and commit using the one current canonical specialist;
+4. test/cancelled-duplicate cleanup;
+5. non-confirmed cleanup;
+6. owner-CSV historical import/projection;
+7. the mandatory second non-confirmed cleanup after import;
+8. stale-vs-owner-CSV cleanup;
+9. classifier, dual-source audit, and retirement gates.
+
+The owner Rubitime CSV is the preservation canon. Integrator raw history remains diagnostic evidence and cannot add
+rows absent from the CSV. The wrapper must not start services between restore and this normalization.
+
+Specialist consolidation is a write-path over owner-owned booking tables and must not run as the raw runtime
+`DATABASE_URL` role. The TEST wrapper runs the entire one-pass command under the same controlled temporary
+owner-role context as owner-only migration work:
 
 - discover or reuse the webapp migrator role from `webapp.test` `DATABASE_URL`;
 - grant runtime-owner membership to that login only when the login is not already the runtime owner;
@@ -339,13 +385,25 @@ owner-only migration work:
 Specialist consolidation does not require `BYPASSRLS`; if it is ever added for this step, that must be
 documented and checked as a separate protocol change.
 
+After Rubitime/history normalization, apply the immutable owner-reviewed FIO manifest. This is not a parser rerun:
+the exact decisions are bound by SHA-256 and every row carries expected-before and desired-after state. The apply
+must verify the exact loopback TEST database, reject unknown drift, create a durable rollback artifact with mode
+`0600` before commit, update conditionally in one transaction, and print aggregate PII-free output. Rollback is
+conditional and may restore a row only while its current state still equals the recorded post-apply state.
+
+If the Rubitime CSV, FIO manifest, either approved hash, safe FIO apply entrypoint, or rollback artifact cannot be
+validated, the full-reset wrapper must stop with writers stopped and must not print a data-ready `DONE`. Manual SQL,
+parser recomputation, or silently skipping FIO is forbidden.
+
 The end-state assertions must include:
 
 - exactly one active specialist;
 - no appointments on `NULL` or inactive specialists;
 - the owner doctor keeps role `doctor`;
 - TEST `admin_phones` is `[]`;
-- appointment counts on the canonical specialist are reported as aggregate counts only.
+- appointment counts on the canonical specialist are reported as aggregate counts only;
+- Rubitime/history gates passed after the second post-import cleanup;
+- FIO reviewed-manifest reconciliation passed with aggregate-only output.
 
 ### 10. B1, A2, and product smoke gates
 
@@ -470,7 +528,7 @@ pnpm run check:saas-d2-fb1-bootstrap-phone-write
 pnpm run check:saas-d3-4-bootstrap-base-login-grants
 ```
 
-Strict+FORCE is mandatory in both supported TEST deploy paths: fresh restore (`deploy-test-saas.sh`) and code-only
+Strict+FORCE is mandatory in both supported TEST deploy paths: fresh restore (`deploy-test-full-reset.sh`) and code-only
 migration (`deploy-test.sh`). Both stop writers, migrate under a short audited privilege window, clean it up, run
 `test-strict-rls-finalizer.sql`, assert the exact target state, restart locked units, and keep walls on after failures.
 The disposable rehearsal remains dormant/NO FORCE for historical migration compatibility proof only; it is not TEST

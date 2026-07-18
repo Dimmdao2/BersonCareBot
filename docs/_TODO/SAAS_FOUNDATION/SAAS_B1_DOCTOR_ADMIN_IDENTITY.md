@@ -30,10 +30,11 @@ Owner-authorized TEST from-zero deploy integration:
 ```bash
 SAAS_PRODUCT_SMOKE_FIXTURE=/run/bersoncarebot/saas-smoke.fixture \
 SAAS_PRODUCT_SMOKE_CATEGORIES=doctor,schedule,working_hours,bookings,client_card,admin_settings,system_health \
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
 ```
 
-`deploy-test-saas.sh` runs this B1 assertion against the freshly recreated TEST DB with an explicit
+The public `deploy-test-full-reset.sh` entrypoint runs this B1 assertion through the internal
+`deploy-test-saas.sh` engine against the freshly recreated TEST DB with an explicit
 `--allow-test-target` flag, then runs the filtered product smoke if the operator-managed fixture exists.
 
 ## Checklist

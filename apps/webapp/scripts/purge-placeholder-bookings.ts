@@ -22,120 +22,415 @@
  *
  * Безопасность:
  *   - Dry-run по умолчанию; запись ТОЛЬКО с --commit (одна транзакция, ROLLBACK при ошибке).
+ *   - Любой запуск разрешён только на loopback DEV/rehearsal; TEST дополнительно требует
+ *     --allow-test-target. DATABASE_URL и current_database() должны точно совпасть.
  *   - Идемпотентно: повторный прогон удаляет 0.
- *   - Жёсткая защита: целевые user-id берутся только с role <> 'admin'; перед удалением
- *     проверяем, что среди них нет admin — иначе abort.
- *   - dev = реальные ПДн: печатаем id/числа/имя-плейсхолдера.
- *   - Audit-лог (commit): .tmp/placeholder-purge/applied-<ts>.json.
+ *   - Жёсткая защита: target phones отдельно проверяются против admin principals, а каждый
+ *     delete predicate исключает admin-owned booking независимо от предварительной выборки.
+ *   - --summary-only не печатает id/имена/телефоны и не кладёт их в audit artifact.
+ *   - Audit artifact создаётся с mode 0600 и fsync до destructive transaction; после успешного
+ *     commit атомарно переводится из planned в applied.
  *
  * Запуск:
  *   set -a && source apps/webapp/.env.dev && set +a
  *   pnpm --dir apps/webapp run purge-placeholder-bookings              # dry-run
  *   pnpm --dir apps/webapp run purge-placeholder-bookings -- --commit
+ *   pnpm --dir apps/webapp run purge-placeholder-bookings -- --summary-only
+ *   pnpm --dir apps/webapp run purge-placeholder-bookings -- --summary-only --commit
+ *   pnpm --dir apps/webapp run purge-placeholder-bookings -- --allow-test-target ... # only approved TEST
  */
 
-import pg from "pg";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve as resolvePath } from "node:path";
+import {
+  chmodSync,
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { and, count, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
+import {
+  appointmentRecords,
+  beAppointments,
+  beExternalEntityMappings,
+  patientBookings,
+  platformUsers,
+} from '../db/schema';
+import { assertAllowedPurgeDatabaseTarget } from './purge-placeholder-bookings-safety';
 
-const COMMIT = process.argv.slice(2).includes("--commit");
-const PHONES = ["+70000000000", "+79189000782"];
+const args = new Set(process.argv.slice(2));
+const COMMIT = args.has('--commit');
+const SUMMARY_ONLY = args.has('--summary-only');
+const ALLOW_TEST_TARGET = args.has('--allow-test-target');
+const PHONES = ['+70000000000', '+79189000782'];
 
-const DATABASE_URL = process.env.DATABASE_URL;
+type CleanupStats = {
+  be_appointments_to_delete: number;
+  appointment_mappings_to_delete: number;
+  patient_bookings_to_delete: number;
+  appointment_records_to_delete: number;
+};
+
+type DetailedAudit = {
+  targetUsers: Array<{ id: string; name: string; phone: string | null }>;
+  appointmentIds: string[];
+};
+
+type AuditArtifact = {
+  state: 'planned' | 'applied';
+  mode: 'detailed' | 'summary-only';
+  createdAt: string;
+  appliedAt?: string;
+  stats: CleanupStats;
+  audit?: DetailedAudit;
+};
+
+const DATABASE_URL = process.env.DATABASE_URL ?? '';
 if (!DATABASE_URL) {
-  console.error("MISSING DATABASE_URL — сначала: set -a && source apps/webapp/.env.dev && set +a");
+  console.error('MISSING DATABASE_URL — сначала: set -a && source apps/webapp/.env.dev && set +a');
   process.exit(1);
 }
 
-async function main() {
-  const pool = new pg.Pool({ connectionString: DATABASE_URL });
-  const db = await pool.connect();
-  const stats: Record<string, number> = {};
-  const audit: Record<string, unknown> = {};
-
+function syncDirectory(path: string): void {
+  const fd = openSync(path, 'r');
   try {
-    const phoneList = PHONES.map((p) => `'${p}'`).join(",");
-
-    // ── target placeholder users (НЕ-admin, с целевым телефоном) — только для матчинга записей ──
-    const users = await db.query<{ id: string; display_name: string; phone_normalized: string; role: string }>(
-      `SELECT id, display_name, phone_normalized, role FROM platform_users
-        WHERE phone_normalized IN (${phoneList}) AND role IS DISTINCT FROM 'admin'`,
-    );
-    const userIds = users.rows.map((u) => u.id);
-    audit.targetUsers = users.rows.map((u) => ({ id: u.id, name: u.display_name, phone: u.phone_normalized }));
-    console.log("\n=== ЦЕЛЕВЫЕ ПЛЕЙСХОЛДЕР-АККАУНТЫ (НЕ удаляются, только их записи) ===");
-    for (const u of users.rows) console.log(`  ${u.id}  ${u.display_name}  ${u.phone_normalized}  role=${u.role}`);
-
-    // защита: ни один целевой не должен быть admin
-    const adminGuard = await db.query(
-      `SELECT id FROM platform_users WHERE id = ANY($1::uuid[]) AND role = 'admin'`,
-      [userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]],
-    );
-    if (adminGuard.rowCount && adminGuard.rowCount > 0) {
-      throw new Error(`ABORT: среди целевых оказался admin: ${adminGuard.rows.map((r) => r.id).join(",")}`);
-    }
-
-    const userArr = userIds.length ? `ARRAY[${userIds.map((i) => `'${i}'::uuid`).join(",")}]` : `ARRAY[]::uuid[]`;
-    // условие «целевая запись»: по плейсхолдер-user ИЛИ по телефону
-    const apptWhere = `(platform_user_id = ANY(${userArr}) OR phone_normalized IN (${phoneList}))`;
-
-    // ── собрать id целевых be_appointments (для маппингов + отчёта) ──
-    const apptIdsRes = await db.query<{ id: string }>(`SELECT id FROM be_appointments WHERE ${apptWhere}`);
-    const apptIds = apptIdsRes.rows.map((r) => r.id);
-    stats.be_appointments_to_delete = apptIds.length;
-    audit.appointmentIds = apptIds;
-    const apptArr = apptIds.length ? `ARRAY[${apptIds.map((i) => `'${i}'::uuid`).join(",")}]` : `ARRAY[]::uuid[]`;
-
-    stats.appointment_mappings_to_delete = (
-      await db.query(
-        `SELECT count(*)::int n FROM be_external_entity_mappings
-          WHERE entity_type='appointment' AND canonical_id = ANY(${apptArr})`,
-      )
-    ).rows[0]!.n as number;
-    stats.patient_bookings_to_delete = (
-      await db.query(
-        `SELECT count(*)::int n FROM patient_bookings
-          WHERE platform_user_id = ANY(${userArr}) OR contact_phone IN (${phoneList})`,
-      )
-    ).rows[0]!.n as number;
-    stats.appointment_records_to_delete = (
-      await db.query(
-        `SELECT count(*)::int n FROM appointment_records
-          WHERE platform_user_id = ANY(${userArr}) OR phone_normalized IN (${phoneList})`,
-      )
-    ).rows[0]!.n as number;
-
-    if (COMMIT) {
-      await db.query("BEGIN");
-      await db.query(
-        `DELETE FROM be_external_entity_mappings WHERE entity_type='appointment' AND canonical_id = ANY(${apptArr})`,
-      );
-      await db.query(`DELETE FROM be_appointments WHERE ${apptWhere}`);
-      await db.query(
-        `DELETE FROM patient_bookings WHERE platform_user_id = ANY(${userArr}) OR contact_phone IN (${phoneList})`,
-      );
-      await db.query(
-        `DELETE FROM appointment_records WHERE platform_user_id = ANY(${userArr}) OR phone_normalized IN (${phoneList})`,
-      );
-      await db.query("COMMIT");
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const dir = resolvePath(process.cwd(), "../../.tmp/placeholder-purge");
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(resolvePath(dir, `applied-${stamp}.json`), JSON.stringify({ audit, stats }, null, 2));
-      console.log(`\nAudit log → ${resolvePath(dir, `applied-${stamp}.json`)}`);
-    }
-  } catch (err) {
-    if (COMMIT) await db.query("ROLLBACK");
-    console.error("FAILED, rolled back:", err);
-    process.exitCode = 1;
+    fsyncSync(fd);
   } finally {
-    db.release();
-    await pool.end();
+    closeSync(fd);
   }
-
-  console.log("\n=== SUMMARY (records only; НЕ удаляются аккаунты) ===");
-  console.table(stats);
-  if (!COMMIT) console.log("\nDRY-RUN — изменений не вносилось. Повтори с --commit для записи.");
 }
 
-main();
+function writePrivateFile(path: string, contents: string, exclusive: boolean): void {
+  const fd = openSync(path, exclusive ? 'wx' : 'w', 0o600);
+  try {
+    writeFileSync(fd, contents, { encoding: 'utf8' });
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  chmodSync(path, 0o600);
+}
+
+/** Creates a durable private artifact before the destructive transaction starts. */
+function createPrivateAuditArtifact(path: string, artifact: AuditArtifact): void {
+  const dir = dirname(path);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
+  writePrivateFile(path, `${JSON.stringify(artifact, null, 2)}\n`, true);
+  syncDirectory(dir);
+}
+
+/** Replaces the planned artifact atomically after the DB transaction committed. */
+function replacePrivateAuditArtifact(path: string, artifact: AuditArtifact): void {
+  const dir = dirname(path);
+  const tempPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    writePrivateFile(tempPath, `${JSON.stringify(artifact, null, 2)}\n`, true);
+    renameSync(tempPath, path);
+    chmodSync(path, 0o600);
+    syncDirectory(dir);
+  } catch (error) {
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // The temporary file may already have been atomically renamed.
+    }
+    throw error;
+  }
+}
+
+function printSummary(stats: CleanupStats): void {
+  if (SUMMARY_ONLY) {
+    console.log(
+      JSON.stringify({
+        mode: COMMIT ? 'commit' : 'dry-run',
+        recordsOnly: true,
+        stats,
+      }),
+    );
+    return;
+  }
+
+  console.log('\n=== SUMMARY (records only; НЕ удаляются аккаунты) ===');
+  console.table(stats);
+}
+
+async function main() {
+  let transactionCommitted = false;
+
+  try {
+    // Refuse unsafe URL shape before initializing a DB client. current_database() is attested immediately after.
+    const urlDatabase = decodeURIComponent(new URL(DATABASE_URL).pathname.replace(/^\/+/, ''));
+    assertAllowedPurgeDatabaseTarget({
+      databaseUrl: DATABASE_URL,
+      currentDatabase: urlDatabase,
+      allowTestTarget: ALLOW_TEST_TARGET,
+    });
+    const { getDrizzle } = await import('@/app-layer/db/drizzle');
+    const db = getDrizzle();
+    const databaseResult = await db.execute<{ database_name: string }>(
+      sql`SELECT current_database()::text AS database_name`,
+    );
+    assertAllowedPurgeDatabaseTarget({
+      databaseUrl: DATABASE_URL,
+      currentDatabase: databaseResult.rows[0]?.database_name ?? '',
+      allowTestTarget: ALLOW_TEST_TARGET,
+    });
+
+    // Explicitly reject the target phones when any of them belongs to an admin principal.
+    const targetPhoneAdminUsers = await db
+      .select({ id: platformUsers.id })
+      .from(platformUsers)
+      .where(and(inArray(platformUsers.phoneNormalized, PHONES), eq(platformUsers.role, 'admin')));
+    if (targetPhoneAdminUsers.length > 0) {
+      throw new Error('ABORT: target phone belongs to an admin principal');
+    }
+
+    // target placeholder users (НЕ-admin, с целевым телефоном) — только для матчинга записей
+    const users = await db
+      .select({
+        id: platformUsers.id,
+        displayName: platformUsers.displayName,
+        phoneNormalized: platformUsers.phoneNormalized,
+        role: platformUsers.role,
+      })
+      .from(platformUsers)
+      .where(and(inArray(platformUsers.phoneNormalized, PHONES), ne(platformUsers.role, 'admin')));
+
+    const userIds = users.map((user) => user.id);
+    const detailedAudit: DetailedAudit = {
+      targetUsers: users.map((user) => ({
+        id: user.id,
+        name: user.displayName,
+        phone: user.phoneNormalized,
+      })),
+      appointmentIds: [],
+    };
+
+    if (!SUMMARY_ONLY) {
+      console.log('\n=== ЦЕЛЕВЫЕ ПЛЕЙСХОЛДЕР-АККАУНТЫ (НЕ удаляются, только их записи) ===');
+      for (const user of users) {
+        console.log(
+          `  ${user.id}  ${user.displayName}  ${user.phoneNormalized}  role=${user.role}`,
+        );
+      }
+    }
+
+    // защита: ни один целевой не должен быть admin
+    const adminUsers =
+      userIds.length === 0
+        ? []
+        : await db
+            .select({ id: platformUsers.id })
+            .from(platformUsers)
+            .where(and(inArray(platformUsers.id, userIds), eq(platformUsers.role, 'admin')));
+    if (adminUsers.length > 0) {
+      if (SUMMARY_ONLY) {
+        throw new Error('ABORT: admin guard rejected the cleanup target');
+      }
+      throw new Error(
+        `ABORT: среди целевых оказался admin: ${adminUsers.map((user) => user.id).join(',')}`,
+      );
+    }
+
+    const appointmentTarget =
+      userIds.length > 0
+        ? or(
+            inArray(beAppointments.platformUserId, userIds),
+            inArray(beAppointments.phoneNormalized, PHONES),
+          )
+        : inArray(beAppointments.phoneNormalized, PHONES);
+    const patientBookingTarget =
+      userIds.length > 0
+        ? or(
+            inArray(patientBookings.platformUserId, userIds),
+            inArray(patientBookings.contactPhone, PHONES),
+          )
+        : inArray(patientBookings.contactPhone, PHONES);
+    const appointmentRecordTarget =
+      userIds.length > 0
+        ? or(
+            inArray(appointmentRecords.platformUserId, userIds),
+            inArray(appointmentRecords.phoneNormalized, PHONES),
+          )
+        : inArray(appointmentRecords.phoneNormalized, PHONES);
+
+    // The owner predicates remain protected even if a target phone/user changes after preflight.
+    const appointmentWhere = and(
+      appointmentTarget,
+      or(
+        isNull(beAppointments.platformUserId),
+        notInArray(
+          beAppointments.platformUserId,
+          db
+            .select({ id: platformUsers.id })
+            .from(platformUsers)
+            .where(eq(platformUsers.role, 'admin')),
+        ),
+      ),
+    );
+    const patientBookingWhere = and(
+      patientBookingTarget,
+      or(
+        isNull(patientBookings.platformUserId),
+        notInArray(
+          patientBookings.platformUserId,
+          db
+            .select({ id: platformUsers.id })
+            .from(platformUsers)
+            .where(eq(platformUsers.role, 'admin')),
+        ),
+      ),
+    );
+    const appointmentRecordWhere = and(
+      appointmentRecordTarget,
+      or(
+        isNull(appointmentRecords.platformUserId),
+        notInArray(
+          appointmentRecords.platformUserId,
+          db
+            .select({ id: platformUsers.id })
+            .from(platformUsers)
+            .where(eq(platformUsers.role, 'admin')),
+        ),
+      ),
+    );
+
+    const appointmentRows = await db
+      .select({ id: beAppointments.id })
+      .from(beAppointments)
+      .where(appointmentWhere);
+    const appointmentIds = appointmentRows.map((row) => row.id);
+    detailedAudit.appointmentIds = appointmentIds;
+
+    const [mappingCountRow, patientBookingCountRow, appointmentRecordCountRow] = await Promise.all([
+      appointmentIds.length === 0
+        ? Promise.resolve({ value: 0 })
+        : db
+            .select({ value: count() })
+            .from(beExternalEntityMappings)
+            .where(
+              and(
+                eq(beExternalEntityMappings.entityType, 'appointment'),
+                inArray(beExternalEntityMappings.canonicalId, appointmentIds),
+              ),
+            )
+            .then((rows) => rows[0] ?? { value: 0 }),
+      db
+        .select({ value: count() })
+        .from(patientBookings)
+        .where(patientBookingWhere)
+        .then((rows) => rows[0] ?? { value: 0 }),
+      db
+        .select({ value: count() })
+        .from(appointmentRecords)
+        .where(appointmentRecordWhere)
+        .then((rows) => rows[0] ?? { value: 0 }),
+    ]);
+
+    const stats: CleanupStats = {
+      be_appointments_to_delete: appointmentIds.length,
+      appointment_mappings_to_delete: Number(mappingCountRow.value),
+      patient_bookings_to_delete: Number(patientBookingCountRow.value),
+      appointment_records_to_delete: Number(appointmentRecordCountRow.value),
+    };
+
+    let auditPath: string | null = null;
+    let plannedArtifact: AuditArtifact | null = null;
+
+    if (COMMIT) {
+      const createdAt = new Date().toISOString();
+      const stamp = createdAt.replace(/[:.]/g, '-');
+      auditPath = resolvePath(process.cwd(), `../../.tmp/placeholder-purge/applied-${stamp}.json`);
+      plannedArtifact = {
+        state: 'planned',
+        mode: SUMMARY_ONLY ? 'summary-only' : 'detailed',
+        createdAt,
+        stats,
+        ...(SUMMARY_ONLY ? {} : { audit: detailedAudit }),
+      };
+
+      // Fail closed: no DELETE starts unless the pre-commit artifact is already durable and private.
+      createPrivateAuditArtifact(auditPath, plannedArtifact);
+
+      await db.transaction(async (tx) => {
+        const lockedTargetPhoneUsers = await tx
+          .select({ role: platformUsers.role })
+          .from(platformUsers)
+          .where(inArray(platformUsers.phoneNormalized, PHONES))
+          .for('update');
+        if (lockedTargetPhoneUsers.some((user) => user.role === 'admin')) {
+          throw new Error('ABORT: target phone became an admin principal');
+        }
+        const lockedAppointmentRows = await tx
+          .select({ id: beAppointments.id })
+          .from(beAppointments)
+          .where(appointmentWhere)
+          .for('update');
+        const lockedAppointmentIds = lockedAppointmentRows.map((row) => row.id);
+        const previewIds = [...appointmentIds].sort();
+        const transactionIds = [...lockedAppointmentIds].sort();
+        if (
+          previewIds.length !== transactionIds.length ||
+          previewIds.some((id, index) => id !== transactionIds[index])
+        ) {
+          throw new Error('ABORT: appointment target set changed after preview');
+        }
+        if (lockedAppointmentIds.length > 0) {
+          await tx
+            .delete(beExternalEntityMappings)
+            .where(
+              and(
+                eq(beExternalEntityMappings.entityType, 'appointment'),
+                inArray(beExternalEntityMappings.canonicalId, lockedAppointmentIds),
+              ),
+            );
+        }
+        await tx.delete(beAppointments).where(appointmentWhere);
+        await tx.delete(patientBookings).where(patientBookingWhere);
+        await tx.delete(appointmentRecords).where(appointmentRecordWhere);
+      });
+      transactionCommitted = true;
+
+      replacePrivateAuditArtifact(auditPath, {
+        ...plannedArtifact,
+        state: 'applied',
+        appliedAt: new Date().toISOString(),
+      });
+
+      if (!SUMMARY_ONLY) {
+        console.log(`\nAudit log → ${auditPath}`);
+      }
+    }
+
+    printSummary(stats);
+    if (!COMMIT && !SUMMARY_ONLY) {
+      console.log('\nDRY-RUN — изменений не вносилось. Повтори с --commit для записи.');
+    }
+  } catch (error) {
+    if (SUMMARY_ONLY) {
+      console.error(
+        transactionCommitted
+          ? 'FAILED after cleanup commit; private audit state requires operator review.'
+          : 'FAILED; no cleanup result was committed.',
+      );
+    } else {
+      console.error(
+        transactionCommitted
+          ? 'FAILED after cleanup commit; audit finalization failed:'
+          : 'FAILED, rolled back:',
+        error,
+      );
+    }
+    process.exitCode = 1;
+  }
+}
+
+void main().then(() => {
+  // getDrizzle owns the sole DB pool; one-off scripts terminate after all awaited work is complete.
+  process.exit(process.exitCode ?? 0);
+});

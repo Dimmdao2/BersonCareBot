@@ -26,7 +26,7 @@ PASS → R1 cleanup/import sequence PASS for stale/unmapped/duplicates. Подр
 6. Числа `legacy-only=290/312` означают расхождение архивов `appointment_records` и `integrator.rubitime_records`.
    Это не список видимых грязных записей и не самостоятельный blocker, если CSV-present rows закрыты.
 7. Для clean dump уже есть валидный путь: owner doctor/admin pre-fix → `scripts/deploy-saas-667.sh` или
-   `deploy/host/deploy-test-saas.sh` → placeholder booking purge → specialist consolidation → canonical backfill
+   `deploy/host/deploy-test-full-reset.sh` (internal engine: `deploy-test-saas.sh`) → placeholder booking purge → specialist consolidation → canonical backfill
    → R1 aggregate audits → doctor UI smoke.
 8. Остаточные R5/R6/R7 owner/prod решения собраны в
    `docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_OWNER_GATE_PACKET.md`.
@@ -141,7 +141,7 @@ Sol-проверка старого локального dump была поле�
 | Операционный cutover canonical booking | `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md` | Есть |
 | Инструкция по specialist consolidation | `docs/OPERATIONS/SPECIALIST_IDENTITY_CONSOLIDATION.md` | Есть |
 | Pre-migration doctor/admin/client identity data-fix | `deploy/postgres/p0-data-fix-doctor-admin-split.sql` | Есть |
-| Fresh TEST restore + migrate + data-fix wrapper | `deploy/host/deploy-test-saas.sh` | Есть |
+| Fresh TEST restore + migrate + data-fix entrypoint | `deploy/host/deploy-test-full-reset.sh` | Есть |
 | Full fresh prod-copy migration chain | `scripts/deploy-saas-667.sh` | Есть |
 | R1 preflight/audit scripts | `docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-*.mjs` | Есть |
 
@@ -193,7 +193,7 @@ owner-only DDL. Но integrator backfill под включенным/FORCE RLS �
 | DB/copy | Можно? | Для чего |
 | --- | --- | --- |
 | Fresh hourly dump `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump` | Да | источник clean prod-copy; брать newest |
-| TEST restore через `deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild` | Да, owner/test-host operation | полный from-zero прогон: fresh dump -> data-fix -> migrations -> override -> specialist consolidation -> units |
+| TEST restore через `deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...` | Да, только owner/test-host operation | полный from-zero прогон: fresh dump -> data-fix -> migrations -> Rubitime/history -> reviewed FIO -> strict closure -> units |
 | Disposable DB с именем `bcb_*_dev_*` или `*_rehearsal_*` | Да | isolated restore/preflight/audit без трогания dev/test/prod |
 | `bcb_webapp_prod` | Нет для агентского rehearsal | только отдельная production operation |
 | `bersoncarebot_test` / `bcb_webapp_test` | Нет без явной команды | это live TEST, wrapper может его пересоздать только в разрешенном TEST-flow |
@@ -213,13 +213,18 @@ pg_restore --list /opt/backups/postgres/hourly/unified_bcb_webapp_prod_YYYYMMDD_
 
 | Сценарий | Команда | Что внутри |
 | --- | --- | --- |
-| TEST from-zero | `bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild` | сам тянет fresh prod dump, пересоздает TEST DB, build branch, data-fix, temp BYPASSRLS migrate, test override, specialist consolidation, health |
+| Обычный TEST code deploy | `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` | build + только pending migrations текущей TEST-БД; dump/restore отсутствуют |
+| TEST from-zero | `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound inputs> feat/doctor-ui-rebuild` | сам тянет fresh prod dump, пересоздает TEST DB, выполняет полную data chain и только затем запускает units; без явного подтверждения не стартует |
 | Prod-copy/disposable #667 chain | `SUPERUSER_URL=... DATABASE_URL=... bash scripts/deploy-saas-667.sh` | роли `app_*`, `app_ext.pgcrypto`, temp migrator elevation, data-fix, `migrate-all.sh`, P2-B, consolidation, post-assertions, auto-revoke |
 | Только read-only R1 preflight | `DATABASE_URL='<loopback rehearsal URL>' node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs --csv=<csv>` | schema/current-state gate; не пишет |
 | Только R1 aggregate audit | `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs --csv=<csv>` и `node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs --sample-size=0` | dev/rehearsal aggregate-only proof; не пишет |
 
-Нельзя заменять `deploy-test-saas.sh` и `deploy-saas-667.sh` на “restore + pnpm migrate”: это уже
+Нельзя заменять `deploy-test-full-reset.sh` и `deploy-saas-667.sh` на “restore + pnpm migrate”: это уже
 зафиксированный невалидный путь.
+
+Также нельзя использовать `deploy-test-full-reset.sh` как обычный деплой кода. Для UI/code изменений используется
+только `deploy-test.sh`; повторное создание TEST-БД выполняется только для отдельной owner-authorized full migration rehearsal.
+`deploy-test-saas.sh` — внутренний engine; его прямой destructive-вызов заблокирован.
 
 ### 3.5. Обязательные тесты/gates
 
@@ -245,6 +250,10 @@ pg_restore --list /opt/backups/postgres/hourly/unified_bcb_webapp_prod_YYYYMMDD_
 Это порядок, а не предложение. Если нужный скрипт кажется отсутствующим, сначала проверь текущую ветку и
 git history. Не писать замену, пока не доказано, что существующего script/doc реально нет.
 
+На TEST эти шаги исполняет одна команда `deploy-test-full-reset.sh --confirm-full-reset ...`; подпункты ниже объясняют её
+внутренний порядок, а не разрешают запускать ручные SQL/cleanup между шагами. Writers остаются остановленными от
+restore до завершения FIO apply и strict closure.
+
 ### Шаг 1. Подготовить отдельную fresh-copy DB
 
 Допустимые цели:
@@ -269,21 +278,17 @@ git history. Не писать замену, пока не доказано, ч�
 - patient placeholder Дмитрий Берсон не должен ломать doctor/admin split;
 - записи пациента не удаляются этим шагом.
 
-Запускать на выбранной fresh-copy DB до миграций:
-
-```bash
-psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 \
-  -f deploy/postgres/p0-data-fix-doctor-admin-split.sql
-```
-
-Не запускай миграции до этого шага.
+На TEST этот SQL нельзя запускать вручную: его выполняет `deploy-test-full-reset.sh` в правильном месте единой
+цепочки, до миграций и при остановленных writers. Для disposable DB тот же порядок уже встроен в
+`scripts/deploy-saas-667.sh`. Не отделяй этот шаг от соответствующего wrapper.
 
 ### Шаг 3. Запустить migration chain через существующий deploy-wrapper
 
-Для TEST fresh restore wrapper уже есть. Явно передавай рабочую ветку:
+Для TEST fresh restore публичный owner-gated wrapper уже есть. Явно передавай подтверждение, защищённые входы и
+рабочую ветку:
 
 ```bash
-bash deploy/host/deploy-test-saas.sh feat/doctor-ui-rebuild
+bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
 ```
 
 Для disposable prod-copy DB используй sequence/model из:
@@ -306,16 +311,8 @@ Rehearsal, который делает только restore + plain migrate, н�
 
 ### Шаг 4. Удалить placeholder/test bookings, не аккаунты
 
-```bash
-set -a && source <env-for-the-selected-fresh-copy-db> && set +a
-pnpm --dir apps/webapp run purge-placeholder-bookings
-```
-
-`--commit` разрешен только после dry-run на той же DB:
-
-```bash
-pnpm --dir apps/webapp run purge-placeholder-bookings -- --commit
-```
+Это внутренний этап `deploy-test-full-reset.sh` / `rubitime-db-cleanup-one-pass.mjs`: сначала dry-run, затем commit
+на той же проверенной цели. На TEST его не запускают отдельной командой и не source-ят env вручную.
 
 Что делает скрипт:
 
@@ -326,46 +323,35 @@ pnpm --dir apps/webapp run purge-placeholder-bookings -- --commit
 
 ### Шаг 5. Свести specialists
 
-```bash
-set -a && source <env-for-the-selected-fresh-copy-db> && set +a
-pnpm --dir apps/webapp run consolidate-specialist-identity
-```
-
-`--commit` разрешен только после dry-run:
-
-```bash
-pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit
-```
+Это следующий внутренний dry-run/commit этап того же one-pass wrapper. На TEST его нельзя отделять от полной
+цепочки или запускать с вручную выбранным env.
 
 Скрипт сводит duplicate specialists в одного active specialist, remap-ит FK/mappings и опционально
 назначает `NULL` historical appointments на primary specialist.
 
 ### Шаг 6. Выполнить canonical appointment backfill/cleanup
 
-```bash
-set -a && source <env-for-the-selected-fresh-copy-db> && set +a
-pnpm --dir apps/webapp backfill-canonical-from-legacy-appointments -- --summary-only
-```
-
-Рабочие флаги описаны в самом скрипте и `docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`.
-Для Rubitime R1 не писать новый cleanup SQL: использовать существующий backfill script и R1 run artifacts
-из execution-пакета.
+One-pass последовательно выполняет pre-import cleanup, owner-CSV historical import/projection, обязательный второй
+non-confirmed cleanup и stale-vs-CSV cleanup. Рабочие флаги описаны в самом скрипте и
+`docs/OPERATIONS/BOOKING_CANONICAL_CUTOVER.md`; для Rubitime R1 не писать новый cleanup SQL и не запускать отдельный
+backfill мимо wrapper.
 
 ### Шаг 7. Запустить R1 aggregate audits
 
-```bash
-DATABASE_URL='<fresh-copy-url>' \
-node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-clean-dump-preflight.mjs \
-  --csv=<fresh-rubitime-csv>
+R1 classifier и dual-source audit завершают тот же one-pass этап и работают только с aggregate/PII-free выводом.
+На TEST не подменять их отдельными командами с вручную составленным `DATABASE_URL`.
 
-node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-classify-blockers.mjs \
-  --csv=<fresh-rubitime-csv>
+### Шаг 8. Применить owner-reviewed FIO manifest
 
-node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r1-dual-source-audit.mjs \
-  --threshold-minutes=5 --sample-size=0
-```
+После identity/specialist consolidation и полного Rubitime cleanup/import, но до fixtures и запуска сервисов,
+full-reset wrapper выполняет TEST-only `fio:owner-reviewed-test:apply`. Manifest не строится parser-ом заново: он содержит exact
+expected-before/desired-after и точные исключения для ранее отсутствующей и changed-after-review identity.
 
-### Шаг 8. Doctor UI smoke
+Гейты: exact `127.0.0.1/bersoncarebot_test`, live `current_database()`, separately confirmed review/manifest hashes,
+одна conditional transaction, unique durable rollback `0600` до первой записи, aggregate-only stdout. Любой
+непредусмотренный drift останавливает full reset.
+
+### Шаг 9. Doctor UI smoke
 
 Проверить на той же fresh-copy DB:
 

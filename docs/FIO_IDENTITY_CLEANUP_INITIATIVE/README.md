@@ -361,7 +361,7 @@ Gate:
 
 ### Phase 9 — Production Backfill Closeout
 
-Status: TEST apply complete; production not executed.
+Status: historical TEST apply evidence exists; a later fresh-dump restore replaced that TEST snapshot; production not executed.
 
 Owner-reviewed TEST result (aggregate only):
 
@@ -372,6 +372,12 @@ Owner-reviewed TEST result (aggregate only):
 
 The reviewed XLSX/CSV and TEST before/after audit are local PII artifacts. They must not be committed or copied into
 plans row-by-row. Their decisions are authoritative and must not be recomputed by a parser.
+
+Current TEST mechanism: `apps/webapp/scripts/fio-backfill/apply-owner-reviewed-fio-test.ts`. The full clean-dump
+wrapper requires its protected hash-bound manifest and runs it after identity/Rubitime history normalization but
+before fixtures and service restart. Exact expected-missing and preserve-current exceptions represent the two owner-
+reviewed edge cases; global skip policies are forbidden. This TEST-only command does not authorize or implement a
+production mutation.
 
 Actions:
 
@@ -388,7 +394,8 @@ Actions:
 Validation:
 
 - Preview/apply/rollback tests against an isolated database.
-- Malformed/duplicate manifest rejection; exact target/mode guards; stale-row abort/skip; rollback-conflict proof;
+- Malformed/duplicate manifest rejection; exact target/mode guards; unlisted stale-row abort and exact reviewed
+  exception proof; rollback-conflict proof;
   aggregate reconciliation and UI spot-check.
 
 Gate:

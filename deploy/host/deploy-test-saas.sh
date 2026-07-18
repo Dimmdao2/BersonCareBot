@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# deploy-test-saas.sh — ONE clean cycle from zero: fresh prod-copy test DB → deploy branch code →
+# deploy-test-saas.sh — shared strict TEST closure engine plus the guarded implementation used only by
+# deploy-test-full-reset.sh for one clean cycle from zero: fresh prod-copy test DB → deploy branch code →
 # apply the SaaS migration chain the CORRECT way (#667/#708) → restart test units → verify healthy.
 # Runtime mode is locked-only; strict helper policies + FORCE are mandatory after every migration chain. Proven sequence;
 # see docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md.
@@ -11,13 +12,25 @@
 #     TEST services run DB_PRINCIPAL_CONTEXT_MODE=locked after migrations:
 #     integrator API startup must not attempt DDL migrations in locked runtime mode.
 #
-# Run as user `dev` (uses sudo for postgres/deploy/systemctl). Idempotent: recreates the test DB every run.
-# Usage:  bash deploy/host/deploy-test-saas.sh [branch]   (default: auto/code-pg-delta)
+# Run as user `dev` (uses sudo for postgres/deploy/systemctl). This is NOT the normal code deploy:
+# it deliberately recreates TEST from a clean dump and therefore requires an explicit destructive confirmation
+# plus hash-bound Rubitime/FIO inputs. Normal code deploys use deploy/host/deploy-test.sh and never restore TEST.
+# Public destructive entrypoint: bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
+#   --rubitime-csv=/secure/input.csv --rubitime-csv-sha256=<sha256> \
+#   --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
+#   --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> [branch]
 set -euo pipefail
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
-BRANCH="${1:-auto/code-pg-delta}"
+BRANCH="feat/doctor-ui-rebuild"
+CONFIRM_FULL_RESET=0
+RUBITIME_CSV=""
+RUBITIME_CSV_SHA256=""
+FIO_MANIFEST=""
+FIO_MANIFEST_FILE_SHA256=""
+FIO_MANIFEST_SHA256=""
+FIO_REVIEW_SOURCE_SHA256=""
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
@@ -74,6 +87,7 @@ SERVICES_RELEASED=0
 FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 LOCKED_PRODUCT_SMOKE_FIXTURE_CANONICAL=""
 E1_RUNTIME_COVERAGE_STARTED_AT=""
+STAGED_INPUT_DIR=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
 #   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
@@ -124,6 +138,7 @@ cleanup_exit(){
   set +e
   cleanup_elevation
   cleanup_status=$?
+  cleanup_staged_inputs || cleanup_status=1
   if [ "$original_status" -ne 0 ] && [ "${WRITERS_STOPPED:-0}" = "1" ] && [ "${SERVICES_RELEASED:-0}" != "1" ]; then
     for unit_name in "${UNITS[@]}"; do
       sudo systemctl stop "bersoncarebot-$unit_name-test" >/dev/null 2>&1 || cleanup_status=1
@@ -133,6 +148,71 @@ cleanup_exit(){
     exit "$cleanup_status"
   fi
   exit "$original_status"
+}
+
+cleanup_staged_inputs(){
+  if [ -z "${STAGED_INPUT_DIR:-}" ]; then return 0; fi
+  [[ "$STAGED_INPUT_DIR" = /run/bersoncarebot/full-reset-input.* ]] || {
+    echo "FATAL: refusing cleanup of unexpected staged input path" >&2
+    return 1
+  }
+  sudo rm -f -- "$STAGED_INPUT_DIR/rubitime.csv"
+  sudo rmdir -- "$STAGED_INPUT_DIR"
+  STAGED_INPUT_DIR=""
+}
+
+cleanup_pre_destructive_exit(){
+  local original_status=$?
+  set +e
+  cleanup_staged_inputs
+  local cleanup_status=$?
+  if [ "$original_status" -eq 0 ] && [ "$cleanup_status" -ne 0 ]; then exit "$cleanup_status"; fi
+  exit "$original_status"
+}
+
+stage_hash_bound_rubitime_csv(){
+  local staged_hash staged_meta
+  sudo install -d -o root -g deploy -m 0750 /run/bersoncarebot
+  STAGED_INPUT_DIR="$(sudo mktemp -d -p /run/bersoncarebot full-reset-input.XXXXXX)"
+  sudo chown root:deploy "$STAGED_INPUT_DIR"
+  sudo chmod 0750 "$STAGED_INPUT_DIR"
+  trap cleanup_pre_destructive_exit EXIT
+  sudo install -o root -g deploy -m 0440 -- "$RUBITIME_CSV" "$STAGED_INPUT_DIR/rubitime.csv"
+  sudo sync -f "$STAGED_INPUT_DIR/rubitime.csv"
+  staged_meta="$(stat -Lc '%U:%G:%a' -- "$STAGED_INPUT_DIR/rubitime.csv")"
+  [ "$staged_meta" = "root:deploy:440" ] || {
+    echo "FATAL: staged Rubitime CSV protection mismatch" >&2
+    exit 2
+  }
+  staged_hash="$(sudo -u deploy sha256sum -- "$STAGED_INPUT_DIR/rubitime.csv" | awk '{print $1}')"
+  [ "${staged_hash,,}" = "${RUBITIME_CSV_SHA256,,}" ] || {
+    echo "FATAL: staged Rubitime CSV SHA-256 mismatch" >&2
+    exit 2
+  }
+  RUBITIME_CSV="$STAGED_INPUT_DIR/rubitime.csv"
+  echo "   Rubitime CSV: immutable root-owned staged snapshot OK"
+}
+
+assert_staged_rubitime_csv_ready(){
+  local staged_hash staged_meta
+  [[ "$RUBITIME_CSV" = /run/bersoncarebot/full-reset-input.*/rubitime.csv ]] || {
+    echo "FATAL: Rubitime chain must read only the staged snapshot" >&2
+    exit 2
+  }
+  [ -f "$RUBITIME_CSV" ] && [ ! -L "$RUBITIME_CSV" ] || {
+    echo "FATAL: staged Rubitime CSV is not a regular non-symlink file" >&2
+    exit 2
+  }
+  staged_meta="$(stat -Lc '%U:%G:%a' -- "$RUBITIME_CSV")"
+  [ "$staged_meta" = "root:deploy:440" ] || {
+    echo "FATAL: staged Rubitime CSV protection changed" >&2
+    exit 2
+  }
+  staged_hash="$(sudo -u deploy sha256sum -- "$RUBITIME_CSV" | awk '{print $1}')"
+  [ "${staged_hash,,}" = "${RUBITIME_CSV_SHA256,,}" ] || {
+    echo "FATAL: staged Rubitime CSV SHA-256 changed" >&2
+    exit 2
+  }
 }
 
 validate_pg_identifier(){
@@ -1029,6 +1109,88 @@ run_c4_operational_chain_self_test(){
   echo "C4 canonical fresh wrapper segment self-test: OK (no env/DB/service/cron mutation)"
 }
 
+full_reset_usage(){
+  cat <<'EOF'
+Usage:
+  bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
+    --rubitime-csv=/secure/input.csv --rubitime-csv-sha256=<sha256> \
+    --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
+    --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
+    [branch]
+
+This command destroys and recreates bersoncarebot_test from a fresh production dump. It is only for an
+owner-authorized full migration rehearsal. For ordinary code deploys use:
+  bash deploy/host/deploy-test.sh [branch]
+
+Protected Rubitime/FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes
+bind this run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
+EOF
+}
+
+parse_full_reset_args(){
+  local arg positional_seen=0
+  for arg in "$@"; do
+    case "$arg" in
+      --confirm-full-reset) CONFIRM_FULL_RESET=1 ;;
+      --rubitime-csv=*) RUBITIME_CSV="${arg#*=}" ;;
+      --rubitime-csv-sha256=*) RUBITIME_CSV_SHA256="${arg#*=}" ;;
+      --fio-manifest=*) FIO_MANIFEST="${arg#*=}" ;;
+      --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
+      --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
+      --fio-review-source-sha256=*) FIO_REVIEW_SOURCE_SHA256="${arg#*=}" ;;
+      --help|-h)
+        full_reset_usage
+        exit 0
+        ;;
+      --*)
+        echo "FATAL: unknown full-reset option: $arg" >&2
+        full_reset_usage >&2
+        exit 2
+        ;;
+      *)
+        [ "$positional_seen" = "0" ] || { echo "FATAL: only one branch argument is allowed" >&2; exit 2; }
+        BRANCH="$arg"
+        positional_seen=1
+        ;;
+    esac
+  done
+
+  [ "$CONFIRM_FULL_RESET" = "1" ] || {
+    echo "FATAL: full TEST reset requires --confirm-full-reset; ordinary deploys use deploy/host/deploy-test.sh" >&2
+    exit 2
+  }
+  [ -n "$RUBITIME_CSV" ] || { echo "FATAL: --rubitime-csv is required for a data-complete reset" >&2; exit 2; }
+  [ -n "$RUBITIME_CSV_SHA256" ] || { echo "FATAL: --rubitime-csv-sha256 is required" >&2; exit 2; }
+  [ -n "$FIO_MANIFEST" ] || { echo "FATAL: --fio-manifest is required for a data-complete reset" >&2; exit 2; }
+  [ -n "$FIO_MANIFEST_FILE_SHA256" ] || { echo "FATAL: --fio-manifest-file-sha256 is required" >&2; exit 2; }
+  [ -n "$FIO_MANIFEST_SHA256" ] || { echo "FATAL: --fio-manifest-sha256 is required" >&2; exit 2; }
+  [ -n "$FIO_REVIEW_SOURCE_SHA256" ] || { echo "FATAL: --fio-review-source-sha256 is required" >&2; exit 2; }
+  [[ "$FIO_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-manifest-sha256 must be 64 hex characters" >&2; exit 2; }
+  [[ "$FIO_REVIEW_SOURCE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-review-source-sha256 must be 64 hex characters" >&2; exit 2; }
+  FIO_MANIFEST_SHA256="${FIO_MANIFEST_SHA256,,}"
+  FIO_REVIEW_SOURCE_SHA256="${FIO_REVIEW_SOURCE_SHA256,,}"
+}
+
+assert_hash_bound_protected_input(){
+  local label="$1" path="$2" expected_hash="$3" owner_mode actual_hash
+  [[ "$expected_hash" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: $label SHA-256 must be 64 hex characters" >&2; exit 2; }
+  [[ "$path" = /* ]] || { echo "FATAL: $label path must be absolute" >&2; exit 2; }
+  [ -f "$path" ] && [ ! -L "$path" ] || { echo "FATAL: $label must be a regular non-symlink file" >&2; exit 2; }
+  owner_mode="$(stat -Lc '%U:%a' -- "$path")"
+  [ "$owner_mode" = "deploy:600" ] || {
+    echo "FATAL: $label must be owned by deploy with mode 0600 (got $owner_mode)" >&2
+    exit 2
+  }
+  sudo -u deploy test -r "$path" || { echo "FATAL: $label is not readable by deploy" >&2; exit 2; }
+  actual_hash="$(sudo -u deploy sha256sum -- "$path" | awk '{print $1}')"
+  [ "${actual_hash,,}" = "${expected_hash,,}" ] || { echo "FATAL: $label SHA-256 mismatch" >&2; exit 2; }
+  echo "   $label: protected input + SHA-256 OK"
+}
+
+shell_quote(){
+  printf '%q' "$1"
+}
+
 case "${1:-}" in
   --c4-operational-chain-self-test)
     run_c4_operational_chain_self_test
@@ -1049,9 +1211,23 @@ case "${1:-}" in
     log "DONE — shared strict TEST post-migration closure"
     exit 0
     ;;
+  --help|-h)
+    full_reset_usage
+    exit 0
+    ;;
 esac
 
 # 0. preflight (env files are deploy-owned → check as deploy, not as dev)
+[ "${BCB_TEST_FULL_RESET_ENTRYPOINT:-}" = "deploy-test-full-reset-v1" ] || {
+  echo "FATAL: direct destructive invocation is disabled; use deploy/host/deploy-test-full-reset.sh" >&2
+  echo "For ordinary code deploys use deploy/host/deploy-test.sh" >&2
+  exit 2
+}
+parse_full_reset_args "$@"
+log "DESTRUCTIVE full-reset confirmation + owner input preflight"
+assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
+assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
+stage_hash_bound_rubitime_csv
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
@@ -1097,28 +1273,9 @@ log "SaaS TEST fixture operator packet preflight"
 assert_saas_test_fixture_packet_ready
 log "locked product-smoke fixture preflight"
 assert_locked_product_smoke_fixture_ready
-trap cleanup_exit EXIT   # NEVER leave BYPASSRLS or owner-role membership on
 
-log "stop TEST writers before restore/migration"
-for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
-WRITERS_STOPPED=1
-assert_test_writers_stopped
-
-# 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
-#    Override with DUMP=/path env to reuse a pre-pulled dump. Do NOT fall back to /opt/backups here —
-#    those are the DEAD local copy; a silent stale restore is exactly the bug that wasted hours.
-if [ -z "${DUMP:-}" ]; then
-  DUMP=/tmp/bcb-prod-fresh.dump
-  log "pull FRESH dump from live prod ($PROD_SSH:$PROD_DB) → $DUMP"
-  ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROD_SSH" "sudo -u postgres pg_dump -Fc --no-owner --no-acl $PROD_DB" > "$DUMP"
-  chmod 644 "$DUMP"
-fi
-[ -s "$DUMP" ] || { echo "FATAL: dump missing/empty: $DUMP"; exit 1; }
-log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
-sudo -u postgres bash "$RESTORE" "$DUMP"
-assert_test_db_owner_ready
-
-# 2. deliver branch code (bundle → checkout → build); deploy user cannot read /home/dev, so bundle via /tmp
+# Deliver and build the exact branch before stopping writers or touching TEST data. This also makes the
+# version-matched no-DB manifest verifier available for the final protected-input preflight.
 log "bundle + checkout $BRANCH -> $DEPLOY_REPO"
 git -C "$SRC_REPO" bundle create "$BUNDLE" "$BRANCH"; chmod 644 "$BUNDLE"
 sudo -u deploy git -C "$DEPLOY_REPO" fetch "$BUNDLE" "$BRANCH"
@@ -1132,11 +1289,47 @@ sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm --dir apps/media-worker build && \
   bash deploy/host/sync-webapp-standalone-assets.sh"
 
-# 3. DATA-FIX first (the missing step — deploy-saas-667.sh Step 2)
+log "version-matched owner-reviewed FIO manifest verification (no DB)"
+fio_manifest_q="$(shell_quote "$FIO_MANIFEST")"
+sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
+  pnpm --dir apps/webapp run fio:owner-reviewed-test:verify -- \
+    --manifest $fio_manifest_q \
+    --confirm-manifest-sha256 '$FIO_MANIFEST_SHA256' \
+    --confirm-review-source-sha256 '$FIO_REVIEW_SOURCE_SHA256'"
+
+trap cleanup_exit EXIT   # NEVER leave BYPASSRLS or owner-role membership on
+
+log "stop TEST writers before restore/migration"
+for u in "${UNITS[@]}"; do sudo systemctl stop "bersoncarebot-$u-test"; done
+WRITERS_STOPPED=1
+assert_test_writers_stopped
+
+# 1. fresh test DB = FRESH dump streamed from LIVE prod (read-only pg_dump over ssh; no file left on prod).
+#    Override with DUMP=/path env to reuse a pre-pulled dump. Do NOT fall back to /opt/backups here —
+#    those are the DEAD local copy; a silent stale restore is exactly the bug that wasted hours.
+if [ -z "${DUMP:-}" ]; then
+  DUMP=/tmp/bcb-prod-fresh.dump
+  log "pull FRESH dump from live prod ($PROD_SSH:$PROD_DB) → $DUMP"
+  umask 077
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$PROD_SSH" "sudo -u postgres pg_dump -Fc --no-owner --no-acl $PROD_DB" > "$DUMP"
+  sudo chown postgres:postgres "$DUMP"
+  sudo chmod 0600 "$DUMP"
+fi
+[ -f "$DUMP" ] && [ ! -L "$DUMP" ] && [ -s "$DUMP" ] || { echo "FATAL: dump must be a non-empty regular non-symlink file"; exit 1; }
+dump_owner_mode="$(stat -Lc '%U:%G:%a' -- "$DUMP")"
+[ "$dump_owner_mode" = "postgres:postgres:600" ] || {
+  echo "FATAL: dump must be protected as postgres:postgres 0600 (got $dump_owner_mode)" >&2
+  exit 1
+}
+log "restore $DB from $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1))"
+sudo -u postgres bash "$RESTORE" "$DUMP"
+assert_test_db_owner_ready
+
+# 2. DATA-FIX first (the missing step — deploy-saas-667.sh Step 2)
 log "data-fix (doctor/admin split)"
 run_test_db_owner_sql_file "$DEPLOY_REPO/$DATAFIX"
 
-# 4. migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke
+# 3. migrate integrator + webapp Drizzle with TEMP BYPASSRLS (backfills under FORCE RLS), then revoke
 log "migrate (temp BYPASSRLS)"
 MIGRATOR_ROLE="$(discover_webapp_migrator_role)"
 grant_migrator_owner_membership "$MIGRATOR_ROLE"
@@ -1154,21 +1347,33 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
 done
 echo "   drizzle migrations = $CNT (org columns present)"
 
-# 5. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
+# 4. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
 #    checkout so it is version-matched to the branch.
 log "test settings override"
 sudo -u postgres psql -d "$DB" -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$OVERRIDE"
 
-# 6. consolidate duplicate specialists → one canonical (idempotent; deterministic pinned --canonical).
-#    Historical rubitime-per-branch dups split the owner's appointments/working-hours across TWO
-#    "Дмитрий Берсон" be_specialists rows, so the solo-model resolver (resolveDoctorOwnSpecialistId)
-#    picks arbitrarily and the doctor sees a partial/empty schedule. The consolidation REPOINTS every FK
-#    ref of the dup → canonical and SOFT-deactivates the dup (never deletes appointment data). Idempotent:
-#    a 2nd run finds 0 dups and changes 0 rows.
-log "consolidate duplicate specialists → $CANONICAL_SPECIALIST"
+# 5. Full canonical Rubitime/history normalization while all writers are still stopped. The one-pass wrapper owns
+#    placeholder cleanup, specialist consolidation, all cleanup/import passes (including the mandatory second
+#    non-confirmed pass after import), aggregate audits, and retirement gates. No service is started between restore
+#    and this data normalization.
+log "canonical Rubitime/history cleanup-import chain"
+assert_staged_rubitime_csv_ready
+rubitime_csv_q="$(shell_quote "$RUBITIME_CSV")"
 run_deploy_repo_with_test_db_owner_role \
-  "pnpm --dir apps/webapp run consolidate-specialist-identity -- --commit --canonical='$CANONICAL_SPECIALIST' --org='$ORG_ID'"
+  "pnpm run rubitime:db-cleanup:one-pass -- --csv=$rubitime_csv_q --execute --commit-cleanup --allow-test-target --canonical-specialist='$CANONICAL_SPECIALIST' --org-id='$ORG_ID'"
+
+# 6. Apply the exact owner-reviewed FIO decisions. The manifest and original review are separately hash-bound;
+#    the script re-attests the exact loopback TEST DB, locks rows, fails on unlisted drift, persists a private
+#    rollback artifact before mutation, and performs one conditional transaction. Temporary BYPASS is limited to
+#    this stopped-writers data-migration window and is revoked/asserted by the shared helper.
+log "owner-reviewed FIO manifest apply"
+fio_manifest_q="$(shell_quote "$FIO_MANIFEST")"
+fio_manifest_sha_q="$(shell_quote "$FIO_MANIFEST_SHA256")"
+fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
+fio_rollback_dir_q="$(shell_quote "$DEPLOY_REPO/.tmp/fio-owner-review-rollback")"
+run_deploy_repo_with_test_db_owner_bypass \
+  "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
 # 7. end-state self-check (reproducibility gate — same asserted state every run, from zero)
 log "verify end-state"
@@ -1193,4 +1398,4 @@ run_b1_doctor_admin_identity_assertion
 FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
 assert_strict_closure_deploy_checkout_ready
 run_strict_post_migration_closure
-log "DONE — fresh-dump strict TEST rehearsal from zero (locked runtime + exact FORCE state verified)"
+log "DONE — full data-ready TEST migration (Rubitime history + reviewed FIO + locked runtime verified)"
