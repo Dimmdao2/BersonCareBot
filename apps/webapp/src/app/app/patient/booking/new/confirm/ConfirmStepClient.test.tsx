@@ -120,6 +120,25 @@ describe("ConfirmStepClient", () => {
     expect(screen.getByLabelText(/Email/i)).toHaveValue("ivan@example.com");
   });
 
+  it("shows the multiplied price and consecutive-slot summary", () => {
+    render(
+      <ConfirmStepClient
+        type="in_person"
+        cityCode="msk"
+        cityTitle="Москва"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
+        serviceTitle="Сеанс"
+        slotCount={2}
+        priceMinor={150000}
+        {...baseProps}
+        slotEnd="2026-04-10T12:00:00.000Z"
+      />,
+    );
+    expect(screen.getByText("Последовательных слотов: 2")).toBeInTheDocument();
+    expect(screen.getByText(/Стоимость:.*3\s*000/i)).toBeInTheDocument();
+  });
+
   it("disables submit when required surname or given name is empty", async () => {
     const user = userEvent.setup();
     render(

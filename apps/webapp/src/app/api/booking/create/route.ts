@@ -22,6 +22,7 @@ const onlineBody = z.object({
   city: z.string().trim().optional(),
   slotStart: z.string().min(1),
   slotEnd: z.string().min(1),
+  slotCount: z.coerce.number().int().min(1).max(8).optional(),
   contactName: z.string().min(1),
   contactFio: z
     .object({
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
           cityCode,
           slotStart: body.slotStart,
           slotEnd: body.slotEnd,
+          slotCount: body.slotCount,
           contactName: body.contactName,
           contactFio: body.contactFio,
           contactPhone: body.contactPhone,
@@ -90,6 +92,9 @@ export async function POST(request: Request) {
     }
     if (message === "slot_overlap") {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (message === "consecutive_slot_cap_exceeded" || message === "invalid_slot_count") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
     if (message === "booking_confirm_failed") {
       return NextResponse.json({ ok: false, error: "booking_confirm_failed" }, { status: 503 });

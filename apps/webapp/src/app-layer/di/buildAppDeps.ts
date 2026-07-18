@@ -750,7 +750,7 @@ const paymentsService =
             if (paymentNotify.notifyPatient || paymentNotify.notifyStaff) {
               await bookingSyncPortForPayments.emitBookingEvent({
                 eventType: "booking.payment_captured",
-                idempotencyKey: `booking.payment_captured:${paymentId}`,
+                idempotencyKey: `booking.payment_captured:${paymentId}:${appointmentId}`,
                 payload: {
                   organizationId: appointment.organizationId,
                   bookingId: row.id,

@@ -53,6 +53,7 @@ export function BookingSoloScheduleSection() {
   const [usesFallback, setUsesFallback] = useState(false);
   const [bufferMinutes, setBufferMinutes] = useState(0);
   const [minNoticeHours, setMinNoticeHours] = useState(0);
+  const [maxConsecutiveSlotHours, setMaxConsecutiveSlotHours] = useState(3);
   const [customBuffer, setCustomBuffer] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -94,11 +95,17 @@ export function BookingSoloScheduleSection() {
 
   const loadSettings = useCallback(async (specId: string) => {
     const qs = specId ? `?specialistId=${encodeURIComponent(specId)}` : "";
-    const json = await apiJson<{ ok: boolean; bufferMinutes: number; minNoticeHours: number }>(
+    const json = await apiJson<{
+      ok: boolean;
+      bufferMinutes: number;
+      minNoticeHours: number;
+      maxConsecutiveSlotHours: number;
+    }>(
       `${SETTINGS_BASE}${qs}`,
     );
     setBufferMinutes(json.bufferMinutes);
     setMinNoticeHours(json.minNoticeHours);
+    setMaxConsecutiveSlotHours(json.maxConsecutiveSlotHours);
     if (!BUFFER_PRESETS.includes(json.bufferMinutes as (typeof BUFFER_PRESETS)[number])) {
       setCustomBuffer(String(json.bufferMinutes));
     } else {
@@ -146,7 +153,7 @@ export function BookingSoloScheduleSection() {
     });
   }
 
-  function saveSettings(nextBuffer: number, nextNotice: number) {
+  function saveSettings(nextBuffer: number, nextNotice: number, nextMaxConsecutive = maxConsecutiveSlotHours) {
     run(async () => {
       await apiJson(SETTINGS_BASE, {
         method: "PUT",
@@ -155,6 +162,7 @@ export function BookingSoloScheduleSection() {
           specialistId,
           bufferMinutes: nextBuffer,
           minNoticeHours: nextNotice,
+          maxConsecutiveSlotHours: nextMaxConsecutive,
         }),
       });
       await loadSettings(specialistId);
@@ -480,6 +488,28 @@ export function BookingSoloScheduleSection() {
                 variant="outline"
                 disabled={pending}
                 onClick={() => saveSettings(bufferMinutes, minNoticeHours)}
+              >
+                Сохранить
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2 rounded-md border border-border/60 p-3">
+            <Label>Максимум последовательной записи (часы)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                className="h-8 w-24"
+                type="number"
+                min={1}
+                max={24}
+                value={maxConsecutiveSlotHours}
+                onChange={(e) => setMaxConsecutiveSlotHours(Math.max(1, Number(e.target.value) || 1))}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => saveSettings(bufferMinutes, minNoticeHours, maxConsecutiveSlotHours)}
               >
                 Сохранить
               </Button>

@@ -82,6 +82,8 @@ type Props = ConfirmStepOptions & {
   category?: string;
   slotStart: string;
   slotEnd: string;
+  slotCount?: number;
+  priceMinor?: number;
   defaultFio: StructuredFio;
   defaultPhone: string;
   defaultEmail: string;
@@ -99,6 +101,8 @@ export function ConfirmStepClient({
   category,
   slotStart,
   slotEnd,
+  slotCount = 1,
+  priceMinor = 0,
   defaultFio,
   defaultPhone,
   defaultEmail,
@@ -315,6 +319,8 @@ export function ConfirmStepClient({
             {formatBookingTimeShortRu(slotStart, appDisplayTimeZone)} —{" "}
             {formatBookingTimeShortRu(slotEnd, appDisplayTimeZone)}
           </li>
+          {slotCount > 1 ? <li>Последовательных слотов: {slotCount}</li> : null}
+          <li>Стоимость: {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format((priceMinor * slotCount) / 100)}</li>
         </ul>
       </div>
 
@@ -347,6 +353,7 @@ export function ConfirmStepClient({
             .createBooking({
               selection,
               slot,
+              slotCount,
               contactName,
               contactFio: contactFioInput,
               contactPhone: phone.trim(),

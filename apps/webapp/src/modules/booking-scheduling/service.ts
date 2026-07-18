@@ -182,6 +182,8 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       let roomId = input.roomId ?? null;
       let organizationId = input.organizationId ?? "";
       let durationMinutes = input.durationMinutes;
+      const slotCount = input.slotCount ?? 1;
+      if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8) throw new Error("invalid_slot_count");
 
       if (input.branchServiceId) {
         const ctx = await port.resolveCanonicalFromBranchService(input.branchServiceId);
@@ -190,7 +192,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
         roomId = ctx.roomId;
         organizationId = ctx.organizationId;
         durationMinutes = ctx.durationMinutes;
-        const slotEndMs = new Date(input.slotEnd).getTime() + ctx.bufferAfterMinutes * 60_000;
+        const slotEndMs =
+          new Date(input.slotStart).getTime() +
+          durationMinutes * slotCount * 60_000 +
+          ctx.bufferAfterMinutes * 60_000;
         if (Number.isFinite(slotEndMs)) {
           input = { ...input, slotEnd: new Date(slotEndMs).toISOString() };
         }
@@ -207,9 +212,8 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
       if (
         !isChainFree(
           input.slotStart,
-          1,
-          Math.round((new Date(input.slotEnd).getTime() - new Date(input.slotStart).getTime()) / 60_000) ||
-            durationMinutes,
+          slotCount,
+          durationMinutes,
           busy,
         )
       ) {
@@ -306,6 +310,10 @@ export function createBookingSchedulingService(port: BookingSchedulingPort): Boo
 
     getMinNoticeHours(organizationId) {
       return port.getMinNoticeHours(organizationId);
+    },
+
+    getMaxConsecutiveSlotHours(organizationId) {
+      return port.getMaxConsecutiveSlotHours(organizationId);
     },
 
     listWorkingDays(input) {

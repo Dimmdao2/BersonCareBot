@@ -114,6 +114,7 @@ export function ServiceStepClient({
                       `&serviceId=${encodeURIComponent(s.id)}` +
                       `&serviceTitle=${encodeURIComponent(title)}` +
                       (dur != null ? `&durationMinutes=${encodeURIComponent(String(dur))}` : "") +
+                      `&priceMinor=${encodeURIComponent(String(s.priceMinor))}` +
                       (orgSlug ? `&orgSlug=${encodeURIComponent(orgSlug)}` : ""),
                   )
                 }

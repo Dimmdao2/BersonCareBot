@@ -126,6 +126,8 @@ export const ALLOWED_KEYS = [
   "booking_allow_doctor_unlink_past_package_sessions",
   /** Минимальный срок до записи (часы): слоты раньше этого horizon не показываются пациенту. */
   "booking_min_notice_hours",
+  /** Максимальная длительность последовательной записи пациента (часы); default 3. */
+  "booking_max_consecutive_slot_hours",
   /** Пауза (мин) перед повторной отметкой той же разминки дня (`daily_warmup`) на главной; default 60, clamp 5–180. */
   "patient_home_daily_warmup_repeat_cooldown_minutes",
   /** Пауза (мин) перед повторным «Выполнено» у простого пункта программы реабилитации; default 60, clamp 5–180. */

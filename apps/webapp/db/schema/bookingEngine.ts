@@ -431,6 +431,10 @@ export const beAppointments = pgTable(
     startAt: timestamp("start_at", { withTimezone: true, mode: "string" }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true, mode: "string" }).notNull(),
     durationMinutes: integer("duration_minutes").notNull(),
+    /** Consecutive patient-booking chain; null for ordinary one-slot appointments. */
+    chainId: uuid("chain_id"),
+    /** Zero-based position within `chainId`; null when the appointment is not chained. */
+    chainPosition: integer("chain_position"),
     source: text().notNull(),
     status: text().notNull(),
     originalStartAt: timestamp("original_start_at", { withTimezone: true, mode: "string" }),

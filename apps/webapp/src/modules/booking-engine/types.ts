@@ -106,6 +106,8 @@ export type BeAppointment = {
   startAt: string;
   endAt: string;
   durationMinutes: number;
+  chainId?: string | null;
+  chainPosition?: number | null;
   source: "native" | "rubitime_projection" | "admin_manual" | "public_widget";
   status: AppointmentStatus;
   originalStartAt: string | null;
@@ -126,6 +128,10 @@ export type CreateAppointmentInput = {
   startAt: string;
   endAt: string;
   durationMinutes: number;
+  /** Shared only by the rows of one consecutive patient-booking chain. */
+  chainId?: string | null;
+  /** Zero-based row position inside `chainId`. */
+  chainPosition?: number | null;
   source: BeAppointment["source"];
   status?: AppointmentStatus;
   phoneNormalized?: string | null;

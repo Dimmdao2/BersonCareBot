@@ -10,11 +10,12 @@ type Props = {
   slots: BookingSlot[];
   selectedSlot: BookingSlot | null;
   onSelectSlot: (slot: BookingSlot) => void;
+  disabledSlotStarts?: ReadonlySet<string>;
   /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
   appDisplayTimeZone: string;
 };
 
-export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayTimeZone }: Props) {
+export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayTimeZone, disabledSlotStarts }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -33,6 +34,7 @@ export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayT
                 type="button"
                 variant={isActive ? "default" : "outline"}
                 size="sm"
+                disabled={disabledSlotStarts?.has(slot.startAt)}
                 onClick={() => onSelectSlot(slot)}
               >
                 {formatBookingTimeShortRu(slot.startAt, appDisplayTimeZone)} -{" "}

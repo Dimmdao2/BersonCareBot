@@ -136,4 +136,48 @@ describe("createPaymentsService", () => {
     ).resolves.toBe("org-from-provider-ref");
     expect(port.findIntentByProviderRefAnyOrg).toHaveBeenCalledWith("mock", "ref-2");
   });
+
+  it("links and confirms every appointment in a paid chain", async () => {
+    const port = {
+      findIntentById: vi.fn().mockResolvedValue({
+        id: "intent-1", organizationId: "org-1", appointmentId: "appt-1", platformUserId: "user-1",
+        status: "pending", amountMinor: 300, currency: "RUB", providerId: "mock", purpose: "appointment_prepayment",
+      }),
+      updateIntentStatus: vi.fn(),
+      createPaymentFromIntent: vi.fn().mockResolvedValue({
+        id: "payment-1", amountMinor: 300, currency: "RUB", providerId: "mock", status: "captured",
+      }),
+      appendHistoryEvent: vi.fn(),
+      setAppointmentPaymentRef: vi.fn(),
+    };
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-1", organizationId: "org-1", chainId: "chain-1", status: "awaiting_payment",
+      }),
+      listAppointmentsByChainId: vi.fn().mockResolvedValue([
+        { id: "appt-1", status: "awaiting_payment" },
+        { id: "appt-2", status: "awaiting_payment" },
+      ]),
+      transitionAppointmentStatus: vi.fn(),
+    };
+    const onAppointmentPaymentConfirmed = vi.fn();
+    const svc = createPaymentsService({
+      port: port as never,
+      config: { getBookingPaymentSettings: async () => ({ enabled: true, defaultProviderId: "mock", providers: [] }) },
+      bookingEngine: bookingEngine as never,
+      onAppointmentPaymentConfirmed,
+    });
+
+    await svc.captureIntentSuccess("intent-1", "org-1");
+
+    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(1, "appt-1", "payment-1", "org-1");
+    expect(port.setAppointmentPaymentRef).toHaveBeenNthCalledWith(2, "appt-2", "payment-1", "org-1");
+    expect(bookingEngine.transitionAppointmentStatus).toHaveBeenCalledTimes(4);
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentId: "appt-1", paymentId: "payment-1", platformUserId: "user-1",
+    });
+    expect(onAppointmentPaymentConfirmed).toHaveBeenCalledWith({
+      appointmentId: "appt-2", paymentId: "payment-1", platformUserId: "user-1",
+    });
+  });
 });

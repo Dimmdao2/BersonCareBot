@@ -3,6 +3,7 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { SlotStepClient } from "./SlotStepClient";
@@ -30,6 +31,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
 
   const raw = await searchParams;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
+  const deps = buildAppDeps();
   const type = first(raw.type)?.trim();
   if (!type || (type !== "in_person" && type !== "online")) {
     redirect(routePaths.bookingNew);
@@ -46,7 +48,29 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     const cityTitle = first(raw.cityTitle) ?? "";
     const serviceTitle = first(raw.serviceTitle) ?? "";
     const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
+    const priceMinor = Math.max(0, Number(first(raw.priceMinor) ?? "0") || 0);
     const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
+    let maxConsecutiveSlotHours = 3;
+    if (deps.bookingScheduling && deps.bookingEngine) {
+      const branch = branchId ? await deps.bookingEngine.catalog.getBranch(branchId) : null;
+      const resolvedBranchServiceId =
+        branchServiceId ??
+        (branch && serviceId
+          ? await deps.bookingScheduling.resolveLegacyBranchServiceId({
+              organizationId: branch.organizationId,
+              branchId,
+              serviceId,
+            })
+          : null);
+      const context = resolvedBranchServiceId
+        ? await deps.bookingScheduling.resolveInPersonContext(resolvedBranchServiceId)
+        : null;
+      if (context) {
+        maxConsecutiveSlotHours = await deps.bookingScheduling.getMaxConsecutiveSlotHours(
+          context.organizationId,
+        );
+      }
+    }
     const backHref =
       `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}`;
 
@@ -67,6 +91,8 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           cityTitle={cityTitle}
           serviceTitle={serviceTitle}
           durationMinutes={durationMinutes}
+          priceMinor={priceMinor}
+          maxConsecutiveSlotHours={maxConsecutiveSlotHours}
           appDisplayTimeZone={appDisplayTimeZone}
           rescheduleBookingId={rescheduleBookingId}
         />
@@ -93,6 +119,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
         type="online"
         category={category}
         appDisplayTimeZone={appDisplayTimeZone}
+        maxConsecutiveSlotHours={3}
         rescheduleBookingId={rescheduleBookingId}
       />
     </BookingWizardShell>

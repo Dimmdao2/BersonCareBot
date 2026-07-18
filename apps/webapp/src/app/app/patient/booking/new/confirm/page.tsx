@@ -102,6 +102,8 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   const date = first(raw.date)?.trim();
   const slot = first(raw.slot)?.trim();
   const slotEnd = first(raw.slotEnd)?.trim();
+  const slotCount = Math.max(1, Math.min(8, Number(first(raw.slotCount) ?? "1") || 1));
+  const priceMinor = Math.max(0, Number(first(raw.priceMinor) ?? "0") || 0);
 
   if (!date || !slot || !slotEnd) {
     redirect(`${routePaths.bookingNewSlot}?${buildSlotBackQuery(raw)}`);
@@ -150,6 +152,8 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         category={first(raw.category)}
         slotStart={slot}
         slotEnd={slotEnd}
+        slotCount={slotCount}
+        priceMinor={priceMinor}
         defaultFio={defaultFio}
         defaultPhone={session.user.phone ?? ""}
         defaultEmail={profileEmail.email ?? ""}

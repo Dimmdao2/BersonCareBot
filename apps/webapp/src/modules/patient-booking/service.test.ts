@@ -352,6 +352,50 @@ describe("createPatientBookingService", () => {
     expect(appointmentProjection.upsertRecordFromProjection).toHaveBeenCalled();
   });
 
+  it("cancelBooking: cancels only the selected chain appointment", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      canonicalAppointmentId: "appt-chain-1",
+    });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+    const appointmentLifecycle = {
+      previewPatientCancel: vi.fn().mockResolvedValue({ ok: true, allowed: true, requiresStaffConfirmation: false }),
+      patientCancel: vi.fn().mockResolvedValue({
+        ok: true,
+        appointment: { id: "appt-chain-1", startAt: row.slotStart, endAt: row.slotEnd },
+        eligibility: { reasonCode: "on_time", isFree: true },
+        cancelPolicy: { notifyPatient: false, notifyStaff: false },
+      }),
+      patchLatestCancellationNotifications: vi.fn(),
+    };
+    const bookingEngine = {
+      getAppointment: vi.fn().mockResolvedValue({
+        id: "appt-chain-1", organizationId: "org-1", chainId: "chain-1",
+      }),
+    };
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      bookingEngine: bookingEngine as never,
+      appointmentLifecycle: appointmentLifecycle as never,
+      bookingScheduling: { assertSlotAvailable: vi.fn() } as never,
+    });
+
+    await expect(svc.cancelBooking({ userId: row.userId!, bookingId: row.id })).resolves.toMatchObject({ ok: true });
+
+    expect(appointmentLifecycle.patientCancel).toHaveBeenCalledTimes(1);
+    expect(appointmentLifecycle.patientCancel).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: "appt-chain-1" }),
+    );
+    expect(bookingsPort.markCancelled).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: row.id, status: "cancelled" }),
+    );
+  });
+
   it("rescheduleBooking: canonical path succeeds when doctor projection reschedule fails", async () => {
     const row = sampleRow({
       status: "confirmed",

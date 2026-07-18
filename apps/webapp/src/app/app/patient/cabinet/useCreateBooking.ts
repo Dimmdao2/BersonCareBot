@@ -12,6 +12,7 @@ type FormAnswer = { fieldKey: string; value: string };
 type CreateBookingInput = {
   selection: BookingSelection;
   slot: BookingSlot;
+  slotCount?: number;
   contactName: string;
   contactFio?: BookingContactFioInput;
   contactPhone: string;
@@ -37,6 +38,7 @@ export function useCreateBooking() {
               category: input.selection.category,
               slotStart: input.slot.startAt,
               slotEnd: input.slot.endAt,
+              slotCount: input.slotCount,
               contactName: input.contactName,
               contactFio: input.contactFio,
               contactPhone: input.contactPhone,
@@ -57,6 +59,7 @@ export function useCreateBooking() {
                 cityCode: input.selection.cityCode,
                 slotStart: input.slot.startAt,
                 slotEnd: input.slot.endAt,
+                slotCount: input.slotCount,
                 contactName: input.contactName,
                 contactFio: input.contactFio,
                 contactPhone: input.contactPhone,

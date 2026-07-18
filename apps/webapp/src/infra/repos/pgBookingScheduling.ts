@@ -357,6 +357,19 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       return Math.max(0, Math.min(168, Math.round(n)));
     },
 
+    async getMaxConsecutiveSlotHours(organizationId) {
+      const inner = await readAdminSystemSettingInnerValue("booking_max_consecutive_slot_hours", {
+        organizationId,
+      });
+      const n =
+        typeof inner === "number" && Number.isFinite(inner)
+          ? inner
+          : typeof inner === "string" && /^\d+(?:\.\d+)?$/.test(inner.trim())
+            ? Number.parseFloat(inner.trim())
+            : 3;
+      return Math.max(1, Math.min(24, n));
+    },
+
     async listScheduleBlocks({ organizationId, rangeStart, rangeEnd, specialistId, branchId, roomId }) {
       const db = getDrizzle();
       const scopeConds = [

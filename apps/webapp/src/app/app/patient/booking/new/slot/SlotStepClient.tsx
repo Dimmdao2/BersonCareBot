@@ -17,6 +17,9 @@ type InPersonProps = {
   cityTitle: string;
   serviceTitle: string;
   durationMinutes: number;
+  priceMinor?: number;
+  /** Org-scoped scheduling setting, resolved by the server page. */
+  maxConsecutiveSlotHours?: number;
   appDisplayTimeZone: string;
   branchId?: string;
   serviceId?: string;
@@ -28,6 +31,7 @@ type OnlineProps = {
   type: "online";
   category: string;
   appDisplayTimeZone: string;
+  maxConsecutiveSlotHours?: number;
 };
 
 type SlotStepOptions = {
@@ -50,12 +54,14 @@ function buildConfirmQuery(
   props: Props,
   date: string,
   slot: BookingSlot,
+  slotCount: number,
 ): string {
   const q = new URLSearchParams();
   q.set("type", props.type);
   q.set("date", date);
   q.set("slot", slot.startAt);
   q.set("slotEnd", slot.endAt);
+  q.set("slotCount", String(slotCount));
   if (props.type === "in_person") {
     q.set("cityCode", props.cityCode);
     q.set("cityTitle", props.cityTitle);
@@ -67,6 +73,7 @@ function buildConfirmQuery(
     }
     q.set("serviceTitle", props.serviceTitle);
     q.set("durationMinutes", String(props.durationMinutes));
+    q.set("priceMinor", String(props.priceMinor ?? 0));
   } else {
     q.set("category", props.category);
   }
@@ -108,7 +115,8 @@ export function SlotStepClient(props: Props) {
   }, [props]);
 
   const confirmBase = props.confirmBasePath ?? routePaths.bookingNewConfirm;
-  const slotsState = useBookingSlots(selection, 1, props.slotsApiPath);
+  const [slotCount, setSlotCount] = useState(1);
+  const slotsState = useBookingSlots(selection, slotCount, props.slotsApiPath);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
 
@@ -118,6 +126,19 @@ export function SlotStepClient(props: Props) {
     [slotsState.availableDates, today],
   );
   const effectiveDate = selectedDate ?? firstSelectableDate;
+  const unitMinutes = props.type === "in_person" ? props.durationMinutes : 60;
+  const maxConsecutiveMinutes = Math.max(60, Math.round((props.maxConsecutiveSlotHours ?? 3) * 60));
+  const canExtend = (slotCount + 1) * unitMinutes <= maxConsecutiveMinutes;
+  const currentSlots = effectiveDate ? slotsState.slotsForDate(effectiveDate) : [];
+
+  useEffect(() => {
+    if (slotsState.loading || !selectedSlot || !effectiveDate) return;
+    if (currentSlots.some((slot) => slot.startAt === selectedSlot.startAt)) return;
+    // The next chain-length availability read invalidated the selected start.
+    setSelectedSlot(null);
+    setSlotCount(1);
+  }, [currentSlots, effectiveDate, selectedSlot, slotsState.loading]);
+
   const canContinue = Boolean(effectiveDate && selectedSlot);
 
   return (
@@ -128,6 +149,7 @@ export function SlotStepClient(props: Props) {
         onSelectDate={(date) => {
           setSelectedDate(date);
           setSelectedSlot(null);
+          setSlotCount(1);
         }}
       />
 
@@ -143,9 +165,29 @@ export function SlotStepClient(props: Props) {
 
       {effectiveDate ? (
         <BookingSlotList
-          slots={slotsState.slotsForDate(effectiveDate)}
+          slots={currentSlots}
           selectedSlot={selectedSlot}
-          onSelectSlot={setSelectedSlot}
+          onSelectSlot={(slot) => {
+            if (selectedSlot && slot.startAt === selectedSlot.endAt && canExtend) {
+              setSlotCount((count) => count + 1);
+              setSelectedSlot({
+                startAt: selectedSlot.startAt,
+                endAt: new Date(new Date(selectedSlot.endAt).getTime() + unitMinutes * 60_000).toISOString(),
+              });
+              return;
+            }
+            setSlotCount(1);
+            setSelectedSlot(slot);
+          }}
+          disabledSlotStarts={
+            selectedSlot
+              ? new Set(
+                  currentSlots.flatMap((slot) =>
+                    (slot.startAt === selectedSlot.endAt && canExtend) || slot.startAt === selectedSlot.startAt ? [] : [slot.startAt],
+                  ),
+                )
+              : undefined
+          }
           appDisplayTimeZone={props.appDisplayTimeZone}
         />
       ) : null}
@@ -156,7 +198,7 @@ export function SlotStepClient(props: Props) {
         disabled={!canContinue || !effectiveDate || !selectedSlot}
         onClick={() => {
           if (!effectiveDate || !selectedSlot) return;
-          const qs = buildConfirmQuery(props, effectiveDate, selectedSlot);
+          const qs = buildConfirmQuery(props, effectiveDate, selectedSlot, slotCount);
           router.push(`${confirmBase}?${qs}`);
         }}
       >

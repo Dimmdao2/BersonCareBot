@@ -115,6 +115,8 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     startAt: row.startAt,
     endAt: row.endAt,
     durationMinutes: row.durationMinutes,
+    chainId: row.chainId ?? null,
+    chainPosition: row.chainPosition ?? null,
     source: row.source as BeAppointment["source"],
     status: row.status as BeAppointment["status"],
     originalStartAt: row.originalStartAt ?? null,
@@ -655,6 +657,22 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       return rows[0] ? mapAppointment(rows[0]) : null;
     },
 
+    async listAppointmentsByChainId({ organizationId, chainId }) {
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(beAppointments)
+        .where(
+          and(
+            eq(beAppointments.organizationId, organizationId),
+            eq(beAppointments.chainId, chainId),
+            isNull(beAppointments.deletedAt),
+          ),
+        )
+        .orderBy(asc(beAppointments.chainPosition), asc(beAppointments.startAt));
+      return rows.map(mapAppointment);
+    },
+
     async getRubitimeAppointmentId(input: { organizationId: string; appointmentId: string }) {
       const db = getDrizzle();
       const rows = await db
@@ -730,6 +748,8 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             startAt: input.startAt,
             endAt: input.endAt,
             durationMinutes: input.durationMinutes,
+            chainId: input.chainId ?? null,
+            chainPosition: input.chainPosition ?? null,
             source: input.source,
             status,
             originalStartAt: input.startAt,
@@ -769,6 +789,59 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           });
         }
         return appt;
+      });
+    },
+
+    async createAppointmentChain(inputs) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction(async (tx) => {
+        const appointments = [];
+        for (const input of inputs) {
+          const status = input.status ?? "created";
+          const inserted = await tx
+            .insert(beAppointments)
+            .values({
+              organizationId: input.organizationId,
+              branchId: input.branchId ?? null,
+              roomId: input.roomId ?? null,
+              specialistId: input.specialistId ?? null,
+              serviceId: input.serviceId ?? null,
+              platformUserId: input.platformUserId ?? null,
+              startAt: input.startAt,
+              endAt: input.endAt,
+              durationMinutes: input.durationMinutes,
+              chainId: input.chainId ?? null,
+              chainPosition: input.chainPosition ?? null,
+              source: input.source,
+              status,
+              originalStartAt: input.startAt,
+              rescheduleCount: 0,
+              phoneNormalized: input.phoneNormalized ?? null,
+              attributionJson: input.attributionJson ?? {},
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning();
+          const appt = mapAppointment(inserted[0]!);
+          await tx.insert(beAppointmentEvents).values({
+            organizationId: appt.organizationId, appointmentId: appt.id, eventType: "created",
+            actorId: input.actorId ?? null, payload: { status },
+          });
+          await tx.insert(beAppointmentHistoryEvents).values({
+            organizationId: appt.organizationId, appointmentId: appt.id, eventType: "created",
+            actorId: input.actorId ?? null, payload: { status }, occurredAt: now,
+          });
+          if (appt.platformUserId) {
+            await tx.insert(bePatientTimelineEvents).values({
+              organizationId: appt.organizationId, platformUserId: appt.platformUserId,
+              domain: "appointment", eventType: "appointment_created", linkedObjectType: "appointment",
+              linkedObjectId: appt.id, payload: { status }, occurredAt: now,
+            });
+          }
+          appointments.push(appt);
+        }
+        return appointments;
       });
     },
 

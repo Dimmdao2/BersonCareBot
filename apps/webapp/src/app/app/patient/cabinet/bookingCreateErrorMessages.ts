@@ -16,6 +16,9 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "city_mismatch") {
     return "Город не совпадает с выбранной услугой.";
   }
+  if (code === "consecutive_slot_cap_exceeded") {
+    return "Выбранная длительность превышает допустимую для этой клиники.";
+  }
   if (code === "catalog_unavailable") {
     return "Каталог записи временно недоступен. Попробуйте позже.";
   }

@@ -127,7 +127,10 @@ describe("SlotStepClient", () => {
     expect(screen.getByRole("button", { name: "Следующий месяц" })).toBeDisabled();
   });
 
-  it("does not render duration selector", () => {
+  it("extends only an adjacent slot and forwards the chain count to confirmation", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const adjacent = { startAt: "2026-04-10T11:00:00.000Z", endAt: "2026-04-10T12:00:00.000Z" };
+    slotsByDateMock = { "2026-04-10": [slotA, adjacent] };
     render(
       <SlotStepClient
         type="in_person"
@@ -137,8 +140,35 @@ describe("SlotStepClient", () => {
         serviceTitle="Сеанс"
         durationMinutes={60}
         appDisplayTimeZone="Europe/Moscow"
+        maxConsecutiveSlotHours={2}
       />,
     );
-    expect(screen.queryByText("Длительность")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /10:00\s*-\s*11:00/ }));
+    await user.click(screen.getByRole("button", { name: /11:00\s*-\s*12:00/ }));
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+
+    const url = String(push.mock.calls[0]?.[0]);
+    expect(url).toContain("slotCount=2");
+    expect(url).toContain(`slotEnd=${encodeURIComponent(adjacent.endAt)}`);
+  });
+
+  it("does not offer an adjacent extension beyond the org duration cap", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const adjacent = { startAt: "2026-04-10T11:00:00.000Z", endAt: "2026-04-10T12:00:00.000Z" };
+    slotsByDateMock = { "2026-04-10": [slotA, adjacent] };
+    render(
+      <SlotStepClient
+        type="in_person"
+        branchServiceId="11111111-1111-4111-8111-111111111111"
+        cityCode="msk"
+        cityTitle="Москва"
+        serviceTitle="Сеанс"
+        durationMinutes={60}
+        appDisplayTimeZone="Europe/Moscow"
+        maxConsecutiveSlotHours={1}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /10:00\s*-\s*11:00/ }));
+    expect(screen.getByRole("button", { name: /11:00\s*-\s*12:00/ })).toBeDisabled();
   });
 });

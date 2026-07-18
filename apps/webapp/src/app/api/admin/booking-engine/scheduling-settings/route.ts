@@ -8,6 +8,7 @@ const PutSchema = z.object({
   specialistId: z.string().uuid().nullable().optional(),
   bufferMinutes: z.number().int().min(0).max(240).optional(),
   minNoticeHours: z.number().int().min(0).max(168).optional(),
+  maxConsecutiveSlotHours: z.number().int().min(1).max(24).optional(),
 });
 
 function parseMinNoticeHours(valueJson: unknown): number {
@@ -33,17 +34,19 @@ export async function GET(request: Request) {
   }
   const url = new URL(request.url);
   const specialistId = url.searchParams.get("specialistId");
-  const [bufferMinutes, minNoticeRow] = await Promise.all([
+  const [bufferMinutes, minNoticeRow, maxConsecutiveRow] = await Promise.all([
     deps.bookingScheduling.getBufferMinutes(
       gate.ctx.organizationId,
       specialistId && specialistId !== "__none__" ? specialistId : null,
     ),
     deps.systemSettings.getSetting("booking_min_notice_hours", "admin", { organizationId: gate.ctx.organizationId }),
+    deps.systemSettings.getSetting("booking_max_consecutive_slot_hours", "admin", { organizationId: gate.ctx.organizationId }),
   ]);
   return NextResponse.json({
     ok: true,
     bufferMinutes,
     minNoticeHours: parseMinNoticeHours(minNoticeRow?.valueJson ?? null),
+    maxConsecutiveSlotHours: Math.max(1, parseMinNoticeHours(maxConsecutiveRow?.valueJson ?? null) || 3),
   });
 }
 
@@ -78,16 +81,27 @@ export async function PUT(request: Request) {
       { organizationId: gate.ctx.organizationId },
     );
   }
+  if (parsed.data.maxConsecutiveSlotHours != null) {
+    await deps.systemSettings.updateSetting(
+      "booking_max_consecutive_slot_hours",
+      "admin",
+      { value: parsed.data.maxConsecutiveSlotHours },
+      gate.ctx.session.user.userId,
+      { organizationId: gate.ctx.organizationId },
+    );
+  }
   const bufferMinutes = await bookingScheduling.getBufferMinutes(
     gate.ctx.organizationId,
     parsed.data.specialistId ?? null,
   );
-  const minNoticeRow = await deps.systemSettings.getSetting("booking_min_notice_hours", "admin", {
-    organizationId: gate.ctx.organizationId,
-  });
+  const [minNoticeRow, maxConsecutiveRow] = await Promise.all([
+    deps.systemSettings.getSetting("booking_min_notice_hours", "admin", { organizationId: gate.ctx.organizationId }),
+    deps.systemSettings.getSetting("booking_max_consecutive_slot_hours", "admin", { organizationId: gate.ctx.organizationId }),
+  ]);
   return NextResponse.json({
     ok: true,
     bufferMinutes,
     minNoticeHours: parseMinNoticeHours(minNoticeRow?.valueJson ?? null),
+    maxConsecutiveSlotHours: Math.max(1, parseMinNoticeHours(maxConsecutiveRow?.valueJson ?? null) || 3),
   });
 }

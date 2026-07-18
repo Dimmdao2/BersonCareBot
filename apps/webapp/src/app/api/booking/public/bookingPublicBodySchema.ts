@@ -20,6 +20,7 @@ export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
     category: z.enum(["rehab_lfk", "nutrition", "general"]),
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
+    slotCount: z.coerce.number().int().min(1).max(8).optional(),
     ...contactFields,
   }),
   z.object({
@@ -30,6 +31,7 @@ export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
     cityCode: z.string().trim().min(1).optional(),
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
+    slotCount: z.coerce.number().int().min(1).max(8).optional(),
     ...contactFields,
   }).refine(
     (v) => Boolean(v.branchServiceId) || (Boolean(v.branchId) && Boolean(v.serviceId)),

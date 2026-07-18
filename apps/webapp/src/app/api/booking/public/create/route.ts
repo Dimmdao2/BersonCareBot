@@ -73,6 +73,7 @@ export async function POST(request: Request) {
           cityCode,
           slotStart: body.slotStart,
           slotEnd: body.slotEnd,
+          slotCount: body.slotCount,
           contactName: body.contactName,
           contactPhone: body.contactPhone,
           contactEmail: body.contactEmail,
@@ -101,6 +102,9 @@ export async function POST(request: Request) {
     }
     if (message === "slot_overlap") {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (message === "consecutive_slot_cap_exceeded" || message === "invalid_slot_count") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
     if (message === "required_field_missing" || message === "invalid_email" || message === "invalid_phone") {
       return NextResponse.json({ ok: false, error: message }, { status: 400 });

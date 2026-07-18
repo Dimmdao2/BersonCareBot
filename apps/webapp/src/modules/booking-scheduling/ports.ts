@@ -149,6 +149,7 @@ export type BookingSchedulingPort = {
     minutes: number;
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
+  getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
   listScheduleBlocks(input: {
     organizationId: string;
     rangeStart: string;
@@ -278,6 +279,7 @@ export type BookingSchedulingService = {
     slotStart: string;
     slotEnd: string;
     durationMinutes: number;
+    slotCount?: number;
     excludeAppointmentId?: string;
   }): Promise<void>;
   listScheduleBlocks(input: {
@@ -317,6 +319,7 @@ export type BookingSchedulingService = {
     minutes: number;
   }): Promise<void>;
   getMinNoticeHours(organizationId: string): Promise<number>;
+  getMaxConsecutiveSlotHours(organizationId: string): Promise<number>;
   // Per-date working days
   listWorkingDays(input: {
     organizationId: string;

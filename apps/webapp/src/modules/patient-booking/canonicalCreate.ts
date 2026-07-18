@@ -1,6 +1,7 @@
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
+import { randomUUID } from "node:crypto";
 import type { createBookingEngineService } from "@/modules/booking-engine/service";
-import type { BeBranch, BeClinicService } from "@/modules/booking-engine/types";
+import type { BeAppointment, BeBranch, BeClinicService } from "@/modules/booking-engine/types";
 
 type BookingEngineService = ReturnType<typeof createBookingEngineService>;
 import type { createBookingFormService } from "@/modules/booking-form/service";
@@ -139,6 +140,8 @@ export async function createBookingOnCanonicalEngine(
   if (!deps.bookingEngine || !deps.bookingScheduling) {
     throw new Error("canonical_booking_unavailable");
   }
+  const slotCount = createInput.slotCount ?? 1;
+  if (!Number.isInteger(slotCount) || slotCount < 1 || slotCount > 8) throw new Error("invalid_slot_count");
 
   let pendingRow: CreatePendingPatientBookingInput;
   let durationMinutes = 60;
@@ -159,6 +162,7 @@ export async function createBookingOnCanonicalEngine(
       slotStart: createInput.slotStart,
       slotEnd: createInput.slotEnd,
       durationMinutes: 60,
+      slotCount,
     });
   } else {
     inPersonCtx = await deps.bookingScheduling.resolveInPersonContext(createInput.branchServiceId);
@@ -188,6 +192,7 @@ export async function createBookingOnCanonicalEngine(
       slotStart: createInput.slotStart,
       slotEnd: createInput.slotEnd,
       durationMinutes,
+      slotCount,
     });
     // In-person bookings MUST resolve a concrete specialist: a NULL specialist_id
     // bypasses the be_appointments_specialist_no_overlap exclusion constraint
@@ -201,6 +206,10 @@ export async function createBookingOnCanonicalEngine(
   }
 
   if (!orgId) throw new Error("ambiguous_booking_tenant");
+  const maxConsecutiveHours = await deps.bookingScheduling.getMaxConsecutiveSlotHours(orgId);
+  if (durationMinutes * slotCount > maxConsecutiveHours * 60) {
+    throw new Error("consecutive_slot_cap_exceeded");
+  }
   if (deps.clientHistory) {
     await deps.clientHistory.assertSelfServiceBookingAllowed(orgId, createInput.userId);
   }
@@ -219,15 +228,33 @@ export async function createBookingOnCanonicalEngine(
     if (!validation.ok) throw new Error(validation.error);
   }
 
-  const slotDurationMinutes = Math.max(
-    1,
-    Math.round((new Date(createInput.slotEnd).getTime() - new Date(createInput.slotStart).getTime()) / 60_000),
-  );
-  if (pendingRow.durationMinutesSnapshot != null) {
-    pendingRow = { ...pendingRow, durationMinutesSnapshot: slotDurationMinutes };
+  const slotRows = Array.from({ length: slotCount }, (_, chainPosition) => {
+    const startAt = new Date(
+      new Date(createInput.slotStart).getTime() + chainPosition * durationMinutes * 60_000,
+    ).toISOString();
+    const endAt = new Date(new Date(startAt).getTime() + durationMinutes * 60_000).toISOString();
+    return {
+      startAt,
+      endAt,
+      chainPosition,
+      pending: {
+        ...pendingRow,
+        slotStart: startAt,
+        slotEnd: endAt,
+        durationMinutesSnapshot: pendingRow.durationMinutesSnapshot == null ? null : durationMinutes,
+      },
+    };
+  });
+  const pendingRows: PatientBookingRecord[] = [];
+  try {
+    for (const row of slotRows) {
+      pendingRows.push(await deps.bookingsPort.createPending(row.pending));
+    }
+  } catch (err) {
+    await Promise.allSettled(pendingRows.map((row) => deps.bookingsPort.markFailedSync(row.id)));
+    throw err;
   }
-
-  const pending = await deps.bookingsPort.createPending(pendingRow);
+  const pending = pendingRows[0]!;
 
   let packageCoversVisit = false;
   let productCoversVisit = false;
@@ -301,18 +328,22 @@ export async function createBookingOnCanonicalEngine(
   const rubitimeId: string | null = null;
   const rubitimeManageUrl: string | null = null;
 
-  let appointment;
+  const chainId = slotCount > 1 ? randomUUID() : null;
+  let appointments: BeAppointment[];
   try {
-    appointment = await deps.bookingEngine.createAppointment({
+    const appointmentInputs = slotRows.map(({ startAt, endAt, chainPosition }) => {
+      return {
       organizationId: orgId,
       branchId: canonicalBranchId,
       roomId: canonicalRoomId,
       specialistId: canonicalSpecialistId,
       serviceId: canonicalServiceId,
       platformUserId: createInput.userId,
-      startAt: createInput.slotStart,
-      endAt: createInput.slotEnd,
-      durationMinutes: slotDurationMinutes,
+      startAt,
+      endAt,
+      durationMinutes,
+      chainId,
+      chainPosition: chainId ? chainPosition : null,
       source: createInput.bookingChannel === "public_widget" ? "public_widget" : "native",
       status: initialAppointmentStatus,
       phoneNormalized,
@@ -322,54 +353,81 @@ export async function createBookingOnCanonicalEngine(
         ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
         ...(productPurchaseId ? { productPurchaseId } : {}),
       },
+      };
     });
+    appointments =
+      slotCount === 1
+        ? [await deps.bookingEngine.createAppointment(appointmentInputs[0]!)]
+        : await deps.bookingEngine.createAppointmentChain(appointmentInputs);
   } catch (err) {
-    await deps.bookingsPort.markFailedSync(pending.id);
+    await Promise.allSettled(pendingRows.map((row) => deps.bookingsPort.markFailedSync(row.id)));
     if (isPostgresExclusionViolation(err)) throw new Error("slot_overlap");
     throw err;
   }
+  const appointment = appointments[0]!;
+  const rollbackChain = async (source: string) => {
+    await Promise.allSettled([
+      ...pendingRows.map((row) => deps.bookingsPort.markFailedSync(row.id)),
+      ...appointments.map((item) =>
+        deps.bookingEngine!.transitionAppointmentStatus({
+          appointmentId: item.id,
+          toStatus: "cancelled_by_specialist",
+          payload: { source },
+        }),
+      ),
+    ]);
+  };
 
   if (deps.bookingForm && formAnswers.length > 0) {
-    await deps.bookingForm.saveForAppointment(orgId, appointment.id, formAnswers);
+    await Promise.all(appointments.map((item) => deps.bookingForm!.saveForAppointment(orgId, item.id, formAnswers)));
   }
 
   if (needsPrepayment && deps.payments && prepayQuote) {
-    await deps.payments.createAppointmentPaymentIntent({
-      organizationId: orgId,
-      appointmentId: appointment.id,
-      platformUserId: createInput.userId,
-      amountMinor: prepayQuote.amountMinor,
-      currency: prepayQuote.currency,
-      idempotencyKey: `appointment_prepay:${appointment.id}`,
-    });
-    const awaiting = await deps.bookingsPort.markAwaitingPayment(pending.id, appointment.id, {
-      rubitimeId,
-      rubitimeManageUrl,
-    });
+    try {
+      await deps.payments.createAppointmentPaymentIntent({
+        organizationId: orgId,
+        appointmentId: appointment.id,
+        platformUserId: createInput.userId,
+        amountMinor: prepayQuote.amountMinor * slotCount,
+        currency: prepayQuote.currency,
+        idempotencyKey: `appointment_prepay:${appointment.id}`,
+      });
+    } catch (err) {
+      await rollbackChain("payment_intent_create_failed");
+      throw err;
+    }
+    let awaitingRows: Array<PatientBookingRecord | null>;
+    try {
+      awaitingRows = await Promise.all(
+        pendingRows.map((row, index) =>
+          deps.bookingsPort.markAwaitingPayment(row.id, appointments[index]!.id, {
+            rubitimeId,
+            rubitimeManageUrl,
+          }),
+        ),
+      );
+    } catch {
+      await rollbackChain("booking_awaiting_payment_sync_failed");
+      throw new Error("booking_confirm_failed");
+    }
+    if (awaitingRows.some((row) => !row)) {
+      await rollbackChain("booking_awaiting_payment_sync_failed");
+      throw new Error("booking_confirm_failed");
+    }
     await persistBookingFormContacts(deps, createInput);
-    return awaiting ?? pending;
+    return awaitingRows[0] ?? pending;
   }
 
   if (packageCoversVisit && patientPackageId && canonicalServiceId && deps.memberships) {
     try {
-      await deps.memberships.reserveForAppointment({
-        organizationId: orgId,
-        patientPackageId,
-        serviceId: canonicalServiceId,
-        appointmentId: appointment.id,
-        platformUserId: createInput.userId,
-      });
-    } catch (reserveErr) {
-      await deps.bookingsPort.markFailedSync(pending.id);
-      try {
-        await deps.bookingEngine.transitionAppointmentStatus({
-          appointmentId: appointment.id,
-          toStatus: "cancelled_by_specialist",
-          payload: { source: "package_reserve_failed" },
+      for (const item of appointments) {
+        await deps.memberships.reserveForAppointment({
+          organizationId: orgId, patientPackageId, serviceId: canonicalServiceId,
+          appointmentId: item.id, platformUserId: createInput.userId,
         });
-      } catch {
-        // Best-effort rollback of orphan appointment.
       }
+    } catch (reserveErr) {
+      await rollbackChain("package_reserve_failed");
       const code =
         reserveErr instanceof Error &&
         (reserveErr.message === "package_not_found" ||
@@ -384,24 +442,14 @@ export async function createBookingOnCanonicalEngine(
 
   if (productCoversVisit && productPurchaseId && canonicalServiceId && deps.products) {
     try {
-      await deps.products.consumeVisitForAppointment({
-        organizationId: orgId,
-        productPurchaseId,
-        platformUserId: createInput.userId,
-        appointmentId: appointment.id,
-        serviceId: canonicalServiceId,
-      });
-    } catch (consumeErr) {
-      await deps.bookingsPort.markFailedSync(pending.id);
-      try {
-        await deps.bookingEngine.transitionAppointmentStatus({
-          appointmentId: appointment.id,
-          toStatus: "cancelled_by_specialist",
-          payload: { source: "product_consume_failed" },
+      for (const item of appointments) {
+        await deps.products.consumeVisitForAppointment({
+          organizationId: orgId, productPurchaseId, platformUserId: createInput.userId,
+          appointmentId: item.id, serviceId: canonicalServiceId,
         });
-      } catch {
-        // Best-effort rollback of orphan appointment.
       }
+    } catch (consumeErr) {
+      await rollbackChain("product_consume_failed");
       const code =
         consumeErr instanceof Error &&
         (consumeErr.message === "product_purchase_not_found" ||
@@ -415,21 +463,23 @@ export async function createBookingOnCanonicalEngine(
     }
   }
 
-  const confirmed = await deps.bookingsPort.markConfirmed(pending.id, rubitimeId, {
-    rubitimeManageUrl,
-    canonicalAppointmentId: appointment.id,
-  });
-  if (!confirmed) {
-    await deps.bookingsPort.markFailedSync(pending.id);
-    try {
-      await deps.bookingEngine.transitionAppointmentStatus({
-        appointmentId: appointment.id,
-        toStatus: "cancelled_by_specialist",
-        payload: { source: "booking_confirm_failed" },
-      });
-    } catch {
-      // Best-effort rollback of orphan canonical appointment.
-    }
+  let confirmedRows: Array<PatientBookingRecord | null>;
+  try {
+    confirmedRows = await Promise.all(
+      pendingRows.map((row, index) =>
+        deps.bookingsPort.markConfirmed(row.id, rubitimeId, {
+          rubitimeManageUrl,
+          canonicalAppointmentId: appointments[index]!.id,
+        }),
+      ),
+    );
+  } catch {
+    await rollbackChain("booking_confirm_failed");
+    throw new Error("booking_confirm_failed");
+  }
+  const confirmed = confirmedRows[0];
+  if (confirmedRows.some((row) => !row)) {
+    await rollbackChain("booking_confirm_failed");
     throw new Error("booking_confirm_failed");
   }
 
@@ -441,13 +491,17 @@ export async function createBookingOnCanonicalEngine(
         pendingRow.rubitimeBranchIdSnapshot,
         pendingRow.branchTitleSnapshot,
       );
-      await projectCanonicalAppointmentForDoctor(deps.appointmentProjection, appointment, {
-        phoneNormalized,
-        contactName: createInput.contactName,
-        serviceTitle: pendingRow.serviceTitleSnapshot,
-        branchTitle: pendingRow.branchTitleSnapshot,
-        legacyBranchId,
-      });
+      await Promise.all(
+        appointments.map((item, index) =>
+          projectCanonicalAppointmentForDoctor(deps.appointmentProjection!, item, {
+            phoneNormalized,
+            contactName: createInput.contactName,
+            serviceTitle: pendingRows[index]!.serviceTitleSnapshot,
+            branchTitle: pendingRows[index]!.branchTitleSnapshot,
+            legacyBranchId,
+          }),
+        ),
+      );
     } catch {
       // Doctor projection is best-effort on transition.
     }
@@ -458,10 +512,14 @@ export async function createBookingOnCanonicalEngine(
       const { emitPackageLinkedCalendarSync } = await import(
         "@/app-layer/booking/emitPackageCalendarSync"
       );
-      const freshAppt = await deps.bookingEngine.getAppointment(appointment.id);
-      if (freshAppt) {
-        await emitPackageLinkedCalendarSync(deps.syncPort, freshAppt, confirmed ?? pending);
-      }
+      await Promise.all(
+        appointments.map(async (item, index) => {
+          const freshAppt = await deps.bookingEngine!.getAppointment(item.id);
+          if (freshAppt) {
+            await emitPackageLinkedCalendarSync(deps.syncPort, freshAppt, confirmedRows[index] ?? pendingRows[index]!);
+          }
+        }),
+      );
     } catch {
       // Calendar package marker sync is best-effort.
     }
@@ -474,29 +532,34 @@ export async function createBookingOnCanonicalEngine(
       (await deps.getBookingLifecycleNotificationSettings?.()) ?? null,
     );
     if (createNotify.notifyPatient || createNotify.notifyStaff) {
-      await deps.syncPort.emitBookingEvent({
-        eventType: "booking.created",
-        idempotencyKey: `booking.created:${pending.id}`,
-        payload: {
-          organizationId: appointment.organizationId,
-          bookingId: (confirmed ?? pending).id,
-          userId: createInput.userId,
-          rubitimeId,
-          bookingType: pendingRow.bookingType,
-          city: pendingRow.city ?? undefined,
-          category: pendingRow.category,
-          slotStart: pendingRow.slotStart,
-          slotEnd: pendingRow.slotEnd,
-          contactName: pendingRow.contactName,
-          ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
-          contactPhone: pendingRow.contactPhone,
-          contactEmail: pendingRow.contactEmail ?? undefined,
-          branchServiceId: pendingRow.branchServiceId,
-          cityCodeSnapshot: pendingRow.cityCodeSnapshot,
-          serviceTitleSnapshot: pendingRow.serviceTitleSnapshot,
-          canonicalAppointmentId: appointment.id,
-        },
-      });
+      await Promise.all(
+        appointments.map((item, index) => {
+          const row = confirmedRows[index] ?? pendingRows[index]!;
+          return deps.syncPort.emitBookingEvent({
+            eventType: "booking.created",
+            idempotencyKey: `booking.created:${row.id}`,
+            payload: {
+              organizationId: item.organizationId,
+              bookingId: row.id,
+              userId: createInput.userId,
+              rubitimeId,
+              bookingType: row.bookingType,
+              city: row.city ?? undefined,
+              category: row.category,
+              slotStart: row.slotStart,
+              slotEnd: row.slotEnd,
+              contactName: row.contactName,
+              ...(createInput.contactFio ? { contactFio: createInput.contactFio } : {}),
+              contactPhone: row.contactPhone,
+              contactEmail: row.contactEmail ?? undefined,
+              branchServiceId: row.branchServiceId,
+              cityCodeSnapshot: row.cityCodeSnapshot,
+              serviceTitleSnapshot: row.serviceTitleSnapshot,
+              canonicalAppointmentId: item.id,
+            },
+          });
+        }),
+      );
     }
   } catch {
     // Notifications are best-effort.

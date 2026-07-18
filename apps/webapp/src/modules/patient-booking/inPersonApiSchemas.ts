@@ -26,6 +26,7 @@ export const inPersonCreateBodySchema = z
     ...inPersonKeysFields,
     slotStart: z.string().min(1),
     slotEnd: z.string().min(1),
+    slotCount: z.coerce.number().int().min(1).max(8).optional(),
     contactName: z.string().min(1),
     contactFio: z
       .object({

@@ -91,6 +91,8 @@ type CreatePatientBookingCommon = {
   organizationId?: string;
   bookingChannel?: PatientBookingChannel;
   attribution?: BookingAttribution;
+  /** Number of adjacent per-service appointments to create; defaults to one. */
+  slotCount?: number;
 };
 
 /** API / UI input for creating a booking (discriminated by `type`). */

@@ -31,6 +31,7 @@ const bookingEngine = {
     getService: vi.fn(),
   },
   createAppointment: vi.fn(),
+  createAppointmentChain: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
   getAppointment: vi.fn(),
   getAppointmentIdByRubitimeExternalId: vi.fn(),
@@ -40,6 +41,7 @@ const bookingEngine = {
 const bookingScheduling = {
   assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
   resolveInPersonContext: vi.fn(),
+  getMaxConsecutiveSlotHours: vi.fn().mockResolvedValue(3),
 };
 
 const bookingForm = {
@@ -125,6 +127,10 @@ describe("createBookingOnCanonicalEngine", () => {
       startAt: "2026-06-01T10:00:00.000Z",
       endAt: "2026-06-01T11:00:00.000Z",
     });
+    bookingEngine.createAppointmentChain.mockImplementation(async (inputs) =>
+      inputs.map((input, index) => ({ ...input, id: `appt-${index + 1}` })),
+    );
+    bookingScheduling.getMaxConsecutiveSlotHours.mockResolvedValue(3);
     bookingEngine.getAppointment.mockResolvedValue({
       id: "appt-1",
       status: "confirmed",
@@ -268,7 +274,7 @@ describe("createBookingOnCanonicalEngine", () => {
     expect(bookingEngine.upsertRubitimeAppointmentMapping).not.toHaveBeenCalled();
   });
 
-  it("uses slot span for durationMinutes on in-person create", async () => {
+  it("uses the per-visit durationMinutes on in-person create", async () => {
     const resolved: ResolvedBranchService = {
       branchService: {
         id: "bs-1",
@@ -342,7 +348,7 @@ describe("createBookingOnCanonicalEngine", () => {
     });
 
     expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ durationMinutes: 60 }),
+      expect.objectContaining({ durationMinutes: 30 }),
     );
     expect(bookingCatalog.resolveBranchService).not.toHaveBeenCalled();
   });
@@ -868,5 +874,110 @@ describe("createBookingOnCanonicalEngine", () => {
         contactPhone: "+79001234567",
       }, [{ fieldKey: "comment", value: "" }]),
     ).rejects.toThrow("required_field_missing");
+  });
+
+  it("creates every chain row through the atomic chain port and rolls pending mirrors back on failure", async () => {
+    bookingsPort.createPending.mockImplementation(async (input) => ({
+      ...pendingRecord(),
+      id: `pb-${input.slotStart.slice(11, 13)}`,
+      slotStart: input.slotStart,
+      slotEnd: input.slotEnd,
+    }));
+    bookingEngine.createAppointmentChain.mockRejectedValue({ code: "23P01" });
+
+    await expect(
+      createBookingOnCanonicalEngine(deps(false), {
+        userId: "user-1",
+        organizationId: "org-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T12:00:00.000Z",
+        slotCount: 2,
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("slot_overlap");
+
+    expect(bookingEngine.createAppointment).not.toHaveBeenCalled();
+    expect(bookingEngine.createAppointmentChain).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ startAt: "2026-06-01T10:00:00.000Z", chainPosition: 0 }),
+        expect.objectContaining({ startAt: "2026-06-01T11:00:00.000Z", chainPosition: 1 }),
+      ]),
+    );
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-10");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("pb-11");
+  });
+
+  it("enforces the organization consecutive-slot cap instead of a hard-coded duration", async () => {
+    bookingScheduling.getMaxConsecutiveSlotHours.mockResolvedValue(1);
+    await expect(
+      createBookingOnCanonicalEngine(deps(false), {
+        userId: "user-1",
+        organizationId: "org-1",
+        type: "online",
+        category: "general",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T12:00:00.000Z",
+        slotCount: 2,
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      }),
+    ).rejects.toThrow("consecutive_slot_cap_exceeded");
+    expect(bookingEngine.createAppointmentChain).not.toHaveBeenCalled();
+  });
+
+  it("reserves one membership visit for every appointment in a chain", async () => {
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: "sp-1",
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: "bs-1",
+      durationMinutes: 60,
+      bufferAfterMinutes: 0,
+      branchTimezone: "Europe/Moscow",
+    });
+    bookingsPort.createPending.mockImplementation(async (input) => ({
+      ...pendingRecord(),
+      id: `pb-${input.slotStart.slice(11, 13)}`,
+      slotStart: input.slotStart,
+      slotEnd: input.slotEnd,
+    }));
+    bookingsPort.markConfirmed.mockImplementation(async (id, _rubitimeId, options) => ({
+      ...pendingRecord(), id, status: "confirmed", canonicalAppointmentId: options?.canonicalAppointmentId ?? null,
+    }));
+    const memberships = {
+      listActivePackagesForBooking: vi.fn().mockResolvedValue([{ id: "pkg-1" }]),
+      reserveForAppointment: vi.fn().mockResolvedValue({ id: "usage" }),
+    };
+
+    await createBookingOnCanonicalEngine(
+      { ...deps(false), memberships: memberships as never },
+      {
+        userId: "user-1",
+        type: "in_person",
+        branchServiceId: "bs-1",
+        cityCode: "msk",
+        slotStart: "2026-06-01T10:00:00.000Z",
+        slotEnd: "2026-06-01T12:00:00.000Z",
+        slotCount: 2,
+        patientPackageId: "pkg-1",
+        contactName: "Иван",
+        contactPhone: "+79001234567",
+      },
+    );
+
+    expect(memberships.reserveForAppointment).toHaveBeenCalledTimes(2);
+    expect(memberships.reserveForAppointment).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ appointmentId: "appt-1", patientPackageId: "pkg-1" }),
+    );
+    expect(memberships.reserveForAppointment).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ appointmentId: "appt-2", patientPackageId: "pkg-1" }),
+    );
   });
 });

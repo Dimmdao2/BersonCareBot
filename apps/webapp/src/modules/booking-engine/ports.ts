@@ -131,6 +131,8 @@ export type ServiceAvailabilityPort = {
 
 export type BookingEnginePort = {
   getAppointment(id: string): Promise<BeAppointment | null>;
+  /** Chain rows are ordered by their zero-based position. */
+  listAppointmentsByChainId(input: { organizationId: string; chainId: string }): Promise<BeAppointment[]>;
   getRubitimeAppointmentId?(input: { organizationId: string; appointmentId: string }): Promise<string | null>;
   /** Reverse lookup after integrator postCreateProjection (rubitime-first patient create). */
   getAppointmentIdByRubitimeExternalId?(input: {
@@ -140,6 +142,8 @@ export type BookingEnginePort = {
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
+  /** Inserts every appointment in a consecutive chain in one transaction. */
+  createAppointmentChain(inputs: CreateAppointmentInput[]): Promise<BeAppointment[]>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;
   /** Hard delete is used only for immediate create rollback before side-effects. */
   deleteAppointmentHard?(input: { organizationId: string; appointmentId: string }): Promise<boolean>;

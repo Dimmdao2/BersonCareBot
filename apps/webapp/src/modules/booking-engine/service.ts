@@ -41,6 +41,12 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
       return port.getAppointment(id);
     },
 
+    async listAppointmentsByChainId(input) {
+      assertUuid(input.organizationId, "organizationId");
+      assertUuid(input.chainId, "chainId");
+      return port.listAppointmentsByChainId(input);
+    },
+
     async getRubitimeAppointmentId(input) {
       assertUuid(input.organizationId, "organizationId");
       assertUuid(input.appointmentId, "appointmentId");
@@ -69,6 +75,19 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
         throw new Error("Время окончания должно быть позже начала");
       }
       return port.createAppointment({ ...input, status });
+    },
+
+    async createAppointmentChain(inputs: CreateAppointmentInput[]) {
+      if (inputs.length < 1) throw new Error("appointment_chain_required");
+      for (const input of inputs) {
+        assertUuid(input.organizationId, "organizationId");
+        const status = input.status ?? "created";
+        assertAppointmentStatus(status);
+        if (new Date(input.endAt).getTime() <= new Date(input.startAt).getTime()) {
+          throw new Error("Время окончания должно быть позже начала");
+        }
+      }
+      return port.createAppointmentChain(inputs.map((input) => ({ ...input, status: input.status ?? "created" })));
     },
 
     async transitionAppointmentStatus(input: TransitionAppointmentStatusInput) {

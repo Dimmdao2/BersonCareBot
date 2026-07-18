@@ -13,7 +13,10 @@ import { parseProductPurchaseProductRef } from "@/modules/products/productPurcha
 export function createPaymentsService(deps: {
   port: PaymentsPort;
   config: PaymentsConfigReader;
-  bookingEngine: Pick<BookingEnginePort, "getAppointment" | "transitionAppointmentStatus"> | null;
+  bookingEngine: Pick<
+    BookingEnginePort,
+    "getAppointment" | "listAppointmentsByChainId" | "transitionAppointmentStatus"
+  > | null;
   onAppointmentPaymentConfirmed?: (input: {
     appointmentId: string;
     paymentId: string;
@@ -350,31 +353,40 @@ export function createPaymentsService(deps: {
         purpose: payment.purpose,
       });
 
-      if (intent.appointmentId) {
-        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
-      }
-
       if (intent.appointmentId && deps.bookingEngine) {
         const appt = await deps.bookingEngine.getAppointment(intent.appointmentId);
-        if (appt?.status === "awaiting_payment") {
-          await deps.bookingEngine.transitionAppointmentStatus({
-            appointmentId: intent.appointmentId,
-            toStatus: "paid",
-            payload: { source: "payment_capture" },
-          });
-          await deps.bookingEngine.transitionAppointmentStatus({
-            appointmentId: intent.appointmentId,
-            toStatus: "confirmed",
-            payload: { source: "payment_confirmed" },
-          });
+        const appointments = appt?.chainId
+          ? await deps.bookingEngine.listAppointmentsByChainId({ organizationId, chainId: appt.chainId })
+          : appt
+            ? [appt]
+            : [];
+        if (appointments.length === 0) {
+          await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
         }
-        if (deps.onAppointmentPaymentConfirmed) {
-          await deps.onAppointmentPaymentConfirmed({
-            appointmentId: intent.appointmentId,
-            paymentId: payment.id,
-            platformUserId: intent.platformUserId,
-          });
+        for (const appointment of appointments) {
+          await deps.port.setAppointmentPaymentRef(appointment.id, payment.id, organizationId);
+          if (appointment.status === "awaiting_payment") {
+            await deps.bookingEngine.transitionAppointmentStatus({
+              appointmentId: appointment.id,
+              toStatus: "paid",
+              payload: { source: "payment_capture", paymentId: payment.id },
+            });
+            await deps.bookingEngine.transitionAppointmentStatus({
+              appointmentId: appointment.id,
+              toStatus: "confirmed",
+              payload: { source: "payment_confirmed", paymentId: payment.id },
+            });
+          }
+          if (deps.onAppointmentPaymentConfirmed) {
+            await deps.onAppointmentPaymentConfirmed({
+              appointmentId: appointment.id,
+              paymentId: payment.id,
+              platformUserId: intent.platformUserId,
+            });
+          }
         }
+      } else if (intent.appointmentId) {
+        await deps.port.setAppointmentPaymentRef(intent.appointmentId, payment.id, organizationId);
       }
 
       const patientPackageId = parsePatientPackageProductRef(intent.productRef);
