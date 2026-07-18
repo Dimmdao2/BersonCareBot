@@ -1722,3 +1722,82 @@ one independent full-stage reviewer (`reviewer`, high), correction owner if and 
 checklist or repository rules, and a complete re-audit. Stop for owner authority before TEST/PROD, destructive
 Rubitime actions, archive/drop, backfill or any product/architecture expansion. The temporary stage branch/worktree
 must be integrated into `feat/doctor-ui-rebuild` after PASS and then removed; accepted agent branches may not remain.
+
+## 2026-07-18 — C0 completion: staff booking lifecycle is canonical-only (`#839`)
+
+**Status:** implementation and independent audit complete on `feat/doctor-ui-rebuild`. The integrated runtime head
+before this closeout record is `30cad2a9d0a5644ac36b63bedb67695d55bc9b1c`. No TEST/PROD deployment, DB apply,
+Rubitime mutation, real external delivery or owner-gated retirement action was performed.
+
+### Implemented contract
+
+- doctor/admin manual create no longer reads the legacy Rubitime bridge setting, resolves Rubitime mappings, calls
+  Rubitime or deletes/cancels the canonical appointment after an external failure;
+- doctor/admin manual reschedule no longer calls Rubitime before the canonical lifecycle mutation, and staff cancel
+  and purge no longer attempt an outbound Rubitime mirror;
+- the staff outbound policy is hard-disabled, so a migrated `booking_rubitime_bridge_enabled` value cannot reactivate
+  daily lifecycle calls;
+- ordinary booking setup and admin navigation no longer expose the Rubitime tab, direct integrations page, bridge
+  status, mapping/read-source controls or Rubitime overview warnings; the old direct URL redirects to canonical
+  booking settings;
+- canonical appointment, calendar/patient projections and provider-neutral GCal, reminder, notification, payment
+  and package paths remain in place. Historical CSV/import and retirement tooling were not changed.
+
+The exact external-failure path that created a patient, created an appointment and then removed only the appointment
+has been eliminated: staff create now commits the canonical appointment without a Rubitime post-write rollback.
+No broad patient deletion or speculative cross-request transaction was added. Existing booking-profile uniqueness
+remains enforced by the current `(booking_type, category_code, COALESCE(city_code, ''))` uniqueness contract; stale
+Rubitime bridge values can remain as historical configuration but are no longer staff-runtime inputs.
+
+### Worker, audit and corrections
+
+- implementation: `bcb-c0-839-worker-20260718`, integrated commit `b2eeb1eb7`;
+- first independent audit: `bcb-c0-839-reviewer-20260718` — **FAIL** because the direct integrations page still
+  exposed the retired surface and one focused tab test retained the old count;
+- first correction: `bcb-c0-839-correction-20260718`, integrated commit `93e032312`;
+- full re-audit: `bcb-c0-839-reaudit-20260718` — **FAIL** because the normal booking overview still displayed
+  Rubitime mapping/read-source warnings;
+- second correction: `bcb-c0-839-correction2-20260718`, integrated commit `30cad2a9d`;
+- final full re-audit: `bcb-c0-839-reaudit2-20260718` / audited run
+  `c0-839-final-reaudit-20260718-30cad2a9d` — **PASS**, with no owner-checklist or repository-rule finding.
+
+The reviewer left one non-blocking documentation recommendation: the historical schedule implementation note still
+describes the retired integrations section. It is recorded as a recommendation, not promoted into owner scope or a
+new architecture requirement.
+
+### Verification evidence
+
+| Gate | Result |
+|---|---|
+| Focused Vitest | **PASS** — 15 files, 55 tests |
+| Webapp typecheck | **PASS** |
+| ESLint for 30 changed TypeScript/TSX files | **PASS** |
+| Stage diff/whitespace check | **PASS** |
+| Independent full-stage audit | **PASS** |
+| Live UI, `dev:admin`, desktop `1480x1024` | **PASS** — `/app/doctor/schedule?tab=setup`; no Rubitime surface |
+| Live UI, `dev:admin`, mobile `390x844` | **PASS** — same setup surface and fallback behavior |
+| Retired direct URL | **PASS** — `/app/doctor/admin/booking/integrations` redirects to canonical booking settings |
+
+Runtime screenshots are retained outside Git at
+`/home/dev/brain/runs/c0-839-ui/schedule-setup-desktop.png` and
+`/home/dev/brain/runs/c0-839-ui/schedule-setup-mobile.png`. A full mutating DEV lifecycle smoke was not claimed:
+the supported `dev:admin` fixture has no active branch/service catalog, and alternative role/catalog access was not
+reliably established. No synthetic patient or appointment was created, so no DEV residue remains. The canonical
+lifecycle branches and migrated-setting immunity are covered by the focused tests above.
+
+The owner-observed TEST scenario still requires a separately authorized TEST deployment and owner scenario. It is
+not a reason to keep C0 implementation open, and it must not be inferred as permission to deploy or mutate TEST.
+
+### Integration hygiene
+
+All accepted worker/correction commits were fast-forwarded into `feat/doctor-ui-rebuild`. The temporary C0 branch
+and worktree were removed after the final PASS. FIO work remains only in the canonical integrated commits and tasks
+`#855–#858`; unsafe untracked production-helper drafts were not imported. The owner's untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md` remains untouched and excluded.
+
+**НАШЁЛ:** the TEST regression was caused by live staff Rubitime coupling that survived the historical retirement
+proof, plus ordinary UI surfaces that could still expose the retired provider.
+
+**ИЗМЕНИЛ:** removed Rubitime from the staff appointment lifecycle and ordinary booking UI, independently audited
+the whole C0 checklist to PASS, preserved provider-neutral canonical side effects and integrated the accepted work
+without leaving an agent branch or worktree.
