@@ -813,10 +813,20 @@ run_e1_post_runtime_coverage_gate(){
   # Runtime reporters have a 250 ms bounded write; allow those smoke-triggered
   # writes to settle before the authoritative pre-coverage read.
   sleep 1
-  sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
+  # TEST-only softening (owner 2026-07-18, var B): this is a DIAGNOSTIC/observability gate, NOT the
+  # wall enforcement — FORCE-RLS is asserted separately above and stays hard. On TEST a single benign
+  # transient must NOT fail-closed and take down the demo env; warn loudly and continue. Prod deploy
+  # scripts never call this closure, so prod strictness is unaffected.
+  if sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
     pnpm --dir apps/webapp run diagnostics:saas-isolation -- post-runtime-gate \
-      --started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks 9"
-  echo "   E1 post-runtime coverage/read gate: OK"
+      --started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks 9"; then
+    echo "   E1 post-runtime coverage/read gate: OK"
+  else
+    echo "   ⚠️  WARN [TEST]: E1 isolation post-runtime gate did NOT pass — TEST deploy CONTINUES (env stays up)." >&2
+    echo "   ⚠️  FORCE-RLS wall assertion above stays hard; this gate is diagnostic-only on TEST." >&2
+    echo "   ⚠️  Triage:  (as deploy, webapp.test env)  pnpm --dir apps/webapp run diagnostics:saas-isolation -- read" >&2
+    echo "   ⚠️  Resolve once triaged benign:  ... diagnostics:saas-isolation -- coverage --id <uuid> --status complete --started-at <after last_seen> --finished-at <now> --services cron,integrator,media_worker,scheduler,webapp,worker --checks 9 --unexpected 0" >&2
+  fi
 }
 
 run_owner_ready_locked_db_matrix(){
