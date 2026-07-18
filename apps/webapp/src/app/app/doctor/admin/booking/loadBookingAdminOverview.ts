@@ -3,12 +3,6 @@ import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
 } from "@/app/app/settings/bookingSoloAdminApi";
-import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
-
-function parseDoctorAppointmentsReadSource(valueJson: unknown): "rubitime_legacy" | "canonical" {
-  void valueJson;
-  return "canonical";
-}
 
 export type BookingAdminOverviewData =
   | { unavailable: true }
@@ -22,10 +16,8 @@ export type BookingAdminOverviewData =
         hasCustomSchedule: boolean;
         hasUpcomingSchedule: boolean;
         servicesWithoutAvailability: number;
-        bridgeEnabled: boolean;
       };
       warnings: string[];
-      readSourceConflict: boolean;
     };
 
 export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewData> {
@@ -34,19 +26,12 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
   if (!service) return { unavailable: true };
 
   const organizationId = await service.organization.getDefaultOrganizationId();
-  const bridgeStatePromise = service.bridge.isBridgeEnabled().then(async (enabled) => ({
-    enabled,
-    mapping: enabled ? await service.bridge.getMappingSummary(organizationId) : null,
-  }));
   const [
     branches,
     services,
     specialists,
     specialistAvailability,
     locationAvailability,
-    bridgeState,
-    readSourceRow,
-    slotsReadSourceRow,
     usesHoursFallback,
     workingHoursRows,
   ] = await Promise.all([
@@ -55,22 +40,14 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
     service.catalog.listSpecialists(organizationId),
     service.services.listSpecialistServiceAvailability(organizationId),
     service.services.listServiceLocationAvailability(organizationId),
-    bridgeStatePromise,
-    deps.systemSettings?.getSetting("booking_doctor_appointments_read_source", "admin"),
-    deps.systemSettings?.getSetting("booking_slots_read_source", "admin"),
     deps.bookingScheduling?.usesWorkingHoursFallback({ organizationId }) ?? Promise.resolve(true),
     deps.bookingScheduling?.listWorkingHoursAdmin({ organizationId }) ?? Promise.resolve([]),
   ]);
-  const bridgeEnabled = bridgeState.enabled;
-  const mappingSummary = bridgeState.mapping;
 
   const activeBranches = branches.filter((b) => b.isActive);
   const activeServices = services.filter((s) => s.isActive);
   const publicServices = activeServices.filter((s) => s.publicWidgetVisible && !s.adminManualOnly);
   const activeLocationIds = new Set(activeBranches.map((b) => b.id));
-
-  const doctorAppointmentsReadSource = parseDoctorAppointmentsReadSource(readSourceRow?.valueJson ?? null);
-  const bookingSlotsReadSource = parseBookingSlotsReadSource(slotsReadSourceRow?.valueJson ?? null);
 
   const availabilityOverview = {
     locationAvailability,
@@ -86,10 +63,6 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
   const hasCustomSchedule = !usesHoursFallback;
   const hasUpcomingSchedule =
     hasCustomSchedule && hasScheduleOnUpcomingDays(workingHoursRows);
-
-  const activeAvailabilityPairs = locationAvailability.filter(
-    (row) => row.isActive && activeLocationIds.has(row.branchId),
-  ).length;
 
   const warnings: string[] = [];
   if (activeServices.length > 0 && servicesWithoutAvailability > 0) {
@@ -107,25 +80,6 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
     warnings.push("Нет активных локаций.");
   }
 
-  const readSourceConflict =
-    (doctorAppointmentsReadSource === "rubitime_legacy" && bookingSlotsReadSource === "canonical") ||
-    (doctorAppointmentsReadSource === "canonical" && bookingSlotsReadSource === "rubitime");
-
-  if (readSourceConflict) {
-    warnings.push("Источники записей и слотов настроены по-разному — проверьте интеграцию Rubitime.");
-  }
-  if (bridgeEnabled && mappingSummary) {
-    const deps = buildAppDeps();
-    if (deps.rubitimeMapping) {
-      const mapping = await deps.rubitimeMapping.listMappings({ organizationId, problemsOnly: true });
-      if (mapping.problems > 0) {
-        warnings.push(`Неполный Rubitime-маппинг: ${mapping.problems} пар требуют настройки.`);
-      }
-    } else if (activeAvailabilityPairs > 0 && mappingSummary.availabilities < activeAvailabilityPairs) {
-      warnings.push("Не все связи доступности сопоставлены с Rubitime.");
-    }
-  }
-
   return {
     unavailable: false,
     stats: {
@@ -136,9 +90,7 @@ export async function loadBookingAdminOverview(): Promise<BookingAdminOverviewDa
       hasCustomSchedule,
       hasUpcomingSchedule,
       servicesWithoutAvailability,
-      bridgeEnabled,
     },
     warnings,
-    readSourceConflict,
   };
 }
