@@ -2162,3 +2162,41 @@ by the post-migration aggregate gate and remains available for the owner's ordin
 
 No full reset is needed for subsequent UI/code deploys. From this point the prepared TEST database is persistent and
 ordinary deployments use only `deploy/host/deploy-test.sh`; another dump restore requires a new explicit owner gate.
+
+## 2026-07-19 — C2 identity/invite + C3 settings parallel launch checkpoint
+
+**Base and milestone:** `feat/doctor-ui-rebuild` / origin are aligned at `68faf5b63`; the accumulated C1 milestone
+CI passed once on this exact SHA (lint, typecheck, `9335` tests, builds and all SaaS/security audits). TEST runs code
+`c6804e913` plus the prepared persistent database from the successful full-chain rehearsal; all five units and locked
+smoke are green. The only integration-worktree delta remains the protected untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md`.
+
+**C2 — taskdb `#840` + `#841`, owner-review §14:** one coherent identity/invite stage. Aggregate TEST evidence shows
+the owner organization has two active membership rows for two distinct platform identities: one `owner` with the
+canonical specialist link and one unlinked platform-global `admin`; there is no duplicate
+`(organization_id, platform_user_id)` row. Therefore this is not a name-based merge. The worker must remove the
+historical global-admin organization membership at its seeded/migration source while preserving the separate secure
+global-admin identity, keep owner management capability on the owner membership, and prevent recurrence. It must
+then prove the existing seven-day invite journey end-to-end for new/existing email, single-use/replay,
+expiry/revoke/reinvite, doctor first-login specialist provisioning and admin-without-specialist. Allowed primary
+scope: organization membership/invite modules and ports, their PostgreSQL repositories/DI, clinic invite/member APIs
+and UI, existing provisioning helpers/overlays/migrations and focused tests. Forbidden: merge by display name,
+patient data, billing/entitlement/settings IA, PROD, real delivery and live TEST mutation/deploy by the worker.
+
+**C3 — taskdb `#842`, owner-review §15:** a separate coherent settings-hub stage in a non-overlapping worktree.
+Deliver one stable `Настройки` navigation entry whose tabs are membership/capability-driven rather than route-driven;
+reconcile organization/practice, specialist and install-app surfaces; eliminate the duplicate Client/Patient setting;
+make appointment reminders organization-owned through their existing sanctioned write path; remove the retired daily
+bot reminder UI/scheduler/delivery path; and remove owner-only patient-home controls from shared settings. Team and
+billing tab bodies remain gated on C4/C5 entitlement/commercial work. The canceled request to move the entire current
+schedule settings area is explicit non-scope. Allowed primary scope: doctor nav/menu tests, existing settings layouts,
+pages/components/routes, system-settings services/accessors and notification jobs only where the checklist requires.
+Forbidden: a second settings tree/write path, team/billing implementation, booking-settings relocation, patient UI,
+PROD/TEST operations or real delivery.
+
+**Parallelism and gates:** C2 and C3 have separate file ownership; any shared navigation/guard file discovered by
+both belongs to C3 unless C2 requires an exact clinic-member route guard test, in which case the lead coordinates the
+single edit. Each worker gets the full owner checklist and returns exact files/tests/risks. C2 uses the full
+worker -> independent high-risk audit -> correction/re-audit cycle if necessary; C3 gets the risk-sized stage audit,
+with findings constrained to owner-review §15. Targeted tests/typecheck/lint run per stage; no new full CI until the
+next milestone. Live TEST deployment remains code-only and serial after integration; no second Next server.
