@@ -254,7 +254,9 @@ function resolveView(raw: string | undefined): CalV26View {
     raw === "day"
   )
     return raw;
-  return "3days";
+  // Owner ruling 2026-07-18 (OWNER_REVIEW §3): clean desktop entry/reload defaults to
+  // week, not 3 days, when no explicit view is chosen via deep-link.
+  return "weekgrid";
 }
 
 function resolveRenderMode(raw: string | undefined): RenderMode {

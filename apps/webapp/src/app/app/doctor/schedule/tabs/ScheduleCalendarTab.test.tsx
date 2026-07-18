@@ -324,13 +324,25 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
       });
     });
 
-    it('defaults to 3days view and renders FullCalendar', async () => {
+    it('defaults to weekgrid view and renders FullCalendar (owner ruling 2026-07-18: desktop default is week, not 3 days)', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
       render(<Tab deepLinkParams={{}} onDeepLinkChange={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('view-btn-3days')).toBeInTheDocument();
+        expect(screen.getByTestId('view-btn-weekgrid').className).toContain('bg-primary');
+        expect(screen.getByTestId('view-btn-3days').className).not.toContain('bg-primary');
+        expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
+      });
+    });
+
+    it('an explicit deep-link view=3days is respected and not reset to the week default', async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{ view: '3days' }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('view-btn-3days').className).toContain('bg-primary');
         expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
       });
     });

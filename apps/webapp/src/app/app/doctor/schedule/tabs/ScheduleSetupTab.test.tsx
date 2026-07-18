@@ -14,6 +14,12 @@ vi.mock("@/app/app/settings/BookingSoloLocationsSection", () => ({
 vi.mock("@/app/app/settings/BookingSoloAvailabilitySection", () => ({
   BookingSoloAvailabilitySection: () => <div data-testid="section-availability" />,
 }));
+vi.mock("@/app/app/settings/BookingSoloServicesSection", () => ({
+  BookingSoloServicesSection: () => <div data-testid="section-services-solo" />,
+}));
+vi.mock("@/app/app/settings/BookingSoloSpecialistsSection", () => ({
+  BookingSoloSpecialistsSection: () => <div data-testid="section-specialists-solo" />,
+}));
 vi.mock("@/app/app/settings/BookingSoloFormFieldsSection", () => ({
   BookingSoloFormFieldsSection: () => <div data-testid="section-form-fields" />,
 }));
@@ -71,17 +77,31 @@ async function renderSetupTab(deepLinkParams: Record<string, string> = {}) {
 // ---------------------------------------------------------------------------
 
 describe("ScheduleSetupTab", () => {
-  it("renders the sub-nav with all 7 sections", async () => {
+  it("renders the sub-nav with all 9 sections (services + specialists, no Rubitime)", async () => {
     await renderSetupTab();
     expect(screen.getByTestId("setup-subnav")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-calendar")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-locations")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-nav-services")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-nav-specialists")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-form")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-payments")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-rules")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-notifications")).toBeInTheDocument();
     expect(screen.getByTestId("setup-nav-packages")).toBeInTheDocument();
     expect(screen.queryByTestId("setup-nav-integrations")).not.toBeInTheDocument();
+  });
+
+  it("deep-link section=services shows the canonical booking services section (create/edit/deactivate)", async () => {
+    await renderSetupTab({ section: "services" });
+    expect(screen.getByTestId("setup-section-services")).toBeInTheDocument();
+    expect(screen.getByTestId("section-services-solo")).toBeInTheDocument();
+  });
+
+  it("deep-link section=specialists shows a distinct calendar-specialist management surface", async () => {
+    await renderSetupTab({ section: "specialists" });
+    expect(screen.getByTestId("setup-section-specialists")).toBeInTheDocument();
+    expect(screen.getByTestId("section-specialists-solo")).toBeInTheDocument();
   });
 
   it("default section is calendar (no deepLinkParams)", async () => {

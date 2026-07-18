@@ -73,6 +73,8 @@
 
 - 3 диапазона в переключателе: **3 дня / Неделя / Месяц**. «День» — только drill-down (клик по
   заголовку дня или числу в месяце).
+  - Default без явного deep-link `view` — **неделя** (owner-review 2026-07-18 §3: чистый desktop-вход и
+    reload открывают неделю, а не 3 дня). Явный `?view=` (или иной deep-link выбор) не переопределяется.
   - `3days` — FullCalendar `timeGrid3days` (custom view, duration 3 days).
   - `weekgrid` — FullCalendar `timeGridWeek`.
   - `month` — FullCalendar `dayGridMonth`; плашка = фамилия; сегодня `#fff8e6`; `+N` при переполнении.
@@ -104,16 +106,23 @@
 
 ### Настройки (`setup`) — `ScheduleSetupTab`
 
-Admin-only (обеспечено на уровне nav и шелла). Под-навигация 6 секций:
+Admin-only (обеспечено на уровне nav и шелла). Под-навигация секций:
 
 | `?section=` | Компоненты |
 |-------------|-----------|
 | `calendar` (default) | `ScheduleCalendarDefaultsSection` |
 | `locations` | `BookingSoloLocationsSection` + `BookingSoloAvailabilitySection` |
+| `services` | `BookingSoloServicesSection` — canonical booking catalog (create/edit/deactivate), без Rubitime |
+| `specialists` | `BookingSoloSpecialistsSection` — canonical booking-engine specialists (owner/себя + сотрудники); отдельно от личных «Настроек специалиста» аккаунта |
 | `form` | `BookingSoloFormFieldsSection` + `BookingPublicWidgetSection` + `BookingPublicAttributionSection` |
 | `payments` | `BookingPaymentsSectionLoader` + `BookingPrepaymentSection` |
 | `rules` | `BookingRulesLoader` (→ `BookingRulesPageClient`) |
-| `integrations` | `BookingRubitimeMappingSection` + `BookingEngineSection mode="integrations"` |
+| `notifications` | `ScheduleNotificationsSection` |
+| `packages` | Шаблоны абонементов (создание/деактивация) |
+
+**Rubitime tab отсутствует** (owner-review §4, п.4-5; C0 already retired). `BookingRubitimeMappingSection` /
+`BookingEngineSection mode="integrations"` больше не смонтированы ни в одном табе — backend/data retirement
+остаётся отдельным Rubitime retirement runbook, не частью этого таба.
 
 ## Per-date модель графика (бэкенд)
 

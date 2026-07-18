@@ -5,6 +5,8 @@ import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEng
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
+  /** Short display name (e.g. «СПб», «Мск»). Trimmed, ≤12 chars. */
+  shortTitle: z.string().trim().max(12).nullable().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
   cityCode: z.string().min(1).max(80),
   address: z.string().max(500).nullable().optional(),
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
     gate.ctx.service.catalog.upsertBranch({
       organizationId: gate.ctx.organizationId,
       title: parsed.data.title.trim(),
+      shortTitle: parsed.data.shortTitle ?? null,
       color: parsed.data.color ?? null,
       cityCode: parsed.data.cityCode.trim().toLowerCase(),
       address: parsed.data.address ?? null,

@@ -8,6 +8,8 @@ import { BookingPaymentsSection } from "@/app/app/settings/BookingPaymentsSectio
 import { BookingSoloAvailabilitySection } from "@/app/app/settings/BookingSoloAvailabilitySection";
 import { BookingSoloFormFieldsSection } from "@/app/app/settings/BookingSoloFormFieldsSection";
 import { BookingSoloLocationsSection } from "@/app/app/settings/BookingSoloLocationsSection";
+import { BookingSoloServicesSection } from "@/app/app/settings/BookingSoloServicesSection";
+import { BookingSoloSpecialistsSection } from "@/app/app/settings/BookingSoloSpecialistsSection";
 import { BookingRulesPageClient } from "@/app/app/doctor/admin/booking/BookingRulesPageClient";
 import { ScheduleNotificationsSection } from "./notifications/ScheduleNotificationsSection";
 import { parseBookingPaymentSettingsValue } from "@/modules/payments/bookingPaymentSettings";
@@ -35,6 +37,8 @@ import type { ScheduleTabProps } from "../scheduleTabRegistry";
 type SetupSectionId =
   | "calendar"
   | "locations"
+  | "services"
+  | "specialists"
   | "form"
   | "payments"
   | "rules"
@@ -49,6 +53,8 @@ type SetupSectionDef = {
 const SETUP_SECTIONS: SetupSectionDef[] = [
   { id: "calendar",      label: "Календарь" },
   { id: "locations",     label: "Локации" },
+  { id: "services",      label: "Услуги" },
+  { id: "specialists",   label: "Специалисты" },
   { id: "form",          label: "Публичная форма" },
   { id: "payments",      label: "Оплаты" },
   { id: "rules",         label: "Правила записи" },
@@ -787,6 +793,14 @@ function SectionLocations() {
   );
 }
 
+function SectionServices() {
+  return <BookingSoloServicesSection />;
+}
+
+function SectionSpecialists() {
+  return <BookingSoloSpecialistsSection />;
+}
+
 function SectionForm() {
   return (
     <div className="flex flex-col gap-3">
@@ -864,6 +878,8 @@ export function ScheduleSetupTab({ deepLinkParams, onDeepLinkChange }: ScheduleT
       <div data-testid={`setup-section-${activeSection}`}>
         {activeSection === "calendar"     && <SectionCalendar />}
         {activeSection === "locations"    && <SectionLocations />}
+        {activeSection === "services"     && <SectionServices />}
+        {activeSection === "specialists"  && <SectionSpecialists />}
         {activeSection === "form"         && <SectionForm />}
         {activeSection === "payments"     && <SectionPayments />}
         {activeSection === "rules"        && <SectionRules />}

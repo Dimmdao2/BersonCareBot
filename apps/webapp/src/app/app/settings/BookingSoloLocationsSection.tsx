@@ -28,6 +28,7 @@ export function BookingSoloLocationsSection() {
   const [unavailable, setUnavailable] = useState(false);
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
+  const [shortTitle, setShortTitle] = useState("");
   const [address, setAddress] = useState("");
   const [color, setColor] = useState(DEFAULT_BRANCH_COLOR);
   const [timezone, setTimezone] = useState("Europe/Moscow");
@@ -105,6 +106,14 @@ export function BookingSoloLocationsSection() {
               onChange={(e) => setAddress(e.target.value)}
             />
             <Input
+              className="w-28"
+              placeholder="Кратко (СПб, Мск)"
+              maxLength={12}
+              aria-label="Короткое название"
+              value={shortTitle}
+              onChange={(e) => setShortTitle(e.target.value.slice(0, 12))}
+            />
+            <Input
               type="color"
               className="h-8 w-12 cursor-pointer px-1 py-0.5"
               aria-label="Цвет локации"
@@ -124,6 +133,7 @@ export function BookingSoloLocationsSection() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       title: title.trim(),
+                      shortTitle: shortTitle.trim() || null,
                       cityCode: slugCityCode(title),
                       address: address.trim() || null,
                       color,
@@ -132,6 +142,7 @@ export function BookingSoloLocationsSection() {
                     }),
                   });
                   setTitle("");
+                  setShortTitle("");
                   setAddress("");
                   setColor(DEFAULT_BRANCH_COLOR);
                 })
