@@ -21,7 +21,6 @@ import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import { patientCardHref } from "../patients/patientCardHref";
 import { patientProgramInstanceHref } from "../patients/patientProgramInstanceHref";
-import { useDoctorExerciseCommentsSearch } from "./useDoctorExerciseCommentsSearch";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from "@/shared/ui/doctor/doctorWorkspaceLayout";
@@ -30,17 +29,9 @@ import {
   ExerciseExecutionGraph,
   type DayBar,
 } from "@/shared/ui/doctor/ExerciseExecutionGraph";
-import { ExerciseCommentPreviewItemContent } from "./ExerciseCommentPreviewItem";
 import { thumbToExerciseMedia } from "./exerciseCommentThumb";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type HistoryPage = {
-  ok: boolean;
-  items: TodayExerciseCommentAttentionItem[];
-  hasMore: boolean;
-  nextCursor: DoctorExerciseCommentCursor | null;
-};
 
 type ExercisesApiResponse = {
   ok: boolean;
@@ -103,14 +94,6 @@ function filterPatients(patients: CommentPatientRow[], query: string): CommentPa
     if (p.maxId?.toLowerCase().includes(q)) return true;
     return false;
   });
-}
-
-function filterFeedByPatients(
-  items: TodayExerciseCommentAttentionItem[],
-  patientIds: ReadonlySet<string> | null,
-): TodayExerciseCommentAttentionItem[] {
-  if (!patientIds) return items;
-  return items.filter((i) => patientIds.has(i.patientUserId));
 }
 
 function formatRelativeTime(isoDate: string | null): string {
@@ -430,41 +413,24 @@ function ThreadMessage({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function DoctorCommentsTab({
-  initialItems,
-  initialCursor,
-  hasMoreInitial,
   initialPatients,
   displayIana,
 }: DoctorCommentsTabProps) {
-  // ── Feed state (state A) ──
-  const [allItems, setAllItems] = useState<TodayExerciseCommentAttentionItem[]>(
-    initialItems ?? [],
-  );
-  const [cursor, setCursor] = useState<DoctorExerciseCommentCursor | null>(
-    initialCursor ?? null,
-  );
-  const [hasMore, setHasMore] = useState(hasMoreInitial ?? false);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<"unread" | "all">("all");
 
+  // ── «На сопровождении» — независимый toggle-фильтр (не визуальный маркер).
+  // Комбинируется с viewMode: оба фильтра действуют независимо друг от друга.
+  const [onSupportOnly, setOnSupportOnly] = useState(false);
+
   // ── Search / filter state ──
   const [query, setQuery] = useState("");
-  // onSupportOnly toggle removed: on-support is now ★ visual marker only (per spec), not a filter.
 
-  // ── All-mode: lazy-loaded patients + feed (fetched on first toggle to «Все») ──
+  // ── All-mode: lazy-loaded patients ──
   const [allModePatients, setAllModePatients] = useState<CommentPatientRow[] | null>(null);
   const [allModePatientsLoading, setAllModePatientsLoading] = useState(false);
   const [allModePatientsError, setAllModePatientsError] = useState<string | null>(null);
-  // All-mode feed: separate items/cursor/hasMore for the «Все» feed (uses listExerciseCommentsForDoctor).
-  const [allModeItems, setAllModeItems] = useState<TodayExerciseCommentAttentionItem[]>([]);
-  const [allModeCursor, setAllModeCursor] = useState<DoctorExerciseCommentCursor | null>(null);
-  const [allModeHasMore, setAllModeHasMore] = useState(false);
-  const [allModeFeedLoading, setAllModeFeedLoading] = useState(false);
-  const [allModeFeedError, setAllModeFeedError] = useState<string | null>(null);
   const allModeFetchedRef = useRef(false);
 
   // ── Drill-down navigation state ──
@@ -490,8 +456,6 @@ export function DoctorCommentsTab({
   const [chartWindowDays, setChartWindowDays] = useState<7 | 30>(7);
 
   const threadVersionRef = useRef(0);
-  // CMT-06: stageItemId to auto-navigate to once exercisesData loads (feed click deep-link)
-  const pendingStageItemIdRef = useRef<string | null>(null);
   // Снимок «непрочитанности» упражнений на момент входа в пациента (state B):
   // stageItemId → было ли непрочитано при входе. Используется для ранжирования
   // (непрочитанные сверху) БЕЗ живой перетасовки — порядок фиксируется на входе
@@ -524,7 +488,7 @@ export function DoctorCommentsTab({
     exercisesDataRef.current = exercisesData;
   }, [exercisesData]);
 
-  // ── Fetch all-mode patients + feed (lazy: on first switch to «Все») ──
+  // ── Fetch all-mode patients ──
   const fetchAllMode = useCallback(async () => {
     if (allModeFetchedRef.current) return;
     allModeFetchedRef.current = true;
@@ -548,53 +512,24 @@ export function DoctorCommentsTab({
       setAllModePatientsLoading(false);
     }
 
-    // Feed (all mode: full history, no on-support gate, answered threads included)
-    setAllModeFeedLoading(true);
-    setAllModeFeedError(null);
-    try {
-      const res = await fetch("/api/doctor/exercise-comments?mode=all");
-      if (!res.ok) throw new Error("fetch_failed");
-      const data = (await res.json()) as HistoryPage;
-      if (!data.ok) throw new Error("response_error");
-      setAllModeItems(data.items ?? []);
-      setAllModeCursor(data.nextCursor ?? null);
-      setAllModeHasMore(data.hasMore ?? false);
-    } catch {
-      setAllModeFeedError("Не удалось загрузить ленту комментариев.");
-    } finally {
-      setAllModeFeedLoading(false);
-    }
   }, []);
 
+  // Полная выборка пациентов грузится всегда — она нужна как активный датасет
+  // в режиме «Все» и как стабильный источник счётчиков для обоих toggle-фильтров
+  // независимо от того, какой из них сейчас активен.
   useEffect(() => {
-    if (viewMode === "all") {
-      void fetchAllMode();
-    }
-  }, [viewMode, fetchAllMode]);
-
-  // CMT-06: when exercisesData loads, auto-navigate to pending stageItemId from feed click
-  useEffect(() => {
-    if (!exercisesData || !pendingStageItemIdRef.current) return;
-    const target = pendingStageItemIdRef.current;
-    pendingStageItemIdRef.current = null;
-    for (const group of exercisesData.groups) {
-      const ex = group.exercises.find((e) => e.stageItemId === target);
-      if (ex) {
-        setSelectedExercise(ex);
-        setMarkReadSent(false);
-        setMetricsPoints(null);
-        break;
-      }
-    }
-  }, [exercisesData]);
+    void fetchAllMode();
+  }, [fetchAllMode]);
 
   // ── Computed: patients list for left pane, depends on viewMode ──
   // In "unread" mode: SSR-provided patients (already filtered to unreadCount>0).
   // In "all" mode: lazy-fetched allModePatients (all on-support with any comment).
   const activePatients = viewMode === "all" ? (allModePatients ?? []) : patients;
-  const filteredPatients = filterPatients(activePatients, query);
-  // on-support is now a visual ★ marker only (not a filter); show all filtered patients.
-  const patientsToShowRaw = filteredPatients;
+  // «На сопровождении» — независимый toggle-фильтр (комбинируется с viewMode, а не заменяет его).
+  const onSupportFilteredPatients = onSupportOnly
+    ? activePatients.filter((p) => p.isOnSupport)
+    : activePatients;
+  const patientsToShowRaw = filterPatients(onSupportFilteredPatients, query);
   // «Непрочитанные» mode: keep only patients with unread, but always keep selected patient
   // so it doesn't disappear from under the cursor while the doctor is reading.
   // «Все» mode: show all patients that have any comment (unreadCount may be 0).
@@ -606,28 +541,6 @@ export function DoctorCommentsTab({
             p.patientUserId === selectedPatient?.patientUserId,
         )
       : patientsToShowRaw;
-
-  // Ids of patients visible in left pane (for filtering feed) — only filter when search query active
-  const visiblePatientIds: ReadonlySet<string> | null =
-    query.trim()
-      ? new Set(patientsToShow.map((p) => p.patientUserId))
-      : null;
-
-  // ── Feed search (state A) — mode-aware ──
-  // In "unread" mode: SSR initialItems (unreadOnly:true) + loadMore.
-  // In "all" mode: allModeItems (unreadOnly:false) fetched lazily.
-  const activeFeedItems = viewMode === "all" ? allModeItems : allItems;
-  const feedForSearch = filterFeedByPatients(activeFeedItems, visiblePatientIds);
-  const { filteredItems: filteredFeedRaw, serverLoading, serverError } = useDoctorExerciseCommentsSearch(
-    feedForSearch,
-    query,
-  );
-  // В режиме «Непрочитанные»: убираем локально прочитанные из ленты для сходимости счётчиков.
-  // В режиме «Все»: показываем все элементы, локальный read-стейт не фильтрует.
-  const filteredFeed =
-    viewMode === "unread" && locallyReadItems.size > 0
-      ? filteredFeedRaw.filter((item) => !locallyReadItems.has(item.stageItemId))
-      : filteredFeedRaw;
 
   // ── Load exercises for selected patient (state B) ──
   const loadExercises = useCallback(async (patientUserId: string) => {
@@ -818,58 +731,6 @@ export function DoctorCommentsTab({
     );
   }, [selectedExercise, exercisesData, threadMessages.length, markReadSent, markThreadRead]);
 
-  // ── Load more feed (state A) ──
-  const loadMore = useCallback(async () => {
-    if (!hasMore || historyLoading) return;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const params = new URLSearchParams();
-      if (cursor) params.set("cursor", JSON.stringify(cursor));
-      const res = await fetch(`/api/doctor/exercise-comments?${params.toString()}`);
-      if (!res.ok) throw new Error("fetch_failed");
-      const data = (await res.json()) as HistoryPage;
-      if (!data.ok) throw new Error("response_error");
-      setAllItems((prev) => {
-        const ids = new Set(prev.map((i) => i.stageItemId));
-        return [...prev, ...data.items.filter((i) => !ids.has(i.stageItemId))];
-      });
-      setCursor(data.nextCursor);
-      setHasMore(data.hasMore);
-    } catch {
-      setHistoryError("Не удалось загрузить историю. Попробуйте ещё раз.");
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [hasMore, historyLoading, cursor]);
-
-  // ── Load more feed (all mode) ──
-  const loadMoreAll = useCallback(async () => {
-    if (!allModeHasMore || allModeFeedLoading) return;
-    setAllModeFeedLoading(true);
-    setAllModeFeedError(null);
-    try {
-      const params = new URLSearchParams();
-      if (allModeCursor) params.set("cursor", JSON.stringify(allModeCursor));
-      const params2 = new URLSearchParams(params.toString());
-      params2.set("mode", "all");
-      const res = await fetch(`/api/doctor/exercise-comments?${params2.toString()}`);
-      if (!res.ok) throw new Error("fetch_failed");
-      const data = (await res.json()) as HistoryPage;
-      if (!data.ok) throw new Error("response_error");
-      setAllModeItems((prev) => {
-        const ids = new Set(prev.map((i) => i.stageItemId));
-        return [...prev, ...data.items.filter((i) => !ids.has(i.stageItemId))];
-      });
-      setAllModeCursor(data.nextCursor ?? null);
-      setAllModeHasMore(data.hasMore ?? false);
-    } catch {
-      setAllModeFeedError("Не удалось загрузить историю. Попробуйте ещё раз.");
-    } finally {
-      setAllModeFeedLoading(false);
-    }
-  }, [allModeHasMore, allModeFeedLoading, allModeCursor]);
-
   // ── Navigation handlers ──
   function handleSelectPatient(patient: CommentPatientRow) {
     setSelectedPatient(patient);
@@ -903,7 +764,12 @@ export function DoctorCommentsTab({
 
   // ── Left pane ────────────────────────────────────────────────────────────
 
-  const totalUnread = activePatients.reduce((s, p) => s + p.unreadCount, 0);
+  // Стабильный источник счётчиков для обоих toggle-фильтров (полная выборка,
+  // не зависит от того, какой из фильтров сейчас активен) — иначе счётчик
+  // «прыгал» бы при переключении соседнего фильтра.
+  const badgeCountSource = allModePatients ?? patients;
+  const totalUnread = badgeCountSource.reduce((s, p) => s + p.unreadCount, 0);
+  const onSupportCount = badgeCountSource.filter((p) => p.isOnSupport).length;
 
   // Handle view mode switch: reset navigation + query, then switch mode.
   function handleSwitchViewMode(mode: "unread" | "all") {
@@ -917,6 +783,16 @@ export function DoctorCommentsTab({
     setMetricsPoints(null);
     setQuery("");
     setViewMode(mode);
+  }
+
+  function handleToggleOnSupportOnly() {
+    setSelectedPatient(null);
+    setSelectedExercise(null);
+    setThreadMessages([]);
+    setExercisesData(null);
+    setMarkReadSent(false);
+    setMetricsPoints(null);
+    setOnSupportOnly((v) => !v);
   }
 
   // Loading/error state for left pane in "all" mode
@@ -936,46 +812,39 @@ export function DoctorCommentsTab({
           aria-label="Поиск пациентов"
         />
         <div className="flex flex-wrap gap-1.5">
-          {/* ── View mode toggle: Непрочитанные / Все ── */}
+          {/* ── Независимые toggle-фильтры: «Непрочитанные» и «На сопровождении» ──
+              Оба переключаются кликом независимо друг от друга; ни один активный
+              фильтр не требуется — тогда список показывает всех пациентов. */}
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => handleSwitchViewMode("unread")}
+            onClick={() => handleSwitchViewMode(viewMode === "unread" ? "all" : "unread")}
             className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
+              "cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
               viewMode === "unread"
-                ? "bg-primary/15 text-primary"
+                ? "bg-destructive/15 text-destructive"
                 : "border border-border text-muted-foreground hover:bg-muted/40",
             )}
             aria-pressed={viewMode === "unread"}
           >
-            Непрочитанные
+            Непрочитанные{totalUnread > 0 ? ` ${totalUnread}` : ""}
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => handleSwitchViewMode("all")}
+            onClick={handleToggleOnSupportOnly}
             className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
-              viewMode === "all"
+              "cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto",
+              onSupportOnly
                 ? "bg-primary/15 text-primary"
                 : "border border-border text-muted-foreground hover:bg-muted/40",
             )}
-            aria-pressed={viewMode === "all"}
+            aria-pressed={onSupportOnly}
           >
-            Все
+            ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ""}
           </Button>
-          {/* ★ На сопровождении — пассивный бейдж (маркер, не фильтр) */}
-          <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground">
-            ★ На сопровождении · {activePatients.filter((p) => p.isOnSupport).length}
-          </span>
-          {totalUnread > 0 && (
-            <span className="rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
-              Непрочитанных · {totalUnread}
-            </span>
-          )}
         </div>
       </div>
 
@@ -1015,73 +884,14 @@ export function DoctorCommentsTab({
 
   let rightPane: React.ReactNode;
 
-  // ── State A: mode-aware feed helpers ──
-  const feedLoading = viewMode === "all" ? allModeFeedLoading : historyLoading;
-  const feedError = viewMode === "all" ? allModeFeedError : historyError;
-  const feedHasMore = viewMode === "all" ? allModeHasMore : hasMore;
-  const handleLoadMore = viewMode === "all" ? loadMoreAll : loadMore;
-  const feedInitialLoading = viewMode === "all" && allModeFeedLoading && allModeItems.length === 0;
-
   if (!selectedPatient) {
-    // State A: feed of all comments
+    // State A: no patient selected. The right pane is a real empty state;
+    // the background comment feed is intentionally not rendered (owner-review §6).
     rightPane = (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {feedInitialLoading ? (
-          <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
-            Загрузка…
-          </DoctorEmptyState>
-        ) : filteredFeed.length === 0 && !serverLoading ? (
-          <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
-            {query.trim()
-              ? "Ничего не найдено"
-              : viewMode === "all"
-              ? "Нет комментариев по упражнениям"
-              : "Нет новых комментариев по упражнениям"}
-          </DoctorEmptyState>
-        ) : (
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            {filteredFeed.map((item) => (
-              <Button
-                key={item.stageItemId}
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  const patient = activePatients.find((p) => p.patientUserId === item.patientUserId);
-                  if (patient) {
-                    pendingStageItemIdRef.current = item.stageItemId;
-                    handleSelectPatient(patient);
-                  }
-                }}
-                className="w-full cursor-pointer border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
-              >
-                <ExerciseCommentPreviewItemContent
-                  item={item}
-                  isOnSupport={activePatients.find((p) => p.patientUserId === item.patientUserId)?.isOnSupport}
-                />
-              </Button>
-            ))}
-
-            {serverLoading && (
-              <p className="px-3 py-2 text-xs text-muted-foreground">Поиск…</p>
-            )}
-            {serverError && (
-              <p className="px-3 py-2 text-xs text-destructive">{serverError}</p>
-            )}
-            {feedError && (
-              <p className="px-3 py-2 text-xs text-destructive">{feedError}</p>
-            )}
-            {!query.trim() && feedHasMore && !feedLoading && (
-              <div className="flex justify-center px-3 py-2">
-                <Button variant="outline" size="sm" onClick={() => void handleLoadMore()}>
-                  Загрузить ещё
-                </Button>
-              </div>
-            )}
-            {feedLoading && filteredFeed.length > 0 && (
-              <p className="px-3 py-2 text-center text-xs text-muted-foreground">Загрузка…</p>
-            )}
-          </div>
-        )}
+        <DoctorEmptyState size="sm" className="flex flex-1 items-center justify-center py-10">
+          Выберите клиента, чтобы открыть комментарии
+        </DoctorEmptyState>
       </div>
     );
   } else if (!selectedExercise) {
@@ -1312,7 +1122,7 @@ export function DoctorCommentsTab({
         right={rightPane}
         mobileView={mobileView}
         mobileBackSlot={mobileBackSlot}
-        className="lg:grid-cols-[1fr_1.4fr] h-full"
+        className="h-full"
       />
     </div>
   );

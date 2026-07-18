@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { formatFioForDoctor } from "@/lib/parseFullName";
@@ -96,13 +96,15 @@ const STATUS_BADGE_CLASS: Record<IntakeStatus, string> = {
 
 const TYPE_LABELS: Record<string, string> = { lfk: "ЛФК", nutrition: "Нутрициология" };
 
-/** Статусы, по которым доступна фильтрация. Пустое множество = все заявки. */
+/** Статусы, по которым доступна фильтрация. Взаимоисключающий single-select — всегда выбран ровно один. */
 const FILTER_CHIPS: { status: IntakeStatus; label: string }[] = [
   { status: "new", label: "Новые" },
   { status: "in_review", label: "В работе" },
   { status: "booked", label: "Записанные" },
   { status: "rejected", label: "Отказанные" },
 ];
+
+const FILTER_STATUSES: IntakeStatus[] = FILTER_CHIPS.map((c) => c.status);
 
 const STATS_DAYS_OPTIONS = [7, 30, 90, 365] as const;
 type StatsDays = (typeof STATS_DAYS_OPTIONS)[number];
@@ -300,13 +302,11 @@ export function DoctorOnlineIntakeClient({
   const [allItems, setAllItems] = useState<IntakeItem[]>([]);
   const [loading, setLoading] = useState(true);
   /**
-   * Мультитоггл статусов: клик вкл/выкл конкретный статус.
-   * Пустое множество = показать все заявки.
+   * Взаимоисключающий single-select фильтр статусов: выбран ровно один статус,
+   * клик по другому чипу снимает предыдущий (сегмент-контрол, не мультитоггл).
    */
-  // Дефолт — все заявки (пустое множество = все). Клик по чипу включает/выключает фильтр.
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<IntakeStatus>>(
-    () => new Set<IntakeStatus>(),
-  );
+  const [selectedStatus, setSelectedStatus] = useState<IntakeStatus>("new");
+  const filterTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<IntakeDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -477,25 +477,34 @@ export function DoctorOnlineIntakeClient({
     }
   }
 
-  // Filter items client-side: пустой набор = все заявки
-  const filteredItems =
-    selectedStatuses.size === 0
-      ? allItems
-      : allItems.filter((item) => selectedStatuses.has(item.status));
+  // Single-select фильтр: всегда ровно один статус активен.
+  const filteredItems = allItems.filter((item) => item.status === selectedStatus);
 
   const newCount = allItems.filter((i) => i.status === "new").length;
   const inReviewCount = allItems.filter((i) => i.status === "in_review").length;
 
-  function toggleStatus(status: IntakeStatus) {
-    setSelectedStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) {
-        next.delete(status);
-      } else {
-        next.add(status);
-      }
-      return next;
-    });
+  /** Сегмент-контрол: клик/Enter/Space выбирает статус, снимая предыдущий. */
+  function selectStatus(status: IntakeStatus) {
+    setSelectedStatus(status);
+  }
+
+  /** Roving-tabindex keyboard contract для tablist: стрелки перемещают фокус и выбор. */
+  function handleFilterKeyDown(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      nextIndex = (index + 1) % FILTER_STATUSES.length;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      nextIndex = (index - 1 + FILTER_STATUSES.length) % FILTER_STATUSES.length;
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+    } else if (e.key === "End") {
+      nextIndex = FILTER_STATUSES.length - 1;
+    }
+    if (nextIndex === null) return;
+    e.preventDefault();
+    const status = FILTER_STATUSES[nextIndex]!;
+    selectStatus(status);
+    filterTabRefs.current[nextIndex]?.focus();
   }
 
   // Мобильный режим: если открыта деталь — показываем правую панель
@@ -503,24 +512,34 @@ export function DoctorOnlineIntakeClient({
 
   const leftPane = (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-      {/* Мультитоггл фильтров статусов */}
-      <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
-        {FILTER_CHIPS.map(({ status, label }) => {
+      {/* Взаимоисключающий single-select статус-фильтр — segmented/tab-like control */}
+      <div
+        role="tablist"
+        aria-label="Фильтр заявок по статусу"
+        className="flex shrink-0 flex-wrap gap-1.5 border-b border-border bg-muted/20 px-3 py-2"
+      >
+        {FILTER_CHIPS.map(({ status, label }, index) => {
           const count =
             status === "new" ? newCount : status === "in_review" ? inReviewCount : undefined;
-          const isActive = selectedStatuses.has(status);
+          const isActive = selectedStatus === status;
           return (
             <Button
               key={status}
+              ref={(el) => {
+                filterTabRefs.current[index] = el;
+              }}
               type="button"
+              role="tab"
               variant={isActive ? "ghost" : "outline"}
               size="sm"
-              onClick={() => toggleStatus(status)}
+              onClick={() => selectStatus(status)}
+              onKeyDown={(e) => handleFilterKeyDown(e, index)}
               className={cn(
                 "h-auto rounded-md px-2 py-1 text-xs",
                 isActive && "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary",
               )}
-              aria-pressed={isActive}
+              aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
             >
               {label}
               {count !== undefined && count > 0 ? ` · ${count}` : ""}
@@ -537,7 +556,7 @@ export function DoctorOnlineIntakeClient({
           </DoctorEmptyState>
         ) : filteredItems.length === 0 ? (
           <DoctorEmptyState className="flex-1 items-center justify-center py-8">
-            {selectedStatuses.size === 0 ? "Заявок нет" : "Нет заявок в выбранных статусах"}
+            Нет заявок в статусе «{STATUS_LABELS[selectedStatus]}»
           </DoctorEmptyState>
         ) : (
           filteredItems.map((item) => (
@@ -809,10 +828,7 @@ export function DoctorOnlineIntakeClient({
   return (
     <div id="doctor-communications-intake" className="flex min-h-0 flex-1 flex-col">
       <CatalogSplitLayout
-        className={cn(
-          DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
-          "lg:grid-cols-[1fr_1.4fr]",
-        )}
+        className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}

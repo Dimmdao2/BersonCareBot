@@ -92,19 +92,20 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.getAllByText(/\+79007770088/).length).toBeGreaterThan(0);
   });
 
-  it("показывает empty-state «Заявок нет» при пустом списке и без фильтров", async () => {
+  it("показывает empty-state по текущему статусу при пустом списке", async () => {
     vi.stubGlobal("fetch", makeFetch({ list: { items: [], total: 0 } }));
     render(<DoctorOnlineIntakeClient />);
-    // дефолт — все заявки (пустой выбор); пустой список → empty-state сразу
+    // дефолт — статус «Новые»; пустой список → empty-state с названием текущего статуса
     await waitFor(() => {
-      expect(screen.getByText(/заявок нет/i)).toBeInTheDocument();
+      expect(screen.getByText(/нет заявок в статусе «новая»/i)).toBeInTheDocument();
     });
   });
 
-  it("по умолчанию фильтр «Новые» не активен — показываются все заявки", async () => {
+  it("по умолчанию выбран статус «Новые» (single-select)", async () => {
     render(<DoctorOnlineIntakeClient />);
-    const newBtn = await screen.findByRole("button", { name: /Новые/i });
-    expect(newBtn).toHaveAttribute("aria-pressed", "false");
+    const newBtn = await screen.findByRole("tab", { name: /Новые/i });
+    expect(newBtn).toHaveAttribute("aria-selected", "true");
+    expect(newBtn).toHaveAttribute("tabIndex", "0");
   });
 
   it("нет кнопки «Все» — фильтр убран", async () => {
@@ -113,49 +114,53 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
   });
 
-  it("дефолт — пустой выбор — все заявки видны без клика", async () => {
+  it("дефолт «Новые» — заявка со статусом new видна без клика", async () => {
     render(<DoctorOnlineIntakeClient />);
-    // дефолт пустой выбор → все заявки сразу видны
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
   });
 
-  it("клик тоггл включает фильтр, повторный клик снимает — возвращаются все заявки", async () => {
+  it("клик по другому статусу выбирает его и снимает предыдущий (взаимоисключающий выбор)", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
 
-    // дефолт — пустой выбор, все заявки видны
-    expect(await screen.findByText("Список Имя")).toBeInTheDocument();
+    const newBtn = screen.getByRole("tab", { name: /Новые/i });
+    const inReviewBtn = screen.getByRole("tab", { name: /В работе/i });
+    expect(newBtn).toHaveAttribute("aria-selected", "true");
 
-    // Включаем фильтр «В работе» — заявка со статусом new исчезает
-    const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
+    // Выбираем «В работе» — заявка со статусом new исчезает, предыдущий статус снят
     await userEvent.click(inReviewBtn);
-    expect(inReviewBtn).toHaveAttribute("aria-pressed", "true");
-    // Заявка «new» не входит в «in_review»
+    expect(inReviewBtn).toHaveAttribute("aria-selected", "true");
+    expect(newBtn).toHaveAttribute("aria-selected", "false");
     await waitFor(() => {
       expect(screen.queryByText("Список Имя")).not.toBeInTheDocument();
     });
 
-    // Повторный клик — фильтр снимается, все заявки снова видны
-    await userEvent.click(inReviewBtn);
-    expect(inReviewBtn).toHaveAttribute("aria-pressed", "false");
+    // Повторный клик по «Новые» — возвращает выборку, всегда ровно один статус активен
+    await userEvent.click(newBtn);
+    expect(newBtn).toHaveAttribute("aria-selected", "true");
+    expect(inReviewBtn).toHaveAttribute("aria-selected", "false");
     expect(await screen.findByText("Список Имя")).toBeInTheDocument();
   });
 
-  it("можно включить несколько тогглов одновременно", async () => {
+  it("стрелка вправо переключает фокус и выбор на следующий статус (tablist keyboard contract)", async () => {
+    render(<DoctorOnlineIntakeClient />);
+    const newBtn = await screen.findByRole("tab", { name: /Новые/i });
+    const inReviewBtn = screen.getByRole("tab", { name: /В работе/i });
+
+    newBtn.focus();
+    await userEvent.keyboard("{ArrowRight}");
+
+    expect(inReviewBtn).toHaveAttribute("aria-selected", "true");
+    expect(inReviewBtn).toHaveFocus();
+    expect(newBtn).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("статус-фильтры образуют tablist ровно с одним активным табом", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
-
-    const newBtn = screen.getByRole("button", { name: /Новые/i });
-    const inReviewBtn = screen.getByRole("button", { name: /В работе/i });
-
-    // оба выключены по умолчанию; включаем «Новые» и «В работе»
-    await userEvent.click(newBtn);
-    await userEvent.click(inReviewBtn);
-
-    expect(newBtn).toHaveAttribute("aria-pressed", "true");
-    expect(inReviewBtn).toHaveAttribute("aria-pressed", "true");
-    // Заявка «new» должна быть видна (входит в выбранные статусы)
-    expect(screen.getByText("Список Имя")).toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(4);
+    expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toHaveLength(1);
   });
 });
 

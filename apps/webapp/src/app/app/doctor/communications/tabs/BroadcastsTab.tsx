@@ -136,7 +136,7 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
             ← Форма
           </Button>
         }
-        className="lg:grid-cols-[1fr_1.2fr] h-full"
+        className="h-full"
       />
     </div>
   );

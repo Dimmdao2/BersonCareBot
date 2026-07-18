@@ -4,22 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
-import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
 import type { CommentPatientRow } from "./loadDoctorCommentPatients";
 import type {
   PatientExercisesWithCommentsResult,
   ExerciseCommentItem,
 } from "./loadDoctorPatientExercisesWithComments";
-
-// Mock hook so unit tests aren't affected by debounce / server search logic
-vi.mock("./useDoctorExerciseCommentsSearch", () => ({
-  useDoctorExerciseCommentsSearch: (items: TodayExerciseCommentAttentionItem[]) => ({
-    filteredItems: items,
-    serverActive: false,
-    serverLoading: false,
-    serverError: null,
-  }),
-}));
 
 import { DoctorCommentsTab } from "./DoctorCommentsTab";
 
@@ -79,11 +68,6 @@ const FEED_B = makeFeedItem({ stageItemId: ITEM2, patientDisplayName: "Петр�
 
 const PAT_A = makePatient({ patientUserId: P1, displayName: "Иванов Иван" });
 const PAT_B = makePatient({ patientUserId: P2, displayName: "Петрова Мария", unreadCount: 2 });
-
-const CURSOR_1: DoctorExerciseCommentCursor = {
-  createdAt: "2026-06-11T10:00:00.000Z",
-  id: MSG1,
-};
 
 const EXERCISE_ITEM: ExerciseCommentItem = {
   stageItemId: ITEM1,
@@ -208,14 +192,13 @@ describe("DoctorCommentsTab — состояние A (лента)", () => {
     expect(screen.getAllByRole("button", { name: /Петрова Мария/i }).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("показывает ленту комментариев в правой панели по умолчанию (all-mode)", async () => {
+  it("без выбранного клиента показывает empty-state и не рендерит фоновую ленту", async () => {
     vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    // Wait for all-mode feed to load
-    await waitFor(() => {
-      const allIvanov = screen.getAllByText(/Иванов Иван/);
-      expect(allIvanov.length).toBeGreaterThanOrEqual(1);
-    });
+    expect(
+      await screen.findByText("Выберите клиента, чтобы открыть комментарии"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Комментарий А")).not.toBeInTheDocument();
   });
 
   it("показывает empty-state в левой панели если нет пациентов (all-mode)", async () => {
@@ -228,68 +211,62 @@ describe("DoctorCommentsTab — состояние A (лента)", () => {
     });
   });
 
-  it("показывает бейдж «★ На сопровождении» с числом пациентов", async () => {
+  it("показывает toggle-фильтр «★ На сопровождении» с числом пациентов", async () => {
     vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    // ★ На сопровождении теперь пассивный бейдж (span, не button), считает isOnSupport=true
+    // ★ На сопровождении — кликабельный toggle-фильтр (button, aria-pressed), не пассивный бейдж
     await waitFor(() => {
       // PAT_A and PAT_B both have isOnSupport: true → count = 2
-      expect(screen.getByText(/★ На сопровождении · 2/i)).toBeInTheDocument();
+      const btn = screen.getByRole("button", { name: /★ На сопровождении 2/i });
+      expect(btn).toHaveAttribute("aria-pressed", "false");
     });
   });
 
-  it("тоггл «Все» / «Непрочитанные» переключает viewMode", async () => {
+  it("нет отдельной кнопки «Все» — пустой выбор обоих фильтров означает весь список", async () => {
     vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    // Initial mode is "all" → «Все» button is aria-pressed=true
-    const btnAll = screen.getByRole("button", { name: /^Все$/i });
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }));
+    expect(screen.queryByRole("button", { name: /^Все$/i })).not.toBeInTheDocument();
+  });
+
+  it("«Непрочитанные» и «На сопровождении» переключаются независимо друг от друга", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
+    render(<DoctorCommentsTab {...defaultProps()} />);
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }));
+
     const btnUnread = screen.getByRole("button", { name: /Непрочитанные/i });
-    expect(btnAll).toHaveAttribute("aria-pressed", "true");
+    const btnOnSupport = screen.getByRole("button", { name: /★ На сопровождении/i });
     expect(btnUnread).toHaveAttribute("aria-pressed", "false");
-    // Switch to unread
+    expect(btnOnSupport).toHaveAttribute("aria-pressed", "false");
+
+    // Включаем «Непрочитанные» — «На сопровождении» не меняется
     await userEvent.click(btnUnread);
     expect(btnUnread).toHaveAttribute("aria-pressed", "true");
-    expect(btnAll).toHaveAttribute("aria-pressed", "false");
+    expect(btnOnSupport).toHaveAttribute("aria-pressed", "false");
+
+    // Дополнительно включаем «На сопровождении» — оба активны одновременно
+    await userEvent.click(btnOnSupport);
+    expect(btnUnread).toHaveAttribute("aria-pressed", "true");
+    expect(btnOnSupport).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("показывает «Загрузить ещё» когда hasMoreInitial=true (в режиме unread)", async () => {
-    // In unread mode, hasMoreInitial drives the "Загрузить ещё" button for the unread feed
-    vi.stubGlobal("fetch", stubFetchAllMode());
-    render(
-      <DoctorCommentsTab
-        {...defaultProps({ hasMoreInitial: true, initialCursor: CURSOR_1 })}
-      />,
-    );
-    // Switch to unread to see the unread "Загрузить ещё" button
-    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
-    expect(screen.getByRole("button", { name: /загрузить ещё/i })).toBeInTheDocument();
-  });
-
-  it("скрывает «Загрузить ещё» когда hasMoreInitial=false (в режиме unread)", async () => {
+  it("оба toggle-фильтра имеют pointer-affordance и aria-pressed", async () => {
     vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
-    await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
-    expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
+    await waitFor(() => screen.getAllByRole("button", { name: /Иванов Иван/i }));
+    const btnUnread = screen.getByRole("button", { name: /Непрочитанные/i });
+    const btnOnSupport = screen.getByRole("button", { name: /★ На сопровождении/i });
+    expect(btnUnread.className).toContain("cursor-pointer");
+    expect(btnOnSupport.className).toContain("cursor-pointer");
+    expect(btnUnread).toHaveAttribute("aria-pressed");
+    expect(btnOnSupport).toHaveAttribute("aria-pressed");
   });
 
-  it("«Загрузить ещё» вызывает /api/doctor/exercise-comments", async () => {
-    const fetchMock = stubFetchAllMode();
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(
-      <DoctorCommentsTab
-        {...defaultProps({ hasMoreInitial: true, initialCursor: CURSOR_1 })}
-      />,
-    );
-
-    // In all-mode, "Загрузить ещё" uses loadMoreAll if allModeHasMore; switch to unread for simplicity
+  it("не показывает пагинацию фоновой ленты без выбранного клиента", async () => {
+    vi.stubGlobal("fetch", stubFetchAllMode());
+    render(<DoctorCommentsTab {...defaultProps({ hasMoreInitial: true })} />);
     await userEvent.click(screen.getByRole("button", { name: /Непрочитанные/i }));
-    await userEvent.click(screen.getByRole("button", { name: /загрузить ещё/i }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-    const calls = fetchMock.mock.calls.map((args: unknown[]) => args[0] as string);
-    expect(calls.some((url) => url.includes("/api/doctor/exercise-comments"))).toBe(true);
+    expect(screen.queryByRole("button", { name: /загрузить ещё/i })).not.toBeInTheDocument();
   });
 });
 
