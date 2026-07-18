@@ -216,6 +216,21 @@ function validate({ requireComplete }) {
     const templateSrc = readRel(contract.template);
     if (!templateSrc) {
       errors.push(`${contract.template}: missing proof template`);
+    } else if (
+      contract.template ===
+        'docs/_TODO/SAAS_FOUNDATION/RUBITIME_RETIREMENT_R5_PRODUCTION_DISABLE_PROOF.template.md' &&
+      templateSrc.includes('SUPERSEDED 2026-07-15')
+    ) {
+      for (const fragment of [
+        'The former template was for an external operation and must not be executed.',
+        '## Required TEST evidence',
+        'Canonical booking smoke result and v1 endpoint negative assertions.',
+        'Aggregate-only route/error counts for the declared TEST window.',
+      ]) {
+        if (!templateSrc.includes(fragment)) {
+          errors.push(`${contract.template}: missing superseded TEST fragment ${fragment}`);
+        }
+      }
     } else {
       for (const fragment of contract.requiredFragments) {
         if (!templateSrc.includes(fragment)) {

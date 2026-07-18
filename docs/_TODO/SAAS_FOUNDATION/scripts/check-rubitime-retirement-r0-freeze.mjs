@@ -57,6 +57,8 @@ const frozenBaselines = {
     ['apps/webapp/src/infra/repos/pgBookingCatalog.ts', 1],
     ['apps/webapp/src/infra/repos/pgBookingEngine.ts', 5],
     ['apps/webapp/src/infra/repos/pgBookingRubitimeBridge.ts', 9],
+    // Curated operator diagnostics retain the existing provider label only; this is not a read-source branch.
+    ['apps/webapp/src/infra/repos/pgCuratedSystemHealthDiagnostics.ts', 1],
     ['apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts', 8],
     ['apps/webapp/src/infra/repos/pgDoctorAppointments.ts', 1],
     ['apps/webapp/src/infra/repos/pgDoctorClients.ts', 11],
