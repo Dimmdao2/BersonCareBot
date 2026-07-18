@@ -1661,3 +1661,64 @@ integration-canon drift remains.
 
 **ИЗМЕНИЛ:** appended this independent PASS record and promoted only the agreed current status surfaces to PASS.
 No code, DB, runtime, task state, commit or remote branch was changed.
+
+## 2026-07-18 — C0 launch manifest: canonical booking without Rubitime (`#839`)
+
+**Integration base:** `feat/doctor-ui-rebuild` at `66ff00174f84b612dbccc5fd092d1d52977cd0c9`, exactly aligned with
+`origin/feat/doctor-ui-rebuild` at launch. The only main-worktree delta is the owner's untracked
+`docs/_TODO/SESSION_HANDOFF_2026-07-17.md`; it is protected and excluded from this stage.
+
+**Repository consolidation:** stale agent worktrees and branches were audited before launch. FIO implementation
+commits `75e9621c2`, `95b6b29e0`, `af13e86ad`, `be10ad4ca`, `64a3684f6` and `1cc376d48` are already ancestors of
+the integration base. Four untracked FIO production-helper drafts were deliberately not integrated: they lacked
+the canonical exact-target, hash-bound manifest, expected-before drift guard, durable pre-commit rollback and
+PII-free evidence contract. The remaining unique docs-only branch was superseded by the normalized owner roadmap.
+After cleanup the only local branches are `feat/doctor-ui-rebuild` and `main`, and the only registered worktree is
+the integration worktree.
+
+**Selected stage:** roadmap C0 / taskdb `#839`; owner-review §10 in full. It is an independent incident stage and
+does not wait for C1 UI polish, S4 or U0. R1-R4 historical proof is provenance only because the owner reproduced the
+runtime regression on TEST after those passes.
+
+**Grounded root cause before delegation:** doctor/admin manual create reads the migrated
+`booking_rubitime_bridge_enabled` setting, resolves legacy mappings, calls `staffRubitimeManualBooking` after the
+canonical insert and hard-deletes/cancels that appointment when external sync fails. Manual reschedule calls
+Rubitime before the canonical lifecycle mutation and can block it; cancel still attempts a best-effort Rubitime
+mirror. The calendar's new-patient control calls `POST /api/doctor/clients` before the appointment request, so the
+appointment rollback leaves the newly created patient behind. R5 documentation says outbound was hardcoded off,
+but Git history and current code show that the policy has always read the legacy bridge setting. This proof/runtime
+contradiction is part of C0.
+
+**Acceptance and ownership path:**
+
+- staff/admin create, reschedule and cancel are canonical-only and make no Rubitime runtime call, even when a
+  migrated legacy setting remains enabled;
+- a new patient plus appointment succeeds without Rubitime; the flow is atomic or compensates its own partial
+  patient creation so an appointment failure does not leave a newly created patient because of this flow;
+- the appointment is visible through canonical calendar and patient-card projections;
+- normal booking settings expose no Rubitime tab, mapping editor, read-source selector or bridge control;
+- provider-neutral canonical lifecycle events, GCal/reminders/notifications/payments/packages remain intact;
+- CSV/history import remains offline/provider-neutral and is not mounted into the daily lifecycle;
+- existing uniqueness constraints and current settings/profile readers are investigated; no ad hoc cleanup or
+  migration is introduced without an existing runbook and an owner gate.
+
+The ownership path is the existing organization-scoped canonical appointment with its specialist/patient links.
+No new table, raw SQL, unscoped data or product model is authorized.
+
+**Worker scope:** doctor/admin manual create and manual reschedule routes; shared staff Rubitime runtime policy and
+related cancel/delete paths only as required to prove zero runtime calls; calendar new-patient/create flow;
+ordinary schedule/booking settings navigation and its focused tests. Historical data, Rubitime import/export,
+integrator raw tables/routes, migrations, production helpers and unrelated C1 schedule polish are protected.
+
+**Validation:** focused route/app-layer/component tests for create/reschedule/cancel, migrated-setting immunity,
+new-patient failure handling and Rubitime-tab absence; affected-file ESLint; webapp typecheck; diff check. Runtime UI
+acceptance uses the existing single dev server at `http://127.0.0.1:5200`, `dev:admin` and `dev:doctor`, the calendar
+create flow, synthetic DEV data and desktop/mobile viewports. No real channel send is allowed. TEST deploy or DB
+mutation is not authorized; the owner-observed TEST scenario remains pending until a separately authorized TEST
+deployment.
+
+**Agent sequence and stop gates:** one isolated worker (`worker-hard`, high) because lifecycle files overlap, then
+one independent full-stage reviewer (`reviewer`, high), correction owner if and only if findings map to the owner
+checklist or repository rules, and a complete re-audit. Stop for owner authority before TEST/PROD, destructive
+Rubitime actions, archive/drop, backfill or any product/architecture expansion. The temporary stage branch/worktree
+must be integrated into `feat/doctor-ui-rebuild` after PASS and then removed; accepted agent branches may not remain.
