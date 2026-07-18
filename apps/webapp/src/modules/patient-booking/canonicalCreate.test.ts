@@ -120,6 +120,10 @@ function deps(bridge: boolean, slotsReadSource: "rubitime" | "canonical" = "cano
 describe("createBookingOnCanonicalEngine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks keeps implementations → re-establish the happy-path default so a
+    // per-test override (e.g. validateAnswers {ok:false}) cannot leak into later tests.
+    bookingForm.validateAnswers.mockResolvedValue({ ok: true });
+    bookingForm.saveForAppointment.mockResolvedValue(undefined);
     bookingsPort.createPending.mockResolvedValue(pendingRecord());
     bookingsPort.markConfirmed.mockResolvedValue(confirmedRecord());
     bookingScheduling.assertSlotAvailable.mockResolvedValue(undefined);

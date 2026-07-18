@@ -1358,6 +1358,7 @@ describe("createPatientBookingService", () => {
     const bookingScheduling = {
       assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
       resolveInPersonContext: vi.fn(),
+      getMaxConsecutiveSlotHours: vi.fn().mockResolvedValue(3),
       getOnlineSlots,
       getInPersonSlots: vi.fn(),
     };
@@ -1406,6 +1407,7 @@ describe("createPatientBookingService", () => {
     const bookingScheduling = {
       assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
       resolveInPersonContext: vi.fn(),
+      getMaxConsecutiveSlotHours: vi.fn().mockResolvedValue(3),
       getOnlineSlots: vi.fn(),
       getInPersonSlots: vi.fn(),
     };
@@ -1458,6 +1460,7 @@ describe("createPatientBookingService", () => {
     const bookingScheduling = {
       assertSlotAvailable: vi.fn().mockResolvedValue(undefined),
       resolveInPersonContext: vi.fn(),
+      getMaxConsecutiveSlotHours: vi.fn().mockResolvedValue(3),
       getOnlineSlots: vi.fn(),
       getInPersonSlots: vi.fn(),
     };

@@ -143,8 +143,8 @@ describe("SlotStepClient", () => {
         maxConsecutiveSlotHours={2}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /10:00\s*-\s*11:00/ }));
-    await user.click(screen.getByRole("button", { name: /11:00\s*-\s*12:00/ }));
+    await user.click(screen.getByRole("button", { name: /13:00\s*-\s*14:00/ }));
+    await user.click(screen.getByRole("button", { name: /14:00\s*-\s*15:00/ }));
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
     const url = String(push.mock.calls[0]?.[0]);
@@ -168,7 +168,7 @@ describe("SlotStepClient", () => {
         maxConsecutiveSlotHours={1}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /10:00\s*-\s*11:00/ }));
-    expect(screen.getByRole("button", { name: /11:00\s*-\s*12:00/ })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /13:00\s*-\s*14:00/ }));
+    expect(screen.getByRole("button", { name: /14:00\s*-\s*15:00/ })).toBeDisabled();
   });
 });

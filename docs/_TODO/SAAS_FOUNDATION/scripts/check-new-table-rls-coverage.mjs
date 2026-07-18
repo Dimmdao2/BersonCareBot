@@ -125,7 +125,7 @@ function readSchemaOrgColumns() {
 function readForceTargets() {
   const targets = new Set();
   const source = readFileSync(join(repoRoot, cutoverSqlPath), "utf8");
-  for (const match of source.matchAll(/\('\"(public|integrator)\"\.\"([^\"]+)\"'\)/g)) {
+  for (const match of source.matchAll(/\('"(public|integrator)"\."([^"]+)"'\)/g)) {
     targets.add(`${match[1]}.${match[2]}`);
   }
   return targets;
