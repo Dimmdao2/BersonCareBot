@@ -1,15 +1,15 @@
 # UX-09 — implementation roadmap
 
-**Статус:** owner-review 2026-07-18 reconciled into the binding correction program §7.3. Implementation ещё не
-начиналась как единая программа; отдельные существующие механики и исправления имеют собственный code/taskdb
-status и должны перепроверяться перед выполнением. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)
+**Статус:** active execution on `feat/doctor-ui-rebuild`. C0-C3, C2F writer/display scope and the shared S4/S5
+foundation are integrated; C4 is in progress. Exact completion and owner-acceptance remain recorded per stage in
+this document and taskdb, and must be rechecked before launch. [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md)
 остаётся единственным источником требований, этот roadmap задаёт только порядок, зависимости и gates.
 **Authority:** `OWNER_REVIEW_2026-07-18.md` побеждает более ранние product/UX contracts при конфликте;
 `OWNER_RULINGS_2026-07-16.md` действует в неизменённой им области. Foundation canon остаётся выше только в
 foundation/tenant/enforcement scope.
 **Тип документа:** decision-gated plan, не разрешение на implementation, deploy, DB changes или rollout.  
-**Ветка планирования:** `feat/saas-interface-work3`; основной workstream и текущий SaaS enforcement order не
-изменяются.
+**Интеграционная ветка исполнения:** `feat/doctor-ui-rebuild`; историческая planning-ветка
+`feat/saas-interface-work3` больше не является execution base.
 
 ## 1. Результат и граница плана
 
@@ -247,10 +247,10 @@ atomic booking enrollment, patient invite/SMS lifecycle, switcher, safe booking 
 publication version, branded origin/PWA, custom sender, or commercial quota lifecycle: those belong to the named
 stages, not to a guessed schema.
 
-**No overlap and decisions.** #888/S4 remains pending in isolated commits and is not assumed landed; C2/C3 are verified,
-not reimplemented. All dated UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`,
-`U8A`, `U8B`, `U8C`) remain absent from launch. C4C5-01…07 and #855 are resolved product-policy branches under the
-2026-07-19 addendum; their implementation remains pending. C4C5-08 is explicitly deferred.
+**No overlap and decisions.** #888/S4 is integrated and verified; C2/C3 are verified, not reimplemented. All dated
+UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`, `U8A`, `U8B`, `U8C`) remain
+absent from launch. C4C5-01…07 and #855 are resolved product-policy branches under the 2026-07-19 addendum; their
+remaining stage-specific implementation is tracked below. C4C5-08 is explicitly deferred.
 
 ### 6.3 Journey ownership registry
 
@@ -482,6 +482,8 @@ card; запрещено строить временный resolver, второ�
   обязательного template — отдельный deferred pass.
 - **C4D — library ownership (`#724`):** own-only и новая platform base library; owner-clinic exercises никогда не
   становятся global. Future store surface/commerce не блокирует C4D.
+- **Status (2026-07-19):** C4B code, tenant/security audit and milestone CI are integrated through `d1fad7c65`;
+  live DEV entitlement OFF/ON acceptance remains open. C4A/C4C/C4D remain separate pending substages.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
   library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
   останавливает готовую tenant isolation.
@@ -535,9 +537,9 @@ over-limit policy исполнитель:
 - **Still deferred/non-blocking:** exact one-time phone-verification channel; patient confirmation may also use
   Telegram/MAX bot. It does not block email-based staff/specialist or patient registration. C4C5-08 store commerce
   remains deferred.
-- **`#888`:** the S4 registry/chokepoint implementation is still pending, but its owner gate is resolved: disabled
-  `patient_card` or `files` blocks every mutation/write in that section; read/export/recovery/safe offboarding stay
-  available and existing data is never deleted. This is an implementation requirement, not a completion claim.
+- **`#888`:** the S4 registry/chokepoint is integrated and verified. Disabled `patient_card` or `files` blocks every
+  mutation/write in that section; read/export/recovery/safe offboarding stay available and existing data is never
+  deleted. Product-specific C4/C5 capability and commercial stages remain pending where listed above.
 
 #### C6 — platform analytics и capacity threshold
 
