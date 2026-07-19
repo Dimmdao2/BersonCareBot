@@ -8,6 +8,8 @@
 | SEC-02 | [`SEC-02_HOST_AND_SECRETS.md`](SEC-02_HOST_AND_SECRETS.md) | read-only preflight only until gates |
 | DR-01/02 | [`DR-01_BACKUP_AND_RECOVERY.md`](DR-01_BACKUP_AND_RECOVERY.md) | design/preflight only until gates |
 | CRYPTO-01 | [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) | ADR/design now; application mutations only after D4/S5-7/legal gates |
+| NTF-01 | [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | N0 docs/read-only now; N1 only after exact dispatch scope; native provider waits MOB gates |
+| LOG-01 | [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | L0 census and exact-scoped L1 logging guard can run now |
 | INFRA-01 | [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | repo design now; disposable/TEST then owner-gated target/cutover |
 | PR-02 | [`PR-02_HEALTH_CONSENT.md`](PR-02_HEALTH_CONSENT.md) | blocked by D4 + S5-7 + legal text |
 | PR-03A/B | [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](PR-03_DATA_RIGHTS_AND_RETENTION.md) | A0 disables/gates current admin hard-delete now; rest of A after PR-02; B before purge; payment slice also #844/#845 |

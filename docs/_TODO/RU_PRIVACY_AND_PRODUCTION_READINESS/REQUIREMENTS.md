@@ -74,11 +74,29 @@
 - контролируемые security logs, alerts, access review, incident runbook и tabletop drill;
 - Security CI и процесс устранения находок с владельцем и сроком.
 
+### COMM — внешние каналы, push и вторичные copies
+
+- Telegram/MAX используются только для login/bind code и минимального auth handshake; product chat, reminders,
+  booking lifecycle, broadcasts, support и operator alerts не используют пользовательские messenger bots;
+- product event имеет canonical in-app state и доставляется только через app push: Web Push для browser/PWA,
+  APNs/FCM для native app после provider/legal gates;
+- отсутствие push target/permission не включает fallback в messenger/email/SMS; delivery status и onboarding
+  остаются наблюдаемыми;
+- routine date/time/payment/subscription/reminder details могут быть полезными; raw chat, diagnosis, symptom/test,
+  clinical note, intake summary, filename, attachment preview, presigned URL и secret в push запрещены;
+- invitation/access recovery/receipt/legal/export/deletion email/SMS — отдельные allowlisted service classes, а не
+  fallback продуктовых уведомлений;
+- APNs/FCM/Apple/Google и фактически передаваемые token/payload metadata включаются в processing/vendor/transborder
+  register до production;
+- SQL params, message bodies и clinical payload не дублируются в logs, delivery attempts, queues, retries или
+  dead-letter; необходимые metadata имеют retention/cleanup и marker-negative tests.
+
 ## 4. Вне scope
 
 - медицинская лицензия, клиническая диагностика и медицинские рекомендации;
 - смена Selectel или вывод данных за пределы РФ;
 - повторная разработка tenant walls/RLS, тарифов, billing, платежей и S5 settings split;
+- реализация native mobile UI внутри privacy stage; её отдельный roadmap — `NATIVE_MOBILE_APP_INITIATIVE`;
 - установка software на production без отдельного owner-approved change window;
 - автоматическое исправление находок security-сканеров;
 - сертификация средств защиты или аттестация ИСПДн до отдельного решения профильного специалиста.

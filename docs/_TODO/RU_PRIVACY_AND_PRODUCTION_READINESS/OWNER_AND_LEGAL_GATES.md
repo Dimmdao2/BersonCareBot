@@ -10,6 +10,7 @@
 | `G-03` | Retention по классам данных и допустимые исключения удаления | Минимальный документированный срок по каждой цели; запрет «хранить бессрочно» без основания | юрист + владелец домена | schema design `PR-03` |
 | `G-04` | Получатели/подрядчики и трансграничные потоки Telegram, MAX, SMTP, SMS, OAuth, payment и S3 | Не передавать клиническое содержание внешнему каналу; неизвестный регион/роль = блокирующий вопрос | владелец + юрист | завершение `PR-01` |
 | `G-04A` | Поручение Selectel и применимость актов к конкретным VPS/volume/image/snapshot/backup/S3; география copies, provider encryption, deletion и противоречие обычного/аттестованного облака для УЗ-1/УЗ-2 | До письменного ответа не считать provider compliance закрытым; использовать готовый тикет из `OWNER_ACTIONS` | владелец + Selectel + юрист | покупка target VPS и `INFRA-01/I0` |
+| `G-04B` | Роли, договоры и трансграничная передача Apple/Google/APNs/FCM: device token, IP/device metadata, payload text, region/retention/subprocessors | До заключения не передавать raw clinical/free text; использовать `T0–T2` allowlist, `T3` neutral event copy; provider TEST/PROD и store privacy declarations ждут письменного review | владелец + юрист/ПДн specialist | `NTF-01/N2`, `MOB-03/05` |
 | `G-05` | Статус уведомления РКН и актуальность сведений в реестре | Немедленно сверить фактические цели/категории/системы; решение о подаче/обновлении принимает ответственное лицо | ответственное лицо по ПДн | `PR-01`, не откладывать до release gate |
 | `G-05A` | Interim legal containment до реализации нового consent lifecycle | До письменного решения не добавлять новые цели обработки health data, новых получателей/подрядчиков или onboarding новых организаций с health data; продолжение текущей обработки отдельно подтверждает владелец/юрист | владелец + юрист | немедленно в `PR-01` |
 | `G-06` | Границы ИСПДн, модель угроз, уровень защищённости и необходимость аттестации/сертифицированных средств | Определяет внешний специалист после инвентаризации, не агент | специалист по защите ПДн | `PR-04` |
@@ -23,8 +24,28 @@
 | `G-12` | Итоговый legal/technical residual-risk acceptance | Никакого auto-accept; незакрытый high risk = no-go либо письменное решение владельца с deadline | владелец + внешний reviewer | `PR-04` |
 | `G-13` | Disk layout и key custody: full-root LUKS2 или полный encrypted data boundary; manual/remote unlock; recovery copies и ответственные | In-place conversion текущего root запрещён по умолчанию; ключ не хранится на том же открытом диске | владелец + архитектор + внешний reviewer | `CRYPTO-01/C0`, покупка target VPS |
 | `G-14` | S3 application encryption architecture и допустимые latency/cost/UX trade-offs | Новые health objects не пишутся plaintext; versioning только после delete-all-versions capability | владелец + архитектор | `CRYPTO-01/C2` implementation |
+| `G-15` | Product channel/content policy: где остаются login codes, куда идут reminders/notifications и общий подход к push preview | Owner ruling ниже закрывает channel topology и отказ от blanket masking; exact event/field matrix готовят агенты и принимает/корректирует владелец после census, provider legality отдельно `G-04B` | владелец + архитектор | `NTF-01/N1` topology; content builders до `MOB-O9` |
 
 ## Формат решения
+
+### Product direction, 2026-07-19 — `G-15 decided`
+
+- Telegram/MAX остаются только для login/bind code и минимального auth handshake. Mini-app/product menu, chat,
+  reminders, booking callbacks, broadcasts, support/admin replies и product notifications выводятся.
+- Product notifications/reminders имеют in-app source of truth и доставляются через app push: Web Push для browser/
+  PWA на переходе, APNs/FCM для полноценного native app.
+- Отсутствие push target/permission не разрешает fallback в Telegram/MAX/email/SMS. Пользователь видит in-app
+  state; система видит `no_active_target` и предлагает включить push.
+- Полностью скрывать любой текст не требуется: push должен оставаться полезным, а не сводиться к одинаковому
+  «что-то произошло».
+
+Engineering safe default до `MOB-O9/G-04B`, а не дословное дополнительное решение владельца: разрешать routine
+date/time/payment/subscription/reminder details; raw arbitrary clinical/chat/intake/task/file/secret payload оставлять
+внутри authenticated app; email/SMS allowlist service messages и operator monitoring держать отдельно от product
+reminder fallback. Exact event/field matrix после census принимает или корректирует владелец одним пакетом.
+
+`G-15` не закрывает `MOB-O9` и `G-04B`: owner product direction не подменяет exact field-level acceptance и правовую
+оценку Apple/Google/APNs/FCM payload/metadata flows.
 
 ### Product direction, 2026-07-19 — частично фиксирует `G-03`
 

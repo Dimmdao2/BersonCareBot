@@ -37,6 +37,10 @@
 | SEC-02 repository safety slice (`#900`) | `executable_now` | Read-only census + reversible preflight/rollback/shell tests в существующих deploy paths; не применять host changes. |
 | DR-01 repository backup slice (`#901`) | `executable_now` | Усилить единственный canonical `deploy/postgres/postgres-backup.sh` и его тесты без dumps/keys/real restore. |
 | CRYPTO-01/C0 (`#898`, до отдельной child task) | `executable_now` | Data-at-rest map, threat/key ADR, typed boundary proposal и test vectors; C1 только после принятого C0. |
+| NTF-01/N0 (`#913`) | `executable_now` | Полный outbound/event/channel/content/queue census и exact manifests; current multi-channel runtime не меняется в docs slice. |
+| NTF-01/N1 и Web Push routing (`#913`, exact child scopes later) | `executable_now` | Central auth-only messenger guard и push-only resolver slices могут идти после exact dispatch/feature file locks; не зависят от billing. |
+| NTF-01 native APNs/FCM | `owner_or_legal_gate` | Ждёт `MOB-00/MOB-02`, `G-04B`, provider accounts и restricted setting/key architecture. |
+| LOG-01/L0-L1 (`#914`) | `executable_now` | Census + exact-scoped removal raw SQL params/body from logs; queue/schema retention waits `G-03`. |
 | PR-03A0 disable + negative invariant (`#905`, узкий child scope) | `executable_now` | Worker + correction на base `d1fad7c65` закрыли legacy API/UI и четыре operational account-delete команды, включая integrator account/Rubitime deletion paths; baseline checker FAIL → PASS, targeted tests/typecheck/lint PASS. Статус остаётся `executable_now` до независимого audit и integration commit; strict-purge core и media pending-delete не менялись. |
 | SEC-03 event contract/census (`#908`) | `executable_now` | Только docs/generated inventory/checker design; подключение clinical endpoints и audit store ждёт D4. |
 | PR-02 consent implementation (`#907`) | `owner_or_legal_gate` | Ждёт D4, S5-7 и `G-02`/утверждённую форму; обычный checkbox не является safe default. |
@@ -138,6 +142,25 @@
 - Protected: endpoint adapters, DB/schema, audit repository and active D4 files.
 - Checks: endpoint classes covered or explicitly excluded; forbidden payload field/redaction fixtures; architecture
   review. Runtime implementation remains `active_dependency` on stable D4 and approved retention/access model.
+
+### L8 — NTF-01/N0 notification egress census, taskdb `#913`
+
+- Outcome: producer → resolver → queue → dispatch → provider → in-app map for chat/program notes/reminders/tasks/
+  booking/payment/broadcast/intake/support/operator events; every event has message class and `T0–T3` tier.
+- Allowed: privacy/mobile initiative docs and read-only discovery. Current notification architecture docs are
+  baseline facts and receive only a target-plan pointer until runtime changes.
+- Protected: application routing, bot scripts, settings UI, queues/schema, active SaaS/Product UX/billing/DNA files.
+- Checks: no unclassified family; current copied fields/retention/tests cited; independent architecture/security
+  review; exact N1/N3 child scopes proposed without code mutations.
+
+### L9 — LOG-01/L0-L1 immediate log guard, taskdb `#914`
+
+- Outcome: exact log/queue census; raw SQL/params and unknown message/body payload no longer printed by scoped DB/
+  logger error paths; safe fingerprint/code/correlation remains.
+- Before file lock: code-search `db query error sql params logger console.error delivery_attempt_logs payload_json`
+  and exact runtime/logger tests. Do not absorb queue schema/retention or active notification feature code.
+- Checks: captured stdout/stderr and nested error fixtures with `SENSITIVE_TEST_MARKER`; targeted tests, lint/typecheck,
+  independent security audit. Real production logs and payload values are not read in this DEV slice.
 
 ## Разрешённый scope
 

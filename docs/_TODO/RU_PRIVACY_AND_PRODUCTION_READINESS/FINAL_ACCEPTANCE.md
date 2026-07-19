@@ -37,6 +37,13 @@ production readiness.
       manual/timer/job/API path не может выполнить irreversible purge. Полное закрытие инициативы ждёт `PR-03B`.
 - [ ] Payment retention согласован с финальным billing contract `#751`.
 - [ ] Полный `pnpm run ci` зелёный на integration/release SHA.
+- [ ] Product events создают canonical in-app state и только разрешённый push intent; Telegram/MAX способны только
+      на login/bind code/auth handshake и не имеют product callbacks/menu/support relay.
+- [ ] Web Push/APNs/FCM content соответствует `T0–T3`: routine date/time/payment/status полезны; raw clinical/chat/
+      intake/task/file/secret payload отсутствует. No push target не включает hidden fallback.
+- [ ] Booking/reminder/broadcast/support push не зависит от messenger target/job success; legacy pending product
+      messenger jobs закрыты controlled cutover evidence.
+- [ ] APNs/FCM `G-04B` и store privacy declarations закрыты до native production delivery.
 
 ## Host/secrets/storage
 
@@ -62,6 +69,8 @@ production readiness.
 - [ ] Incident classification не запускает 24/72 для любого события автоматически; применимый сценарий включает
       утверждённый порядок взаимодействия с ГосСОПКА.
 - [ ] Owner принял residual risks (`G-12`) и отдельно открыл production change window (`G-11`).
+- [ ] Synthetic sensitive markers отсутствуют в SQL/application/provider logs, delivery attempts, queue/retry/
+      dead-letter terminal records; correlation/status/error-code диагностика сохранена.
 
 ## Итог
 

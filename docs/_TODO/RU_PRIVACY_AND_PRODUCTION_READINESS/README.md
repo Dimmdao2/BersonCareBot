@@ -11,6 +11,7 @@
 - доказуемая обработка российских персональных данных, включая сведения о здоровье;
 - согласия, права субъекта, сроки хранения и удаление;
 - защита production-хоста, секретов, резервных копий и S3;
+- controlled app-push delivery, messenger auth-only boundary и очистка вторичных copies в logs/queues;
 - аудит доступа, реагирование на инциденты и итоговый production readiness gate.
 
 Это **не юридическое заключение** и не обещание автоматического соответствия 152-ФЗ. Технические доказательства
@@ -31,6 +32,10 @@
 8. [`stages/`](stages/README.md) — подробные чек-листы исполнения, включая crypto и encrypted PROD cutover.
 9. [`EVIDENCE/README.md`](EVIDENCE/README.md) — правила и индекс доказательств.
 10. [`LOG.md`](LOG.md) — только новые факты исполнения; история не переписывается.
+
+Связанная отдельная product/engineering initiative для полноценного Android/iOS приложения:
+[`../NATIVE_MOBILE_APP_INITIATIVE/README.md`](../NATIVE_MOBILE_APP_INITIATIVE/README.md). Она не встраивается в
+активные SaaS/Product UX stages; privacy-план задаёт только обязательную channel/content/provider boundary.
 
 ## Защищённая граница текущих работ
 
@@ -53,8 +58,8 @@ billing и перечисленные задачи остаются защищё
 
 - Реестр статусов и self-contained launch manifests: [`stages/PR-00_SCOPE_LOCK.md`](stages/PR-00_SCOPE_LOCK.md).
 - Сейчас разрешены DEV/repository-only slices, явно помеченные там `executable_now`: `SEC-01`, фактический `PR-01`,
-  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0` и временное закрытие administrative hard-delete
-  с negative guard `PR-03A0`.
+  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0`, `NTF-01/N0`, `LOG-01/L0-L1` и временное закрытие
+  administrative hard-delete с negative guard `PR-03A0`.
 - Application-level безопасность, consent, audit, retention, crypto и CI не откладываются из-за будущего переноса
   production-хоста; они идут сразу после своих D4/S5/legal gates.
 - Шифрование диска, firewall/SSH/systemd/packages/secrets на реальном production-хосте, реальные backup/restore,

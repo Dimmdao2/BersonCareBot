@@ -125,6 +125,25 @@ Append-only журнал. Планирование не переводит ни 
 - Уточнены evidence labels: S5-0…S5-3 — technical done/tested/audited до отдельного lead confirmation owner
   acceptance; payment-retention dependency — C5B `#844/#845`, не C5A `#751`.
 
+## 2026-07-19 — owner direction: native app push and messenger auth-only
+
+- Владелец зафиксировал новый product boundary: Telegram/MAX остаются только для login/bind codes; reminders и
+  product notifications переходят в push приложения. Полная нейтрализация всех push-текстов отвергнута.
+- Владелец отверг blanket masking: push должен сохранять разумный полезный контекст. Агенты предложили tiered safe
+  default: routine appointment/payment/subscription/reminder details остаются полезными, а arbitrary chat/clinical/
+  intake/task/file/secret payload — внутри authenticated app. Exact event/field matrix ждёт `MOB-O9/G-04B`.
+- Технический audit подтвердил текущий gap: Web Push сейчас лишь primary, а Telegram/MAX/email/SMS остаются fan-out/
+  fallback в chat, reminders, booking, broadcasts, tasks, intake/support и operator paths; часть booking push зависит
+  от messenger jobs.
+- Добавлены `NTF-01` и `LOG-01`: central egress guard, feature/bot/settings/queue cutover и устранение raw SQL params/
+  message payload copies из logs/attempts/retries. Active SaaS/S5/Product UX/billing/Doctor DNA планы не менялись.
+- Уточнение владельца про полноценное приложение вынесено в отдельный
+  [`NATIVE_MOBILE_APP_INITIATIVE`](../NATIVE_MOBILE_APP_INITIATIVE/README.md): Capacitor ADR, mobile session,
+  APNs/FCM, deep links, device/store/privacy gates. Web Push теперь migration/browser transport, не конечная native
+  архитектура.
+- `G-15` закрывает product direction; `G-04B` остаётся обязательным внешним review Apple/Google/APNs/FCM. Нельзя
+  утверждать, что все push copies физически остаются в РФ: provider получает token/metadata и разрешённый payload.
+
 ## 2026-07-19 — PR-03A0 worker: immediate account purge fail-closed
 
 - На base `d1fad7c65` добавлен статический account-purge checker. Первый запуск до runtime correction ожидаемо дал

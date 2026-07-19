@@ -1,6 +1,9 @@
 # Каналы уведомлений: Web Push — основной
 
-**Статус:** канон с **2026-06-08**.  
+**Статус:** канон текущего runtime с **2026-06-08**. Owner target от **2026-07-19** ещё не реализован: product
+notifications должны перейти на app push, а Telegram/MAX — остаться только auth-code channels. План миграции:
+[`NTF-01`](../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md).
+Не добавлять новые product messenger flows по текущему fallback baseline.
 **Код:** `apps/webapp/src/modules/doctor-notifications/`, `apps/webapp/src/modules/patient-notifications/`, `apps/webapp/src/modules/web-push/`.
 
 ## Принцип
@@ -45,7 +48,7 @@
 
 ## Связанные документы
 
-- Staff PWA и install: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md`](../DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md)
+- Staff PWA и install: [`DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md`](../_ARCHIVE/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/STAFF_PWA_ADR.md)
 - Program note → врачу: [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md)
 - Support chat M2M: [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) §Support chat
 - API: [`apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md) — `doctor/web-push/*`, `patient/web-push/*`

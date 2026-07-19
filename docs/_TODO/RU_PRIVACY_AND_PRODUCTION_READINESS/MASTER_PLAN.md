@@ -3,8 +3,8 @@
 Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
 
 Taskdb: master `#898`; `PR-00/01 #899`; `SEC-02 #900`; `DR-01/02 #901`; `PR-03 #905`; `SEC-04 #906`;
-`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`. Security CI остаётся
-отдельной существующей задачей `#881`. `CRYPTO-01` и `INFRA-01` до выделения exact implementation scopes остаются
+`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`; `NTF-01 #913`; `LOG-01 #914`. Отдельный native mobile roadmap —
+`#915`. Security CI остаётся отдельной существующей задачей `#881`. `CRYPTO-01` и `INFRA-01` до выделения exact implementation scopes остаются
 sub-stages umbrella `#898/#900/#901`; отдельные implementation-задачи создаются только с exact file scope и stable
 dependency SHA, чтобы не пересечь активные D3/D4/S5/billing работы.
 
@@ -23,6 +23,8 @@ production data и secrets этим решением не разрешены.
 | `DR-01` Backup and S3 | проектирование сейчас; TEST до production | шифрованные, проверяемые и отдельно хранимые backups | 4–7 дней |
 | `DR-02` Disaster recovery | после `DR-01` | измеренный restore VPS/DB/S3, утверждённые RPO/RTO | 2–4 дня |
 | `CRYPTO-01` Data/key encryption | ADR сейчас; application после D4/S5-7/legal gates | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets | 3–6 недель |
+| `NTF-01` App push / messenger auth-only | N0 сейчас; dispatch/routing по exact scopes; native leg после MOB gates | product push-only, auth-only bots, content tiers, no hidden fallback | 3–6 недель |
+| `LOG-01` Payload hygiene | L0/L1 сейчас; queue/schema после retention gate | no raw SQL params/clinical text in logs, attempts, retries and queues | 1–3 недели |
 | `INFRA-01` Encrypted PROD migration | disposable proof после owner/provider gates; cutover только после PR-04A | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого | 1–2 недели + окно |
 | `PR-02` Health consent | после D4 + S5-7 + legal text | отдельный versioned consent lifecycle | 4–7 дней |
 | `PR-03A/B` Data rights/lifecycle | A0 disable/gate существующего admin hard-delete сейчас; остальной A после `PR-02`; B до purge; payment slice после C5B freeze #844/#845 | сначала закрытый destructive path и negative guard; затем manual containment и DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
@@ -30,8 +32,9 @@ production data и secrets этим решением не разрешены.
 | `SEC-04` Governance/incidents | после `SEC-03` + log/break-glass gates | JML, vulnerability SLA, protected logs и 24/72 incident drill | 4–7 дней |
 | `PR-04A/B` ISPDn release gate | A перед cutover, B после soak/decommission | модель угроз/мер, evidence pack, внешний review, owner go/no-go и closure фактической topology | 3–7 дней + review |
 
-Оценка инженерного объёма без ожидания владельца/юриста и production-окон: **примерно 13–22 человеко-недель**.
-При трёх независимых исполнителях календарный путь обычно **8–13 недель** после стабилизации зависимостей. Правовые
+Оценка инженерного объёма без native mobile UI, ожидания владельца/юриста и production-окон: **примерно 17–30
+человеко-недель**. При трёх независимых исполнителях календарный путь обычно **10–16 недель** после стабилизации
+зависимостей. Отдельный native roadmap оценивается в своём `MASTER_PLAN`. Правовые
 решения, закупка/доступы и ожидание активных SaaS стадий могут увеличить календарный срок.
 
 ## 2. Dependency gates
@@ -42,10 +45,14 @@ production data и secrets этим решением не разрешены.
         SEC-02 preflight ─> TEST rehearsal ─────────────┤
         DR-01 design ─> TEST backup/restore ─> DR-02 ───┤
         CRYPTO-01/C0 ADR ────────────────────────────────┤
+        NTF-01/N0 ─> N1 guard ──────────────────────────┤
+        LOG-01/L0 ─> L1 guard ──────────────────────────┤
 D4 + S5-7 closed ─> PR-02 ─> PR-03A ─────┐            gate PR-04A
                               PR-03B ──────┼─> full initiative / purge gate
                     SEC-03 ─> SEC-04 ─────┤
                     CRYPTO-01/C1-C4 ──────┤
+MOB-00/02 + G-04B ─> NTF-01 native push ──┤
+                    NTF-01 + LOG-01 ───────┤
 owner/provider gates ─> INFRA-01/I1-I4 ──┘
 PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
 #844/#845 C5B freeze ─> payment retention/offboarding slice of PR-03
@@ -62,6 +69,8 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
   чтения актуальных runbooks, rehearsal и owner gate.
 - `CRYPTO-01` ADR/ports/tests можно проектировать сейчас, но media/settings/schema implementation ждёт stable
   D4/S5-7 SHA и свои legal/owner gates.
+- `NTF-01/N0-N1` и `LOG-01/L0-L1` не ждут billing. Feature routing получает отдельные exact scopes; settings UI
+  ждёт stable S5-7/свободный Doctor DNA scope. APNs/FCM leg ждёт `MOB-00/MOB-02` и `G-04B`.
 - `PR-03A0` сначала фиксирует ожидаемый FAIL: сейчас существует admin `POST .../permanent-delete`, вызывающий
   `runStrictPurgePlatformUser`. Затем slice временно закрывает administrative hard-delete, добавляет checker/test и
   получает PASS. Ядро strict purge не удаляется; deletion state, таймер, job, schema, emails и export не добавляются.
@@ -152,6 +161,29 @@ write freeze/final encrypted sync → phased activation → soak → rotation/de
 
 Результат: production работает на принятой encrypted topology, старый plaintext VPS не остаётся скрытым вторым PROD.
 
+### NTF-01 — App push и messenger auth-only
+
+Подробно: [`stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md).
+
+Что: Telegram/MAX остаются только login/bind code channel; product chat/reminders/booking/broadcast/support идут в
+in-app source + push. Web Push — browser migration transport, APNs/FCM — native transport после mobile/provider gates.
+
+Как: central typed egress guard → provider-neutral push → vertical feature migration → bot retirement → settings/
+queue cutover. Content tiers сохраняют полезные даты/статусы, но исключают arbitrary clinical/free text.
+
+Результат: никакого скрытого messenger/email/SMS fallback; без push target событие остаётся in-app и наблюдаемым.
+
+### LOG-01 — Logs, attempts and queue payload hygiene
+
+Подробно: [`stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md).
+
+Что: убрать raw SQL params, message/clinical bodies, tokens и filenames из logs/delivery attempts/retries/dead-letter;
+минимизировать очереди и задать retention/cleanup.
+
+Как: census → немедленный logger/DB error guard → queue/schema slices после retention gate → marker-negative tests.
+
+Результат: техническая диагностика сохраняет correlation/status/error codes, но не создаёт новые plaintext copies.
+
 ### PR-02 — Health consent
 
 Подробно: [`stages/PR-02_HEALTH_CONSENT.md`](stages/PR-02_HEALTH_CONSENT.md).
@@ -228,6 +260,9 @@ post-cutover host/storage state, residual risks, owners и сроки.
       reviewer; у alerts есть owner/SLA.
 - [ ] Backup/DR подтверждены restore drill с измеренными RPO/RTO.
 - [ ] Client-side media encryption, key recovery/rotation и legacy plaintext migration подтверждены на TEST.
+- [ ] Product notifications доставляются только через app push; Telegram/MAX ограничены auth-code allowlist;
+      APNs/FCM vendor/legal gate закрыт.
+- [ ] Raw clinical/message/SQL-param markers отсутствуют в logs, attempts, queues and retries.
 - [ ] Новый encrypted PROD прошёл reboot/restore/cutover/rollback evidence; старые plaintext copies закрыты.
 - [ ] Consent/DSAR/retention/offboarding проверены end-to-end и tenant-negative tests зелёные.
 - [ ] `FINAL_ACCEPTANCE.md` закрыт владельцем и внешним специалистом в их областях.
