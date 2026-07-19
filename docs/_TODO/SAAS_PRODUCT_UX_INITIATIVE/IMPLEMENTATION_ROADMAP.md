@@ -333,7 +333,8 @@ Timeout или недостаток контекста не считаются s
    «audit PASS» сам по себе — гейт, НИКОГДА не критерий завершения.
 4. **Заранее собранный лист решений владельца.** До старта C4/C5 все pending owner-gates (`UX08-01…12`, OM/BD,
    quota / trial / PSP / seat-pricing / analytics-формулы / solo-label) сводятся в **один** плейн-лист:
-   по каждому — рекомендация + safe-default. Владелец закрывает за один присест; C2–C7 едут без блоков в полёте.
+   по каждому — рекомендация + safe-default. Для текущей программы этот checkpoint закрыт addendum 2026-07-19:
+   C4C5-01…07 resolved, C4C5-08 deferred. Новый gate сначала добавляется в тот же канон, а не угадывается в полёте.
 
 #### Stage launch manifest — обязателен перед первым worker
 
@@ -504,17 +505,22 @@ card; запрещено строить временный resolver, второ�
   enforcement exists.
 - **C5D — future store commerce (`#724`):** purchase/subscription/licensing/moderation only after its owner decisions;
   absent from launch acceptance unless explicitly activated.
-- **Decision gates:** первый PSP и его точные юридические/кассовые операции; quota units/period/soft-hard behavior;
-  post-trial/downgrade/proration; store purchase/subscription model. Неизбранный PSP не блокирует registry,
-  ownership, state-machine contract, mock/recorded adapter tests или UI IA.
+- **Resolved policy / implementation readiness:** YooKassa — first candidate, но real activation ждёт точных merchant/
+  legal/receipt/retry/proration proof; quota units/period остаются data-configured, а behavior следует принятой policy
+  80% warning / 100% new-growth-only hard block; trial/grace/post-trial задаются global-admin data, один trial на
+  organization, audited overrides only. C4C5-08 store purchase/subscription model остаётся deferred. Неготовая real
+  PSP activation не блокирует registry, ownership, provider-neutral state-machine contract, mock/recorded adapter
+  tests или UI IA.
 - **Dependencies:** S4-0/S4-1, C3 shell и relevant C4 ownership substage. C5A/B/C/D не образуют один общий стоп:
-  provider-neutral inventory/ports/security tests могут идти до policy choice, business transitions — нет. Billing
-  mutations только server-authorized, идемпотентны и не могут вручную объявить деньги полученными.
+  provider-neutral inventory/ports/security tests и transitions по resolved policy могут идти до real-provider
+  activation proof; real payment mutations — нет. Billing mutations только server-authorized, идемпотентны и не
+  могут вручную объявить деньги полученными.
 - **Gate:** owner-review §§P1-P3; global operator vs organization payer vs ordinary specialist; webhook replay/
   amount/org negatives; audit, reconciliation, TEST provider-safe acceptance.
 
-**C5C post-owner-gate checklist:** после утверждения included seats, per-seat price/purchase moment и downgrade/
-over-limit policy исполнитель:
+**C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
+резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
+downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:
 
 1. переиспользует C4A server-side seat usage/limit contract и C5B billing account/order/subscription primitives;
 2. строит payer-authorized add-on checkout/order → idempotent confirmed payment → subscription seat allocation; client

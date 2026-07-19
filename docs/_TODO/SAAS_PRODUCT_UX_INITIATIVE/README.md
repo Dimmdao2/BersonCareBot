@@ -1,12 +1,13 @@
 # SaaS Product UX Initiative
 
-**Статус:** planning package 2026-07-16 supplemented by the complete 2026-07-18 owner review. Requirements are
-consolidated in [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md), and execution stages/dependencies are
-reconciled in [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §7.3. Implementation has not started as one
-program; individual existing mechanics keep their own taskdb/code status. The earlier statement about `0` pending
-product decisions applies only to the 2026-07-16 packet.
-**Рабочая ветка:** `feat/saas-interface-work3`.  
-**Taskdb:** `#787`.
+**Статус:** staged execution in progress. Planning package 2026-07-16, complete owner review 2026-07-18 and owner
+addendum 2026-07-19 are consolidated in
+[`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md); the binding execution DAG, current stage status and
+task mappings are maintained in [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) §7.3. Discovery task
+`#787` is completed and accepted; implementation continues through the stage-specific taskdb cards named in that
+roadmap. The earlier statement about `0` pending product decisions applies only to the 2026-07-16 packet.
+**Рабочая ветка:** `feat/doctor-ui-rebuild`.
+**Taskdb:** `#787` — historical discovery; execution — stage-specific cards in `IMPLEMENTATION_ROADMAP.md` §7.3.
 
 ## Цель
 
@@ -21,9 +22,9 @@ product decisions applies only to the 2026-07-16 packet.
 - как устроены публичный лендинг, публичные страницы организаций, брендинг и custom domains;
 - как будущая IA переиспользует текущие экраны без параллельных копий.
 
-Итог инициативы — проверяемая product/UX specification и implementation backlog. Owner product gates для
-solo-first launch закрыты; реализация всё равно начинается только после implementation/foundation readiness и
-сверки с текущим SaaS-планом.
+Итог инициативы — поэтапно реализованный и проверенный owner roadmap, поддержанный product/UX specification и
+актуальным implementation backlog. Owner product gates для solo-first launch классифицированы; каждая реализация
+всё равно проходит собственные implementation/foundation readiness и stage acceptance.
 
 ## Граница с текущим SAAS_FOUNDATION
 
@@ -45,9 +46,10 @@ settings, billing и capability activation; эти delta уже reconciled в `I
 
 ## Канонические входы
 
-- Единый owner-review от 2026-07-18: [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md) — последний
-  канон глобальных продуктовых решений и UI corrections этой сессии; при конфликте его финальная формулировка
-  побеждает более ранние product/UX документы;
+- Единый owner-review от 2026-07-18 с датированным addendum 2026-07-19:
+  [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md) — последний канон глобальных продуктовых решений и UI
+  corrections этой сессии; при конфликте его более поздняя финальная формулировка побеждает более ранние product/UX
+  документы;
 - Foundation-решения владельца: `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` — высший приоритет в
   foundation/tenant/enforcement scope;
 - UX product-решения владельца от 2026-07-16: `OWNER_RULINGS_2026-07-16.md` — предыдущий authority, действующий в
