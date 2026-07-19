@@ -37,7 +37,7 @@
 | SEC-02 repository safety slice (`#900`) | `executable_now` | Read-only census + reversible preflight/rollback/shell tests в существующих deploy paths; не применять host changes. |
 | DR-01 repository backup slice (`#901`) | `executable_now` | Усилить единственный canonical `deploy/postgres/postgres-backup.sh` и его тесты без dumps/keys/real restore. |
 | CRYPTO-01/C0 (`#898`, до отдельной child task) | `executable_now` | Data-at-rest map, threat/key ADR, typed boundary proposal и test vectors; C1 только после принятого C0. |
-| PR-03A0 disable + negative invariant (`#905`, узкий child scope) | `executable_now` | Existing gap: admin `POST .../permanent-delete` сейчас вызывает DB+S3 hard-delete. Slice воспроизводит FAIL, закрывает administrative path и получает PASS без удаления strict-purge implementation. |
+| PR-03A0 disable + negative invariant (`#905`, узкий child scope) | `executable_now` | Worker implementation на base `d1fad7c65` закрыла legacy API/UI и operational `reset-user`/`purge-by-id`; baseline checker FAIL → PASS, targeted tests/typecheck/lint PASS. Статус остаётся `executable_now` до независимого audit и integration commit; strict-purge core и media pending-delete не менялись. |
 | SEC-03 event contract/census (`#908`) | `executable_now` | Только docs/generated inventory/checker design; подключение clinical endpoints и audit store ждёт D4. |
 | PR-02 consent implementation (`#907`) | `owner_or_legal_gate` | Ждёт D4, S5-7 и `G-02`/утверждённую форму; обычный checkbox не является safe default. |
 | PR-03A manual retention/request flow | `owner_or_legal_gate` | Ждёт PR-02 и `G-03`; 90 дней — product target, не разрешение включить таймер удаления. |

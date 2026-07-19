@@ -23,16 +23,20 @@ unscoped delete scripts и production purge без dry-run/owner gate.
 
 ## PR-03A0 — close existing immediate hard-delete
 
-- [ ] Baseline честно FAIL: admin `POST .../permanent-delete` вызывает `runStrictPurgePlatformUser` с DB+S3
+- [x] Baseline честно FAIL: admin `POST .../permanent-delete` вызывает `runStrictPurgePlatformUser` с DB+S3
       hard-delete; operational `purge-by-id` также входит в census, а не остаётся скрытым bypass.
-- [ ] Administrative API/UI/operational entrypoints временно fail-closed до принятой retention state machine;
+- [x] Administrative API/UI/operational entrypoints временно fail-closed до принятой retention state machine;
       strict-purge implementation не удаляется и не переписывается.
-- [ ] Census различает account/organization hard purge и resource-specific cleanup. `media-pending-delete` остаётся
+- [x] Census различает account/organization hard purge и resource-specific cleanup. `media-pending-delete` остаётся
       отдельным cleanup конкретного media resource.
-- [ ] Checker/test сначала подтверждает текущий FAIL, затем PASS только когда ни один administrative/runtime
+- [x] Checker/test сначала подтверждает текущий FAIL, затем PASS только когда ни один administrative/runtime
       entrypoint не может запустить account/org irreversible purge.
-- [ ] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema.
-- [ ] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`.
+- [x] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema.
+- [x] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`.
+
+Worker implementation завершена 2026-07-19 на base `d1fad7c65`; независимый audit и integration commit остаются
+stage gate. `reset-user` включён в fail-close вместе с `purge-by-id`, потому что он напрямую удалял
+`platform_users` и тем самым обходил тот же owner invariant.
 
 ## PR-03A — pre-launch containment
 

@@ -5,14 +5,8 @@
  * Команды:
  *   info <phone>          — показывает пользователя и количество связанных записей.
  *
- *   reset-user <phone>   — удаляет identity (platform_users + channel_bindings + pins + login_tokens),
- *                           строки по этому номеру в phone_otp_locks, phone_challenges, appointment_records
- *                           (сопоставление по цифрам номера). Затем снимает ссылки, мешающие FK
- *                           (patient_lfk_assignments, online_intake_requests и т.д.).
- *                           Остальной контент по user_id при возможности сохраняется для reassign-user (CONTENT_TABLES).
- *                           Удаление platform_users каскадно трогает таблицы с ON DELETE CASCADE — см. миграции.
- *                           Затем (если задан URL integrator БД) удаляет пользователя integrator по
- *                           contacts(phone) и platform_users.integrator_user_id, записи rubitime по номеру.
+ *   reset-user <phone>   — ВРЕМЕННО ОТКЛЮЧЕНА: немедленное удаление учётной записи запрещено до принятой
+ *                           retention state machine.
  *
  *   reassign-user <phone> <old-uuid>
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
@@ -32,9 +26,8 @@
  *                           уже удалён из platform_users, а в журнале остались строки с этим id.
  *
  *   purge-by-id <platform-user-uuid>
- *                         — полное удаление: контент по CONTENT_TABLES (включая doctor_notes как пациент и как author),
- *                           identity, platform_users, строки по номеру (если телефон был), затем integrator как у reset-user.
- *                           Удобно, когда нужно «убрать юзера отовсюду» по UUID (ошибка привязки номера и т.д.).
+ *                         — ВРЕМЕННО ОТКЛЮЧЕНА: strict purge сохранён как внутренний primitive, но не доступен
+ *                           через операционный CLI до owner-gated post-retention flow.
  *
  *   webapp-cleanup-by-integrator-id <bigint>
  *                         — только webapp: строки проекций, где нет привязки к platform_users UUID, а есть integrator_user_id
@@ -69,8 +62,16 @@ import { config as loadDotenv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 import pg, { type PoolClient } from "pg";
-import { runStrictPurgePlatformUser } from "../src/infra/strictPlatformUserPurge";
 const { Pool } = pg;
+
+const ACCOUNT_PURGE_DISABLED = "ACCOUNT_PURGE_DISABLED";
+
+function rejectAccountPurge(command: "reset-user" | "purge-by-id"): void {
+  console.error(
+    `${ACCOUNT_PURGE_DISABLED}: команда ${command} временно отключена до принятой retention state machine.`,
+  );
+  process.exitCode = 1;
+}
 
 /** Имена хостов из docker-compose, недоступные с хоста ОС при запуске tsx. */
 const BLOCKED_DB_HOSTS = new Set(["base"]);
@@ -261,23 +262,6 @@ async function findUser(phone: string) {
 
 function isPlatformUserUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim());
-}
-
-async function findUserById(id: string) {
-  const res = await db.query<{
-    id: string;
-    phone_normalized: string | null;
-    display_name: string;
-    role: string;
-    created_at: string;
-    integrator_user_id: string | null;
-  }>(
-    `SELECT id, phone_normalized, display_name, role, created_at::text,
-            integrator_user_id::text AS integrator_user_id
-     FROM platform_users WHERE id = $1`,
-    [id.trim()],
-  );
-  return res.rows[0] ?? null;
 }
 
 async function resolveIntegratorUserIds(
@@ -541,165 +525,6 @@ async function deleteWebappProjectionByIntegratorUserId(
   log("Удалено из support_conversations (integrator_user_id)", r.rowCount ?? 0);
 }
 
-/**
- * Ссылки на platform_users(id) без ON DELETE CASCADE блокируют DELETE.
- * Снимаем их до удаления identity / строки пользователя.
- */
-async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
-  const log = (label: string, rowCount: number) => {
-    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
-  };
-
-  let r = await client.query(`UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`, [userId]);
-  log("platform_users.blocked_by → NULL", r.rowCount ?? 0);
-
-  r = await client.query(
-    `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`,
-    [userId],
-  );
-  log("patient_lfk_assignments.assigned_by → NULL", r.rowCount ?? 0);
-
-  r = await client.query(`DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`, [userId]);
-  log("Удалено из patient_lfk_assignments (patient_user_id)", r.rowCount ?? 0);
-
-  r = await client.query(`DELETE FROM online_intake_requests WHERE user_id = $1`, [userId]);
-  log("Удалено из online_intake_requests", r.rowCount ?? 0);
-
-  r = await client.query(`UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`, [userId]);
-  log("lfk_complex_templates.created_by → NULL", r.rowCount ?? 0);
-
-  r = await client.query(`UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`, [userId]);
-  log("lfk_exercises.created_by → NULL", r.rowCount ?? 0);
-
-  r = await client.query(`UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`, [userId]);
-  log("system_settings.updated_by → NULL", r.rowCount ?? 0);
-
-  r = await client.query(
-    `UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`,
-    [userId],
-  );
-  log("doctor_notes: author_id → user_id (разные субъект/автор)", r.rowCount ?? 0);
-}
-
-async function resetUser(phone: string): Promise<void> {
-  const user = await findUser(phone);
-  if (!user) {
-    console.log(`Пользователь с номером ${normalize(phone)} не найден.`);
-    return;
-  }
-
-  console.log(`\nСброс identity для: ${user.display_name} (${user.id})`);
-  console.log(`Старый UUID для reassign: ${user.id}`);
-  console.log("(см. лог: данные по номеру → FK → identity)\n");
-
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-
-    console.log("Удаление по номеру (webapp):");
-    await deletePhoneKeyedWebappRows(client, user.phone_normalized);
-
-    await clearPlatformUserDeleteBlockers(client, user.id);
-
-    for (const { table, column } of IDENTITY_TABLES) {
-      const r = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
-      if ((r.rowCount ?? 0) > 0) console.log(`  Удалено из ${table}: ${r.rowCount}`);
-    }
-
-    const r = await client.query(`DELETE FROM platform_users WHERE id = $1`, [user.id]);
-    console.log(`  Удалено из platform_users: ${r.rowCount}`);
-
-    await client.query("COMMIT");
-    console.log(`\n✓ Webapp: identity удалена. Старый UUID для reassign: ${user.id}`);
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
-
-  const digs = phoneDigits(user.phone_normalized);
-  const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
-  if (integratorDb) {
-    console.log("\nIntegrator:");
-    await deleteIntegratorPhoneData(digs, intIds);
-    console.log("✓ Integrator очищен.");
-  } else {
-    console.error("");
-    console.error(
-      "ВНИМАНИЕ: Integrator БД не подключена — в боте может остаться привязка телефона (linkedPhone).",
-    );
-    console.error(
-      "  Тогда /start не покажет запрос контакта. Подключите integrator и повторите reset-user, либо выполните:",
-    );
-    console.error(`  USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE=${DEFAULT_INTEGRATOR_ENV} ... integrator-clear-phone ${normalize(phone)}`);
-    console.log("\n(Integrator БД не задана — пропуск.)");
-    if (process.env.USER_PHONE_ADMIN_STRICT_INTEGRATOR === "1") {
-      console.error("USER_PHONE_ADMIN_STRICT_INTEGRATOR=1 — выход с кодом 2.");
-      process.exitCode = 2;
-      return;
-    }
-  }
-}
-
-async function purgeUserByPlatformId(rawId: string): Promise<void> {
-  const id = rawId.trim();
-  if (!isPlatformUserUuid(id)) {
-    console.error("Ожидается UUID пользователя webapp (platform_users.id), 36 символов с дефисами.");
-    process.exitCode = 1;
-    return;
-  }
-
-  const user = await findUserById(id);
-  if (!user) {
-    console.log(`Пользователь с id=${id} не найден в platform_users.`);
-    console.log(
-      "Если строку уже удалили раньше: webapp-cleanup-by-integrator-id <id> (хвосты журналов/подписок в webapp), " +
-        "integrator-clear-phone <номер> или integrator-purge-user-id <id> (БД integrator).",
-    );
-    return;
-  }
-
-  console.log(
-    `\nПолное удаление (webapp + integrator): ${user.display_name} (${user.id}), телефон: ${user.phone_normalized ?? "—"}\n`,
-  );
-
-  const result = await runStrictPurgePlatformUser({ targetId: id, actorId: null, audit: { enabled: true } });
-  if (!result.ok) {
-    if (result.error === "not_client") {
-      console.error("Отмена: пользователь не с role=client (полное удаление только для клиентов).");
-      process.exitCode = 1;
-    } else if (result.error === "not_found") {
-      console.log(`Пользователь с id=${id} не найден (возможно, удалён параллельно).`);
-    } else if (result.error === "transaction_failed") {
-      console.error(`Ошибка транзакции webapp: ${result.transactionError ?? ""}`);
-      process.exitCode = 1;
-    }
-    return;
-  }
-
-  console.log(`\n✓ Webapp: пользователь ${id} удалён (strict purge outcome=${result.outcome}).`);
-  if (result.outcome !== "completed") {
-    console.error("Внешняя очистка завершилась не полностью (S3/integrator). Детали:");
-    console.error(JSON.stringify(result.details, null, 2));
-    process.exitCode = 1;
-  }
-  if (result.integratorSkipped) {
-    console.error("");
-    console.error(
-      "ВНИМАНИЕ: Integrator БД не подключена — в боте может остаться привязка телефона (linkedPhone).",
-    );
-    console.error(`  USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE=${DEFAULT_INTEGRATOR_ENV} + integrator-clear-phone <номер>`);
-    console.log("\n(Integrator БД не задана — пропуск.)");
-    if (process.env.USER_PHONE_ADMIN_STRICT_INTEGRATOR === "1") {
-      console.error("USER_PHONE_ADMIN_STRICT_INTEGRATOR=1 — выход с кодом 2.");
-      process.exitCode = 2;
-    }
-  } else {
-    console.log("✓ Integrator очищен.");
-  }
-}
-
 async function scrubWebappByPhone(phone: string): Promise<void> {
   const norm = normalize(phone);
   console.log(`\nWebapp: очистка appointment_records / OTP / message_log по номеру ${norm}\n`);
@@ -852,7 +677,7 @@ async function main() {
         break;
       case "reset-user":
         if (!arg1) { console.error("Укажите номер: reset-user 79189000782"); process.exit(1); }
-        await resetUser(arg1);
+        rejectAccountPurge("reset-user");
         break;
       case "reassign-user":
         if (!arg1 || !arg2) {
@@ -873,7 +698,7 @@ async function main() {
           console.error("Укажите UUID: purge-by-id 05f08456-1205-41d7-9060-e132c12359b8");
           process.exit(1);
         }
-        await purgeUserByPlatformId(arg1);
+        rejectAccountPurge("purge-by-id");
         break;
       case "webapp-cleanup-by-integrator-id":
         if (!arg1) {

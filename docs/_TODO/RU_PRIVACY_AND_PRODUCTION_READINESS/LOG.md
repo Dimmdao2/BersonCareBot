@@ -124,3 +124,21 @@ Append-only журнал. Планирование не переводит ни 
   export, schema, timers и новый purge flow остаются за PR-02/G-03 и не проектируются в correction.
 - Уточнены evidence labels: S5-0…S5-3 — technical done/tested/audited до отдельного lead confirmation owner
   acceptance; payment-retention dependency — C5B `#844/#845`, не C5A `#751`.
+
+## 2026-07-19 — PR-03A0 worker: immediate account purge fail-closed
+
+- На base `d1fad7c65` добавлен статический account-purge checker. Первый запуск до runtime correction ожидаемо дал
+  `FAIL`: legacy admin route вызывал strict purge, UI показывал destructive action, `purge-by-id` вызывал strict
+  purge, а `reset-user` напрямую удалял `platform_users`.
+- Legacy `POST .../permanent-delete` после существующих admin/workspace guards теперь всегда возвращает
+  `409 account_purge_disabled`; destructive UI action и вызов endpoint удалены. Архив/возврат из архива сохранены.
+- Operational `reset-user` и `purge-by-id` сохранены как распознаваемые команды, но fail-closed до принятой
+  retention state machine. Остальные ограниченные repair/reassign команды этого CLI не менялись.
+- `runStrictPurgePlatformUser`, `platformUserFullPurge` и `internal/media-pending-delete/purge` не менялись. Checker
+  отдельно требует наличие strict core и resource-specific media cleanup, поэтому PR-03A0 не выдаёт себя за
+  отключение удаления отдельного media resource.
+- PASS: `pnpm --dir apps/webapp run check:account-purge-disabled`; PASS negative fixture:
+  `pnpm --dir apps/webapp run check:account-purge-disabled:test` (2 tests); PASS targeted Vitest permanent-delete +
+  workspace audit (2 files / 60 tests); PASS webapp typecheck; PASS scoped ESLint; `git diff --check` clean.
+- Не делались schema/DB/DEV DB/TEST/PROD/deploy, 90-day state, timers/jobs, emails, export, offboarding или изменения
+  strict-purge/media cleanup semantics. Независимый security/data-lifecycle audit и integration commit выполняет lead.

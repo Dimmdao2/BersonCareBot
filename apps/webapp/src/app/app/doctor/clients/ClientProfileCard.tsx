@@ -287,10 +287,7 @@ function ClientProfileCardInner({
             <DoctorClientAccountTab
               profile={profile}
               userId={userId}
-              listBasePath={listBasePath}
               canEditClientProfile={canEditClientProfile}
-              isAdmin={isAdmin}
-              canPermanentDelete={canPermanentDelete}
               lfkExerciseLinesByComplexId={lfkExerciseLinesByComplexId}
             />
           </TabsContent>

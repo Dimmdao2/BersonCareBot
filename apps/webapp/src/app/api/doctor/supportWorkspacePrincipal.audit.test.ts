@@ -227,7 +227,6 @@ describe("doctor support/task workspace principal cutover", () => {
     for (const file of [
       "src/app/api/doctor/clients/[userId]/block/route.ts",
       "src/app/api/doctor/clients/[userId]/archive/route.ts",
-      "src/app/api/doctor/clients/[userId]/permanent-delete/route.ts",
       "src/app/api/doctor/patients/[userId]/email-change/route.ts",
     ]) {
       const src = readSource(file);
@@ -238,11 +237,9 @@ describe("doctor support/task workspace principal cutover", () => {
 
     const purgeRoute = readSource("src/app/api/doctor/clients/[userId]/permanent-delete/route.ts");
     expect(purgeRoute).toContain("requireAdminModeSession");
-    expect(purgeRoute).toContain("const targetUserId = identityInWorkspace.userId");
-    expect(purgeRoute).toContain("targetId: targetUserId");
-    expect(purgeRoute.indexOf("getClientIdentityForOrganization")).toBeLessThan(
-      purgeRoute.indexOf("runStrictPurgePlatformUser({"),
-    );
+    expect(purgeRoute).toContain("requireDoctorWorkspaceApiContext");
+    expect(purgeRoute).toContain("account_purge_disabled");
+    expect(purgeRoute).not.toContain("runStrictPurgePlatformUser");
 
     const emailRoute = readSource("src/app/api/doctor/patients/[userId]/email-change/route.ts");
     expect(emailRoute).toContain("withDoctorWorkspacePrincipal");

@@ -17,20 +17,14 @@ import { doctorClientTabSectionClass } from "./doctorClientCardChrome";
 type Props = {
   profile: ClientProfile;
   userId: string;
-  listBasePath: string;
   canEditClientProfile: boolean;
-  isAdmin: boolean;
-  canPermanentDelete: boolean;
   lfkExerciseLinesByComplexId: Record<string, LfkComplexExerciseLine[]>;
 };
 
 export function DoctorClientAccountTab({
   profile,
   userId,
-  listBasePath,
   canEditClientProfile,
-  isAdmin,
-  canPermanentDelete,
   lfkExerciseLinesByComplexId,
 }: Props) {
   const [contactsEditing, setContactsEditing] = useState(false);
@@ -122,9 +116,6 @@ export function DoctorClientAccountTab({
         <DoctorClientLifecycleActions
           userId={userId}
           isArchived={identity.isArchived}
-          listBasePath={listBasePath}
-          isAdmin={isAdmin}
-          canPermanentDelete={canPermanentDelete}
         />
       </section>
 
