@@ -81,3 +81,47 @@ executed; S5-7 is TEST/owner/ops-gated. No claim of full S5 completion is made.
 - Independent audit `bcb-s5-0-settings-reality-lock-audit-20260719` — PASS against the full S5-0 checklist.
 - The initial worker sandbox could not access worktree Git metadata or its dependency store; this was an execution
   environment limitation, not a source failure. No install, DB, TEST, deploy or full-CI action was performed.
+
+## 2026-07-19 — S5-1 additive schema/data-contract executor pass
+
+Allowed S5-1 scope only: `appRuntimeSettings.ts`, canonical migration `0209`, Drizzle journal, one static contract
+test and architecture/S5 docs. Existing migrations `0186`–`0208`, S4 files and all service/repository/DI/route/UI
+files were left unchanged. No DB, env, deploy, TEST/DEV/PROD action or full CI was performed.
+
+### Implemented contract
+
+- `0209_s5_runtime_settings_audit_contract` adds `public.app_runtime_settings_audit` with UUID identity, runtime row
+  key/scope/org/audience, old/new JSON, `updated_by`, source and timestamp; its organization/actor FKs use
+  `CASCADE`/`SET NULL`, structural scope/audience checks, and separate global/org key-history indexes.
+- `AFTER INSERT OR UPDATE` trigger `app_runtime_settings_audit_change` inserts precisely one audit row in the same
+  PostgreSQL transaction. Its source is an explicitly reset session marker or `runtime_store_write`; migration backfill uses
+  `s5_1_backfill`. This is the single audit owner: S5-3 must not add a second application-level audit insert.
+- `0209` preserves `0186` runtime-table identity/RLS/grants unchanged. Its normal-row definition list is checked
+  exactly against all S5-0 `storage=runtime` registry keys. Existing `0193` org-only `patient_booking_url` handling
+  is explicitly preserved rather than recreated.
+- Residual normal backfill preserves source key/scope/org/value/updated metadata and only updates an existing runtime
+  row when the source timestamp is not older. Missing global registration rows receive registry defaults without
+  overwriting an existing destination. VAPID, payment, OAuth and SMS projections reconstruct only allowlisted output
+  fields; credential-shaped fields are not materialized in runtime or audit rows.
+
+### Evidence
+
+- PASS: targeted `appRuntimeSettings.s5Contract.test.ts` — 1 file, 5 tests. A one-off runner-loaded config was used
+  because worktree `node_modules` is a read-only symlink and the normal Vite loader cannot create `.vite-temp`; no
+  dependency installation or worktree configuration changed.
+- PASS: `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` — journal includes `0209` as index 209 after 0208.
+- PASS: targeted ESLint for `appRuntimeSettings.ts` and `appRuntimeSettings.s5Contract.test.ts`.
+- PASS: `pnpm --dir apps/webapp typecheck`. The worktree has safe symlinks only to already-installed package-level
+  `node_modules` in the sibling checkout; no dependency installation or lockfile change was made.
+- PASS: `node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs` — private PostgreSQL 16 cluster created
+  under a unique `/tmp/bcb_s5_1_runtime_settings_scratch_*` directory with a private socket, reserved ephemeral
+  port and uniquely named scratch DB. The runner supplies a minimal synthetic predecessor (`0186`) and fixture,
+  applies `0209` twice, and removes the whole cluster in `finally`. It does not read application env or connect to
+  DEV/TEST/PROD.
+- The dynamic proof checks schema/checks/FKs/indexes and one trigger owner; exactly one audit row per direct insert
+  and update; rollback leaves no runtime/audit row; the second `0209` apply creates no audit history; aggregate
+  source/destination counts match by every normal runtime key; restricted source keys are absent; derived runtime
+  rows/audit contain no credential-shaped fields; and a newer destination row is preserved. It emits only a fixed
+  aggregate PASS line, never fixture values, PII or secrets.
+- S5-1 is complete for its additive schema/data/audit-contract scope. S5-2 through S5-7 remain unexecuted; in
+  particular, no RLS/grant/runtime-write-chokepoint or live TEST/ops claim is implied.

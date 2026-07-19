@@ -275,32 +275,42 @@ audit, fixer и повторный audit по `docs/ORCHESTRATION_BINDINGS.md:49
 
 **Scope:** webapp Drizzle schema, следующая generated migration, schema docs/checkers. Старые rows не удалять.
 
-- [ ] Добавить `public.app_runtime_settings`: `key`, `scope`, nullable `organization_id`, `audience`, `value_json`,
-  `updated_at`, `updated_by`; partial unique indexes для global и org identity; FK на organization/actor по
-  существующим ownership моделям. **Где:** рядом с `schema.ts:2642-2658`; **доказательство:** Drizzle schema/migration
-  test проверяет columns, checks, indexes и FKs.
-- [ ] Добавить `public.app_runtime_settings_audit` с old/new values, actor, source и org.
+**Current reconciliation (2026-07-19):** `app_runtime_settings` already exists from `0186` and selected later
+migrations. S5-1 preserves its identity, partial unique indexes, FKs and structural checks; only the missing audit
+contract and residual registry-backed backfill belong to `0209`. The database trigger is the single intended audit
+owner. S5-3 must route writes through its chokepoint without adding a second audit insert.
+
+- [x] Подтвердить и сохранить существующий `public.app_runtime_settings`: `key`, `scope`, nullable
+  `organization_id`, `audience`, `value_json`, `updated_at`, `updated_by`; partial unique indexes для global и org
+  identity, FK и structural checks из `0186` не переписываются. **Доказательство:** S5-1 contract test читает
+  migration/schema boundary; runtime root не создаётся повторно.
+- [x] Добавить `public.app_runtime_settings_audit` с old/new values, actor, source и org.
   **Где:** рядом с audit-моделью `apps/webapp/db/schema/schema.ts:2642-2658` и следующим generated migration;
   **доказательство:** first write и update создают ровно одну audit row в той же transaction; rollback transaction
   не оставляет audit.
-- [ ] Добавить CHECK только на стабильные structural enums (`scope`, `audience`), не DB whitelist ключей.
+- [x] Добавить CHECK только на стабильные structural enums (`scope`, `audience`), не DB whitelist ключей.
   **Где:** schema и generated migration из предыдущего пункта, anchor
   `apps/webapp/db/schema/schema.ts:2642-2658`; **доказательство:** новый registry key не требует DDL; invalid audience
   отклоняется DB.
-- [ ] В той же additive migration скопировать только S5-0 runtime keys из `public.system_settings`, сохранив
+- [x] В той же additive migration скопировать только S5-0 runtime keys из `public.system_settings`, сохранив
   `(key, scope, organization_id, value_json, updated*)`; derived rows построить safe projection.
   **Где:** следующий generated migration после существующих
   `apps/webapp/db/drizzle-migrations/0163_saas_tariffs_and_entitlements.sql:1-52`; **доказательство:** idempotent
   migration fixture, source/destination counts by key, zero restricted keys в destination; значения в test output
   не печатаются.
-- [ ] Обновить `docs/ARCHITECTURE/DB_STRUCTURE.md` и configuration docs, не объявляя старые copies удалёнными.
+- [x] Обновить `docs/ARCHITECTURE/DB_STRUCTURE.md` и configuration docs, не объявляя старые copies удалёнными.
   **Где:** `docs/ARCHITECTURE/DB_STRUCTURE.md:1` и
   `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md:1`; **доказательство:** docs/checker называют оба store и их
   ownership.
 
 **Проверка:** migration/schema tests на disposable fixture; никаких подключений к рабочей dev DB.
 
-**Выход:** runtime store существует и заполнен additive; старый read/write path ещё работоспособен.
+**Выход:** runtime store существует и заполнен additive; старый read/write path ещё работоспособен. S5-1 dynamic
+proof исполняется только через
+`apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs`: private PostgreSQL 16 cluster в `/tmp`, без
+application env и без DEV/TEST/PROD. Он проверяет schema/FK/check/index/trigger, insert/update/rollback audit,
+idempotent reapply, aggregate source/destination counts, restricted-key absence, secret-field-safe projections и
+защиту более новой destination row.
 
 ### S5-2 — RLS, grants и системная config-reader capability
 

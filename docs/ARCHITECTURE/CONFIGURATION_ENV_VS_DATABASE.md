@@ -12,6 +12,18 @@
 
 **Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория. Таблица поддерживает глобальные строки (`organization_id IS NULL`) и org-specific overrides (`organization_id` задан); текущие admin Settings формы пишут глобальные строки, если конкретный flow явно не передаёт organization context.
 
+### S5 runtime store (additive compatibility state)
+
+`public.app_runtime_settings` — отдельное хранилище только для typed-registry-approved безопасных runtime values и
+allowlisted derived projections; оно хранит global row либо org override с теми же identity semantics. Restricted
+keys, credential envelopes и секретные поля не копируются в него. `public.app_runtime_settings_audit` фиксирует
+old/new runtime JSON, actor, source, org и time в той же PostgreSQL transaction через runtime-table trigger.
+
+На S5-1 `public.system_settings` остаётся existing compatibility authoring copy, а
+`integrator.system_settings` — existing compatibility/cache-invalidation mirror. S5-1 не переносит write
+chokepoint, не удаляет старые copies и не включает patient grants/RLS; это последующие S5-2/S5-3 stages. Runtime
+audit belongs to the database trigger only, so S5-3 must reuse it rather than create a second application audit.
+
 - Публичный origin integrator: глобальный `app_base_url`. Во время S5 compatibility он авторится в `system_settings`, зеркалируется generic-триггером в `app_runtime_settings` с `audience='server'` и читается API/worker/scheduler через один закрытый generic accessor. Точный API base-login нормализуется deploy-overlay в `NOINHERIT`; в PostgreSQL 16 отдельно нормализуются уже существующие membership edges к `app_staff` / `app_patient` / `app_worker` как `INHERIT FALSE, SET TRUE`, потому что один `ALTER ROLE ... NOINHERIT` не меняет ранее созданные per-membership options. Поэтому до установки classified principal base-login не наследует table ACL, но сохраняет разрешённый `SET ROLE`; напрямую ему выдаются только EXECUTE server-runtime accessor и idempotent `app.release_principal_context()` для bootstrap/infra cleanup до role switch. `install_signed_context`, `reset_principal_context`, `current_*`, `is_staff` и identity-maintenance helper ambiently закрыты; scoped install/release выполняются после `SET ROLE app_staff/app_patient`. Integrator не имеет ambient SELECT на обе таблицы для этого чтения и не использует `APP_BASE_URL` env fallback; отсутствие/ошибка/невалидный URL блокирует старт процесса с диагностикой.
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.

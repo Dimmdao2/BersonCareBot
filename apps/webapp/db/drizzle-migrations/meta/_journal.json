@@ -1464,6 +1464,13 @@
       "when": 1793539200003,
       "tag": "0208_email_password_structured_fio",
       "breakpoints": true
+    },
+    {
+      "idx": 209,
+      "version": "7",
+      "when": 1793539200004,
+      "tag": "0209_s5_runtime_settings_audit_contract",
+      "breakpoints": true
     }
   ]
 }

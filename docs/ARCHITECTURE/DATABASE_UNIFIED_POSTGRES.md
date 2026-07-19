@@ -23,6 +23,9 @@
 
 - **Webapp → integrator API** (`INTEGRATOR_API_URL`): исходящие действия бота, настройки sync, merge и т.д. — это **вызовы сервиса**, не дублирование «второй копии» канона в другой БД.
 - **`system_settings` mirror sync:** до отдельного refactor webapp пишет canonical row в `public.system_settings` и отправляет signed sync в integrator. Mirror identity includes `(key, scope, organization_id)`: `organization_id IS NULL` is the global default row, non-null organization is an org override with global fallback on reads.
+- **S5 runtime store:** `public.app_runtime_settings` and its `public.app_runtime_settings_audit` are webapp/public
+  schema tables only; they have no `integrator` mirror. `system_settings` / `integrator.system_settings` remain
+  compatibility copies until S5-3 moves the write chokepoint. S5-2 separately owns runtime/audit grants and RLS.
 - **Integrator → webapp HTTP** — только там, где контракт ещё не переведён на общий SQL; такие вызовы **снимать по одному**, не расширять для новых сценариев записи канона.
 
 ## Webapp → integrator SQL cleanup (purge / merge-preview)

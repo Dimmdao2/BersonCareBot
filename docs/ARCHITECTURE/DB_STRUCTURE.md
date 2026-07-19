@@ -228,7 +228,15 @@
 
 ### 2.14 Configuration
 
-- `system_settings` — канон runtime-конфигурации webapp (`scope` `admin` | `doctor` | `global`); синхронизация в `integrator.system_settings` через `updateSetting` — см. [`CONFIGURATION_ENV_VS_DATABASE.md`](./CONFIGURATION_ENV_VS_DATABASE.md)
+- `system_settings` — restricted/compatibility authoring store webapp (`scope` `admin` | `doctor` | `global`),
+  включая integration credentials и другие secret-bearing envelopes. До S5-3 существующий write path продолжает
+  писать его и синхронизировать legacy mirror `integrator.system_settings` через `updateSetting`.
+- `app_runtime_settings` — отдельный `public` runtime store только для registry-approved safe values и derived
+  allowlisted projections. Identity rows — `(key, scope)` для global и `(key, scope, organization_id)` для org
+  override; restricted keys и credential envelopes сюда не попадают. Это не создаёт runtime mirror в `integrator`.
+- `app_runtime_settings_audit` — additive history runtime rows (`old_value_json`, `new_value_json`, actor/source,
+  org and timestamp). Runtime-table `AFTER INSERT OR UPDATE` trigger is its single audit owner, so future S5-3
+  write chokepoint must not add a second audit insert. Patient access, grants and RLS remain explicit S5-2 work.
 
 ### 2.15 Staff tasks
 
