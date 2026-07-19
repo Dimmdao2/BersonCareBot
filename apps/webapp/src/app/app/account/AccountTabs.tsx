@@ -9,23 +9,25 @@ import {
   doctorDnaFlatListSelectedPrimaryClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 
-export type SettingsHubTab = "specialist" | "organization" | "team" | "billing" | "install";
+export type AccountTab = "profile" | "notifications" | "install";
 
-export type SettingsHubTabItem = {
-  id: SettingsHubTab;
-  label: string;
-};
+const ACCOUNT_TABS: ReadonlyArray<{ id: AccountTab; label: string }> = [
+  { id: "profile", label: "Профиль" },
+  { id: "notifications", label: "Уведомления" },
+  { id: "install", label: "Установить приложение" },
+];
 
-export function SettingsHubTabs({ activeTab, tabs }: { activeTab: SettingsHubTab; tabs: SettingsHubTabItem[] }) {
+export function AccountTabs({ activeTab }: { activeTab: AccountTab }) {
   return (
-    <nav aria-label="Разделы настроек">
+    <nav aria-label="Разделы аккаунта">
       <ul className={doctorDnaFlatListClass}>
-        {tabs.map((tab, index) => {
+        {ACCOUNT_TABS.map((tab, index) => {
           const isSelected = tab.id === activeTab;
+          const href = tab.id === "profile" ? "/app/account" : `/app/account?tab=${tab.id}`;
           return (
             <li key={tab.id}>
               <Link
-                href={tab.id === "specialist" ? "/app/settings" : `/app/settings?tab=${tab.id}`}
+                href={href}
                 className={cn(
                   doctorDnaFlatListRowClass,
                   doctorDnaFlatListClickableClass,

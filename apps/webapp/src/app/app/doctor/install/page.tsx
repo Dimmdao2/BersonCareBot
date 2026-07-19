@@ -5,5 +5,5 @@ export const metadata = {
 };
 
 export default async function DoctorInstallPage() {
-  redirect("/app/settings?tab=install");
+  redirect("/app/account?tab=install");
 }

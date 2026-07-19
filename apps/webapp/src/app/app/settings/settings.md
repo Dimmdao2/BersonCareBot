@@ -1,28 +1,24 @@
-# settings
+# settings compatibility
 
-Маршрут приложения **`/app/settings`** (`apps/webapp/src/app/app/settings/page.tsx`).
+`/app/settings` больше не является вторым деревом персональных настроек. Канонический личный раздел staff-account —
+`/app/account`:
 
-- **Пациент** (`role === client`) перенаправляется на `/app/patient/profile`.
-- **Врач / админ** видят один role-stable hub: «Специалист», «Установить приложение» и, только при
-  server-resolved праве управления организацией, «Практика». Набор вкладок не зависит от текущего layout subtree.
-  «Практика» владеет единственной настройкой терминологии **«Как называть клиента: Клиент / Пациент»** и
-  organization-level appointment reminders (`doctor_appointment_reminder_*`, исторический префикс ключей) через
-  `/api/admin/settings` → `updateSetting` → integrator mirror. Lifecycle notifications и `notifications_topics`
-  не дублируются здесь: их канонический writer остаётся в настройках расписания.
-- **Специалист** владеет account email, каналами уведомлений, личными defaults и timezone; appointment reminders
-  не имеют личного UI/API write path.
-- **Тариф и биллинг** — только owner/global-admin shell с server-side direct-tab guard; коммерческие действия,
-  тариф и платежи до C5 недоступны. «Врачи»/Team fail-closed до C4 clinic entitlement: вкладки и body нет,
-  включая прямой `?tab=team`.
-- Legacy `/app/doctor/clinic/settings` и `/app/doctor/install` redirect в соответствующие вкладки `/app/settings`;
-  `/app/doctor/clinic/members` redirect в default hub, не открывая Team до C4. Server guard хаба повторно
-  проверяет organization-management access.
-  Тот же каркас шапки, что в `/app/doctor` (`DoctorWorkspaceShell`, `DOCTOR_PAGE_CONTAINER_CLASS`).
-- Ежедневная bot-рассылка с главной пациента retired: у неё нет settings UI, scheduler action или delivery handler.
-  Пользовательские opt-in reminders и notification/event settings остаются отдельными механизмами.
+- default / `?tab=specialist` → `/app/account`;
+- `?tab=install` → `/app/account?tab=install`;
+- `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders; management
+  overview ссылается сюда как на compatibility destination, не копируя поля;
+- `?tab=team` сохраняет существующую C4A-поверхность только для organization manager с активным
+  `clinic_team`; без capability переход безопасно заканчивается на `/app/manage`;
+- `?tab=billing` сохраняет честный owner-only placeholder до C5 и не объявляется личной настройкой.
 
-Админские разделы (health, журнал, аналитика, параметры приложения, интеграции и т.д.) перенесены в основное меню кабинета (`/app/doctor/system-health`, `/app/doctor/audit-log`, `/app/doctor/analytics/*`, `/app/doctor/admin/*`). Старые ссылки **`?adminTab=`** на `/app/settings` редиректят на новые URL (см. `adminSettingsData.ts`, `ADMIN_TAB_REDIRECTS`).
+Legacy `?adminTab=` по-прежнему перенаправляет на соответствующие platform-operation URL через
+`ADMIN_TAB_REDIRECTS`. Все переходы имеют внешний безопасный fallback и не перенаправляют обратно в тот же URL.
 
-Канон в репозитории: [`docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`](../../../../docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md).
+Legacy `/app/doctor/install` ведёт в account install, `/app/doctor/clinic/settings` — в этот organization writer,
+`/app/doctor/clinic/members` — в entitlement-guarded Team compatibility entry.
 
-Секреты и операционные значения для интеграций по правилам репозитория хранятся в `system_settings` (scope admin), а не в новых env-переменных для интеграций.
+Booking settings остаются в `/app/doctor/schedule?tab=setup`: owner запретил переносить или копировать их в U2.
+Коммерческие действия остаются недоступными до C5, security/2FA/sessions — до U3S.
+
+Секреты и операционные значения интеграций по правилам репозитория хранятся в `system_settings`, а не в новых
+env-переменных.
