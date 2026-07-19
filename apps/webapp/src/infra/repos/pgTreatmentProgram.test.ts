@@ -4,9 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runDrizzleMutationTransactionMock = vi.hoisted(() => vi.fn());
+const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
 
 const TPL_ID = "00000000-0000-4000-8000-000000000001";
 const PREVIEW_MEDIA_ID = "11111111-1111-4111-8111-111111111111";
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => principalOrganizationIdMock(),
+}));
 
 const tplListRow = {
   id: TPL_ID,
@@ -81,6 +88,8 @@ describe("createPgTreatmentProgramPort usage summary", () => {
     runWebappPgTextMock.mockReset();
     runDrizzleMutationTransactionMock.mockReset();
     runDrizzleMutationTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
+    principalOrganizationIdMock.mockReset();
+    principalOrganizationIdMock.mockReturnValue(ORG_A);
   });
 
   it("getTreatmentProgramTemplateUsageSummary runs aggregate query for template_id and courses.program_template_id", async () => {
@@ -108,6 +117,24 @@ describe("createPgTreatmentProgramPort usage summary", () => {
     expect(sql).toContain("template_id = $1::uuid");
     expect(sql).toContain("courses");
     expect(sql).toContain("program_template_id = $1::uuid");
+    expect(sql).toContain("organization_id = $2::uuid");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["00000000-0000-4000-8000-000000000099", ORG_A]);
+  });
+
+  it("binds the same template usage id to the current organization and rejects a missing principal", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgTreatmentProgramPort();
+    await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    principalOrganizationIdMock.mockReturnValue(ORG_B);
+    await port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099");
+    expect(runWebappPgTextMock.mock.calls.map((call) => call[1])).toEqual([
+      ["00000000-0000-4000-8000-000000000099", ORG_A],
+      ["00000000-0000-4000-8000-000000000099", ORG_B],
+    ]);
+    principalOrganizationIdMock.mockReturnValue(null);
+    await expect(port.getTreatmentProgramTemplateUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
+      "organization_principal_required",
+    );
   });
 
   it("maps counts and jsonb refs from usage summary row", async () => {

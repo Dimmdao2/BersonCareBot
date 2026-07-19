@@ -128,6 +128,7 @@ function parseClinicalTestUsageRefs(raw: unknown): ClinicalTestUsageRef[] {
 async function loadClinicalTestUsageSummary(
   pool: ReturnType<typeof getPool>,
   clinicalTestId: string,
+  organizationId: string,
 ): Promise<ClinicalTestUsageSnapshot> {
   const lim = CLINICAL_TEST_USAGE_DETAIL_LIMIT;
   const r = await runPgPoolPgText<{
@@ -152,42 +153,42 @@ async function loadClinicalTestUsageSummary(
        (SELECT COUNT(DISTINCT ts.id)::int
           FROM test_set_items tsi
           INNER JOIN test_sets ts ON ts.id = tsi.test_set_id
-         WHERE tsi.test_id = $1::uuid AND ts.is_archived = false) AS non_archived_test_sets,
+         WHERE tsi.test_id = $1::uuid AND ts.organization_id = $2::uuid AND ts.is_archived = false) AS non_archived_test_sets,
        (SELECT COUNT(DISTINCT ts.id)::int
           FROM test_set_items tsi
           INNER JOIN test_sets ts ON ts.id = tsi.test_set_id
-         WHERE tsi.test_id = $1::uuid AND ts.is_archived = true) AS archived_test_sets,
+         WHERE tsi.test_id = $1::uuid AND ts.organization_id = $2::uuid AND ts.is_archived = true) AS archived_test_sets,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
          WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-           AND t.status = 'published') AS published_tp_templates,
+           AND t.organization_id = $2::uuid AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
          WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-           AND t.status = 'draft') AS draft_tp_templates,
+           AND t.organization_id = $2::uuid AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
          WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-           AND t.status = 'archived') AS archived_tp_templates,
+           AND t.organization_id = $2::uuid AND t.status = 'archived') AS archived_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
          WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id = $1::uuid
-           AND i.status = 'active') AS active_tp_instances,
+           AND i.organization_id = $2::uuid AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
          WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id = $1::uuid
-           AND i.status = 'completed') AS completed_tp_instances,
-       (SELECT COUNT(*)::int FROM test_results WHERE test_id = $1::uuid) AS test_results_recorded,
+           AND i.organization_id = $2::uuid AND i.status = 'completed') AS completed_tp_instances,
+       (SELECT COUNT(*)::int FROM test_results WHERE test_id = $1::uuid AND organization_id = $2::uuid) AS test_results_recorded,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (ts.id)
@@ -198,7 +199,7 @@ async function loadClinicalTestUsageSummary(
               ) AS obj
             FROM test_set_items tsi
             INNER JOIN test_sets ts ON ts.id = tsi.test_set_id
-            WHERE tsi.test_id = $1::uuid AND ts.is_archived = false
+            WHERE tsi.test_id = $1::uuid AND ts.organization_id = $2::uuid AND ts.is_archived = false
             ORDER BY ts.id, ts.title ASC
             LIMIT ${lim}
           ) q) AS non_archived_test_set_refs,
@@ -212,7 +213,7 @@ async function loadClinicalTestUsageSummary(
               ) AS obj
             FROM test_set_items tsi
             INNER JOIN test_sets ts ON ts.id = tsi.test_set_id
-            WHERE tsi.test_id = $1::uuid AND ts.is_archived = true
+            WHERE tsi.test_id = $1::uuid AND ts.organization_id = $2::uuid AND ts.is_archived = true
             ORDER BY ts.id, ts.title ASC
             LIMIT ${lim}
           ) q) AS archived_test_set_refs,
@@ -228,7 +229,7 @@ async function loadClinicalTestUsageSummary(
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
             WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-              AND t.status = 'published'
+              AND t.organization_id = $2::uuid AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -244,7 +245,7 @@ async function loadClinicalTestUsageSummary(
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
             WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-              AND t.status = 'draft'
+              AND t.organization_id = $2::uuid AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -260,7 +261,7 @@ async function loadClinicalTestUsageSummary(
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
             WHERE si.item_type = 'clinical_test' AND si.item_ref_id = $1::uuid
-              AND t.status = 'archived'
+              AND t.organization_id = $2::uuid AND t.status = 'archived'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS archived_tp_template_refs,
@@ -278,7 +279,7 @@ async function loadClinicalTestUsageSummary(
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
             WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id = $1::uuid
-              AND i.status = 'active'
+              AND i.organization_id = $2::uuid AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -296,11 +297,11 @@ async function loadClinicalTestUsageSummary(
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
             WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id = $1::uuid
-              AND i.status = 'completed'
+              AND i.organization_id = $2::uuid AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs`,
-    [clinicalTestId],
+    [clinicalTestId, organizationId],
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_CLINICAL_TEST_USAGE_SNAPSHOT };
@@ -333,7 +334,8 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
   return {
     async list(filter: ClinicalTestFilter): Promise<ClinicalTest[]> {
       const db = getDrizzle();
-      const conds = [];
+      const organizationId = currentPrincipalOrganizationId();
+      const conds = [eq(clinicalTestsTable.organizationId, organizationId)];
       const scope =
         filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
       if (scope === "active") {
@@ -374,7 +376,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       const crRows = await db
         .select()
         .from(clinicalTestRegions)
-        .where(inArray(clinicalTestRegions.clinicalTestId, ids));
+        .where(and(inArray(clinicalTestRegions.clinicalTestId, ids), eq(clinicalTestRegions.organizationId, organizationId)));
       const byTest = new Map<string, string[]>();
       for (const cr of crRows) {
         const cur = byTest.get(cr.clinicalTestId) ?? [];
@@ -386,13 +388,18 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
 
     async getById(id: string): Promise<ClinicalTest | null> {
       const db = getDrizzle();
-      const rows = await db.select().from(clinicalTestsTable).where(eq(clinicalTestsTable.id, id)).limit(1);
+      const organizationId = currentPrincipalOrganizationId();
+      const rows = await db
+        .select()
+        .from(clinicalTestsTable)
+        .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, organizationId)))
+        .limit(1);
       const r0 = rows[0];
       if (!r0) return null;
       const crRows = await db
         .select()
         .from(clinicalTestRegions)
-        .where(eq(clinicalTestRegions.clinicalTestId, id));
+        .where(and(eq(clinicalTestRegions.clinicalTestId, id), eq(clinicalTestRegions.organizationId, organizationId)));
       return mapRow(
         r0,
         crRows.map((x) => x.bodyRegionId),
@@ -462,18 +469,18 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         const existing = await tx
           .select({ organizationId: clinicalTestsTable.organizationId })
           .from(clinicalTestsTable)
-          .where(eq(clinicalTestsTable.id, id))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId())))
           .limit(1);
         if (!existing[0]) return null;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(clinicalTestsTable)
           .set({ ...patch, organizationId })
-          .where(eq(clinicalTestsTable.id, id))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, organizationId)))
           .returning();
         if (!rows[0]) return null;
         if (regionMerged !== null) {
-          await tx.delete(clinicalTestRegions).where(eq(clinicalTestRegions.clinicalTestId, id));
+          await tx.delete(clinicalTestRegions).where(and(eq(clinicalTestRegions.clinicalTestId, id), eq(clinicalTestRegions.organizationId, organizationId)));
           if (regionMerged.length > 0) {
             await tx.insert(clinicalTestRegions).values(
               regionMerged.map((bodyRegionId) => ({ organizationId, clinicalTestId: id, bodyRegionId })),
@@ -483,7 +490,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         const crRows = await tx
           .select()
           .from(clinicalTestRegions)
-          .where(eq(clinicalTestRegions.clinicalTestId, id));
+          .where(and(eq(clinicalTestRegions.clinicalTestId, id), eq(clinicalTestRegions.organizationId, organizationId)));
         return mapRow(
           rows[0],
           crRows.map((x) => x.bodyRegionId),
@@ -497,14 +504,14 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         const existing = await tx
           .select({ organizationId: clinicalTestsTable.organizationId })
           .from(clinicalTestsTable)
-          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId()), eq(clinicalTestsTable.isArchived, false)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(clinicalTestsTable)
           .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
-          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, false)))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, organizationId), eq(clinicalTestsTable.isArchived, false)))
           .returning({ id: clinicalTestsTable.id });
         return rows.length > 0;
       });
@@ -516,14 +523,14 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
         const existing = await tx
           .select({ organizationId: clinicalTestsTable.organizationId })
           .from(clinicalTestsTable)
-          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId()), eq(clinicalTestsTable.isArchived, true)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(clinicalTestsTable)
           .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
-          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.isArchived, true)))
+          .where(and(eq(clinicalTestsTable.id, id), eq(clinicalTestsTable.organizationId, organizationId), eq(clinicalTestsTable.isArchived, true)))
           .returning({ id: clinicalTestsTable.id });
         return rows.length > 0;
       });
@@ -531,7 +538,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
 
     async getClinicalTestUsageSummary(id: string): Promise<ClinicalTestUsageSnapshot> {
       const pool = getPool();
-      return loadClinicalTestUsageSummary(pool, id);
+      return loadClinicalTestUsageSummary(pool, id, currentPrincipalOrganizationId());
     },
   };
 }

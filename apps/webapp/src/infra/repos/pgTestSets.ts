@@ -80,7 +80,7 @@ function mapTestRow(
   };
 }
 
-async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]> {
+async function loadItemsForSet(testSetId: string, organizationId: string): Promise<TestSetItemWithTest[]> {
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -89,7 +89,7 @@ async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]
     })
     .from(testSetItemsTable)
     .innerJoin(clinicalTestsTable, eq(testSetItemsTable.testId, clinicalTestsTable.id))
-    .where(eq(testSetItemsTable.testSetId, testSetId))
+    .where(and(eq(testSetItemsTable.testSetId, testSetId), eq(testSetItemsTable.organizationId, organizationId)))
     .orderBy(asc(testSetItemsTable.sortOrder), asc(testSetItemsTable.id));
 
   const testIds = [...new Set(rows.map((r) => r.test.id))];
@@ -98,7 +98,7 @@ async function loadItemsForSet(testSetId: string): Promise<TestSetItemWithTest[]
     const crRows = await db
       .select()
       .from(clinicalTestRegions)
-      .where(inArray(clinicalTestRegions.clinicalTestId, testIds));
+      .where(and(inArray(clinicalTestRegions.clinicalTestId, testIds), eq(clinicalTestRegions.organizationId, organizationId)));
     byTest = new Map<string, string[]>();
     for (const cr of crRows) {
       const cur = byTest.get(cr.clinicalTestId) ?? [];
@@ -154,6 +154,7 @@ function parseTestSetUsageRefs(raw: unknown): TestSetUsageRef[] {
 async function loadTestSetUsageSummary(
   pool: ReturnType<typeof getPool>,
   testSetId: string,
+  organizationId: string,
 ): Promise<TestSetUsageSnapshot> {
   const lim = TEST_SET_USAGE_DETAIL_LIMIT;
   const r = await runPgPoolPgText<{
@@ -175,31 +176,31 @@ async function loadTestSetUsageSummary(
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'published') AS published_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'draft') AS draft_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'archived') AS archived_tp_templates,
+         WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'archived') AS archived_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'active') AS active_tp_instances,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND i.organization_id = $2::uuid AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'completed') AS completed_tp_instances,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND i.organization_id = $2::uuid AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COUNT(*)::int
           FROM test_attempts ta
           INNER JOIN treatment_program_instance_stage_items sii ON sii.id = ta.instance_stage_item_id
-         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid)) AS test_attempts_recorded,
+         WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND ta.organization_id = $2::uuid) AS test_attempts_recorded,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (t.id)
@@ -211,7 +212,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'published'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -226,7 +227,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'draft'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -241,7 +242,7 @@ async function loadTestSetUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND t.status = 'archived'
+            WHERE si.item_type = 'clinical_test' AND si.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND t.organization_id = $2::uuid AND t.status = 'archived'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS archived_tp_template_refs,
@@ -258,7 +259,7 @@ async function loadTestSetUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'active'
+            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND i.organization_id = $2::uuid AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -275,11 +276,11 @@ async function loadTestSetUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid) AND i.status = 'completed'
+            WHERE sii.item_type = 'clinical_test' AND sii.item_ref_id IN (SELECT tsi.test_id FROM test_set_items tsi WHERE tsi.test_set_id = $1::uuid AND tsi.organization_id = $2::uuid) AND i.organization_id = $2::uuid AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs`,
-    [testSetId],
+    [testSetId, organizationId],
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
@@ -308,7 +309,8 @@ export function createPgTestSetsPort(): TestSetsPort {
   return {
     async list(filter: TestSetFilter): Promise<TestSet[]> {
       const db = getDrizzle();
-      const conds = [];
+      const organizationId = currentPrincipalOrganizationId();
+      const conds = [eq(testSetsTable.organizationId, organizationId)];
       const scope =
         filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
       if (scope === "active") {
@@ -336,7 +338,7 @@ export function createPgTestSetsPort(): TestSetsPort {
 
       const out: TestSet[] = [];
       for (const s of sets) {
-        const items = await loadItemsForSet(s.id);
+        const items = await loadItemsForSet(s.id, organizationId);
         out.push({ ...mapMeta(s), items });
       }
       return out;
@@ -344,9 +346,10 @@ export function createPgTestSetsPort(): TestSetsPort {
 
     async getById(id: string): Promise<TestSet | null> {
       const db = getDrizzle();
-      const rows = await db.select().from(testSetsTable).where(eq(testSetsTable.id, id)).limit(1);
+      const organizationId = currentPrincipalOrganizationId();
+      const rows = await db.select().from(testSetsTable).where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId))).limit(1);
       if (!rows[0]) return null;
-      const items = await loadItemsForSet(id);
+      const items = await loadItemsForSet(id, organizationId);
       return { ...mapMeta(rows[0]), items };
     },
 
@@ -381,18 +384,18 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(eq(testSetsTable.id, id))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId())))
           .limit(1);
         if (!existing[0]) return [];
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         return tx
           .update(testSetsTable)
           .set({ ...patch, organizationId })
-          .where(eq(testSetsTable.id, id))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId)))
           .returning();
       });
       if (!rows[0]) return null;
-      const items = await loadItemsForSet(id);
+      const items = await loadItemsForSet(id, currentPrincipalOrganizationId());
       return { ...mapMeta(rows[0]), items };
     },
 
@@ -402,14 +405,14 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId()), eq(testSetsTable.isArchived, false)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(testSetsTable)
           .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, false)))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId), eq(testSetsTable.isArchived, false)))
           .returning({ id: testSetsTable.id });
         return rows.length > 0;
       });
@@ -421,14 +424,14 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existing = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, currentPrincipalOrganizationId()), eq(testSetsTable.isArchived, true)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(testSetsTable)
           .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
-          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.isArchived, true)))
+          .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId), eq(testSetsTable.isArchived, true)))
           .returning({ id: testSetsTable.id });
         return rows.length > 0;
       });
@@ -440,7 +443,7 @@ export function createPgTestSetsPort(): TestSetsPort {
         const existingSet = await tx
           .select({ organizationId: testSetsTable.organizationId })
           .from(testSetsTable)
-          .where(eq(testSetsTable.id, testSetId))
+          .where(and(eq(testSetsTable.id, testSetId), eq(testSetsTable.organizationId, currentPrincipalOrganizationId())))
           .limit(1);
         if (!existingSet[0]) return;
         const testIds = [...new Set(items.map((it) => it.testId))];
@@ -449,13 +452,13 @@ export function createPgTestSetsPort(): TestSetsPort {
             ? await tx
                 .select({ organizationId: clinicalTestsTable.organizationId })
                 .from(clinicalTestsTable)
-                .where(inArray(clinicalTestsTable.id, testIds))
+                .where(and(inArray(clinicalTestsTable.id, testIds), eq(clinicalTestsTable.organizationId, currentPrincipalOrganizationId())))
             : [];
         const organizationId = currentWriteOrganizationId(
           existingSet[0].organizationId,
           ...existingTests.map((x) => x.organizationId),
         );
-        await tx.delete(testSetItemsTable).where(eq(testSetItemsTable.testSetId, testSetId));
+        await tx.delete(testSetItemsTable).where(and(eq(testSetItemsTable.testSetId, testSetId), eq(testSetItemsTable.organizationId, organizationId)));
         if (items.length > 0) {
           await tx.insert(testSetItemsTable).values(
             items.map((it, idx) => ({
@@ -470,13 +473,13 @@ export function createPgTestSetsPort(): TestSetsPort {
         await tx
           .update(testSetsTable)
           .set({ organizationId, updatedAt: new Date().toISOString() })
-          .where(eq(testSetsTable.id, testSetId));
+          .where(and(eq(testSetsTable.id, testSetId), eq(testSetsTable.organizationId, organizationId)));
       });
     },
 
     async getTestSetUsageSummary(id: string): Promise<TestSetUsageSnapshot> {
       const pool = getPool();
-      return loadTestSetUsageSummary(pool, id);
+      return loadTestSetUsageSummary(pool, id, currentPrincipalOrganizationId());
     },
   };
 }

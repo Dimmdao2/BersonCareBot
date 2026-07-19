@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock, connect: vi.fn() })));
+const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => principalOrganizationIdMock(),
+}));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: getPoolMock,
@@ -39,6 +47,8 @@ import { createPgClinicalTestsPort } from "./pgClinicalTests";
 describe("createPgClinicalTestsPort usage summary", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    principalOrganizationIdMock.mockReset();
+    principalOrganizationIdMock.mockReturnValue(ORG_A);
   });
 
   it("getClinicalTestUsageSummary runs aggregate query with test_set_items chain", async () => {
@@ -71,6 +81,26 @@ describe("createPgClinicalTestsPort usage summary", () => {
     expect(sql).toContain("item_type = 'clinical_test'");
     expect(sql).toContain("test_results");
     expect(sql).toContain("t.status = 'archived'");
+    expect(sql).toContain("organization_id = $2::uuid");
+    expect(new Set(queryMock.mock.calls[0]?.[1] as string[])).toEqual(
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
+    );
+  });
+
+  it("binds the same clinical-test usage id to the current organization and rejects a missing principal", async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const port = createPgClinicalTestsPort();
+    await port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099");
+    principalOrganizationIdMock.mockReturnValue(ORG_B);
+    await port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099");
+    expect(queryMock.mock.calls.map((call) => new Set(call[1] as string[]))).toEqual([
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_B]),
+    ]);
+    principalOrganizationIdMock.mockReturnValue(null);
+    await expect(port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
+      "organization_principal_required",
+    );
   });
 
   it("catalog writes use the Drizzle mutation transaction chokepoint", () => {

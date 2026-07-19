@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock, connect: vi.fn() })));
+const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => principalOrganizationIdMock(),
+}));
 
 vi.mock("@/infra/db/client", () => ({
   getPool: getPoolMock,
@@ -43,6 +51,8 @@ import { createPgRecommendationsPort } from "./pgRecommendations";
 describe("createPgRecommendationsPort usage summary", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    principalOrganizationIdMock.mockReset();
+    principalOrganizationIdMock.mockReturnValue(ORG_A);
   });
 
   it("getRecommendationUsageSummary runs aggregate query for recommendation refs", async () => {
@@ -68,6 +78,26 @@ describe("createPgRecommendationsPort usage summary", () => {
     const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("si.item_ref_id = $1::uuid");
     expect(sql).toContain("item_type = 'recommendation'");
+    expect(sql).toContain("organization_id = $2::uuid");
+    expect(new Set(queryMock.mock.calls[0]?.[1] as string[])).toEqual(
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
+    );
+  });
+
+  it("binds the same recommendation usage id to the current organization and rejects a missing principal", async () => {
+    queryMock.mockResolvedValue({ rows: [] });
+    const port = createPgRecommendationsPort();
+    await port.getRecommendationUsageSummary("00000000-0000-4000-8000-000000000099");
+    principalOrganizationIdMock.mockReturnValue(ORG_B);
+    await port.getRecommendationUsageSummary("00000000-0000-4000-8000-000000000099");
+    expect(queryMock.mock.calls.map((call) => new Set(call[1] as string[]))).toEqual([
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_A]),
+      new Set(["00000000-0000-4000-8000-000000000099", ORG_B]),
+    ]);
+    principalOrganizationIdMock.mockReturnValue(null);
+    await expect(port.getRecommendationUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
+      "organization_principal_required",
+    );
   });
 
   it("catalog writes use the Drizzle mutation transaction chokepoint", () => {

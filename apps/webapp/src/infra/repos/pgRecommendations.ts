@@ -122,6 +122,7 @@ function parseRecommendationUsageRefs(raw: unknown): RecommendationUsageRef[] {
 async function loadRecommendationUsageSummary(
   pool: ReturnType<typeof getPool>,
   recommendationId: string,
+  organizationId: string,
 ): Promise<RecommendationUsageSnapshot> {
   const lim = RECOMMENDATION_USAGE_DETAIL_LIMIT;
   const r = await runPgPoolPgText<{
@@ -142,27 +143,27 @@ async function loadRecommendationUsageSummary(
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'archived') AS archived_tp_templates,
+         WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'archived') AS archived_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+         WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (t.id)
@@ -174,7 +175,7 @@ async function loadRecommendationUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -189,7 +190,7 @@ async function loadRecommendationUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -204,7 +205,7 @@ async function loadRecommendationUsageSummary(
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.status = 'archived'
+            WHERE si.item_type = 'recommendation' AND si.item_ref_id = $1::uuid AND t.organization_id = $2::uuid AND t.status = 'archived'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS archived_tp_template_refs,
@@ -221,7 +222,7 @@ async function loadRecommendationUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -238,11 +239,11 @@ async function loadRecommendationUsageSummary(
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            WHERE sii.item_type = 'recommendation' AND sii.item_ref_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs`,
-    [recommendationId],
+    [recommendationId, organizationId],
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_RECOMMENDATION_USAGE_SNAPSHOT };
@@ -270,7 +271,8 @@ export function createPgRecommendationsPort(): RecommendationsPort {
   return {
     async list(filter: RecommendationFilter): Promise<Recommendation[]> {
       const db = getDrizzle();
-      const conds = [];
+      const organizationId = currentPrincipalOrganizationId();
+      const conds = [eq(recommendationsTable.organizationId, organizationId)];
       const scope =
         filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
       if (scope === "active") {
@@ -306,7 +308,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       const rrRows = await db
         .select()
         .from(recommendationRegions)
-        .where(inArray(recommendationRegions.recommendationId, ids));
+        .where(and(inArray(recommendationRegions.recommendationId, ids), eq(recommendationRegions.organizationId, organizationId)));
       const byRec = new Map<string, string[]>();
       for (const rr of rrRows) {
         const cur = byRec.get(rr.recommendationId) ?? [];
@@ -318,13 +320,14 @@ export function createPgRecommendationsPort(): RecommendationsPort {
 
     async getById(id: string): Promise<Recommendation | null> {
       const db = getDrizzle();
-      const rows = await db.select().from(recommendationsTable).where(eq(recommendationsTable.id, id)).limit(1);
+      const organizationId = currentPrincipalOrganizationId();
+      const rows = await db.select().from(recommendationsTable).where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId))).limit(1);
       const r0 = rows[0];
       if (!r0) return null;
       const rrRows = await db
         .select()
         .from(recommendationRegions)
-        .where(eq(recommendationRegions.recommendationId, id));
+        .where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
       return mapRow(
         r0,
         rrRows.map((x) => x.bodyRegionId),
@@ -390,18 +393,18 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(eq(recommendationsTable.id, id))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId())))
           .limit(1);
         if (!existing[0]) return null;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ ...patch, organizationId })
-          .where(eq(recommendationsTable.id, id))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId)))
           .returning();
         if (!rows[0]) return null;
         if (regionMerged !== null) {
-          await tx.delete(recommendationRegions).where(eq(recommendationRegions.recommendationId, id));
+          await tx.delete(recommendationRegions).where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
           if (regionMerged.length > 0) {
             await tx.insert(recommendationRegions).values(
               regionMerged.map((bodyRegionId) => ({ organizationId, recommendationId: id, bodyRegionId })),
@@ -411,7 +414,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const rrRows = await tx
           .select()
           .from(recommendationRegions)
-          .where(eq(recommendationRegions.recommendationId, id));
+          .where(and(eq(recommendationRegions.recommendationId, id), eq(recommendationRegions.organizationId, organizationId)));
         return mapRow(
           rows[0],
           rrRows.map((x) => x.bodyRegionId),
@@ -425,14 +428,14 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()), eq(recommendationsTable.isArchived, false)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ organizationId, isArchived: true, updatedAt: new Date().toISOString() })
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, false)))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId), eq(recommendationsTable.isArchived, false)))
           .returning({ id: recommendationsTable.id });
         return rows.length > 0;
       });
@@ -444,14 +447,14 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const existing = await tx
           .select({ organizationId: recommendationsTable.organizationId })
           .from(recommendationsTable)
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, currentPrincipalOrganizationId()), eq(recommendationsTable.isArchived, true)))
           .limit(1);
         if (!existing[0]) return false;
         const organizationId = currentWriteOrganizationId(existing[0].organizationId);
         const rows = await tx
           .update(recommendationsTable)
           .set({ organizationId, isArchived: false, updatedAt: new Date().toISOString() })
-          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.isArchived, true)))
+          .where(and(eq(recommendationsTable.id, id), eq(recommendationsTable.organizationId, organizationId), eq(recommendationsTable.isArchived, true)))
           .returning({ id: recommendationsTable.id });
         return rows.length > 0;
       });
@@ -459,7 +462,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
 
     async getRecommendationUsageSummary(id: string): Promise<RecommendationUsageSnapshot> {
       const pool = getPool();
-      return loadRecommendationUsageSummary(pool, id);
+      return loadRecommendationUsageSummary(pool, id, currentPrincipalOrganizationId());
     },
   };
 }
