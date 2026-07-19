@@ -2386,3 +2386,36 @@ One whole-document worker owns the existing packet plus this canonical log, foll
 scope-bound docs audit. There will be no serial correction/audit churn and no full CI for this documentation-only
 gate; validation is exact source/link/status consistency. Taskdb `#887` is `doing`; `#751/#843/#844/#845/#854`
 remain untouched and no commercial code proceeds from recommendations before owner answers.
+
+## 2026-07-19 — C4/C5 owner-decision packet completed (`#887`)
+
+One coherent docs-only presentation pass updated the existing
+[`OWNER_DECISION_PACKET.md`](./OWNER_DECISION_PACKET.md), without creating a second packet or roadmap and without
+starting C4/C5 code. Sources read for the exact current delta: `AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/README.md`,
+`AGENT_AUTORUN_SCHEME.md`, `ORCHESTRATION_BINDINGS.md` (including Universal execution mode and one-audit discipline),
+`OWNER_REVIEW_2026-07-18.md` §§P1–P5,15, `IMPLEMENTATION_ROADMAP.md` §7.3 and execution-mode reinforcement,
+`OWNER_RULINGS_2026-07-16.md`, `OPERATING_MODEL.md` §§8–9, `BRANDING_DOMAIN_CONTRACT.md` §12,
+`SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §13, the current delta/scope of
+`TARIFFS_PAYMENTS_ADMIN_PLAN.md`, and this log tail.
+
+The packet now has exactly one consolidated current-gates section before historical UX08 details. It preserves
+UX08-01…12 (`0 pending` only for that historical scope), reconciles OM-1…8 and BD-1…6, and replaces the stale
+blanket current `0 pending` claim with eight stable plain-language IDs: tariff/SMS boundary, quota, trial, PSP,
+clinic seats, analytics, solo label and explicitly deferred store commerce. Each records a direct owner question,
+recommendation (not a ruling), safe default and the exact blocked branch. It states that C4 isolation is not
+globally blocked and provider-neutral C5B contracts may proceed, while no real PSP activation/legal acceptance may.
+The numeric values 14 days, 7 days, 30 days, 80% and three retries remain recommendations pending an owner answer.
+
+Validation for this docs-only pass: internal relative links in the packet were checked for existing targets;
+`rg` confirmed one consolidated current-gates heading and no remaining unqualified current claim of `0 pending owner
+product decisions`; `git diff --check` passed; real worktree status/diff confirmed only this packet and this log were
+changed. The worker sandbox's apparent env-example paths were read-only mount artifacts; live Git reports zero such
+changes. No CI/lint/build, DB, TEST, deploy, infra or protected handoff file was touched. Taskdb was updated only by
+the lead through the sanctioned port for `#887` stage state/run evidence.
+
+Recommendation-only task-mapping risk is recorded, not changed: task `#751` currently spans constructor/billing
+while roadmap splits C5A from `#844/#845`; task `#843` spans C4A enforcement and C5C commerce. No roadmap or taskdb
+rewrite occurs at this gate. No owner decision is claimed until the owner explicitly answers the IDs in the packet.
+
+The worker sandbox could not write shared Git metadata, so the lead owns the exact-path commit after live diff
+inspection. This is a sandbox boundary rather than a repository defect; no unrelated file was staged.

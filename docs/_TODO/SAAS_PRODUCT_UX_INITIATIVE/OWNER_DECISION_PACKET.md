@@ -1,15 +1,16 @@
-# UX-08 — решения владельца по будущему интерфейсу
+# Owner decision packet — UX08 и текущие gates C4/C5
 
-> **Статус:** historical decision packet 16.07. Действующие результаты сохраняются только там, где их не изменил
-> [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). Этот packet не источник текущих открытых вопросов и
-> не execution plan.
+> **Статус:** единый packet: исторические решения UX08 от 16.07 сохранены ниже, а единственный актуальный список
+> открытых вопросов перед зависимыми C4/C5-ветками находится в начале документа. Более поздний канон —
+> [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md). Packet не является execution plan и сам по себе
+> ничего не разрешает реализовывать или развёртывать.
 
 **Статус:** ответы и последующие уточнения владельца от 2026-07-16 интегрированы и подтверждены полным независимым
 re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Исходные варианты сохранены ниже
 как история постановки, а действующий результат каждого пункта указан отдельно.
-**Дата решения:** 2026-07-16.
-**Назначение:** только продуктовые развилки, которые заметно меняют доступ, рабочую модель или объём будущего
-публичного SaaS-релиза. Ответ на этот пакет не разрешает deploy и не меняет TEST-only execution scope.
+**Даты:** UX08 решён 2026-07-16; текущие commercial/analytics/settings gates зафиксированы 2026-07-18.
+**Назначение:** собрать в одном месте только продуктовые развилки, которые заметно меняют доступ, рабочую модель
+или объём будущего SaaS-релиза. Ответ на этот пакет не разрешает deploy и не меняет TEST-only execution scope.
 
 ## Как читать пакет
 
@@ -19,6 +20,128 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
   фиксации целевой политики. Это разные вещи.
 - Исторические `Рекомендация` и `Историческая безопасная граница до решения (superseded)` не заменяют новое решение. Tentative future language
   владельца остаётся deferred, а не превращается в freeze.
+
+## Текущие owner-gates C4/C5 — ответить одним проходом
+
+> **Назначение этого раздела:** это единственный актуальный список решений владельца перед зависимыми ветками
+> C4/C5. Он дополняет, а не отменяет исторические UX08 ниже. Ответ утверждает только выбранные product policy;
+> он **не** разрешает код, миграции, TEST/PROD, deploy, приём платежей или иной execution.
+
+### Точный текущий статус
+
+- **UX08-01…12:** `0 pending` в их историческом UX08 scope; результаты не переоткрываются.
+- **OM:** OM-1…7 уже resolved/rejected. OM-8 («mechanics as data», per-mechanic entitlement/degradation) тоже
+  resolved как направление; открыты только коммерческие policy P1/P2 ниже, а не сама модель.
+- **BD:** BD-1/3/4/6 resolved; BD-2/5 — approved future/deferred. Открытых BD-вопросов нет.
+- Поэтому это не общий стоп: C4 ownership/isolation не ждёт коммерческих ответов. Provider-neutral C5B state
+  machine, mock и recorded contracts могут идти до выбора PSP; real activation и legal/payment acceptance — нет.
+
+Числа ниже — **рекомендации**, пока владелец явно их не подтвердил. Можно ответить «утверждаю рекомендацию» по
+каждому ID либо дать иную policy.
+
+### Вопросы, которым действительно нужен ответ владельца
+
+#### C4C5-01 — реестр тарифов и SMS-модель (P1)
+
+- **Вопрос владельцу:** подтвердить границу реестра: какие из названных механик launch, future или никогда не
+  тарифно ограничиваются; отдельно подтвердить, что online booking, видео и телеметрия — три разные mechanics,
+  базовая и расширенная аналитика — разные уровни, а launch SMS идёт через платформенного провайдера с месячной
+  квотой, а custom sender организации появится позднее по UX08-09?
+- **Рекомендация (не решение):** в launch-класс отнести сопровождение/program, клиентские quotas, собственные
+  упражнения, base library, storage, branches, clinic/seats, online booking, online payment/prepayment,
+  subscriptions, branding, индивидуальные chats, массовые/email/SMS-рассылки и basic/advanced analytics — но
+  продавать только уже реализованные mechanics; отсутствующие держать disabled. Store, video consultation,
+  telemetry, transcription и AI оставить future/disabled до отдельной готовности. Account/auth/security, billing
+  recovery, доступ к сохранённым данным, read/export/removal и safe offboarding никогда не гейтить тарифом. Для
+  launch SMS — platform-provider monthly quota; custom org sender — поздняя отдельная capability.
+- **Безопасный default до ответа:** future mechanics выключены; отправка SMS выключена; базовые recovery/read/export/
+  offboarding действия не продаются как платная блокировка.
+- **Блокирует:** C5A tariff registry и SMS-коммерческую ветку; не блокирует C4 ownership/isolation.
+
+#### C4C5-02 — единая policy квот (P1, S4 §13.1)
+
+- **Вопрос владельцу:** утвердить policy: quota считается либо snapshot-единицами, либо единицами billing period;
+  warning на 80%, hard block только нового создания/потребления на 100%, без удаления, без overage без цены, а
+  downgrade блокирует рост; storage считает original uploaded bytes, а не derivatives?
+- **Рекомендация (не решение):** snapshot для одновременно активных мест/клиентов и storage; billing-period
+  units для расходуемых действий (например, отправок). Для каждого mechanic global admin затем задаёт единицу,
+  период и цену overage (если он вообще разрешён).
+- **Безопасный default до ответа:** не включать quota-gated creation/consumption и не начислять overage; уже
+  существующие данные не удалять.
+- **Блокирует:** C5A quota semantics, финальный C4A limit/downgrade acceptance и C5C; не блокирует C4B/C4C/C4D
+  ownership/isolation.
+
+#### C4C5-03 — trial новой организации (P2, S4 §13.2)
+
+- **Вопрос владельцу:** утвердить ли trial, который начинается после подтверждения email и успешного provisioning
+  organization, длится 14 дней, затем даёт 7 дней grace и переводит на admin-configured post-trial tariff; один
+  trial на organization, а extension/override только аудируемые?
+- **Рекомендация (не решение):** утвердить эту policy; после trial не удалять данные, branding publication
+  отключать, но assets сохранять.
+- **Безопасный default до ответа:** не выдавать молча all-on trial; trial-policy и post-trial commercial changes
+  остаются выключенными, данные и assets не удаляются.
+- **Блокирует:** C5A trial/post-trial branch; не блокирует registry/chokepoint или C4 ownership work.
+
+#### C4C5-04 — первый SaaS PSP и operations (P3, S4 §13.3)
+
+- **Вопрос владельцу:** выбрать YooKassa первым SaaS PSP при условии adapter/merchant proof и подтвердить baseline:
+  отдельные patient-commerce и SaaS contours, opt-in saved method для recurring, три retry за 7 дней, затем grace,
+  cancel в конце периода, refund только после provider confirmation, receipts, reconciled B2B invoice и запрет
+  manual paid?
+- **Рекомендация (не решение):** выбрать YooKassa только после подтверждения адаптера и merchant/legal readiness;
+  принять перечисленный baseline.
+- **Безопасный default до ответа:** provider-neutral mock/recorded contracts без real capture, manual paid или
+  юридически значимой активации.
+- **Блокирует:** real PSP activation, legal/payment acceptance и production-ready часть C5B; не блокирует
+  provider-neutral C5B state machine, mock contracts и UI IA.
+
+#### C4C5-05 — места специалистов клиники (P1, §15, S4 §13.5)
+
+- **Вопрос владельцу:** утвердить ли, что active specialist binding consumes seat, non-clinical admin — нет,
+  pending invite резервирует место; solo включает одно место, included count настраивается в тарифе, extra seat
+  продаётся за tariff/period price до invite, а downgrade сохраняет memberships, блокирует рост и даёт 30 дней на
+  решение без автоматического удаления?
+- **Рекомендация (не решение):** утвердить эту policy; точное included count и price остаются данными тарифа,
+  а не hardcode.
+- **Безопасный default до ответа:** не разрешать add-on purchase без цены; не удалять memberships и не создавать
+  новый рост сверх оплаченного лимита.
+- **Блокирует:** финальную C4A seat-count/reservation/over-limit acceptance и C5C seat commerce. C4A entitlement
+  hide/direct-API deny без численной seat policy может идти отдельно.
+
+#### C4C5-06 — формулы и layout platform analytics (P5, S4 §13.6)
+
+- **Вопрос владельцу:** утвердить documented inventory агрегатов по организациям (количество solo/clinic,
+  тарифы/длительность, выручка, зарегистрированные/сопровождаемые/active clients и техническая activity) с
+  точными формулами, окнами и layout dashboard/organization card; исключить patient drill-down и ненадёжное
+  «hours worked»?
+- **Рекомендация (не решение):** считать organization все non-deleted organizations; solo/clinic — по одной либо
+  двум и более active specialist bindings; active organization — по allowlisted staff/product event за 30 дней;
+  tariff distribution — current effective tariff snapshot; time on tariff — от current effective period start;
+  revenue — confirmed captures минус confirmed refunds за billing month; registered clients — non-deleted
+  organization patient relationships/cards; accompaniment — current active accompaniment/program relation; active
+  clients — allowlisted appointment/program/message interaction за 30 дней; staff activity — last active date и
+  unique active days, но не «hours worked». Окна: сегодня, 7/30/90 дней и current billing period. Layout: summary
+  cards, organization table и organization detail с billing/aggregate usage, без patient drill-down.
+- **Безопасный default до ответа:** лишь технический aggregate preview без клинической детализации и без
+  product-facing metric claims.
+- **Блокирует:** только C6 analytics/capacity stage, не C4/C5.
+
+#### C4C5-07 — подпись settings для solo (§15)
+
+- **Вопрос владельцу:** подтвердить label **«Практика» / «Настройки практики»** для solo, а слово «Клиника»
+  показывать только при active clinic entitlement и соответствующей team composition?
+- **Рекомендация (не решение):** «Практика» для solo; «Клиника» только для реально активной clinic capability.
+- **Безопасный default до ответа:** «Практика».
+- **Блокирует:** только окончательную settings wording и C4A/C5B visual acceptance; не backend capability/billing.
+
+#### C4C5-08 — future store commerce (P4, S4 §13.4)
+
+- **Вопрос владельцу:** **ответ сейчас не требуется**. Когда C5D будет явно активирован, подтвердить ли модель:
+  разовая покупка + add-on subscription, publisher только global admin, platform-owned/licensed content,
+  moderation, без payouts и clinic submission на старте?
+- **Рекомендация (не решение):** принять эту модель только в отдельном будущем owner-review.
+- **Безопасный default до ответа:** store commerce deferred; никаких store orders, payouts или clinic submission.
+- **Блокирует:** только C5D; не блокирует C4D own-only/base library и не является launch prerequisite.
 
 ## Общая граница запуска — решение владельца
 
@@ -36,7 +159,7 @@ Initial product focus — solo specialist. Multi-specialist clinic, assistant/re
 | Owner/admin может одновременно быть специалистом | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §17 | Пункт 04 выбирает только интерфейс между уже разрешёнными поверхностями |
 | UX-фильтр «Мои пациенты» нужен и не создаёт новую tenant-стену | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §7 | Пункт 01 уточняет его продуктовый смысл и clinical-history policy |
 | Внутренний список организаций не публикуется; возможный каталог использует отдельную public projection | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §12 | Пункт 06 выбирает только будущий release scope каталога |
-| Тарифы и механики настраивает global admin через полный конструктор | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §3; upstream gate OM-8 | UX-09 задаёт per-mechanic lifecycle/degradation; OM-8 не эскалируется как один искусственный yes/no вопрос |
+| Тарифы и механики настраивает global admin через полный конструктор | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §3; OM-8; `OWNER_REVIEW_2026-07-18.md` §§P1-P2 | Конструктор/mechanics-as-data решён; quota, trial и degradation policy требуют ответов C4C5-01…03 выше, а не одного искусственного yes/no по OM-8 |
 | Owner-only irreversible account/ownership actions и least-privilege delegation admin являются безопасной SaaS-базой | `ROLE_CAPABILITY_MATRIX.md` §2; `UX03_CAPABILITY_ARCH_REVIEW.md` §§3.2–3.3 | UX-09 проектирует capability presets; точные делегируемые grants остаются конфигурацией, а не скрытым owner ruling |
 | У platform owner нет общего запрета на доступ к базе; patient-level behavior не является обычной SaaS-аналитикой | `SAAS_FOUNDATION/OWNER_RULINGS_2026-07-15.md` §5 | Пункт 10 выбирает только продуктовую support surface |
 | Token/TTL, RLS, Postgres roles, idempotency, DNS/TLS readiness, обязательные 2FA mechanics и текущие дефекты | UX-03…07 security/architecture contracts | Инженерные/security gates; exact factor/roles/grace проходит отдельный security-policy freeze и до него fail-closed, а не считается готовым |
@@ -348,7 +471,8 @@ origins и устанавливаемые приложения вообще по
 ## Полная сверка upstream-решений
 
 Эта таблица не добавляет скрытых rulings. Она классифицирует literal items из `REQUIREMENTS.md` и UX-03…05 как
-dated outcome, invariant, implementation policy или non-blocking future backlog. Pending owner gates launch = `0`.
+dated outcome, invariant, implementation policy или non-blocking future backlog. Для исторического UX08 scope
+pending owner gates = `0`; актуальные C4/C5 коммерческие gates перечислены выше.
 
 | Upstream choice | Классификация и источник | Execution consequence |
 |---|---|---|
@@ -361,7 +485,7 @@ dated outcome, invariant, implementation policy или non-blocking future backl
 | Rejected transfer hierarchy/acceptance premise | Rejected premise | No lifecycle; future clinic may only use an ordinary appointment concept |
 | Patient neutral multi-org start | Owner ruling: last active + visible switcher; invalid preference → chooser | U5A platform app; org-specific app pinned later |
 | Communication topology | Owner ruling: current solo chat at launch; clinic topology outside current scope | No new clinic topology in launch; non-blocking backlog only |
-| Entitlement packaging/degradation | Existing owner ruling on configurable mechanics plus architecture invariant capability-before-entitlement: `OWNER_RULINGS_2026-07-15.md` §3; OM-8 | Per-mechanic lifecycle is implementation contract; no new bundle-wide yes/no gate |
+| Entitlement packaging/degradation | Constructor/mechanics-as-data resolved; branch-local commercial policy pending: `OWNER_REVIEW_2026-07-18.md` §§P1-P2; OM-8 | C4C5-01…03 decide registry boundary, quotas, trial and degradation; unaffected ownership/isolation branches continue independently |
 | Owner vs delegated admin and non-clinical access | Existing least-privilege role contract: owner-only irreversible account/ownership actions; explicit delegated grants; no clinical authorship from management role, `ROLE_CAPABILITY_MATRIX.md` §2 and `UX03_CAPABILITY_ARCH_REVIEW.md` §§3.2–3.3 | U1/U2 capability presets and denial parity; exact grants remain configuration, not a reconstructed owner ruling |
 | Cross-organization patient transfer | Rejected as part of current transfer premise | No current workflow or U5C state machine |
 | Staff 2FA factors/roles/grace/step-up | Architecture/security invariant + source: complete factor enrollment, verification, recovery and session revocation are mandatory; exact factor/role/grace is resolved by a reviewed security-architecture contract, `ENTRY_AND_INVITE_JOURNEYS.md` §§5–6 | U3S/U3A cannot claim completion before that contract; until freeze high-risk owner actions fail closed |
@@ -379,7 +503,8 @@ dated outcome, invariant, implementation policy или non-blocking future backl
 
 ## Текущий результат
 
-Ответы перенесены в датированный rulings artifact. Для solo-first launch осталось **0 pending owner product
-decisions**. Future assistant grants, clinic communication topology и separate organization native app сохраняются
-как non-blocking backlog, а sender timing/retention — engineering configuration. Это не утверждает, что future
-clinic/native product полностью спроектирован. Последние уточнения ожидают полного независимого аудита.
+Ответы UX08 перенесены в датированный rulings artifact: для их solo-first UX scope осталось **0 pending owner
+product decisions**. Future assistant grants, clinic communication topology и separate organization native app
+сохраняются как non-blocking backlog, а sender timing/retention — engineering configuration. Актуальные P1–P5
+commercial/analytics/settings gates не относятся к переоткрытию UX08 и собраны в едином разделе выше. Это не
+утверждает, что future clinic/native product полностью спроектирован.
