@@ -2367,3 +2367,22 @@ the sole dirty path was the protected untracked `SESSION_HANDOFF_2026-07-17.md`;
 paths; taskdb showed `#855 blocked + owner_waiting`, `#856-#858 todo`; and no C2F/process-audit agent process remained.
 The auditor's apparent `.env.example` dirt was therefore a sandbox mount artifact, not repository state. The next
 two-hour process audit is due no later than `07:50 MSK` while the autonomous goal remains active.
+
+## 2026-07-19 — C4/C5 owner-decision sheet launch checkpoint (`#887`)
+
+The mandatory pre-C4/C5 decision gate from roadmap §7.3 is being prepared as a docs-only stage against the existing
+`OWNER_DECISION_PACKET.md`; no new roadmap or parallel decision document will be created. Baseline is clean pushed
+feature HEAD `9664cd34d`, one integration worktree and only the protected untracked owner handoff file. This stage
+does not start C4/C5 implementation and does not touch application code, DB, TEST, deploy or infrastructure.
+
+The packet must preserve UX08-01…12 and the already ruled/rejected/deferred OM/BD outcomes, replace the stale
+16.07 `0 pending` framing with the later 18.07 commercial gates, and consolidate only genuinely open decisions:
+quota policy, trial lifecycle, first SaaS PSP and supported legal/payment operations, clinic included/extra seats,
+future store commerce, final platform-analytics formulas/layout, and the solo organization-section label. Every
+question gets one plain-language recommendation, a safe dormant/fail-closed default and the exact dependent branch
+it blocks. Resolved launch/future decisions are summarized rather than re-asked.
+
+One whole-document worker owns the existing packet plus this canonical log, followed by one independent
+scope-bound docs audit. There will be no serial correction/audit churn and no full CI for this documentation-only
+gate; validation is exact source/link/status consistency. Taskdb `#887` is `doing`; `#751/#843/#844/#845/#854`
+remain untouched and no commercial code proceeds from recommendations before owner answers.
