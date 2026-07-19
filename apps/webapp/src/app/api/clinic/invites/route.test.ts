@@ -3,11 +3,16 @@ import { NextResponse } from "next/server";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireClinicManagementApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const sendEmailSetupLinkViaIntegratorMock = vi.hoisted(() => vi.fn());
 const getAppBaseUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireClinicManagementApiContext: () => requireClinicManagementApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -48,7 +53,13 @@ describe("clinic invites route", () => {
     });
     getAppBaseUrlMock.mockResolvedValue("http://127.0.0.1:6300");
     sendEmailSetupLinkViaIntegratorMock.mockResolvedValue({ ok: true });
+    requireEntitlementMock.mockResolvedValue({ ok: true });
   });
+
+  const defaultClinicSeats = {
+    assertSeatAvailableForInvite: vi.fn().mockResolvedValue({ ok: true }),
+    getSeatStatus: vi.fn().mockResolvedValue({ limit: null, used: 0, available: null }),
+  };
 
   it("returns the clinic-management guard response before resolving deps", async () => {
     requireClinicManagementApiContextMock.mockResolvedValueOnce({
@@ -76,6 +87,7 @@ describe("clinic invites route", () => {
     });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
     });
 
     const res = await POST(
@@ -101,6 +113,7 @@ describe("clinic invites route", () => {
     const createInvite = vi.fn();
     buildAppDepsMock.mockReturnValue({
       organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
     });
 
     const res = await POST(makeRequest({ email: "owner@example.com", role: "owner" }));
@@ -113,6 +126,7 @@ describe("clinic invites route", () => {
     const createInvite = vi.fn().mockResolvedValue({ ok: false, code: "already_member" });
     buildAppDepsMock.mockReturnValue({
       organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
     });
 
     const res = await POST(makeRequest({ email: "member@example.com", role: "admin" }));

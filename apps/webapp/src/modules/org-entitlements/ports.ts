@@ -4,7 +4,11 @@
  */
 export type OrgEntitlementsPort = {
   /** Resolves the org's tariff via be_organizations.tariff_id. Null when unset (no tariff assigned). */
-  getTariffForOrg(organizationId: string): Promise<{ mechanics: Record<string, boolean> } | null>;
+  getTariffForOrg(
+    organizationId: string,
+  ): Promise<{ mechanics: Record<string, boolean>; includedSeats: number | null } | null>;
   /** Per-org, per-mechanic overrides. May be empty. */
-  listOverrides(organizationId: string): Promise<{ mechanic: string; enabled: boolean }[]>;
+  listOverrides(
+    organizationId: string,
+  ): Promise<{ mechanic: string; enabled: boolean; seatLimitOverride: number | null }[]>;
 };

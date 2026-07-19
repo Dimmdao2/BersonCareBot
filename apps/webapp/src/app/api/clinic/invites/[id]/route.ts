@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 
 const paramsSchema = z.object({
@@ -13,6 +14,8 @@ export async function DELETE(
 ) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  if (!entitlement.ok) return entitlement.response;
 
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) {

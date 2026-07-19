@@ -3,9 +3,14 @@ import { NextResponse } from "next/server";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireClinicManagementApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireClinicManagementApiContext: () => requireClinicManagementApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -15,6 +20,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 const ORG_ID = "ed63b540-3fb6-499d-897c-f52227ea5dd8";
+const defaultSeats = { limit: null, used: 1, available: null };
 
 describe("GET /api/clinic/members", () => {
   beforeEach(() => {
@@ -23,6 +29,7 @@ describe("GET /api/clinic/members", () => {
       ok: true,
       ctx: { organizationId: ORG_ID },
     });
+    requireEntitlementMock.mockResolvedValue({ ok: true });
   });
 
   it("returns the clinic-management guard response before resolving deps", async () => {
@@ -62,14 +69,17 @@ describe("GET /api/clinic/members", () => {
         updatedAt: "2026-07-07T00:00:00.000Z",
       },
     ]);
+    const getSeatStatus = vi.fn().mockResolvedValue(defaultSeats);
     buildAppDepsMock.mockReturnValue({
       organizationMembership: { listOrganizationMembers },
+      clinicSeats: { getSeatStatus },
     });
 
     const res = await GET();
 
     expect(res.status).toBe(200);
     expect(listOrganizationMembers).toHaveBeenCalledWith(ORG_ID);
+    expect(getSeatStatus).toHaveBeenCalledWith(ORG_ID);
     await expect(res.json()).resolves.toEqual({
       ok: true,
       members: [
@@ -80,6 +90,7 @@ describe("GET /api/clinic/members", () => {
           status: "active",
           canManageOrganization: true,
           specialistLinked: true,
+          seatConsuming: true,
         },
         {
           id: "membership-2",
@@ -88,8 +99,10 @@ describe("GET /api/clinic/members", () => {
           status: "active",
           canManageOrganization: false,
           specialistLinked: false,
+          seatConsuming: true,
         },
       ],
+      seats: defaultSeats,
     });
   });
 });

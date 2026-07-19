@@ -18,14 +18,14 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
     async getTariffForOrg(organizationId) {
       const db = getDrizzle();
       const rows = await db
-        .select({ mechanics: saasTariffs.mechanics })
+        .select({ mechanics: saasTariffs.mechanics, includedSeats: saasTariffs.includedSeats })
         .from(beOrganizations)
         .innerJoin(saasTariffs, eq(saasTariffs.id, beOrganizations.tariffId))
         .where(eq(beOrganizations.id, organizationId))
         .limit(1);
       const row = rows[0];
       if (!row) return null;
-      return { mechanics: row.mechanics };
+      return { mechanics: row.mechanics, includedSeats: row.includedSeats };
     },
 
     async listOverrides(organizationId) {
@@ -34,6 +34,7 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
         .select({
           mechanic: saasOrgEntitlementOverrides.mechanic,
           enabled: saasOrgEntitlementOverrides.enabled,
+          seatLimitOverride: saasOrgEntitlementOverrides.seatLimitOverride,
         })
         .from(saasOrgEntitlementOverrides)
         .where(eq(saasOrgEntitlementOverrides.organizationId, organizationId));

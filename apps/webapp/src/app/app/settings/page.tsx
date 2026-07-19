@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -11,6 +12,7 @@ import { SettingsForm } from "./SettingsForm";
 import { DoctorNotificationChannelsSection } from "./DoctorNotificationChannelsSection";
 import { DoctorTimezoneSection } from "./DoctorTimezoneSection";
 import { AppointmentReminderSettingsSection } from "./AppointmentReminderSettingsSection";
+import { TeamSection } from "./TeamSection";
 import { SettingsHubTabs, type SettingsHubTab } from "./SettingsHubTabs";
 import { buildDoctorNotificationTopicModels } from "@/modules/doctor-notifications/doctorProfileTopicChannelsModel";
 import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
@@ -25,7 +27,9 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
 
 function parseTab(raw: string | string[] | undefined): SettingsHubTab {
   const value = typeof raw === "string" ? raw : raw?.[0];
-  return value === "organization" || value === "billing" || value === "install" ? value : "specialist";
+  return value === "organization" || value === "team" || value === "billing" || value === "install"
+    ? value
+    : "specialist";
 }
 
 export default async function SettingsPage({
@@ -48,16 +52,22 @@ export default async function SettingsPage({
   // C3 has no separate payer role yet. Until C5 supplies one, only the organization owner (or global admin)
   // may see the intentionally non-interactive billing shell.
   const canAccessBilling = workspace.membershipRole === "owner" || isGlobalAdmin;
+  const deps = buildAppDeps();
+  // C4A: clinic_team gates the Team tab itself, not just its API — an unentitled org must not see
+  // the nav item or reach its content through a direct ?tab=team link.
+  const clinicTeamEntitlement = await requireEntitlementForAction({ organizationId: workspace.organizationId }, "clinic_team");
+  const canAccessTeam = canManageOrganization && clinicTeamEntitlement.ok;
   const tab = parseTab(sp.tab);
   if (tab === "organization" && !canManageOrganization) redirect("/app/settings");
   if (tab === "billing" && !canAccessBilling) redirect("/app/settings");
+  if (tab === "team" && !canAccessTeam) redirect("/app/settings");
 
-  const deps = buildAppDeps();
   const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", { organizationId: workspace.organizationId });
   const patientLabel = valueOf(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   const tabs = [
     { id: "specialist" as const, label: "Специалист" },
     ...(canManageOrganization ? [{ id: "organization" as const, label: "Практика" }] : []),
+    ...(canAccessTeam ? [{ id: "team" as const, label: "Команда" }] : []),
     ...(canAccessBilling ? [{ id: "billing" as const, label: "Тариф и биллинг" }] : []),
     { id: "install" as const, label: "Установить приложение" },
   ];
@@ -82,6 +92,30 @@ export default async function SettingsPage({
         settingsEndpoint="/api/admin/settings"
       />
     </>;
+  } else if (tab === "team") {
+    const [members, invites, seats] = await Promise.all([
+      deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
+      deps.organizationInvites.listPending(workspace.organizationId),
+      deps.clinicSeats.getSeatStatus(workspace.organizationId),
+    ]);
+    content = (
+      <TeamSection
+        members={members.map((member) => ({
+          id: member.id,
+          displayName: member.displayName,
+          role: member.role,
+          status: member.status,
+          seatConsuming: member.role === "owner" || member.role === "doctor",
+        }))}
+        invites={invites.map((invite) => ({
+          id: invite.id,
+          invitedEmail: invite.invitedEmail,
+          invitedRole: invite.invitedRole,
+          expiresAt: invite.expiresAt,
+        }))}
+        seats={seats}
+      />
+    );
   } else if (tab === "billing") {
     content = <DoctorSection><DoctorSectionHeader><DoctorSectionTitle>Тариф и биллинг</DoctorSectionTitle></DoctorSectionHeader><p className="text-sm text-muted-foreground">Коммерческие настройки станут доступны после подключения тарифа.</p></DoctorSection>;
   } else {

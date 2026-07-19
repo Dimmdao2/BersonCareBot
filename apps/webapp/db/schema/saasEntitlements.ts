@@ -28,6 +28,8 @@ export const saasTariffs = pgTable("saas_tariffs", {
   priceMinor: integer("price_minor"),
   currency: text(),
   mechanics: jsonb().$type<Record<string, boolean>>().notNull().default(sql`'{}'::jsonb`),
+  /** C4A — included specialist seats for the `clinic_team` mechanic. `null` = unlimited. */
+  includedSeats: integer("included_seats"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
@@ -41,6 +43,8 @@ export const saasOrgEntitlementOverrides = pgTable(
     organizationId: uuid("organization_id").notNull(),
     mechanic: text().notNull(),
     enabled: boolean().notNull(),
+    /** C4A — per-org override of the `clinic_team` included-seats count; unused for other mechanics. */
+    seatLimitOverride: integer("seat_limit_override"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },

@@ -23,6 +23,7 @@ export const MECHANIC_REGISTRY = {
   patient_app_paid_subscription: { label: "Платная подписка пациента" },
   branding: { label: "Брендирование" },
   custom_domain: { label: "Собственный домен" },
+  clinic_team: { label: "Режим клиники" },
 } as const;
 
 export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
@@ -37,6 +38,8 @@ export type Tariff = {
   priceMinor: number | null;
   currency: string | null;
   mechanics: Record<string, boolean>;
+  /** Included specialist seats for `clinic_team`. `null` = unlimited. */
+  includedSeats: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +50,8 @@ export type OrgEntitlementOverride = {
   organizationId: string;
   mechanic: string;
   enabled: boolean;
+  /** Per-org override of the `clinic_team` included-seats count; unused for other mechanics. */
+  seatLimitOverride: number | null;
   createdAt: string;
   updatedAt: string;
 };

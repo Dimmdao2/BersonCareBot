@@ -35,3 +35,21 @@ export async function isMechanicEnabled(
   const entitlements = await resolveOrgEntitlements(port, organizationId);
   return entitlements[mechanic];
 }
+
+/**
+ * Resolves the effective included specialist seat count for the `clinic_team` mechanic,
+ * following the same override > tariff > default precedence as boolean mechanics. `null` means
+ * unlimited (an explicit global-admin choice), not "no data".
+ */
+export async function resolveClinicSeatLimit(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<number | null> {
+  const [tariff, overrides] = await Promise.all([
+    port.getTariffForOrg(organizationId),
+    port.listOverrides(organizationId),
+  ]);
+  const override = overrides.find((entry) => entry.mechanic === "clinic_team");
+  if (override?.seatLimitOverride != null) return override.seatLimitOverride;
+  return tariff?.includedSeats ?? null;
+}

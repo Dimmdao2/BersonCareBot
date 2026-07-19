@@ -2658,3 +2658,74 @@ automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
   confirm them or delete them after invalid S3 metadata; org A can still confirm and delete its own pending rows.
 - PASS focused confirm/security matrix: `7` files / `57` tests; PASS scoped ESLint and `git diff --check`. No schema,
   migration, resolver, DB write, DEV/TEST/PROD, deploy, external send or PII action.
+
+## 2026-07-19 — C4A clinic boundary: entitlement, seats, invite limit (`#843`)
+
+**Checkpoint.** Base `feat/doctor-ui-rebuild` at `f082e6e01` in worktree `codex/c4a-clinic-boundary-843`
+(`/home/dev/dev-projects/bcb-c4a-clinic-boundary-843`); not pushed or merged. Prerequisites closed: S4-0/S4-1
+registry/chokepoint `#888` (`requireEntitlement`, `MECHANIC_REGISTRY`, `protectedActionRegistry.ts`), C2 identity/
+invite (`organization_member_invites`, `app.accept_org_invite`), C3 settings shell (Team was a fail-closed redirect
+stub pending this stage). Scope matches roadmap C4A and `OWNER_REVIEW_2026-07-18.md` §§P1 (clinic mode as tariff
+mechanic), 14 (invite journey), 15 (settings IA/Team tab), and the 2026-07-19 addendum C4C5-05 (seat policy: active
+`owner`/`doctor` membership consumes a seat, non-clinical `admin` does not, pending `doctor` invite reserves a seat,
+included count/price are tariff data, downgrade preserves memberships and blocks only new growth). Add-on seat
+price/purchase (C5C) and billing/constructor UI (C5A/C5B) are explicitly out of scope.
+
+**Registry/schema.** Added the 15th mechanic key `clinic_team` (`org-entitlements/types.ts`). Added nullable
+`saas_tariffs.included_seats` and `saas_org_entitlement_overrides.seat_limit_override` via hand-authored
+`0212_clinic_team_seat_limit.sql` (+ `_journal.json` entry), matching the existing dormant-table convention used by
+`0180_store_entitlements.sql` (this pair of tables is intentionally outside `drizzle.config.ts`'s auto-diffed schema
+list). `resolveClinicSeatLimit()` in `org-entitlements/service.ts` reuses the exact override > tariff > default
+precedence already proven for boolean mechanics; no second entitlement/seat mechanism was created. No migration was
+applied to any live database.
+
+**Seat usage.** New module `modules/clinic-seats/service.ts` composes the existing `OrganizationMembershipPort`,
+`OrganizationInvitesPort` and `OrgEntitlementsPort` (no new infra/repo) to compute `{limit, used, available}`:
+active `owner`/`doctor` memberships plus pending `doctor` invites count against the effective limit; pending/active
+`admin` never consumes or is blocked. Wired into `buildAppDeps.ts` as `deps.clinicSeats`.
+
+**Server-side gate.** `requireEntitlement(gate.ctx, "clinic_team")` now guards every export in
+`GET/POST /api/clinic/invites`, `DELETE /api/clinic/invites/[id]` and `GET /api/clinic/members` — entitlement OFF
+denies the whole capability (not just writes), matching "hides/forbids Team UI and direct API." `POST` additionally
+calls `clinicSeats.assertSeatAvailableForInvite(organizationId, role)` before `createInvite`; an admin invite is
+always allowed, a doctor invite is denied `409 seat_limit_reached` at/over the effective limit. All four exports are
+mapped in `protectedActionRegistry.ts`; `check:s4-entitlement-coverage` passes (`29` protected actions, self-test
+green).
+
+**UI.** Settings hub gains a `"team"` tab (`SettingsHubTabs.tsx`, `settings/page.tsx`), visible only to
+`canManageOrganization` with `clinic_team` enabled (checked via `requireEntitlementForAction`, the sanctioned
+non-route entry point — calling `assertMechanicEnabled` directly from a page would trip the checker's static bypass
+scan, so the page uses the same wrapper routes use). An unentitled or unauthorized direct `?tab=team` link redirects
+to `/app/settings`, same as the existing `organization`/`billing` guards. New `TeamSection.tsx` (client) renders
+members, seat status, an invite form (email + admin/doctor role) and pending-invite revoke, calling the existing
+`/api/clinic/invites` and `/api/clinic/members` routes and `router.refresh()` after mutations — no new API surface
+beyond the three route changes above. The legacy `doctor/clinic/members` redirect stub now points at
+`/app/settings?tab=team` instead of the bare hub.
+
+**Validation.** Targeted Vitest: `org-entitlements/service.test.ts` (override/tariff/default precedence for
+`resolveClinicSeatLimit`, A/B non-leak), `clinic-seats/service.test.ts` (seat counting incl. disabled-membership
+exclusion, downgrade-below-usage, unlimited, admin-always-allowed), `api/clinic/invites/route.test.ts` +
+`route.entitlement.test.ts` (auth → entitlement → seat-check → service ordering, forged-org body ignored, admin
+bypasses seat check), `api/clinic/invites/[id]/route.test.ts` (new — entitlement gate + revoke/not-found/invalid-id),
+`api/clinic/members/route.test.ts` (entitlement gate + `seatConsuming` projection), `settings/page.test.tsx` (tab
+visibility for owner vs ordinary specialist, fail-closed direct-tab redirect, rendered Team content), new
+`settings/TeamSection.test.tsx` (invite submit, seat-limit error surfaced, revoke). Result: `12` files / `60` tests
+pass. `pnpm --dir apps/webapp run typecheck` and full `pnpm --dir apps/webapp run lint` (ESLint + all repo invariant
+checkers incl. `check-drizzle-journal-sync`) pass. No full root CI, DB, DEV/TEST/PROD, deploy or external send.
+
+**Residual risk (recorded, not fixed in this stage).** The seat check and the invite insert are two separate
+service calls, not one transaction; the existing concurrency primitive (`pgOrganizationInvites.createReplacingPending`'s
+advisory lock) is keyed per `(organizationId, email)`, not per organization, so two *different* emails invited for
+the same organization at the same instant could both pass the JS-level seat check before either commits. This is a
+soft business-limit race (occasional one-seat overshoot), not a tenant-isolation or security gap, and building a new
+org-wide seat-reservation lock was judged out of the minimal scope for this stage; flagging for owner/lead awareness
+rather than inventing a second concurrency mechanism. Live DEV click-through (entitlement OFF hides the tab/denies
+the API; ON shows it; at-limit denial toast) was not performed by this docs+code worker and remains open for the
+separate audit/visual-acceptance pass.
+
+**Commit blocker (environment, not code).** This worktree's shared `.git/worktrees/bcb-c4a-clinic-boundary-843/`
+admin directory sits on the sandbox's read-only root filesystem (`/`, `ro`); only this worktree's working-tree files
+are on a writable bind mount. `git add`/`git commit` fail with `Unable to create .../index.lock: Read-only file
+system` — the same class of blocker the `#888` worker recorded in its evidence log. All files listed above are
+written and verified on disk; no commit exists yet. The lead/owner needs to run the commit from a writable context
+(e.g. the live/main worktree, pulling this branch's working tree) before this stage can be pushed or merged.

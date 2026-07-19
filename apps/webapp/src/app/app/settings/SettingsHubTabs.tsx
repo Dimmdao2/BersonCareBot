@@ -9,7 +9,7 @@ import {
   doctorDnaFlatListSelectedPrimaryClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 
-export type SettingsHubTab = "specialist" | "organization" | "billing" | "install";
+export type SettingsHubTab = "specialist" | "organization" | "team" | "billing" | "install";
 
 export type SettingsHubTabItem = {
   id: SettingsHubTab;

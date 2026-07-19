@@ -326,6 +326,7 @@ import { createOrganizationProvisioningService } from "@/modules/organization-pr
 import { createPgOrganizationInvitesPort } from "@/infra/repos/pgOrganizationInvites";
 import { createInMemoryOrganizationInvitesPort } from "@/infra/repos/inMemoryOrganizationInvites";
 import { createOrganizationInvitesService } from "@/modules/organization-invites/service";
+import { createClinicSeatsService } from "@/modules/clinic-seats/service";
 import { createDoctorWorkspaceDirectoryService } from "@/modules/doctor-workspace/service";
 import { createPgBookingEnginePort } from "@/infra/repos/pgBookingEngine";
 import {
@@ -525,6 +526,11 @@ const organizationInvitesService = createOrganizationInvitesService({
 });
 const doctorWorkspaceDirectoryService = createDoctorWorkspaceDirectoryService({
   membershipPort: organizationMembershipPort,
+});
+const clinicSeatsService = createClinicSeatsService({
+  membershipPort: organizationMembershipPort,
+  invitesPort: organizationInvitesPort,
+  orgEntitlementsPort,
 });
 const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
 const bookingCatalogService = bookingCatalogPort
@@ -1618,6 +1624,7 @@ function _buildAppDeps() {
     patientOrganization: patientOrganizationService,
     organizationProvisioning: organizationProvisioningService,
     organizationInvites: organizationInvitesService,
+    clinicSeats: clinicSeatsService,
     doctorWorkspace: doctorWorkspaceDirectoryService,
     materialRating: materialRatingService,
     materialRatingFeedback: materialRatingFeedbackService,

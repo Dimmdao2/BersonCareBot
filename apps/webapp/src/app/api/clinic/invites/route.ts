@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/config/env";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { sendEmailSetupLinkViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
 import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
@@ -20,15 +21,22 @@ function buildInviteUrl(baseUrl: string, token: string): string {
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
-  const invites = await deps.organizationInvites.listPending(gate.ctx.organizationId);
-  return NextResponse.json({ ok: true, invites });
+  const [invites, seats] = await Promise.all([
+    deps.organizationInvites.listPending(gate.ctx.organizationId),
+    deps.clinicSeats.getSeatStatus(gate.ctx.organizationId),
+  ]);
+  return NextResponse.json({ ok: true, invites, seats });
 }
 
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  if (!entitlement.ok) return entitlement.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -37,6 +45,11 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const seatCheck = await deps.clinicSeats.assertSeatAvailableForInvite(gate.ctx.organizationId, parsed.data.role);
+  if (!seatCheck.ok) {
+    return NextResponse.json({ ok: false, error: seatCheck.code }, { status: 409 });
+  }
+
   const result = await deps.organizationInvites.createInvite({
     organizationId: gate.ctx.organizationId,
     email: parsed.data.email,

@@ -1485,6 +1485,13 @@
       "when": 1793539200006,
       "tag": "0211_public_email_otp_structured_registration",
       "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1793539200007,
+      "tag": "0212_clinic_team_seat_limit",
+      "breakpoints": true
     }
   ]
 }
