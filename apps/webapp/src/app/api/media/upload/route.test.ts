@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { uploadMock, folderExistsMock, sessionMock } = vi.hoisted(() => ({
+const { uploadMock, folderExistsMock, sessionMock, requireDoctorWorkspaceApiContextMock } = vi.hoisted(() => ({
   uploadMock: vi.fn(),
   folderExistsMock: vi.fn(),
   sessionMock: vi.fn(),
+  requireDoctorWorkspaceApiContextMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -14,6 +15,14 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     media: { upload: uploadMock, folderExists: folderExistsMock },
   }),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
 }));
 
 vi.mock("@/modules/media/uploadAllowedMime", async (importOriginal) => {
@@ -37,16 +46,35 @@ describe("POST /api/media/upload", () => {
     folderExistsMock.mockReset();
     folderExistsMock.mockResolvedValue(false);
     sessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await sessionMock();
+      if (!session) {
+        return {
+          ok: false,
+          response: new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }),
+        };
+      }
+      return {
+        ok: true,
+        ctx: {
+          organizationId: "10000000-0000-4000-8000-000000000001",
+          session: {
+            ...session,
+            user: { ...session.user, userId: session.user.userId ?? session.user.id },
+          },
+        },
+      };
+    });
   });
 
-  it("returns 403 without doctor session", async () => {
+  it("returns 401 without doctor session", async () => {
     sessionMock.mockResolvedValue(null);
     const fd = new FormData();
     fd.set("file", new File([new Uint8Array([1])], "a.jpg", { type: "image/jpeg" }));
     const res = await POST(
       new Request("http://localhost/api/media/upload", { method: "POST", body: fd })
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns 415 for disallowed MIME", async () => {

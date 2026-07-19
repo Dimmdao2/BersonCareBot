@@ -18,6 +18,7 @@ const getSessionMock = vi.fn();
 const getConfigBoolMock = vi.fn();
 const handleMock = vi.fn();
 const getAccessRowMock = vi.fn();
+const requirePatientApiBusinessAccessMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
@@ -35,6 +36,11 @@ vi.mock("@/app-layer/media/hlsDeliveryProxy", () => ({
   handleHlsDeliveryProxyRequest: (...a: unknown[]) => handleMock(...a),
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: vi.fn(),
+  requirePatientApiBusinessAccess: () => requirePatientApiBusinessAccessMock(),
+}));
+
 import { GET } from "./route";
 
 const mid = "00000000-0000-4000-8000-000000000099";
@@ -46,8 +52,10 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
     getConfigBoolMock.mockReset();
     handleMock.mockReset();
     getAccessRowMock.mockReset();
+    requirePatientApiBusinessAccessMock.mockReset();
     routeLoggerHoisted.loggerWarn.mockReset();
     getSessionMock.mockResolvedValue(patientSession);
+    requirePatientApiBusinessAccessMock.mockResolvedValue({ ok: true, session: patientSession });
     getConfigBoolMock.mockResolvedValue(true);
     getAccessRowMock.mockResolvedValue({
       usage_purpose: null,
@@ -64,14 +72,7 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
     });
     expect(res.status).toBe(401);
     expect(handleMock).not.toHaveBeenCalled();
-    expect(routeLoggerHoisted.loggerWarn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mediaId: mid,
-        reasonCode: "session_unauthorized",
-        httpStatus: 401,
-      }),
-      "hls_proxy_error",
-    );
+    expect(routeLoggerHoisted.loggerWarn).not.toHaveBeenCalled();
   });
 
   it("returns 503 when video_playback_api_enabled is false", async () => {

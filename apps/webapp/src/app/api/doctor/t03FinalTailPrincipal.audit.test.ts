@@ -8,8 +8,6 @@ const apiRoots = ["src/app/api/doctor", "src/app/api/admin"];
 const allowedUncovered: Record<string, string> = {
   "src/app/api/admin/google-calendar/start/route.ts":
     "global OAuth start URL, no scoped DB write",
-  "src/app/api/admin/media/exercise-usage/route.ts":
-    "read-only POST query helper",
   "src/app/api/admin/mode/route.ts":
     "session adminMode toggle, no scoped DB write",
   "src/app/api/admin/rubitime/booking-profiles/[id]/route.ts":

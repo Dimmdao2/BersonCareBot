@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, listMock, buildAppDepsMock } = vi.hoisted(() => {
+const { getSessionMock, listMock, buildAppDepsMock, requireDoctorWorkspaceApiContextMock } = vi.hoisted(() => {
   const listMockInner = vi.fn().mockResolvedValue([]);
   return {
     getSessionMock: vi.fn(),
@@ -10,6 +10,7 @@ const { getSessionMock, listMock, buildAppDepsMock } = vi.hoisted(() => {
         list: listMockInner,
       },
     })),
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
   };
 });
 
@@ -21,12 +22,36 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/admin/media", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await getSessionMock();
+      if (!session) {
+        return { ok: false, response: new Response(null, { status: 401 }) };
+      }
+      if (session.user.role === "client") {
+        return { ok: false, response: new Response(null, { status: 403 }) };
+      }
+      return {
+        ok: true,
+        ctx: {
+          organizationId: "10000000-0000-4000-8000-000000000001",
+          session: { ...session, user: { ...session.user, userId: session.user.userId ?? "u1" } },
+        },
+      };
+    });
   });
 
   it("returns 401 without session", async () => {

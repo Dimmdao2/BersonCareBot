@@ -11,6 +11,8 @@ const presignMock = vi.fn();
 const recordPlaybackResolutionStatMock = vi.fn((..._args: unknown[]) => Promise.resolve());
 const recordPlaybackResolutionEventMock = vi.fn((..._args: unknown[]) => Promise.resolve());
 const recordPlaybackUserVideoFirstResolveMock = vi.fn((..._args: unknown[]) => Promise.resolve(false));
+const requirePatientApiBusinessAccessMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://x/bersoncarebot_test" },
@@ -18,6 +20,15 @@ vi.mock("@/config/env", () => ({
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+  requirePatientApiBusinessAccess: () => requirePatientApiBusinessAccessMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
 }));
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
@@ -82,11 +93,21 @@ describe("GET /api/media/[id]/playback", () => {
     getConfigValueMock.mockReset();
     getRowMock.mockReset();
     getAccessRowMock.mockReset();
+    requirePatientApiBusinessAccessMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
     presignMock.mockReset();
     recordPlaybackResolutionStatMock.mockClear();
     recordPlaybackResolutionEventMock.mockClear();
     recordPlaybackUserVideoFirstResolveMock.mockClear();
     getSessionMock.mockResolvedValue(patientSession);
+    requirePatientApiBusinessAccessMock.mockResolvedValue({ ok: true, session: patientSession });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "10000000-0000-4000-8000-000000000001",
+        session: adminSession,
+      },
+    });
     getAccessRowMock.mockResolvedValue({
       usage_purpose: null,
       uploaded_by: "u1",

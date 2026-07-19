@@ -74,6 +74,17 @@ describe("GET /api/admin/media/folders", () => {
     pgExistsMock.mockReset();
     validateParentMock.mockReset();
     validateParentMock.mockResolvedValue({ ok: true });
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await getSessionMock();
+      if (!session) return { ok: false, response: new Response(null, { status: 401 }) };
+      return {
+        ok: true,
+        ctx: {
+          organizationId: "org-1",
+          session: { ...session, user: { ...session.user, userId: session.user.userId ?? "u1" } },
+        },
+      };
+    });
   });
 
   it("returns 401 without session", async () => {

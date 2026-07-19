@@ -20,6 +20,13 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorAccess: vi.fn().mockResolvedValue({ user: { id: "doc-1", role: "doctor" } }),
+  requireDoctorWorkspaceApiContext: vi.fn().mockResolvedValue({
+    ok: true,
+    ctx: {
+      organizationId: "10000000-0000-4000-8000-000000000001",
+      session: { user: { userId: "doc-1", role: "doctor" } },
+    },
+  }),
   requireDoctorWorkspaceContext: vi.fn().mockResolvedValue({
     organizationId: "10000000-0000-4000-8000-000000000001",
     session: { user: { userId: "doc-1", role: "doctor" } },

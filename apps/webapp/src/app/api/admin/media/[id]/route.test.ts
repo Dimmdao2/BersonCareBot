@@ -91,6 +91,20 @@ describe("GET /api/admin/media/[id]", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     getByIdMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await getSessionMock();
+      if (!session) return { ok: false, response: new Response(null, { status: 401 }) };
+      if (session.user.role === "client") {
+        return { ok: false, response: new Response(null, { status: 403 }) };
+      }
+      return {
+        ok: true,
+        ctx: {
+          organizationId: "org-1",
+          session: { ...session, user: { ...session.user, userId: session.user.userId ?? "u1" } },
+        },
+      };
+    });
   });
 
   it("returns 401 without session", async () => {

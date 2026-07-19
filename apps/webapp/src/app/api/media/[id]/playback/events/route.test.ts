@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.fn();
 const recordPlaybackClientEventMock = vi.fn();
 const getMediaAccessRowMock = vi.fn();
+const requirePatientApiBusinessAccessMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
@@ -18,6 +19,11 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaAccessRow: (...args: unknown[]) => getMediaAccessRowMock(...args),
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: vi.fn(),
+  requirePatientApiBusinessAccess: () => requirePatientApiBusinessAccessMock(),
+}));
+
 import { POST } from "./route";
 
 const mid = "00000000-0000-4000-8000-000000000099";
@@ -28,7 +34,9 @@ describe("POST /api/media/[id]/playback/events", () => {
     getSessionMock.mockReset();
     recordPlaybackClientEventMock.mockReset();
     getMediaAccessRowMock.mockReset();
+    requirePatientApiBusinessAccessMock.mockReset();
     getSessionMock.mockResolvedValue(patientSession);
+    requirePatientApiBusinessAccessMock.mockResolvedValue({ ok: true, session: patientSession });
     recordPlaybackClientEventMock.mockResolvedValue(undefined);
     getMediaAccessRowMock.mockResolvedValue({
       usage_purpose: "lfk_exercise",

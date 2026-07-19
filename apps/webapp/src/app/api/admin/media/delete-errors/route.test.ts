@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMock = vi.fn();
 const getSessionMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.fn();
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
@@ -13,6 +14,14 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   listMediaDeleteErrors: (...args: unknown[]) => listMock(...args),
 }));
 
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
+}));
+
 import { GET } from "./route";
 
 describe("GET /api/admin/media/delete-errors", () => {
@@ -20,6 +29,17 @@ describe("GET /api/admin/media/delete-errors", () => {
     listMock.mockReset();
     getSessionMock.mockReset();
     listMock.mockResolvedValue({ items: [], total: 0 });
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await getSessionMock();
+      if (!session) return { ok: false, response: new Response(null, { status: 401 }) };
+      if (session.user.role === "client") {
+        return { ok: false, response: new Response(null, { status: 403 }) };
+      }
+      return {
+        ok: true,
+        ctx: { organizationId: "org-1", session },
+      };
+    });
   });
 
   it("returns 401 without session", async () => {
