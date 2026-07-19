@@ -11,9 +11,10 @@ vi.mock("./loadManagementWorkspace", () => ({
 
 import ManagementPage from "./page";
 
-function workspace(specialistId: string | null) {
+function workspace(specialistId: string | null, clinicTeamEnabled = false) {
   return {
     organizationName: "Практика Берсона",
+    clinicTeamEnabled,
     workspace: {
       session: {
         user: {
@@ -49,6 +50,8 @@ describe("ManagementPage", () => {
     expect(html).toContain("Практика · Практика Берсона");
     expect(html).toContain('href="/app/settings?tab=organization"');
     expect(html).toContain('href="/app/account"');
+    expect(html).toContain('href="/app/settings?tab=billing"');
+    expect(html).not.toContain('href="/app/settings?tab=team"');
     expect(html).not.toContain('href="/app/doctor"');
     expect(html).not.toContain('href="/app/doctor/schedule?tab=setup"');
   });
@@ -59,5 +62,12 @@ describe("ManagementPage", () => {
 
     expect(html).toContain('href="/app/doctor"');
     expect(html).toContain('href="/app/doctor/schedule?tab=setup"');
+  });
+
+  it("makes the existing Team surface discoverable only when the entitlement is enabled", async () => {
+    loadManagementWorkspaceMock.mockResolvedValue(workspace(null, true));
+    const html = renderToStaticMarkup(await ManagementPage());
+
+    expect(html).toContain('href="/app/settings?tab=team"');
   });
 });

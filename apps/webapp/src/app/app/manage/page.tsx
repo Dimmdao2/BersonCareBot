@@ -18,8 +18,9 @@ function managementRoleLabel(role: "owner" | "admin" | "doctor" | "assistant"): 
 }
 
 export default async function ManagementPage() {
-  const { workspace, organizationName } = await loadManagementWorkspace();
+  const { workspace, organizationName, clinicTeamEnabled } = await loadManagementWorkspace();
   const hasClinicalWorkspace = workspace.canAccessClinicalWorkspace && workspace.specialistId !== null;
+  const canAccessBilling = workspace.membershipRole === "owner";
 
   return (
     <DoctorAppShell title="Управление практикой" user={workspace.session.user}>
@@ -60,6 +61,22 @@ export default async function ManagementPage() {
           >
             Личный аккаунт
           </Link>
+          {clinicTeamEnabled ? (
+            <Link
+              href={`${routePaths.settings}?tab=team`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              Команда
+            </Link>
+          ) : null}
+          {canAccessBilling ? (
+            <Link
+              href={`${routePaths.settings}?tab=billing`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              Тариф и биллинг
+            </Link>
+          ) : null}
           {hasClinicalWorkspace ? (
             <>
               <Link
