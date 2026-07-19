@@ -4,6 +4,6 @@ export const metadata = {
   title: "Установить приложение — кабинет",
 };
 
-export default function DoctorInstallPage() {
+export default async function DoctorInstallPage() {
   redirect("/app/settings?tab=install");
 }

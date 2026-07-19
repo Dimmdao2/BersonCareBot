@@ -14,6 +14,7 @@ const { getCurrentSessionMock, getAllTemplatesMock, saveTemplateMock, resolveOrg
         specialistId: null,
         canManageOrganization: true,
         canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: true,
       },
     })),
   }),
