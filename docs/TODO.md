@@ -2,6 +2,12 @@
 
 Краткий список отложенных задач по безопасности, лимитам и наблюдаемости. Реализация по приоритетам продукт/ops.
 
+## 🧰 Решения по инструментам и пакетам (канон)
+
+- **[docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md](ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md)** — что внедряем/откладываем/не берём из списка сторонних инструментов и библиотек (разбор 2026-07-19). Перед тем как тащить новый self-hosted сервис или npm-пакет — свериться там.
+- **Внедрять сейчас — Security CI** (Gitleaks · Semgrep · Trivy · OWASP ZAP): план подключения — **[docs/_TODO/SECURITY_CI_STACK_PLAN.md](_TODO/SECURITY_CI_STACK_PLAN.md)**.
+- Ключевое из разбора: анкеты — **нативные** (не Formbricks); faster-whisper — под **голосовые в чатах**; видео — Jitsi MVP → LiveKit; **Recharts/dnd-kit уже стоят** (переиспользовать); **react-table не внедрять**, справочники доктора не трогать; поиск по знаниям — **pgvector, не Qdrant**; **Penpot уже развёрнут** (`penpot.bersonservicex.ru`, taskdb #6).
+
 ## Cursor-планы и доки (сводка)
 
 - **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md). Закрытый план MAX/TG pre-prod (integrator): [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md) · журнал [`ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
