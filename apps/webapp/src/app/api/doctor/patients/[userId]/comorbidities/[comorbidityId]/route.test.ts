@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
   if (!fn) throw new Error("principal_callback_required");
@@ -10,6 +11,10 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sou
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -38,6 +43,7 @@ const COMORBIDITY_ID = "00000000-0000-4000-8000-0000000000cc";
 describe("doctor patient comorbidity item route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -170,5 +176,71 @@ describe("doctor patient comorbidity item route", () => {
     );
 
     expect(res.status).toBe(404);
+  });
+
+  it("denies both edit and restore branches after identity resolution without calling either service", async () => {
+    const order: string[] = [];
+    const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
+      order.push("identity");
+      return { userId: CANONICAL_PATIENT_ID };
+    });
+    const editText = vi.fn();
+    const restore = vi.fn();
+    requireEntitlementMock.mockImplementation(async () => {
+      order.push("entitlement");
+      return { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      patientComorbidities: { editText, restore },
+    });
+
+    const editResponse = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "Астма" }),
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID, comorbidityId: COMORBIDITY_ID }) },
+    );
+    const restoreResponse = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "restore" }),
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID, comorbidityId: COMORBIDITY_ID }) },
+    );
+
+    expect(editResponse.status).toBe(403);
+    expect(restoreResponse.status).toBe(403);
+    expect(order).toEqual(["identity", "entitlement", "identity", "entitlement"]);
+    expect(editText).not.toHaveBeenCalled();
+    expect(restore).not.toHaveBeenCalled();
+  });
+
+  it("denies soft removal after identity resolution and preserves the existing record", async () => {
+    const order: string[] = [];
+    const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
+      order.push("identity");
+      return { userId: CANONICAL_PATIENT_ID };
+    });
+    const markRemoved = vi.fn();
+    requireEntitlementMock.mockImplementation(async () => {
+      order.push("entitlement");
+      return { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      patientComorbidities: { markRemoved },
+    });
+
+    const res = await DELETE(new Request("http://localhost", { method: "DELETE" }), {
+      params: Promise.resolve({ userId: PATIENT_ID, comorbidityId: COMORBIDITY_ID }),
+    });
+
+    expect(res.status).toBe(403);
+    expect(order).toEqual(["identity", "entitlement"]);
+    expect(markRemoved).not.toHaveBeenCalled();
   });
 });

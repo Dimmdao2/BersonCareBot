@@ -21,8 +21,8 @@ business semantics from unrelated files.
 | mailings | `broadcasts/actions.ts:64` | `requireDoctorWorkspaceContext` | `:68` action adapter | `deps.doctorBroadcasts.execute` |
 | cms_pages | `content/actions.ts:14`, `lifecycleActions.ts:12`, `sections/actions.ts:23,130,196,242` | `requireDoctorWorkspaceContext` | `:19`, `:14`, `:28,:135,:201,:247` action adapter | page upsert/update/lifecycle; section upsert/attach/rename/delete |
 | subscriptions | `patient-packages/route.ts:70` `POST` | `requireDoctorBookingEngine` | `:73` route adapter | memberships create/offer command boundary |
-| patient_card | visits `:71`, anamnesis `:80`, complaints `:23`, diagnoses `:24` | `requireDoctorWorkspaceApiContext` | `:77`, `:86`, `:29`, `:30` | `patientClinical` visit/anamnesis/complaint/diagnosis writes |
-| files | `files/route.ts:103` `POST` | `requireDoctorWorkspaceApiContext` | `:109` route adapter | `deps.patientFiles.createFile` |
+| patient_card | visits create/update; anamnesis create; complaints update; diagnoses update/status update; physical update; comorbidities create/update/restore/soft-remove | `requireDoctorWorkspaceApiContext` + trusted patient identity | handler-level `requireEntitlement(..., "patient_card")` after canonical patient resolution | `patientClinical`, `doctorClients.setPatientPhysical`, `patientComorbidities` writes |
+| files | `files/route.ts` `POST`; `files/[fileId]/route.ts` `PATCH` | `requireDoctorWorkspaceApiContext` + trusted patient/file ownership | handler-level `requireEntitlement(..., "files")` after canonical patient/file resolution | `deps.patientFiles.createFile/linkFileToVisit/renameFile` |
 | booking | branch `:26`, service `:29`, slot/schedule block `:39` `POST` | composed booking-engine contexts | `:29`, `:32`, `:42` route adapter | catalog/service/scheduling command boundary |
 | payments | `admin/settings/route.ts:276` `PATCH`, only single-key `booking_payment_providers` / `booking_payment_enabled` | `requireClinicManagementApiContext` | single-key route adapter | `deps.systemSettings.updateSetting` |
 
@@ -30,6 +30,21 @@ business semantics from unrelated files.
 `custom_domain` are explicitly `declared_no_surface` in
 [`protectedActionRegistry.ts`](../../../apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:37).
 Their code-search evidence is the S4 execution log scope: no route was created solely to give them a flag.
+
+### 2026-07-19 owner correction — disabled patient card/files block every write
+
+The owner ruling for #888 makes `patient_card` and `files` write capabilities rather than representative rollout
+samples. The registry therefore maps every active mutation in those two sections, including both branches of the
+comorbidity PATCH handler and its recoverable soft-remove DELETE, plus both file-item PATCH branches. A single
+handler-level guard protects branches that share the same resolved workspace/patient boundary.
+
+This correction does **not** gate GET, status-history, preview/download, export, removed-record listing, or other
+recovery-safe reads. Restore itself remains a mapped mutation and is denied while the mechanic is disabled; its soft-
+removed record is retained for recovery after re-enablement. The correction does not delete or hide existing
+clinical/file records when a mechanic is disabled.
+Explicit exclusions remain diagnosis-catalog creation, symptom trackings, booking and schedule-block DELETE,
+programs, messages, identity/FIO, and admin media PATCH/DELETE; those are not Patient Card/Patient Files mutations
+in the owner ruling.
 
 ## Compatibility and effective tariff source
 

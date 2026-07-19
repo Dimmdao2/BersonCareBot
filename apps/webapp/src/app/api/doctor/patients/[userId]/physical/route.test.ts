@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
   if (!fn) throw new Error("principal_callback_required");
@@ -11,6 +12,10 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sou
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -36,6 +41,7 @@ describe("doctor patient physical route", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -150,5 +156,36 @@ describe("doctor patient physical route", () => {
       expect.objectContaining({ organizationId }),
       expect.any(Function),
     );
+  });
+
+  it("denies disabled card physical writes after identity resolution without calling the service", async () => {
+    const order: string[] = [];
+    const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
+      order.push("identity");
+      return { userId: canonicalPatientId };
+    });
+    const setPatientPhysical = vi.fn();
+    requireEntitlementMock.mockImplementation(async () => {
+      order.push("entitlement");
+      return { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      doctorClients: { setPatientPhysical },
+    });
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heightCm: 170 }),
+      }),
+      { params: Promise.resolve({ userId: patientId }) },
+    );
+
+    expect(res.status).toBe(403);
+    expect(order).toEqual(["identity", "entitlement"]);
+    expect(setPatientPhysical).not.toHaveBeenCalled();
   });
 });

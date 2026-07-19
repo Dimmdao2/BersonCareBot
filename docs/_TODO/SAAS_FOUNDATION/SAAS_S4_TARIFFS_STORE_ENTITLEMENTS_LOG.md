@@ -104,3 +104,26 @@ owner gates remain in the canonical SaaS Product UX roadmap/review; this log rec
 - **Deferred recommendations:** keep a regression test that payment keys remain invalid in the modes-only batch;
   decide separately whether schedule-block deletion and other patient-card-adjacent ports belong to these mechanics.
   None was converted into code or a new task by the auditor.
+
+## 2026-07-19 — owner ruling correction: all Patient Card / Patient Files mutations (`#888`)
+
+- **Owner ruling:** when `patient_card` or `files` is disabled, every mutation in that section must be denied after
+  workspace authorization and trusted patient/org (and, for a file item, file ownership) resolution. This resolves
+  the re-audit's representative-write versus all-mutations gate without expanding to a different product domain.
+- **Mapped/gated patient-card mutations:** visit PATCH (`patientClinical.updateVisitFields`); diagnosis-status PATCH
+  (`setDiagnosisClinicalStatus`); physical PATCH (`doctorClients.setPatientPhysical`); comorbidity POST (`add`);
+  comorbidity item PATCH (`editText` and `restore`); and comorbidity DELETE (`markRemoved`). The latter remains a
+  soft removal: the row is retained for existing recovery/read paths, never deleted because entitlement is off.
+- **Mapped/gated file mutation:** patient file-item PATCH protects both `linkFileToVisit` and `renameFile` after the
+  canonical patient and file ownership checks. File GET/preview/download remains readable under the normal workspace
+  access model.
+- **Preserved read/recovery behavior:** GET routes, diagnosis status history, existing-data export/download and
+  removed-comorbidity listing remain available. Restore is correctly treated as a blocked mutation while disabled;
+  the soft-removed record remains intact for recovery after re-enablement. Disabling a mechanic never deletes
+  existing patient card or file data.
+- **Explicit exclusions preserved:** diagnosis-catalog creation, symptom trackings, booking (including
+  schedule-block DELETE), programs, messages, identity/FIO, and admin media PATCH/DELETE are not broadened by this
+  correction. Admin media is the general library/offboarding boundary, not the Patient Files section.
+- **Evidence:** compact route contracts cover denial, trusted-resolution ordering and service-not-called for every
+  newly mapped handler, including both branching PATCH variants and the soft DELETE. Checker/method mapping and
+  focused validation results are recorded with this correction commit; independent re-audit remains pending.

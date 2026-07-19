@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const buildAppDepsMock = vi.hoisted(() => vi.fn());
 const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
   if (!fn) throw new Error("principal_callback_required");
@@ -10,6 +11,10 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sou
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -54,6 +59,7 @@ function fileRow(overrides: Partial<{ patientUserId: string; fileName: string }>
 describe("doctor patient file item route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -154,5 +160,42 @@ describe("doctor patient file item route", () => {
     );
 
     expect(res.status).toBe(404);
+  });
+
+  it("denies both link and rename mutations only after the trusted file scope is resolved", async () => {
+    const order: string[] = [];
+    const getClientIdentityForOrganization = vi.fn().mockImplementation(async () => {
+      order.push("identity");
+      return { userId: CANONICAL_PATIENT_ID };
+    });
+    const getFile = vi.fn().mockImplementation(async () => {
+      order.push("file");
+      return fileRow();
+    });
+    const linkFileToVisit = vi.fn();
+    const renameFile = vi.fn();
+    requireEntitlementMock.mockImplementation(async () => {
+      order.push("entitlement");
+      return { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      patientFiles: { getFile, linkFileToVisit, renameFile },
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visitId: VISIT_ID, fileName: "renamed.pdf" }),
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID, fileId: FILE_ID }) },
+    );
+
+    expect(res.status).toBe(403);
+    expect(order).toEqual(["identity", "file", "entitlement"]);
+    expect(requireEntitlementMock).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORG_ID }), "files");
+    expect(linkFileToVisit).not.toHaveBeenCalled();
+    expect(renameFile).not.toHaveBeenCalled();
   });
 });
