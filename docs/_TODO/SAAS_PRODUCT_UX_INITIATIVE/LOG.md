@@ -2200,3 +2200,70 @@ single edit. Each worker gets the full owner checklist and returns exact files/t
 worker -> independent high-risk audit -> correction/re-audit cycle if necessary; C3 gets the risk-sized stage audit,
 with findings constrained to owner-review §15. Targeted tests/typecheck/lint run per stage; no new full CI until the
 next milestone. Live TEST deployment remains code-only and serial after integration; no second Next server.
+
+## 2026-07-19 — C2/C3 integration closeout before the TEST milestone
+
+### C3 settings hub (`#842`)
+
+C3 was implemented as one settings stage (`bcb-c3-settings-hub-20260719`) and received one independent
+scope-bound audit (`bcb-c3-settings-hub-audit-20260719`). The audit identified owner-review §15 deltas rather than
+new product scope; one coherent correction (`bcb-c3-settings-hub-correction-20260719`) plus one low-effort mechanical
+test-mock repair (`bcb-c3-settings-hub-mechanic-20260719`) closed them. No serial cosmetic re-audit loop was opened.
+
+Commit `277f1ac55` is integrated and pushed. The result keeps one stable `Настройки` entry and one tabbed hub;
+practice owns the client/patient term and appointment-reminder writer; schedule lifecycle notifications stay in
+schedule settings; the retired daily bot reminder is removed from UI/scheduler/executor/repository/settings keys;
+patient-home target/warmup controls are owner-only; repeat cooldown remains specialist-accessible per the explicit
+owner line; Team is fail-closed until C4; billing is a non-interactive owner/global-admin shell until C5. Focused
+webapp tests passed `164/164`, the integrator scheduler test passed, both app typechecks and scoped ESLint passed.
+The C3 worktree and branch were removed after integration.
+
+### C2 organization identity and invite journey (`#840`, `#841`)
+
+C2 was intentionally treated as a high-risk identity stage. The whole-stage worker
+`bcb-c2-identity-invite-20260719` was audited by `bcb-c2-identity-invite-audit-20260719` (**FAIL**), then received one
+coherent correction. Re-audit `bcb-c2-identity-invite-reaudit-20260719` found three remaining items that map directly
+to owner-review §14/roadmap C2: management-only admin still reached the shared clinical API guard; the real invite
+page did not truthfully handle all lookup/start/confirm and OTP failure states; the private PostgreSQL proof did not
+execute the new-email identity branch. One final whole-stage correction
+`bcb-c2-identity-invite-correction2-20260719` closed all three. The independent cross-model final re-audit
+`bcb-c2-identity-invite-final-reaudit-20260719` returned **PASS**. The two-correction hard cap was respected; no third
+correction was opened.
+
+The integrated commits are `8821b5722` plus the mechanical C2/C3 settings-test alignment `e1e5fc6cd`, both pushed
+to `feat/doctor-ui-rebuild`. The stage now provides the real link/OTP acceptance page; new and existing email
+identity reuse; unique membership; deterministic replacement under a transaction advisory lock; replay, expiry,
+revoke/reinvite handling; exactly-one specialist on concurrent first doctor login; management-only admin without a
+specialist or clinical doctor access; bounded, idempotent migration `0207` which removes only the historical seeded
+global-admin membership while preserving the platform identity. The private environment-free PostgreSQL smoke
+passed on the worker and integration checkouts. Integration-targeted checks passed `78/78` C2/guard/nav tests and
+`9/9` settings tests; webapp typecheck, scoped ESLint, Drizzle journal/frozen-migration checks and diff checks passed.
+The C2 worktree and branch were deleted immediately after push.
+
+The unresolved simultaneous patient+staff persona is an owner question, not an audit-created task: the current
+coarse `platform_users.role` promotion reuses the identity but does not yet model two concurrent personas. C2 does
+not silently introduce that architecture. Live-only acceptance remains: apply `0207` through the ordinary
+code-only TEST deploy, prove the preserved global-admin identity and single owner membership, exercise safe TEST
+invite/OTP for new/existing emails without real external delivery, confirm management-only admin gets clinical
+`403`, and inspect the team projection/badges. `accepted` remains owner-only.
+
+### Process and next gate
+
+Hourly/post-result orchestration audits `bcb-process-audit-20260719-0314` and
+`bcb-process-audit-post-c2-20260719` both returned **PASS**: C2 audit depth was proportionate to identity risk, C3
+used the single-audit mode, no micro-slicing/audit churn or worktree sprawl remains, and already-green CI phases were
+not rerun between small corrections. The next accumulated gate is exactly one full CI on the integrated C2/C3 code,
+then one `deploy/host/deploy-test.sh` code-only TEST deployment against the prepared persistent database. A database
+reset/dump restore remains separately owner-gated and is not part of this checkpoint.
+
+The accumulated C2/C3 milestone CI was then completed without restarting already-green phases. The first run had
+already passed lint, both typechecks, the HLS helper and root tests before its terminal wrapper lost the child at
+`test:webapp`; continuation `bcb-c2-c3-milestone-ci-resume-webapp-20260719` resumed from that exact phase. Four stale
+organization-context mocks were aligned with the C2 `canAccessClinicalWorkspace` contract and the doctor install
+redirect was made an async server component. The continuation passed focused `53/53`, full `test:webapp`,
+`test:media-worker`, root build, webapp build and dependency audit. No second full CI was started.
+
+Repository hygiene was also reconciled before TEST delivery. The separately completed owner tooling decision commit
+`7a3b0a840` and the clean one-commit Doctor DNA plan branch `preview/doctor-dna` (`963f2e698`) were fast-forwarded into
+`feat/doctor-ui-rebuild`; the now-integrated preview worktree and branch were removed. Only the integration worktree
+remains. The Doctor DNA S0 implementation has not been claimed complete by this merge; it stays a later plan stage.
