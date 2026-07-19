@@ -285,6 +285,32 @@ describe("processMediaPreviewBatch", () => {
     expect(runWebappSqlMock.mock.calls.some((call) => approxRunWebappSqlAt(runWebappSqlMock.mock.calls.indexOf(call)).includes("preview_status = 'ready'"))).toBe(true);
   });
 
+  it("treats MAGICK_PATH with whitespace and shell metacharacters as one executable path", async () => {
+    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
+    ffmpegRunModeMock.mockReturnValue("error");
+    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
+    mockEnv.MAGICK_PATH = "/opt/Image Magick/bin/magick;not-a-command";
+
+    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(spawnMock).toHaveBeenCalledWith(
+      "/opt/Image Magick/bin/magick;not-a-command",
+      [
+        "/tmp/media-prev-v-test/input.heic[0]",
+        "-auto-orient",
+        "-quality",
+        "85",
+        "/tmp/media-prev-v-test/out.jpg",
+      ],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: false,
+      },
+    );
+  });
+
   it("marks image/heic as skipped when ffmpeg fails and magick also fails permanently", async () => {
     setupSingleRowScenario({ ...row, mime_type: "image/heic" });
     ffmpegRunModeMock.mockReturnValue("error");

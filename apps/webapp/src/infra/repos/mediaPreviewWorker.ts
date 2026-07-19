@@ -179,15 +179,12 @@ async function posterJpegToSmMd(raw: Buffer): Promise<{ sm: Buffer; md: Buffer }
   return { sm, md };
 }
 
-function resolveMagickCommand(): { command: string; usePathLookup: boolean }[] {
+function resolveMagickCommand(): string[] {
   const custom = env.MAGICK_PATH?.trim();
   if (custom) {
-    return [{ command: custom, usePathLookup: false }];
+    return [custom];
   }
-  return [
-    { command: "magick", usePathLookup: true },
-    { command: "convert", usePathLookup: true },
-  ];
+  return ["magick", "convert"];
 }
 
 async function downloadFileToPath(url: string, outPath: string): Promise<void> {
@@ -220,11 +217,11 @@ function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
         reject(new Error("magick_not_found_or_failed"));
         return;
       }
-      const candidate = candidates[idx++]!;
+      const command = candidates[idx++]!;
       const args = [inputPath + "[0]", "-auto-orient", "-quality", "85", outPath];
-      const child = spawn(candidate.command, args, {
+      const child = spawn(command, args, {
         stdio: ["ignore", "pipe", "pipe"],
-        shell: !candidate.usePathLookup && candidate.command.includes(" "),
+        shell: false,
       });
       let stderr = "";
       child.stderr.on("data", (chunk) => {

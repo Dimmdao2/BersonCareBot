@@ -1,5 +1,6 @@
 /**
  * Spawn with wall-clock timeout (default 120s). Used by stage*-gate and preflight scripts.
+ * Current callers pass repository-owned executable names and argv literals; commands never run through a shell.
  * Env: STAGE_GATE_TIMEOUT_MS (milliseconds), default 120000.
  */
 import { spawn } from "node:child_process";
@@ -14,20 +15,19 @@ function parseTimeoutMs() {
 /**
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string; name: string; timeoutMs?: number; shell?: boolean }} opts
+ * @param {{ cwd: string; name: string; timeoutMs?: number }} opts
  * @returns {Promise<string | null>} null on success, step name on failure/timeout
  */
 export function runWithTimeout(cmd, args, opts) {
   const { cwd, name } = opts;
   const timeoutMs = opts.timeoutMs ?? parseTimeoutMs();
-  const shell = opts.shell !== false;
 
   return new Promise((resolve) => {
     let timedOut = false;
     const child = spawn(cmd, args, {
       cwd,
       stdio: "inherit",
-      shell,
+      shell: false,
       detached: process.platform !== "win32",
     });
     const timer = setTimeout(() => {
