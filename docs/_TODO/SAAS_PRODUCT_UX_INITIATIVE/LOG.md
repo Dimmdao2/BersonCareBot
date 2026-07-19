@@ -2353,3 +2353,17 @@ reported unreadable `.env*` mounts; the lead independently inspected the real wo
 zero env files were changed. Commit `a9d70dc85` is integrated and pushed to `feat/doctor-ui-rebuild`; patch identity
 was verified with `git cherry`, then the temporary worktree and branch were deleted. Task `#855` remains blocked on
 the single patient passwordless-flow ruling and has no completion seals.
+
+Process audit `bcb-process-audit-20260719-0544-opus` (Claude Opus, high, read-only) returned **PASS**: no
+micro-fix/audit churn, the first worker stop mapped to the existing-columns canon, the single corrected pass plus one
+cross-model audit was proportional to C2F risk, and deferred full CI/TEST deployment is correct while `#855` is
+incomplete. Its only actionable next step is the already-recorded patient passwordless-registration ruling; `#856`
+must not overlap the unresolved writer path. Recommendation-only notes were to attach live hygiene evidence and keep
+the eventual C2F milestone full CI explicit.
+
+The lead then supplied the command evidence the read-only Opus sandbox could not obtain: at `05:48 MSK`, HEAD and
+`origin/feat/doctor-ui-rebuild` were both `bf9fb0487`; exactly one worktree and only feature/main branches existed;
+the sole dirty path was the protected untracked `SESSION_HANDOFF_2026-07-17.md`; `git ls-files -m` found zero env
+paths; taskdb showed `#855 blocked + owner_waiting`, `#856-#858 todo`; and no C2F/process-audit agent process remained.
+The auditor's apparent `.env.example` dirt was therefore a sandbox mount artifact, not repository state. The next
+two-hour process audit is due no later than `07:50 MSK` while the autonomous goal remains active.
