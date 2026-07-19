@@ -448,7 +448,10 @@ export async function loadDoctorTodayDashboard(
     deps.treatmentProgramProgress
       ? Promise.all([
           deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(deps.organizationId),
-          deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT),
+          deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
+            deps.organizationId,
+            DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
+          ),
         ])
       : Promise.resolve([0, []] as const),
     deps.doctorProactiveInsights

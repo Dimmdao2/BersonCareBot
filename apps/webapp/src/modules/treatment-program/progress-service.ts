@@ -750,9 +750,12 @@ export function createTreatmentProgramProgressService(deps: {
       return tests.countPendingEvaluationAttemptsGlobal(organizationId);
     },
 
-    async listPendingTestEvaluationsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]> {
+    async listPendingTestEvaluationsGlobal(
+      organizationId: string,
+      maxAttempts: number,
+    ): Promise<PendingProgramTestEvaluationGlobalRow[]> {
       const cap = Math.min(Math.max(maxAttempts, 1), 50);
-      return tests.listPendingEvaluationResultsGlobal(cap);
+      return tests.listPendingEvaluationResultsGlobal(organizationId, cap);
     },
 
     async getPatientTestSetPageServerSnapshot(input: {

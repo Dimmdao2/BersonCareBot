@@ -62,8 +62,9 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
   return principalOrganizationId ?? fallbackOrganizationId;
 }
 
-function pendingEvaluationGlobalWhere() {
+function pendingEvaluationGlobalWhere(organizationId: string) {
   return and(
+    eq(instanceTable.organizationId, organizationId),
     eq(instanceTable.status, "active"),
     ne(instanceTable.assignmentSource, "promo"),
     isNull(resultTable.decidedBy),
@@ -421,11 +422,12 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
-        .where(and(pendingEvaluationGlobalWhere(), eq(instanceTable.organizationId, organizationId)));
+        .where(pendingEvaluationGlobalWhere(organizationId));
       return row?.count ?? 0;
     },
 
     async listPendingEvaluationResultsGlobal(
+      organizationId: string,
       maxAttempts: number,
     ): Promise<PendingProgramTestEvaluationGlobalRow[]> {
       const cap = Math.min(Math.max(maxAttempts, 1), 50);
@@ -441,7 +443,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
-        .where(pendingEvaluationGlobalWhere())
+        .where(pendingEvaluationGlobalWhere(organizationId))
         .groupBy(attemptTable.id)
         .orderBy(desc(sql`max(${resultTable.createdAt})`), asc(attemptTable.id))
         .limit(cap);
@@ -469,7 +471,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
         .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .innerJoin(platformUsers, eq(platformUsers.id, instanceTable.patientUserId))
-        .where(and(pendingEvaluationGlobalWhere(), inArray(attemptTable.id, attemptIds)))
+        .where(and(pendingEvaluationGlobalWhere(organizationId), inArray(attemptTable.id, attemptIds)))
         .orderBy(desc(resultTable.createdAt), asc(resultTable.id));
 
       return rows.map(mapPendingEvaluationGlobalRow);

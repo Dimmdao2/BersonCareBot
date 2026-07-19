@@ -655,7 +655,7 @@ describe("treatment-program instance service", () => {
       );
     });
 
-    it("refreshActivePromoProgramsFromDefaultTemplate completes active promo and creates new instance", async () => {
+    it("refreshActivePromoProgramsFromDefaultTemplate keeps the replacement in the selected organization", async () => {
       const tplPortLocal = createInMemoryTreatmentProgramPort();
       const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
       const tpl = await tplLocal.createTemplate({ title: "Промо v1", status: "published" }, null);
@@ -671,6 +671,7 @@ describe("treatment-program instance service", () => {
       });
 
       const first = await instSvc.assignTemplateToPatient({
+        organizationId: ORG_ID,
         templateId: tpl.id,
         patientUserId: patient,
         assignedBy: null,
@@ -700,6 +701,7 @@ describe("treatment-program instance service", () => {
       expect(active).toHaveLength(1);
       expect(active[0]?.assignmentSource).toBe("promo");
       expect(active[0]?.id).not.toBe(first.id);
+      expect(active[0]?.organizationId).toBe(ORG_ID);
     });
 
     it("refreshActivePromoProgramsFromDefaultTemplate snapshots week days on closing instance", async () => {
@@ -744,6 +746,7 @@ describe("treatment-program instance service", () => {
         });
 
         const first = await instSvc.assignTemplateToPatient({
+          organizationId: ORG_ID,
           templateId: tpl.id,
           patientUserId: patient,
           assignedBy: null,

@@ -245,6 +245,8 @@ describe("loadDoctorTodayDashboard audience", () => {
     let capturedMetricsAudience: unknown;
     let capturedConversationsParams: unknown;
     let capturedUnreadParams: unknown;
+    const pendingTestCountOrganizationIds: string[] = [];
+    const pendingTestListCalls: Array<{ organizationId: string; maxAttempts: number }> = [];
     const deps = {
       organizationId,
       doctorAppointments: {
@@ -286,6 +288,16 @@ describe("loadDoctorTodayDashboard audience", () => {
           },
         },
       },
+      treatmentProgramProgress: {
+        countPendingTestEvaluationAttemptsGlobal: async (organizationIdArg: string) => {
+          pendingTestCountOrganizationIds.push(organizationIdArg);
+          return 0;
+        },
+        listPendingTestEvaluationsGlobal: async (organizationIdArg: string, maxAttempts: number) => {
+          pendingTestListCalls.push({ organizationId: organizationIdArg, maxAttempts });
+          return [];
+        },
+      } as unknown as import("@/modules/treatment-program/progress-service").TreatmentProgramProgressService,
     };
 
     await loadDoctorTodayDashboard(deps, {
@@ -300,6 +312,8 @@ describe("loadDoctorTodayDashboard audience", () => {
     expect(capturedMetricsAudience).toEqual(expect.objectContaining({ organizationId }));
     expect(capturedConversationsParams).toEqual(expect.objectContaining({ organizationId }));
     expect(capturedUnreadParams).toEqual({ organizationId });
+    expect(pendingTestCountOrganizationIds).toEqual([organizationId]);
+    expect(pendingTestListCalls).toEqual([{ organizationId, maxAttempts: 10 }]);
   });
 });
 

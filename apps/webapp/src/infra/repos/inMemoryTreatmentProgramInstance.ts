@@ -1264,7 +1264,10 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return attemptIds.size;
     },
 
-    async listPendingEvaluationResultsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]> {
+    async listPendingEvaluationResultsGlobal(
+      organizationId: string,
+      maxAttempts: number,
+    ): Promise<PendingProgramTestEvaluationGlobalRow[]> {
       const cap = Math.min(Math.max(maxAttempts, 1), 50);
       const out: PendingProgramTestEvaluationGlobalRow[] = [];
       for (const r of results.values()) {
@@ -1276,7 +1279,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const st = stages.get(item.stageId);
         if (!st) continue;
         const inst = instances.get(st.instanceId);
-        if (!inst || inst.status !== "active") continue;
+        if (!inst || inst.organizationId !== organizationId || inst.status !== "active") continue;
         if (inst.assignmentSource === "promo") continue;
         out.push({
           attemptId: att.id,

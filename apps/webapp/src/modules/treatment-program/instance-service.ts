@@ -379,6 +379,7 @@ export function createTreatmentProgramInstanceService(deps: {
         });
 
         const created = await this.assignTemplateToPatient({
+          organizationId: input.organizationId,
           templateId,
           patientUserId: row.patientUserId,
           assignedBy: null,

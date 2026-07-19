@@ -350,8 +350,11 @@ export type TreatmentProgramTestAttemptsPort = {
   listPendingEvaluationResultsForPatient(patientUserId: string): Promise<PendingProgramTestEvaluationRow[]>;
   /** Cross-patient inbox «К проверке» на «Сегодня» (active, не promo, submitted). */
   countPendingEvaluationAttemptsGlobal(organizationId: string): Promise<number>;
-  /** Все pending result-строки для top `maxAttempts` попыток (по дате последнего result). */
-  listPendingEvaluationResultsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]>;
+  /** Все pending result-строки организации для top `maxAttempts` попыток (по дате последнего result). */
+  listPendingEvaluationResultsGlobal(
+    organizationId: string,
+    maxAttempts: number,
+  ): Promise<PendingProgramTestEvaluationGlobalRow[]>;
 };
 
 export type ProgramActionLogPort = {
