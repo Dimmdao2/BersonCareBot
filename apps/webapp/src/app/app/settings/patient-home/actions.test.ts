@@ -9,6 +9,8 @@ const updateItemMock = vi.fn();
 const deleteItemMock = vi.fn();
 const getItemByIdMock = vi.fn();
 const upsertSectionMock = vi.fn();
+const requireWorkspaceMock = vi.fn();
+const entitlementMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -35,6 +37,18 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       upsert: upsertSectionMock,
     },
   }),
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceContext: (...args: unknown[]) => requireWorkspaceMock(...args),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: (...args: unknown[]) => entitlementMock(...args),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (_workspace: unknown, _source: string, fn: () => Promise<unknown>) => fn(),
 }));
 
 import { getCurrentSession } from "@/modules/auth/service";
@@ -68,6 +82,13 @@ describe("patient-home settings actions", () => {
     deleteItemMock.mockReset();
     getItemByIdMock.mockReset();
     upsertSectionMock.mockReset();
+    requireWorkspaceMock.mockReset();
+    entitlementMock.mockReset();
+    requireWorkspaceMock.mockResolvedValue({
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      session: sessionWithRole("doctor"),
+    });
+    entitlementMock.mockResolvedValue({ ok: true });
     vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("admin"));
   });
 
@@ -87,7 +108,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("toggle block visibility forbids client", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("client"));
+    entitlementMock.mockResolvedValue({ ok: false });
     const res = await togglePatientHomeBlockVisibility("booking", false);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("forbidden");
@@ -95,7 +116,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("toggle block visibility forbids without session", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue(null);
+    requireWorkspaceMock.mockRejectedValue(new Error("forbidden"));
     const res = await togglePatientHomeBlockVisibility("booking", false);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("forbidden");
@@ -191,7 +212,7 @@ describe("patient-home settings actions", () => {
   });
 
   it("setPatientHomeBlockIcon forbids client", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("client"));
+    entitlementMock.mockResolvedValue({ ok: false });
     const res = await setPatientHomeBlockIcon("booking", null);
     expect(res.ok).toBe(false);
     expect(setBlockIconMock).not.toHaveBeenCalled();
@@ -318,7 +339,7 @@ describe("patient-home settings actions", () => {
 
   describe("createContentSectionForPatientHomeBlock", () => {
     it("forbids client", async () => {
-      vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("client"));
+      entitlementMock.mockResolvedValue({ ok: false });
       const res = await createContentSectionForPatientHomeBlock({
         blockCode: "situations",
         title: "T",

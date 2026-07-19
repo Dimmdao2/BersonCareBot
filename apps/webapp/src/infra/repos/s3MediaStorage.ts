@@ -127,6 +127,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       await s3PutObjectBody(key, buf, params.mimeType);
 
       const folderId = params.folderId ?? null;
+      const organizationId = currentPrincipalOrganizationId();
       await getWebappSqlDb().insert(mediaFiles).values({
         id,
         originalName: params.filename,
@@ -137,6 +138,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         status: "ready",
         uploadedBy: params.userId ?? null,
         folderId,
+        organizationId,
       });
 
       const now = new Date().toISOString();
@@ -155,6 +157,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async getById(id: string) {
+      const organizationId = currentPrincipalOrganizationId();
       const res = await runWebappSql<{
         id: string;
         original_name: string;
@@ -192,7 +195,9 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
-         WHERE m.id = ${id}::uuid AND ${mediaReadableStatusPredicateM}`,
+         WHERE m.id = ${id}::uuid
+           AND (m.usage_purpose = 'program_item_submission' OR m.organization_id = ${organizationId}::uuid)
+           AND ${mediaReadableStatusPredicateM}`,
       );
       const row = res.rows[0];
       if (!row) return null;
@@ -217,10 +222,13 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async getUrl(id: string) {
+      const organizationId = currentPrincipalOrganizationId();
       const res = await runWebappSql<{ s3_key: string }>(
         getWebappSqlDb(),
         sql`SELECT s3_key FROM media_files
-         WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND ${mediaReadableStatusPredicate}`,
+         WHERE id = ${id}::uuid AND s3_key IS NOT NULL
+           AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+           AND ${mediaReadableStatusPredicate}`,
       );
       const row = res.rows[0];
       if (!row) return null;
@@ -228,7 +236,11 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async list(params: MediaListParams) {
-      const whereParts: SQL[] = [mediaReadableStatusPredicateM];
+      const organizationId = currentPrincipalOrganizationId();
+      const whereParts: SQL[] = [
+        mediaReadableStatusPredicateM,
+        sql`(m.usage_purpose = 'program_item_submission' OR m.organization_id = ${organizationId}::uuid)`,
+      ];
 
       if (params.kind && params.kind !== "all") {
         if (params.kind === "file") {
@@ -373,7 +385,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             SET organization_id = ${organizationId}::uuid,
                 display_name = ${normalized}
           WHERE m.id = ${mediaId}::uuid
-            AND (m.organization_id = ${organizationId}::uuid OR m.organization_id IS NULL)
+            AND m.organization_id = ${organizationId}::uuid
             AND ${mediaReadableStatusPredicateM}`,
       );
       return (res.rowCount ?? 0) > 0;
@@ -387,14 +399,14 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             SET organization_id = ${organizationId}::uuid,
                 folder_id = ${folderId}
           WHERE m.id = ${mediaId}::uuid
-            AND (m.organization_id = ${organizationId}::uuid OR m.organization_id IS NULL)
+            AND m.organization_id = ${organizationId}::uuid
             AND (
               ${folderId}::uuid IS NULL
               OR EXISTS (
                 SELECT 1
                   FROM media_folders f
                  WHERE f.id = ${folderId}::uuid
-                   AND (f.organization_id = ${organizationId}::uuid OR f.organization_id IS NULL)
+                   AND f.organization_id = ${organizationId}::uuid
               )
             )
             AND ${mediaReadableStatusPredicateM}`,
@@ -431,10 +443,13 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     },
 
     async findUsage(mediaId: string): Promise<MediaUsageRef[]> {
+      const organizationId = currentPrincipalOrganizationId();
       const mediaUrl = `/api/media/${mediaId}`;
       const keyRes = await runWebappSql<{ s3_key: string | null }>(
         getWebappSqlDb(),
-        sql`SELECT s3_key FROM media_files WHERE id = ${mediaId}::uuid`,
+        sql`SELECT s3_key FROM media_files
+             WHERE id = ${mediaId}::uuid
+               AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)`,
       );
       const s3Key = keyRes.rows[0]?.s3_key ?? null;
       const publicUrl =
@@ -489,7 +504,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
             sql`SELECT s3_key, status
                   FROM media_files
                  WHERE id = ${mediaId}::uuid
-                   AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
+                   AND organization_id = ${organizationId}::uuid`,
           );
           const row = sel.rows[0];
           if (!row) return false;
@@ -503,7 +518,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
               db,
               sql`DELETE FROM media_files
                    WHERE id = ${mediaId}::uuid
-                     AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
+                     AND organization_id = ${organizationId}::uuid`,
             );
             return (del.rowCount ?? 0) > 0;
           }
@@ -514,7 +529,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
                    SET organization_id = ${organizationId}::uuid,
                        status = 'pending_delete'
                  WHERE id = ${mediaId}::uuid
-                   AND (organization_id = ${organizationId}::uuid OR organization_id IS NULL)`,
+                   AND organization_id = ${organizationId}::uuid`,
           );
           return true;
         } finally {
@@ -538,6 +553,7 @@ export async function insertPendingMediaFileTx(
     folderId?: string | null;
   },
 ): Promise<void> {
+  const organizationId = currentPrincipalOrganizationId();
   const db = getWebappSqlFromPgClient(client);
   await db.insert(mediaFiles).values({
     id: params.id,
@@ -549,6 +565,7 @@ export async function insertPendingMediaFileTx(
     status: "pending",
     uploadedBy: params.userId,
     folderId: params.folderId ?? null,
+    organizationId,
   });
 }
 
@@ -592,6 +609,7 @@ export async function insertPendingMediaFile(params: {
   userId: string;
   folderId?: string | null;
 }): Promise<void> {
+  const organizationId = currentPrincipalOrganizationId();
   await getWebappSqlDb().insert(mediaFiles).values({
     id: params.id,
     originalName: params.filename,
@@ -602,6 +620,7 @@ export async function insertPendingMediaFile(params: {
     status: "pending",
     uploadedBy: params.userId,
     folderId: params.folderId ?? null,
+    organizationId,
   });
 }
 
@@ -733,11 +752,14 @@ export type MediaAccessRow = {
 };
 
 export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<MediaAccessRow>(
     getWebappSqlDb(),
     sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
      FROM media_files
-     WHERE id = ${id}::uuid AND ${mediaReadableStatusPredicate}`,
+     WHERE id = ${id}::uuid
+       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }
@@ -761,11 +783,13 @@ export type MediaDeleteErrorRow = {
 
 /** Admin: rows stuck in delete queue with at least one failed S3 attempt. */
 export async function listMediaDeleteErrors(limit: number = 100): Promise<{ items: MediaDeleteErrorRow[]; total: number }> {
+  const organizationId = currentPrincipalOrganizationId();
   const cap = Math.min(100, Math.max(1, limit));
   const countRes = await runWebappSql<{ c: string }>(
     getWebappSqlDb(),
     sql`SELECT count(*)::text AS c FROM media_files
-     WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0`,
+     WHERE organization_id = ${organizationId}::uuid
+       AND status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0`,
   );
   const total = Number.parseInt(countRes.rows[0]?.c ?? "0", 10);
   const res = await runWebappSql<MediaDeleteErrorRow>(
@@ -773,7 +797,8 @@ export async function listMediaDeleteErrors(limit: number = 100): Promise<{ item
     sql`SELECT id::text, original_name, COALESCE(delete_attempts, 0)::int AS delete_attempts,
             next_attempt_at::text, created_at::text
        FROM media_files
-      WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0
+      WHERE organization_id = ${organizationId}::uuid
+        AND status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0
       ORDER BY delete_attempts DESC, id ASC
       LIMIT ${cap}`,
   );
@@ -800,6 +825,7 @@ export async function getMediaRowForPlayback(
   id: string,
   options: { allowLocalSaasTestFixture?: boolean } = {},
 ): Promise<MediaPlaybackRow | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const storagePredicate = options.allowLocalSaasTestFixture
     ? sql`((s3_key IS NOT NULL AND length(trim(s3_key)) > 0) OR (s3_key IS NULL AND stored_path = '/test-fixtures/saas-exercise.svg'))`
     : sql`(s3_key IS NOT NULL AND length(trim(s3_key)) > 0)`;
@@ -810,16 +836,22 @@ export async function getMediaRowForPlayback(
             video_duration_seconds, available_qualities_json, video_delivery_override,
             usage_purpose, uploaded_by::text
      FROM media_files
-     WHERE id = ${id}::uuid AND ${storagePredicate} AND ${mediaReadableStatusPredicate}`,
+     WHERE id = ${id}::uuid AND ${storagePredicate}
+       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(id: string): Promise<string | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{ s3_key: string | null }>(
     getWebappSqlDb(),
-    sql`SELECT s3_key FROM media_files WHERE id = ${id}::uuid AND s3_key IS NOT NULL AND ${mediaReadableStatusPredicate}`,
+    sql`SELECT s3_key FROM media_files
+         WHERE id = ${id}::uuid AND s3_key IS NOT NULL
+           AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+           AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0]?.s3_key ?? null;
 }
@@ -829,6 +861,7 @@ export async function getMediaPreviewS3KeyForRedirect(
   id: string,
   size: "sm" | "md",
 ): Promise<string | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
     preview_sm_key: string | null;
     preview_md_key: string | null;
@@ -837,7 +870,9 @@ export async function getMediaPreviewS3KeyForRedirect(
     getWebappSqlDb(),
     sql`SELECT preview_sm_key, preview_md_key, preview_status
      FROM media_files
-     WHERE id = ${id}::uuid AND ${mediaReadableStatusPredicate}`,
+     WHERE id = ${id}::uuid
+       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND ${mediaReadableStatusPredicate}`,
   );
   const row = res.rows[0];
   if (!row || row.preview_status !== "ready") return null;

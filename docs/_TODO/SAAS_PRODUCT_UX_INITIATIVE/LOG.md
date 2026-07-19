@@ -2611,3 +2611,19 @@ automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
 - Focused Vitest, webapp typecheck and lint were requested but could not start because this isolated worktree has no
   dependencies: the mandatory `operator-db-schema` pre-step cannot resolve `drizzle-orm`; `pnpm install
   --frozen-lockfile` is blocked by the workspace's read-only pnpm project-store mount (`EROFS`).
+
+### Integrated audit correction (candidate `5a03275a4`)
+
+- Media list/search/count, item/direct reads, previews and playback now run under the existing staff or patient
+  organization principal; normal media is exact-organization scoped, while the established program-submission ACL
+  remains its separate contract. Doctor proxy, presign and multipart uploads stamp the already-present
+  `media_files.organization_id`; no schema, migration, resolver or new media surface was added.
+- Patient Home now requires the existing `cms_pages` entitlement and workspace principal for its CMS reads and
+  server actions. Content inline creation is wired at the public list component boundary; mobile Back follows
+  editor → materials → sections. The direct-new page no longer recreates a Media/service sidebar; the hub keeps
+  Patient Home and Help in its system area and refreshes section navigation after a successful inline save.
+- The lead reused the integration worktree dependencies through temporary local symlinks without installing packages
+  or starting a dev server. Focused CMS/media/Patient Home tests pass (`95/95` across the correction matrix), and
+  scoped ESLint plus `git diff --check` pass. Candidate typecheck exposed and fixed two route syntax errors and two
+  Patient Home narrowing errors; its remaining failures are dependency-resolution artifacts of the isolated
+  worktree, so the authoritative typecheck and milestone CI run once after integration.

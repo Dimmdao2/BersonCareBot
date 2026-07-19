@@ -9,9 +9,9 @@ import { deletePendingMediaFileById, insertPendingMediaFileTx } from "@/app-laye
 import { getPool } from "@/app-layer/db/client";
 import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
 import { presignPutUrl, s3ObjectKey } from "@/app-layer/media/s3Client";
-import { getCurrentSession } from "@/modules/auth/service";
 import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   filename: z.string().min(1).max(255),
@@ -25,10 +25,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
   }
 
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const session = gate.ctx.session;
 
   let json: unknown;
   try {
@@ -69,17 +68,19 @@ export async function POST(request: Request) {
   const readUrl = `/api/media/${mediaId}`;
 
   try {
-    await withUserLifecycleLock(getPool(), session.user.userId, "shared", async (client) => {
-      await insertPendingMediaFileTx(client, {
-        id: mediaId,
-        filename: parsed.data.filename,
-        key,
-        mimeType: mime,
-        sizeBytes: parsed.data.size,
-        userId: session.user.userId,
-        folderId,
-      });
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      withUserLifecycleLock(getPool(), session.user.userId, "shared", async (client) => {
+        await insertPendingMediaFileTx(client, {
+          id: mediaId,
+          filename: parsed.data.filename,
+          key,
+          mimeType: mime,
+          sizeBytes: parsed.data.size,
+          userId: session.user.userId,
+          folderId,
+        });
+      }),
+    );
     const uploadUrl = await presignPutUrl(key, mime);
     return NextResponse.json({
       ok: true as const,

@@ -3,8 +3,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
 import { logger } from "@/app-layer/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
   if (bytes.length < prefix.length) return false;
@@ -225,10 +225,9 @@ function validateFile(
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const session = gate.ctx.session;
 
   const ct = request.headers.get("content-type") ?? "";
   if (!ct.includes("multipart/form-data")) {
@@ -290,13 +289,13 @@ export async function POST(request: Request) {
   }> = [];
   try {
     for (const candidate of candidates) {
-      const result = await deps.media.upload({
+      const result = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.upload({
         body: candidate.body,
         filename: candidate.filename,
         mimeType: candidate.mime,
         userId: session.user.userId,
         ...(folderRes.folderId !== undefined ? { folderId: folderRes.folderId } : {}),
-      });
+      }));
       uploaded.push({
         mediaId: result.record.id,
         url: result.url,

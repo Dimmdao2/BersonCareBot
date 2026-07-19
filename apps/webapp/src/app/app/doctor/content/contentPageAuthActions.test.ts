@@ -48,7 +48,7 @@ describe("setContentPageRequiresAuth", () => {
       canManageAllSpecialists: false,
     });
     getById.mockImplementation(async () => {
-      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+      expect(getCurrentDbPrincipalOrganizationId()).toBe(ORGANIZATION_ID);
       return { id: "page-1", slug: "faq", section: "help" };
     });
     updateLifecycle.mockImplementation(async () => {

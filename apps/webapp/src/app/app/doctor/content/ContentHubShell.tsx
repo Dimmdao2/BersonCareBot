@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { isSectionSlugProtectedFromDelete, isSystemParentCode } from "@/modules/content-sections/types";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import type { SystemParentCode } from "@/modules/content-sections/types";
@@ -29,6 +30,7 @@ import {
 } from "./ContentEditorRightPane";
 import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
 import { SectionForm } from "./sections/SectionForm";
+import { contentMobileBackTarget } from "./contentMobileBack";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -269,6 +271,7 @@ export function ContentHubShell({
   );
 
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
+  const router = useRouter();
   const editor = useInlineContentEditor();
 
   const [creatingSection, setCreatingSection] = useState(false);
@@ -368,7 +371,14 @@ export function ContentHubShell({
     }
 
     if (creatingSection) {
-      return <SectionForm onSaved={() => setCreatingSection(false)} />;
+      return (
+        <SectionForm
+          onSaved={() => {
+            router.refresh();
+            setCreatingSection(false);
+          }}
+        />
+      );
     }
 
     if (creatingPageSection) {
@@ -414,15 +424,31 @@ export function ContentHubShell({
         }
         mobileView={mobileDetail || creatingSection || creatingPageSection || editor.selectedPageId ? "detail" : "list"}
         mobileBackSlot={
-          <Button type="button" variant="outline" size="sm" className="mb-2" onClick={() => {
-            if (editor.selectedPageId) editor.clear();
-            else {
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mb-2"
+            onClick={() => {
+              const target = contentMobileBackTarget({
+                editingPage: editor.selectedPageId !== null,
+                creatingPage: creatingPageSection !== null,
+              });
+              if (target === "materials" && editor.selectedPageId) {
+                editor.clear();
+                setMobileDetail(true);
+                return;
+              }
+              if (target === "materials" && creatingPageSection) {
+                setCreatingPageSection(null);
+                setMobileDetail(true);
+                return;
+              }
               setCreatingSection(false);
-              setCreatingPageSection(null);
-            }
-            setMobileDetail(false);
-          }}>
-            ← К разделам
+              setMobileDetail(false);
+            }}
+          >
+            ← {editor.selectedPageId || creatingPageSection ? "К материалам" : "К разделам"}
           </Button>
         }
         className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}

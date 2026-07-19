@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { PageSection } from "@/components/common/layout/PageSection";
@@ -9,11 +10,14 @@ import { doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 const CONTENT_LIBRARY = "/app/doctor/content/library";
 
 export default async function MediaDeleteErrorsPage() {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   if (session.user.role !== "admin" || !session.adminMode) {
     redirect(CONTENT_LIBRARY);
   }
-  const { items, total } = await listMediaDeleteErrors(100);
+  const { items, total } = await withDoctorWorkspacePrincipal(workspace, () =>
+    listMediaDeleteErrors(100),
+  );
 
   return (
     <DoctorAppShell title="Ошибки удаления в S3" user={session.user}>

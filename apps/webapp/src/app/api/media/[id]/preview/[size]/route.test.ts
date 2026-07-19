@@ -4,6 +4,7 @@ const MEDIA_ID = "11111111-1111-4111-8111-111111111111";
 
 const mocks = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
+  getMediaAccessRow: vi.fn(),
   getMediaPreviewS3KeyForRedirect: vi.fn(),
   s3HeadObjectDetails: vi.fn(),
   s3GetObjectBody: vi.fn(),
@@ -17,6 +18,16 @@ vi.mock("@/modules/auth/service", () => ({
 
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaPreviewS3KeyForRedirect: mocks.getMediaPreviewS3KeyForRedirect,
+  getMediaAccessRow: mocks.getMediaAccessRow,
+}));
+
+vi.mock("@/modules/roles/service", () => ({
+  canAccessDoctor: () => false,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiBusinessAccess: async () => ({ ok: true, session: await mocks.getCurrentSession() }),
+  requireDoctorWorkspaceApiContext: vi.fn(),
 }));
 
 vi.mock("@/app-layer/media/s3Client", () => ({
@@ -33,6 +44,7 @@ describe("GET /api/media/[id]/preview/[size]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.getCurrentSession.mockResolvedValue({ user: { id: "u1" } } as never);
+    mocks.getMediaAccessRow.mockResolvedValue({ usage_purpose: null, uploaded_by: "u1" });
     mocks.getMediaPreviewS3KeyForRedirect.mockResolvedValue("previews/sm/x.jpg");
     mocks.s3HeadObjectDetails.mockResolvedValue({
       eTag: '"s3etag"',
@@ -89,5 +101,15 @@ describe("GET /api/media/[id]/preview/[size]", () => {
     expect(res.headers.get("cache-control")).toBe("private, max-age=60");
     expect(mocks.s3HeadObjectDetails).not.toHaveBeenCalled();
     expect(mocks.s3GetObjectBody).not.toHaveBeenCalled();
+  });
+
+  it("does not resolve a preview for an authenticated other-organization media id", async () => {
+    mocks.getMediaAccessRow.mockResolvedValueOnce(null);
+    const { GET } = await import("./route");
+    const res = await GET(new Request(`http://localhost/api/media/${MEDIA_ID}/preview/sm`), {
+      params: Promise.resolve({ id: MEDIA_ID, size: "sm" }),
+    });
+    expect(res.status).toBe(404);
+    expect(mocks.getMediaPreviewS3KeyForRedirect).not.toHaveBeenCalled();
   });
 });

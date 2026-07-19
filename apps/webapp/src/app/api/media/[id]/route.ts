@@ -9,6 +9,10 @@ import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { getCurrentSession } from "@/modules/auth/service";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
 import { readSaasTestLocalMedia } from '@/app-layer/media/localSaasTestFixtureMedia';
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { canAccessDoctor } from "@/modules/roles/service";
+import type { AppSession } from "@/shared/types/session";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -36,64 +40,44 @@ export async function GET(
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
-  if (!session) {
+  const initialSession = await getCurrentSession();
+  if (!initialSession) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const isUuid = UUID_RE.test(id);
-  const dbUrl = (env.DATABASE_URL ?? "").trim();
+  const serve = async (session: AppSession): Promise<Response> => {
+    const isUuid = UUID_RE.test(id);
+    const dbUrl = (env.DATABASE_URL ?? "").trim();
 
-  /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
-  if (dbUrl && isUuid) {
-    const accessRow = await getMediaAccessRow(id);
-    if (!accessRow) {
+    /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
+    if (dbUrl && isUuid) {
+      const accessRow = await getMediaAccessRow(id);
+      if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
+      if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      const s3Key = await getMediaS3KeyForRedirect(id);
+      if (s3Key) return redirectPresignedOr503(s3Key);
+      const localBody = await readSaasTestLocalMedia({ databaseUrl: dbUrl, storedPath: accessRow.stored_path, s3Key: accessRow.s3_key, mimeType: accessRow.mime_type });
+      if (localBody) {
+        return new Response(localBody, { headers: { 'Content-Type': accessRow.mime_type, 'Content-Length': String(localBody.byteLength), 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' } });
+      }
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    if (
-      !assertMediaPlaybackAccess(session, {
-        usagePurpose: accessRow.usage_purpose,
-        uploadedBy: accessRow.uploaded_by,
-      })
-    ) {
-      return NextResponse.json({ error: "forbidden" }, { status: 403 });
-    }
-    const s3Key = await getMediaS3KeyForRedirect(id);
-    if (s3Key) {
-      return redirectPresignedOr503(s3Key);
-    }
-    const localBody = await readSaasTestLocalMedia({
-      databaseUrl: dbUrl,
-      storedPath: accessRow.stored_path,
-      s3Key: accessRow.s3_key,
-      mimeType: accessRow.mime_type,
-    });
-    if (localBody) {
-      return new Response(localBody, {
-        headers: {
-          'Content-Type': accessRow.mime_type,
-          'Content-Length': String(localBody.byteLength),
-          'Cache-Control': 'private, max-age=3600',
-          'X-Content-Type-Options': 'nosniff',
-        },
-      });
-    }
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
 
-  if (isS3MediaEnabled(env)) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+    if (isS3MediaEnabled(env)) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const stored = getStoredMediaBody(id);
-  if (!stored) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+    const stored = getStoredMediaBody(id);
+    if (!stored) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return new Response(stored.body, { headers: { "Content-Type": stored.mimeType, "Cache-Control": "private, max-age=3600" } });
+  };
 
-  return new Response(stored.body, {
-    headers: {
-      "Content-Type": stored.mimeType,
-      "Cache-Control": "private, max-age=3600",
-    },
-  });
+  if (canAccessDoctor(initialSession.user.role)) {
+    const gate = await requireDoctorWorkspaceApiContext();
+    if (!gate.ok) return gate.response;
+    return withDoctorWorkspacePrincipal(gate.ctx, () => serve(gate.ctx.session));
+  }
+  const patientGate = await requirePatientApiBusinessAccess();
+  if (!patientGate.ok) return patientGate.response;
+  return serve(patientGate.session);
 }

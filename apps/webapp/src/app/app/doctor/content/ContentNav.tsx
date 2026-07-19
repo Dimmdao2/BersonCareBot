@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -203,6 +204,13 @@ export function ContentNav({
         Системные разделы
       </p>
 
+      <Link
+        href="/app/doctor/patient-home"
+        className="flex min-w-0 items-center rounded-md border-l-2 border-transparent py-1.5 pl-2.5 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      >
+        Главная пациента
+      </Link>
+
       {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
         <NavRow
           key={code}
@@ -212,6 +220,15 @@ export function ContentNav({
           onClick={() => onPaneChange(code)}
         />
       ))}
+
+      {articleSections.some((section) => isHelpSectionSlug(section.slug)) ? (
+        <NavRow
+          label="Справка"
+          active={activePaneKey === "section:help"}
+          count={countsByPaneKey["section:help"]}
+          onClick={() => onPaneChange("section:help")}
+        />
+      ) : null}
 
       <Separator className="my-1.5" />
 

@@ -78,7 +78,6 @@ function SortablePageRow({
   authPending,
   onToggleRequiresAuth,
   onSelectPage,
-  onCreatePage,
   isSelected,
 }: {
   page: ContentPageListRow;
@@ -87,8 +86,6 @@ function SortablePageRow({
   onToggleRequiresAuth: (id: string, next: boolean) => void;
   /** When provided — title becomes a selection button instead of a navigation link. */
   onSelectPage?: (id: string) => void;
-  /** Inline content-hub creation keeps a new material in the selected section. */
-  onCreatePage?: (sectionSlug: string) => void;
   isSelected?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
@@ -169,6 +166,7 @@ export function ContentPagesSectionList({
   onViewModeChange,
   selectedPageId,
   onSelectPage,
+  onCreatePage,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -190,6 +188,8 @@ export function ContentPagesSectionList({
    */
   selectedPageId?: string | null;
   onSelectPage?: (id: string) => void;
+  /** Inline content-hub creation keeps a new material in the selected section. */
+  onCreatePage?: (sectionSlug: string) => void;
 }) {
   const [items, setItems] = useState(initialPages);
   const [deleteOpen, setDeleteOpen] = useState(false);

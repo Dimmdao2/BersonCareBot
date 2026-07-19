@@ -35,6 +35,15 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
+vi.mock("@/modules/roles/service", () => ({
+  canAccessDoctor: () => false,
+}));
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiBusinessAccess: async () => ({ ok: true, session: await getSessionMock() }),
+  requireDoctorWorkspaceApiContext: vi.fn(),
+}));
+
 const getTtlMock = vi.fn(() => Promise.resolve(3600));
 vi.mock("@/app-layer/media/videoPresignTtl", () => ({
   getVideoPresignTtlSeconds: () => getTtlMock(),
@@ -118,6 +127,15 @@ describe("GET /api/media/[id]", () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it("denies an authenticated other-organization media id before any S3 redirect", async () => {
+    getAccessRowMock.mockResolvedValueOnce(null);
+    const res = await GET(new Request("http://localhost/api/media/x"), {
+      params: Promise.resolve({ id: testUuid }),
+    });
+    expect(res.status).toBe(404);
+    expect(getS3KeyMock).not.toHaveBeenCalled();
   });
 
   it('returns real local TEST bytes when the fixed DB fixture row has no S3 key', async () => {

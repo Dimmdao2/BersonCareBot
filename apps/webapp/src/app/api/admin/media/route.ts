@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,11 +19,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -62,7 +59,7 @@ export async function GET(request: Request) {
   const deps = buildAppDeps();
   const limit = parsed.data.limit ?? 50;
   const offset = parsed.data.offset ?? 0;
-  const { items: records, total } = await deps.media.list({
+  const { items: records, total } = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.list({
     kind: parsed.data.kind ?? "all",
     query: parsed.data.q ?? "",
     sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : "createdAt",
@@ -71,7 +68,7 @@ export async function GET(request: Request) {
     offset,
     ...(listFolderId !== undefined ? { folderId: listFolderId } : {}),
     ...(includeDescendants ? { includeDescendants: true } : {}),
-  });
+  }));
 
   const items = records.map((item) => ({
     ...item,

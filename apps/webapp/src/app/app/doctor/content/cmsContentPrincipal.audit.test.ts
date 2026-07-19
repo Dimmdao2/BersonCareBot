@@ -85,9 +85,9 @@ describe("CMS content legacy actions workspace principal coverage", () => {
     expect(nav).not.toContain('label="Разделы"');
     expect(nav).not.toContain("Медиа");
     expect(nav).toContain("onCreateSection");
-    expect(hub).toContain("<SectionForm onSaved");
+    expect(hub).toContain("<SectionForm");
     expect(hub).toContain("<ContentForm");
     expect(hub).toContain("onCreatePage");
-    expect(hub).toContain("← К разделам");
+    expect(hub).toContain("К материалам");
   });
 });

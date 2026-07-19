@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { webappReposAreInMemory } from "@/config/env";
-import { getCurrentSession } from "@/modules/auth/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { formatMediaUsageSummaryLines } from "@/modules/media/usageSummaryFormat";
-import { canAccessDoctor } from "@/modules/roles/service";
 
 const paramsSchema = z.object({
   id: z.string().uuid(),
@@ -14,11 +14,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const rawParams = await context.params;
   const parsed = paramsSchema.safeParse(rawParams);
@@ -41,7 +38,9 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const summary = await deps.media.getUsageSummary(parsed.data.id);
+  const media = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.getById(parsed.data.id));
+  if (!media) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  const summary = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.getUsageSummary(parsed.data.id));
   const lines = formatMediaUsageSummaryLines(summary);
   const total =
     summary.materials +

@@ -1,5 +1,8 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { notFound } from "next/navigation";
 import { parsePatientHomeDailyPracticeTarget } from "@/modules/patient-home/todayConfig";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -26,6 +29,8 @@ import {
 
 export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
   const session = workspace.session;
   const isAdmin = session.user.role === "admin" && session.adminMode === true;
   const canManagePatientHome =
@@ -45,7 +50,7 @@ export default async function DoctorPatientHomeSettingsPage() {
     warmupRotationTimes,
     warmupCd,
     planCd,
-  ] = await Promise.all([
+  ] = await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.read", () => Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
@@ -66,7 +71,7 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin", {
       organizationId,
     }),
-  ]);
+  ]));
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(practiceSetting?.valueJson ?? null);
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
   const initialWarmupRotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(

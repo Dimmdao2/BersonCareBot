@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
 import { listMediaDeleteErrors } from "@/app-layer/media/s3MediaStorage";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 /**
  * GET — list media_files rows in delete queue with failed S3 attempts (retry backlog).
  */
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   let limit = 100;
   try {
@@ -23,7 +20,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { items, total } = await listMediaDeleteErrors(Number.isFinite(limit) ? limit : 100);
+    const { items, total } = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      listMediaDeleteErrors(Number.isFinite(limit) ? limit : 100),
+    );
     return NextResponse.json({ ok: true, items, total });
   } catch (e) {
     logger.error({ err: e }, "[admin/media/delete-errors] list_failed");

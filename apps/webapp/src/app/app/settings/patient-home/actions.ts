@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import {
   allowedTargetTypesForBlock,
   isPatientHomeBlockCode,
@@ -77,11 +78,11 @@ function fail(error: string): ActionState {
   return { ok: false, error };
 }
 
-async function requireDoctorForPatientHomeBlocks(): Promise<void> {
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    throw new Error("forbidden");
-  }
+async function requireDoctorForPatientHomeBlocks(): Promise<DoctorWorkspaceAccessContext> {
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) throw new Error("forbidden");
+  return workspace;
 }
 
 function revalidatePatientHomeSettings(): void {
@@ -97,10 +98,12 @@ export async function togglePatientHomeBlockVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.setBlockVisibility(code, visible);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.toggle-block", () =>
+      deps.patientHomeBlocks.setBlockVisibility(code, visible),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -110,7 +113,7 @@ export async function togglePatientHomeBlockVisibility(
 
 export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string | null): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
     if (!supportsConfigurablePatientHomeBlockIcon(code)) return fail("block_icon_not_supported");
     const raw = typeof iconImageUrl === "string" ? iconImageUrl.trim() : "";
@@ -119,7 +122,9 @@ export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string
       return fail("Иконка должна быть выбрана из библиотеки файлов");
     }
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.setBlockIcon(code, normalized);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.set-icon", () =>
+      deps.patientHomeBlocks.setBlockIcon(code, normalized),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -129,9 +134,11 @@ export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string
 
 export async function reorderPatientHomeBlocks(orderedCodes: string[]): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.reorderBlocks(orderedCodes);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.reorder-blocks", () =>
+      deps.patientHomeBlocks.reorderBlocks(orderedCodes),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -145,17 +152,18 @@ export async function addPatientHomeItem(input: {
   targetRef: string;
 }): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
-    if (!isPatientHomeBlockCode(input.blockCode)) return fail("invalid_block_code");
+    const workspace = await requireDoctorForPatientHomeBlocks();
+    const blockCode = input.blockCode;
+    if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const targetTypeParsed = targetTypeSchema.safeParse(input.targetType);
     if (!targetTypeParsed.success) return fail("invalid_target_type");
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.addItem({
-      blockCode: input.blockCode,
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.add-item", () => deps.patientHomeBlocks.addItem({
+      blockCode,
       targetType: targetTypeParsed.data as PatientHomeBlockItemTargetType,
       targetRef: input.targetRef,
       isVisible: true,
-    });
+    }));
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -168,11 +176,13 @@ export async function updatePatientHomeItemVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.updateItem(idParsed.id, { isVisible: visible });
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.update-item-visibility", () =>
+      deps.patientHomeBlocks.updateItem(idParsed.id, { isVisible: visible }),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -186,12 +196,14 @@ export async function updatePatientHomeItemPresentation(input: {
   showTitle?: boolean;
 }): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     const idParsed = parsePatientHomeItemId(input.itemId);
     if (!idParsed.ok) return fail(idParsed.error);
 
     const deps = buildAppDeps();
-    const item = await deps.patientHomeBlocks.getItemById(idParsed.id);
+    const item = await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.read-item", () =>
+      deps.patientHomeBlocks.getItemById(idParsed.id),
+    );
     if (!item || item.blockCode !== "useful_post") return fail("invalid_item_for_badge");
 
     const patch: { badgeLabel?: string | null; showTitle?: boolean } = {};
@@ -209,7 +221,9 @@ export async function updatePatientHomeItemPresentation(input: {
       patch.showTitle = input.showTitle;
     }
 
-    await deps.patientHomeBlocks.updateItem(idParsed.id, patch);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.update-item-presentation", () =>
+      deps.patientHomeBlocks.updateItem(idParsed.id, patch),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -219,11 +233,13 @@ export async function updatePatientHomeItemPresentation(input: {
 
 export async function deletePatientHomeItem(itemId: string): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.deleteItem(idParsed.id);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.delete-item", () =>
+      deps.patientHomeBlocks.deleteItem(idParsed.id),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -236,12 +252,14 @@ export async function reorderPatientHomeItems(
   orderedItemIds: string[],
 ): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const idsParsed = parsePatientHomeItemIdList(orderedItemIds);
     if (!idsParsed.ok) return fail(idsParsed.error);
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.reorderItems(blockCode, idsParsed.ids);
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.reorder-items", () =>
+      deps.patientHomeBlocks.reorderItems(blockCode, idsParsed.ids),
+    );
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -255,17 +273,17 @@ export async function retargetPatientHomeItem(input: {
   targetRef: string;
 }): Promise<ActionState> {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     const parsed = retargetPatientHomeItemInputSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "retarget_failed";
       return fail(msg);
     }
     const deps = buildAppDeps();
-    await deps.patientHomeBlocks.updateItem(parsed.data.itemId, {
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.retarget-item", () => deps.patientHomeBlocks.updateItem(parsed.data.itemId, {
       targetType: parsed.data.targetType as PatientHomeBlockItemTargetType,
       targetRef: parsed.data.targetRef,
-    });
+    }));
     revalidatePatientHomeSettings();
     return { ok: true };
   } catch (error) {
@@ -285,8 +303,9 @@ export async function createContentSectionForPatientHomeBlock(input: {
   iconImageUrl?: string | null;
 }): Promise<{ ok: true; itemId: string; sectionSlug: string } | { ok: false; error: string }> {
   try {
-    await requireDoctorForPatientHomeBlocks();
-    if (!isPatientHomeBlockCode(input.blockCode)) {
+    const workspace = await requireDoctorForPatientHomeBlocks();
+    const blockCode = input.blockCode;
+    if (!isPatientHomeBlockCode(blockCode)) {
       return { ok: false, error: "invalid_block_code" };
     }
     if (!allowedTargetTypesForBlock(input.blockCode).includes("content_section")) {
@@ -338,7 +357,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
       return { ok: false, error: "inline_section_not_supported_for_block" };
     }
 
-    await deps.contentSections.upsert({
+    await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.create-section", () => deps.contentSections.upsert({
       slug,
       title,
       description,
@@ -349,14 +368,14 @@ export async function createContentSectionForPatientHomeBlock(input: {
       iconImageUrl,
       kind: "system",
       systemParentCode: parent,
-    });
+    }));
 
-    const itemId = await deps.patientHomeBlocks.addItem({
-      blockCode: input.blockCode,
+    const itemId = await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.add-section-item", () => deps.patientHomeBlocks.addItem({
+      blockCode,
       targetType: "content_section",
       targetRef: slug,
       isVisible: true,
-    });
+    }));
 
     revalidatePatientHomeSettings();
     return { ok: true, itemId, sectionSlug: slug };
@@ -371,10 +390,12 @@ export async function listPatientHomeCandidates(blockCode: string): Promise<
   | { ok: false; error: string; items: [] }
 > {
   try {
-    await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(blockCode)) return { ok: false, error: "invalid_block_code", items: [] };
     const deps = buildAppDeps();
-    const items = await deps.patientHomeBlocks.listCandidatesForBlock(blockCode);
+    const items = await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.list-candidates", () =>
+      deps.patientHomeBlocks.listCandidatesForBlock(blockCode),
+    );
     return { ok: true, items };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "list_candidates_failed", items: [] };

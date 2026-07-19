@@ -1,23 +1,27 @@
-# HTTP-доступ к файлам медиатеки: сессия, превью и отсутствие per-patient ACL
+# HTTP-доступ к файлам медиатеки: сессия, organization scope и submission ACL
 
-**Статус:** зафиксированный аудит кода (2026-05-06, доп. 2026-05-30 — submission ACL). Описывает текущее поведение webapp.
+**Статус:** зафиксированный аудит кода (2026-05-06, доп. 2026-05-30 — submission ACL; 2026-07-19 —
+organization isolation). Описывает текущее поведение webapp.
 
 ## Маршруты, которые отдают байты или presigned URL
 
 | Маршрут | Минимальная проверка | Дополнительно |
 |--------|----------------------|---------------|
-| `GET /api/media/[id]` | Валидная сессия + `assertMediaPlaybackAccess` с `getMediaAccessRow` | Для `usage_purpose=program_item_submission` — только uploader (patient) или doctor/admin ([`programSubmissionPlaybackAccess.ts`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)). |
+| `GET /api/media/[id]` | Валидная doctor workspace либо активная patient organization + `assertMediaPlaybackAccess` с `getMediaAccessRow` | Обычное CMS-медиа ограничено `media_files.organization_id`; для `usage_purpose=program_item_submission` действует отдельный uploader/doctor/admin ACL ([`programSubmissionPlaybackAccess.ts`](../../apps/webapp/src/modules/media/programSubmissionPlaybackAccess.ts)). |
 | `GET /api/media/[id]/playback` | `assertMediaPlaybackAccess` + access row | Флаг `video_playback_api_enabled`; для submission — progressive MP4 only (без HLS). Stats skip для submission. |
 | `GET /api/media/[id]/hls/[[...path]]` | Сессия + `assertMediaPlaybackAccess` + access row + `video_playback_api_enabled` | Потоковая отдача master/variant/сегментов из private bucket через webapp; `getMediaRowForPlayback` + `isTrustedHlsArtifactS3Key`. Сегменты с **`Range`** (206). Ошибки ответов прокси — в `media_hls_proxy_error_events` (не на каждый успешный байт). Без сессии — **401** + structured **`warn`** `hls_proxy_error` (`reasonCode: session_unauthorized`); без включённого playback API — **503** — эти два случая в таблицу телеметрии **не** пишутся (политика объёма). |
-| `GET /api/media/[id]/preview/[size]` | Сессия | Превью по ключу (`getMediaPreviewS3KeyForRedirect`); при отсутствии превью — редирект на `GET /api/media/[id]`. |
-| `POST /api/media/presign` | Роль с доступом врача/кабинета врача (`canAccessDoctor`) | Создание pending-записи для загрузки, не потоковое чтение. |
+| `GET /api/media/[id]/preview/[size]` | Валидная doctor workspace либо активная patient organization | Превью использует тот же organization/submission access row; при отсутствии превью — редирект на `GET /api/media/[id]`. |
+| `POST /api/media/presign` | Валидная doctor workspace | Создание pending-записи сразу штампует `organization_id`; это не потоковое чтение. |
 
 `/api/media/*` **не** входит в `patientRouteApiPolicy` / `PATIENT_BUSINESS_API_PREFIXES`: это общие маршруты Next, не поверхность `/api/patient/*`.
 
-## Что не проверяется на уровне этих handlers (CMS / каталог)
+## Organization ownership CMS / каталога
 
-- Для строк с **`usage_purpose` null** (CMS): нет сопоставления `media_files.id` с пациентом, инстансом программы лечения, slug контента или назначением.
-- Любой **аутентифицированный** пользователь с известным UUID CMS-файла может запросить те же endpoints, если строка в БД в «читаемом» состоянии.
+- Для строк с **`usage_purpose` null** list/search/count/folders/picker/direct metadata/preview/playback ограничены
+  текущим `organization_id`, полученным из doctor workspace либо активной patient organization.
+- Знание UUID файла другой организации не даёт доступ: route возвращает `404` до выдачи bytes или presigned URL.
+- Это organization ACL, а не отдельная per-patient модель внутри одной организации. Более узкая привязка к
+  конкретному пациенту/инстансу остаётся только у специальных типов файлов, включая `program_item_submission`.
 
 ## Исключение: `program_item_submission` (контрольные фото/видео пациента)
 

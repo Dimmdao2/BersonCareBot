@@ -1,10 +1,15 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { logger } from "@/app-layer/logging/logger";
-import { getMediaPreviewS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
+import { getMediaAccessRow, getMediaPreviewS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
 import { getVideoPresignTtlSeconds } from "@/app-layer/media/videoPresignTtl";
 import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
+import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { canAccessDoctor } from "@/modules/roles/service";
+import type { AppSession } from "@/shared/types/session";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,33 +56,40 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "invalid size" }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
-  if (!session) {
+  const initialSession = await getCurrentSession();
+  if (!initialSession) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const s3Key = await getMediaPreviewS3KeyForRedirect(id, size);
-  if (!s3Key) {
+  const serve = async (session: AppSession): Promise<Response> => {
+    const accessRow = await getMediaAccessRow(id);
+    if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size);
+    if (!s3Key) {
     logger.warn({ mediaId: id, size }, "[preview GET] not found");
     logger.warn({ mediaId: id, size }, "[preview GET] fallback original redirect used");
-    return redirectOriginalMedia(id);
-  }
+      return redirectOriginalMedia(id);
+    }
 
-  const ifNoneMatch = request.headers.get("if-none-match");
-  const ifModifiedSinceRaw = request.headers.get("if-modified-since");
-  const head = await s3HeadObjectDetails(s3Key);
-  let etag = head?.eTag?.trim() || null;
-  const validatorSource: "s3" | "sha256" = etag ? "s3" : "sha256";
-  const lastModifiedFromHead = head?.lastModified ?? null;
+    const ifNoneMatch = request.headers.get("if-none-match");
+    const ifModifiedSinceRaw = request.headers.get("if-modified-since");
+    const head = await s3HeadObjectDetails(s3Key);
+    let etag = head?.eTag?.trim() || null;
+    const validatorSource: "s3" | "sha256" = etag ? "s3" : "sha256";
+    const lastModifiedFromHead = head?.lastModified ?? null;
 
-  if (
+    if (
     !ifNoneMatch &&
     ifModifiedSinceRaw &&
     etag &&
     lastModifiedFromHead &&
     !Number.isNaN(Date.parse(ifModifiedSinceRaw)) &&
     lastModifiedFromHead.getTime() <= Date.parse(ifModifiedSinceRaw) + 1000
-  ) {
+    ) {
     logger.debug({ mediaId: id, size, validatorSource, cacheHit: true }, "[preview GET] not modified (If-Modified-Since)");
     return new NextResponse(null, {
       status: 304,
@@ -87,9 +99,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         "Last-Modified": lastModifiedFromHead.toUTCString(),
       },
     });
-  }
+    }
 
-  if (etag && ifNoneMatch && ifNoneMatch === etag) {
+    if (etag && ifNoneMatch && ifNoneMatch === etag) {
     logger.debug({ mediaId: id, size, validatorSource, cacheHit: true }, "[preview GET] not modified (ETag)");
     return new NextResponse(null, {
       status: 304,
@@ -99,21 +111,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         ...(lastModifiedFromHead ? { "Last-Modified": lastModifiedFromHead.toUTCString() } : {}),
       },
     });
-  }
+    }
 
-  const body = await s3GetObjectBody(s3Key);
-  if (!body?.length) {
+    const body = await s3GetObjectBody(s3Key);
+    if (!body?.length) {
     logger.error({ mediaId: id, size }, "[preview GET] s3 read failed");
     logger.warn({ mediaId: id, size }, "[preview GET] fallback redirect used");
     return redirectPresignedPreview(s3Key);
-  }
+    }
 
-  if (!etag) {
+    if (!etag) {
     etag = `"${createHash("sha256").update(body).digest("hex").slice(0, 32)}"`;
-  }
-  const lastModified = lastModifiedFromHead ?? new Date();
+    }
+    const lastModified = lastModifiedFromHead ?? new Date();
 
-  if (ifNoneMatch && ifNoneMatch === etag) {
+    if (ifNoneMatch && ifNoneMatch === etag) {
     logger.debug({ mediaId: id, size, validatorSource, cacheHit: true }, "[preview GET] not modified (ETag, after body read)");
     return new NextResponse(null, {
       status: 304,
@@ -123,11 +135,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         "Last-Modified": lastModified.toUTCString(),
       },
     });
-  }
+    }
 
-  logger.debug({ mediaId: id, size, validatorSource, cacheHit: false }, "[preview GET] served body");
+    logger.debug({ mediaId: id, size, validatorSource, cacheHit: false }, "[preview GET] served body");
 
-  return new NextResponse(new Uint8Array(body), {
+    return new NextResponse(new Uint8Array(body), {
     status: 200,
     headers: {
       "Content-Type": "image/jpeg",
@@ -135,5 +147,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ETag: etag,
       "Last-Modified": lastModified.toUTCString(),
     },
-  });
+    });
+  };
+  if (canAccessDoctor(initialSession.user.role)) {
+    const gate = await requireDoctorWorkspaceApiContext();
+    if (!gate.ok) return gate.response;
+    return withDoctorWorkspacePrincipal(gate.ctx, () => serve(gate.ctx.session));
+  }
+  const patientGate = await requirePatientApiBusinessAccess();
+  if (!patientGate.ok) return patientGate.response;
+  return serve(patientGate.session);
 }

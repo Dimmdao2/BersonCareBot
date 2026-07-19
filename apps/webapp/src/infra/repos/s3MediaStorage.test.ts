@@ -71,7 +71,12 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-import { collectS3KeysForMediaPurge, createS3MediaStoragePort, purgePendingMediaDeleteBatch } from "./s3MediaStorage";
+import {
+  collectS3KeysForMediaPurge,
+  createS3MediaStoragePort,
+  getMediaAccessRow,
+  purgePendingMediaDeleteBatch,
+} from "./s3MediaStorage";
 
 function approxSqlAt(callIndex: number): string {
   const fragment = runWebappSqlMock.mock.calls[callIndex]?.[1];
@@ -139,6 +144,16 @@ describe("createS3MediaStoragePort", () => {
     const listSql = approxSqlAt(0);
     expect(listSql).toMatch(/client_tree/i);
     expect(listSql).toMatch(/client_files_root/i);
+    expect(listSql).toContain("99999999-9999-4999-8999-999999999999");
+    expect(listSql).toMatch(/program_item_submission/);
+  });
+
+  it("direct media metadata is organization-scoped while preserving program-submission ACL rows", async () => {
+    runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
+    await expect(getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).resolves.toBeNull();
+    const accessSql = approxSqlAt(0);
+    expect(accessSql).toContain("99999999-9999-4999-8999-999999999999");
+    expect(accessSql).toMatch(/program_item_submission/);
   });
 
   it("updateDisplayName requires DB principal", async () => {

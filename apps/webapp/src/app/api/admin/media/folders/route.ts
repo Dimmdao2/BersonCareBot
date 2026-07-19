@@ -5,8 +5,6 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { pgValidateManualFolderParent } from "@/app-layer/media/clientMediaFolders";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -17,16 +15,13 @@ const postBodySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
   if (url.searchParams.get("flat") === "true") {
     const deps = buildAppDeps();
-    const items = await deps.media.listAllFolders();
+    const items = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.listAllFolders());
     return NextResponse.json({ ok: true, items });
   }
 
@@ -41,7 +36,7 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const items = await deps.media.listFolders(parentId);
+  const items = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.listFolders(parentId));
   return NextResponse.json({ ok: true, items });
 }
 

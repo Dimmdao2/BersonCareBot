@@ -43,6 +43,7 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 }
 
 export async function pgListFolders(parentId: string | null): Promise<MediaFolderRecord[]> {
+  const organizationId = currentPrincipalOrganizationId();
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -56,8 +57,8 @@ export async function pgListFolders(parentId: string | null): Promise<MediaFolde
     .from(mediaFolders)
     .where(
       parentId === null
-        ? and(isNull(mediaFolders.parentId), eq(mediaFolders.kind, "standard"))
-        : eq(mediaFolders.parentId, parentId),
+        ? and(isNull(mediaFolders.parentId), eq(mediaFolders.kind, "standard"), eq(mediaFolders.organizationId, organizationId))
+        : and(eq(mediaFolders.parentId, parentId), eq(mediaFolders.organizationId, organizationId)),
     )
     .orderBy(asc(mediaFolders.nameNormalized));
   return rows.map(mapFolderRow);
@@ -177,6 +178,7 @@ export async function pgDeleteFolderIfEmpty(folderId: string): Promise<{ ok: tru
 }
 
 export async function pgGetMediaFolderById(id: string): Promise<MediaFolderRecord | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const db = getDrizzle();
   const [row] = await db
     .select({
@@ -188,22 +190,24 @@ export async function pgGetMediaFolderById(id: string): Promise<MediaFolderRecor
       createdAt: mediaFolders.createdAt,
     })
     .from(mediaFolders)
-    .where(eq(mediaFolders.id, id))
+    .where(and(eq(mediaFolders.id, id), eq(mediaFolders.organizationId, organizationId)))
     .limit(1);
   return row ? mapFolderRow(row) : null;
 }
 
 export async function pgFolderExists(id: string): Promise<boolean> {
+  const organizationId = currentPrincipalOrganizationId();
   const db = getDrizzle();
   const rows = await db
     .select({ one: sql<number>`1` })
     .from(mediaFolders)
-    .where(eq(mediaFolders.id, id))
+    .where(and(eq(mediaFolders.id, id), eq(mediaFolders.organizationId, organizationId)))
     .limit(1);
   return rows.length > 0;
 }
 
 export async function pgListAllFolders(): Promise<MediaFolderRecord[]> {
+  const organizationId = currentPrincipalOrganizationId();
   const db = getDrizzle();
   const rows = await db
     .select({
@@ -215,6 +219,7 @@ export async function pgListAllFolders(): Promise<MediaFolderRecord[]> {
       createdAt: mediaFolders.createdAt,
     })
     .from(mediaFolders)
+    .where(eq(mediaFolders.organizationId, organizationId))
     .orderBy(sql`${mediaFolders.parentId} NULLS FIRST`, asc(mediaFolders.nameNormalized));
   return rows.map(mapFolderRow);
 }

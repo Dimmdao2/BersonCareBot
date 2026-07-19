@@ -5,8 +5,6 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { pgIsFolderInClientSubtree, pgValidateUserAssignableMediaFolder } from "@/app-layer/media/clientMediaFolders";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import type { MediaUsageRef } from "@/modules/media/types";
 
 const querySchema = z.object({
@@ -30,11 +28,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {
@@ -42,7 +37,7 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const row = await deps.media.getById(id);
+  const row = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.getById(id));
   if (!row) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -133,7 +128,7 @@ export async function PATCH(
       }
     }
     // ST-07: block moving patient-subtree files out of their subtree
-    const existingForMove = await deps.media.getById(id);
+    const existingForMove = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.media.getById(id));
     if (!existingForMove) {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }

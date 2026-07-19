@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/modules/auth/service";
 import { getMediaAccessRow } from "@/app-layer/media/s3MediaStorage";
 import { assertMediaPlaybackAccess } from "@/modules/media/assertMediaPlaybackAccess";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { canAccessDoctor } from "@/modules/roles/service";
+import type { AppSession } from "@/shared/types/session";
 import {
   recordPlaybackClientEvent,
   type PlaybackClientDelivery,
@@ -39,10 +43,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "missing id" }, { status: 400 });
   }
 
-  const session = await getCurrentSession();
-  if (!assertMediaPlaybackAccess(session)) {
+  const initialSession = await getCurrentSession();
+  if (!assertMediaPlaybackAccess(initialSession)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+
+  const record = async (session: AppSession): Promise<Response> => {
 
   const body = await request.json().catch(() => null);
   const eventClass = asPlaybackEventClass((body as { eventClass?: unknown } | null)?.eventClass);
@@ -57,7 +63,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const accessRow = await getMediaAccessRow(id);
-  if (accessRow?.usage_purpose === "program_item_submission") {
+  if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  if (accessRow.usage_purpose === "program_item_submission") {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -71,4 +81,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   return NextResponse.json({ ok: true });
+  };
+
+  if (canAccessDoctor(initialSession.user.role)) {
+    const gate = await requireDoctorWorkspaceApiContext();
+    if (!gate.ok) return gate.response;
+    return withDoctorWorkspacePrincipal(gate.ctx, () => record(gate.ctx.session));
+  }
+  const patientGate = await requirePatientApiBusinessAccess();
+  if (!patientGate.ok) return patientGate.response;
+  return record(patientGate.session);
 }
