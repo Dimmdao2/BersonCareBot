@@ -11,13 +11,10 @@ import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/system
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
 const DOCTOR_SCOPE_KEYS = [
-  "patient_label",
   "sms_fallback_enabled",
   "doctor_patient_support_comments_without_support_default_enabled",
   "doctor_patient_support_media_without_support_default_enabled",
   "doctor_specialist_task_reminder_channels",
-  "doctor_appointment_reminder_enabled",
-  "doctor_appointment_reminder_offsets_minutes",
   "booking_calendar_default_window",
   "booking_calendar_default_branch_id",
   "booking_calendar_default_service_id",

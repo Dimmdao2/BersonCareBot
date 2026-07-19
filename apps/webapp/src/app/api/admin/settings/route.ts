@@ -54,7 +54,6 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   "video_hls_pipeline_enabled",
   "video_hls_new_uploads_auto_transcode",
   "video_hls_reconcile_enabled",
-  "patient_home_morning_ping_enabled",
   "patient_home_daily_warmup_rotation_enabled",
   "patient_home_warmup_skip_to_next_available_enabled",
   "patient_program_discussion_doctor_reply_from_log_enabled",
@@ -104,8 +103,6 @@ const ADMIN_SCOPE_KEYS = [
   "booking_lifecycle_notifications",
   "patient_default_promo_treatment_program_template_id",
   "patient_home_daily_practice_target",
-  "patient_home_morning_ping_enabled",
-  "patient_home_morning_ping_local_time",
   "patient_home_daily_warmup_rotation_enabled",
   "patient_home_daily_warmup_rotation_times",
   "patient_home_daily_warmup_repeat_cooldown_minutes",
@@ -183,6 +180,15 @@ const SECRET_LIKE_KEYS = new Set<string>([
   "google_client_secret",
   "google_refresh_token",
   "apple_oauth_private_key",
+]);
+
+/** Patient-home editorial controls are owner content controls, not ordinary clinic-management settings. */
+const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
+  "patient_home_daily_practice_target",
+  "patient_home_daily_warmup_rotation_enabled",
+  "patient_home_daily_warmup_rotation_times",
+  "patient_home_daily_warmup_repeat_cooldown_minutes",
+  "patient_treatment_plan_item_done_repeat_cooldown_minutes",
 ]);
 
 function redactWebPushVapidForAudit(envelope: unknown): unknown {
@@ -362,6 +368,13 @@ export async function PATCH(request: Request) {
       { status: 403 },
     );
   }
+  if (
+    OWNER_ONLY_PATIENT_HOME_KEYS.has(parsed.data.key) &&
+    !allowGlobalSettings &&
+    gate.ctx.membershipRole !== "owner"
+  ) {
+    return NextResponse.json({ ok: false, error: "forbidden_owner_setting", key: parsed.data.key }, { status: 403 });
+  }
 
   const deps = buildAppDeps();
   const settingScope = settingScopeForKey(parsed.data.key);
@@ -450,7 +463,7 @@ export async function PATCH(request: Request) {
     const inner = normalizedValue.value;
     if (
       !Array.isArray(inner) ||
-      inner.some((x) => typeof x !== "number" || !Number.isInteger(x) || x <= 0)
+      inner.some((value) => typeof value !== "number" || !Number.isInteger(value) || value <= 0)
     ) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
@@ -500,17 +513,6 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: n };
-  }
-
-  if (parsed.data.key === "patient_home_morning_ping_local_time") {
-    const inner = normalizedValue.value;
-    const s = typeof inner === "string" ? inner.trim() : null;
-    if (s === null || !/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) {
-      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
-    }
-    const [hs, ms] = s.split(":");
-    const pad = `${hs!.padStart(2, "0")}:${ms}`;
-    normalizedValue = { value: pad };
   }
 
   if (parsed.data.key === "patient_home_daily_warmup_rotation_times") {

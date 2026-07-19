@@ -19,6 +19,8 @@ type SettingsFormProps = {
   supportMediaWithoutSupportDefault: boolean;
   settingsEndpoint?: "/api/doctor/settings" | "/api/admin/settings";
   showSmsFallback?: boolean;
+  showPatientLabel?: boolean;
+  showSupportDefaults?: boolean;
 };
 
 export function SettingsForm({
@@ -28,6 +30,8 @@ export function SettingsForm({
   supportMediaWithoutSupportDefault,
   settingsEndpoint = "/api/doctor/settings",
   showSmsFallback = true,
+  showPatientLabel = true,
+  showSupportDefaults = true,
 }: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
   const [smsFallback, setSmsFallback] = useState(smsFallbackEnabled);
@@ -44,29 +48,32 @@ export function SettingsForm({
     setError(null);
     startTransition(async () => {
       try {
-        const requests = [
-          fetch(settingsEndpoint, {
+        const requests: Promise<Response>[] = [];
+        if (showPatientLabel) {
+          requests.push(fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key: "patient_label", value: { value: label } }),
-          }),
-          fetch(settingsEndpoint, {
+          }));
+        }
+        if (showSupportDefaults) {
+          requests.push(fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               key: "doctor_patient_support_comments_without_support_default_enabled",
               value: { value: supportCommentsDefault },
             }),
-          }),
-          fetch(settingsEndpoint, {
+          }));
+          requests.push(fetch(settingsEndpoint, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               key: "doctor_patient_support_media_without_support_default_enabled",
               value: { value: supportMediaDefault },
             }),
-          }),
-        ];
+          }));
+        }
         if (showSmsFallback) {
           requests.push(
             fetch(settingsEndpoint, {
@@ -94,24 +101,27 @@ export function SettingsForm({
         <DoctorSectionTitle>Настройки кабинета</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="patient-label-select">
-            Как называть пациента
-          </label>
-          <Select value={label} onValueChange={(v) => { if (v) setLabel(v); }}>
-            <SelectTrigger id="patient-label-select" className="w-40">
-              {/* SelectItem values are already human-readable Russian */}
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="пациент">Пациент</SelectItem>
-              <SelectItem value="клиент">Клиент</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Используется в интерфейсе кабинета
-          </p>
-        </div>
+        {showPatientLabel ? (
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium" htmlFor="patient-label-select">
+              Как называть клиента: Клиент / Пациент
+            </label>
+            <Select
+              value={label}
+              onValueChange={(v) => {
+                if (v) setLabel(v);
+              }}
+            >
+              <SelectTrigger id="patient-label-select" className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="пациент">Пациент</SelectItem>
+                <SelectItem value="клиент">Клиент</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
         {showSmsFallback ? (
           <LabeledSwitch
@@ -123,19 +133,23 @@ export function SettingsForm({
           />
         ) : null}
 
-        <LabeledSwitch
-          label="Комментарии без сопровождения"
-          checked={supportCommentsDefault}
-          onCheckedChange={setSupportCommentsDefault}
-          disabled={isPending}
-        />
+        {showSupportDefaults ? (
+          <LabeledSwitch
+            label="Комментарии без сопровождения"
+            checked={supportCommentsDefault}
+            onCheckedChange={setSupportCommentsDefault}
+            disabled={isPending}
+          />
+        ) : null}
 
-        <LabeledSwitch
-          label="Медиа без сопровождения"
-          checked={supportMediaDefault}
-          onCheckedChange={setSupportMediaDefault}
-          disabled={isPending}
-        />
+        {showSupportDefaults ? (
+          <LabeledSwitch
+            label="Медиа без сопровождения"
+            checked={supportMediaDefault}
+            onCheckedChange={setSupportMediaDefault}
+            disabled={isPending}
+          />
+        ) : null}
 
         <div className="flex items-center gap-3">
           <Button onClick={handleSave} disabled={isPending}>

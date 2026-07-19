@@ -1,12 +1,11 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { parsePatientHomeDailyPracticeTarget } from "@/modules/patient-home/todayConfig";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { PatientHomeBlocksSettingsPageClient } from "@/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient";
 import { PatientHomePracticeTargetPanel } from "@/app/app/settings/patient-home/PatientHomePracticeTargetPanel";
 import { PatientHomeDailyWarmupRotationPanel } from "@/app/app/settings/patient-home/PatientHomeDailyWarmupRotationPanel";
-import { PatientHomeMorningPingPanel } from "@/app/app/settings/patient-home/PatientHomeMorningPingPanel";
 import { PatientHomeRepeatCooldownPanel } from "@/app/app/settings/patient-home/PatientHomeRepeatCooldownPanel";
 import { PatientHomeMoodIconsPanel } from "./PatientHomeMoodIconsPanel";
 import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
@@ -14,10 +13,6 @@ import {
   parsePatientHomeDailyWarmupRepeatCooldownMinutes,
   parsePatientTreatmentPlanItemDoneRepeatCooldownMinutes,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
-import {
-  parsePatientHomeMorningPingEnabled,
-  parsePatientHomeMorningPingLocalTime,
-} from "@/modules/patient-home/patientHomeMorningPingSettings";
 import {
   parsePatientHomeDailyWarmupRotationEnabled,
   parsePatientHomeDailyWarmupRotationTimes,
@@ -30,16 +25,15 @@ import {
 } from "@/modules/patient-home/patientHomeRuntimeStatus";
 
 export default async function DoctorPatientHomeSettingsPage() {
-  const session = await requireDoctorAccess();
-  /** Панель глобальной рассылки (system_settings) — только admin: управляет исходящими сообщениями пациентам в мессенджере, а не получателями «только админ». */
-  const isAdmin = session.user.role === "admin";
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
+  const isAdmin = session.user.role === "admin" && session.adminMode === true;
+  const canManagePatientHome =
+    workspace.membershipRole === "owner" || isAdmin;
 
   const deps = buildAppDeps();
   // P0.11.3: all settings read below are PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
-  const orgResolution = await deps.organizationMembership.resolveOrganizationForUser({
-    platformUserId: session.user.userId,
-  });
-  const organizationId = orgResolution.ok ? orgResolution.context.organizationId : null;
+  const organizationId = workspace.organizationId;
   const [
     blocks,
     pages,
@@ -47,8 +41,6 @@ export default async function DoctorPatientHomeSettingsPage() {
     courses,
     practiceSetting,
     moodSetting,
-    morningPingEn,
-    morningPingT,
     warmupRotationEn,
     warmupRotationTimes,
     warmupCd,
@@ -58,35 +50,25 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
     deps.courses.listCoursesForDoctor({ includeArchived: true }),
-    deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin", { organizationId }),
+    canManagePatientHome
+      ? deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin", { organizationId })
+      : Promise.resolve(null),
     deps.systemSettings.getSetting("patient_home_mood_icons", "admin", { organizationId }),
-    isAdmin
-      ? deps.systemSettings.getSetting("patient_home_morning_ping_enabled", "admin", { organizationId })
-      : Promise.resolve(null),
-    isAdmin
-      ? deps.systemSettings.getSetting("patient_home_morning_ping_local_time", "admin", { organizationId })
-      : Promise.resolve(null),
-    isAdmin
+    canManagePatientHome
       ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_enabled", "admin", { organizationId })
       : Promise.resolve(null),
-    isAdmin
+    canManagePatientHome
       ? deps.systemSettings.getSetting("patient_home_daily_warmup_rotation_times", "admin", { organizationId })
       : Promise.resolve(null),
-    isAdmin
-      ? deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin", {
-          organizationId,
-        })
-      : Promise.resolve(null),
-    isAdmin
-      ? deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin", {
-          organizationId,
-        })
-      : Promise.resolve(null),
+    deps.systemSettings.getSetting("patient_home_daily_warmup_repeat_cooldown_minutes", "admin", {
+      organizationId,
+    }),
+    deps.systemSettings.getSetting("patient_treatment_plan_item_done_repeat_cooldown_minutes", "admin", {
+      organizationId,
+    }),
   ]);
   const initialPracticeTarget = parsePatientHomeDailyPracticeTarget(practiceSetting?.valueJson ?? null);
   const moodOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
-  const initialMorningPingEnabled = parsePatientHomeMorningPingEnabled(morningPingEn?.valueJson ?? null);
-  const initialMorningPingTime = parsePatientHomeMorningPingLocalTime(morningPingT?.valueJson ?? null);
   const initialWarmupRotationEnabled = parsePatientHomeDailyWarmupRotationEnabled(
     warmupRotationEn?.valueJson ?? null,
   );
@@ -134,23 +116,17 @@ export default async function DoctorPatientHomeSettingsPage() {
   return (
     <DoctorAppShell title="Главная пациента">
       <DoctorPageHeader title="Главная пациента" />
-      <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} />
+      {canManagePatientHome ? <PatientHomePracticeTargetPanel initialTarget={initialPracticeTarget} /> : null}
       <PatientHomeMoodIconsPanel initialOptions={moodOptions} />
-      {isAdmin ? (
-        <PatientHomeRepeatCooldownPanel
-          initialWarmupMinutes={initialWarmupRepeatMinutes}
-          initialPlanItemMinutes={initialPlanItemRepeatMinutes}
-        />
-      ) : null}
-      {isAdmin ? (
+      <PatientHomeRepeatCooldownPanel
+        initialWarmupMinutes={initialWarmupRepeatMinutes}
+        initialPlanItemMinutes={initialPlanItemRepeatMinutes}
+      />
+      {canManagePatientHome ? (
         <div className="flex flex-col gap-3">
           <PatientHomeDailyWarmupRotationPanel
             initialEnabled={initialWarmupRotationEnabled}
             initialTimes={initialWarmupRotationTimes}
-          />
-          <PatientHomeMorningPingPanel
-            initialEnabled={initialMorningPingEnabled}
-            initialLocalTime={initialMorningPingTime}
           />
         </div>
       ) : null}

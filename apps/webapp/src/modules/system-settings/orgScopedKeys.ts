@@ -36,6 +36,7 @@ export const SYSTEM_SETTINGS_ORG_SCOPE: Readonly<Record<SystemSettingKey, System
   doctor_patient_support_comments_without_support_default_enabled: "per_org",
   doctor_patient_support_media_without_support_default_enabled: "per_org",
   doctor_specialist_task_reminder_channels: "per_org",
+  // Historical `doctor_` prefix notwithstanding, appointment reminders belong to the organization booking contract.
   doctor_appointment_reminder_enabled: "per_org",
   doctor_appointment_reminder_offsets_minutes: "per_org",
 
@@ -64,8 +65,6 @@ export const SYSTEM_SETTINGS_ORG_SCOPE: Readonly<Record<SystemSettingKey, System
   // --- Patient home / patient-facing display+behavior (clinic-facing) ---
   patient_home_daily_practice_target: "per_org",
   patient_default_promo_treatment_program_template_id: "per_org", // owner-explicit PER-ORG example.
-  patient_home_morning_ping_enabled: "per_org",
-  patient_home_morning_ping_local_time: "per_org",
   patient_home_daily_warmup_rotation_enabled: "per_org",
   patient_home_daily_warmup_rotation_times: "per_org",
 

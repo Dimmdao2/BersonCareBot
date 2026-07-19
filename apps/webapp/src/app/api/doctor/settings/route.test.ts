@@ -129,15 +129,8 @@ describe("PATCH /api/doctor/settings", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 200 for valid doctor key", async () => {
+  it("rejects patient terminology because its sole writer is the organization admin endpoint", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
-    updateSettingMock.mockResolvedValue({
-      key: "patient_label",
-      scope: "doctor",
-      valueJson: { value: "клиент" },
-      updatedAt: "",
-      updatedBy: "d1",
-    });
     const res = await PATCH(
       new Request("http://localhost/api/doctor/settings", {
         method: "PATCH",
@@ -145,13 +138,14 @@ describe("PATCH /api/doctor/settings", () => {
         body: JSON.stringify({ key: "patient_label", value: { value: "клиент" } }),
       })
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 for admin role patching doctor scope key", async () => {
+  it("returns 200 for admin role patching a remaining specialist key", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     updateSettingMock.mockResolvedValue({
-      key: "patient_label",
+      key: "doctor_specialist_task_reminder_channels",
       scope: "doctor",
       valueJson: { value: "пациент" },
       updatedAt: "",
@@ -161,7 +155,7 @@ describe("PATCH /api/doctor/settings", () => {
       new Request("http://localhost/api/doctor/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "patient_label", value: { value: "пациент" } }),
+        body: JSON.stringify({ key: "doctor_specialist_task_reminder_channels", value: { value: { channels: [] } } }),
       })
     );
     expect(res.status).toBe(200);

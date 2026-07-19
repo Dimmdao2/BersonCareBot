@@ -16,13 +16,6 @@
         "params": {
           "limit": 50
         }
-      },
-      {
-        "action": "patient_home.morningWarmupPing",
-        "mode": "sync",
-        "params": {
-          "batchLimit": 80
-        }
       }
     ]
   }

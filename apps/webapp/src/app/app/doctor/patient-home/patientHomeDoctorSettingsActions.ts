@@ -10,6 +10,10 @@ import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
   PATIENT_REPEAT_COOLDOWN_MINUTES_MIN,
 } from "@/modules/patient-home/patientHomeRepeatCooldownSettings";
+import {
+  isValidPatientHomeDailyWarmupRotationTimesPayload,
+  normalizeDailyWarmupRotationTime,
+} from "@/modules/patient-home/patientHomeDailyWarmupRotationSettings";
 
 function revalidatePatientHomePages(): void {
   revalidatePath("/app/doctor/patient-home");
@@ -37,19 +41,19 @@ async function requireDoctorWorkspaceOrThrow(): Promise<{ userId: string; organi
   return { userId: session.user.userId, organizationId: resolved.context.organizationId };
 }
 
-async function requireDoctorOrThrow(): Promise<{ userId: string; organizationId: string }> {
-  return requireDoctorWorkspaceOrThrow();
-}
-
-async function requireAdminOrThrow(): Promise<{ userId: string; organizationId: string }> {
+async function requirePatientHomeOwnerOrGlobalAdminOrThrow(): Promise<{ userId: string; organizationId: string }> {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
+  if (!session || !canAccessDoctor(session.user.role)) {
     throw new Error("forbidden");
   }
   const resolved = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });
   if (!resolved.ok) {
+    throw new Error("forbidden");
+  }
+  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
+  if (!isGlobalAdmin && resolved.context.role !== "owner") {
     throw new Error("forbidden");
   }
   return { userId: session.user.userId, organizationId: resolved.context.organizationId };
@@ -63,7 +67,7 @@ const moodRowSchema = z.object({
 
 export async function savePatientHomePracticeTargetAction(target: number): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId, organizationId } = await requireDoctorOrThrow();
+    const { userId, organizationId } = await requirePatientHomeOwnerOrGlobalAdminOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
       return { ok: false, error: "invalid_range" };
     }
@@ -97,12 +101,12 @@ const patientHomeRepeatCooldownsSaveSchema = z.object({
     .max(PATIENT_REPEAT_COOLDOWN_MINUTES_MAX),
 });
 
-/** Только admin: паузы повтора разминки / пунктов плана (как UI на `/app/doctor/patient-home`). */
+/** Specialist workspace setting: паузы повтора разминки / пунктов плана. */
 export async function savePatientHomeRepeatCooldownsAction(
   input: z.infer<typeof patientHomeRepeatCooldownsSaveSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId, organizationId } = await requireAdminOrThrow();
+    const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     const parsed = patientHomeRepeatCooldownsSaveSchema.safeParse(input);
     if (!parsed.success) {
       return { ok: false, error: "invalid_body" };
@@ -134,11 +138,50 @@ export async function savePatientHomeRepeatCooldownsAction(
   }
 }
 
+export async function savePatientHomeWarmupRotationAction(input: {
+  enabled: boolean;
+  times: string[];
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { userId, organizationId } = await requirePatientHomeOwnerOrGlobalAdminOrThrow();
+    if (typeof input.enabled !== "boolean" || !isValidPatientHomeDailyWarmupRotationTimesPayload(input.times)) {
+      return { ok: false, error: "invalid_body" };
+    }
+    const times = input.times
+      .map(normalizeDailyWarmupRotationTime)
+      .filter((value): value is string => value !== null)
+      .sort();
+    const deps = buildAppDeps();
+    await withDoctorWorkspacePrincipal({ organizationId }, () =>
+      Promise.all([
+        deps.systemSettings.updateSetting(
+          "patient_home_daily_warmup_rotation_enabled",
+          "admin",
+          { value: input.enabled },
+          userId,
+          { organizationId },
+        ),
+        deps.systemSettings.updateSetting(
+          "patient_home_daily_warmup_rotation_times",
+          "admin",
+          { value: times },
+          userId,
+          { organizationId },
+        ),
+      ]),
+    );
+    revalidatePatientHomePages();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "forbidden" };
+  }
+}
+
 export async function savePatientHomeMoodIconsAction(
   rows: Array<{ score: number; label: string; imageUrl: string | null }>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId, organizationId } = await requireDoctorOrThrow();
+    const { userId, organizationId } = await requireDoctorWorkspaceOrThrow();
     const parsed = z.array(moodRowSchema).length(5).safeParse(rows);
     if (!parsed.success) {
       return { ok: false, error: "invalid_body" };

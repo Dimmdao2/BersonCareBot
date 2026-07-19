@@ -5,11 +5,9 @@ import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { savePatientHomePracticeTargetAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
 import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
-import { apiJson } from "@/shared/lib/apiJson";
 
 export function PatientHomePracticeTargetPanel(props: {
   initialTarget: number;
-  settingsEndpoint?: "/api/admin/settings";
 }) {
   const [value, setValue] = useState(String(props.initialTarget));
   const [pending, setPending] = useState(false);
@@ -26,13 +24,7 @@ export function PatientHomePracticeTargetPanel(props: {
     }
     setPending(true);
     try {
-      const res = props.settingsEndpoint
-        ? await apiJson<{ ok: true }>(props.settingsEndpoint, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "patient_home_daily_practice_target", value: { value: n } }),
-          })
-        : await savePatientHomePracticeTargetAction(n);
+      const res = await savePatientHomePracticeTargetAction(n);
       if (!res.ok) {
         setError("Не удалось сохранить.");
         return;

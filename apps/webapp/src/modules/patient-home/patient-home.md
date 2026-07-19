@@ -92,15 +92,6 @@ Auth-on-drilldown: `patientHomeGuestNav.ts` строит login href с `next`. �
 
 UI: `PatientHomeDailyWarmupRotationPanel` на `/app/doctor/patient-home` (только admin). Слоты в календарной TZ пациента; lazy sync при pick. См. **Daily warmup rotation** выше.
 
-## Ежедневное напоминание от бота (Phase 8)
-
-Admin settings (глобально для всех подключённых пользователей; не персональное расписание):
-
-- `patient_home_morning_ping_enabled`
-- `patient_home_morning_ping_local_time`
-
-Webapp хранит ключи в `system_settings` (`scope=admin`) и синхронизирует их штатным путём system-settings mirror. Integrator читает настройку и опубликованную разминку дня из `daily_warmup` блока; editorial slug из `CONTENT_PLAN.md` не используется.
-
 ## Паузы повтора (разминка дня и простые пункты плана)
 
 Ключи `system_settings` (`scope=admin`); запись только через **`updateSetting`** (например server action `savePatientHomeRepeatCooldownsAction` — зеркало в `integrator.system_settings` без обходных путей). Редактирование в UI — **только роль admin**, панель на `/app/doctor/patient-home`.

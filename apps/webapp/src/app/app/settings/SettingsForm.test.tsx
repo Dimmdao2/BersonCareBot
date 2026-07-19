@@ -32,7 +32,7 @@ describe("SettingsForm", () => {
     );
   });
 
-  it("clinic mode writes only per-org doctor keys through /api/admin/settings", async () => {
+  it("organization terminology uses the single sanctioned admin settings path", async () => {
     const user = userEvent.setup();
     render(
       <SettingsForm
@@ -42,24 +42,21 @@ describe("SettingsForm", () => {
         supportMediaWithoutSupportDefault={false}
         settingsEndpoint="/api/admin/settings"
         showSmsFallback={false}
+        showSupportDefaults={false}
       />,
     );
 
     expect(screen.queryByText("SMS fallback")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     const calls = vi.mocked(fetch).mock.calls;
     expect(calls.every((call) => call[0] === "/api/admin/settings")).toBe(true);
     const keys = calls.map((call) => {
       const init = call[1] as RequestInit;
       return JSON.parse(String(init.body)) as { key: string };
     }).map((body) => body.key);
-    expect(keys).toEqual([
-      "patient_label",
-      "doctor_patient_support_comments_without_support_default_enabled",
-      "doctor_patient_support_media_without_support_default_enabled",
-    ]);
+    expect(keys).toEqual(["patient_label"]);
     expect(keys).not.toContain("sms_fallback_enabled");
   });
 });

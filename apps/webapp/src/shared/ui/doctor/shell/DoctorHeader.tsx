@@ -19,7 +19,6 @@ import {
 } from "@/shared/ui/doctor/primitives/sheet";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
-import { doctorShellLinkPrefetch } from "@/shared/ui/doctor/shell/doctorShellLinkPrefetch";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_HEADER_INNER_CLASS,
@@ -40,11 +39,6 @@ type DoctorHeaderProps = {
   hideMenuOnDesktop?: boolean;
   enableBadgePolling?: boolean;
 };
-
-const DOCTOR_SHEET_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
-  "h-auto w-full justify-start px-3 py-2 font-normal",
-);
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
@@ -70,12 +64,8 @@ export function DoctorHeader({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const goBack = useCallback(() => {
-    if (pathname === routePaths.doctorInstall) {
-      router.push(routePaths.doctor);
-      return;
-    }
     router.back();
-  }, [pathname, router]);
+  }, [router]);
 
   return (
     <>
@@ -186,22 +176,6 @@ export function DoctorHeader({
                 onNavigate={closeMenu}
                 enableBadgePolling={enableBadgePolling}
               />
-              <Link
-                href={routePaths.doctorInstall}
-                prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
-                onClick={closeMenu}
-                className={DOCTOR_SHEET_LINK_CLASS}
-              >
-                Установить приложение
-              </Link>
-              <Link
-                href="/app/settings"
-                prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
-                onClick={closeMenu}
-                className={cn(DOCTOR_SHEET_LINK_CLASS, "mt-1")}
-              >
-                Настройки специалиста
-              </Link>
               <form action="/api/auth/logout" method="post" className="w-full">
                 <Button
                   type="submit"

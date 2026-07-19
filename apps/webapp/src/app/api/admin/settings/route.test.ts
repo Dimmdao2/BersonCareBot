@@ -207,17 +207,17 @@ describe("GET /api/admin/settings", () => {
 });
 
 describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
+  it("retains organization-level appointment reminder keys with their historical names", () => {
+    expect(ALLOWED_KEYS).toContain("doctor_appointment_reminder_enabled");
+    expect(ALLOWED_KEYS).toContain("doctor_appointment_reminder_offsets_minutes");
+  });
+
   it("includes patient_home_daily_practice_target for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_practice_target");
   });
 
   it("includes patient_home_mood_icons for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_mood_icons");
-  });
-
-  it("includes Phase 8 morning ping keys", () => {
-    expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_enabled");
-    expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
   });
 
   it("includes operator_health_alert_config", () => {
@@ -1032,6 +1032,70 @@ describe("PATCH /api/admin/settings", () => {
     );
   });
 
+  it("keeps appointment reminders on the admin endpoint but writes their doctor-scope contract", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "doctor_appointment_reminder_offsets_minutes",
+      scope: "doctor",
+      valueJson: { value: [1440, 120] },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "doctor_appointment_reminder_offsets_minutes", value: { value: [1440, 120] } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "doctor_appointment_reminder_offsets_minutes",
+      "doctor",
+      { value: [1440, 120] },
+      "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+    );
+  });
+
+  it("rejects invalid appointment reminder offsets", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "doctor_appointment_reminder_offsets_minutes", value: { value: [120, 0] } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("denies owner-only patient-home settings to a non-owner clinic manager", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "manager-1", role: "doctor", bindings: {} } });
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        organizationId: "550e8400-e29b-41d4-a716-446655440010",
+        membershipId: "membership-1",
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_home_daily_practice_target", value: { value: 3 } }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for patient_home_daily_practice_target out of range", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     const res = await PATCH(
@@ -1121,63 +1185,6 @@ describe("PATCH /api/admin/settings", () => {
     );
   });
 
-  it("returns 200 for patient_home_morning_ping_enabled boolean", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
-    getSettingMock.mockResolvedValue(null);
-    updateSettingMock.mockResolvedValue({
-      key: "patient_home_morning_ping_enabled",
-      scope: "admin",
-      valueJson: { value: true },
-      updatedAt: "",
-      updatedBy: "a1",
-    });
-    const res = await PATCH(
-      new Request("http://localhost/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: "patient_home_morning_ping_enabled", value: { value: true } }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith(
-      "patient_home_morning_ping_enabled",
-      "admin",
-      { value: true },
-      "a1",
-      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
-    );
-  });
-
-  it("returns 200 for patient_home_morning_ping_local_time HH:MM", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
-    getSettingMock.mockResolvedValue(null);
-    updateSettingMock.mockResolvedValue({
-      key: "patient_home_morning_ping_local_time",
-      scope: "admin",
-      valueJson: { value: "09:30" },
-      updatedAt: "",
-      updatedBy: "a1",
-    });
-    const res = await PATCH(
-      new Request("http://localhost/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "patient_home_morning_ping_local_time",
-          value: { value: "9:30" },
-        }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith(
-      "patient_home_morning_ping_local_time",
-      "admin",
-      { value: "09:30" },
-      "a1",
-      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
-    );
-  });
-
   it("returns 200 for patient_home_daily_warmup_rotation_enabled boolean", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
     getSettingMock.mockResolvedValue(null);
@@ -1247,22 +1254,6 @@ describe("PATCH /api/admin/settings", () => {
         body: JSON.stringify({
           key: "patient_home_daily_warmup_rotation_times",
           value: { value: [] },
-        }),
-      }),
-    );
-    expect(res.status).toBe(400);
-    expect(updateSettingMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 for patient_home_morning_ping_local_time invalid", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
-    const res = await PATCH(
-      new Request("http://localhost/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "patient_home_morning_ping_local_time",
-          value: { value: "25:00" },
         }),
       }),
     );
@@ -1947,36 +1938,6 @@ describe("PATCH /api/admin/settings", () => {
     const body = (await res.json()) as { ok: boolean; error?: string };
     expect(body.error).toBe("invalid_value");
     expect(updateSettingMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 200 for patient_home_morning_ping_enabled via coerce helper", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
-    getSettingMock.mockResolvedValue(null);
-    updateSettingMock.mockResolvedValue({
-      key: "patient_home_morning_ping_enabled",
-      scope: "admin",
-      valueJson: { value: true },
-      updatedAt: "",
-      updatedBy: "a1",
-    });
-    const res = await PATCH(
-      new Request("http://localhost/api/admin/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          key: "patient_home_morning_ping_enabled",
-          value: { value: 1 },
-        }),
-      }),
-    );
-    expect(res.status).toBe(200);
-    expect(updateSettingMock).toHaveBeenCalledWith(
-      "patient_home_morning_ping_enabled",
-      "admin",
-      { value: true },
-      "a1",
-      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
-    );
   });
 
   it("returns 200 for patient_booking_url https", async () => {

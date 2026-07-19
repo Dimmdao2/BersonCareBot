@@ -3,22 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Stethoscope } from "lucide-react";
-import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { Button } from "@/shared/ui/doctor/primitives/button";
+import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { DoctorMenuAccordion } from "@/shared/ui/doctor/shell/DoctorMenuAccordion";
-import { doctorShellLinkPrefetch } from "@/shared/ui/doctor/shell/doctorShellLinkPrefetch";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
 } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { routePaths } from "@/app-layer/routes/paths";
 import type { DoctorMenuAccess } from "@/shared/ui/doctor/doctorNavLinks";
-
-const SIDEBAR_LINK_CLASS = cn(
-  buttonVariants({ variant: "ghost" }),
-  "h-auto w-full justify-start px-3 py-2 text-sm font-normal",
-);
 
 type DoctorAdminSidebarProps = {
   userDisplayName?: string;
@@ -83,23 +77,6 @@ export function DoctorAdminSidebar({
           patientLabel={patientLabel}
           enableBadgePolling={enableBadgePolling}
         />
-        <Link
-          href={routePaths.doctorInstall}
-          prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
-          className={cn(
-            SIDEBAR_LINK_CLASS,
-            pathname === routePaths.doctorInstall && "bg-primary/15 text-primary",
-          )}
-        >
-          Установить приложение
-        </Link>
-        <Link
-          href="/app/settings"
-          prefetch={doctorShellLinkPrefetch(enableBadgePolling)}
-          className={cn(SIDEBAR_LINK_CLASS, "mt-1")}
-        >
-          Настройки специалиста
-        </Link>
         <form action="/api/auth/logout" method="post" className="w-full">
           <Button
             type="submit"

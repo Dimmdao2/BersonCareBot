@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Switch } from "@/shared/ui/doctor/primitives/switch";
-import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
+import { savePatientHomeWarmupRotationAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
 import {
   DEFAULT_PATIENT_HOME_DAILY_WARMUP_ROTATION_TIMES,
   MAX_DAILY_WARMUP_ROTATION_TIMES,
@@ -56,12 +56,11 @@ export function PatientHomeDailyWarmupRotationPanel(props: Props) {
     }
     setPending(true);
     try {
-      const sorted = [...times].map((t) => t.trim()).sort();
-      const [okA, okB] = await Promise.all([
-        patchAdminSetting("patient_home_daily_warmup_rotation_enabled", enabled),
-        patchAdminSetting("patient_home_daily_warmup_rotation_times", sorted),
-      ]);
-      if (!okA || !okB) {
+      const result = await savePatientHomeWarmupRotationAction({
+        enabled,
+        times: [...times].map((t) => t.trim()),
+      });
+      if (!result.ok) {
         setError("Не удалось сохранить.");
         return;
       }

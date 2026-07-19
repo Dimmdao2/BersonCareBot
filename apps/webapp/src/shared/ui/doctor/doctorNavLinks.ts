@@ -90,49 +90,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "content", label: "Контент", href: "/app/doctor/content" },
   { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
   { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
-  {
-    id: "clinic-members",
-    label: "Врачи",
-    href: "/app/doctor/clinic/members",
-    accessTier: "clinic_admin",
-  },
-  {
-    id: "clinic-settings",
-    label: "Настройки клиники",
-    href: "/app/doctor/clinic/settings",
-    accessTier: "clinic_admin",
-  },
+  { id: "settings", label: "Настройки", href: "/app/settings" },
   {
     id: "analytics",
     label: "Аналитика",
     href: "/app/doctor/analytics",
     accessTier: "global_admin",
-  },
-  {
-    id: "settings",
-    label: "Настройки",
-    accessTier: "global_admin",
-    items: [
-      {
-        id: "admin-app-settings",
-        label: "Настройки приложения",
-        href: "/app/doctor/admin/app-settings",
-        accessTier: "global_admin",
-      },
-      { id: "admin-auth", label: "Авторизация", href: "/app/doctor/admin/auth", accessTier: "global_admin" },
-      {
-        id: "admin-integrations",
-        label: "Интеграции",
-        href: "/app/doctor/admin/integrations",
-        accessTier: "global_admin",
-      },
-      {
-        id: "admin-technical",
-        label: "Технические режимы",
-        href: "/app/doctor/admin/technical",
-        accessTier: "global_admin",
-      },
-    ],
   },
   {
     id: "system",

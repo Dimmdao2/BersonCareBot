@@ -16,9 +16,9 @@ export const ALLOWED_KEYS = [
   "doctor_patient_support_media_without_support_default_enabled",
   /** Каналы напоминаний о задачах специалиста: `{ channels: ("telegram"|"max"|"web_push"|"email")[] }`. */
   "doctor_specialist_task_reminder_channels",
-  /** Вкл/выкл отправку напоминаний клиентам о записи на приём (scope: doctor). */
+  /** Историческое имя ключа: organization-level включение appointment reminders. */
   "doctor_appointment_reminder_enabled",
-  /** Смещения напоминаний о записи в минутах, массив чисел, например [1440, 120] (scope: doctor). */
+  /** Историческое имя ключа: organization-level offsets appointment reminders в минутах. */
   "doctor_appointment_reminder_offsets_minutes",
   /** Полнота серверных логов webapp+integrator (journalctl): false (default) — только значимое (warn/error/DLQ/retry-fail); true — подробные operational `info` для диагностики. Не меняет доставку сообщений. */
   "debug_forward_to_admin",
@@ -53,10 +53,6 @@ export const ALLOWED_KEYS = [
    * Значение в `value_json`: обёртка `{ "value": "<uuid>" }`.
    */
   "patient_default_promo_treatment_program_template_id",
-  /** Вкл/выкл глобальную ежедневную рассылку в мессенджер пациентам (интегратор). Не «пинг админа». */
-  "patient_home_morning_ping_enabled",
-  /** Локальное время ежедневного напоминания (HH:MM) в таймзоне приложения, default 09:00. */
-  "patient_home_morning_ping_local_time",
   /** Автосмена разминки дня на главной по расписанию (глобально). Default false до первой настройки. */
   "patient_home_daily_warmup_rotation_enabled",
   /** 1–3 времени автосмены (HH:MM) в календарной TZ пациента. */

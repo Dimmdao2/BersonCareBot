@@ -54,9 +54,8 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("getDoctorMenuItems returns 13 items in correct order for admin", () => {
+  it("returns one stable settings link in the same position for admin", () => {
     const items = getDoctorMenuItems(adminAccess);
-    expect(items).toHaveLength(13);
     expect(items.map((i) => i.id)).toEqual([
       "today",
       "patients",
@@ -66,29 +65,25 @@ describe("doctor menu structure", () => {
       "content",
       "files-and-media",
       "courses",
-      "clinic-members",
-      "clinic-settings",
-      "analytics",
       "settings",
+      "analytics",
       "system",
     ]);
   });
 
-  it("getDoctorMenuItems hides clinic-management and global sections for plain doctor role", () => {
+  it("keeps settings visible for a plain doctor and hides restricted sections", () => {
     const items = getDoctorMenuItems(doctorAccess);
     const ids = items.map((i) => i.id);
     expect(ids).not.toContain("clinic-members");
-    expect(ids).not.toContain("settings");
+    expect(ids).toContain("settings");
     expect(ids).not.toContain("system");
     expect(ids).not.toContain("analytics");
   });
 
-  it("getDoctorMenuItems shows only clinic-management pages for clinic admin", () => {
+  it("keeps the same settings entry for a clinic manager", () => {
     const items = getDoctorMenuItems(clinicAdminAccess);
     const ids = items.map((i) => i.id);
-    expect(ids).toContain("clinic-members");
-    expect(ids).toContain("clinic-settings");
-    expect(ids).not.toContain("settings");
+    expect(ids).toContain("settings");
     expect(ids).not.toContain("analytics");
     expect(ids).not.toContain("system");
   });
@@ -115,40 +110,12 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("courses")).toBe(false);
   });
 
-  it("clinic members is a clinic-admin top-level direct link", () => {
-    for (const access of [clinicAdminAccess, adminAccess]) {
-      const items = getDoctorMenuItems(access);
-      const members = items.find((i) => i.id === "clinic-members");
-      expect(members?.label).toBe("Врачи");
-      expect(members?.href).toBe("/app/doctor/clinic/members");
-      expect(members?.accessTier).toBe("clinic_admin");
-      expect(members?.items).toBeUndefined();
-    }
-    expect(isDoctorMenuClusterId("clinic-members")).toBe(false);
-  });
-
-  it("clinic settings is a clinic-admin top-level direct link", () => {
-    for (const access of [clinicAdminAccess, adminAccess]) {
-      const items = getDoctorMenuItems(access);
-      const settings = items.find((i) => i.id === "clinic-settings");
-      expect(settings?.label).toBe("Настройки клиники");
-      expect(settings?.href).toBe("/app/doctor/clinic/settings");
-      expect(settings?.accessTier).toBe("clinic_admin");
+  it("settings is one direct link for every doctor role", () => {
+    for (const access of [doctorAccess, clinicAdminAccess, adminAccess]) {
+      const settings = getDoctorMenuItems(access).find((item) => item.id === "settings");
+      expect(settings?.href).toBe("/app/settings");
       expect(settings?.items).toBeUndefined();
     }
-    expect(isDoctorMenuClusterId("clinic-settings")).toBe(false);
-  });
-
-  it("settings has 4 global-admin sub-items (without booking-merge)", () => {
-    const items = getDoctorMenuItems(adminAccess);
-    const settings = items.find((i) => i.id === "settings");
-    expect(settings?.accessTier).toBe("global_admin");
-    const ids = settings!.items!.map((i) => i.id);
-    expect(ids).not.toContain("booking-merge");
-    expect(ids).toContain("admin-app-settings");
-    expect(ids).toContain("admin-auth");
-    expect(ids).toContain("admin-integrations");
-    expect(ids).toContain("admin-technical");
   });
 
   it("system does not have booking-merge (removed per SET-05), has system-health and audit-log", () => {
@@ -200,12 +167,10 @@ describe("doctor menu structure", () => {
 
   it("isDoctorMenuClusterId returns true for expandable items only", () => {
     expect(isDoctorMenuClusterId("library")).toBe(true);
-    expect(isDoctorMenuClusterId("settings")).toBe(true);
     expect(isDoctorMenuClusterId("system")).toBe(true);
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
-    expect(isDoctorMenuClusterId("clinic-members")).toBe(false);
-    expect(isDoctorMenuClusterId("clinic-settings")).toBe(false);
+    expect(isDoctorMenuClusterId("settings")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("patients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
@@ -230,19 +195,16 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Сегодня")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Расписание")).toBe(true);
-    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Врачи")).toBe(true);
-    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Настройки клиники")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Настройки")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
-    expect(hrefs).toContain("/app/doctor/clinic/members");
-    expect(hrefs).toContain("/app/doctor/clinic/settings");
     // schedule is now a flat link (no sub-items in DOCTOR_MENU_LINKS)
     expect(hrefs).toContain("/app/doctor/schedule");
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=cal");
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=work");
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=setup");
     expect(hrefs).not.toContain("/app/doctor/appointments");
-    expect(hrefs).not.toContain("/app/settings");
+    expect(hrefs).toContain("/app/settings");
   });
 
   it("exposes localStorage keys for accordion persistence", () => {

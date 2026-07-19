@@ -186,13 +186,13 @@ describe("DoctorMenuAccordion", () => {
     expect(screen.getByRole("link", { name: /Контент/ })).toBeInTheDocument();
   });
 
-  it("hides settings and system for doctor role", () => {
+  it("shows the stable settings link and hides only the system cluster for doctor role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
-    expect(screen.queryByRole("button", { name: /Настройки/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows clinic members but hides platform clusters for clinic admin access", () => {
+  it("keeps the same settings link for clinic admin access", () => {
     render(
       <DoctorMenuAccordion
         variant="sidebar"
@@ -200,16 +200,14 @@ describe("DoctorMenuAccordion", () => {
         menuAccess={{ role: "doctor", adminMode: false, canManageOrganization: true }}
       />,
     );
-    expect(screen.getByRole("link", { name: /Врачи/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Настройки/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Аналитика/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows clinic members, settings and system for admin role", () => {
+  it("shows the stable settings link and system for admin role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
-    expect(screen.getByRole("link", { name: /Врачи/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Настройки/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
   });
 
