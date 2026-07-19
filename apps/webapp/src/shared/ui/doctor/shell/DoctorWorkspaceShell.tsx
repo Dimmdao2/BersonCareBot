@@ -8,6 +8,7 @@ import { resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilit
 import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
 import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
 import { DoctorSupportUnreadProvider } from "@/shared/ui/doctor/shell/DoctorSupportUnreadProvider";
+import { getDoctorShellHomeHref } from "@/shared/ui/doctor/doctorNavLinks";
 import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
 import type { UserRole } from "@/shared/types/session";
 import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
@@ -63,6 +64,8 @@ export function DoctorWorkspaceShell({
   const menuAccess = {
     capabilities,
   };
+  const homeHref = getDoctorShellHomeHref(menuAccess);
+  const showClinicalShortcuts = capabilities.includes("clinical.workspace");
 
   return (
     <DoctorSupportUnreadProvider enabled={enableTenantRuntime}>
@@ -79,6 +82,8 @@ export function DoctorWorkspaceShell({
           patientLabel={patientLabel}
           hideMenuOnDesktop={showDoctorDesktopNav}
           enableBadgePolling={enableTenantRuntime}
+          homeHref={homeHref}
+          showClinicalShortcuts={showClinicalShortcuts}
         />
         <div className={cn("flex min-h-0 flex-1", DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
           {showDoctorDesktopNav ? (
@@ -87,6 +92,7 @@ export function DoctorWorkspaceShell({
               menuAccess={menuAccess}
               patientLabel={patientLabel}
               enableBadgePolling={enableTenantRuntime}
+              homeHref={homeHref}
             />
           ) : null}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>

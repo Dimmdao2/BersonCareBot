@@ -20,6 +20,7 @@ type DoctorAdminSidebarProps = {
   /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
   patientLabel?: string;
   enableBadgePolling?: boolean;
+  homeHref?: string;
 };
 
 /**
@@ -31,6 +32,7 @@ export function DoctorAdminSidebar({
   menuAccess,
   patientLabel,
   enableBadgePolling,
+  homeHref = routePaths.doctor,
 }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
 
@@ -49,7 +51,7 @@ export function DoctorAdminSidebar({
       aria-label="Разделы кабинета"
     >
       <Link
-        href={routePaths.doctor}
+        href={homeHref}
         prefetch={false}
         id="doctor-sidebar-brand"
         className={cn(

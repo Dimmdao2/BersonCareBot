@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen } from "lucide-react";
+import { ArrowLeft, ChevronRight, LayoutDashboard, Users, Calendar, MessageCircle, BookOpen, FileText, BarChart3, Settings, Server, FolderOpen, BriefcaseBusiness, UserRound } from "lucide-react";
 import type { ElementType } from "react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -66,6 +66,8 @@ function getIconForMenuId(id: string): ElementType | null {
     case "content": return FileText;
     case "files-and-media": return FolderOpen;
     case "analytics": return BarChart3;
+    case "management": return BriefcaseBusiness;
+    case "account": return UserRound;
     case "settings": return Settings;
     case "system": return Server;
     default: return null;

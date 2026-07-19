@@ -81,6 +81,22 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   return (await requireDoctorWorkspaceContext()).session;
 }
 
+/** Personal staff account entry. It deliberately does not require an organization membership. */
+export async function requireStaffAccountPage(): Promise<AppSession> {
+  const session = await requireSession();
+  const capabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (hasLaunchCapability(capabilities, "platform.operations")) {
+    redirect("/app/doctor/system-health");
+  }
+  if (!hasLaunchCapability(capabilities, "account.self")) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
+  return session;
+}
+
 /** Platform-only RSC entry. It intentionally does not resolve an organization membership. */
 export async function requirePlatformOperationsPage(): Promise<AppSession> {
   ensureDbPrincipalContext({ source: "requirePlatformOperationsPage:pending" });
@@ -222,28 +238,42 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
+  const accountCapabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (hasLaunchCapability(accountCapabilities, "platform.operations")) {
+    redirect("/app/doctor/system-health");
+  }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
-    // A staff account without an active organization belongs to no clinical workspace.
-    // `/app/settings` is outside the doctor layout; sending it to its role hub would
-    // re-enter this guard and create a redirect loop.
-    redirect("/app/settings");
+    // A staff account without an active organization still owns its personal account.
+    redirect(routePaths.account);
   }
   if (
     !contextHasCapability(resolved.ctx, "organization.management") &&
     !contextHasCapability(resolved.ctx, "clinical.workspace")
   ) {
-    redirect("/app/settings");
+    redirect(routePaths.account);
   }
   stampStaffPrincipal(resolved.ctx, "requireOrganizationWorkspaceContext");
   return resolved.ctx;
+}
+
+/** One-organization management surface: owner/admin capability, independent from specialist binding. */
+export async function requireOrganizationManagementContext(): Promise<DoctorWorkspaceAccessContext> {
+  const ctx = await requireOrganizationWorkspaceContext();
+  if (!contextHasCapability(ctx, "organization.management")) {
+    redirect(routePaths.doctor);
+  }
+  return ctx;
 }
 
 /** Clinical doctor workspace: a bound owner/doctor, never a management-only admin membership. */
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
   if (!contextHasCapability(ctx, "clinical.workspace")) {
-    redirect("/app/settings");
+    redirect(contextHasCapability(ctx, "organization.management") ? routePaths.manage : routePaths.account);
   }
   return ctx;
 }

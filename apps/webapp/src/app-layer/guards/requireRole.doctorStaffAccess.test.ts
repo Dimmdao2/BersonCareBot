@@ -22,7 +22,13 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
-import { getOptionalPatientSession, requireDoctorAccess, requirePatientAccess } from "./requireRole";
+import {
+  getOptionalPatientSession,
+  requireDoctorAccess,
+  requireOrganizationManagementContext,
+  requirePatientAccess,
+  requireStaffAccountPage,
+} from "./requireRole";
 
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
@@ -42,6 +48,92 @@ beforeEach(() => {
   resolveOrganizationForUserMock.mockReset();
   resolveOrganizationForUserMock.mockResolvedValue({ ok: false, reason: "no_active_membership" });
   redirectMock.mockReset();
+});
+
+describe("requireStaffAccountPage", () => {
+  it("allows a staff account without resolving organization membership", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+
+    await expect(requireStaffAccountPage()).resolves.toBe(doctor);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an explicit platform operator in the platform shell", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    await expect(requireStaffAccountPage()).rejects.toThrow("redirect:/app/doctor/system-health");
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("denies a patient account", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("client"));
+    const target = buildOwnHubUrlWithAccessDeniedToast("client");
+    await expect(requireStaffAccountPage()).rejects.toThrow(`redirect:${target}`);
+  });
+});
+
+describe("requireOrganizationManagementContext", () => {
+  it("sends staff without an organization membership to the personal account", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("doctor"));
+
+    await expect(requireOrganizationManagementContext()).rejects.toThrow("redirect:/app/account");
+  });
+
+  it("keeps explicit global admin out of organization management", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: true });
+
+    await expect(requireOrganizationManagementContext()).rejects.toThrow(
+      "redirect:/app/doctor/system-health",
+    );
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an owner without a specialist binding", async () => {
+    const owner = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(owner);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: "org-1",
+        platformUserId: owner.user.userId,
+        role: "owner",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
+      },
+    });
+
+    await expect(requireOrganizationManagementContext()).resolves.toMatchObject({
+      organizationId: "org-1",
+      membershipRole: "owner",
+      specialistId: null,
+      canManageOrganization: true,
+    });
+  });
+
+  it("returns a plain specialist to the clinical workspace", async () => {
+    const doctor = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: "org-1",
+        platformUserId: doctor.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
+      },
+    });
+
+    await expect(requireOrganizationManagementContext()).rejects.toThrow("redirect:/app/doctor");
+  });
 });
 
 describe("requireDoctorAccess", () => {
@@ -71,7 +163,7 @@ describe("requireDoctorAccess", () => {
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("redirects a bindingless owner/admin to the safe settings destination", async () => {
+  it("redirects a bindingless owner/admin to the management destination", async () => {
     const admin = session("admin");
     getCurrentSessionMock.mockResolvedValueOnce(admin);
     resolveOrganizationForUserMock.mockResolvedValueOnce({
@@ -86,7 +178,7 @@ describe("requireDoctorAccess", () => {
         canManageAllSpecialists: true,
       },
     });
-    await expect(requireDoctorAccess()).rejects.toThrow("redirect:/app/settings");
+    await expect(requireDoctorAccess()).rejects.toThrow("redirect:/app/manage");
   });
 
   it("redirects to /app when no session", async () => {

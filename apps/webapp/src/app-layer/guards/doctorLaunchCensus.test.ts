@@ -98,10 +98,16 @@ const doctorServerActionManifest = [
 
 const delegatedActionFiles = new Set(doctorServerActionManifest.filter((route) => route.endsWith("actionsInline.ts")));
 
+const settingsServerActionPolicy = {
+  "doctorNotificationPrefsActions.ts": "account-self",
+  "patient-home/actions.ts": "doctor-workspace",
+} as const;
+
 describe("U1 finite doctor launch manifest", () => {
   const appRoot = new URL("../../app/", import.meta.url);
   const platformRoot = new URL("app/(global-admin)/doctor/", appRoot);
   const doctorRoot = new URL("app/doctor/", appRoot);
+  const settingsRoot = new URL("app/settings/", appRoot);
   const mediaRoot = new URL("api/media/", appRoot);
 
   it("recognizes valid Server Action directives despite harmless leading syntax", () => {
@@ -157,6 +163,27 @@ describe("U1 finite doctor launch manifest", () => {
           source.includes("requireDoctorWorkspaceContext(") || source.includes("requireDoctorAccess("),
           route,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("keeps personal-account actions separate from clinical settings actions", () => {
+    const discovered = collectServerActionFiles(settingsRoot).map((file) =>
+      fileURLToPath(file).replace(fileURLToPath(settingsRoot), ""),
+    );
+    expect(new Set(discovered)).toEqual(new Set(Object.keys(settingsServerActionPolicy)));
+
+    for (const [route, policy] of Object.entries(settingsServerActionPolicy)) {
+      const source = readFileSync(new URL(route, settingsRoot), "utf8");
+      expect(source, route).not.toContain("getCurrentSession");
+      expect(source, route).not.toContain("canAccessDoctor");
+      if (policy === "account-self") {
+        expect(source, route).toContain("requireStaffAccountPage(");
+        expect(source, route).not.toContain("requireDoctorAccess(");
+        expect(source, route).not.toContain("requireDoctorWorkspaceContext(");
+      } else {
+        expect(source, route).toContain("requireDoctorWorkspaceContext(");
+        expect(source, route).not.toContain("requireStaffAccountPage(");
       }
     }
   });

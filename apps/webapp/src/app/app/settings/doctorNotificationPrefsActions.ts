@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireStaffAccountPage } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   allowedDoctorChannelsForTopic,
@@ -11,7 +11,7 @@ import {
 import { isDoctorNotificationTopicCode } from "@/modules/doctor-notifications/doctorNotificationTopics";
 
 async function revalidateDoctorNotificationSurfaces() {
-  revalidatePath(routePaths.settings);
+  revalidatePath(routePaths.account);
   revalidatePath(routePaths.doctorInstall);
 }
 
@@ -38,7 +38,7 @@ export async function setDoctorTopicChannelNotificationEnabled(
   }
 
   try {
-    const session = await requireDoctorAccess();
+    const session = await requireStaffAccountPage();
     const deps = buildAppDeps();
     const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const emailVerified = Boolean(emailFields.emailVerifiedAt);

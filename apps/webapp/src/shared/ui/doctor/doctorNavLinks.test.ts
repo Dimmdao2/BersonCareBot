@@ -5,6 +5,7 @@ import {
   DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY,
   DOCTOR_MENU_OPEN_CLUSTERS_STORAGE_KEY,
   getDoctorMenuItems,
+  getDoctorShellHomeHref,
   isDoctorMenuClusterId,
   isDoctorMenuLinkVisible,
   isDoctorNavItemActive,
@@ -58,7 +59,7 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
-  it("returns one stable settings link in the same position for admin", () => {
+  it("returns stable management and account links in the same position for a dual-capability actor", () => {
     const items = getDoctorMenuItems(adminAccess);
     expect(items.map((i) => i.id)).toEqual([
       "today",
@@ -69,7 +70,8 @@ describe("doctor menu structure", () => {
       "content",
       "files-and-media",
       "courses",
-      "settings",
+      "management",
+      "account",
       "analytics",
       "system",
     ]);
@@ -92,19 +94,21 @@ describe("doctor menu structure", () => {
     expect(getDoctorMenuItems({ capabilities }).map((item) => item.id)).toEqual(["analytics", "system"]);
   });
 
-  it("keeps settings visible for a plain doctor and hides restricted sections", () => {
+  it("keeps account visible for a plain doctor and hides management sections", () => {
     const items = getDoctorMenuItems(doctorAccess);
     const ids = items.map((i) => i.id);
     expect(ids).not.toContain("clinic-members");
-    expect(ids).toContain("settings");
+    expect(ids).toContain("account");
+    expect(ids).not.toContain("management");
     expect(ids).not.toContain("system");
     expect(ids).not.toContain("analytics");
   });
 
-  it("keeps the same settings entry for a clinic manager", () => {
+  it("shows management and account entries for an organization manager", () => {
     const items = getDoctorMenuItems(clinicAdminAccess);
     const ids = items.map((i) => i.id);
-    expect(ids).toContain("settings");
+    expect(ids).toContain("management");
+    expect(ids).toContain("account");
     expect(ids).not.toContain("analytics");
     expect(ids).not.toContain("system");
     expect(ids).not.toContain("today");
@@ -133,11 +137,11 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("courses")).toBe(false);
   });
 
-  it("settings is one direct link for every doctor role", () => {
+  it("account is one direct link for every staff capability", () => {
     for (const access of [doctorAccess, clinicAdminAccess, adminAccess]) {
-      const settings = getDoctorMenuItems(access).find((item) => item.id === "settings");
-      expect(settings?.href).toBe("/app/settings");
-      expect(settings?.items).toBeUndefined();
+      const account = getDoctorMenuItems(access).find((item) => item.id === "account");
+      expect(account?.href).toBe("/app/account");
+      expect(account?.items).toBeUndefined();
     }
   });
 
@@ -193,7 +197,8 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("system")).toBe(true);
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
-    expect(isDoctorMenuClusterId("settings")).toBe(false);
+    expect(isDoctorMenuClusterId("management")).toBe(false);
+    expect(isDoctorMenuClusterId("account")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("patients")).toBe(false);
     expect(isDoctorMenuClusterId("schedule")).toBe(false);
@@ -218,7 +223,8 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Сегодня")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Расписание")).toBe(true);
-    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Настройки")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Аккаунт")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Управление практикой")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
     // schedule is now a flat link (no sub-items in DOCTOR_MENU_LINKS)
@@ -227,7 +233,8 @@ describe("doctor menu structure", () => {
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=work");
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=setup");
     expect(hrefs).not.toContain("/app/doctor/appointments");
-    expect(hrefs).toContain("/app/settings");
+    expect(hrefs).toContain("/app/account");
+    expect(hrefs).toContain("/app/manage");
   });
 
   it("exposes localStorage keys for accordion persistence", () => {
@@ -294,5 +301,21 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuLinkVisible(globalItem, { capabilities: ["organization.management"] })).toBe(false);
     expect(isDoctorMenuLinkVisible(globalItem, { capabilities: ["clinical.workspace"] })).toBe(false);
     expect(isDoctorMenuLinkVisible(globalItem, adminAccess)).toBe(true);
+  });
+});
+
+describe("getDoctorShellHomeHref", () => {
+  it("keeps each launch persona in its own canonical shell", () => {
+    expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/doctor/system-health");
+    expect(getDoctorShellHomeHref(doctorAccess)).toBe("/app/doctor");
+    expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/manage");
+    expect(getDoctorShellHomeHref({ capabilities: ["account.self"] })).toBe("/app/account");
+    expect(getDoctorShellHomeHref({ capabilities: [] })).toBe("/app");
+  });
+
+  it("keeps an owner with a specialist binding clinical by default but exposes management nav", () => {
+    const access = { capabilities: ["organization.management", "clinical.workspace", "account.self"] as const };
+    expect(getDoctorShellHomeHref(access)).toBe("/app/doctor");
+    expect(getDoctorMenuItems(access).find((item) => item.id === "management")?.href).toBe("/app/manage");
   });
 });

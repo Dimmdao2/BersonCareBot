@@ -38,6 +38,8 @@ type DoctorHeaderProps = {
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
   enableBadgePolling?: boolean;
+  homeHref?: string;
+  showClinicalShortcuts?: boolean;
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
@@ -50,13 +52,15 @@ export function DoctorHeader({
   patientLabel,
   hideMenuOnDesktop,
   enableBadgePolling,
+  homeHref = routePaths.doctor,
+  showClinicalShortcuts = true,
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
-  const showBack = pathname !== "/app/doctor" && pathname !== "/app/doctor/";
+  const showBack = pathname !== homeHref && pathname !== `${homeHref}/`;
   // Глобальная шапка видна только на <md (на md+ — `md:hidden`, offsetHeight → 0),
   // поэтому пишем именно высоту мобильной шапки.
   useReportShellChromeHeight(headerRef, DOCTOR_MOBILE_HEADER_HEIGHT_VAR);
@@ -96,7 +100,7 @@ export function DoctorHeader({
               <span className="inline-flex w-10 shrink-0" aria-hidden />
             )}
             <Link
-              href="/app/doctor"
+              href={homeHref}
               prefetch={false}
               aria-label="Дашборд"
               className={HEADER_ICON_CLASS}
@@ -120,22 +124,26 @@ export function DoctorHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <Link
-              href={routePaths.doctorPatients}
-              prefetch={false}
-              aria-label={patientLabel ?? "Пациенты"}
-              className={HEADER_ICON_CLASS}
-            >
-              <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            </Link>
-            <Link
-              href={routePaths.doctorCommunications}
-              prefetch={false}
-              aria-label="Коммуникации"
-              className={HEADER_ICON_CLASS}
-            >
-              <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            </Link>
+            {showClinicalShortcuts ? (
+              <>
+                <Link
+                  href={routePaths.doctorPatients}
+                  prefetch={false}
+                  aria-label={patientLabel ?? "Пациенты"}
+                  className={HEADER_ICON_CLASS}
+                >
+                  <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                </Link>
+                <Link
+                  href={routePaths.doctorCommunications}
+                  prefetch={false}
+                  aria-label="Коммуникации"
+                  className={HEADER_ICON_CLASS}
+                >
+                  <MessageCircle className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                </Link>
+              </>
+            ) : null}
             <Button
               type="button"
               id="doctor-menu-toggle"

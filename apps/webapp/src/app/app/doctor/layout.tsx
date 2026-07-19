@@ -13,6 +13,7 @@ import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata"
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
+import { routePaths } from "@/app-layer/routes/paths";
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
@@ -43,12 +44,20 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
   if (!workspaceAccess.canAccessClinicalWorkspace) {
-    redirect("/app/settings");
+    redirect(routePaths.manage);
   }
   const deps = buildAppDeps();
+  const [organization, doctorSettings] = await Promise.all([
+    deps.bookingEngine
+      ? deps.bookingEngine.organization.getOrganization(workspaceAccess.organizationId)
+      : Promise.resolve(null),
+    deps.systemSettings.listSettingsByScope("doctor", {
+      organizationId: workspaceAccess.organizationId,
+    }),
+  ]);
   const workspaceContext: DoctorWorkspaceContext = {
     organizationId: workspaceAccess.organizationId,
-    organizationName: null,
+    organizationName: organization?.title ?? null,
     membershipId: workspaceAccess.membershipId,
     membershipRole: workspaceAccess.membershipRole,
     specialistId: workspaceAccess.specialistId,
@@ -58,9 +67,6 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : workspaceAccess.specialistId,
   };
   // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
-  const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {
-    organizationId: workspaceAccess.organizationId,
-  });
   const patientLabel = getValueJson(doctorSettings.find((x) => x.key === "patient_label")?.valueJson, "пациент");
   return (
     <DoctorWorkspaceShell

@@ -39,6 +39,14 @@ export type DoctorMenuAccess = {
   capabilities: readonly LaunchCapability[];
 };
 
+export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
+  if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/doctor/system-health";
+  if (hasLaunchCapability(access.capabilities, "clinical.workspace")) return routePaths.doctor;
+  if (hasLaunchCapability(access.capabilities, "organization.management")) return routePaths.manage;
+  if (hasLaunchCapability(access.capabilities, "account.self")) return routePaths.account;
+  return routePaths.root;
+}
+
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
   const tier = item.accessTier ?? "doctor";
   if (tier === "doctor") return hasLaunchCapability(access.capabilities, "clinical.workspace");
@@ -93,7 +101,13 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "content", label: "Контент", href: "/app/doctor/content" },
   { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
   { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
-  { id: "settings", label: "Настройки", href: "/app/settings", accessTier: "staff" },
+  {
+    id: "management",
+    label: "Управление практикой",
+    href: routePaths.manage,
+    accessTier: "clinic_admin",
+  },
+  { id: "account", label: "Аккаунт", href: routePaths.account, accessTier: "staff" },
   {
     id: "analytics",
     label: "Аналитика",
