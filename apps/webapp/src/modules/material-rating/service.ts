@@ -10,6 +10,7 @@ import { treatmentProgramItemToRatingTarget } from "./mapProgramItemToTarget";
 
 /** Снимок CMS-страницы для правил оценки (без импорта из `infra/repos`). */
 export type MaterialRatingContentPageSnapshot = {
+  organizationId: string | null;
   deletedAt: string | null;
   archivedAt: string | null;
   isPublished: boolean;
@@ -17,7 +18,7 @@ export type MaterialRatingContentPageSnapshot = {
 };
 
 export type MaterialRatingContentPagesPort = {
-  getById(id: string): Promise<MaterialRatingContentPageSnapshot | null>;
+  getById(input: { id: string; organizationId: string }): Promise<MaterialRatingContentPageSnapshot | null>;
 };
 
 export function createMaterialRatingService(deps: {
@@ -26,9 +27,12 @@ export function createMaterialRatingService(deps: {
   itemRefs: TreatmentProgramItemRefValidationPort;
   instances: TreatmentProgramInstancePort;
 }) {
-  async function loadContentPageOrThrow(targetId: string): Promise<MaterialRatingContentPageSnapshot> {
-    const row = await deps.contentPages.getById(targetId);
-    if (!row || row.deletedAt) {
+  async function loadContentPageOrThrow(input: {
+    targetId: string;
+    organizationId: string;
+  }): Promise<MaterialRatingContentPageSnapshot> {
+    const row = await deps.contentPages.getById({ id: input.targetId, organizationId: input.organizationId });
+    if (!row || row.organizationId !== input.organizationId || row.deletedAt) {
       throw new MaterialRatingAccessError("not_found");
     }
     return row;
@@ -54,22 +58,27 @@ export function createMaterialRatingService(deps: {
     }
   }
 
-  async function assertTargetExistsNonContent(targetKind: Exclude<MaterialRatingTargetKind, "content_page">, targetId: string) {
-    if (targetKind === "lfk_exercise") {
-      await deps.itemRefs.assertItemRefExists("exercise", targetId);
+  async function assertTargetExistsNonContent(input: {
+    targetKind: Exclude<MaterialRatingTargetKind, "content_page">;
+    targetId: string;
+    organizationId: string;
+  }) {
+    if (input.targetKind === "lfk_exercise") {
+      await deps.itemRefs.assertItemRefExists("exercise", input.targetId, input.organizationId);
       return;
     }
-    await deps.itemRefs.assertItemRefExists("lfk_complex", targetId);
+    await deps.itemRefs.assertItemRefExists("lfk_complex", input.targetId, input.organizationId);
   }
 
   async function assertProgramStageItemMatchesTarget(input: {
     userId: string;
     instanceId: string;
     stageItemId: string;
+    organizationId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
   }): Promise<{ ok: true } | { ok: false; code: "not_found" | "forbidden" }> {
-    const detail = await deps.instances.getInstanceForPatient(input.userId, input.instanceId);
+    const detail = await deps.instances.getInstanceForPatient(input.userId, input.instanceId, input.organizationId);
     if (!detail) return { ok: false, code: "not_found" };
     const item = detail.stages.flatMap((s) => s.items).find((i) => i.id === input.stageItemId);
     if (!item) return { ok: false, code: "not_found" };
@@ -94,10 +103,10 @@ export function createMaterialRatingService(deps: {
       excludedUserIds?: string[];
     }) {
       if (input.targetKind === "content_page") {
-        await loadContentPageOrThrow(input.targetId);
+        await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
       } else {
         try {
-          await assertTargetExistsNonContent(input.targetKind, input.targetId);
+          await assertTargetExistsNonContent(input);
         } catch {
           throw new MaterialRatingAccessError("not_found");
         }
@@ -117,7 +126,7 @@ export function createMaterialRatingService(deps: {
     }): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }> {
       let assignedProgramTarget = false;
       if (input.targetKind === "content_page") {
-        const row = await loadContentPageOrThrow(input.targetId);
+        const row = await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
         assertContentPageReadableForPatientGet(row, input.canViewAuthOnlyContent);
       } else {
         if (input.userId && input.programInstanceId && input.programStageItemId) {
@@ -125,6 +134,7 @@ export function createMaterialRatingService(deps: {
             userId: input.userId,
             instanceId: input.programInstanceId,
             stageItemId: input.programStageItemId,
+            organizationId: input.organizationId,
             targetKind: input.targetKind,
             targetId: input.targetId,
           });
@@ -132,7 +142,7 @@ export function createMaterialRatingService(deps: {
         }
         if (!assignedProgramTarget) {
           try {
-            await assertTargetExistsNonContent(input.targetKind, input.targetId);
+            await assertTargetExistsNonContent(input);
           } catch {
             throw new MaterialRatingAccessError("not_found");
           }
@@ -195,7 +205,7 @@ export function createMaterialRatingService(deps: {
 
       if (input.targetKind === "content_page") {
         try {
-          const row = await loadContentPageOrThrow(input.targetId);
+          const row = await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
           assertContentPageMutableForPatientPut(row, input.canViewAuthOnlyContent);
         } catch (e) {
           if (e instanceof MaterialRatingAccessError) {
@@ -214,6 +224,7 @@ export function createMaterialRatingService(deps: {
             userId: input.userId,
             instanceId: pid,
             stageItemId: sid,
+            organizationId: input.organizationId,
             targetKind: "content_page",
             targetId: input.targetId,
           });
@@ -234,7 +245,7 @@ export function createMaterialRatingService(deps: {
       }
 
       try {
-        await assertTargetExistsNonContent(input.targetKind, input.targetId);
+        await assertTargetExistsNonContent(input);
       } catch {
         return { ok: false, code: "not_found" };
       }
@@ -246,6 +257,7 @@ export function createMaterialRatingService(deps: {
         userId: input.userId,
         instanceId: input.programInstanceId,
         stageItemId: input.programStageItemId,
+        organizationId: input.organizationId,
         targetKind: input.targetKind,
         targetId: input.targetId,
       });
@@ -302,10 +314,10 @@ export function createMaterialRatingService(deps: {
       excludedUserIds?: string[];
     }) {
       if (input.targetKind === "content_page") {
-        await loadContentPageOrThrow(input.targetId);
+        await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
       } else {
         try {
-          await assertTargetExistsNonContent(input.targetKind, input.targetId);
+          await assertTargetExistsNonContent(input);
         } catch {
           throw new MaterialRatingAccessError("not_found");
         }

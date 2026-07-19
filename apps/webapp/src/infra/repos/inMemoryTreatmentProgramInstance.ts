@@ -315,13 +315,15 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return buildDetail(id)!;
     },
 
-    async getInstanceById(instanceId: string) {
+    async getInstanceById(instanceId: string, organizationId?: string) {
+      const inst = instances.get(instanceId);
+      if (!inst || (organizationId !== undefined && inst.organizationId !== organizationId)) return null;
       return buildDetail(instanceId);
     },
 
-    async getInstanceForPatient(patientUserId: string, instanceId: string) {
+    async getInstanceForPatient(patientUserId: string, instanceId: string, organizationId?: string) {
       const inst = instances.get(instanceId);
-      if (!inst || inst.patientUserId !== patientUserId) return null;
+      if (!inst || inst.patientUserId !== patientUserId || (organizationId !== undefined && inst.organizationId !== organizationId)) return null;
       return buildDetail(instanceId);
     },
 
@@ -379,9 +381,13 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return next;
     },
 
-    async updateInstanceMeta(instanceId: string, patch: { title?: string; status?: "active" | "completed" }) {
+    async updateInstanceMeta(
+      instanceId: string,
+      patch: { title?: string; status?: "active" | "completed" },
+      organizationId?: string,
+    ) {
       const cur = instances.get(instanceId);
-      if (!cur) return null;
+      if (!cur || (organizationId !== undefined && cur.organizationId !== organizationId)) return null;
       const next: InstRow = {
         ...cur,
         ...(patch.title !== undefined ? { title: patch.title.trim() } : {}),

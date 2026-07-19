@@ -1,5 +1,6 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
 import {
@@ -21,33 +22,35 @@ function notFound(type: TreatmentProgramLibraryPickType): Error {
 /** Валидация полиморфной ссылки `item_ref_id` по типу — без FK в БД. */
 export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgramItemRefValidationPort {
   return {
-    async assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string): Promise<void> {
+    async assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string, organizationId?: string): Promise<void> {
       const db = getDrizzle();
+      const scopedOrganizationId = organizationId ?? getCurrentDbPrincipalOrganizationId();
+      if (!scopedOrganizationId) throw notFound(type);
       switch (type) {
         case "exercise": {
           const row = await db.query.lfkExercises.findFirst({
-            where: and(eq(lfkExercises.id, itemRefId), eq(lfkExercises.isArchived, false)),
+            where: and(eq(lfkExercises.id, itemRefId), eq(lfkExercises.organizationId, scopedOrganizationId), eq(lfkExercises.isArchived, false)),
           });
           if (!row) throw notFound(type);
           return;
         }
         case "lfk_complex": {
           const row = await db.query.lfkComplexTemplates.findFirst({
-            where: and(eq(lfkComplexTemplates.id, itemRefId), ne(lfkComplexTemplates.status, "archived")),
+            where: and(eq(lfkComplexTemplates.id, itemRefId), eq(lfkComplexTemplates.organizationId, scopedOrganizationId), ne(lfkComplexTemplates.status, "archived")),
           });
           if (!row) throw notFound(type);
           return;
         }
         case "clinical_test": {
           const row = await db.query.clinicalTests.findFirst({
-            where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.isArchived, false)),
+            where: and(eq(clinicalTests.id, itemRefId), eq(clinicalTests.organizationId, scopedOrganizationId), eq(clinicalTests.isArchived, false)),
           });
           if (!row) throw notFound(type);
           return;
         }
         case "recommendation": {
           const row = await db.query.recommendations.findFirst({
-            where: and(eq(recommendations.id, itemRefId), eq(recommendations.isArchived, false)),
+            where: and(eq(recommendations.id, itemRefId), eq(recommendations.organizationId, scopedOrganizationId), eq(recommendations.isArchived, false)),
           });
           if (!row) throw notFound(type);
           return;
@@ -56,6 +59,7 @@ export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgra
           const row = await db.query.contentPages.findFirst({
             where: and(
               eq(contentPages.id, itemRefId),
+              eq(contentPages.organizationId, scopedOrganizationId),
               or(
                 eq(contentPages.section, LESSON_CONTENT_SECTION),
                 eq(contentPages.section, LESSON_CONTENT_SECTION_LEGACY),

@@ -113,6 +113,7 @@ function mapItem(row: typeof itemTable.$inferSelect): TreatmentProgramStageItem 
 async function templateListCounts(
   db: ReturnType<typeof getDrizzle>,
   templateIds: string[],
+  organizationId: string,
 ): Promise<Map<string, { stageCount: number; itemCount: number }>> {
   const out = new Map<string, { stageCount: number; itemCount: number }>();
   if (templateIds.length === 0) return out;
@@ -125,7 +126,7 @@ async function templateListCounts(
       c: sql<number>`count(*)::int`.mapWith(Number),
     })
     .from(stageTable)
-    .where(and(inArray(stageTable.templateId, templateIds), ne(stageTable.sortOrder, 0)))
+    .where(and(inArray(stageTable.templateId, templateIds), eq(stageTable.organizationId, organizationId), ne(stageTable.sortOrder, 0)))
     .groupBy(stageTable.templateId);
   for (const row of stageAgg) {
     const cur = out.get(row.templateId);
@@ -138,7 +139,11 @@ async function templateListCounts(
     })
     .from(itemTable)
     .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
-    .where(inArray(stageTable.templateId, templateIds))
+    .where(and(
+      inArray(stageTable.templateId, templateIds),
+      eq(stageTable.organizationId, organizationId),
+      eq(itemTable.organizationId, organizationId),
+    ))
     .groupBy(stageTable.templateId);
   for (const row of itemAgg) {
     const cur = out.get(row.templateId);
@@ -149,6 +154,7 @@ async function templateListCounts(
 
 async function templateListFirstItemPreviewByTemplateId(
   templateIds: string[],
+  organizationId: string,
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
   const out = new Map<string, TreatmentProgramTemplateListPreviewMedia | null>();
   for (const id of templateIds) {
@@ -172,6 +178,8 @@ async function templateListFirstItemPreviewByTemplateId(
       FROM treatment_program_template_stage_items i
       INNER JOIN treatment_program_template_stages s ON s.id = i.stage_id
       WHERE s.template_id = ANY($1::uuid[])
+        AND s.organization_id = $2::uuid
+        AND i.organization_id = $2::uuid
       ORDER BY s.template_id, s.sort_order ASC, s.id ASC, i.sort_order ASC, i.id ASC
     )
     SELECT fi.template_id::text AS template_id,
@@ -179,12 +187,14 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_url::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
+            AND em.organization_id = $2::uuid
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaUrl') FROM recommendations r
           WHERE r.id = fi.item_ref_id
+            AND r.organization_id = $2::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -192,6 +202,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaUrl')
           FROM tests t
           WHERE t.id = fi.item_ref_id
+            AND t.organization_id = $2::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -199,6 +210,8 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
+            AND te.organization_id = $2::uuid
+            AND em.organization_id = $2::uuid
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -208,12 +221,14 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_type::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
+            AND em.organization_id = $2::uuid
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaType') FROM recommendations r
           WHERE r.id = fi.item_ref_id
+            AND r.organization_id = $2::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -221,6 +236,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaType')
           FROM tests t
           WHERE t.id = fi.item_ref_id
+            AND t.organization_id = $2::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -228,6 +244,8 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
+            AND te.organization_id = $2::uuid
+            AND em.organization_id = $2::uuid
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -235,7 +253,7 @@ async function templateListFirstItemPreviewByTemplateId(
       END AS preview_type
     FROM first_item fi
     `,
-    [templateIds],
+    [templateIds, organizationId],
   );
 
   for (const row of res.rows) {
@@ -252,6 +270,7 @@ async function templateListFirstItemPreviewByTemplateId(
 
 async function enrichTemplateListPreviewMedia(
   previews: Map<string, TreatmentProgramTemplateListPreviewMedia | null>,
+  organizationId: string,
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
   const mediaIds: string[] = [];
   for (const preview of previews.values()) {
@@ -268,8 +287,8 @@ async function enrichTemplateListPreviewMedia(
   }>(
     `SELECT id::text, preview_sm_key, preview_status
      FROM media_files
-     WHERE id = ANY($1::uuid[])`,
-    [mediaIds],
+     WHERE id = ANY($1::uuid[]) AND organization_id = $2::uuid`,
+    [mediaIds, organizationId],
   );
   const byId = new Map(res.rows.map((r) => [r.id.toLowerCase(), r]));
 
@@ -294,8 +313,9 @@ async function enrichTemplateListPreviewMedia(
 async function templateCountsForOne(
   db: ReturnType<typeof getDrizzle>,
   templateId: string,
+  organizationId: string,
 ): Promise<{ stageCount: number; itemCount: number }> {
-  const m = await templateListCounts(db, [templateId]);
+  const m = await templateListCounts(db, [templateId], organizationId);
   return m.get(templateId) ?? { stageCount: 0, itemCount: 0 };
 }
 
@@ -571,7 +591,7 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         return tx.update(tplTable).set({ ...patch, organizationId }).where(and(eq(tplTable.id, id), eq(tplTable.organizationId, organizationId))).returning();
       });
       if (!row) return null;
-      const counts = await templateCountsForOne(db, id);
+      const counts = await templateCountsForOne(db, id, principalOrganizationId);
       return mapTemplate(row, counts);
     },
 
@@ -670,9 +690,9 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         .where(conds.length ? and(...conds) : undefined)
         .orderBy(desc(tplTable.updatedAt), desc(tplTable.id));
       const ids = rows.map((r) => r.id);
-      const countMap = await templateListCounts(db, ids);
-      const previewMapRaw = await templateListFirstItemPreviewByTemplateId(ids);
-      const previewMap = await enrichTemplateListPreviewMedia(previewMapRaw);
+      const countMap = await templateListCounts(db, ids, organizationId);
+      const previewMapRaw = await templateListFirstItemPreviewByTemplateId(ids, organizationId);
+      const previewMap = await enrichTemplateListPreviewMedia(previewMapRaw, organizationId);
       return rows.map((r) => mapTemplate(r, countMap.get(r.id), previewMap.get(r.id) ?? null));
     },
 
@@ -696,7 +716,15 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     },
 
     async getTreatmentProgramTemplateUsageSummary(templateId: string): Promise<TreatmentProgramTemplateUsageSnapshot> {
-      return loadTreatmentProgramTemplateUsageSummary(templateId, currentPrincipalOrganizationId());
+      const organizationId = currentPrincipalOrganizationId();
+      const db = getDrizzle();
+      const [root] = await db
+        .select({ id: tplTable.id })
+        .from(tplTable)
+        .where(and(eq(tplTable.id, templateId), eq(tplTable.organizationId, organizationId)))
+        .limit(1);
+      if (!root) return { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };
+      return loadTreatmentProgramTemplateUsageSummary(templateId, organizationId);
     },
 
     async createStage(templateId: string, input: CreateTreatmentProgramStageInput) {

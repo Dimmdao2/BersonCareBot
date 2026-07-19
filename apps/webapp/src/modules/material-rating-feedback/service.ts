@@ -4,7 +4,7 @@ import { isMaterialRatingFeedbackReasonCode } from "./reasonCodes";
 
 export function createMaterialRatingFeedbackService(deps: {
   feedback: MaterialRatingFeedbackPort;
-  isDailyWarmupContentPage: (contentPageId: string) => Promise<boolean>;
+  isDailyWarmupContentPage: (input: { contentPageId: string; organizationId: string }) => Promise<boolean>;
 }) {
   return {
     async submitPatientFeedback(input: {
@@ -19,7 +19,10 @@ export function createMaterialRatingFeedbackService(deps: {
         return { ok: false, code: "rating_out_of_scope" };
       }
 
-      const isWarmup = await deps.isDailyWarmupContentPage(input.contentPageId);
+      const isWarmup = await deps.isDailyWarmupContentPage({
+        contentPageId: input.contentPageId,
+        organizationId: input.organizationId,
+      });
       if (!isWarmup) {
         return { ok: false, code: "not_daily_warmup" };
       }

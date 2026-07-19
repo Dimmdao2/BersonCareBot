@@ -53,11 +53,12 @@ export function createTreatmentProgramInstanceService(deps: {
   /** §8–9: проверка попыток тестов перед удалением/заменой элемента. */
   testAttempts?: TreatmentProgramTestAttemptsPort;
   /** UUID шаблона промо из `system_settings` (admin). */
-  getDefaultPromoTemplateId?: () => Promise<string | null>;
+  getDefaultPromoTemplateId?: (options?: { organizationId?: string }) => Promise<string | null>;
   /** Перед `completed` при promo refresh — снимки дневника на закрываемом инстансе. */
   snapshotDiaryDaysBeforePromoRefresh?: (input: {
     patientUserId: string;
     closingInstanceId: string;
+    organizationId: string;
   }) => Promise<void>;
 }) {
   const { instances, templates, snapshots, itemRefs, testAttempts } = deps;
@@ -334,7 +335,7 @@ export function createTreatmentProgramInstanceService(deps: {
       if (!getId) {
         throw new Error("Промо-программа не настроена");
       }
-      const templateId = (await getId())?.trim() ?? "";
+      const templateId = (await getId({ organizationId: input.organizationId }))?.trim() ?? "";
       if (!templateId) {
         throw new Error("Промо-программа не настроена");
       }
@@ -353,17 +354,19 @@ export function createTreatmentProgramInstanceService(deps: {
       const pairs: Array<{ patientUserId: string; oldInstanceId: string; newInstanceId: string }> = [];
 
       for (const row of activePromo) {
-        const prev = await instances.getInstanceById(row.id);
+        const prev = await instances.getInstanceById(row.id, input.organizationId);
         if (!prev) continue;
 
         if (deps.snapshotDiaryDaysBeforePromoRefresh) {
           await deps.snapshotDiaryDaysBeforePromoRefresh({
             patientUserId: row.patientUserId,
             closingInstanceId: row.id,
+            organizationId: input.organizationId,
           });
         }
 
-        await instances.updateInstanceMeta(row.id, { status: "completed" });
+        const completed = await instances.updateInstanceMeta(row.id, { status: "completed" }, input.organizationId);
+        if (!completed) continue;
         await appendEvent({
           instanceId: row.id,
           actorId: input.actorUserId,

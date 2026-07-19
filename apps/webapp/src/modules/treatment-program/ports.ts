@@ -117,7 +117,7 @@ export type TreatmentProgramPort = {
 
 /** Проверка полиморфной ссылки без FK на уровне БД — только в сервисе. */
 export type TreatmentProgramItemRefValidationPort = {
-  assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string): Promise<void>;
+  assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string, organizationId?: string): Promise<void>;
 };
 
 /** Снимок блока библиотеки на момент назначения (§4 SYSTEM_LOGIC_SCHEMA). */
@@ -127,10 +127,11 @@ export type TreatmentProgramItemSnapshotPort = {
 
 export type TreatmentProgramInstancePort = {
   createInstanceTree(input: CreateTreatmentProgramInstanceTreeInput): Promise<TreatmentProgramInstanceDetail>;
-  getInstanceById(id: string): Promise<TreatmentProgramInstanceDetail | null>;
+  getInstanceById(id: string, organizationId?: string): Promise<TreatmentProgramInstanceDetail | null>;
   getInstanceForPatient(
     patientUserId: string,
     instanceId: string,
+    organizationId?: string,
   ): Promise<TreatmentProgramInstanceDetail | null>;
   listInstancesForPatient(patientUserId: string): Promise<TreatmentProgramInstanceSummary[]>;
 
@@ -156,6 +157,7 @@ export type TreatmentProgramInstancePort = {
   updateInstanceMeta(
     instanceId: string,
     patch: { title?: string; status?: "active" | "completed" },
+    organizationId?: string,
   ): Promise<TreatmentProgramInstanceSummary | null>;
 
   /** §3: смена статуса этапа + skip_reason при skipped (валидация в сервисе). */

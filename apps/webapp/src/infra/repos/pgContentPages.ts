@@ -7,6 +7,7 @@ import { courses as coursesTable } from "../../../db/schema/courses";
 
 export type ContentPageRow = {
   id: string;
+  organizationId?: string | null;
   section: string;
   slug: string;
   title: string;
@@ -47,8 +48,8 @@ export type ContentPageUpsertInput = Omit<ContentPageRow, "id" | "archivedAt" | 
 
 export type ContentPagesPort = {
   listBySection: (section: string, opts?: ListContentPagesBySectionOpts) => Promise<ContentPageRow[]>;
-  getBySlug: (slug: string) => Promise<ContentPageRow | null>;
-  getById: (id: string) => Promise<ContentPageRow | null>;
+  getBySlug: (slug: string, options?: { organizationId?: string }) => Promise<ContentPageRow | null>;
+  getById: (id: string, options?: { organizationId?: string }) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: ContentPageUpsertInput) => Promise<string>;
   /** Полное обновление строки по `id` (в т.ч. смена `section`); без вставки новой строки. */
@@ -125,6 +126,7 @@ async function assertLinkedCourseOrganization(
 function mapDrizzleRow(row: typeof contentPages.$inferSelect): ContentPageRow {
   return {
     id: row.id,
+    organizationId: row.organizationId ?? null,
     section: row.section,
     slug: row.slug,
     title: row.title,
@@ -163,9 +165,9 @@ export function createPgContentPagesPort(): ContentPagesPort {
       return rows.map(mapDrizzleRow);
     },
 
-    async getBySlug(slug) {
+    async getBySlug(slug, options) {
       const db = getDrizzle();
-      const organizationId = currentReadOrganizationId();
+      const organizationId = options?.organizationId ?? currentReadOrganizationId();
       const rows = await db
         .select()
         .from(contentPages)
@@ -181,9 +183,9 @@ export function createPgContentPagesPort(): ContentPagesPort {
       return rows[0] ? mapDrizzleRow(rows[0]) : null;
     },
 
-    async getById(id) {
+    async getById(id, options) {
       const db = getDrizzle();
-      const organizationId = currentReadOrganizationId();
+      const organizationId = options?.organizationId ?? currentReadOrganizationId();
       const rows = await db
         .select()
         .from(contentPages)
@@ -408,16 +410,23 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
       .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
   },
 
-  async getBySlug(slug) {
+  async getBySlug(slug, options) {
     const candidates = inMemoryContentPagesStore.filter(
-      (p) => p.slug === slug && p.isPublished && !p.archivedAt && !p.deletedAt,
+      (p) =>
+        p.slug === slug &&
+        p.isPublished &&
+        !p.archivedAt &&
+        !p.deletedAt &&
+        (options?.organizationId === undefined || p.organizationId === options.organizationId),
     );
     candidates.sort((a, b) => a.section.localeCompare(b.section, "ru"));
     return candidates[0] ?? null;
   },
 
-  async getById(id) {
-    return inMemoryContentPagesStore.find((p) => p.id === id) ?? null;
+  async getById(id, options) {
+    return inMemoryContentPagesStore.find(
+      (p) => p.id === id && (options?.organizationId === undefined || p.organizationId === options.organizationId),
+    ) ?? null;
   },
 
   async listMetaByIds(ids) {

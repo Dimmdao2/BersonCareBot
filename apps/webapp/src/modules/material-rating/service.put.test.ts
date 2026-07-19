@@ -74,6 +74,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       ratings,
       contentPages: {
         getById: vi.fn().mockResolvedValue({
+          organizationId,
           deletedAt: null,
           archivedAt: null,
           isPublished: true,
@@ -113,6 +114,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       ratings,
       contentPages: {
         getById: vi.fn().mockResolvedValue({
+          organizationId,
           deletedAt: null,
           archivedAt: null,
           isPublished: true,
@@ -133,6 +135,42 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       programStageItemId: null,
     });
     expect(out).toEqual({ ok: false, code: "missing_program_context" });
+    expect(ratings.upsertRating).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for a foreign or NULL content target before it can write a rating", async () => {
+    const ratings: MaterialRatingPort = {
+      upsertRating: vi.fn(),
+      getMyRating: vi.fn(),
+      getAggregate: vi.fn(),
+      listAggregates: vi.fn(),
+      listDoctorSummary: vi.fn(),
+      getDoctorDetail: vi.fn(),
+    };
+    const getById = vi
+      .fn()
+      .mockResolvedValueOnce({ organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", deletedAt: null, archivedAt: null, isPublished: true, requiresAuth: false })
+      .mockResolvedValueOnce({ organizationId: null, deletedAt: null, archivedAt: null, isPublished: true, requiresAuth: false });
+    const service = createMaterialRatingService({
+      ratings,
+      contentPages: { getById },
+      itemRefs: { assertItemRefExists: vi.fn() } as unknown as TreatmentProgramItemRefValidationPort,
+      instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
+    });
+
+    for (const targetId of ["550e8400-e29b-41d4-a716-446655440098", "550e8400-e29b-41d4-a716-446655440097"]) {
+      await expect(
+        service.putForPatient({
+          organizationId,
+          userId: "550e8400-e29b-41d4-a716-446655440001",
+          stars: 3,
+          targetKind: "content_page",
+          targetId,
+          canViewAuthOnlyContent: true,
+        }),
+      ).resolves.toEqual({ ok: false, code: "not_found" });
+    }
+    expect(getById).toHaveBeenNthCalledWith(1, { id: "550e8400-e29b-41d4-a716-446655440098", organizationId });
     expect(ratings.upsertRating).not.toHaveBeenCalled();
   });
 });

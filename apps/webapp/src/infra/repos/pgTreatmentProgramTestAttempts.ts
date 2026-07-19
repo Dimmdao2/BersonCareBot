@@ -65,6 +65,11 @@ function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[])
 function pendingEvaluationGlobalWhere(organizationId: string) {
   return and(
     eq(instanceTable.organizationId, organizationId),
+    eq(stageTable.organizationId, organizationId),
+    eq(itemTable.organizationId, organizationId),
+    eq(attemptTable.organizationId, organizationId),
+    eq(resultTable.organizationId, organizationId),
+    eq(clinicalTests.organizationId, organizationId),
     eq(instanceTable.status, "active"),
     ne(instanceTable.assignmentSource, "promo"),
     isNull(resultTable.decidedBy),
@@ -371,6 +376,8 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       patientUserId: string,
     ): Promise<PendingProgramTestEvaluationRow[]> {
       const db = getDrizzle();
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) return [];
       const rows = await db
         .select({
           attemptId: attemptTable.id,
@@ -391,6 +398,12 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .where(
           and(
             eq(instanceTable.patientUserId, patientUserId),
+            eq(instanceTable.organizationId, organizationId),
+            eq(stageTable.organizationId, organizationId),
+            eq(itemTable.organizationId, organizationId),
+            eq(attemptTable.organizationId, organizationId),
+            eq(resultTable.organizationId, organizationId),
+            eq(clinicalTests.organizationId, organizationId),
             eq(instanceTable.status, "active"),
             ne(instanceTable.assignmentSource, "promo"),
             isNull(resultTable.decidedBy),
@@ -422,6 +435,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .where(pendingEvaluationGlobalWhere(organizationId));
       return row?.count ?? 0;
     },
@@ -443,6 +457,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
+        .innerJoin(clinicalTests, eq(resultTable.testId, clinicalTests.id))
         .where(pendingEvaluationGlobalWhere(organizationId))
         .groupBy(attemptTable.id)
         .orderBy(desc(sql`max(${resultTable.createdAt})`), asc(attemptTable.id))

@@ -104,4 +104,24 @@ describe("material-rating-feedback service", () => {
     await expect(service.listDoctorFeedbackForPage({ organizationId: ORG_B, contentPageId: PAGE_ID, limit: 10, offset: 0 }))
       .resolves.toEqual([expect.objectContaining({ comment: "B" })]);
   });
+
+  it("does not accept a foreign or NULL warmup target for the resolved organization", async () => {
+    const isDailyWarmupContentPage = async ({ organizationId }: { contentPageId: string; organizationId: string }) =>
+      organizationId === ORG_A;
+    const service = createMaterialRatingFeedbackService({
+      feedback: createInMemoryMaterialRatingFeedbackPort(),
+      isDailyWarmupContentPage,
+    });
+
+    await expect(
+      service.submitPatientFeedback({
+        organizationId: ORG_B,
+        userId: USER_ID,
+        contentPageId: PAGE_ID,
+        ratingValue: 1,
+        reasonCodes: ["other"],
+        comment: null,
+      }),
+    ).resolves.toEqual({ ok: false, code: "not_daily_warmup" });
+  });
 });

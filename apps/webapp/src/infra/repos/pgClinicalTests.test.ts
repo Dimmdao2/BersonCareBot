@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock, connect: vi.fn() })));
 const principalOrganizationIdMock = vi.hoisted(() => vi.fn());
+const rootRowsMock = vi.hoisted(() => vi.fn());
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -21,7 +22,7 @@ vi.mock("@/app-layer/db/drizzle", () => ({
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn(async () => []),
+          limit: vi.fn(async () => rootRowsMock()),
           orderBy: vi.fn(async () => []),
         })),
         orderBy: vi.fn(async () => []),
@@ -49,6 +50,8 @@ describe("createPgClinicalTestsPort usage summary", () => {
     queryMock.mockReset();
     principalOrganizationIdMock.mockReset();
     principalOrganizationIdMock.mockReturnValue(ORG_A);
+    rootRowsMock.mockReset();
+    rootRowsMock.mockReturnValue([{ id: "00000000-0000-4000-8000-000000000099" }]);
   });
 
   it("getClinicalTestUsageSummary runs aggregate query with test_set_items chain", async () => {
@@ -101,6 +104,16 @@ describe("createPgClinicalTestsPort usage summary", () => {
     await expect(port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099")).rejects.toThrow(
       "organization_principal_required",
     );
+  });
+
+  it("does not load usage refs when the requested clinical test is foreign or NULL-owned", async () => {
+    rootRowsMock.mockReturnValue([]);
+    const port = createPgClinicalTestsPort();
+    await expect(port.getClinicalTestUsageSummary("00000000-0000-4000-8000-000000000099")).resolves.toMatchObject({
+      nonArchivedTestSetsContainingCount: 0,
+      activeTreatmentProgramInstanceRefs: [],
+    });
+    expect(queryMock).not.toHaveBeenCalled();
   });
 
   it("catalog writes use the Drizzle mutation transaction chokepoint", () => {

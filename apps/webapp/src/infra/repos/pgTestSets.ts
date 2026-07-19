@@ -478,8 +478,16 @@ export function createPgTestSetsPort(): TestSetsPort {
     },
 
     async getTestSetUsageSummary(id: string): Promise<TestSetUsageSnapshot> {
+      const organizationId = currentPrincipalOrganizationId();
+      const db = getDrizzle();
+      const [root] = await db
+        .select({ id: testSetsTable.id })
+        .from(testSetsTable)
+        .where(and(eq(testSetsTable.id, id), eq(testSetsTable.organizationId, organizationId)))
+        .limit(1);
+      if (!root) return { ...EMPTY_TEST_SET_USAGE_SNAPSHOT };
       const pool = getPool();
-      return loadTestSetUsageSummary(pool, id, currentPrincipalOrganizationId());
+      return loadTestSetUsageSummary(pool, id, organizationId);
     },
   };
 }

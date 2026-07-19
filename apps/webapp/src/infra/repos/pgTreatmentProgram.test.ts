@@ -39,7 +39,7 @@ function makeSelectChain(orderByResult: unknown[] = [tplListRow]) {
     innerJoin: vi.fn(),
     groupBy: vi.fn(async () => []),
     orderBy: vi.fn(async () => orderByResult),
-    limit: vi.fn(async () => []),
+    limit: vi.fn(async () => orderByResult),
   };
   chain.from.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
@@ -219,7 +219,11 @@ describe("createPgTreatmentProgramPort listTemplates preview SQL", () => {
     const sqls = runWebappPgTextMock.mock.calls.map((c) => String(c[0]));
     expect(sqls[0]).toContain("WITH first_item AS");
     expect(sqls[0]).toContain("treatment_program_template_stage_items");
+    expect(sqls[0]).toContain("i.organization_id = $2::uuid");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([[TPL_ID], ORG_A]);
     expect(sqls[1]).toContain("FROM media_files");
     expect(sqls[1]).toContain("ANY($1::uuid[])");
+    expect(sqls[1]).toContain("organization_id = $2::uuid");
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([[PREVIEW_MEDIA_ID], ORG_A]);
   });
 });

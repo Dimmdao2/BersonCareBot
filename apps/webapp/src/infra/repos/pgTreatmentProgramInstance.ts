@@ -355,16 +355,19 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       });
     },
 
-    async getInstanceById(id: string): Promise<TreatmentProgramInstanceDetail | null> {
+    async getInstanceById(id: string, organizationId?: string): Promise<TreatmentProgramInstanceDetail | null> {
       const db = getDrizzleOrMutationTx();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+      const exactOrganizationId = organizationId ?? principalOrganizationId;
+      if (!exactOrganizationId || (principalOrganizationId && principalOrganizationId !== exactOrganizationId)) return null;
       const inst = await db.query.treatmentProgramInstances.findFirst({
-        where: eq(instTable.id, id),
+        where: and(eq(instTable.id, id), eq(instTable.organizationId, exactOrganizationId)),
       });
       if (!inst) return null;
       const stagesRows = await db
         .select()
         .from(stageTable)
-        .where(eq(stageTable.instanceId, id))
+        .where(and(eq(stageTable.instanceId, id), eq(stageTable.organizationId, exactOrganizationId)))
         .orderBy(asc(stageTable.sortOrder), asc(stageTable.id));
       const sids = stagesRows.map((s) => s.id);
       const itemsRows =
@@ -373,7 +376,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           : await db
               .select()
               .from(itemTable)
-              .where(inArray(itemTable.stageId, sids))
+              .where(and(inArray(itemTable.stageId, sids), eq(itemTable.organizationId, exactOrganizationId)))
               .orderBy(asc(itemTable.stageId), asc(itemTable.sortOrder), asc(itemTable.id));
       const groupsRows =
         sids.length === 0
@@ -381,7 +384,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           : await db
               .select()
               .from(instGroupTable)
-              .where(inArray(instGroupTable.stageId, sids))
+              .where(and(inArray(instGroupTable.stageId, sids), eq(instGroupTable.organizationId, exactOrganizationId)))
               .orderBy(asc(instGroupTable.stageId), asc(instGroupTable.sortOrder), asc(instGroupTable.id));
       return toDetail(inst, stagesRows, itemsRows, groupsRows);
     },
@@ -389,21 +392,24 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     async getInstanceForPatient(
       patientUserId: string,
       instanceId: string,
+      organizationId?: string,
     ): Promise<TreatmentProgramInstanceDetail | null> {
       const db = getDrizzleOrMutationTx();
       const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+      const exactOrganizationId = organizationId ?? principalOrganizationId;
+      if (!exactOrganizationId || (principalOrganizationId && principalOrganizationId !== exactOrganizationId)) return null;
       const inst = await db.query.treatmentProgramInstances.findFirst({
         where: and(
           eq(instTable.id, instanceId),
           eq(instTable.patientUserId, patientUserId),
-          ...(principalOrganizationId ? [eq(instTable.organizationId, principalOrganizationId)] : []),
+          eq(instTable.organizationId, exactOrganizationId),
         ),
       });
       if (!inst) return null;
       const stagesRows = await db
         .select()
         .from(stageTable)
-        .where(eq(stageTable.instanceId, instanceId))
+        .where(and(eq(stageTable.instanceId, instanceId), eq(stageTable.organizationId, exactOrganizationId)))
         .orderBy(asc(stageTable.sortOrder), asc(stageTable.id));
       const sids = stagesRows.map((s) => s.id);
       const itemsRows =
@@ -412,7 +418,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           : await db
               .select()
               .from(itemTable)
-              .where(inArray(itemTable.stageId, sids))
+              .where(and(inArray(itemTable.stageId, sids), eq(itemTable.organizationId, exactOrganizationId)))
               .orderBy(asc(itemTable.stageId), asc(itemTable.sortOrder), asc(itemTable.id));
       const groupsRows =
         sids.length === 0
@@ -420,7 +426,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           : await db
               .select()
               .from(instGroupTable)
-              .where(inArray(instGroupTable.stageId, sids))
+              .where(and(inArray(instGroupTable.stageId, sids), eq(instGroupTable.organizationId, exactOrganizationId)))
               .orderBy(asc(instGroupTable.stageId), asc(instGroupTable.sortOrder), asc(instGroupTable.id));
       return toDetail(inst, stagesRows, itemsRows, groupsRows);
     },
@@ -465,8 +471,11 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       status?: TreatmentProgramInstanceStatus;
     }): Promise<number> {
       const db = getDrizzleOrMutationTx();
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) return 0;
       const conds = [
         eq(instTable.assignmentSource, filter.assignmentSource),
+        eq(instTable.organizationId, organizationId),
         ...(filter.status !== undefined ? [eq(instTable.status, filter.status)] : []),
       ];
       const [row] = await db
@@ -482,9 +491,12 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       organizationId?: string;
     }): Promise<TreatmentProgramInstanceSummary[]> {
       const db = getDrizzleOrMutationTx();
+      const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+      const organizationId = filter.organizationId ?? principalOrganizationId;
+      if (!organizationId || (principalOrganizationId && principalOrganizationId !== organizationId)) return [];
       const conds = [
         eq(instTable.assignmentSource, filter.assignmentSource),
-        ...(filter.organizationId ? [eq(instTable.organizationId, filter.organizationId)] : []),
+        eq(instTable.organizationId, organizationId),
         ...(filter.status !== undefined ? [eq(instTable.status, filter.status)] : []),
       ];
       const rows = await db
@@ -529,6 +541,7 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     async updateInstanceMeta(
       instanceId: string,
       patch: { title?: string; status?: "active" | "completed" },
+      organizationId?: string,
     ): Promise<TreatmentProgramInstanceSummary | null> {
       const rowPatch: Partial<typeof instTable.$inferInsert> = {
         updatedAt: new Date().toISOString(),
@@ -540,7 +553,14 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       }
       if (patch.status !== undefined) rowPatch.status = patch.status;
       return runDrizzleMutationTransaction(async (tx) => {
-        const [row] = await tx.update(instTable).set(rowPatch).where(eq(instTable.id, instanceId)).returning();
+        const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+        const exactOrganizationId = organizationId ?? principalOrganizationId;
+        if (!exactOrganizationId || (principalOrganizationId && principalOrganizationId !== exactOrganizationId)) return null;
+        const [row] = await tx
+          .update(instTable)
+          .set(rowPatch)
+          .where(and(eq(instTable.id, instanceId), eq(instTable.organizationId, exactOrganizationId)))
+          .returning();
         return row ? mapInstance(row) : null;
       });
     },

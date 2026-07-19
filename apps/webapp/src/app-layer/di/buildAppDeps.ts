@@ -965,7 +965,20 @@ const patientDailyWarmupVideoViewsPort = !inMemoryRepos
 const materialRatingPort = !inMemoryRepos ? createPgMaterialRatingPort() : createInMemoryMaterialRatingPort();
 const materialRatingService = createMaterialRatingService({
   ratings: materialRatingPort,
-  contentPages: contentPagesPort,
+  contentPages: {
+    async getById({ id, organizationId }) {
+      const row = await contentPagesPort.getById(id, { organizationId });
+      return row
+        ? {
+            organizationId: row.organizationId ?? null,
+            deletedAt: row.deletedAt,
+            archivedAt: row.archivedAt,
+            isPublished: row.isPublished,
+            requiresAuth: row.requiresAuth,
+          }
+        : null;
+    },
+  },
   itemRefs: treatmentProgramItemRefValidationPort,
   instances: treatmentProgramInstancePort,
 });
@@ -974,13 +987,13 @@ const materialRatingFeedbackPort = !inMemoryRepos
   : createInMemoryMaterialRatingFeedbackPort();
 const materialRatingFeedbackService = createMaterialRatingFeedbackService({
   feedback: materialRatingFeedbackPort,
-  isDailyWarmupContentPage: (contentPageId) =>
+  isDailyWarmupContentPage: ({ contentPageId, organizationId }) =>
     isContentPageInDailyWarmupBlock(contentPageId, {
       patientHomeBlocks: patientHomeBlocksPort,
       contentPages: contentPagesPort,
       contentSections: contentSectionsPort,
       systemSettings: systemSettingsService,
-    }),
+    }, organizationId),
 });
 const warmupFeelingCompletionPort = !inMemoryRepos
   ? createPgWarmupFeelingCompletionPort({
@@ -1001,7 +1014,8 @@ const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
   itemRefs: treatmentProgramItemRefValidationPort,
   events: treatmentProgramEventsPort,
   testAttempts: treatmentProgramTestAttemptsPort,
-  getDefaultPromoTemplateId: () => systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId(),
+  getDefaultPromoTemplateId: ({ organizationId } = {}) =>
+    systemSettingsService.getPatientDefaultPromoTreatmentProgramTemplateId({ organizationId }),
   snapshotDiaryDaysBeforePromoRefresh: (input) =>
     snapshotPromoDaysBeforeRefresh(
       {

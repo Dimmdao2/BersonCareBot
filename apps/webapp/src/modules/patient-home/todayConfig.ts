@@ -24,7 +24,10 @@ export type ResolvedPatientHomeBlockItem = {
 export type PatientHomeTodayConfigDeps = {
   patientHomeBlocks: { listBlocksWithItems(): Promise<PatientHomeBlock[]> };
   contentPages: {
-    getBySlug(slug: string): Promise<(Pick<ResolvedWarmupPage, "slug" | "title" | "summary" | "imageUrl"> & { id: string; section: string }) | null>;
+    getBySlug(
+      slug: string,
+      options?: { organizationId?: string },
+    ): Promise<(Pick<ResolvedWarmupPage, "slug" | "title" | "summary" | "imageUrl"> & { id: string; section: string }) | null>;
   };
   contentSections: {
     getBySlug(slug: string): Promise<{
@@ -99,6 +102,7 @@ export type DailyWarmupListEntry = ResolvedWarmupPage & {
  */
 export async function listDailyWarmupPagesForHome(
   deps: PatientHomeTodayConfigDeps,
+  organizationId?: string,
 ): Promise<DailyWarmupListEntry[]> {
   const blocks = await deps.patientHomeBlocks.listBlocksWithItems();
   const warmupBlock = blocks.find((b) => b.code === "daily_warmup");
@@ -112,7 +116,7 @@ export async function listDailyWarmupPagesForHome(
   for (const blockItem of items) {
     const slug = blockItem.targetRef.trim();
     if (!slug) continue;
-    const row = await deps.contentPages.getBySlug(slug);
+    const row = await deps.contentPages.getBySlug(slug, organizationId ? { organizationId } : undefined);
     if (!row) continue;
     const parent = await deps.contentSections.getBySlug(row.section);
     const sectionMap = parent
@@ -142,8 +146,9 @@ export async function listDailyWarmupPagesForHome(
 export async function isContentPageInDailyWarmupBlock(
   contentPageId: string,
   deps: PatientHomeTodayConfigDeps,
+  organizationId?: string,
 ): Promise<boolean> {
-  const pages = await listDailyWarmupPagesForHome(deps);
+  const pages = await listDailyWarmupPagesForHome(deps, organizationId);
   return pages.some((p) => p.contentPageId === contentPageId);
 }
 

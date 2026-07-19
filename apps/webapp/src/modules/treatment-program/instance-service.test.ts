@@ -704,6 +704,54 @@ describe("treatment-program instance service", () => {
       expect(active[0]?.organizationId).toBe(ORG_ID);
     });
 
+    it("refresh reads the selected organization setting and cannot replace a foreign or NULL instance", async () => {
+      const orgB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+      const tplPortLocal = createInMemoryTreatmentProgramPort();
+      const tplLocal = createTreatmentProgramService(tplPortLocal, itemRefs);
+      const tpl = await tplLocal.createTemplate({ title: "Промо v2", status: "published" }, null);
+      await tplLocal.createStage(tpl.id, { title: "Этап 1" });
+      const { instancePort, eventsPort } = createInMemoryTreatmentProgramPersistence();
+      const getDefaultPromoTemplateId = vi.fn(async ({ organizationId }: { organizationId?: string } = {}) =>
+        organizationId === ORG_ID ? tpl.id : null,
+      );
+      const instSvc = createTreatmentProgramInstanceService({
+        instances: instancePort,
+        templates: tplLocal,
+        snapshots: createInMemoryTreatmentProgramItemSnapshotPort(),
+        itemRefs,
+        events: eventsPort,
+        getDefaultPromoTemplateId,
+      });
+      const owned = await instSvc.assignTemplateToPatient({
+        organizationId: ORG_ID,
+        templateId: tpl.id,
+        patientUserId: patient,
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+      const foreign = await instSvc.assignTemplateToPatient({
+        organizationId: orgB,
+        templateId: tpl.id,
+        patientUserId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+      const legacyNull = await instSvc.assignTemplateToPatient({
+        templateId: tpl.id,
+        patientUserId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        assignedBy: null,
+        assignmentSource: "promo",
+      });
+
+      await expect(
+        instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID }),
+      ).resolves.toMatchObject({ refreshedCount: 1 });
+      expect(getDefaultPromoTemplateId).toHaveBeenLastCalledWith({ organizationId: ORG_ID });
+      await expect(instancePort.getInstanceById(owned.id, ORG_ID)).resolves.toMatchObject({ status: "completed" });
+      await expect(instancePort.getInstanceById(foreign.id, orgB)).resolves.toMatchObject({ status: "active" });
+      await expect(instancePort.getInstanceById(legacyNull.id)).resolves.toMatchObject({ status: "active" });
+    });
+
     it("refreshActivePromoProgramsFromDefaultTemplate snapshots week days on closing instance", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date("2026-05-13T12:00:00.000Z"));
