@@ -2,7 +2,7 @@
 
 > **Актуальный safety override, 2026-07-19:** немедленное безвозвратное удаление учётной записи временно
 > отключено по `PR-03A0`. Legacy API возвращает `account_purge_disabled`, destructive UI action отсутствует,
-> а CLI-команды `reset-user`/`purge-by-id` fail-closed. Описание ниже сохраняет исторический контракт strict-purge
+> а CLI-команды `reset-user`/`purge-by-id`/`integrator-clear-phone`/`integrator-purge-user-id` fail-closed. Описание ниже сохраняет исторический контракт strict-purge
 > core, который остаётся внутренним primitive и не является доступным account-delete flow.
 
 Отчёт по реализованной логике жизненного цикла учётной записи клиента: архив → безвозвратное удаление, точки в коде и ограничения доступа.
@@ -145,7 +145,9 @@
 
 1. Перевести клиента в архив (`PATCH .../archive` или UI «В архив»).
 2. Выполнить `POST .../permanent-delete` из UI архива под `admin + adminMode`, либо CLI `purge-by-id <uuid>`.
-3. Убедиться, что `outcome === 'completed'` и при необходимости `integratorSkipped: false`; иначе смотреть `details` / аудит и повторить внешний хвост или `integrator-clear-phone` / `integrator-purge-user-id`.
+3. Исторический workaround через `integrator-clear-phone` / `integrator-purge-user-id` больше недоступен: обе
+   команды fail-closed вместе с account purge. Внешний хвост может исполняться только будущим owner-gated
+   post-retention flow; вручную обходить gate нельзя.
 4. Strict purge уже таргетит S3 + `media_files` при включённом S3 в окружении; при `partial_failed` проверить лог и повторить cleanup.
 5. После этого тот же телефон можно регистрировать заново; `platform_users.id` и `integrator users.id` будут созданы заново.
 

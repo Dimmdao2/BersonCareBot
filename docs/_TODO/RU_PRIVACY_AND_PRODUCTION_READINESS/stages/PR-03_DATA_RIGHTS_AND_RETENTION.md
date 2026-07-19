@@ -34,9 +34,10 @@ unscoped delete scripts и production purge без dry-run/owner gate.
 - [x] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema.
 - [x] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`.
 
-Worker implementation завершена 2026-07-19 на base `d1fad7c65`; независимый audit и integration commit остаются
-stage gate. `reset-user` включён в fail-close вместе с `purge-by-id`, потому что он напрямую удалял
-`platform_users` и тем самым обходил тот же owner invariant.
+Worker implementation и correction round 1 завершены 2026-07-19 на base `d1fad7c65`; независимый audit и
+integration commit остаются stage gate. `reset-user` включён в fail-close вместе с `purge-by-id`, потому что он
+напрямую удалял `platform_users`. `integrator-clear-phone` и `integrator-purge-user-id` также fail-closed: они
+необратимо удаляли integrator account, а первый дополнительно удалял Rubitime history, обходя тот же owner invariant.
 
 ## PR-03A — pre-launch containment
 

@@ -39,6 +39,10 @@ function forbidText(key, source, needle, rule) {
   if (source.includes(needle)) failures.push(`${key}:${rule}`);
 }
 
+function forbidPattern(key, source, pattern, rule) {
+  if (pattern.test(source)) failures.push(`${key}:${rule}`);
+}
+
 function runtimeSources(relativeRoot) {
   const absoluteRoot = path.join(webappRoot, relativeRoot);
   if (!fs.existsSync(absoluteRoot)) return [];
@@ -72,10 +76,42 @@ forbidText("ui", ui, "/permanent-delete", "reachable_permanent_delete_request");
 forbidText("ui", ui, "doctor-client-permanent-delete-btn", "destructive_action_visible");
 
 requireText("operations", operations, "ACCOUNT_PURGE_DISABLED", "missing_fail_closed_marker");
+for (const command of [
+  "reset-user",
+  "purge-by-id",
+  "integrator-clear-phone",
+  "integrator-purge-user-id",
+]) {
+  requireText(
+    "operations",
+    operations,
+    `rejectAccountPurge("${command}")`,
+    `missing_fail_closed_command:${command}`,
+  );
+}
 forbidText("operations", operations, "runStrictPurgePlatformUser", "reachable_strict_purge");
-forbidText("operations", operations, "DELETE FROM platform_users", "reachable_direct_account_delete");
+forbidPattern(
+  "operations",
+  operations,
+  /\bDELETE\s+FROM\s+(?:public\.)?platform_users\b/i,
+  "reachable_direct_account_delete",
+);
+forbidPattern(
+  "operations",
+  operations,
+  /\bDELETE\s+FROM\s+(?:integrator\.)?users\b/i,
+  "reachable_integrator_account_delete",
+);
+forbidPattern(
+  "operations",
+  operations,
+  /\bDELETE\s+FROM\s+(?:integrator\.)?rubitime_(?:records|events)\b/i,
+  "reachable_integrator_history_delete",
+);
 forbidText("operations", operations, "await resetUser(arg1)", "reachable_reset_user_delete");
 forbidText("operations", operations, "await purgeUserByPlatformId(arg1)", "reachable_purge_by_id");
+forbidText("operations", operations, "await integratorClearPhone(arg1)", "reachable_integrator_clear_phone");
+forbidText("operations", operations, "await integratorPurgeUserById(arg1)", "reachable_integrator_purge_user");
 
 for (const item of runtimeSources("src/app")) {
   forbidText(item.relativePath, item.source, "runStrictPurgePlatformUser", "runtime_strict_purge_entrypoint");
@@ -89,7 +125,18 @@ for (const item of runtimeSources("scripts")) {
   if (item.relativePath.endsWith("check-account-purge-disabled.mjs")) continue;
   forbidText(item.relativePath, item.source, "runStrictPurgePlatformUser", "operational_strict_purge_entrypoint");
   forbidText(item.relativePath, item.source, "purgePlatformUserByPlatformId", "operational_full_purge_entrypoint");
-  forbidText(item.relativePath, item.source, "DELETE FROM platform_users", "operational_direct_account_delete");
+  forbidPattern(
+    item.relativePath,
+    item.source,
+    /\bDELETE\s+FROM\s+(?:public\.)?platform_users\b/i,
+    "operational_direct_account_delete",
+  );
+  forbidPattern(
+    item.relativePath,
+    item.source,
+    /\bDELETE\s+FROM\s+(?:integrator\.)?users\b/i,
+    "operational_integrator_account_delete",
+  );
 }
 
 requireText(

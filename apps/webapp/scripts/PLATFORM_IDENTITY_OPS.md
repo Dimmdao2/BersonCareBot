@@ -23,7 +23,10 @@
 
 **Шаг A — По возможности не писать «голый» SQL по `platform_users`.**
 
-1. **Удаление / полная зачистка по номеру или UUID** — команды `reset-user` и `purge-by-id` в [`user-phone-admin.ts`](user-phone-admin.ts) временно fail-closed. Немедленный account purge запрещён до принятой retention state machine; внутренний `runStrictPurgePlatformUser` нельзя вызывать вручную в обход этого gate.
+1. **Удаление / полная зачистка по номеру или UUID** — команды `reset-user`, `purge-by-id`,
+   `integrator-clear-phone` и `integrator-purge-user-id` в [`user-phone-admin.ts`](user-phone-admin.ts) временно
+   fail-closed. Немедленный account purge запрещён до принятой retention state machine; внутренний
+   `runStrictPurgePlatformUser` нельзя вызывать вручную в обход этого gate.
 2. **Слияние двух клиентских учёток** — через **продуктовые** пути: UI врача (merge) или код репозитория `pgPlatformUserMerge` / процедуры, согласованные с [`docs/ARCHITECTURE/PLATFORM_USER_MERGE.md`](../../docs/ARCHITECTURE/PLATFORM_USER_MERGE.md). Там переносится и логика вокруг `patient_phone_trust_at`, а не только `phone_normalized`.
 3. **Назначить номер «как после доверенного сценария»** без UI — по смыслу это дублирует OTP/интегратор; предпочтительно довести пользователя через **штатный** поток. Если это невозможно, переходите к шагу B с явным решением в тикете/runbook.
 
@@ -62,7 +65,7 @@
 | [`backfill-person-domain.mjs`](backfill-person-domain.mjs) | INSERT/UPDATE из integrator | **Да** — при непустом телефоне из источника integrator (как проекция). |
 | [`backfill-appointments-domain.mjs`](backfill-appointments-domain.mjs) | INSERT/UPDATE по записям приёмов | **Да** — `now()` при INSERT; при ON CONFLICT `COALESCE(..., now())` для догонки legacy-строк. |
 | [`backfill-rubitime-history-to-patient-bookings.ts`](backfill-rubitime-history-to-patient-bookings.ts) | INSERT при создании пользователя по телефону из истории | Зависит от реализации скрипта; в продуктовом коде `ensureClientFromAppointmentProjection` **выставляет** `patient_phone_trust_at` при Rubitime phone (PHASE_01). |
-| [`user-phone-admin.ts`](user-phone-admin.ts) | Служебные UPDATE/cleanup; account purge отключён | `reset-user` и `purge-by-id` возвращают fail-closed отказ; reassign и ограниченные repair-команды не создают patient без продуктовых потоков. |
+| [`user-phone-admin.ts`](user-phone-admin.ts) | Служебные UPDATE/cleanup; account purge отключён | Четыре account-delete команды из §2 возвращают fail-closed отказ; reassign и ограниченные resource repair-команды не создают patient без продуктовых потоков. |
 | `reconcile-*.mjs` | как правило только чтение / сверка id | по сценарию — без массовой записи телефона; перепроверять при изменении скрипта. |
 | `*.sql` (repair и пр.) | вручную | проходить шаги §2 B–C. |
 

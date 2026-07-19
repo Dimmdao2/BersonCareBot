@@ -22,7 +22,18 @@ function makePassingFixture() {
     'const error = "account_purge_disabled";\n',
   );
   writeFixture(root, "src/app/app/doctor/clients/DoctorClientLifecycleActions.tsx", "export const archive = true;\n");
-  writeFixture(root, "scripts/user-phone-admin.ts", 'const ACCOUNT_PURGE_DISABLED = true;\n');
+  writeFixture(
+    root,
+    "scripts/user-phone-admin.ts",
+    [
+      "const ACCOUNT_PURGE_DISABLED = true;",
+      'rejectAccountPurge("reset-user");',
+      'rejectAccountPurge("purge-by-id");',
+      'rejectAccountPurge("integrator-clear-phone");',
+      'rejectAccountPurge("integrator-purge-user-id");',
+      "",
+    ].join("\n"),
+  );
   writeFixture(
     root,
     "src/infra/strictPlatformUserPurge.ts",
@@ -62,6 +73,24 @@ test("rejects a synthetic administrative route that calls the strict purge core"
     const result = runChecker(root);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /route:reachable_strict_purge/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects synthetic integrator account deletion in an operational command", () => {
+  const root = makePassingFixture();
+  try {
+    writeFixture(
+      root,
+      "scripts/user-phone-admin.ts",
+      fs.readFileSync(path.join(root, "scripts/user-phone-admin.ts"), "utf8") +
+        "await integratorPurgeUserById(arg1);\ndelete from integrator.users where id = $1;\n",
+    );
+    const result = runChecker(root);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /operations:reachable_integrator_account_delete/);
+    assert.match(result.stderr, /operations:reachable_integrator_purge_user/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -142,3 +142,15 @@ Append-only журнал. Планирование не переводит ни 
   workspace audit (2 files / 60 tests); PASS webapp typecheck; PASS scoped ESLint; `git diff --check` clean.
 - Не делались schema/DB/DEV DB/TEST/PROD/deploy, 90-day state, timers/jobs, emails, export, offboarding или изменения
   strict-purge/media cleanup semantics. Независимый security/data-lifecycle audit и integration commit выполняет lead.
+
+## 2026-07-19 — PR-03A0 correction round 1: integrator account-delete bypasses
+
+- Critical audit подтвердил два оставшихся operational bypass: `integrator-clear-phone` удалял integrator account
+  и связанные Rubitime records/events, а `integrator-purge-user-id` выполнял прямой account delete с CASCADE.
+- Обе команды теперь используют тот же fail-closed `ACCOUNT_PURGE_DISABLED`, что `reset-user` и `purge-by-id`;
+  destructive helper/call graph и account-level SQL удалены. Ограниченные webapp projection/message/appointment
+  cleanup и reassign не расширялись и не переклассифицировались как account purge.
+- Checker требует fail-closed dispatch всех четырёх command names, запрещает их прежние вызовы и account-delete SQL
+  во всех operational scripts. Negative fixture теперь отдельно доказывает FAIL для integrator delete call + SQL.
+- PASS после correction: checker; node test 3/3; scoped ESLint; webapp typecheck; `git diff --check`. Strict core,
+  `platformUserFullPurge` и media pending-delete по-прежнему имеют zero diff. DB/TEST/PROD/deploy не выполнялись.

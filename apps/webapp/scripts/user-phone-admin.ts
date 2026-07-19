@@ -12,10 +12,7 @@
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
  *
  *   integrator-clear-phone <phone>
- *                         — только БД integrator: rubitime по номеру + удаление строки users (и CASCADE contacts/identities/…),
- *                           если пользователь находится по contacts(phone). Нужен, если ранее сделали reset-user без
- *                           подключения к integrator — иначе в боте остаётся linkedPhone и не показывается запрос контакта.
- *                           Не удаляет webapp: appointment_records, message_log — для полного сбоя по номеру см. scrub-webapp-by-phone.
+ *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account и Rubitime history по телефону.
  *
  *   scrub-webapp-by-phone <phone>
  *                         — только webapp: appointment_records + phone_otp/challenges по номеру и журнал doctor-сообщений
@@ -36,8 +33,7 @@
  *                           Нужно, если platform_users уже удалили, а в журналах/подписках остались хвосты по id из integrator.
  *
  *   integrator-purge-user-id <bigint>
- *                         — только integrator: DELETE FROM users WHERE id = $1 (CASCADE identities/contacts/…). Когда известен
- *                           users.id в БД integrator, а не только телефон.
+ *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account с CASCADE.
  *
  * DATABASE_URL:
  *   - Явно: `DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts ...`
@@ -46,7 +42,7 @@
  *     Сначала dotenv, затем при необходимости `bash source` (для export и shell-формата).
  *   - Хост вроде `base` (имя сервиса только внутри Docker) отклоняется до подключения.
  *
- * Integrator DB (опционально для reset-user / info; обязательна для integrator-clear-phone):
+ * Integrator DB (опционально для read-only info и ограниченных repair-команд):
  *   - `INTEGRATOR_DATABASE_URL` или `USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL`
  *   - иначе файлы: `USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE`, затем `/opt/env/bersoncarebot/api.prod`
  *     (в файле — `INTEGRATOR_DATABASE_URL` или `DATABASE_URL` к БД integrator).
@@ -66,7 +62,9 @@ const { Pool } = pg;
 
 const ACCOUNT_PURGE_DISABLED = "ACCOUNT_PURGE_DISABLED";
 
-function rejectAccountPurge(command: "reset-user" | "purge-by-id"): void {
+function rejectAccountPurge(
+  command: "reset-user" | "purge-by-id" | "integrator-clear-phone" | "integrator-purge-user-id",
+): void {
   console.error(
     `${ACCOUNT_PURGE_DISABLED}: команда ${command} временно отключена до принятой retention state machine.`,
   );
@@ -283,57 +281,6 @@ async function resolveIntegratorUserIds(
     for (const row of r.rows) ids.add(row.user_id);
   }
   return [...ids];
-}
-
-async function deleteIntegratorPhoneData(digs: string, integratorUserIds: string[]): Promise<void> {
-  if (!integratorDb) return;
-
-  const log = (label: string, rowCount: number) => {
-    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
-  };
-
-  const client = await integratorDb.connect();
-  try {
-    await client.query("BEGIN");
-
-    let r = await client.query(
-      `DELETE FROM rubitime_events e
-       USING rubitime_records rr
-       WHERE e.rubitime_record_id IS NOT NULL
-         AND e.rubitime_record_id = rr.rubitime_record_id
-         AND rr.phone_normalized IS NOT NULL
-         AND regexp_replace(rr.phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-    log("Удалено из rubitime_events (по rubitime_records телефона)", r.rowCount ?? 0);
-
-    r = await client.query(
-      `DELETE FROM rubitime_records
-       WHERE phone_normalized IS NOT NULL
-         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-    log("Удалено из rubitime_records (по номеру)", r.rowCount ?? 0);
-
-    r = await client.query(
-      `DELETE FROM rubitime_create_retry_jobs
-       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
-      [digs],
-    );
-    log("Удалено из rubitime_create_retry_jobs", r.rowCount ?? 0);
-
-    if (integratorUserIds.length > 0) {
-      r = await client.query(`DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
-      log("Удалено из users (integrator, CASCADE identities/contacts/…)", r.rowCount ?? 0);
-    }
-
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 /**
@@ -581,49 +528,6 @@ async function webappCleanupByIntegratorId(raw: string): Promise<void> {
   }
 }
 
-async function integratorPurgeUserById(raw: string): Promise<void> {
-  if (!integratorDb) {
-    console.error("Integrator БД не задана (USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE / INTEGRATOR_DATABASE_URL).");
-    process.exitCode = 1;
-    return;
-  }
-  const id = raw.trim();
-  if (!/^\d+$/.test(id)) {
-    console.error("Ожидается целый users.id в БД integrator (bigint).");
-    process.exitCode = 1;
-    return;
-  }
-  const r = await integratorDb.query(`DELETE FROM users WHERE id = $1::bigint`, [id]);
-  const n = r.rowCount ?? 0;
-  console.log(`\nIntegrator: DELETE FROM users WHERE id = ${id} → ${n} строк(а).`);
-  if (n === 0) {
-    console.log("(Пользователь с таким id не найден — возможно уже удалён.)");
-  } else {
-    console.log("✓ Строка users и CASCADE (identities, contacts, telegram_state, …) удалены.");
-  }
-}
-
-/** Только integrator (например после reset-user без api.prod). Webapp по номеру не ищем. */
-async function integratorClearPhone(phone: string): Promise<void> {
-  if (!integratorDb) {
-    console.error(
-      "Integrator БД не задана. Укажите USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE=/opt/env/bersoncarebot/api.prod или INTEGRATOR_DATABASE_URL.",
-    );
-    process.exitCode = 1;
-    return;
-  }
-  const norm = normalize(phone);
-  const digs = phoneDigits(norm);
-  const intIds = await resolveIntegratorUserIds(digs, null);
-  console.log(`\nIntegrator-only: номер ${norm}, user_id из contacts: ${intIds.length ? intIds.join(", ") : "—"}`);
-  await deleteIntegratorPhoneData(digs, intIds);
-  console.log("✓ Integrator очищен по номеру.");
-  console.error(
-    "\nЕсли в webapp остались appointment_records или строки в message_log (журнал сообщений врача): " +
-      `scrub-webapp-by-phone ${normalize(phone)}; для «сирот» в журнале после удаления пользователя: message-log-delete <uuid>.`,
-  );
-}
-
 async function reassignUser(phone: string, oldUuid: string): Promise<void> {
   const user = await findUser(phone);
   if (!user) {
@@ -691,7 +595,7 @@ async function main() {
           console.error("Укажите номер: integrator-clear-phone 79189000782");
           process.exit(1);
         }
-        await integratorClearPhone(arg1);
+        rejectAccountPurge("integrator-clear-phone");
         break;
       case "purge-by-id":
         if (!arg1) {
@@ -712,7 +616,7 @@ async function main() {
           console.error("Укажите id: integrator-purge-user-id 12345");
           process.exit(1);
         }
-        await integratorPurgeUserById(arg1);
+        rejectAccountPurge("integrator-purge-user-id");
         break;
       case "scrub-webapp-by-phone":
         if (!arg1) {
