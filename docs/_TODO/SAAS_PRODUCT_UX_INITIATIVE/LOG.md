@@ -2419,3 +2419,18 @@ rewrite occurs at this gate. No owner decision is claimed until the owner explic
 
 The worker sandbox could not write shared Git metadata, so the lead owns the exact-path commit after live diff
 inspection. This is a sandbox boundary rather than a repository defect; no unrelated file was staged.
+
+### Independent gate and integration
+
+The single permitted cross-model audit `bcb-c4-c5-owner-decision-audit-20260719` (Claude Sonnet, high, read-only)
+returned **PASS** against all ten packet criteria: one document/one current section; complete UX08/OM/BD
+reconciliation; eight stable current IDs; explicit recommendation/default/blocking branch for each; no unqualified
+`0 pending`; no false execution authority; and no audit-driven scope growth. The auditor added no product
+requirements and confirmed that presentation/docs one-audit discipline was respected. Its only disclosed limitation
+was lack of shell access for Git commands; this was not a finding.
+
+The lead independently ran the missing live checks on the exact commit: only `OWNER_DECISION_PACKET.md` and this
+`LOG.md` changed, `git diff --check` passed, both relative links resolve, and no tracked env path is modified. The
+audited patch was integrated as `66c95c0bb`. No CI, build, DB, TEST or deploy is warranted for this docs-only gate.
+Task `#887` can therefore be sealed `done`; owner answers to C4C5-01…07 remain separate branch-local gates, while
+C4C5-08 stays explicitly deferred. `accepted` remains owner-only.
