@@ -1,5 +1,31 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-19 — owner addendum integrated: C4/C5, S4 `#888` and FIO `#855`
+
+Documentation-only provenance checkpoint on base `feat/doctor-ui-rebuild` at `d34f17def`. The owner addendum was
+placed in the existing 2026-07-18 review; the packet now preserves its questions as history while C4C5-01…07 are
+resolved, and C4C5-08 remains deferred. No application code, taskdb, DB, TEST/PROD, deploy, CI, commit or push was
+performed by the documentation worker. The lead separately recorded the owner decisions in the existing taskdb
+cards through the canonical taskdb port; no task was accepted or marked complete by this checkpoint.
+
+- Client SMS is organization-paid and provider-neutral: SMSC is an initial adapter; SMS.ru is only a possible later/
+  additional adapter, not a launch commitment. The old platform-subsidized SMS/monthly-quota recommendation is
+  superseded. Email can initially serve staff/specialist and patient registration; Telegram/MAX can confirm a
+  patient. Exact one-time phone-verification channel remains explicitly deferred and non-blocking.
+- Hardcoded `14+7` trial/grace is superseded: global admin configures tariff, duration, grace and post-trial behavior;
+  one trial per organization, audited overrides/extensions. YooKassa is a candidate only until merchant/legal/
+  receipt/retry/proration operations are specified and proven for real activation.
+- Accepted packet outcomes: 80% warning, 100% block only new growth/consumption, no deletion/unpriced overage,
+  downgrade blocks growth; accepted seat policy; aggregate analytics without patient drill-down or hours-worked;
+  solo label «Практика» / «Настройки практики».
+- `#888` is unblocked as an owner-policy gate but not completed: entitlement-off `patient_card`/`files` must block all
+  mutations/writes while preserving read/export/recovery/safe offboarding and existing data. `#855` is likewise
+  unblocked but not completed: separate new-patient structured registration collects required last/first name and
+  optional patronymic, derives `display_name`; «Войти по коду» is existing-account login, without FIO on every OTP.
+
+Validation for this documentation checkpoint: changed-document relative links and `git diff --check` are required;
+no execution authority is implied.
+
 ## 2026-07-18 — owner-review normalization and execution-readiness cycle (`#838`)
 
 - Consolidated the complete owner dictation into one requirements authority:

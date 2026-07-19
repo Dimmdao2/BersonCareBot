@@ -309,7 +309,9 @@ Goal: stop creating new ambiguous identities before migration cleanup.
 
 Actions:
 
-- Patient email registration collects required surname/given name and optional patronymic.
+- The separate registration flow for a **new patient** collects required surname/given name and optional patronymic;
+  «Войти по коду» is login for an existing account and does not ask FIO before every OTP login (owner ruling
+  2026-07-19, `OWNER_REVIEW_2026-07-18.md` addendum).
 - Specialist/clinic registration collects structured specialist FIO and keeps organization name separate.
 - Owned registration flows derive `display_name` for compatibility rather than accepting it as identity truth.
 - Update UI, API schemas, domain types, ports, repositories, and focused tests using the existing columns.
@@ -322,7 +324,8 @@ Validation:
 
 Gate:
 
-- Every owned identity-creation path writes structured FIO.
+- Every owned **new-identity registration** path writes structured FIO; existing-account OTP login does not become an
+  identity-creation writer.
 
 ### Phase 7 — Remaining Writers And Provider Priority
 

@@ -12,6 +12,34 @@
 
 # Часть I. Глобальные продуктовые решения
 
+## Addendum — решения владельца от 2026-07-19
+
+> Это датированное дополнение — provenance последующих уточнений владельца. Оно дополняет, а не переписывает
+> исторический review от 2026-07-18; при конфликте для перечисленных ниже вопросов действует более позднее решение.
+> Оно не разрешает implementation, миграции, TEST/PROD, deploy или приём реальных платежей.
+
+1. **Client SMS.** Платформа не субсидирует SMS-рассылки или регистрационные SMS пациентов. Практика/специалист,
+   которому нужны client SMS, подключает и оплачивает собственного провайдера. Нужен provider-neutral adapter/API
+   path; существующий SMSC — начальный adapter, а SMS.ru возможен как последующий/additional adapter, но не является
+   зафиксированным launch commitment. Поздний UI может предложить «предложить другого провайдера».
+2. **Регистрация и подтверждение.** Регистрация staff/specialist и пациента первоначально может использовать email;
+   подтверждение пациента также может идти через Telegram/MAX bot. Одноразовый SMS phone-verification остаётся
+   launch-time option: точный канал не решён, явно deferred и не блокирует текущую работу.
+3. **Trial/grace.** Тариф, длительность trial, grace и post-trial behavior задаются global-admin/data configuration,
+   а не hardcode. Начать с простой модели: ровно один trial на organization; overrides/extensions — только
+   аудируемые.
+4. **SaaS PSP.** YooKassa — первый кандидат для SaaS PSP. Точные merchant/legal/receipt/retry/proration operations
+   ещё должны быть specified и proven до real activation.
+5. **Остальные C4/C5 направления.** Приняты рекомендации packet: warning quota на 80%, hard-block только нового
+   growth/consumption на 100%, без удаления и без unpriced overage; downgrade блокирует growth. Принята seat policy
+   packet; platform analytics остаётся aggregate, без patient drill-down и без «hours worked»; solo label —
+   «Практика» / «Настройки практики». Store остаётся deferred.
+6. **S4 `#888`.** Если entitlement `patient_card` или `files` выключен, section блокирует все mutations/writes;
+   read/export/recovery/safe offboarding сохраняются, существующие данные никогда не удаляются.
+7. **FIO `#855`.** Новому пациенту предоставляется отдельная structured registration: обязательны `lastName` и
+   `firstName`, `patronymic` optional, `display_name` derived. «Войти по коду» — login существующего account; FIO
+   не запрашивается перед каждым OTP login.
+
 ## P1. Конструктор тарифов вместо фиксированной сетки
 
 ### Финальное решение владельца

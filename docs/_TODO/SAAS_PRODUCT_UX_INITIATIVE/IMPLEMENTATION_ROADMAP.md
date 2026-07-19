@@ -225,7 +225,7 @@ prove a feature entitlement wall.
 
 | §6 gap | Current fact / ownership | Missing contract → stage/task gate | Safe default |
 |---|---|---|---|
-| Signup/auth | Global identity; staff org comes from membership; specialist binding is separate. | Binding, first-run, 2FA/recovery → **U3S**. Patient passwordless structured-registration policy is existing **#855 owner question**. | Stop only that patient writer branch; no second writer/persona overwrite. |
+| Signup/auth | Global identity; staff org comes from membership; specialist binding is separate. | Binding, first-run, 2FA/recovery → **U3S**. `#855` is unblocked by the 2026-07-19 FIO ruling: separate structured registration creates a new patient; passwordless «Войти по коду» is existing-account login. | Do not ask FIO before every OTP login; implementation remains pending. |
 | Future staff invite | Current member/invite mechanics are reuse; assistant has no launch workspace. | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1. | Unentitled team route/API absent or denied. |
 | Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists. | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**. | Delivery/auth creates neither enrollment nor merge. |
 | SMS | Notification infrastructure is transport, not identity authority. | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**. | Email-bound route; no SMS elevation or real send. |
@@ -247,10 +247,10 @@ atomic booking enrollment, patient invite/SMS lifecycle, switcher, safe booking 
 publication version, branded origin/PWA, custom sender, or commercial quota lifecycle: those belong to the named
 stages, not to a guessed schema.
 
-**No overlap and decisions.** #888/S4 is blocked in isolated commits and is not assumed landed; C2/C3 are verified,
+**No overlap and decisions.** #888/S4 remains pending in isolated commits and is not assumed landed; C2/C3 are verified,
 not reimplemented. All dated UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`,
-`U8A`, `U8B`, `U8C`) remain absent from launch. C4/C5 commercial questions and #855 are explicit owner-gated
-branches with recorded defaults, not unclassified owner decisions.
+`U8A`, `U8B`, `U8C`) remain absent from launch. C4C5-01…07 and #855 are resolved product-policy branches under the
+2026-07-19 addendum; their implementation remains pending. C4C5-08 is explicitly deferred.
 
 ### 6.3 Journey ownership registry
 
@@ -437,7 +437,10 @@ card; запрещено строить временный resolver, второ�
   recalculated by parser.
 - **Task mapping:** `#855` structured registrations; `#856` remaining writers + display; `#857` owner-gated
   production closeout; `#858` fallback audit + parser retirement. All start `auto_ok=false`.
-- **Dependencies:** registration/writer work can proceed after U0/U1 identity contracts; display follows writer
+- **Dependencies:** `#855` owner gate is resolved by the 2026-07-19 addendum: a separate new-patient registration
+  collects required `lastName` + `firstName` and optional `patronymic`, derives `display_name`, while «Войти по коду»
+  remains existing-account login without repeated FIO. Registration/writer work can proceed after U0/U1 identity
+  contracts; display follows writer
   correction. Production data mutation is independently blocked on explicit owner approval of the current preview.
   Parser retirement follows production reconciliation and legacy audit. Notification templates are a separate track.
 - **Gate:** registration/provisioning/provider tests; clients/card/schedule/communications/search/prefill and patient
@@ -513,7 +516,23 @@ over-limit policy исполнитель:
    удаляются молча, а новые invites блокируются/разрешаются сервером по effective paid limit;
 4. скрывает billing mutation от ordinary specialist и проверяет direct API denial;
 5. закрывает org A/B isolation, immutable before/after audit, reconciliation, mock/recorded-provider TEST и
-   organization «Тариф и биллинг» acceptance. Без owner gate этот checklist остаётся dormant и не блокирует C4A/C5B.
+   organization «Тариф и биллинг» acceptance. Product gates C4C5-01…07 are resolved by the 2026-07-19 addendum;
+   real PSP activation remains blocked until YooKassa merchant/legal/receipt/retry/proration operations are specified
+   and proven. C4C5-08 store commerce remains deferred.
+
+#### 2026-07-19 owner addendum — C4/C5 and shared-foundation execution boundary
+
+- **C4C5-01…07:** resolved in [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md) addendum; they no longer
+  wait for owner response. Client SMS is organization-paid/provider-neutral (SMSC initial adapter; SMS.ru only a
+  possible later/additional adapter), quota is 80% warning/100% new-growth-only hard block, trial/grace is
+  global-admin data with one audited trial per organization, YooKassa is candidate only, seat/analytics/solo-label
+  recommendations are accepted.
+- **Still deferred/non-blocking:** exact one-time phone-verification channel; patient confirmation may also use
+  Telegram/MAX bot. It does not block email-based staff/specialist or patient registration. C4C5-08 store commerce
+  remains deferred.
+- **`#888`:** the S4 registry/chokepoint implementation is still pending, but its owner gate is resolved: disabled
+  `patient_card` or `files` blocks every mutation/write in that section; read/export/recovery/safe offboarding stay
+  available and existing data is never deleted. This is an implementation requirement, not a completion claim.
 
 #### C6 — platform analytics и capacity threshold
 

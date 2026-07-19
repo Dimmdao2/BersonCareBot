@@ -8,7 +8,8 @@
 **Статус:** ответы и последующие уточнения владельца от 2026-07-16 интегрированы и подтверждены полным независимым
 re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**. Исходные варианты сохранены ниже
 как история постановки, а действующий результат каждого пункта указан отдельно.
-**Даты:** UX08 решён 2026-07-16; текущие commercial/analytics/settings gates зафиксированы 2026-07-18.
+**Даты:** UX08 решён 2026-07-16; commercial/analytics/settings gates зафиксированы 2026-07-18 и разрешены
+owner addendum 2026-07-19.
 **Назначение:** собрать в одном месте только продуктовые развилки, которые заметно меняют доступ, рабочую модель
 или объём будущего SaaS-релиза. Ответ на этот пакет не разрешает deploy и не меняет TEST-only execution scope.
 
@@ -21,11 +22,12 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 - Исторические `Рекомендация` и `Историческая безопасная граница до решения (superseded)` не заменяют новое решение. Tentative future language
   владельца остаётся deferred, а не превращается в freeze.
 
-## Текущие owner-gates C4/C5 — ответить одним проходом
+## C4/C5 owner-gates — resolved 2026-07-19
 
-> **Назначение этого раздела:** это единственный актуальный список решений владельца перед зависимыми ветками
-> C4/C5. Он дополняет, а не отменяет исторические UX08 ниже. Ответ утверждает только выбранные product policy;
-> он **не** разрешает код, миграции, TEST/PROD, deploy, приём платежей или иной execution.
+> **Назначение этого раздела:** исторический packet вопросов и их актуальный результат. Все C4C5-01…07 ниже
+> resolved owner addendum 2026-07-19 в [`OWNER_REVIEW_2026-07-18.md`](./OWNER_REVIEW_2026-07-18.md); C4C5-08
+> остаётся deferred. Решения задают только product policy и **не** разрешают код, миграции, TEST/PROD, deploy,
+> приём платежей или иной execution.
 
 ### Точный текущий статус
 
@@ -36,12 +38,16 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 - Поэтому это не общий стоп: C4 ownership/isolation не ждёт коммерческих ответов. Provider-neutral C5B state
   machine, mock и recorded contracts могут идти до выбора PSP; real activation и legal/payment acceptance — нет.
 
-Числа ниже — **рекомендации**, пока владелец явно их не подтвердил. Можно ответить «утверждаю рекомендацию» по
-каждому ID либо дать иную policy.
+Текст «Вопрос владельцу», «Рекомендация» и «Безопасный default до ответа» ниже сохранён как историческая
+постановка. Для C4C5-01…07 он superseded addendum 2026-07-19; актуальные outcomes приведены перед каждым ID.
 
-### Вопросы, которым действительно нужен ответ владельца
+### Исторические вопросы (resolved outcomes выше каждого ID)
 
 #### C4C5-01 — реестр тарифов и SMS-модель (P1)
+
+- **Resolved 2026-07-19:** client SMS не subsidized платформой: practice/specialist подключает и оплачивает своего
+  provider. Нужен provider-neutral adapter/API path; SMSC — initial adapter, SMS.ru только possible later/additional
+  adapter, не launch commitment. Старые platform-provider monthly quota/custom-sender-later рекомендации superseded.
 
 - **Вопрос владельцу:** подтвердить границу реестра: какие из названных механик launch, future или никогда не
   тарифно ограничиваются; отдельно подтвердить, что online booking, видео и телеметрия — три разные mechanics,
@@ -60,6 +66,9 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 
 #### C4C5-02 — единая policy квот (P1, S4 §13.1)
 
+- **Resolved 2026-07-19:** warning на 80%; на 100% hard-block только нового growth/consumption; удаления нет,
+  unpriced overage нет; downgrade блокирует growth. Рекомендованные units остаются data-configured per mechanic.
+
 - **Вопрос владельцу:** утвердить policy: quota считается либо snapshot-единицами, либо единицами billing period;
   warning на 80%, hard block только нового создания/потребления на 100%, без удаления, без overage без цены, а
   downgrade блокирует рост; storage считает original uploaded bytes, а не derivatives?
@@ -73,6 +82,10 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 
 #### C4C5-03 — trial новой организации (P2, S4 §13.2)
 
+- **Resolved 2026-07-19:** trial tariff, duration, grace и post-trial behavior global-admin/data configurable;
+  hardcoded `14+7` superseded. Ровно один trial на organization; overrides/extensions только audited. Начать с
+  простой модели. Точная точка старта и phone-verification channel остаются deferred/non-blocking.
+
 - **Вопрос владельцу:** утвердить ли trial, который начинается после подтверждения email и успешного provisioning
   organization, длится 14 дней, затем даёт 7 дней grace и переводит на admin-configured post-trial tariff; один
   trial на organization, а extension/override только аудируемые?
@@ -83,6 +96,9 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 - **Блокирует:** C5A trial/post-trial branch; не блокирует registry/chokepoint или C4 ownership work.
 
 #### C4C5-04 — первый SaaS PSP и operations (P3, S4 §13.3)
+
+- **Resolved 2026-07-19:** YooKassa — first SaaS PSP candidate. Exact merchant/legal/receipt/retry/proration
+  operations должны быть specified/proven before real activation; прежний точный baseline не является owner ruling.
 
 - **Вопрос владельцу:** выбрать YooKassa первым SaaS PSP при условии adapter/merchant proof и подтвердить baseline:
   отдельные patient-commerce и SaaS contours, opt-in saved method для recurring, три retry за 7 дней, затем grace,
@@ -97,6 +113,10 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 
 #### C4C5-05 — места специалистов клиники (P1, §15, S4 §13.5)
 
+- **Resolved 2026-07-19:** принята recommendation packet: active specialist binding consumes seat, non-clinical admin
+  не consumes; pending invite reserves seat; solo включает одно место; included count/price остаются tariff data;
+  downgrade сохраняет memberships и блокирует новый growth, без автоматического удаления.
+
 - **Вопрос владельцу:** утвердить ли, что active specialist binding consumes seat, non-clinical admin — нет,
   pending invite резервирует место; solo включает одно место, included count настраивается в тарифе, extra seat
   продаётся за tariff/period price до invite, а downgrade сохраняет memberships, блокирует рост и даёт 30 дней на
@@ -109,6 +129,9 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
   hide/direct-API deny без численной seat policy может идти отдельно.
 
 #### C4C5-06 — формулы и layout platform analytics (P5, S4 §13.6)
+
+- **Resolved 2026-07-19:** принята recommendation packet: aggregate analytics по организациям, без patient drill-down
+  и без «hours worked»; формулы/окна из recommendation остаются documentable implementation contract.
 
 - **Вопрос владельцу:** утвердить documented inventory агрегатов по организациям (количество solo/clinic,
   тарифы/длительность, выручка, зарегистрированные/сопровождаемые/active clients и техническая activity) с
@@ -127,6 +150,9 @@ re-audit `SAAS-UX-OWNER-CLARIFICATION-REAUDIT-20260716-802-FULL-02` — **PASS**
 - **Блокирует:** только C6 analytics/capacity stage, не C4/C5.
 
 #### C4C5-07 — подпись settings для solo (§15)
+
+- **Resolved 2026-07-19:** solo label — **«Практика» / «Настройки практики»**; «Клиника» только при active clinic
+  entitlement и соответствующей team composition.
 
 - **Вопрос владельцу:** подтвердить label **«Практика» / «Настройки практики»** для solo, а слово «Клиника»
   показывать только при active clinic entitlement и соответствующей team composition?
