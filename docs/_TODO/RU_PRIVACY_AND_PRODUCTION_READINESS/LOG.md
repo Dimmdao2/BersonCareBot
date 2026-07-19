@@ -103,11 +103,24 @@ Append-only журнал. Планирование не переводит ни 
   production-host encryption/hardening/secrets, реальные данные и cutover остаются на подготовку нового PROD.
 - Зафиксирована граница: перенос host controls не откладывает application security, consent, audit, retention,
   crypto или Security CI. Они стартуют сразу после собственных D4/S5/legal gates.
-- Taskdb и foundation evidence сверены на integration SHA `2f8147e91`: S5-0…S5-3 приняты; D3 остаётся blocked на
-  доказанном 16/17 TEST smoke; D4 и S5-4…S5-7 не закрыты; billing `#751` остаётся active dependency своей части.
+- Taskdb и foundation evidence сверены на integration SHA `2f8147e91`: S5-0…S5-3 технически done/tested/audited,
+  owner acceptance/provenance отдельно подтверждает lead; D3 остаётся blocked на доказанном 16/17 TEST smoke;
+  D4 и S5-4…S5-7 не закрыты. Payment retention зависит от C5B `#844/#845`, а `#751` — C5A.
 - `PR-00` переведён на taxonomy `covered / active_dependency / executable_now / owner_or_legal_gate /
   prod_host_later` и получил launch manifests для SEC-01, PR-01, repository SEC-02/DR-01, CRYPTO C0, negative
   purge guard и SEC-03 contract/census design.
 - Production FIO backfill сохранён в едином финальном full cutover: ручные решения владельца не пересчитываются,
   parser retirement идёт только после apply/evidence. Эта инициатива не создаёт параллельный FIO migration.
 - Никаких application/schema/DB/deploy/TEST/PROD mutations в PR-00 не выполнялось.
+
+## 2026-07-19 — PR-00 audit correction: existing account purge
+
+- Independent audit нашёл существующий reachable account hard-delete: doctor admin-mode permanent-delete route
+  вызывает `runStrictPurgePlatformUser` и необратимо удаляет DB+S3 data. Предыдущее утверждение «purge уже
+  недоступен» было фактически неверным и заменено existing-gap classification.
+- Owner decision уже однозначен: immediate client hard-delete запрещён. `PR-03A0` теперь является цельным DEV code
+  stage: baseline checker ожидаемо FAIL → administrative API/UI/operational entrypoints fail-closed → checker PASS.
+- Strict-purge implementation и media-specific pending-delete cleanup сохраняются. 90-day state machine, emails,
+  export, schema, timers и новый purge flow остаются за PR-02/G-03 и не проектируются в correction.
+- Уточнены evidence labels: S5-0…S5-3 — technical done/tested/audited до отдельного lead confirmation owner
+  acceptance; payment-retention dependency — C5B `#844/#845`, не C5A `#751`.

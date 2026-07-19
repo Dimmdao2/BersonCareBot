@@ -27,17 +27,17 @@
 
 | Control / stage | Статус | Факт, зависимость и следующий переход |
 |---|---|---|
-| S5-0…S5-3 | `covered` | `#890/#891/#892/#897` закрыты и приняты; commits `8e7574363`, `f928c63d0`, `bd38c37be`, `d34f17def`. |
+| S5-0…S5-3 | `covered` | `#890/#891/#892/#897` технически done/tested/audited; commits `8e7574363`, `f928c63d0`, `bd38c37be`, `d34f17def`. Owner acceptance/provenance отдельно подтверждает lead через taskdb. |
 | D3 hard-mode exit | `active_dependency` | `#773–775` blocked; последний доказанный live TEST smoke — 16/17, не 17/17. Не объявлять D3 закрытым по наличию commit. |
 | D4 tenant write matrix | `active_dependency` | Не стартовал; блокирует tenant-aware application changes в PR-02, SEC-03 и CRYPTO C2-C4. |
 | S5-4…S5-7 | `active_dependency` | Не закрыты; S5-7 нужен для consent/settings/crypto application slices. |
-| Billing contract `#751` | `active_dependency` | `doing`; только payment-retention slice PR-03 ждёт freeze, остальные домены им не блокируются. |
+| Billing lifecycle `#844/#845` | `active_dependency` | Только payment-retention slice PR-03 ждёт C5B freeze; `#751` теперь C5A constructor/quotas/trial, остальные домены этим не блокируются. |
 | PR-01 processing register / РКН containment (`#899`) | `executable_now` | Фактическая code/data-flow карта и список legal inputs могут строиться без ПДн; юридические выводы остаются gate. |
 | SEC-01 static Security CI (`#881`) | `executable_now` | Gitleaks, Semgrep и быстрый Trivy в repository CI; первый triage обязателен. ZAP active не направлять на PROD. |
 | SEC-02 repository safety slice (`#900`) | `executable_now` | Read-only census + reversible preflight/rollback/shell tests в существующих deploy paths; не применять host changes. |
 | DR-01 repository backup slice (`#901`) | `executable_now` | Усилить единственный canonical `deploy/postgres/postgres-backup.sh` и его тесты без dumps/keys/real restore. |
 | CRYPTO-01/C0 (`#898`, до отдельной child task) | `executable_now` | Data-at-rest map, threat/key ADR, typed boundary proposal и test vectors; C1 только после принятого C0. |
-| PR-03A0 purge-disabled invariant (`#905`, узкий child scope) | `executable_now` | Census + negative checker/test: account/org irreversible purge недоступен. Никаких schema/timer/job/delete changes. |
+| PR-03A0 disable + negative invariant (`#905`, узкий child scope) | `executable_now` | Existing gap: admin `POST .../permanent-delete` сейчас вызывает DB+S3 hard-delete. Slice воспроизводит FAIL, закрывает administrative path и получает PASS без удаления strict-purge implementation. |
 | SEC-03 event contract/census (`#908`) | `executable_now` | Только docs/generated inventory/checker design; подключение clinical endpoints и audit store ждёт D4. |
 | PR-02 consent implementation (`#907`) | `owner_or_legal_gate` | Ждёт D4, S5-7 и `G-02`/утверждённую форму; обычный checkbox не является safe default. |
 | PR-03A manual retention/request flow | `owner_or_legal_gate` | Ждёт PR-02 и `G-03`; 90 дней — product target, не разрешение включить таймер удаления. |
@@ -107,18 +107,27 @@
 - Gates: C0 можно подготовить сейчас; его acceptance требует `G-06/G-13/G-14` и external reviewer. Только после
   acceptance создаётся exact C1 child task.
 
-### L6 — PR-03A0 negative purge guard, child scope taskdb `#905`
+### L6 — PR-03A0 close current admin hard-delete, child scope taskdb `#905`
 
-- Outcome: generated/read-only census и failing checker/test, которые доказывают, что нет account/org hard-purge
-  route, cron, timer или admin action. Существующий media pending-delete purge классифицируется отдельно и не
-  выдаётся за account purge.
-- Перед file lock: `code-search "account deletion purge delete user cron pending_deletion" --repo bcb`; allowed —
-  новый checker/test и минимальная CI/package wiring, exact paths фиксируются до `doing`.
-- Protected: schema/domain/API/jobs/runtime deletion behavior, media purge semantics, billing, emails, S3 delete.
-- Checks: fixture intentionally introducing forbidden route/job makes checker fail; current repository passes;
-  one independent audit against this negative invariant.
-- Gate: не требует `G-03`, потому что ничего не удаляет и не задаёт срок. Любая state machine/retention/purge logic
-  остаётся blocked до PR-02/G-03 и отдельного manifest.
+- Existing gap: `POST /api/doctor/clients/[userId]/permanent-delete` доступен в admin mode и вызывает
+  `runStrictPurgePlatformUser`, который необратимо удаляет client DB data и S3 objects. Это противоречит уже
+  принятому owner invariant: сначала recoverable period (ориентир 90 дней), предупреждения и реактивация.
+- Outcome: census/checker сначала воспроизводит текущий FAIL, затем administrative hard-delete временно
+  fail-closed отключён в API/UI/операционных entrypoints до утверждённой retention state machine; repository после
+  correction проходит negative invariant. Strict-purge core остаётся в коде как будущий controlled primitive.
+- Перед file lock: `code-search "permanent-delete runStrictPurgePlatformUser purge-by-id" --repo bcb`. Candidate
+  scope: doctor permanent-delete route+test, `DoctorClientLifecycleActions.tsx` и связанные card/page props/tests,
+  `apps/webapp/scripts/user-phone-admin.ts`, новый standalone checker/test, minimal package/CI wiring и privacy log.
+  Executor фиксирует exact paths и единый disable/gate contract до `doing`; второй purge mechanism запрещён.
+- Protected: strict-purge implementation/DB+S3 cleanup semantics, archive behavior, media pending-delete cleanup,
+  schema, deletion timers/jobs, billing, emails, export и retention state machine. Media pending-delete остаётся
+  отдельным resource cleanup и не классифицируется как account purge.
+- Checks: первый census/checker run ожидаемо FAIL на текущем route/CLI; после correction API не вызывает purge,
+  destructive UI action отсутствует, operational entrypoint fail-closed, checker PASS. Negative fixture возвращает
+  FAIL; targeted route/UI/script tests + typecheck/lint и один independent audit.
+- Gate: owner решение отключить immediate hard-delete уже зафиксировано; `G-03` не нужен для safe disable, потому
+  что slice ничего не удаляет и не задаёт срок. Любая 90-day state machine, notification/export/schema/timer/purge
+  logic остаётся blocked до PR-02/G-03 и отдельного manifest.
 
 ### L7 — SEC-03 contract/census design, taskdb `#908`
 

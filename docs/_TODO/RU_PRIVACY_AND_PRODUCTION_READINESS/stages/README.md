@@ -10,7 +10,7 @@
 | CRYPTO-01 | [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) | ADR/design now; application mutations only after D4/S5-7/legal gates |
 | INFRA-01 | [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | repo design now; disposable/TEST then owner-gated target/cutover |
 | PR-02 | [`PR-02_HEALTH_CONSENT.md`](PR-02_HEALTH_CONSENT.md) | blocked by D4 + S5-7 + legal text |
-| PR-03A/B | [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](PR-03_DATA_RIGHTS_AND_RETENTION.md) | A0 negative purge guard now; rest of A after PR-02; B before purge; payment slice also #751 |
+| PR-03A/B | [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](PR-03_DATA_RIGHTS_AND_RETENTION.md) | A0 disables/gates current admin hard-delete now; rest of A after PR-02; B before purge; payment slice also #844/#845 |
 | SEC-03 | [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](SEC-03_CLINICAL_ACCESS_AUDIT.md) | design only until D4 |
 | SEC-04 | [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](SEC-04_GOVERNANCE_AND_INCIDENTS.md) | after SEC-03 + owner gates |
 | PR-04A/B | [`PR-04_ISPDN_RELEASE_GATE.md`](PR-04_ISPDN_RELEASE_GATE.md) | A = pre-cutover GO; B = post-cutover closure |

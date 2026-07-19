@@ -40,7 +40,8 @@
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`;
 - `docs/_TODO/SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT.md`;
 - `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/*`;
-- задачи taskdb `#23`, `#751`, `#773–775`, `#803`, `#805`, `#856`, `#885` и их рабочие ветки/логи.
+- задачи taskdb `#23`, `#751`, `#773–775`, `#803`, `#805`, `#844`, `#845`, `#856`, `#885` и их рабочие
+  ветки/логи.
 
 `#888` закрыт и принят; его результат можно использовать только как stable dependency. Незакрытые D3/D4/S5-7,
 billing и перечисленные задачи остаются защищёнными active scopes.
@@ -52,7 +53,8 @@ billing и перечисленные задачи остаются защищё
 
 - Реестр статусов и self-contained launch manifests: [`stages/PR-00_SCOPE_LOCK.md`](stages/PR-00_SCOPE_LOCK.md).
 - Сейчас разрешены DEV/repository-only slices, явно помеченные там `executable_now`: `SEC-01`, фактический `PR-01`,
-  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0` и negative purge guard `PR-03A0`.
+  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0` и временное закрытие administrative hard-delete
+  с negative guard `PR-03A0`.
 - Application-level безопасность, consent, audit, retention, crypto и CI не откладываются из-за будущего переноса
   production-хоста; они идут сразу после своих D4/S5/legal gates.
 - Шифрование диска, firewall/SSH/systemd/packages/secrets на реальном production-хосте, реальные backup/restore,

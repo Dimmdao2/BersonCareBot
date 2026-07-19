@@ -25,7 +25,7 @@ production data и secrets этим решением не разрешены.
 | `CRYPTO-01` Data/key encryption | ADR сейчас; application после D4/S5-7/legal gates | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets | 3–6 недель |
 | `INFRA-01` Encrypted PROD migration | disposable proof после owner/provider gates; cutover только после PR-04A | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого | 1–2 недели + окно |
 | `PR-02` Health consent | после D4 + S5-7 + legal text | отдельный versioned consent lifecycle | 4–7 дней |
-| `PR-03A/B` Data rights/lifecycle | A0 negative purge guard сейчас; остальной A после `PR-02`; B до purge; payment slice после freeze #751 | сначала доказанный запрет purge; затем manual containment и DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
+| `PR-03A/B` Data rights/lifecycle | A0 disable/gate существующего admin hard-delete сейчас; остальной A после `PR-02`; B до purge; payment slice после C5B freeze #844/#845 | сначала закрытый destructive path и negative guard; затем manual containment и DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
 | `SEC-03` Clinical access audit | после D4 | защищённый audit чувствительных reads/downloads/exports/denies | 4–7 дней |
 | `SEC-04` Governance/incidents | после `SEC-03` + log/break-glass gates | JML, vulnerability SLA, protected logs и 24/72 incident drill | 4–7 дней |
 | `PR-04A/B` ISPDn release gate | A перед cutover, B после soak/decommission | модель угроз/мер, evidence pack, внешний review, owner go/no-go и closure фактической topology | 3–7 дней + review |
@@ -48,12 +48,13 @@ D4 + S5-7 closed ─> PR-02 ─> PR-03A ─────┐            gate PR-04
                     CRYPTO-01/C1-C4 ──────┤
 owner/provider gates ─> INFRA-01/I1-I4 ──┘
 PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
-#751 contract freeze ─> payment retention/offboarding slice of PR-03
+#844/#845 C5B freeze ─> payment retention/offboarding slice of PR-03
 ```
 
 - `PR-02` не стартует с изменением кода/БД, пока D4 и S5-7 не закрыты стабильным integration SHA. До этого
   `PR-01` обязан закрыть `G-05/G-05A`; новые health-data purposes/vendors/org onboarding не расширяются.
-- Retention/export/delete платёжных данных не фиксируется до стабилизации контракта задачи `#751`.
+- Retention/export/delete платёжных данных не фиксируется до стабилизации C5B billing contracts `#844/#845`;
+  `#751` остаётся C5A constructor/quotas/trial и не является владельцем billing lifecycle.
 - Первый launch требует `PR-03A`: manual request process + approved retention + доказанный `purge disabled`.
   Автоматизированный large export/reminders/purge/offboarding `PR-03B` может идти после launch, но до его закрытия
   irreversible purge запрещён и инициатива целиком не закрывается.
@@ -61,8 +62,9 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
   чтения актуальных runbooks, rehearsal и owner gate.
 - `CRYPTO-01` ADR/ports/tests можно проектировать сейчас, но media/settings/schema implementation ждёт stable
   D4/S5-7 SHA и свои legal/owner gates.
-- `PR-03A0` может сейчас добавить только census/checker/test, доказывающий отсутствие доступного account/org purge.
-  Он не добавляет deletion state, таймер, job, schema или hard delete и не закрывает остальной `PR-03A`.
+- `PR-03A0` сначала фиксирует ожидаемый FAIL: сейчас существует admin `POST .../permanent-delete`, вызывающий
+  `runStrictPurgePlatformUser`. Затем slice временно закрывает administrative hard-delete, добавляет checker/test и
+  получает PASS. Ядро strict purge не удаляется; deletion state, таймер, job, schema, emails и export не добавляются.
 - `INFRA-01/I1-I4` строит и проверяет dark target без production traffic; `I5` невозможен до `PR-04A` и `G-11`.
 - `PR-04` не меняет SaaS `SEQUENCE.md`: `PR-04A` является отдельным release gate после TEST-ready результата,
   `PR-04B` подтверждает фактический post-cutover state.
@@ -168,7 +170,8 @@ write freeze/final encrypted sync → phased activation → soak → rotation/de
 access/export/correction/delete, retention jobs, files/S3/backups, reminders, tenant offboarding и legal exceptions.
 
 Как: domain-by-domain slices после consent contract; strict user purge переиспользуется как primitive, не как полный
-DSAR. Payment slice ждёт freeze `#751`.
+DSAR. Payment slice ждёт freeze C5B `#844/#845`; C5A `#751` остаётся отдельной зависимостью только там, где
+retention действительно касается tariff/trial configuration.
 
 Результат: на launch запросы исполняются контролируемо без необратимого удаления; до включения purge полный
 subject request и org offboarding проходят end-to-end с отчётом об исполнении и исключениях.

@@ -2,9 +2,10 @@
 
 ## Зависимости
 
-Для `PR-03A0` (только negative purge-disabled checker) PR-02 и retention matrix не требуются, потому что slice не
-добавляет deletion behavior, schema или срок. Остальной PR-03 требует принятый PR-02 и утверждённую
-data ownership/retention matrix. Payment slice ждёт freeze billing contract `#751`.
+Для `PR-03A0` (temporary disable/gate + negative checker) PR-02 и retention matrix не требуются, потому что slice
+только закрывает уже существующий destructive path и не добавляет deletion behavior, schema или срок. Остальной
+PR-03 требует принятый PR-02 и утверждённую data ownership/retention matrix. Payment slice ждёт freeze C5B billing
+contracts `#844/#845`; `#751` относится к C5A constructor/quotas/trial.
 
 Stage делится на два gate:
 
@@ -14,17 +15,24 @@ Stage делится на два gate:
 
 ## File scope gate
 
-Allowed до exact manifest: только эта инициатива. Для `PR-03A0` exact manifest из `PR-00` разрешает только
-standalone census/checker/test и минимальную CI/package wiring после фиксации точных путей. Перед каждым domain slice в LOG фиксируются конкретные
-schema/domain/service/API/job/S3/test/docs files. Out of scope: изменение billing contract #751, active SaaS plans,
+Allowed до exact manifest: только эта инициатива. Для `PR-03A0` exact manifest из `PR-00` разрешает administrative
+entrypoint/UI safe-disable, standalone census/checker/test и минимальную CI/package wiring после фиксации точных
+путей. Перед каждым domain slice в LOG фиксируются конкретные schema/domain/service/API/job/S3/test/docs files.
+Out of scope: изменение billing contracts `#844/#845` или C5A `#751`, active SaaS plans, strict-purge core,
 unscoped delete scripts и production purge без dry-run/owner gate.
 
-## PR-03A0 — immediate negative guard
+## PR-03A0 — close existing immediate hard-delete
 
-- [ ] Census различает account/organization hard purge и существующие resource-specific cleanup paths.
-- [ ] Checker/test падает при появлении доступного account/org purge route, cron, timer или admin action.
-- [ ] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job или schema.
-- [ ] PASS доказывает только отсутствие доступного irreversible purge; он не закрывает `PR-03A`.
+- [ ] Baseline честно FAIL: admin `POST .../permanent-delete` вызывает `runStrictPurgePlatformUser` с DB+S3
+      hard-delete; operational `purge-by-id` также входит в census, а не остаётся скрытым bypass.
+- [ ] Administrative API/UI/operational entrypoints временно fail-closed до принятой retention state machine;
+      strict-purge implementation не удаляется и не переписывается.
+- [ ] Census различает account/organization hard purge и resource-specific cleanup. `media-pending-delete` остаётся
+      отдельным cleanup конкретного media resource.
+- [ ] Checker/test сначала подтверждает текущий FAIL, затем PASS только когда ни один administrative/runtime
+      entrypoint не может запустить account/org irreversible purge.
+- [ ] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job, timer или schema.
+- [ ] PASS доказывает только закрытие доступного immediate purge; он не закрывает `PR-03A`.
 
 ## PR-03A — pre-launch containment
 
