@@ -10,12 +10,16 @@ production readiness.
 - [ ] Сведения РКН сверены/актуализированы ответственным лицом.
 - [ ] Модель угроз, границы ИСПДн, уровень защищённости и матрица мер проверены профильным специалистом.
 - [ ] Consent, revocation, DSAR, correction, delete и offboarding имеют end-to-end evidence.
+- [ ] Оферта/договор и privacy policy совпадают с фактическими recovery/reminder/export/purge правилами.
 
 ## Application/data
 
 - [ ] Tenant-negative tests закрывают новые privacy/audit/export/delete paths.
 - [ ] Clinical access audit фиксирует success/deny/download/export без clinical payload.
 - [ ] Retention jobs идемпотентны, наблюдаемы и не обходят legal holds/обязательные сроки.
+- [ ] До purge доказаны recovery window, несколько email reminders и доступный export bundle с исходными
+  файлами/видео без tenant leakage; многогигабайтная выгрузка возобновляется после прерывания; реактивация внутри
+  окна сохраняет данные.
 - [ ] Payment retention согласован с финальным billing contract `#751`.
 - [ ] Полный `pnpm run ci` зелёный на integration/release SHA.
 

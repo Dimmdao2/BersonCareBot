@@ -17,6 +17,24 @@ Append-only журнал. Планирование не переводит ни 
 
 Проверки планирования записываются отдельной следующей записью после независимого аудита и link validation.
 
+## 2026-07-19 — owner direction: recoverable account deletion
+
+- Владелец зафиксировал обязательный product invariant для `PR-03`: удаление аккаунта не удаляет клиентские
+  данные и файлы немедленно; сначала действует recovery window с возможностью реактивации, затем контролируемый
+  purge/anonymize.
+- Предварительный product target окна — 90 дней. Точная retention matrix и legal exceptions остаются открытой
+  частью `G-03`; это уточнение не подменяет owner+legal acceptance и не разрешает ранний DB/API/job implementation.
+- Техническая выгрузка данных отложена из первого deletion/retention slice и остаётся будущей DSAR capability.
+- Изменение синхронизировано только с существующими `PR-03` и `OWNER_AND_LEGAL_GATES`; новый roadmap/task не создан.
+- Последующее уточнение владельца: purge не может быть тихим. До него обязательны несколько email reminders и
+  возможность скачать export bundle с исходными файлами практики/пациентов и исходными видео; внутренние HLS-
+  производные/previews/служебные transcripts не считаются отдельными пользовательскими originals.
+- Recovery/reminder/export/purge policy должна быть отражена в оферте/договоре и privacy policy. Export остаётся
+  технически отложенным до `PR-03`, но без него необратимый purge не может быть включён.
+- Large-export UX может быть реализован после первого production launch в пределах recovery window. Для объёмов в
+  несколько гигабайт требуется возобновляемая/частичная загрузка или эквивалентный надёжный механизм; до его
+  готовности purge остаётся выключенным, а 90-дневный target не запускает удаление автоматически.
+
 ## 2026-07-19 — independent audit correction round 1
 
 - Первый auditor process упал по capacity; повторный read-only аудит выполнен отдельным plan reviewer.
