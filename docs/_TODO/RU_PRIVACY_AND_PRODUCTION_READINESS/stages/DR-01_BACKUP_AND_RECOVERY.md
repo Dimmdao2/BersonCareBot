@@ -13,14 +13,29 @@ TEST restore proof + `G-11`.
 ## DR-01 — protection
 
 - [ ] Сверить DB/files/S3/config/key material: что нужно для полного восстановления и что нельзя класть вместе.
-- [ ] Зафиксировать `umask`, directories `0700`, artifacts `0600`, owner и cleanup для существующих backup scripts.
-- [ ] Убрать credential-bearing `DATABASE_URL` из process argv; использовать `.pgpass`/controlled env/Unix socket
+- [x] Зафиксировать `umask`, directories `0700`, artifacts `0600`, owner и cleanup для существующих backup scripts.
+      Closed for `deploy/postgres/postgres-backup.sh` (repository slice, taskdb `#901`, L4): `umask 077`,
+      normalized absolute non-root `BACKUPS_ROOT`/mode dirs `0700`, final artifact + checksum manifest `0600`, and
+      signal cleanup of tracked partial/pending/current-run pair paths with retained partial inode proof (so cleanup
+      cannot delete a collision); symlink components are refused. Не покрывает
+      host-level owner/ACL provisioning вне этого скрипта.
+- [x] Убрать credential-bearing `DATABASE_URL` из process argv; использовать `.pgpass`/controlled env/Unix socket
       либо другой доказанный PostgreSQL credential path без вывода секрета.
-- [ ] Шифровать поток `pg_dump → age` до записи конечного artifact; если временный plaintext технически неизбежен,
+      Closed for `postgres-backup.sh`: data-only parser requires exactly one valid env-file assignment and ignores
+      inherited values; `DATABASE_URL` передаётся `pg_dump`/`psql` только через libpq env `PGDATABASE`, никогда через
+      argv.
+- [x] Шифровать поток `pg_dump → age` до записи конечного artifact; если временный plaintext технически неизбежен,
       он допускается только на encrypted volume с trap cleanup и отдельным evidence. Recovery key хранится отдельно
       от VPS и backup repository.
-- [ ] Создавать atomic artifact + authenticated encryption и независимый checksum manifest; signing добавляется
+      Closed for `postgres-backup.sh`: настроенный `age -R` parser принимает весь public-recipients file до
+      `pg_dump`; затем `pg_dump` стримится напрямую в `age`, plaintext final/temp файл не создаётся
+      никогда (сильнее допущенного minimum). Реальный `age`/recovery-key lifecycle на хосте остаётся отдельным
+      owner-gated rehearsal — репозиторная реализация проверена только синтетически.
+- [x] Создавать atomic artifact + authenticated encryption и независимый checksum manifest; signing добавляется
       только если `CRYPTO-01/C0` определил signing-key owner/verification path. Повреждённая копия fail closed.
+      Closed for `postgres-backup.sh`: ciphertext + manifest пишутся в `.partial` на том же каталоге; manifest then
+      artifact publish uses atomic no-clobber links, with rollback if the pair cannot complete; `sha256sum -c`
+      детектирует повреждение (доказано синтетическим тестом). Signing не добавлен — ждёт `CRYPTO-01/C0` по плану.
 - [ ] Настроить `restic` offsite copy, retention и integrity check; backend находится в РФ.
 - [ ] Периодически копировать encrypted S3 media ciphertext **и** envelope/object manifests во вторую российскую
       failure domain с отдельными credentials. Versioning того же bucket/account не считается защитой от потери

@@ -304,3 +304,121 @@ Append-only журнал. Планирование не переводит ни 
   как ограничение audit sandbox, а не test failure.
 - L1 immediate logging guard закрыт. Caller-supplied Pino message strings, `serverRuntimeLog.ts`, L2 queues/retention,
   production cleanup и broad L0/L3 census остаются явно отложенными и не приписываются этому PASS.
+
+## 2026-07-19 — DR-01 repository backup-safety file lock (taskdb `#901`)
+
+- После code-search подтверждён единственный canonical path: `deploy/postgres/postgres-backup.sh`; второй backup
+  mechanism не создаётся. Repository-only slice не запускает `pg_dump`/`psql` против реальной БД, не читает
+  TEST/PROD env, не создаёт dumps/keys и не меняет cron/host.
+- Exact implementation scope: `deploy/postgres/postgres-backup.sh`, один синтетический test harness рядом с ним,
+  `deploy/postgres/README.md`, точечные backup-contract абзацы в `deploy/HOST_DEPLOY_README.md`,
+  `docs/ARCHITECTURE/SERVER CONVENTIONS.md` и `deploy/env/README.md`, этот LOG и DR-01 stage status.
+- Acceptance: default `umask 077`, directories `0700`, final artifacts `0600`; credential-bearing `DATABASE_URL`
+  отсутствует в `pg_dump`/`psql` argv; `pg_dump` поток шифруется через `age` до atomic final artifact; checksum и
+  partial-file cleanup fail closed; retention учитывает encrypted artifact + manifest как одну backup generation;
+  вывод не содержит secret/PII markers.
+- Protected: реальные dumps, ключи/recipient values, cron, TEST/PROD DB/S3/host, offsite/restic/PITR/restore drill,
+  `deploy/db/backup-*.sh`, deploy entrypoints и любые application/SaaS/FIO files. `age` отсутствует на DEV host,
+  поэтому проверка использует fake binaries/synthetic data; установка пакета и recovery-key path остаются
+  отдельным owner-gated host rehearsal.
+- Targeted checks only: synthetic success/failure/corruption/cleanup/retention tests, `shellcheck` если доступен,
+  `bash -n`, `git diff --check` и один независимый security audit. Full CI не запускается для этого isolated slice.
+
+## 2026-07-19 — DR-01 repository backup-safety worker: implementation (taskdb `#901`, L4)
+
+- `deploy/postgres/postgres-backup.sh` rewritten in place (same canonical script, no second mechanism): `umask 077`
+  at top; `BACKUPS_ROOT` (now overridable only via `BERSONCAREBOT_BACKUPS_ROOT`, default unchanged
+  `/opt/backups/postgres`) and every mode's output dir created `0700` via `ensure_dir_0700`. `DATABASE_URL` is no
+  longer passed to `pg_dump`/`psql` argv anywhere (removed from `dump_one`, `tick_job_success`, `tick_job_failure`);
+  it is injected only via the libpq `PGDATABASE` environment variable, which accepts a full `postgres://` conninfo
+  string and preserves host/port/user/db/sslmode without re-parsing.
+- `pg_dump -Fc --no-owner --no-acl` is piped directly into `age -R "$AGE_RECIPIENTS_FILE" -o "$partial"`; no
+  plaintext dump file is ever created, final or temporary. New `require_backup_prereqs()` checks `pg_dump`, `psql`,
+  `sha256sum`, `age` on `PATH` and that the age recipients file (`BERSONCAREBOT_BACKUP_AGE_RECIPIENTS_FILE`, default
+  `/opt/backups/age-recipients.txt`, non-secret public-key list) is readable and non-empty — called before
+  `load_database_url`, so a missing prerequisite fails closed before any `pg_dump` invocation and before any env
+  file is even read.
+- Artifact is `<label>_<dbname>_<ts>.dump.age`; the sha256 digest is computed **while the ciphertext is still the
+  tracked `.partial` file** (not after rename) so a checksum failure can never strand a final-named artifact
+  without a manifest. Both the artifact and its `<artifact>.sha256` manifest are written to `.partial` paths in the
+  same output directory, `chmod 0600`, best-effort `sync`'d, then `mv -f` renamed into place — each rename's exit
+  status is checked explicitly (the surrounding call runs with `set -e` disabled to let the caller capture rc, so an
+  unchecked `mv` failure would otherwise fall through as a false success). A single `EXIT` trap
+  (`cleanup_partials`) removes only this run's tracked `.partial` paths, scoped to `BACKUPS_ROOT`; it never touches
+  an earlier valid generation because it never globs — only exact tracked paths.
+- Split-URL mode: `run_backup_dumps` now explicitly captures the exit status of *both* the `integrator` and
+  `webapp` `dump_one` calls (`rc=1` if either fails) instead of returning only the last call's status — the
+  original single-URL-equal-check logic (one unified dump vs. two) is otherwise unchanged.
+- Failure text sent to `operator_job_status.last_error` and echoed to stdout is passed through a new
+  `redact_secrets()` (`postgres(ql)://...` → `postgres://[redacted]`) before storage/printing, covering the
+  realistic case where a `pg_dump`/`age` error message echoes the conninfo string.
+- Retention: `ARTIFACT_NAME_ARGS` now includes `*.dump.age` alongside the legacy plaintext suffixes; a new
+  `prune_delete_generation()` deletes a primary artifact and its `.sha256` companion together, and the companion
+  is never itself matched by `find` (so it can never be double-counted as a separate generation in the
+  keep-newest-20 pre-migrations rule). All prune paths reuse the existing `BACKUPS_ROOT`-prefix guard.
+- Adjacent synthetic test harness: `deploy/postgres/test-postgres-backup.sh`. Runs the real script only against a
+  temporary `BACKUPS_ROOT` and temporary env files, with fake `pg_dump`/`age`/`psql` on `PATH` (never system
+  `pg_dump`/`psql`, never a real `DATABASE_URL`); `sha256sum` is the real system binary (no DB/secret dependency)
+  so the documented verify command (`sha256sum -c`) is exercised faithfully, including a corruption-detection
+  assertion. 9 scenarios / 41 assertions, all passing: unified success, split-URL success (two generations),
+  missing-`age` fail-closed (proves `pg_dump` never invoked, `BACKUPS_ROOT` never created), empty-recipients-file
+  fail-closed, injected `pg_dump` failure (clean partials + redacted failure tick — this is what caught the
+  split-URL masked-failure bug above), injected `age` failure (clean partials), injected checksum failure (no
+  orphaned artifact, no leftover partial — this is what caught the checksum-after-rename bug), hourly-generation
+  prune (primary+companion removed together, decoy file outside `BACKUPS_ROOT` untouched), and pre-migrations
+  keep-newest-20 with 21 synthetic generations (exactly 20 kept, oldest generation's both files removed, no
+  double-count). No secret marker appears in argv, stdout/stderr, tick text, or filenames in any scenario.
+- Docs updated to the exact allowed paragraphs: `deploy/postgres/README.md` (encryption contract, age
+  recipients/recovery-key separation, verify command, synthetic-test description, retention generation wording),
+  `deploy/HOST_DEPLOY_README.md` §Backup contract (pre-migrations), `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
+  §Database / backup facts (both mentions) and the host-facts table row, `deploy/env/README.md`
+  §Backup PostgreSQL. All now state `.dump.age` + `.sha256`, the `age`/recipients prerequisite and fail-closed
+  behavior, `PGDATABASE`-only credential passing, and that this DEV/repository slice has no real
+  install/application/rehearsal on TEST/PROD.
+- Checks run: `bash -n` on both shell files (clean); `deploy/postgres/test-postgres-backup.sh` itself (9/9
+  scenarios, 41/41 assertions PASS); `git diff --check` on the two script files (clean); `shellcheck` confirmed
+  absent on this DEV host per the existing tooling census, not installed, not run.
+- Not done / explicitly deferred: real `age` install and recipient/recovery-key provisioning on any host; real
+  `pg_dump`/`psql` execution against `bcb_webapp_dev`, TEST, or PROD; `restic`/offsite copy, `pgbackrest`/PITR
+  decision, S3 media ciphertext/manifest failure-domain copy (DR-01 items outside the `postgres-backup.sh` scope);
+  DR-02 restore drills and RPO/RTO measurement; disposition of the 93 existing legacy plaintext PROD dump copies
+  (`CURRENT_PROD_BASELINE_2026-07-19.md`) — those remain open and unaffected by this repository-only change, since
+  this slice changes only what the script produces going forward. Independent security audit of this diff is the
+  next step before any lead/integration commit.
+
+## 2026-07-20 — DR-01 consolidated correction completion (repository-only)
+
+- This is completion of the same first correction after the provider lost authentication; it is not a new DR round.
+  The provisional worker wording above is superseded where it said `mv -f`, captured/redacted provider output, or
+  9 scenarios/41 assertions.
+- Stateful `run_backup_dumps` now executes in the current shell, not command substitution. Its active partial,
+  manifest-pending and current-run final pair paths survive to the signal trap; split failure rolls back every pair
+  published by this logical run. Raw `pg_dump`/`age` stderr is suppressed at source and failure tick text is the
+  safe generic `backup dump failed`, never captured to a file.
+- Pair publication is manifest then artifact using same-directory atomic no-clobber hard links. A failed/colliding
+  artifact publication removes the manifest linked by this run; it never overwrites an earlier generation. Backup
+  roots must be absolute, normalized and non-root; every existing component is checked for symlinks before
+  mkdir/chmod/write/prune.
+- The data-only env parser accepts exactly one valid `DATABASE_URL` assignment, rejects command/malformed target
+  syntax, leaves unrelated dotenv entries inert, and does not use inherited `DATABASE_URL`. Recipient and command
+  prerequisites remain fail-closed before `pg_dump`; retention remains pair-aware and NUL-safe.
+- Synthetic proof only, no real DB/network/host/key/dump/restore action: `bash -n` passed and the full adjacent
+  harness reached `ALL SYNTHETIC TESTS PASSED`; the superseding entry below records its current coverage. Host
+  installation, real `age`/recipient/recovery-key provisioning, offsite/PITR and DR-02 restore proof
+  remain owner-gated and unclaimed.
+
+## 2026-07-20 — DR-01 terminal re-audit consolidated correction (repository-only)
+
+- Supersedes the earlier synthetic overclaim that a prefix/shape scan was sufficient for recipients and that the
+  harness had only scenarios 1–26. Before any `pg_dump`, the configured `age -R` binary parses the entire recipients
+  file against empty input; synthetic malformed `age1` and SSH records prove parser failure and no dump call.
+- The script disables inherited `bash -x` before dotenv parsing or provider invocation. The adjacent harness invokes
+  it with `bash -x`, proves the synthetic credential marker is absent from captured output, and proves parser plus
+  providers were reached.
+- Manifest and artifact ownership is registered before publication; cleanup retains source partials as inode witnesses
+  until the whole logical set succeeds and removes finals only when the exact inode proves ownership. Split failure and
+  TERM scenarios prove no current-run pair/orphan remains. Pre-migrations ranks only complete encrypted pairs; a fresh
+  incomplete artifact stays inside manifest-first grace but cannot consume a keep-20 slot.
+- Evidence remains synthetic only: fake `pg_dump`/`age`/`psql`, isolated temporary roots/env files, no real age,
+  database, host, TEST/PROD, key, dump, restore, network, package or deployment action. `bash -n` and the full
+  adjacent harness pass; host installation and DR-02/offsite/PITR work remain owner-gated.

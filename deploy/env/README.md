@@ -241,7 +241,7 @@ sudo systemctl restart bersoncarebot-webapp-prod.service
 
 ## Backup PostgreSQL (pre-migrations / hourly)
 
-Скрипт `deploy/postgres/postgres-backup.sh` читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. При **разных** URL — два дампа; при **unified** — два файла с одним содержимым (см. `DATABASE_UNIFIED_POSTGRES.md`). Установка и cron: [`deploy/postgres/README.md`](../postgres/README.md).
+Скрипт `deploy/postgres/postgres-backup.sh` читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** только через libpq env `PGDATABASE` (никогда argv). При **разных** URL — два зашифрованных прохода; при **unified** — один (см. `DATABASE_UNIFIED_POSTGRES.md`). Каждый проход пишет `<label>_<dbname>_<timestamp>.dump.age` (age-encrypted `pg_dump`, никогда plaintext `.dump`) + атомарный `<файл>.sha256`; требует `age` в `PATH` и non-secret recipients file на хосте (иначе fail closed до `pg_dump`). Установка и cron: [`deploy/postgres/README.md`](../postgres/README.md).
 
 ---
 

@@ -224,18 +224,21 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
 
-**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. Если URL **совпадают** (unified Postgres), выполняется **один** `pg_dump -Fc` с префиксом `unified_` в имени файла; если различаются — два дампа (`integrator_…`, `webapp_…`). Режимы **`weekly`**, **`prune`** (retention под `/opt/backups/postgres/`) и тики в **`public.operator_job_status`** (`job_family=backup`, `job_key` вида `backup.hourly`, …) — см. README.
+**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** только через libpq-переменную окружения `PGDATABASE` (никогда как аргумент `pg_dump`/`psql` — не видно в `ps`/argv). Если URL **совпадают** (unified Postgres), выполняется **один** `pg_dump -Fc`, поток которого стримится напрямую в `age`, с префиксом `unified_` в имени файла; если различаются — два таких прохода (`integrator_…`, `webapp_…`). Режимы **`weekly`**, **`prune`** (retention под `/opt/backups/postgres/`) и тики в **`public.operator_job_status`** (`job_family=backup`, `job_key` вида `backup.hourly`, …) — см. README.
 
 **Ожидаемое поведение (оператор должен обеспечить на хосте):**
 
 1. **Вызов:** `postgres-backup.sh pre-migrations`
 2. **Назначение:** снимок БД перед применением миграций для возможности отката.
-3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/`. Имена файлов: при одной БД — `unified_<dbname>_<timestamp>.dump`; при двух URL — `integrator_<dbname>_<timestamp>.dump` и `webapp_<dbname>_<timestamp>.dump` (custom format).
-4. **Сколько файлов:** при **двух** разных `DATABASE_URL` — два дампа; при **одной** БД — **один** файл дампа.
+3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/` (`0700`). Финальный артефакт всегда **зашифрован** `age` и никогда не существует как plaintext (даже во временном файле): при одной БД — `unified_<dbname>_<timestamp>.dump.age`; при двух URL — `integrator_<dbname>_<timestamp>.dump.age` и `webapp_<dbname>_<timestamp>.dump.age` (custom-format `pg_dump`-поток, зашифрованный). Рядом с каждым — атомарный чек-сумм манифест `<файл>.sha256` (mode `0600`); верификация — `sha256sum -c` (см. `deploy/postgres/README.md`).
+4. **Сколько генераций:** при **двух** разных `DATABASE_URL` — две генерации (артефакт+манифест каждая); при **одной** БД — **одна** генерация.
+5. **Обязательный prerequisite:** бинарь `age` в `PATH` и non-secret recipients file (по умолчанию `/opt/backups/age-recipients.txt`, публичные ключи `age -R`, приватный recovery-ключ хранится отдельно от хоста и от `/opt/backups`). Отсутствие любого из них — **fail closed до вызова `pg_dump`**, дамп не запускается.
 
 Режимы **`hourly`**, **`daily`**, **`weekly`**, **`manual`**, **`prune`** используют те же env-файлы; каталоги и retention — [`deploy/postgres/README.md`](../postgres/README.md).
 
-**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появился **один** `.dump` при unified БД (или два — при двух URL) после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
+**Проверка на хосте (после того как `age`/recipients file подготовлены):** убедиться, что в `/opt/backups/postgres/pre-migrations/` появилась **одна** пара `.dump.age`+`.sha256` при unified БД (или две пары — при двух URL) после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
+
+**Установка/rehearsal реального `age` на хосте и restore drill остаются отдельным owner-gated этапом** (`DR-01`/`DR-02`); в этом DEV-срезе репозитория поведение скрипта проверено только синтетически, фейковыми `pg_dump`/`age`/`psql` — см. `deploy/postgres/test-postgres-backup.sh`. Реального применения на TEST/PROD не выполнялось.
 
 ---
 
