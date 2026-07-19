@@ -1,9 +1,9 @@
-import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import type {
   RuntimeConfigAudience,
-  RuntimeConfigPort,
   RuntimeSettingRow,
 } from "@/modules/system-settings/runtimeConfig";
+import type { RuntimeSettingsRepository } from "@/modules/system-settings/ports";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWithDbBootstrapPrincipal } from "@bersoncare/db-principal";
 
@@ -13,6 +13,8 @@ type RuntimeSettingDbRow = {
   organization_id: string | null;
   audience: RuntimeConfigAudience;
   value_json: unknown;
+  updated_at?: Date | string;
+  updated_by?: string | null;
 };
 
 function toRuntimeSetting(row: RuntimeSettingDbRow): RuntimeSettingRow {
@@ -22,10 +24,12 @@ function toRuntimeSetting(row: RuntimeSettingDbRow): RuntimeSettingRow {
     organizationId: row.organization_id,
     audience: row.audience,
     valueJson: row.value_json,
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+    updatedBy: row.updated_by ?? null,
   };
 }
 
-export function createPgAppRuntimeSettingsPort(): RuntimeConfigPort {
+export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
   return {
     async getEffective(input) {
       if (
@@ -81,6 +85,39 @@ export function createPgAppRuntimeSettingsPort(): RuntimeConfigPort {
         ],
       ));
       return result.rows[0] ? toRuntimeSetting(result.rows[0]) : null;
+    },
+    async getSnapshotRows(input) {
+      const result = await runWebappPgText<RuntimeSettingDbRow>(
+        `SELECT DISTINCT ON (key) key, scope, organization_id, audience, value_json, updated_at, updated_by
+           FROM public.app_runtime_settings
+          WHERE scope = $1
+            AND audience = ANY($2::text[])
+            AND (organization_id = $3::uuid OR organization_id IS NULL)
+          ORDER BY key, organization_id IS NULL ASC`,
+        [input.scope, [...input.allowedAudiences], input.organizationId],
+      );
+      return result.rows.map(toRuntimeSetting);
+    },
+    async upsert(input) {
+      return runWebappTransaction(async (tx) => {
+        await runWebappPgText("SELECT set_config('app.runtime_settings_audit_source', 'runtime_repository_write', true)", [], tx);
+        const result = input.organizationId
+          ? await runWebappPgText<RuntimeSettingDbRow>(
+              `INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by)
+               VALUES ($1, $2, $3::uuid, $4, $5::jsonb, now(), $6)
+               ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
+                 SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json, updated_at = now(), updated_by = EXCLUDED.updated_by
+               RETURNING key, scope, organization_id, audience, value_json, updated_at, updated_by`,
+              [input.key, input.scope, input.organizationId, input.audience, JSON.stringify(input.valueJson), input.updatedBy], tx)
+          : await runWebappPgText<RuntimeSettingDbRow>(
+              `INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by)
+               VALUES ($1, $2, NULL, $3, $4::jsonb, now(), $5)
+               ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
+                 SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json, updated_at = now(), updated_by = EXCLUDED.updated_by
+               RETURNING key, scope, organization_id, audience, value_json, updated_at, updated_by`,
+              [input.key, input.scope, input.audience, JSON.stringify(input.valueJson), input.updatedBy], tx);
+        return toRuntimeSetting(result.rows[0]!);
+      });
     },
   };
 }

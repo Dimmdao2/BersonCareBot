@@ -223,7 +223,7 @@ import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
-import { createPgSystemSettingsPort } from "@/infra/repos/pgSystemSettings";
+import { createPgSystemSettingsPort, createPgSystemSettingsWriteUnitOfWork } from "@/infra/repos/pgSystemSettings";
 import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
 import { createSystemSettingsService } from "@/modules/system-settings/service";
 import { createPgAppRuntimeSettingsPort } from "@/infra/repos/pgAppRuntimeSettings";
@@ -660,9 +660,13 @@ const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPor
 // acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
 const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
-const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+const appRuntimeSettingsPort = !inMemoryRepos ? createPgAppRuntimeSettingsPort() : inMemoryAppRuntimeSettingsPort;
+const systemSettingsService = createSystemSettingsService(systemSettingsPort, {
+  runtimeRepository: appRuntimeSettingsPort,
+  writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
+});
 const runtimeConfig = createRuntimeConfigProvider(
-  !inMemoryRepos ? createPgAppRuntimeSettingsPort() : inMemoryAppRuntimeSettingsPort,
+  appRuntimeSettingsPort,
 );
 const notifTemplatesService = createNotifTemplatesService(systemSettingsService);
 const resolveDoctorAppointmentsReadSource = async () => {

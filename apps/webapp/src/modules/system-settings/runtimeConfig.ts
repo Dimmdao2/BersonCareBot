@@ -61,6 +61,8 @@ export type RuntimeSettingRow = {
   organizationId: string | null;
   audience: RuntimeConfigAudience;
   valueJson: unknown;
+  updatedAt?: string;
+  updatedBy?: string | null;
 };
 
 export type RuntimeConfigPort = {

@@ -221,3 +221,73 @@ path; no S5-5 grant was added.
   and dependency audit without repeating the already-green lint, typecheck, test or build gates.
 - The existing non-blocking Turbopack NFT warning remains unchanged. No DEV/TEST/PROD DB, credentials, service or
   deployment was touched by these verification passes.
+
+## 2026-07-19 — S5-3 write chokepoint executor pass
+
+Run id: `codex/s5-write-chokepoint-S5-3-20260719`.
+
+- `ports.ts` now declares the restricted repository alias, generic runtime repository (`getEffective`,
+  `getSnapshotRows`, `upsert`) and one `SettingsWriteUnitOfWork`. `buildAppDeps` injects the Postgres restricted,
+  runtime and UoW adapters; module and route remain free of DB/repository imports and the route does not sync or
+  invalidate directly.
+- `createSystemSettingsService` keeps its public API. Only registry `storage=runtime` keys produce an explicit
+  authoritative runtime row plus legacy compatibility copy in one transaction. Restricted/mixed writes remain
+  legacy-authoritative: `0210` owns their VAPID/payment allowlist projections exactly once, as it already does for
+  OAuth/SMS derived projections. No application insert targets `app_runtime_settings_audit`; sync and cache
+  invalidation begin only after the UoW resolves.
+- `0210_s5_runtime_dual_write_trigger_bypass.sql` replaces the trigger function additively with the prior
+  `0193` routing branches plus one early bypass guard. The UoW sets
+  `app.runtime_settings_explicit_dual_write=on` transaction-locally only around an explicit runtime compatibility
+  row, preventing its duplicate runtime write/audit. Manual/ops legacy writers and restricted derived writes retain
+  the original trigger implementation.
+- Runtime service reads are runtime-first, legacy-only-on-absence. `createBoundedRuntimeReadTelemetry` emits only
+  `{key, source, count}` on first observation and then at a fixed per-identity interval; the Map is capped at 128
+  key/source identities and stores no values, actor, or organization identifier. Runtime/legacy mismatch is observed
+  without changing the authoritative runtime result.
+- Focused service tests cover post-commit ordering, runtime routing, trigger-owned payment handling, fallback/
+  mismatch telemetry and its exact bounded emitted shape. The schema contract asserts all trigger branches.
+
+### Verification record
+
+- PASS: `pnpm --dir apps/webapp exec vitest run src/modules/system-settings/service.test.ts` — 1 file, 23 tests.
+- PASS: direct targeted Vitest invocation (temporary ignored single-test config) for
+  `db/schema/appRuntimeSettings.s5Contract.test.ts` — 1 file, 6 tests; it does not invoke the full suite.
+- PASS: `pnpm --dir apps/webapp exec vitest run src/infra/repos/pgAppRuntimeSettings.test.ts
+  src/infra/repos/pgSystemSettings.repo.test.ts src/infra/repos/pgSystemSettings.audit.test.ts
+  src/app/api/admin/settings/route.test.ts` — 4 files, 118 tests.
+- PASS: targeted ESLint for changed S5-3 TypeScript files.
+- PASS: `pnpm --dir apps/webapp typecheck` after temporary ignored facades to the identical-HEAD sibling worktree's
+  existing dependency store; no install, lockfile or application environment change.
+- PASS: `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`.
+- PASS: `CHECK_SYSTEM_SETTINGS_ACCESSORS_SELF_TEST=1 node apps/webapp/scripts/check-system-settings-accessors.mjs`.
+- PASS: `node apps/webapp/scripts/smoke-s5-1-runtime-settings-contract.mjs` — unique private `/tmp`
+  PostgreSQL 16 cluster; applies `0210` twice; proves trigger-owned safe VAPID/payment projection with one runtime
+  audit and no credential fields, OAuth/SMS continuity, explicit runtime dual-write one-audit behavior, rollback and
+  manual/ops legacy triggering. It cleans up in `finally` and emits only its fixed aggregate result.
+- `git diff --check` across the whole worktree is likewise blocked by pre-existing modified `.env.example` files
+  that Git cannot hash in this worktree; PASS: `git diff --check -- <S5-3 changed paths>` is clean.
+
+S5-3 implementation checkboxes are complete in this worktree, but no independent audit, owner acceptance,
+TEST/PROD execution or S5-4+ completion is claimed. The remaining gate is an independent audit plus targeted
+runtime/route/repository checks in an environment with the existing dependency store.
+
+## 2026-07-19 — S5-3 independent audit, correction and final re-audit
+
+- The first independent audit identified one in-scope gap: runtime-read telemetry was bounded but not externally
+  observable, and the disposable trigger proof did not cover the mixed VAPID/payment and existing OAuth/SMS paths.
+  Lead review also found that mixed projections could have acquired two write/audit owners. One integrated correction
+  made the legacy trigger the sole owner of mixed/restricted safe projections, kept explicit runtime dual-write plus
+  transaction-local bypass only for registry `storage=runtime` keys, added observable value-free
+  `{key, source, count}` telemetry, and extended the disposable PostgreSQL proof.
+- PASS: final independent full-checklist re-audit
+  `bcb-s5-3-write-chokepoint-reaudit2-20260719-1324`. It confirmed the ports/repositories/DI boundary, one atomic
+  UoW, post-commit mirror sync, registry-limited explicit bypass, exactly one VAPID/payment projection audit with no
+  credential-shaped fields, preserved OAuth/SMS/manual trigger behavior, bounded PII-free telemetry, backward-
+  compatible admin API behavior, ordered repeat-safe migration source and no S5-4+ scope growth.
+- The final auditor could not rerun the disposable PostgreSQL smoke inside its read-only sandbox, but inspected its
+  exact assertions. The post-correction executor had already run that smoke successfully against a private PostgreSQL
+  16 cluster; it was not repeated after the unchanged read-only audit. No full CI was repeated after the green S5-2
+  milestone CI.
+- Non-blocking recommendations retained for later review: a DB-side allowlist could additionally harden the
+  application-only trigger-bypass invariant, and the in-memory runtime adapter remains a minimal dev/test stub.
+  Neither is an S5-3 owner-checklist requirement or a production-path failure.

@@ -10,6 +10,10 @@ const migration = readFileSync(
   new URL("../drizzle-migrations/0209_s5_runtime_settings_audit_contract.sql", import.meta.url),
   "utf8",
 );
+const dualWriteMigration = readFileSync(
+  new URL("../drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql", import.meta.url),
+  "utf8",
+);
 
 function normalRuntimeDefinitionKeys(sql: string): string[] {
   const definitionBlock = sql.match(
@@ -88,5 +92,19 @@ describe("S5-1 app runtime settings schema/data contract", () => {
     expect(migration).toContain("ON CONFLICT DO NOTHING");
     expect(migration).toContain("definition.key <> 'patient_booking_url'");
     expect(migration).toContain("SELECT set_config('app.runtime_settings_audit_source', 's5_1_backfill', false)");
+  });
+
+  it("keeps the legacy trigger active while bypassing only an application-owned explicit dual-write", () => {
+    expect(dualWriteMigration).toContain("app.runtime_settings_explicit_dual_write");
+    expect(dualWriteMigration).toContain("NEW.key = 'web_push_vapid'");
+    expect(dualWriteMigration).toContain("'web_push_vapid_public_key'");
+    expect(dualWriteMigration).toContain("NEW.key = 'booking_payment_providers'");
+    expect(dualWriteMigration).toContain("'booking_payment_public_config'");
+    expect(dualWriteMigration).toContain("payment_runtime_value jsonb");
+    expect(dualWriteMigration).toContain("IF NEW.key = 'patient_booking_url' AND NEW.scope = 'admin'");
+    expect(dualWriteMigration).toContain("'oauth_yandex_enabled'");
+    expect(dualWriteMigration).toContain("'public_sms_fallback_enabled'");
+    expect(dualWriteMigration).toContain("CREATE TRIGGER system_settings_sync_registered_runtime");
+    expect(dualWriteMigration).not.toContain("DROP FUNCTION public.sync_registered_app_runtime_setting");
   });
 });

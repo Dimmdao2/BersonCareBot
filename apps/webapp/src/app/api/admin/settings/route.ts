@@ -9,7 +9,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
 import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
-import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
 import { normalizeNotificationsTopicsForAdminPatch } from "@/modules/patient-notifications/notificationsTopics";
 import {
@@ -671,9 +670,6 @@ export async function PATCH(request: Request) {
     if (errResponse) return errResponse;
     throw error;
   }
-
-  // Invalidate configAdapter cache for updated key (sync to integrator runs inside updateSetting)
-  invalidateConfigKey(parsed.data.key);
 
   const clientSetting =
     setting.key === "web_push_vapid"

@@ -1,5 +1,14 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
-import type { SystemSettingsPort, SystemSettingsReadOptions, SystemSettingsWriteOptions } from "./ports";
+import type {
+  RuntimeReadTelemetry,
+  RuntimeSettingsRepository,
+  RuntimeWrite,
+  SettingsWriteUnitOfWork,
+  SystemSettingsPort,
+  SystemSettingsReadOptions,
+  SystemSettingsWriteOptions,
+} from "./ports";
+import { SYSTEM_SETTING_REGISTRY } from "./registry";
 import type { ModesFormKey } from "./modesFormKeys";
 import { isPerOrgSettingKey, SystemSettingsOrgContextRequiredError } from "./orgScopedKeys";
 import { normalizeValueJson } from "./adminSettingsPatchNormalize";
@@ -13,7 +22,53 @@ import {
   relayRecipientAllowedInDevMode,
   type TestAccountIdentifiers,
 } from "./testAccounts";
-import { mergeBookingPaymentProvidersSecretsRetain } from "@/modules/payments/bookingPaymentSettings";
+import {
+  mergeBookingPaymentProvidersSecretsRetain,
+} from "@/modules/payments/bookingPaymentSettings";
+
+type SystemSettingsServiceDependencies = {
+  runtimeRepository?: RuntimeSettingsRepository;
+  writeUnitOfWork?: SettingsWriteUnitOfWork;
+  runtimeReadTelemetry?: RuntimeReadTelemetry;
+};
+
+type RuntimeReadTelemetryEvent = {
+  key: string;
+  source: "runtime" | "legacy_fallback" | "mismatch";
+  count: number;
+};
+
+/**
+ * Emits a deliberately value-free, rate-bounded runtime-read signal. The Map is
+ * bounded by key/source identities, and a given identity emits once initially
+ * and then only at the configured interval. This is a diagnostic signal, not a
+ * config store: it never accepts or retains setting values, actor, or org data.
+ */
+export function createBoundedRuntimeReadTelemetry(options: {
+  maxEntries?: number;
+  emitEvery?: number;
+  emit?: (event: RuntimeReadTelemetryEvent) => void;
+} = {}): RuntimeReadTelemetry {
+  const maxEntries = options.maxEntries ?? 128;
+  const emitEvery = options.emitEvery ?? 64;
+  const emit = options.emit ?? ((event: RuntimeReadTelemetryEvent) => {
+    console.info("[system-settings] runtime-read", event);
+  });
+  const counts = new Map<string, number>();
+  return {
+    record(input: { key: string; source: "runtime" | "legacy_fallback" | "mismatch" }) {
+      const id = `${input.key}:${input.source}`;
+      if (counts.size >= maxEntries && !counts.has(id)) return;
+      const count = (counts.get(id) ?? 0) + 1;
+      counts.set(id, count);
+      if (count === 1 || count % emitEvery === 0) {
+        emit({ key: input.key, source: input.source, count });
+      }
+    },
+  };
+}
+
+const boundedRuntimeTelemetry = createBoundedRuntimeReadTelemetry();
 
 async function mergeWebPushVapidPrivateRetain(
   port: SystemSettingsPort,
@@ -91,7 +146,7 @@ async function readTestAccountIdentifiersFromPort(port: SystemSettingsPort): Pro
   return parsed;
 }
 
-export function createSystemSettingsService(port: SystemSettingsPort) {
+export function createSystemSettingsService(port: SystemSettingsPort, dependencies: SystemSettingsServiceDependencies = {}) {
   function isAllowedKey(key: string): key is SystemSettingKey {
     return (ALLOWED_KEYS as readonly string[]).includes(key);
   }
@@ -130,17 +185,93 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
     return { devMode: true, testAccounts };
   }
 
+  function runtimeWritesFor(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    organizationId: string | null,
+    valueJson: unknown,
+    updatedBy: string | null,
+  ): RuntimeWrite[] {
+    const definition = SYSTEM_SETTING_REGISTRY[key];
+    if (definition.storage === "runtime") {
+      return [{ key, scope, organizationId, audience: definition.audience, valueJson, updatedBy }];
+    }
+    // Mixed/restricted envelopes remain legacy-authoritative. The legacy DB
+    // trigger owns their VAPID/payment safe projections, so this path only
+    // returns registry storage=runtime rows that receive the explicit bypass.
+    return [];
+  }
+
+  async function writeRows(rows: Array<{ key: SystemSettingKey; scope: SystemSettingScope; organizationId: string | null; valueJson: unknown; updatedBy: string | null }>) {
+    if (!dependencies.writeUnitOfWork) {
+      return rows.length === 1
+        ? [await port.upsert(rows[0]!.key, rows[0]!.scope, rows[0]!.valueJson, rows[0]!.updatedBy, { organizationId: rows[0]!.organizationId })]
+        : port.upsertManyInTransaction(rows);
+    }
+    return dependencies.writeUnitOfWork.write({
+      legacyRows: rows,
+      authoritativeRuntimeRows: rows.flatMap((row) => runtimeWritesFor(
+        row.key, row.scope, row.organizationId, row.valueJson, row.updatedBy,
+      )),
+    });
+  }
+
+  async function getSettingWithRuntimeFirst(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    options: SystemSettingsReadOptions = {},
+  ): Promise<SystemSetting | null> {
+    const definition = SYSTEM_SETTING_REGISTRY[key];
+    if (definition.storage !== "runtime" || !dependencies.runtimeRepository) {
+      return port.getByKey(key, scope, options);
+    }
+    const organizationId = options.organizationId?.trim() || null;
+    const runtime = await dependencies.runtimeRepository.getEffective({
+      key, scope, organizationId, allowedAudiences: [definition.audience], operationFamily: "auth_role_config",
+    });
+    const telemetry = dependencies.runtimeReadTelemetry ?? boundedRuntimeTelemetry;
+    if (!runtime) {
+      telemetry.record({ key, source: "legacy_fallback" });
+      return port.getByKey(key, scope, options);
+    }
+    telemetry.record({ key, source: "runtime" });
+    const legacy = await port.getByKey(key, scope, options);
+    if (legacy && JSON.stringify(legacy.valueJson) !== JSON.stringify(runtime.valueJson)) {
+      telemetry.record({ key, source: "mismatch" });
+    }
+    return {
+      key, scope, organizationId: runtime.organizationId, valueJson: runtime.valueJson,
+      updatedAt: runtime.updatedAt ?? "", updatedBy: runtime.updatedBy ?? null,
+    };
+  }
+
   return {
     getSetting(
       key: SystemSettingKey,
       scope: SystemSettingScope,
       options?: SystemSettingsReadOptions
     ): Promise<SystemSetting | null> {
-      return port.getByKey(key, scope, options);
+      return getSettingWithRuntimeFirst(key, scope, options);
     },
 
-    listSettingsByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]> {
-      return port.getByScope(scope, options);
+    async listSettingsByScope(scope: SystemSettingScope, options?: SystemSettingsReadOptions): Promise<SystemSetting[]> {
+      if (!dependencies.runtimeRepository) return port.getByScope(scope, options);
+      const legacy = await port.getByScope(scope, options);
+      const runtimeRows = await dependencies.runtimeRepository.getSnapshotRows({
+        scope, organizationId: options?.organizationId?.trim() || null,
+        allowedAudiences: ["server", "authenticated_client", "public"],
+      });
+      const byKey = new Map(legacy.map((row) => [row.key, row]));
+      for (const row of runtimeRows) {
+        const definition = SYSTEM_SETTING_REGISTRY[row.key as SystemSettingKey];
+        if (!definition || definition.storage !== "runtime") continue;
+        byKey.set(row.key as SystemSettingKey, {
+          key: row.key as SystemSettingKey, scope: row.scope as SystemSettingScope,
+          organizationId: row.organizationId, valueJson: row.valueJson,
+          updatedAt: row.updatedAt ?? "", updatedBy: row.updatedBy ?? null,
+        });
+      }
+      return [...byKey.values()];
     },
 
     getWebPushVapidPublicKeyOnly(): Promise<string | null> {
@@ -169,17 +300,16 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
                 )
               : value;
       const organizationId = resolveWriteOrganizationId(key, options);
-      const result = await port.upsert(key, scope, valueToStore, updatedBy, { organizationId });
-      void syncSettingToIntegrator({
+      const [result] = await writeRows([{ key, scope, valueJson: valueToStore, updatedBy, organizationId }]);
+      if (!result) throw new Error("system_settings_write_failed");
+      await syncSettingToIntegrator({
         key,
         scope,
         organizationId: result.organizationId ?? null,
         valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
         updatedBy: result.updatedBy,
       });
-      if (key === "app_base_url") {
-        invalidateConfigKey("app_base_url");
-      }
+      invalidateConfigKey(key);
       return result;
     },
 
@@ -203,9 +333,9 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         valueJson: r.valueJson,
         updatedBy,
       }));
-      const saved = await port.upsertManyInTransaction(upsertRows);
+      const saved = await writeRows(upsertRows);
       for (const s of saved) {
-        void syncSettingToIntegrator({
+        await syncSettingToIntegrator({
           key: s.key,
           scope: s.scope,
           organizationId: s.organizationId ?? null,

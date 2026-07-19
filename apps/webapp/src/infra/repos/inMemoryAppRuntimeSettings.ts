@@ -1,7 +1,13 @@
-import type { RuntimeConfigPort } from "@/modules/system-settings/runtimeConfig";
+import type { RuntimeSettingsRepository } from "@/modules/system-settings/ports";
 
-export const inMemoryAppRuntimeSettingsPort: RuntimeConfigPort = {
+export const inMemoryAppRuntimeSettingsPort: RuntimeSettingsRepository = {
   async getEffective() {
     return null;
+  },
+  async getSnapshotRows() {
+    return [];
+  },
+  async upsert(input) {
+    return { ...input };
   },
 };

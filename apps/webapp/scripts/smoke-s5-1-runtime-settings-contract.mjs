@@ -327,6 +327,130 @@ function assertIdempotenceAndAuditTransaction() {
   `, "rollback leaves neither runtime nor audit row");
 }
 
+function assertS53DualWriteTriggerContract() {
+  apply(
+    "apps/webapp/db/drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql",
+    "0210 explicit dual-write trigger wrapper",
+  );
+  apply(
+    "apps/webapp/db/drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql",
+    "idempotent 0210 reapply",
+  );
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before dual-write probe");
+  sql(`
+    UPDATE public.system_settings
+       SET value_json = '{"value":{"publicKey":"s5-vapid-public","privateKey":"s5-vapid-private"}}'::jsonb,
+           updated_at = now(), updated_by = '${actor}'
+     WHERE key = 'web_push_vapid' AND scope = 'admin' AND organization_id IS NULL;
+  `, "legacy VAPID write");
+  assertSqlTrue(`
+    WITH RECURSIVE nodes(node) AS (
+      SELECT value_json FROM public.app_runtime_settings WHERE key = 'web_push_vapid_public_key'
+      UNION ALL SELECT new_value_json FROM public.app_runtime_settings_audit WHERE key = 'web_push_vapid_public_key'
+      UNION ALL SELECT old_value_json FROM public.app_runtime_settings_audit WHERE key = 'web_push_vapid_public_key'
+      UNION ALL
+      SELECT child.value FROM nodes
+      CROSS JOIN LATERAL (
+        SELECT value FROM jsonb_each(nodes.node) WHERE jsonb_typeof(nodes.node) = 'object'
+        UNION ALL SELECT value FROM jsonb_array_elements(nodes.node) WHERE jsonb_typeof(nodes.node) = 'array'
+      ) AS child
+      WHERE nodes.node IS NOT NULL
+    )
+    SELECT (SELECT count(*) FROM public.app_runtime_settings_audit WHERE key = 'web_push_vapid_public_key') = 1
+       AND EXISTS (SELECT 1 FROM public.app_runtime_settings WHERE key = 'web_push_vapid_public_key')
+       AND NOT EXISTS (SELECT 1 FROM nodes WHERE jsonb_typeof(node) = 'object' AND node ? 'privateKey')
+  `, "legacy VAPID write has one safe runtime audit");
+
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before payment projection probe");
+  sql(`
+    INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+    VALUES (
+      'booking_payment_providers', 'admin', '${organization}',
+      '{"value":{"enabled":true,"defaultProviderId":"s5-provider","providers":[{"id":"s5-provider","label":"S5 provider","enabled":true,"apiKey":"s5-api-key","webhookSecret":"s5-webhook-secret"}]}}'::jsonb,
+      now(), '${actor}'
+    );
+  `, "legacy organization payment write");
+  assertSqlTrue(`
+    WITH RECURSIVE nodes(node) AS (
+      SELECT value_json FROM public.app_runtime_settings
+      WHERE key = 'booking_payment_public_config' AND organization_id = '${organization}'
+      UNION ALL SELECT new_value_json FROM public.app_runtime_settings_audit
+      WHERE key = 'booking_payment_public_config' AND organization_id = '${organization}'
+      UNION ALL SELECT old_value_json FROM public.app_runtime_settings_audit
+      WHERE key = 'booking_payment_public_config' AND organization_id = '${organization}'
+      UNION ALL
+      SELECT child.value FROM nodes
+      CROSS JOIN LATERAL (
+        SELECT value FROM jsonb_each(nodes.node) WHERE jsonb_typeof(nodes.node) = 'object'
+        UNION ALL SELECT value FROM jsonb_array_elements(nodes.node) WHERE jsonb_typeof(nodes.node) = 'array'
+      ) AS child
+      WHERE nodes.node IS NOT NULL
+    )
+    SELECT (SELECT count(*) FROM public.app_runtime_settings_audit
+            WHERE key = 'booking_payment_public_config' AND organization_id = '${organization}') = 1
+       AND EXISTS (SELECT 1 FROM public.app_runtime_settings
+                   WHERE key = 'booking_payment_public_config' AND organization_id = '${organization}')
+       AND NOT EXISTS (SELECT 1 FROM nodes
+                       WHERE jsonb_typeof(node) = 'object'
+                         AND node ?| ARRAY['apiKey', 'webhookSecret'])
+  `, "legacy organization payment write has one safe runtime audit");
+
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before OAuth projection probe");
+  sql(`
+    UPDATE public.system_settings
+       SET value_json = '{"value":"s5-oauth-client"}'::jsonb, updated_at = now(), updated_by = '${actor}'
+     WHERE key = 'yandex_oauth_client_id' AND scope = 'admin' AND organization_id IS NULL;
+  `, "legacy OAuth writer after 0210");
+  assertSqlTrue(`
+    SELECT (SELECT count(*) FROM public.app_runtime_settings_audit WHERE key = 'oauth_yandex_enabled') = 1
+       AND (SELECT value_json = '{"value":true}'::jsonb FROM public.app_runtime_settings
+            WHERE key = 'oauth_yandex_enabled' AND scope = 'admin' AND organization_id IS NULL)
+  `, "OAuth derived projection remains functional and singly audited");
+
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before SMS projection probe");
+  sql(`
+    UPDATE public.system_settings
+       SET value_json = '{"value":false}'::jsonb, updated_at = now(), updated_by = '${actor}'
+     WHERE key = 'sms_fallback_enabled' AND scope = 'doctor' AND organization_id IS NULL;
+  `, "legacy SMS writer after 0210");
+  assertSqlTrue(`
+    SELECT (SELECT count(*) FROM public.app_runtime_settings_audit WHERE key = 'public_sms_fallback_enabled') = 1
+       AND (SELECT value_json = '{"value":false}'::jsonb FROM public.app_runtime_settings
+            WHERE key = 'public_sms_fallback_enabled' AND scope = 'admin' AND organization_id IS NULL)
+  `, "SMS derived projection remains functional and singly audited");
+
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before explicit dual-write probe");
+  sql(`
+    BEGIN;
+    INSERT INTO public.app_runtime_settings
+      (key, scope, organization_id, audience, value_json, updated_at, updated_by)
+    VALUES ('patient_program_discussion_ui_enabled', 'admin', NULL, 'authenticated_client',
+            '{"value":true}'::jsonb, now(), '${actor}')
+    ON CONFLICT (key, scope) WHERE organization_id IS NULL
+    DO UPDATE SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json,
+                  updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+    SELECT set_config('app.runtime_settings_explicit_dual_write', 'on', true);
+    UPDATE public.system_settings
+       SET value_json = '{"value":true}'::jsonb, updated_at = now(), updated_by = '${actor}'
+     WHERE key = 'patient_program_discussion_ui_enabled' AND scope = 'admin' AND organization_id IS NULL;
+    COMMIT;
+  `, "explicit dual-write legacy compatibility update");
+  assertSqlTrue(
+    "SELECT count(*) = 1 FROM public.app_runtime_settings_audit WHERE key = 'patient_program_discussion_ui_enabled'",
+    "explicit dual-write produces exactly one runtime audit",
+  );
+  sql("TRUNCATE public.app_runtime_settings_audit;", "clear audit evidence before manual legacy probe");
+  sql(`
+    UPDATE public.system_settings
+       SET value_json = '{"value":"legacy-writer"}'::jsonb, updated_at = now(), updated_by = '${actor}'
+     WHERE key = 'patient_program_discussion_ui_enabled' AND scope = 'admin' AND organization_id IS NULL;
+  `, "ordinary legacy writer update");
+  assertSqlTrue(
+    "SELECT count(*) = 1 FROM public.app_runtime_settings_audit",
+    "manual or ops-style legacy writer retains exactly one runtime audit through the trigger",
+  );
+}
+
 let port;
 try {
   if (!existsSync(path.join(pgBin, "initdb"))) fail("PostgreSQL 16 binaries are unavailable");
@@ -346,7 +470,8 @@ try {
   assertSchemaContract();
   assertBackfillContract(normalDefinitions);
   assertIdempotenceAndAuditTransaction();
-  console.log("S5-1 private PostgreSQL migration proof: OK (aggregate-only)");
+  assertS53DualWriteTriggerContract();
+  console.log("S5 runtime settings private PostgreSQL migration proof: OK (aggregate-only)");
 } finally {
   if (serverStarted) {
     spawnSync(path.join(pgBin, "pg_ctl"), ["-D", data, "-m", "fast", "-w", "stop"], {

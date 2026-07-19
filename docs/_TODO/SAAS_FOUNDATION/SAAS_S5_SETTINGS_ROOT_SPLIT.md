@@ -1,6 +1,6 @@
 # SaaS S5 — разделение restricted settings и runtime config
 
-Статус: **частично реализован.** На 2026-07-19 существуют `app_runtime_settings`, E1 safe readers/projections и S5-0 reality lock. `app_runtime_settings_audit` **не существует**; S5-1—S5-7 не закрыты, S5-7 остаётся TEST/owner/ops-gated. S5 не complete.
+Статус: **частично реализован.** На 2026-07-19 S5-0 (reality lock), S5-1 (additive runtime/audit contract) и S5-2 (RLS/grants/config-reader contract) завершены. S5-3 находится в executor/audit-gate: write chokepoint и dual-read/dual-write compatibility реализуются до независимого аудита. S5-4—S5-6 не начаты; S5-7 остаётся TEST/owner/ops-gated. S5 не complete.
 
 > **Boundary:** это storage/runtime settings split, не план нового settings UI. Единый settings hub, ownership
 > полей и отмена текущего переноса всей schedule-settings вкладки исполняются только по
@@ -353,32 +353,36 @@ idempotent reapply, aggregate source/destination counts, restricted-key absence,
 
 **Scope:** existing system-settings ports/service, new runtime port/repo, DI, admin API compatibility.
 
-- [ ] Расширить ports в `apps/webapp/src/modules/system-settings/ports.ts:1-44`: restricted и runtime repositories
+- [x] Расширить ports в `apps/webapp/src/modules/system-settings/ports.ts:1-95`: restricted и runtime repositories
   остаются infra implementations, module получает их через DI; общий write unit-of-work port атомарно пишет
-  restricted row, safe runtime projection и оба audits в `public`, а compatibility sync запускается только после
-  commit. **Где:** указанный ports file и composition root `apps/webapp/src/app-layer/di/buildAppDeps.ts:776-785`;
+  legacy row и, только для registry `storage=runtime`, authoritative runtime row; runtime audit создаёт единственный
+  DB trigger owner, а compatibility sync запускается только после commit. Mixed/restricted VAPID/payment projection
+  остаётся legacy-trigger-owned. **Где:** указанный ports file и composition root
+  `apps/webapp/src/app-layer/di/buildAppDeps.ts:776-785`;
   **доказательство:** clean-architecture lint, transaction rollback test; module не импортирует
   `@/infra/db`/`@/infra/repos`.
-- [ ] Реализовать `pgAppRuntimeSettings` с generic `getEffective`, `getSnapshotRows`, `upsert` и audit transaction;
+- [x] Реализовать `pgAppRuntimeSettings` с generic `getEffective`, `getSnapshotRows`, `upsert` и audit transaction;
   org override → global fallback повторяет доказанную семантику `pgSystemSettings.ts:201-253`.
   **Где:** новый infra repo рядом с `apps/webapp/src/infra/repos/pgSystemSettings.ts:201-253`;
   **доказательство:** repo tests global-only, org override, wrong-org, audience и concurrent upsert.
-- [ ] Сохранить один `createSystemSettingsService().updateSetting`: registry маршрутизирует restricted write в
+- [x] Сохранить один `createSystemSettingsService().updateSetting`: registry маршрутизирует restricted write в
   прежний port+sync, runtime write — в новый store. During compatibility runtime write также обновляет legacy copies
   в `public` и `integrator` через тот же service boundary, помечая их non-authoritative.
   **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и
   `apps/webapp/src/app/api/admin/settings/route.ts:250-370`; **доказательство:** одна admin PATCH создаёт
   согласованные rows/audit; route не вызывает sync сам.
-- [ ] Read path runtime keys: new store first, legacy fallback только при missing row; mismatch telemetry содержит
+- [x] Read path runtime keys: new store first, legacy fallback только при missing row; mismatch telemetry содержит
   key/source/count, но не value/actor/org identifiers.
   **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и
   `apps/webapp/src/infra/repos/pgSystemSettings.ts:201-253`; **доказательство:** fallback/mismatch tests; exception не
   превращается молча в hardcoded default.
-- [ ] Mixed secret write атомарно обновляет restricted row и derived safe projection; private fields никогда не
+- [x] Mixed secret write атомарно обновляет restricted row и derived safe projection; private fields никогда не
   попадают в runtime audit.
-  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и safe projectors из S5-0;
-  **доказательство:** transaction rollback + serialization/redaction tests.
-- [ ] Admin GET/PATCH contract остаётся backward-compatible по key names и redaction.
+  **Где:** `apps/webapp/src/modules/system-settings/service.ts:95-219` и
+  `apps/webapp/db/drizzle-migrations/0210_s5_runtime_dual_write_trigger_bypass.sql`;
+  **доказательство:** private disposable PostgreSQL proof checks one trigger-owned VAPID/payment runtime audit,
+  no credential-shaped fields, and rollback.
+- [x] Admin GET/PATCH contract остаётся backward-compatible по key names и redaction.
   **Где:** `apps/webapp/src/app/api/admin/settings/route.ts:250-370` и
   `apps/webapp/src/app/api/admin/settings/route.test.ts:1`; **доказательство:** существующие tests + новые routing
   cases green.

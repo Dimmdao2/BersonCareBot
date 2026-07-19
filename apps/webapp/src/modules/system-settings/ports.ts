@@ -1,4 +1,5 @@
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "./types";
+import type { RuntimeConfigAudience, RuntimeConfigOperationFamily, RuntimeSettingRow } from "./runtimeConfig";
 
 export type SystemSettingsUpsertRow = {
   key: SystemSettingKey;
@@ -42,4 +43,52 @@ export type SystemSettingsPort = {
   ): Promise<SystemSetting>;
   /** All rows committed atomically (single transaction on Postgres). */
   upsertManyInTransaction(rows: SystemSettingsUpsertRow[]): Promise<SystemSetting[]>;
+};
+
+/** Restricted `public.system_settings` repository. Kept under its historical name for callers. */
+export type RestrictedSettingsRepository = SystemSettingsPort;
+
+export type RuntimeSettingsRepository = {
+  getEffective(input: {
+    key: string;
+    scope: string;
+    organizationId: string | null;
+    allowedAudiences: readonly RuntimeConfigAudience[];
+    operationFamily: RuntimeConfigOperationFamily;
+    allowGlobalFallback?: boolean;
+  }): Promise<RuntimeSettingRow | null>;
+  getSnapshotRows(input: {
+    scope: string;
+    organizationId: string | null;
+    allowedAudiences: readonly RuntimeConfigAudience[];
+  }): Promise<RuntimeSettingRow[]>;
+  upsert(input: {
+    key: string;
+    scope: string;
+    organizationId: string | null;
+    audience: RuntimeConfigAudience;
+    valueJson: unknown;
+    updatedBy: string | null;
+  }): Promise<RuntimeSettingRow>;
+};
+
+export type RuntimeWrite = {
+  key: string;
+  scope: string;
+  organizationId: string | null;
+  audience: RuntimeConfigAudience;
+  valueJson: unknown;
+  updatedBy: string | null;
+};
+
+export type SettingsWriteUnitOfWork = {
+  /** Commits public legacy/restricted rows and runtime rows/audits as one transaction. */
+  write(input: {
+    legacyRows: SystemSettingsUpsertRow[];
+    authoritativeRuntimeRows: RuntimeWrite[];
+  }): Promise<SystemSetting[]>;
+};
+
+export type RuntimeReadTelemetry = {
+  record(input: { key: string; source: "runtime" | "legacy_fallback" | "mismatch" }): void;
 };

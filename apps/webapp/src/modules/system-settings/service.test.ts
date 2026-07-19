@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createSystemSettingsService } from "./service";
-import type { SystemSettingsPort, SystemSettingsUpsertRow } from "./ports";
+import { createBoundedRuntimeReadTelemetry, createSystemSettingsService } from "./service";
+import type {
+  RuntimeReadTelemetry,
+  RuntimeSettingsRepository,
+  SettingsWriteUnitOfWork,
+  SystemSettingsPort,
+  SystemSettingsUpsertRow,
+} from "./ports";
 import type { SystemSetting } from "./types";
 import { SystemSettingsOrgContextRequiredError } from "./orgScopedKeys";
 
@@ -76,6 +82,76 @@ describe("SystemSettingsService", () => {
       valueJson: { value: true },
       updatedBy: "user-uuid",
     });
+  });
+
+  it("routes a runtime setting through the committed write UoW before compatibility sync", async () => {
+    const events: string[] = [];
+    const writeUnitOfWork: SettingsWriteUnitOfWork = {
+      write: vi.fn(async (input) => {
+        events.push("commit");
+        expect(input.authoritativeRuntimeRows).toEqual([{
+          key: "patient_program_discussion_ui_enabled", scope: "admin", organizationId: null,
+          audience: "authenticated_client", valueJson: { value: true }, updatedBy: "u1",
+        }]);
+        return [{
+          key: "patient_program_discussion_ui_enabled", scope: "admin", organizationId: null,
+          valueJson: { value: true }, updatedAt: "", updatedBy: "u1",
+        }];
+      }),
+    };
+    syncSettingToIntegratorMock.mockImplementation(async () => { events.push("sync"); });
+    const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
+    await service.updateSetting("patient_program_discussion_ui_enabled", "admin", { value: true }, "u1");
+    expect(events).toEqual(["commit", "sync"]);
+  });
+
+  it("keeps mixed payment credentials legacy-authoritative for the trigger-owned projection", async () => {
+    const writeUnitOfWork: SettingsWriteUnitOfWork = {
+      write: vi.fn(async (input) => {
+        expect(input.authoritativeRuntimeRows).toEqual([]);
+        return [{ key: "booking_payment_providers", scope: "admin", organizationId: "org-1", valueJson: input.legacyRows[0]!.valueJson, updatedAt: "", updatedBy: "u1" }];
+      }),
+    };
+    const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
+    await service.updateSetting("booking_payment_providers", "admin", {
+      value: { enabled: true, defaultProviderId: "p", providers: [{ id: "p", label: "P", enabled: true, apiKey: "private-token" }] },
+    }, "u1", { organizationId: "org-1" });
+  });
+
+  it("emits only bounded PII-free key/source/count telemetry", () => {
+    const emit = vi.fn();
+    const telemetry = createBoundedRuntimeReadTelemetry({ maxEntries: 1, emitEvery: 3, emit });
+    telemetry.record({ key: "patient_program_discussion_ui_enabled", source: "runtime" });
+    telemetry.record({ key: "patient_program_discussion_ui_enabled", source: "runtime" });
+    telemetry.record({ key: "patient_program_discussion_ui_enabled", source: "runtime" });
+    telemetry.record({ key: "booking_payment_enabled", source: "legacy_fallback" });
+
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls).toEqual([
+      [{ key: "patient_program_discussion_ui_enabled", source: "runtime", count: 1 }],
+      [{ key: "patient_program_discussion_ui_enabled", source: "runtime", count: 3 }],
+    ]);
+    for (const [event] of emit.mock.calls) {
+      expect(Object.keys(event as object).sort()).toEqual(["count", "key", "source"]);
+    }
+  });
+
+  it("reads runtime first, falls back only when absent, and records bounded value-free telemetry", async () => {
+    const telemetry: RuntimeReadTelemetry = { record: vi.fn() };
+    const runtimeRepository: RuntimeSettingsRepository = {
+      getSnapshotRows: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn(),
+      getEffective: vi.fn()
+        .mockResolvedValueOnce({ key: "patient_program_discussion_ui_enabled", scope: "admin", organizationId: null, audience: "authenticated_client", valueJson: { value: true } })
+        .mockResolvedValueOnce(null),
+    };
+    const port = makePort({ getByKey: vi.fn().mockResolvedValue({ key: "patient_program_discussion_ui_enabled", scope: "admin", organizationId: null, valueJson: { value: false }, updatedAt: "", updatedBy: null }) });
+    const service = createSystemSettingsService(port, { runtimeRepository, runtimeReadTelemetry: telemetry });
+    await expect(service.getSetting("patient_program_discussion_ui_enabled", "admin")).resolves.toMatchObject({ valueJson: { value: true } });
+    await service.getSetting("patient_program_discussion_ui_enabled", "admin");
+    expect(telemetry.record).toHaveBeenCalledWith({ key: "patient_program_discussion_ui_enabled", source: "runtime" });
+    expect(telemetry.record).toHaveBeenCalledWith({ key: "patient_program_discussion_ui_enabled", source: "mismatch" });
+    expect(telemetry.record).toHaveBeenCalledWith({ key: "patient_program_discussion_ui_enabled", source: "legacy_fallback" });
   });
 
   it("updateSetting operator_health_alert_config — mirror в integrator после upsert", async () => {
