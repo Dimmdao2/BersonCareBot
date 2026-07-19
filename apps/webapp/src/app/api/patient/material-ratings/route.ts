@@ -5,6 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientClientBusinessGate, resolvePatientCanViewAuthOnlyContent } from "@/app-layer/platform-access";
 import { MaterialRatingAccessError } from "@/modules/material-rating/types";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 
 const targetKindSchema = z.enum(["content_page", "lfk_exercise", "lfk_complex"]);
 
@@ -40,9 +41,15 @@ export async function GET(req: Request) {
   const canViewAuthOnlyContent = session ? await resolvePatientCanViewAuthOnlyContent(session) : false;
 
   const deps = buildAppDeps();
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "organization_required" }, { status: 403 });
+  }
+  const tenant = await resolvePatientEnrollmentOrganizationId({ patientOrganization: deps.patientOrganization }, session.user.userId);
+  if (!tenant.ok) return tenant.response;
 
   try {
     const data = await deps.materialRating.getForPatient({
+      organizationId: tenant.organizationId,
       userId,
       targetKind: parsed.data.kind,
       targetId: parsed.data.id,
@@ -90,7 +97,10 @@ export async function PUT(req: Request) {
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(gate.session);
 
   const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId({ patientOrganization: deps.patientOrganization }, gate.session.user.userId);
+  if (!tenant.ok) return tenant.response;
   const result = await deps.materialRating.putForPatient({
+    organizationId: tenant.organizationId,
     userId: gate.session.user.userId,
     stars,
     targetKind,

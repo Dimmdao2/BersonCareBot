@@ -18,9 +18,11 @@ vi.mock("@/app-layer/platform-access", () => ({
 
 const mockGetForPatient = vi.hoisted(() => vi.fn());
 const mockPutForPatient = vi.hoisted(() => vi.fn());
+const mockResolvePatientOrganization = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    patientOrganization: { resolveActiveOrganizationForPatient: mockResolvePatientOrganization },
     materialRating: {
       getForPatient: mockGetForPatient,
       putForPatient: mockPutForPatient,
@@ -35,6 +37,7 @@ const UUID = "550e8400-e29b-41d4-a716-446655440099";
 const SESSION = {
   user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
 };
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 describe("GET /api/patient/material-ratings", () => {
   beforeEach(() => {
@@ -42,7 +45,9 @@ describe("GET /api/patient/material-ratings", () => {
     mockPatientClientBusinessGate.mockReset();
     mockResolvePatientCanViewAuthOnlyContent.mockReset();
     mockGetForPatient.mockReset();
+    mockResolvePatientOrganization.mockReset();
     mockGetOptionalPatientSession.mockResolvedValue(null);
+    mockResolvePatientOrganization.mockResolvedValue({ ok: true, organizationId: ORG_A });
     mockResolvePatientCanViewAuthOnlyContent.mockResolvedValue(false);
     mockGetForPatient.mockResolvedValue({
       aggregate: { avg: 4.2, count: 5, distribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 3 } },
@@ -55,21 +60,10 @@ describe("GET /api/patient/material-ratings", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns aggregate for guest without myStars", async () => {
+  it("fails closed for a guest without an organization context", async () => {
     const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`));
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.ok).toBe(true);
-    expect(json.myStars).toBeNull();
-    expect(json.count).toBe(5);
-    expect(mockGetForPatient).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: null,
-        targetKind: "content_page",
-        targetId: UUID,
-        canViewAuthOnlyContent: false,
-      }),
-    );
+    expect(res.status).toBe(403);
+    expect(mockGetForPatient).not.toHaveBeenCalled();
   });
 
   it("returns myStars when session has business tier", async () => {
@@ -90,6 +84,7 @@ describe("GET /api/patient/material-ratings", () => {
   });
 
   it("returns 404 when material is not accessible", async () => {
+    mockGetOptionalPatientSession.mockResolvedValue(SESSION);
     mockGetForPatient.mockRejectedValue(new MaterialRatingAccessError("not_found"));
     const res = await GET(new Request(`http://localhost/api/patient/material-ratings?kind=content_page&id=${UUID}`));
     expect(res.status).toBe(404);
@@ -102,6 +97,7 @@ describe("PUT /api/patient/material-ratings", () => {
     mockPutForPatient.mockReset();
     mockResolvePatientCanViewAuthOnlyContent.mockReset();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
+    mockResolvePatientOrganization.mockResolvedValue({ ok: true, organizationId: ORG_A });
     mockResolvePatientCanViewAuthOnlyContent.mockResolvedValue(true);
     mockPutForPatient.mockResolvedValue({
       ok: true,
@@ -158,6 +154,7 @@ describe("PUT /api/patient/material-ratings", () => {
     expect(mockPutForPatient).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: SESSION.user.userId,
+        organizationId: ORG_A,
         targetKind: "content_page",
         targetId: UUID,
         stars: 4,

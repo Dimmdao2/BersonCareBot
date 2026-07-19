@@ -88,6 +88,7 @@ export function createMaterialRatingService(deps: {
 
   return {
     async getPublicAggregate(input: {
+      organizationId: string;
       targetKind: MaterialRatingTargetKind;
       targetId: string;
       excludedUserIds?: string[];
@@ -105,6 +106,7 @@ export function createMaterialRatingService(deps: {
     },
 
     async getForPatient(input: {
+      organizationId: string;
       userId: string | null;
       targetKind: MaterialRatingTargetKind;
       targetId: string;
@@ -138,6 +140,7 @@ export function createMaterialRatingService(deps: {
       }
 
       const aggregate = await deps.ratings.getAggregate({
+        organizationId: input.organizationId,
         targetKind: input.targetKind,
         targetId: input.targetId,
       });
@@ -154,6 +157,7 @@ export function createMaterialRatingService(deps: {
         }
       }
       const myStars = await deps.ratings.getMyRating({
+        organizationId: input.organizationId,
         userId: input.userId,
         targetKind: input.targetKind,
         targetId: input.targetId,
@@ -162,6 +166,7 @@ export function createMaterialRatingService(deps: {
     },
 
     async putForPatient(input: {
+      organizationId: string;
       userId: string;
       stars: number;
       targetKind: MaterialRatingTargetKind;
@@ -175,10 +180,12 @@ export function createMaterialRatingService(deps: {
     > {
       async function snapshotAfterWrite(): Promise<{ aggregate: MaterialRatingAggregate; myStars: number | null }> {
         const aggregate = await deps.ratings.getAggregate({
+          organizationId: input.organizationId,
           targetKind: input.targetKind,
           targetId: input.targetId,
         });
         const myStars = await deps.ratings.getMyRating({
+          organizationId: input.organizationId,
           userId: input.userId,
           targetKind: input.targetKind,
           targetId: input.targetId,
@@ -216,6 +223,7 @@ export function createMaterialRatingService(deps: {
         }
 
         await deps.ratings.upsertRating({
+          organizationId: input.organizationId,
           userId: input.userId,
           targetKind: input.targetKind,
           targetId: input.targetId,
@@ -245,6 +253,7 @@ export function createMaterialRatingService(deps: {
         return { ok: false, code: gate.code };
       }
       await deps.ratings.upsertRating({
+        organizationId: input.organizationId,
         userId: input.userId,
         targetKind: input.targetKind,
         targetId: input.targetId,
@@ -255,6 +264,7 @@ export function createMaterialRatingService(deps: {
     },
 
     async listDoctorSummary(input: {
+      organizationId: string;
       targetKind?: MaterialRatingTargetKind;
       limit: number;
       offset: number;
@@ -268,6 +278,7 @@ export function createMaterialRatingService(deps: {
      * проверки существования каждой цели — это вьюшка над уже загруженным списком.
      */
     async listDoctorAggregates(input: {
+      organizationId: string;
       targetKind: MaterialRatingTargetKind;
       targetIds: string[];
       excludedUserIds?: string[];
@@ -281,6 +292,7 @@ export function createMaterialRatingService(deps: {
      * Для `content_page` достаточно строки в CMS без soft-delete — черновики/неопубликованное допустимы (врач редактирует контент).
      */
     async getDoctorDetailForDoctor(input: {
+      organizationId: string;
       targetKind: MaterialRatingTargetKind;
       targetId: string;
       iana: string;

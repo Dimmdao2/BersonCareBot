@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
 const getSessionMock = vi.hoisted(() => vi.fn());
 const listDoctorSummaryMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const loadDoctorAnalyticsAudienceMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ includeTestAccounts: false, excludedUserIds: [] }),
 );
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/guards/requireRole", () => ({ requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock }));
 vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
   loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
 }));
@@ -18,20 +21,24 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { GET } from "./route";
 
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
 describe("GET /api/doctor/material-ratings/summary", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     listDoctorSummaryMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: { organizationId: ORG_A } });
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: false, response: NextResponse.json({}, { status: 401 }) });
     const res = await GET(new Request("http://localhost/api/doctor/material-ratings/summary"));
     expect(res.status).toBe(401);
   });
 
   it("returns 403 for client role", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: false, response: NextResponse.json({}, { status: 403 }) });
     const res = await GET(new Request("http://localhost/api/doctor/material-ratings/summary"));
     expect(res.status).toBe(403);
   });
@@ -52,7 +59,7 @@ describe("GET /api/doctor/material-ratings/summary", () => {
     const json = await res.json();
     expect(json.ok).toBe(true);
     expect(json.rows).toHaveLength(1);
-    expect(listDoctorSummaryMock).toHaveBeenCalledWith({ targetKind: undefined, limit: 100, offset: 0, excludedUserIds: [] });
+    expect(listDoctorSummaryMock).toHaveBeenCalledWith({ organizationId: ORG_A, targetKind: undefined, limit: 100, offset: 0, excludedUserIds: [] });
   });
 
   it("passes kind limit offset from query", async () => {
@@ -64,6 +71,7 @@ describe("GET /api/doctor/material-ratings/summary", () => {
       ),
     );
     expect(listDoctorSummaryMock).toHaveBeenCalledWith({
+      organizationId: ORG_A,
       targetKind: "lfk_exercise",
       limit: 50,
       offset: 10,

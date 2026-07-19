@@ -9,6 +9,7 @@ import type {
 import { DateTime } from "luxon";
 
 type Row = {
+  organizationId: string;
   userId: string;
   targetKind: MaterialRatingTargetKind;
   targetId: string;
@@ -36,6 +37,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
   function aggregateFor(
     targetKind: MaterialRatingTargetKind,
     targetId: string,
+    organizationId: string,
     excludedUserIds?: string[],
   ): MaterialRatingAggregate {
     let cnt = 0;
@@ -43,7 +45,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
     const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const r of rows.values()) {
       if (isExcluded(r.userId, excludedUserIds)) continue;
-      if (r.targetKind === targetKind && r.targetId === targetId) {
+      if (r.organizationId === organizationId && r.targetKind === targetKind && r.targetId === targetId) {
         cnt += 1;
         sum += r.stars;
         bump(distribution, r.stars);
@@ -59,7 +61,13 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
   return {
     async upsertRating(input) {
       const now = new Date().toISOString();
-      rows.set(rowKey(input.userId, input.targetKind, input.targetId), {
+      const key = rowKey(input.userId, input.targetKind, input.targetId);
+      const existing = rows.get(key);
+      if (existing && existing.organizationId !== input.organizationId) {
+        throw new Error("material_rating organization mismatch");
+      }
+      rows.set(key, {
+        organizationId: input.organizationId,
         userId: input.userId,
         targetKind: input.targetKind,
         targetId: input.targetId,
@@ -69,17 +77,18 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
     },
 
     async getMyRating(input) {
-      return rows.get(rowKey(input.userId, input.targetKind, input.targetId))?.stars ?? null;
+      const row = rows.get(rowKey(input.userId, input.targetKind, input.targetId));
+      return row?.organizationId === input.organizationId ? row.stars : null;
     },
 
     async getAggregate(input) {
-      return aggregateFor(input.targetKind, input.targetId, input.excludedUserIds);
+      return aggregateFor(input.targetKind, input.targetId, input.organizationId, input.excludedUserIds);
     },
 
     async listAggregates(input) {
       const result = new Map<string, MaterialRatingAggregate>();
       for (const targetId of input.targetIds) {
-        const agg = aggregateFor(input.targetKind, targetId, input.excludedUserIds);
+        const agg = aggregateFor(input.targetKind, targetId, input.organizationId, input.excludedUserIds);
         if (agg.count > 0) result.set(targetId, agg);
       }
       return result;
@@ -89,6 +98,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
       const grouped = new Map<string, { row: MaterialRatingDoctorSummaryRow }>();
       for (const r of rows.values()) {
         if (isExcluded(r.userId, input.excludedUserIds)) continue;
+        if (r.organizationId !== input.organizationId) continue;
         if (input.targetKind && r.targetKind !== input.targetKind) continue;
         const gk = `${r.targetKind}\0${r.targetId}`;
         const prev = grouped.get(gk)?.row;
@@ -125,6 +135,7 @@ export function createInMemoryMaterialRatingPort(): MaterialRatingPort {
       const matching = [...rows.values()].filter(
         (r) =>
           !isExcluded(r.userId, input.excludedUserIds) &&
+          r.organizationId === input.organizationId &&
           r.targetKind === input.targetKind &&
           r.targetId === input.targetId &&
           Date.parse(r.updatedAt) >= startMs &&

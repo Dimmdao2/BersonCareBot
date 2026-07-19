@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { MaterialContentStatsClient } from "@/app/app/doctor/material-ratings/MaterialContentStatsClient";
 import { loadDoctorAnalyticsAudience } from "@/app-layer/analytics/loadAnalyticsAudience";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doctor/doctorVisual";
 import type { MaterialRatingTargetKind } from "@/modules/material-rating/types";
@@ -24,7 +24,8 @@ type Props = {
 };
 
 export default async function DoctorMaterialRatingsPage({ searchParams }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const sp = await searchParams;
   const rawPage = Array.isArray(sp.page) ? sp.page[0] : sp.page;
   const pageNum = Math.max(1, Math.floor(Number(rawPage ?? "1")) || 1);
@@ -33,6 +34,7 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
   const deps = buildAppDeps();
   const audience = await loadDoctorAnalyticsAudience();
   const rowsPlus = await deps.materialRating.listDoctorSummary({
+    organizationId: workspace.organizationId,
     limit: PAGE_SIZE + 1,
     offset,
     excludedUserIds: audience.excludedUserIds,

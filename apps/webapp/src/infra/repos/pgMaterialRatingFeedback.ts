@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { patientContentRatingFeedback } from "../../../db/schema/patientContentRatingFeedback";
 import { platformUsers } from "../../../db/schema/schema";
@@ -25,6 +25,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       const [row] = await db
         .insert(patientContentRatingFeedback)
         .values({
+          organizationId: input.organizationId,
           userId: input.userId,
           contentPageId: input.contentPageId,
           ratingValue: input.ratingValue,
@@ -36,12 +37,15 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       return { id: row.id };
     },
 
-    async getDoctorSummary(contentPageId, recentLimit = 20) {
+    async getDoctorSummary({ organizationId, contentPageId, recentLimit = 20 }) {
       const db = getDrizzle();
       const aggRows = await db
         .select({ reasonCodes: patientContentRatingFeedback.reasonCodes })
         .from(patientContentRatingFeedback)
-        .where(eq(patientContentRatingFeedback.contentPageId, contentPageId));
+        .where(and(
+          eq(patientContentRatingFeedback.organizationId, organizationId),
+          eq(patientContentRatingFeedback.contentPageId, contentPageId),
+        ));
 
       const byReasonCode = emptyReasonCounts();
       for (const row of aggRows) {
@@ -65,7 +69,10 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
-        .where(eq(patientContentRatingFeedback.contentPageId, contentPageId))
+        .where(and(
+          eq(patientContentRatingFeedback.organizationId, organizationId),
+          eq(patientContentRatingFeedback.contentPageId, contentPageId),
+        ))
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(recentLimit);
 
@@ -87,12 +94,15 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       };
     },
 
-    async listForPage(contentPageId, limit, offset) {
+    async listForPage({ organizationId, contentPageId, limit, offset }) {
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(patientContentRatingFeedback)
-        .where(eq(patientContentRatingFeedback.contentPageId, contentPageId))
+        .where(and(
+          eq(patientContentRatingFeedback.organizationId, organizationId),
+          eq(patientContentRatingFeedback.contentPageId, contentPageId),
+        ))
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(limit)
         .offset(offset);
@@ -107,7 +117,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
       }));
     },
 
-    async listDoctorFeedbackForPage(contentPageId, limit, offset) {
+    async listDoctorFeedbackForPage({ organizationId, contentPageId, limit, offset }) {
       const db = getDrizzle();
       const rows = await db
         .select({
@@ -122,7 +132,10 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
-        .where(eq(patientContentRatingFeedback.contentPageId, contentPageId))
+        .where(and(
+          eq(patientContentRatingFeedback.organizationId, organizationId),
+          eq(patientContentRatingFeedback.contentPageId, contentPageId),
+        ))
         .orderBy(desc(patientContentRatingFeedback.createdAt))
         .limit(limit)
         .offset(offset);

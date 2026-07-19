@@ -32,6 +32,7 @@ export default async function DoctorContentPage() {
         const [scopedSections, ratingMap, courses] = await Promise.all([
           deps.contentSections.listAll(),
           deps.materialRating.listDoctorAggregates({
+            organizationId: workspace.organizationId,
             targetKind: "content_page",
             targetIds: scopedPages.map((p) => p.id),
           }),

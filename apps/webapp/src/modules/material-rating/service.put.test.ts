@@ -5,6 +5,7 @@ import type { MaterialRatingAggregate } from "./types";
 import type { TreatmentProgramInstancePort, TreatmentProgramItemRefValidationPort } from "@/modules/treatment-program/ports";
 
 describe("createMaterialRatingService putForPatient snapshot", () => {
+  const organizationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   it("uses the assigned program item as the patient read capability without probing the staff catalog", async () => {
     const assertItemRefExists = vi.fn().mockRejectedValue(new Error("permission denied"));
     const ratings: MaterialRatingPort = {
@@ -42,6 +43,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
     });
 
     const out = await svc.getForPatient({
+      organizationId,
       userId: "550e8400-e29b-41d4-a716-446655440001",
       targetKind: "lfk_exercise",
       targetId: "550e8400-e29b-41d4-a716-446655440099",
@@ -82,6 +84,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
     });
     const out = await svc.putForPatient({
+      organizationId,
       userId: "u1",
       stars: 4,
       targetKind: "content_page",
@@ -120,6 +123,7 @@ describe("createMaterialRatingService putForPatient snapshot", () => {
       instances: { getInstanceForPatient: vi.fn() } as unknown as TreatmentProgramInstancePort,
     });
     const out = await svc.putForPatient({
+      organizationId,
       userId: "u1",
       stars: 4,
       targetKind: "content_page",

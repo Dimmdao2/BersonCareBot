@@ -23,8 +23,16 @@ export async function GET(request: Request) {
   const offset = parsed.data.offset ?? 0;
   const deps = buildAppDeps();
   const [summary, rows] = await Promise.all([
-    deps.materialRatingFeedback.getDoctorSummary(parsed.data.contentPageId),
-    deps.materialRatingFeedback.listDoctorFeedbackForPage(parsed.data.contentPageId, limit, offset),
+    deps.materialRatingFeedback.getDoctorSummary({
+      organizationId: auth.ctx.organizationId,
+      contentPageId: parsed.data.contentPageId,
+    }),
+    deps.materialRatingFeedback.listDoctorFeedbackForPage({
+      organizationId: auth.ctx.organizationId,
+      contentPageId: parsed.data.contentPageId,
+      limit,
+      offset,
+    }),
   ]);
 
   return NextResponse.json({

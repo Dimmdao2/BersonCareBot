@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 const mockSubmitPatientFeedback = vi.hoisted(() => vi.fn());
+const mockResolvePatientOrganization = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
@@ -10,6 +11,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
+    patientOrganization: { resolveActiveOrganizationForPatient: mockResolvePatientOrganization },
     materialRatingFeedback: {
       submitPatientFeedback: mockSubmitPatientFeedback,
     },
@@ -22,12 +24,15 @@ const UUID = "550e8400-e29b-41d4-a716-446655440099";
 const SESSION = {
   user: { userId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", role: "client" as const, phone: "+79990001122" },
 };
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 describe("POST /api/patient/material-ratings/feedback", () => {
   beforeEach(() => {
     mockRequirePatientApiBusinessAccess.mockReset();
     mockSubmitPatientFeedback.mockReset();
+    mockResolvePatientOrganization.mockReset();
     mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
+    mockResolvePatientOrganization.mockResolvedValue({ ok: true, organizationId: ORG_A });
     mockSubmitPatientFeedback.mockResolvedValue({ ok: true, id: "fb-id-1" });
   });
 
@@ -107,6 +112,7 @@ describe("POST /api/patient/material-ratings/feedback", () => {
     expect(mockSubmitPatientFeedback).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: SESSION.user.userId,
+        organizationId: ORG_A,
         contentPageId: UUID,
         ratingValue: 3,
         reasonCodes: ["video_quality", "other"],

@@ -8,6 +8,7 @@ export function createMaterialRatingFeedbackService(deps: {
 }) {
   return {
     async submitPatientFeedback(input: {
+      organizationId: string;
       userId: string;
       contentPageId: string;
       ratingValue: number;
@@ -30,6 +31,7 @@ export function createMaterialRatingFeedbackService(deps: {
       }
 
       const row = await deps.feedback.insertFeedback({
+        organizationId: input.organizationId,
         userId: input.userId,
         contentPageId: input.contentPageId,
         ratingValue: input.ratingValue,
@@ -39,16 +41,16 @@ export function createMaterialRatingFeedbackService(deps: {
       return { ok: true, id: row.id };
     },
 
-    getDoctorSummary(contentPageId: string, recentLimit = 20) {
-      return deps.feedback.getDoctorSummary(contentPageId, recentLimit);
+    getDoctorSummary(input: { organizationId: string; contentPageId: string; recentLimit?: number }) {
+      return deps.feedback.getDoctorSummary(input);
     },
 
-    listForPage(contentPageId: string, limit: number, offset: number) {
-      return deps.feedback.listForPage(contentPageId, limit, offset);
+    listForPage(input: { organizationId: string; contentPageId: string; limit: number; offset: number }) {
+      return deps.feedback.listForPage(input);
     },
 
-    listDoctorFeedbackForPage(contentPageId: string, limit: number, offset: number) {
-      return deps.feedback.listDoctorFeedbackForPage(contentPageId, limit, offset);
+    listDoctorFeedbackForPage(input: { organizationId: string; contentPageId: string; limit: number; offset: number }) {
+      return deps.feedback.listDoctorFeedbackForPage(input);
     },
   };
 }

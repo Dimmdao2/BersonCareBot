@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   const audience = await loadDoctorAnalyticsAudience();
   try {
     const aggregate = await deps.materialRating.getPublicAggregate({
+      organizationId: auth.ctx.organizationId,
       targetKind: parsed.data.kind,
       targetId: parsed.data.id,
       excludedUserIds: audience.excludedUserIds,

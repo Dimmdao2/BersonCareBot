@@ -28,6 +28,7 @@ export function createInMemoryMaterialRatingFeedbackPort(): MaterialRatingFeedba
       const id = randomUUID();
       rows.push({
         id,
+        organizationId: input.organizationId,
         userId: input.userId,
         contentPageId: input.contentPageId,
         ratingValue: input.ratingValue,
@@ -38,9 +39,9 @@ export function createInMemoryMaterialRatingFeedbackPort(): MaterialRatingFeedba
       return { id };
     },
 
-    async getDoctorSummary(contentPageId, recentLimit = 20) {
+    async getDoctorSummary({ organizationId, contentPageId, recentLimit = 20 }) {
       const all = rows
-        .filter((r) => r.contentPageId === contentPageId)
+        .filter((r) => r.organizationId === organizationId && r.contentPageId === contentPageId)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
       const byReasonCode = emptyReasonCounts();
       for (const row of all) {
@@ -63,16 +64,16 @@ export function createInMemoryMaterialRatingFeedbackPort(): MaterialRatingFeedba
       };
     },
 
-    async listForPage(contentPageId, limit, offset) {
+    async listForPage({ organizationId, contentPageId, limit, offset }) {
       return rows
-        .filter((r) => r.contentPageId === contentPageId)
+        .filter((r) => r.organizationId === organizationId && r.contentPageId === contentPageId)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
         .slice(offset, offset + limit);
     },
 
-    async listDoctorFeedbackForPage(contentPageId, limit, offset) {
+    async listDoctorFeedbackForPage({ organizationId, contentPageId, limit, offset }) {
       return rows
-        .filter((r) => r.contentPageId === contentPageId)
+        .filter((r) => r.organizationId === organizationId && r.contentPageId === contentPageId)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
         .slice(offset, offset + limit)
         .map((row) => ({

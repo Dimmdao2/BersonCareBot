@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { MATERIAL_RATING_TARGET_KINDS } from "@/modules/material-rating/types";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
@@ -17,7 +17,8 @@ type Props = {
 };
 
 export default async function DoctorMaterialRatingDetailPage({ params }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { kind, id } = await params;
 
   if (!MATERIAL_RATING_TARGET_KINDS.includes(kind as (typeof MATERIAL_RATING_TARGET_KINDS)[number])) {
@@ -36,7 +37,10 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
   if (kind === "content_page") {
     const meta = await deps.contentPages.listMetaByIds([id]);
     titleSuffix = meta[0]?.title?.trim() || id;
-    feedbackSummary = await deps.materialRatingFeedback.getDoctorSummary(id);
+    feedbackSummary = await deps.materialRatingFeedback.getDoctorSummary({
+      organizationId: workspace.organizationId,
+      contentPageId: id,
+    });
   } else if (kind === "lfk_exercise") {
     const titles = await deps.lfkExercises.listExerciseTitlesByIds([id]);
     titleSuffix = titles.get(id)?.trim() || id;

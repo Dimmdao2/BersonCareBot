@@ -73,6 +73,7 @@ export async function GET(request: Request) {
 
   try {
     const detail = await deps.materialRating.getDoctorDetailForDoctor({
+      organizationId: auth.ctx.organizationId,
       targetKind: parsed.data.kind,
       targetId: parsed.data.id,
       iana,

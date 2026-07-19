@@ -32,9 +32,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
     async upsertRating(input) {
       const db = getDrizzle();
       const now = new Date().toISOString();
-      await db
+      const [row] = await db
         .insert(materialRatings)
         .values({
+          organizationId: input.organizationId,
           userId: input.userId,
           targetKind: input.targetKind,
           targetId: input.targetId,
@@ -47,7 +48,10 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
             stars: input.stars,
             updatedAt: now,
           },
-        });
+          where: eq(materialRatings.organizationId, input.organizationId),
+        })
+        .returning({ id: materialRatings.id });
+      if (!row) throw new Error("material_rating organization mismatch");
     },
 
     async getMyRating(input) {
@@ -57,6 +61,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         .from(materialRatings)
         .where(
           and(
+            eq(materialRatings.organizationId, input.organizationId),
             eq(materialRatings.userId, input.userId),
             eq(materialRatings.targetKind, input.targetKind),
             eq(materialRatings.targetId, input.targetId),
@@ -82,6 +87,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         .from(materialRatings)
         .where(
           and(
+            eq(materialRatings.organizationId, input.organizationId),
             eq(materialRatings.targetKind, input.targetKind),
             eq(materialRatings.targetId, input.targetId),
             userExclude,
@@ -117,6 +123,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         .from(materialRatings)
         .where(
           and(
+            eq(materialRatings.organizationId, input.organizationId),
             eq(materialRatings.targetKind, input.targetKind),
             inArray(materialRatings.targetId, input.targetIds),
             userExclude,
@@ -154,7 +161,11 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         })
         .from(materialRatings)
         .where(
-          and(input.targetKind ? eq(materialRatings.targetKind, input.targetKind) : sql`true`, userExclude),
+          and(
+            eq(materialRatings.organizationId, input.organizationId),
+            input.targetKind ? eq(materialRatings.targetKind, input.targetKind) : sql`true`,
+            userExclude,
+          ),
         )
         .groupBy(materialRatings.targetKind, materialRatings.targetId)
         .orderBy(desc(cntExpr))
@@ -182,11 +193,13 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         const viewBase = `SELECT (timezone($1::text, first_resolved_at))::date::text AS d,
                   count(*)::int AS c
            FROM media_playback_user_video_first_resolve
-           WHERE media_id = ANY($2::uuid[])
-             AND first_resolved_at >= $3::timestamptz
-             AND first_resolved_at < $4::timestamptz`;
+           WHERE organization_id = $2::uuid
+             AND media_id = ANY($3::uuid[])
+             AND first_resolved_at >= $4::timestamptz
+             AND first_resolved_at < $5::timestamptz`;
         const viewQ = appendSqlExcludeUserIds(viewBase, "user_id", excludedUserIds, [
           input.iana,
+          input.organizationId,
           mediaIds,
           input.startUtcIso,
           input.endExclusiveUtcIso,
@@ -205,11 +218,13 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
                 count(*)::int AS cnt,
                 avg(stars::numeric)::text AS avg_stars
          FROM material_ratings
-         WHERE target_kind = $2 AND target_id = $3::uuid
-           AND updated_at >= $4::timestamptz
-           AND updated_at < $5::timestamptz`;
+         WHERE organization_id = $2::uuid
+           AND target_kind = $3 AND target_id = $4::uuid
+           AND updated_at >= $5::timestamptz
+           AND updated_at < $6::timestamptz`;
       const ratingQ = appendSqlExcludeUserIds(ratingBase, "user_id", excludedUserIds, [
         input.iana,
+        input.organizationId,
         input.targetKind,
         input.targetId,
         input.startUtcIso,
@@ -241,10 +256,12 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
                 ) AS display_label
          FROM material_ratings mr
          LEFT JOIN platform_users pu ON pu.id = mr.user_id
-         WHERE mr.target_kind = $1 AND mr.target_id = $2::uuid
-           AND mr.updated_at >= $3::timestamptz
-           AND mr.updated_at < $4::timestamptz`;
+         WHERE mr.organization_id = $1::uuid
+           AND mr.target_kind = $2 AND mr.target_id = $3::uuid
+           AND mr.updated_at >= $4::timestamptz
+           AND mr.updated_at < $5::timestamptz`;
       const ratersQ = appendSqlExcludeUserIds(ratersBase, "mr.user_id", excludedUserIds, [
+        input.organizationId,
         input.targetKind,
         input.targetId,
         input.startUtcIso,

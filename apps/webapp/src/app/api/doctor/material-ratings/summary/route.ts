@@ -23,6 +23,7 @@ export async function GET(request: Request) {
   const deps = buildAppDeps();
   const audience = await loadDoctorAnalyticsAudience();
   const rows = await deps.materialRating.listDoctorSummary({
+    organizationId: auth.ctx.organizationId,
     targetKind: parsed.data.kind,
     limit: parsed.data.limit,
     offset: parsed.data.offset,

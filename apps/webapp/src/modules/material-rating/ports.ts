@@ -8,6 +8,7 @@ import type {
 
 export type MaterialRatingPort = {
   upsertRating(input: {
+    organizationId: string;
     userId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
@@ -15,12 +16,14 @@ export type MaterialRatingPort = {
   }): Promise<void>;
 
   getMyRating(input: {
+    organizationId: string;
     userId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
   }): Promise<number | null>;
 
   getAggregate(input: {
+    organizationId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
     excludedUserIds?: string[];
@@ -32,12 +35,14 @@ export type MaterialRatingPort = {
    * Возвращает Map по `targetId`; цели без оценок в Map отсутствуют.
    */
   listAggregates(input: {
+    organizationId: string;
     targetKind: MaterialRatingTargetKind;
     targetIds: string[];
     excludedUserIds?: string[];
   }): Promise<Map<string, MaterialRatingAggregate>>;
 
   listDoctorSummary(input: {
+    organizationId: string;
     targetKind?: MaterialRatingTargetKind;
     limit: number;
     offset: number;
@@ -45,6 +50,7 @@ export type MaterialRatingPort = {
   }): Promise<MaterialRatingDoctorSummaryRow[]>;
 
   getDoctorDetail(input: {
+    organizationId: string;
     targetKind: MaterialRatingTargetKind;
     targetId: string;
     iana: string;

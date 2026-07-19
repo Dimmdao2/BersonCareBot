@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 
 const bodySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -28,7 +29,10 @@ export async function POST(req: Request) {
   }
 
   const deps = buildAppDeps();
+  const tenant = await resolvePatientEnrollmentOrganizationId({ patientOrganization: deps.patientOrganization }, gate.session.user.userId);
+  if (!tenant.ok) return tenant.response;
   const result = await deps.materialRatingFeedback.submitPatientFeedback({
+    organizationId: tenant.organizationId,
     userId: gate.session.user.userId,
     contentPageId: parsed.data.contentPageId,
     ratingValue: parsed.data.ratingValue,

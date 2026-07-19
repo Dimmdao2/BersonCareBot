@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createInMemoryMaterialRatingPort } from "./inMemoryMaterialRating";
 
+const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
 describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -15,6 +17,7 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     const tid = "550e8400-e29b-41d4-a716-446655440099";
     vi.setSystemTime(new Date("2026-05-10T12:00:00.000Z"));
     await port.upsertRating({
+      organizationId: ORG_A,
       userId: "11111111-1111-1111-1111-111111111111",
       targetKind: "lfk_exercise",
       targetId: tid,
@@ -22,6 +25,7 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     });
     vi.setSystemTime(new Date("2026-05-11T15:00:00.000Z"));
     await port.upsertRating({
+      organizationId: ORG_A,
       userId: "22222222-2222-2222-2222-222222222222",
       targetKind: "lfk_exercise",
       targetId: tid,
@@ -29,6 +33,7 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     });
 
     const out = await port.getDoctorDetail({
+      organizationId: ORG_A,
       targetKind: "lfk_exercise",
       targetId: tid,
       iana: "UTC",
@@ -63,12 +68,14 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     const testUser = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     vi.setSystemTime(new Date("2026-05-10T12:00:00.000Z"));
     await port.upsertRating({
+      organizationId: ORG_A,
       userId: testUser,
       targetKind: "lfk_exercise",
       targetId: tid,
       stars: 1,
     });
     await port.upsertRating({
+      organizationId: ORG_A,
       userId: "22222222-2222-2222-2222-222222222222",
       targetKind: "lfk_exercise",
       targetId: tid,
@@ -76,6 +83,7 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     });
 
     const out = await port.getDoctorDetail({
+      organizationId: ORG_A,
       targetKind: "lfk_exercise",
       targetId: tid,
       iana: "UTC",
@@ -94,12 +102,14 @@ describe("createInMemoryMaterialRatingPort getDoctorDetail", () => {
     const tid = "550e8400-e29b-41d4-a716-446655440099";
     vi.setSystemTime(new Date("2026-05-10T12:00:00.000Z"));
     await port.upsertRating({
+      organizationId: ORG_A,
       userId: "11111111-1111-1111-1111-111111111111",
       targetKind: "lfk_exercise",
       targetId: tid,
       stars: 3,
     });
     const out = await port.getDoctorDetail({
+      organizationId: ORG_A,
       targetKind: "lfk_exercise",
       targetId: tid,
       iana: "UTC",

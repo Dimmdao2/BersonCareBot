@@ -39,6 +39,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
   }
   try {
     const agg = await withDoctorWorkspacePrincipal(workspace, "doctor.content.edit.rating-read", () => deps.materialRating.getPublicAggregate({
+      organizationId: workspace.organizationId,
       targetKind: "content_page",
       targetId: page.id,
     }));
