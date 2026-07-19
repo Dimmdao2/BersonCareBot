@@ -2267,3 +2267,27 @@ Repository hygiene was also reconciled before TEST delivery. The separately comp
 `7a3b0a840` and the clean one-commit Doctor DNA plan branch `preview/doctor-dna` (`963f2e698`) were fast-forwarded into
 `feat/doctor-ui-rebuild`; the now-integrated preview worktree and branch were removed. Only the integration worktree
 remains. The Doctor DNA S0 implementation has not been claimed complete by this merge; it stays a later plan stage.
+
+## 2026-07-19 — C2/C3 code-only TEST acceptance
+
+`deploy/host/deploy-test.sh feat/doctor-ui-rebuild` delivered exact SHA `4a889093d` to the persistent prepared TEST
+database. The run did not call the fresh-reset wrapper or restore a dump. It applied the ordinary pending migrations
+(Drizzle count `208`), completed the shared strict/FORCE closure, left all five TEST units active, returned green
+health, passed locked product smoke `22/22` plus the separate global-admin clinical-write denial `1/1`, and recorded
+complete E1 coverage with zero unexplained signals.
+
+A separate secret-free live Chromium check used the protected fixture values only in process memory. The clinic
+owner saw `Специалист / Практика / Тариф и биллинг / Установить приложение`; the organization tab showed the single
+client terminology owner and appointment-reminder controls; billing was the intentional non-interactive shell; the
+legacy Team route redirected to the hub. An ordinary clinic doctor saw only `Специалист / Установить приложение`,
+and a direct billing URL returned to the permitted settings root. The public invite page rendered the truthful
+invalid-link state. Runtime screenshots and the temporary script were inspected and deleted, not committed. The C2
+scratch PostgreSQL proof remains the mutation-safe evidence for successful new/existing email OTP acceptance,
+replay, replacement and concurrency; TEST was not polluted with synthetic pending invitations merely to duplicate
+that proof.
+
+Taskdb `#840`, `#841`, and `#842` were moved to `done` with `seal_test=true`, `seal_audit=true`, and commit
+`4a889093d`. The taskdb port printed its legacy `авто-приёмка по коммиту` transition while setting `done`; no agent
+explicitly set `accepted`. This conflicts with the current repo rule that only the owner sets acceptance and is
+retained as a process/tooling finding rather than silently treating the automated flag as a new owner decision.
+The non-roadmap process regression is tracked separately as taskdb `#886` (`auto_ok=false`); it does not block C2F.

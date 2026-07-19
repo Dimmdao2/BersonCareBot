@@ -367,6 +367,9 @@ card; запрещено строить временный resolver, второ�
   clinic entitlement, но не открывает team UI не entitled организации.
 - **Gate:** owner-review §14; unique `(organization_id, platform_user_id)` path, concurrency/idempotency, direct API
   negatives и TEST e2e без реальной prod-доставки.
+- **Status (2026-07-19):** [x] C2 identity/invite gate закрыт на TEST SHA `4a889093d`: milestone CI, scratch
+  new/existing-email proof, independent final audit, code-only deploy, locked role/API smoke и live UI states прошли.
+  Одновременная patient+staff persona остаётся отдельным owner question и не была молча добавлена в C2.
 
 #### C2F — structured FIO residual и migration closeout
 
@@ -407,6 +410,9 @@ card; запрещено строить временный resolver, второ�
   должны создавать второй settings tree.
 - **Gate:** role × nav × direct route/API matrix; one-write-path tests; desktop/mobile; отсутствие regressions у
   сохранённых notification/event settings.
+- **Status (2026-07-19):** [x] C3 settings-shell/write-path scope закрыт на TEST SHA `4a889093d`: owner/doctor
+  role matrix и live tabs проверены, Team fail-closed до C4, billing остаётся owner-only shell до C5. Активная
+  team projection и коммерческое содержимое не приписываются C3 и остаются в своих downstream stages.
 
 #### C4 — независимые capability/ownership substages
 
@@ -696,7 +702,7 @@ or public launch, but its product direction is no longer an unanswered future pl
 - **Validation:** owner-review §§P1, 14-15; new/existing email, replay/revoke/expiry, one membership row, entitlement
   OFF/ON, seat exhaustion/downgrade and direct API negatives.
 - **Rollback/degradation:** not applicable while absent.
-- **Completion:** [ ] C2 identity/invite PASS; [ ] C4 entitlement/seats PASS; [ ] C3 team settings projection PASS;
+- **Completion:** [x] C2 identity/invite PASS; [ ] C4 entitlement/seats PASS; [ ] C3 team settings projection PASS;
   [ ] independently audited. These boxes are not solo launch completion criteria.
 - **Merge dependency:** none for initial release; excluded from U3B, U4 and U10 launch dependencies.
 
