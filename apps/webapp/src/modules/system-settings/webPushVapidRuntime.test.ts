@@ -71,4 +71,20 @@ describe("redactWebPushVapidSettingForClient", () => {
     expect(out[0]).toEqual(rows[0]);
     expect(out[1]?.valueJson).toEqual({ value: { publicKey: "p", hasPrivateKey: true } });
   });
+
+  it("never serializes VAPID secret fields", () => {
+    const out = redactAdminSettingsForClient([
+      {
+        key: "web_push_vapid",
+        scope: "admin",
+        valueJson: { value: { publicKey: "p", privateKey: "private", refreshToken: "nope" } },
+        updatedAt: "",
+        updatedBy: null,
+      },
+    ]);
+    const serialized = JSON.stringify(out);
+    for (const secretField of ["privateKey", "password", "apiKey", "webhookSecret", "refreshToken"]) {
+      expect(serialized).not.toContain(secretField);
+    }
+  });
 });

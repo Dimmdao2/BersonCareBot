@@ -13,6 +13,7 @@ const scanRoots = [
 
 const allowedFiles = new Set([
   "apps/webapp/src/infra/repos/pgSystemSettings.ts",
+  "apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts",
   "apps/integrator/src/infra/db/publicSystemSettings.ts",
 ]);
 
@@ -37,10 +38,11 @@ function listTsFiles(dir) {
   return out;
 }
 
-function hasDirectSystemSettingsRead(src) {
+function hasDirectSettingsRead(src) {
   return (
     /SELECT[\s\S]{0,300}\bFROM\s+(?:public\.)?system_settings\b/i.test(src) ||
-    /\.from\(\s*systemSettings\s*\)/.test(src)
+    /SELECT[\s\S]{0,300}\bFROM\s+(?:public\.)?app_runtime_settings\b/i.test(src) ||
+    /\.from\(\s*(?:systemSettings|appRuntimeSettings)\s*\)/.test(src)
   );
 }
 
@@ -51,12 +53,22 @@ for (const root of scanRoots) {
     const rel = relative(repoRoot, abs).replace(/\\/g, "/");
     if (allowedFiles.has(rel)) continue;
     const src = readFileSync(abs, "utf8");
-    if (hasDirectSystemSettingsRead(src)) offenders.push(rel);
+    if (hasDirectSettingsRead(src)) offenders.push(rel);
   }
 }
 
+if (process.env.CHECK_SYSTEM_SETTINGS_ACCESSORS_SELF_TEST === "1") {
+  if (!hasDirectSettingsRead("SELECT * FROM public.system_settings") ||
+      !hasDirectSettingsRead("SELECT * FROM public.app_runtime_settings") ||
+      hasDirectSettingsRead("SELECT * FROM app.read_public_runtime_setting($1, $2)")) {
+    console.error("check-system-settings-accessors: self-test failed");
+    process.exit(1);
+  }
+  console.log("check-system-settings-accessors: self-test OK");
+}
+
 if (offenders.length > 0) {
-  console.error("check-system-settings-accessors: direct system_settings reads outside canonical accessors:");
+  console.error("check-system-settings-accessors: direct restricted/runtime settings reads outside canonical accessors:");
   for (const rel of offenders) console.error(`  - ${rel}`);
   process.exit(1);
 }

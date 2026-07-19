@@ -1,3 +1,5 @@
+import { RUNTIME_FLAG_DEFINITIONS as S5_RUNTIME_FLAG_DEFINITIONS } from "./registry";
+
 export const RUNTIME_FLAG_DEFINITIONS = {
   patient_program_discussion_ui_enabled: {
     key: "patient_program_discussion_ui_enabled",
@@ -5,6 +7,9 @@ export const RUNTIME_FLAG_DEFINITIONS = {
     defaultValue: false,
   },
 } as const;
+
+/** S5-0 declarative source contract; evaluation remains intentionally deferred. */
+export { S5_RUNTIME_FLAG_DEFINITIONS };
 
 export type RuntimeFlag = keyof typeof RUNTIME_FLAG_DEFINITIONS;
 export const RUNTIME_BOOLEAN_SETTING_DEFINITIONS = {

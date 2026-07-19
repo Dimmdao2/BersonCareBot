@@ -64,6 +64,23 @@ export function redactBookingPaymentProvidersForClient(settings: BookingPaymentS
   };
 }
 
+/**
+ * S5-0 safe projection contract for a future runtime/public payment-config row.
+ * It is intentionally not wired into an existing response before S5-3 routes writes
+ * through the split store; the current admin redaction contract remains unchanged.
+ */
+export function projectBookingPaymentPublicConfig(settings: BookingPaymentSettings): {
+  enabled: boolean;
+  defaultProviderId: string;
+  providers: Array<{ id: string; label: string; enabled: boolean }>;
+} {
+  return {
+    enabled: settings.enabled,
+    defaultProviderId: settings.defaultProviderId,
+    providers: settings.providers.map(({ id, label, enabled }) => ({ id, label, enabled })),
+  };
+}
+
 export async function mergeBookingPaymentProvidersSecretsRetain(
   getPrevious: () => Promise<unknown>,
   incoming: unknown,

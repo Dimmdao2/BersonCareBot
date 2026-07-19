@@ -1,6 +1,6 @@
 # SaaS S5 — разделение restricted settings и runtime config
 
-Статус: **план; инженерное решение принято, код и БД этим документом не менялись**.
+Статус: **частично реализован.** На 2026-07-19 существуют `app_runtime_settings`, E1 safe readers/projections и S5-0 reality lock. `app_runtime_settings_audit` **не существует**; S5-1—S5-7 не закрыты, S5-7 остаётся TEST/owner/ops-gated. S5 не complete.
 
 > **Boundary:** это storage/runtime settings split, не план нового settings UI. Единый settings hub, ownership
 > полей и отмена текущего переноса всей schedule-settings вкладки исполняются только по
@@ -39,7 +39,7 @@
 |---|---|---|---|
 | Restricted | существующий `public.system_settings` и его compatibility mirror | API keys, OAuth secrets, VAPID private key, payment credentials, allowlists, test identifiers, internal/security config | только server-side restricted ports и системные роли |
 | Runtime | новая `public.app_runtime_settings` | только значения, безопасные для application runtime; global default и org override; ни одного секрета | staff, patient server runtime; browser/public получает только разрешённую проекцию |
-| Runtime audit | новая `public.app_runtime_settings_audit` | old/new value, actor, source, org, timestamp | staff/platform audit; пациент не читает |
+| Runtime audit | **планируемая** `public.app_runtime_settings_audit` | old/new value, actor, source, org, timestamp | staff/platform audit; пациент не читает |
 
 `system_settings` остаётся DB-backed источником интеграционных секретов. Новые env-переменные для ключей,
 webhook URI или флагов не вводятся. `integrator.system_settings` остаётся compatibility mirror только restricted
@@ -248,21 +248,21 @@ audit, fixer и повторный audit по `docs/ORCHESTRATION_BINDINGS.md:49
 
 **Scope:** только инвентаризация, types/registry/checker/tests и execution log. DDL и runtime behavior не менять.
 
-- [ ] Построить исчерпывающую матрицу всех текущих keys:
+- [x] Построить исчерпывающую матрицу всех текущих keys:
   `key → callers → principal → storage → ownership → audience → parser/default → client serialization → mechanic`.
   **Где:** `apps/webapp/src/modules/system-settings/types.ts:1-202`,
   `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`, webapp/integrator/media callsites через code-search;
   **доказательство:** количество registry keys равно `ALLOWED_KEYS`, orphan/unknown caller даёт non-zero checker.
-- [ ] Ввести один typed registry и вывести/проверить из него `SystemSettingKey`, runtime/restricted subsets и
+- [x] Ввести один typed registry и вывести/проверить из него `SystemSettingKey`, runtime/restricted subsets и
   runtime flag/value types. **Где:** `apps/webapp/src/modules/system-settings/types.ts:1-202` и
   `apps/webapp/src/modules/system-settings/orgScopedKeys.ts:1-190`; **доказательство:** compile-time fixture с новым
   key без classification не собирается; key не может одновременно принадлежать restricted и runtime store.
-- [ ] Зафиксировать `RuntimeFlagDefinition` sources `setting|mechanic|all` и mappings минимум для discussion,
+- [x] Зафиксировать `RuntimeFlagDefinition` sources `setting|mechanic|all` и mappings минимум для discussion,
   booking, payments и patient app. **Где:** новый registry рядом с
   `apps/webapp/src/modules/system-settings/types.ts:1-202` и mechanic types в
   `apps/webapp/src/modules/org-entitlements/types.ts:6-23`; **доказательство:** unit tests показывают, что payment
   flag = entitlement AND operational flag, а discussion не создаёт entitlement copy.
-- [ ] Проверить mixed envelopes и утвердить safe projectors для VAPID/payment public config.
+- [x] Проверить mixed envelopes и утвердить safe projectors для VAPID/payment public config.
   **Где:** `apps/webapp/src/modules/system-settings/webPushVapidRuntime.ts:1-82` и
   `apps/webapp/src/modules/payments/bookingPaymentSettings.ts:1-50`; **доказательство:** projector tests не возвращают
   `privateKey/password/apiKey/webhookSecret/refreshToken`.
