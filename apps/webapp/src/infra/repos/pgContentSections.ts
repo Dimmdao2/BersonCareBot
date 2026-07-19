@@ -44,6 +44,12 @@ function currentPrincipalOrganizationId(): string {
   return principalOrganizationId;
 }
 
+/** Anonymous public content retains its legacy global resolver; principal-bound
+ * doctor and patient reads must never cross organization ownership. */
+function currentReadOrganizationId(): string | null {
+  return getCurrentDbPrincipalOrganizationId() ?? null;
+}
+
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
   const principalOrganizationId = currentPrincipalOrganizationId();
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
@@ -105,6 +111,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
   return {
     async listVisible(opts?: ListVisibleContentSectionsOpts) {
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
       const vis = viewAuthOnlySections
         ? eq(contentSections.isVisible, true)
@@ -114,7 +121,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           ? { kind: opts.kind, systemParentCode: opts.systemParentCode }
           : undefined,
       );
-      const whereClause = tax.length > 0 ? and(vis, ...tax) : vis;
+      const whereClause = and(vis, ...tax, ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : []));
       const rows = await db
         .select()
         .from(contentSections)
@@ -124,15 +131,22 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     },
     async listAll(filter?: ContentSectionsListFilter) {
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const tax = taxonomyFilterConditions(filter);
-      const whereClause = tax.length > 0 ? and(...tax) : undefined;
+      const conditions = [...tax, ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : [])];
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
       const base = db.select().from(contentSections).orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
       const rows = whereClause ? await base.where(whereClause) : await base;
       return rows.map(mapRow);
     },
     async getBySlug(slug) {
       const db = getDrizzle();
-      const rows = await db.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+      const organizationId = currentReadOrganizationId();
+      const rows = await db
+        .select()
+        .from(contentSections)
+        .where(and(eq(contentSections.slug, slug), ...(organizationId ? [eq(contentSections.organizationId, organizationId)] : [])))
+        .limit(1);
       const row = rows[0];
       return row ? mapRow(row) : null;
     },
@@ -261,10 +275,16 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       const key = oldSlug.trim();
       if (!key) return null;
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const rows = await db
         .select({ newSlug: contentSectionSlugHistory.newSlug })
         .from(contentSectionSlugHistory)
-        .where(eq(contentSectionSlugHistory.oldSlug, key))
+        .where(
+          and(
+            eq(contentSectionSlugHistory.oldSlug, key),
+            ...(organizationId ? [eq(contentSectionSlugHistory.organizationId, organizationId)] : []),
+          ),
+        )
         .limit(1);
       return rows[0]?.newSlug ?? null;
     },

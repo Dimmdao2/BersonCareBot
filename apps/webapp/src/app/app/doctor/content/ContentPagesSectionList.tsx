@@ -52,15 +52,6 @@ export type ContentPageListRow = {
   imageUrl?: string | null;
 };
 
-function buildNewPageHref(sectionSlug: string, systemParentCode?: string) {
-  const p = new URLSearchParams();
-  p.set("section", sectionSlug);
-  if (systemParentCode?.trim()) {
-    p.set("systemParentCode", systemParentCode.trim());
-  }
-  return `/app/doctor/content/new?${p.toString()}`;
-}
-
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
     <Button
@@ -87,6 +78,7 @@ function SortablePageRow({
   authPending,
   onToggleRequiresAuth,
   onSelectPage,
+  onCreatePage,
   isSelected,
 }: {
   page: ContentPageListRow;
@@ -95,6 +87,8 @@ function SortablePageRow({
   onToggleRequiresAuth: (id: string, next: boolean) => void;
   /** When provided — title becomes a selection button instead of a navigation link. */
   onSelectPage?: (id: string) => void;
+  /** Inline content-hub creation keeps a new material in the selected section. */
+  onCreatePage?: (sectionSlug: string) => void;
   isSelected?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
@@ -310,12 +304,14 @@ export function ContentPagesSectionList({
       </div>
       <div className="flex flex-wrap items-center gap-3">
         {showInnerCreatePageLink ? (
-          <Link
-            href={buildNewPageHref(sectionSlug, newPageSystemParentCode)}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0 text-sm font-medium text-primary"
+            onClick={() => onCreatePage?.(sectionSlug)}
           >
             Создать страницу
-          </Link>
+          </Button>
         ) : null}
         {allowDeleteSection ? (
           <Button

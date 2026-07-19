@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { isSectionSlugProtectedFromDelete, isSystemParentCode } from "@/modules/content-sections/types";
 import type { ContentSectionRow } from "@/modules/content-sections/ports";
 import type { SystemParentCode } from "@/modules/content-sections/types";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { CatalogLeftPane } from "@/shared/ui/doctor/catalog/CatalogLeftPane";
@@ -23,14 +21,14 @@ import {
   type ContentPageListRow,
 } from "./ContentPagesSectionList";
 import type { ContentRatingSummary } from "./ContentRatingChip";
-import type { PublishedCourseOption } from "./ContentForm";
+import { ContentForm, type PublishedCourseOption } from "./ContentForm";
 import { AttachExistingSectionsModal } from "./AttachExistingSectionsModal";
 import {
   useInlineContentEditor,
   ContentEditorRightPane,
 } from "./ContentEditorRightPane";
 import { SYSTEM_PARENT_CODES } from "@/modules/content-sections/types";
-import { ContentSectionsListClient, type SectionListRow } from "./sections/ContentSectionsListClient";
+import { SectionForm } from "./sections/SectionForm";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +74,7 @@ function SystemFolderPane({
   ratingsById,
   selectedPageId,
   onSelectPage,
+  onCreatePage,
 }: {
   folderCode: SystemParentCode;
   sections: ContentHubSection[];
@@ -83,6 +82,7 @@ function SystemFolderPane({
   ratingsById?: Record<string, ContentRatingSummary>;
   selectedPageId: string | null;
   onSelectPage: (id: string) => void;
+  onCreatePage: (sectionSlug: string) => void;
 }) {
   const label = SYSTEM_FOLDER_LABELS[folderCode] ?? folderCode;
   const childSections = useMemo(
@@ -146,6 +146,7 @@ function SystemFolderPane({
                 pagesInSectionCount={rows.length}
                 selectedPageId={selectedPageId}
                 onSelectPage={onSelectPage}
+                onCreatePage={onCreatePage}
               />
             );
           })}
@@ -166,6 +167,7 @@ function ArticleSectionPane({
   ratingsById,
   selectedPageId,
   onSelectPage,
+  onCreatePage,
 }: {
   sectionSlug: string;
   sectionTitle: string;
@@ -174,6 +176,7 @@ function ArticleSectionPane({
   ratingsById?: Record<string, ContentRatingSummary>;
   selectedPageId: string | null;
   onSelectPage: (id: string) => void;
+  onCreatePage: (sectionSlug: string) => void;
 }) {
   const sec = sections.find((s) => s.slug === sectionSlug);
   const pages = pagesBySectionSlug[sectionSlug] ?? [];
@@ -184,12 +187,9 @@ function ArticleSectionPane({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="m-0 text-base font-semibold">{sectionTitle}</h2>
-        <Link
-          href={`/app/doctor/content/new?section=${encodeURIComponent(sectionSlug)}${newPageSystemParentCode ? `&systemParentCode=${encodeURIComponent(newPageSystemParentCode)}` : ""}`}
-          className={buttonVariants({ variant: "default", size: "sm" })}
-        >
+        <Button type="button" variant="default" size="sm" onClick={() => onCreatePage(sectionSlug)}>
           Создать страницу
-        </Link>
+        </Button>
       </div>
       <ContentPagesSectionList
         sectionSlug={sectionSlug}
@@ -203,6 +203,7 @@ function ArticleSectionPane({
         pagesInSectionCount={pages.length}
         selectedPageId={selectedPageId}
         onSelectPage={onSelectPage}
+        onCreatePage={onCreatePage}
       />
     </div>
   );
@@ -270,24 +271,9 @@ export function ContentHubShell({
   const { activePaneKey, setActivePaneKey } = useContentNavState(articleSectionEntries);
   const editor = useInlineContentEditor();
 
-  // Sections-management pane: derive SectionListRow[] from already-loaded data
-  const sectionsForManagementPane = useMemo((): SectionListRow[] => {
-    return fullSections
-      .filter((s) => s.kind === "article")
-      .map((s) => ({
-        id: s.id,
-        slug: s.slug,
-        title: s.title,
-        sortOrder: s.sortOrder,
-        isVisible: s.isVisible,
-        requiresAuth: s.requiresAuth,
-        coverImageUrl: s.coverImageUrl ?? null,
-        iconImageUrl: s.iconImageUrl ?? null,
-        kind: s.kind,
-        systemParentCode: s.systemParentCode ?? null,
-        pagesInSection: pagesBySectionSlug[s.slug]?.length ?? 0,
-      }));
-  }, [fullSections, pagesBySectionSlug]);
+  const [creatingSection, setCreatingSection] = useState(false);
+  const [creatingPageSection, setCreatingPageSection] = useState<string | null>(null);
+  const [mobileDetail, setMobileDetail] = useState(false);
 
   const renderLeftPanel = () => {
     return (
@@ -297,16 +283,20 @@ export function ContentHubShell({
           activePaneKey={activePaneKey}
           onPaneChange={(key) => {
             setActivePaneKey(key);
-            if (key === "sections" || key === "patient-home" || key === "media") {
-              editor.clear();
-            }
+            setCreatingSection(false);
+            setCreatingPageSection(null);
+            editor.clear();
+            setMobileDetail(true);
           }}
           countsByPaneKey={countsByPaneKey}
+          onCreateSection={() => {
+            editor.clear();
+            setCreatingSection(true);
+            setCreatingPageSection(null);
+            setMobileDetail(true);
+          }}
           className="md:w-full"
         />
-        <div className="border-t border-border/60 pt-3">
-          {renderMaterialsPanel()}
-        </div>
       </div>
     );
   };
@@ -329,6 +319,12 @@ export function ContentHubShell({
           ratingsById={ratingsById}
           selectedPageId={editor.selectedPageId}
           onSelectPage={editor.select}
+          onCreatePage={(sectionSlug) => {
+            editor.clear();
+            setCreatingSection(false);
+            setCreatingPageSection(sectionSlug);
+            setMobileDetail(true);
+          }}
         />
       );
     }
@@ -348,20 +344,14 @@ export function ContentHubShell({
           ratingsById={ratingsById}
           selectedPageId={editor.selectedPageId}
           onSelectPage={editor.select}
+          onCreatePage={(sectionSlug) => {
+            editor.clear();
+            setCreatingSection(false);
+            setCreatingPageSection(sectionSlug);
+            setMobileDetail(true);
+          }}
         />
       );
-    }
-
-    if (activePaneKey === "sections") {
-      return <p className="px-2 text-xs text-muted-foreground">Управление разделами открыто справа.</p>;
-    }
-
-    if (activePaneKey === "patient-home") {
-      return <p className="px-2 text-xs text-muted-foreground">Настройка главной пациента открыта справа.</p>;
-    }
-
-    if (activePaneKey === "media") {
-      return <p className="px-2 text-xs text-muted-foreground">Файлы вынесены в библиотеку.</p>;
     }
 
     return <p className="px-2 text-xs text-muted-foreground">Выберите раздел.</p>;
@@ -377,89 +367,25 @@ export function ContentHubShell({
       );
     }
 
-    if (activePaneKey === "sections") {
+    if (creatingSection) {
+      return <SectionForm onSaved={() => setCreatingSection(false)} />;
+    }
+
+    if (creatingPageSection) {
       return (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="m-0 text-base font-semibold">Разделы</h2>
-            <Link
-              href="/app/doctor/content/sections/new"
-              className={buttonVariants({ variant: "default", size: "sm" })}
-            >
-              + Создать раздел
-            </Link>
-          </div>
-          <ContentSectionsListClient initialSections={sectionsForManagementPane} />
-        </div>
+        <ContentForm
+          key={`create-${creatingPageSection}`}
+          sections={fullSections}
+          initialSectionSlug={creatingPageSection}
+          sectionSelectReadOnly
+          publishedCourses={publishedCourses}
+          compact
+          onBack={() => setCreatingPageSection(null)}
+        />
       );
     }
 
-    if (activePaneKey === "patient-home") {
-      return (
-        <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/30 px-5 py-6">
-          <div>
-            <h2 className="mb-1 text-base font-semibold">Главная пациента</h2>
-            <p className="text-sm text-muted-foreground">
-              Настройка блоков главного экрана приложения: упражнения, разминки, SOS, программа и другие элементы.
-            </p>
-          </div>
-          <Link href="/app/doctor/patient-home" className={buttonVariants({ variant: "default", size: "sm" })}>
-            Настроить блоки главной страницы →
-          </Link>
-        </div>
-      );
-    }
-
-    // Stub: media moved to Library (top-level sidebar item)
-    if (activePaneKey === "media") {
-      return (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
-          <p className="text-sm text-muted-foreground">
-            Файлы и медиа перенесены в раздел <strong>Библиотека</strong>.
-          </p>
-          <Link href="/app/doctor/content/library" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            → Перейти в Библиотеку
-          </Link>
-        </div>
-      );
-    }
-
-    // Stub: lessons moved to Courses
-    if (activePaneKey === "lessons") {
-      return (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
-          <p className="text-sm text-muted-foreground">
-            Уроки перенесены в раздел <strong>Курсы</strong>.
-          </p>
-          <Link href="/app/doctor/courses" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            → Перейти в Курсы
-          </Link>
-        </div>
-      );
-    }
-
-    // Stub: news moved to Broadcasts
-    if ((activePaneKey as string) === "news" || (activePaneKey as string) === "novosti") {
-      return (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
-          <p className="text-sm text-muted-foreground">
-            Новости перенесены в раздел <strong>Рассылки</strong>.
-          </p>
-          <Link href="/app/doctor/broadcasts" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            → Перейти в Рассылки
-          </Link>
-        </div>
-      );
-    }
-
-    // Stub: motivations removed
-    if ((activePaneKey as string) === "motivations") {
-      return (
-        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-5 py-6">
-          <p className="text-sm text-muted-foreground">Раздел «Мотивации» удалён.</p>
-        </div>
-      );
-    }
+    if (!editor.selectedPageId) return renderMaterialsPanel();
 
     return (
       <ContentEditorRightPane
@@ -486,10 +412,17 @@ export function ContentHubShell({
             {renderRightPanel()}
           </CatalogRightPane>
         }
-        mobileView={editor.selectedPageId ? "detail" : "list"}
+        mobileView={mobileDetail || creatingSection || creatingPageSection || editor.selectedPageId ? "detail" : "list"}
         mobileBackSlot={
-          <Button type="button" variant="outline" size="sm" className="mb-2" onClick={editor.clear}>
-            ← К материалам
+          <Button type="button" variant="outline" size="sm" className="mb-2" onClick={() => {
+            if (editor.selectedPageId) editor.clear();
+            else {
+              setCreatingSection(false);
+              setCreatingPageSection(null);
+            }
+            setMobileDetail(false);
+          }}>
+            ← К разделам
           </Button>
         }
         className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}

@@ -2597,3 +2597,17 @@ desktop `1440x900` and mobile `390x844`. No real send, second Next server, DB re
 one independent critical tenant audit checks the whole C4B checklist. If it fails, one integrated correction owner
 gets the full report followed by one full re-audit. Findings outside owner-review §§11-12 are owner questions, never
 automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
+
+### Worker handoff — C4B `#853` (codex/c4b-853-cms-tenant)
+
+- Scoped content-section/page Drizzle reads now constrain an established patient or doctor organization principal,
+  including direct IDs, slugs, counts, metadata and section-slug history; the no-principal anonymous public path
+  deliberately keeps its legacy behavior.
+- Doctor content entry, direct edit/new/section pages, inline editor and formerly ungated auth/reorder/visibility
+  actions now require the current workspace plus `cms_pages`. The existing media/files authorization surface was
+  reused unchanged.
+- Content hub is a navigation-only left pane. Selected-section materials, inline page creation, inline section
+  creation and the editor render in the right workspace; mobile returns from materials/editor to sections.
+- Focused Vitest, webapp typecheck and lint were requested but could not start because this isolated worktree has no
+  dependencies: the mandatory `operator-db-schema` pre-step cannot resolve `drizzle-orm`; `pnpm install
+  --frozen-lockfile` is blocked by the workspace's read-only pnpm project-store mount (`EROFS`).

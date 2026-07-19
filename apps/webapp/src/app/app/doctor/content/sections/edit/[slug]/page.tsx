@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { cn } from "@/lib/utils";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
@@ -11,15 +13,20 @@ type Props = {
 };
 
 export default async function DoctorContentSectionEditPage({ params }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
+  const session = workspace.session;
   const deps = buildAppDeps();
   const { slug: raw } = await params;
   const slug = decodeURIComponent(raw);
 
-  const [row, pagesInSection] = await Promise.all([
-    deps.contentSections.getBySlug(slug),
-    deps.contentPages.countPagesWithSectionSlug(slug),
-  ]);
+  const [row, pagesInSection] = await withDoctorWorkspacePrincipal(workspace, "doctor.content.section.edit.read", () =>
+    Promise.all([
+      deps.contentSections.getBySlug(slug),
+      deps.contentPages.countPagesWithSectionSlug(slug),
+    ]),
+  );
   if (!row) notFound();
 
   return (

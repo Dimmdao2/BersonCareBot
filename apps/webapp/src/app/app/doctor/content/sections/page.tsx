@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { cn } from "@/lib/utils";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
@@ -11,14 +14,19 @@ import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice"
 import { ContentSectionsListClient } from "./ContentSectionsListClient";
 
 export default async function DoctorContentSectionsPage() {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
+  const session = workspace.session;
   const deps = buildAppDeps();
 
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    [sections, pages] = await Promise.all([deps.contentSections.listAll(), deps.contentPages.listAll()]);
+    [sections, pages] = await withDoctorWorkspacePrincipal(workspace, "doctor.content.sections.read", () =>
+      Promise.all([deps.contentSections.listAll(), deps.contentPages.listAll()]),
+    );
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/sections", err);
   }

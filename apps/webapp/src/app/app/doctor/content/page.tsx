@@ -1,6 +1,9 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { notFound } from "next/navigation";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import type { ContentPageListRow } from "./ContentPagesSectionList";
 import { ContentHubShell, type ContentHubSection } from "./ContentHubShell";
@@ -8,7 +11,10 @@ import type { ContentRatingSummary } from "./ContentRatingChip";
 import type { PublishedCourseOption } from "./ContentForm";
 
 export default async function DoctorContentPage() {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
+  const session = workspace.session;
   const deps = buildAppDeps();
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
@@ -18,19 +24,29 @@ export default async function DoctorContentPage() {
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
 
   try {
-    pages = await deps.contentPages.listAll();
-    sections = await deps.contentSections.listAll();
-    // Batch-load ★ ratings for the material cards/rows (one grouped query, no N+1).
-    const ratingMap = await deps.materialRating.listDoctorAggregates({
-      targetKind: "content_page",
-      targetIds: pages.map((p) => p.id),
-    });
-    ratingsById = Object.fromEntries(
-      [...ratingMap.entries()].map(([id, agg]) => [id, { avg: agg.avg, count: agg.count }]),
-    );
-    publishedCourses = (
-      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
-    ).map((c) => ({ id: c.id, title: c.title }));
+    ({ pages, sections, ratingsById, publishedCourses } = await withDoctorWorkspacePrincipal(
+      workspace,
+      "doctor.content.read",
+      async () => {
+        const scopedPages = await deps.contentPages.listAll();
+        const [scopedSections, ratingMap, courses] = await Promise.all([
+          deps.contentSections.listAll(),
+          deps.materialRating.listDoctorAggregates({
+            targetKind: "content_page",
+            targetIds: scopedPages.map((p) => p.id),
+          }),
+          deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false }),
+        ]);
+        return {
+          pages: scopedPages,
+          sections: scopedSections,
+          ratingsById: Object.fromEntries(
+            [...ratingMap.entries()].map(([id, agg]) => [id, { avg: agg.avg, count: agg.count }]),
+          ),
+          publishedCourses: courses.map((c) => ({ id: c.id, title: c.title })),
+        };
+      },
+    ));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content", err);
   }

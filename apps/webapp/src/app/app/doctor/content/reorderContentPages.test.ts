@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
-const { reorderMock, requireDoctorWorkspaceContextMock } = vi.hoisted(() => ({
+const { reorderMock, requireDoctorWorkspaceContextMock, requireEntitlementForActionMock } = vi.hoisted(() => ({
   reorderMock: vi.fn(),
   requireDoctorWorkspaceContextMock: vi.fn(),
+  requireEntitlementForActionMock: vi.fn(),
 }));
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -14,6 +15,10 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock,
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: requireEntitlementForActionMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -29,6 +34,8 @@ describe("reorderContentPagesInSection", () => {
     reorderMock.mockReset();
     reorderMock.mockResolvedValue(undefined);
     requireDoctorWorkspaceContextMock.mockReset();
+    requireEntitlementForActionMock.mockReset();
+    requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceContextMock.mockResolvedValue({
       session: { user: { userId: "11111111-1111-4111-8111-111111111111" } },
       organizationId: ORGANIZATION_ID,

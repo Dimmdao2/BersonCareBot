@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
@@ -68,6 +68,7 @@ export function SectionForm({
   initialSystemParentCode,
   pagesInSection = 0,
   patientHomeContext,
+  onSaved,
 }: {
   section?: SectionRow;
   /** Из query `?suggestedSlug=` при создании раздела (латиница, цифры, дефис). */
@@ -76,6 +77,7 @@ export function SectionForm({
   initialSystemParentCode?: string | null;
   pagesInSection?: number;
   patientHomeContext?: PatientHomeCmsReturnQuery;
+  onSaved?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
   const isEdit = Boolean(section);
@@ -92,6 +94,10 @@ export function SectionForm({
   const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? "");
   const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
   const slugManualRef = useRef(initialCreateSlug.length > 0);
+
+  useEffect(() => {
+    if (state?.ok) onSaved?.();
+  }, [onSaved, state?.ok]);
 
   const placementLocked =
     isEdit && section != null && (isImmutableSystemSectionSlug(section.slug) || isSectionSlugProtectedFromDelete(section.slug));

@@ -75,6 +75,15 @@ function currentPrincipalOrganizationId(): string {
   return principalOrganizationId;
 }
 
+/**
+ * Content remains publicly resolvable for anonymous legacy routes. Once an
+ * authenticated patient or doctor principal is present, every read is limited
+ * to that tenant just like the write path.
+ */
+function currentReadOrganizationId(): string | null {
+  return getCurrentDbPrincipalOrganizationId() ?? null;
+}
+
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
   const principalOrganizationId = currentPrincipalOrganizationId();
   const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
@@ -139,10 +148,12 @@ export function createPgContentPagesPort(): ContentPagesPort {
     async listBySection(section, opts?: ListContentPagesBySectionOpts) {
       const db = getDrizzle();
       const viewAuthOnlyPages = opts?.viewAuthOnlyPages !== false;
+      const organizationId = currentReadOrganizationId();
       const conds = [
         eq(contentPages.section, section),
         patientVisible,
         ...(viewAuthOnlyPages ? [] : [eq(contentPages.requiresAuth, false)]),
+        ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : []),
       ];
       const rows = await db
         .select()
@@ -154,10 +165,17 @@ export function createPgContentPagesPort(): ContentPagesPort {
 
     async getBySlug(slug) {
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const rows = await db
         .select()
         .from(contentPages)
-        .where(and(eq(contentPages.slug, slug), patientVisible))
+        .where(
+          and(
+            eq(contentPages.slug, slug),
+            patientVisible,
+            ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : []),
+          ),
+        )
         .orderBy(asc(contentPages.section))
         .limit(1);
       return rows[0] ? mapDrizzleRow(rows[0]) : null;
@@ -165,7 +183,12 @@ export function createPgContentPagesPort(): ContentPagesPort {
 
     async getById(id) {
       const db = getDrizzle();
-      const rows = await db.select().from(contentPages).where(eq(contentPages.id, id)).limit(1);
+      const organizationId = currentReadOrganizationId();
+      const rows = await db
+        .select()
+        .from(contentPages)
+        .where(and(eq(contentPages.id, id), ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : [])))
+        .limit(1);
       return rows[0] ? mapDrizzleRow(rows[0]) : null;
     },
 
@@ -173,18 +196,21 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const unique = [...new Set(ids.filter((x) => Boolean(x?.trim())))];
       if (unique.length === 0) return [];
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const rows = await db
         .select({ id: contentPages.id, title: contentPages.title, slug: contentPages.slug })
         .from(contentPages)
-        .where(inArray(contentPages.id, unique));
+        .where(and(inArray(contentPages.id, unique), ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : [])));
       return rows.map((r) => ({ id: r.id, title: r.title, slug: r.slug }));
     },
 
     async listAll() {
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const rows = await db
         .select()
         .from(contentPages)
+        .where(organizationId ? eq(contentPages.organizationId, organizationId) : undefined)
         .orderBy(asc(contentPages.section), asc(contentPages.sortOrder), asc(contentPages.title));
       return rows.map(mapDrizzleRow);
     },
@@ -345,10 +371,16 @@ export function createPgContentPagesPort(): ContentPagesPort {
 
     async countPagesWithSectionSlug(sectionSlug) {
       const db = getDrizzle();
+      const organizationId = currentReadOrganizationId();
       const rows = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(contentPages)
-        .where(eq(contentPages.section, sectionSlug));
+        .where(
+          and(
+            eq(contentPages.section, sectionSlug),
+            ...(organizationId ? [eq(contentPages.organizationId, organizationId)] : []),
+          ),
+        );
       return Number(rows[0]?.count ?? 0);
     },
   };

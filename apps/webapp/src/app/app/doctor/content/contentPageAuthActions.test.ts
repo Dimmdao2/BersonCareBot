@@ -4,12 +4,17 @@ import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 const updateLifecycle = vi.fn();
 const getById = vi.fn();
 const requireDoctorWorkspaceContext = vi.fn();
+const requireEntitlementForAction = vi.fn();
 const revalidatePath = vi.fn();
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceContext: (...args: unknown[]) => requireDoctorWorkspaceContext(...args),
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForAction(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -31,6 +36,8 @@ describe("setContentPageRequiresAuth", () => {
     getById.mockReset();
     revalidatePath.mockReset();
     requireDoctorWorkspaceContext.mockReset();
+    requireEntitlementForAction.mockReset();
+    requireEntitlementForAction.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceContext.mockResolvedValue({
       session: { user: { userId: "11111111-1111-4111-8111-111111111111" } },
       organizationId: ORGANIZATION_ID,
@@ -61,5 +68,16 @@ describe("setContentPageRequiresAuth", () => {
     expect(updateLifecycle).toHaveBeenCalledWith("page-1", { requiresAuth: true });
     expect(revalidatePath).toHaveBeenCalledWith("/app/doctor/content");
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("denies an entitlement-off workspace before reading or changing a page", async () => {
+    requireEntitlementForAction.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+
+    await expect(setContentPageRequiresAuth("page-1", true)).resolves.toEqual({
+      ok: false,
+      error: "entitlement_required",
+    });
+    expect(getById).not.toHaveBeenCalled();
+    expect(updateLifecycle).not.toHaveBeenCalled();
   });
 });

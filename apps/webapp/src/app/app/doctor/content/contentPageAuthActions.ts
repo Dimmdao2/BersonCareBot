@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -13,11 +14,13 @@ export async function setContentPageRequiresAuth(
   requiresAuth: boolean,
 ): Promise<ContentPageAuthState> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const pageId = id?.trim();
   if (!pageId) return { ok: false, error: "Нет id" };
 
   const deps = buildAppDeps();
-  const page = await deps.contentPages.getById(pageId);
+  const page = await withDoctorWorkspacePrincipal(workspace, "doctor.content.page.requires-auth.read", () => deps.contentPages.getById(pageId));
   try {
     await withDoctorWorkspacePrincipal(workspace, "doctor.content.page.requires-auth", () =>
       deps.contentPages.updateLifecycle(pageId, { requiresAuth }),

@@ -1,4 +1,6 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { notFound } from "next/navigation";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
@@ -23,7 +25,10 @@ function normalizeSuggestedSlug(raw: string | string[] | undefined): string | un
 }
 
 export default async function DoctorContentSectionNewPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
+  const session = workspace.session;
   const sp = searchParams ? await searchParams : {};
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
     returnTo: pick(sp, "returnTo"),

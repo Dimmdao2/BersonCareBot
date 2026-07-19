@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import {
   parsePatientHomeCmsReturnQuery,
   type PatientHomeCmsReturnQuery,
@@ -47,7 +50,10 @@ export default async function DoctorContentNewPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) notFound();
+  const session = workspace.session;
   const sp = await searchParams;
   const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
     returnTo: pick(sp, "returnTo"),
@@ -64,10 +70,10 @@ export default async function DoctorContentNewPage({
   let publishedCourses: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    allSections = await deps.contentSections.listAll();
-    publishedCourses = (
-      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
-    ).map((c) => ({ id: c.id, title: c.title }));
+    ({ allSections, publishedCourses } = await withDoctorWorkspacePrincipal(workspace, "doctor.content.new.read", async () => ({
+      allSections: await deps.contentSections.listAll(),
+      publishedCourses: (await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })).map((c) => ({ id: c.id, title: c.title })),
+    })));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/new", err);
   }

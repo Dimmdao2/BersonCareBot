@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -11,7 +10,6 @@ import {
   isHelpSectionSlug,
   SYSTEM_PARENT_CODES,
 } from "@/modules/content-sections/types";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { setSectionVisibility } from "./sections/sectionVisibilityActions";
 
 // ---------------------------------------------------------------------------
@@ -24,9 +22,7 @@ export type ContentNavPaneKey =
   | "sos"
   | "situations"
   | "lessons"
-  | `section:${string}`
-  | "media"
-  | "sections";
+  | `section:${string}`;
 
 export type ContentNavSectionEntry = {
   slug: string;
@@ -40,6 +36,7 @@ export type ContentNavProps = {
   onPaneChange: (key: ContentNavPaneKey) => void;
   /** Count of pages per pane key (warmups|sos|situations|lessons|section:<slug>). */
   countsByPaneKey?: Record<string, number>;
+  onCreateSection: () => void;
   className?: string;
 };
 
@@ -56,8 +53,6 @@ const SYSTEM_FOLDER_LABELS: Record<(typeof SYSTEM_PARENT_CODES)[number], string>
 
 /** Pane keys hidden from the nav (stubs/removed sections). */
 const HIDDEN_SYSTEM_CODES = new Set<string>(["lessons"]);
-
-const CONTENT_BASE = "/app/doctor/content";
 
 // ---------------------------------------------------------------------------
 // Lightweight nav row — file-tree list style
@@ -160,6 +155,7 @@ export function ContentNav({
   activePaneKey,
   onPaneChange,
   countsByPaneKey = {},
+  onCreateSection,
   className,
 }: ContentNavProps) {
   const baseUserSections: SectionVisState[] = useMemo(
@@ -207,13 +203,6 @@ export function ContentNav({
         Системные разделы
       </p>
 
-      {/* Главная пациента — in-pane (keeps ContentNav visible) */}
-      <NavRow
-        label="Главная пациента"
-        active={activePaneKey === "patient-home"}
-        onClick={() => onPaneChange("patient-home")}
-      />
-
       {SYSTEM_PARENT_CODES.filter((code) => !HIDDEN_SYSTEM_CODES.has(code)).map((code) => (
         <NavRow
           key={code}
@@ -231,13 +220,9 @@ export function ContentNav({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Статьи и страницы
         </p>
-        <Link
-          href={`${CONTENT_BASE}/sections/new`}
-          aria-label="Создать раздел"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-6 px-2 text-xs")}
-        >
+        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onCreateSection}>
           + Раздел
-        </Link>
+        </Button>
       </div>
 
       {userSections.length === 0 ? (
@@ -262,24 +247,6 @@ export function ContentNav({
         ))
       )}
 
-      {/* ── Разделы (управление) — в левом меню, открывает правую панель ── */}
-      <NavRow
-        label="Разделы"
-        active={activePaneKey === "sections"}
-        onClick={() => onPaneChange("sections")}
-      />
-
-      <Separator className="my-1.5" />
-
-      {/* ── Медиа ── */}
-      <p className="px-2.5 pb-0.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Медиа
-      </p>
-
-      {/* ── Hint blurb (#11) ── */}
-      <p className="mt-2 px-2.5 text-xs text-muted-foreground leading-relaxed">
-        Системные разделы не удаляются. «Статьи и страницы» — ваши собственные.
-      </p>
     </nav>
   );
 }
@@ -305,13 +272,10 @@ function urlParamToPaneKey(raw: string | null, articleSlugs: string[]): ContentN
   }
   // system pane keys
   if (
-    raw === "patient-home" ||
     raw === "warmups" ||
     raw === "sos" ||
     raw === "situations" ||
-    raw === "lessons" ||
-    raw === "media" ||
-    raw === "sections"
+    raw === "lessons"
   ) {
     return raw;
   }
