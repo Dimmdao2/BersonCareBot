@@ -54,6 +54,8 @@ production readiness.
 ## Operations
 
 - [ ] Central security logs и alerts проверены; секреты/clinical payload не попадают в лог.
+- [ ] `G-06B` имеет явный verdict: adopted EDR/HIDS доказал detection/load/alert/rollback и отдельный RU sink либо
+      внешний reviewer принял проверенные compensating controls; отсутствие решения не считается `not applicable`.
 - [ ] Access review/JML и break-glass drill закрыты.
 - [ ] Vulnerability findings имеют severity, owner, SLA, exception expiry и повторную проверку.
 - [ ] Incident tabletop закрывает detection, containment, evidence, 24/72 timers, communications и recovery.

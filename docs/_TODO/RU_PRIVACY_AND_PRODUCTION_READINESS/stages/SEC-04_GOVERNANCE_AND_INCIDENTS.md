@@ -2,7 +2,8 @@
 
 ## Зависимости
 
-SEC-03 принят; central log gate `G-09`; break-glass gate `G-10`; DR-02 recovery paths проверены.
+SEC-03 принят; runtime detection verdict `G-06B`; central log gate `G-09`; break-glass gate `G-10`; DR-02 recovery
+paths проверены.
 
 ## File scope gate
 
@@ -20,6 +21,8 @@ findings, реальные уведомления субъектам и producti
 ## Slice B — protected logs and incident response
 
 - [ ] Central security sink: least-privilege append/read, retention, alert delivery и redaction proof.
+- [ ] Принятые EDR/HIDS либо compensating signals имеют severity mapping, dedup/suppression, дежурного owner,
+      acknowledgement/remediation SLA и тест доставки; «логи собираются» не считается реагированием.
 - [ ] Severity/triggers, incident role matrix и защищённый канал координации.
 - [ ] Detect → contain → preserve evidence → scope subjects/data/tenants → eradicate → recover.
 - [ ] Классифицировать событие: обычный security event либо установленная неправомерная/случайная передача/доступ,

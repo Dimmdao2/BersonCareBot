@@ -97,7 +97,7 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
 Подробно: [`stages/SEC-02_HOST_AND_SECRETS.md`](stages/SEC-02_HOST_AND_SECRETS.md).
 
 Что: Selectel SG + host firewall, SSH/fail2ban, deploy boundary, service users, systemd sandbox, env permissions,
-инвентарь/ротация/отзыв секретов.
+инвентарь/ротация/отзыв секретов и отдельный runtime EDR/HIDS decision `G-06B`.
 
 Как: idempotent scripts, dry-run/preflight, отдельный TEST/disposable proof, rollback и только затем owner-approved
 production window. S5 storage split переиспользуется и не переделывается.
@@ -214,6 +214,8 @@ post-cutover host/storage state, residual risks, owners и сроки.
 - [ ] Все owner/legal gates имеют решение, provenance и дату review.
 - [ ] Все технические stages закрыты checks + risk-based audit; открытые риски имеют owner/deadline.
 - [ ] Security CI, vulnerability triage и protected audit trail работают на реальных безопасных сценариях.
+- [ ] `G-06B` закрыт: EDR/HIDS внедрён и проверен либо достаточность compensating runtime controls принята внешним
+      reviewer; у alerts есть owner/SLA.
 - [ ] Backup/DR подтверждены restore drill с измеренными RPO/RTO.
 - [ ] Client-side media encryption, key recovery/rotation и legacy plaintext migration подтверждены на TEST.
 - [ ] Новый encrypted PROD прошёл reboot/restore/cutover/rollback evidence; старые plaintext copies закрыты.

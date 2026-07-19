@@ -49,9 +49,24 @@ application domain code и любые production mutations до отдельно
 - [ ] Выполнить TEST rotation drill для session/M2M/integration/DB credentials с rollback и session-impact report.
 - [ ] Описать emergency revoke после компрометации и проверку отсутствия старого секрета.
 
+## Slice D — runtime detection / EDR-HIDS decision
+
+- [ ] От модели угроз построить detection coverage: что видят `auditd`, AppArmor, systemd/journal, network/SSH
+      alerts и external monitoring; какие host/process/file/network техники остаются невидимыми.
+- [ ] Сравнить `Wazuh`/эквивалент, `osquery` и вариант без дополнительного agent по coverage, root privileges,
+      supply-chain/update path, CPU/RAM/disk/network budget, PII/log redaction, RU storage и операционной нагрузке.
+- [ ] Если кандидат нужен — проверить только на disposable/new VPS: install/enrollment/TLS, reboot, application load,
+      alert delivery, simulated detection, update и полный removal/rollback без остаточного root access.
+- [ ] Зафиксировать `G-06B` как `adopt` либо `not required with compensating controls`; имя продукта не заменяет
+      threat coverage и человека, который разбирает alerts.
+- [ ] EDR/HIDS manager/index не размещать на том же единственном PROD-хосте: его потеря не должна уничтожать
+      security evidence вместе с приложением.
+
 ## Checks и выход
 
 - preflight/dry-run/idempotency/rollback; shell lint для scripts;
 - TEST reboot + service smoke + external port scan из разрешённой точки;
 - negative proof: app/service/deploy user не читает чужие credentials и не меняет root-owned unit;
+- `G-06B` закрыт evidence: adopted agent работает в resource budget и шлёт alert в отдельный RU sink либо
+  compensating controls перечислены и проверены;
 - owner-approved production window закрывается repeatable evidence, не ручной последовательностью из чата.

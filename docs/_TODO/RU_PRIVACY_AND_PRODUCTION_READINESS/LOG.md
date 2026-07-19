@@ -87,3 +87,12 @@ Append-only журнал. Планирование не переводит ни 
 - Owner wording исправлен: необходимость certified СЗИ/СКЗИ определяет внешний специалист; владелец заказывает
   заключение и принимает бюджет/остаточный риск. Отдельный secrets platform не запрещён до crypto ADR.
 - Оценка `CRYPTO-01` увеличена до 3–6 недель; общая инженерная оценка — 13–22 человеко-недель.
+
+## 2026-07-19 — explicit EDR/HIDS decision gate
+
+- По вопросу владельца подтверждён gap: `auditd`, central logs и threat-model review были записаны, но отдельного
+  обязательного решения по Wazuh/EDR/HIDS не было.
+- Добавлены `G-06B` и `O-08A`: до target acceptance нужно явно выбрать `adopt` либо `not required with compensating
+  controls`; неизвестное/подразумеваемое решение не проходит `PR-04A`.
+- Wazuh не выбран заранее. Агенты сравнивают coverage/privileges/load/RU storage/operations, проверяют кандидата на
+  disposable VPS; при adopt manager/sink находится отдельно от единственного PROD, alerts имеют owner/SLA.

@@ -61,6 +61,8 @@ port scan, service health, synthetic DB restore. Изменения deploy/root 
 
 - [ ] Создать target network/SG/VPS/volumes по принятой спецификации; проверить IP reachability из РФ до переезда.
 - [ ] Установить ОС/packages/config из reviewed scripts. Новый host не принимает public app traffic.
+- [ ] Применить verdict `G-06B`: установить и подключить принятый EDR/HIDS agent к отдельному RU manager/sink либо
+      доказать утверждённый набор compensating controls; неизвестное решение блокирует target acceptance.
 - [ ] Создать encrypted volumes/swap, PG cluster checksums, service users, firewall/audit и root-owned release path.
 - [ ] Передать secrets только через утверждённый защищённый channel/key store; выполнить inventory без значений.
 - [ ] Восстановить согласованную encrypted copy в isolated maintenance/send-disabled mode; выполнить counts/checksums,

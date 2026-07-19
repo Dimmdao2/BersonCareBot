@@ -49,6 +49,8 @@ proof и не создаёт параллельный backup script.
 | `ufw` | не активен | **reject** | не вводить второй frontend рядом с canonical `nftables` |
 | `fail2ban` | отсутствует/не активен | **adopt** | SSH brute-force ban; proof без блокировки owner/deploy recovery path |
 | `auditd` + `audispd-plugins` | отсутствуют/не активны | **adopt** | изменения env/systemd/SSH/backup-конфигов и privileged actions; без секретов в events |
+| `Wazuh`/эквивалентный EDR/HIDS | не установлен | **decision после `G-06B`** | не ставить автоматически; если принят — agent только после disposable compatibility/load proof, manager/index/log storage в отдельном российском security-контуре, alert owner и rollback обязательны |
+| `osquery` | не установлен | **candidate, не второй default stack** | использовать только если `G-06B` выберет query/telemetry-модель вместо полного HIDS; не дублировать Wazuh без отдельной причины |
 | `age` | не установлен | **adopt** | потоковое шифрование dump до offsite; recovery key отдельно от VPS/repository |
 | `restic` | не установлен | **adopt после G-07** | encrypted checksum-verifiable offsite copy в отдельное российское object storage |
 | `pgbackrest` | не установлен | **decision в DR-01** | WAL/PITR только если утверждённый RPO не закрывается dumps; не запускать второй неуправляемый backup path |
@@ -64,6 +66,8 @@ proof и не создаёт параллельный backup script.
 - Runtime npm «security packages» без конкретной уязвимости и архитектурного места.
 - Одновременно UFW и nftables как два источника правил.
 - Gitleaks/Semgrep/Trivy/ZAP/Garak на production runtime: они остаются CI/admin tooling.
+- Wazuh/osquery нельзя устанавливать «для галочки»: без отдельного manager/sink, alert owner и response SLA это
+  привилегированный источник шума, а не закрытый control.
 
 ## 4. Installation gate
 
