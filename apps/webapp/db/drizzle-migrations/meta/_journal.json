@@ -1478,6 +1478,13 @@
       "when": 1793539200005,
       "tag": "0210_s5_runtime_dual_write_trigger_bypass",
       "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1793539200006,
+      "tag": "0211_public_email_otp_structured_registration",
+      "breakpoints": true
     }
   ]
 }

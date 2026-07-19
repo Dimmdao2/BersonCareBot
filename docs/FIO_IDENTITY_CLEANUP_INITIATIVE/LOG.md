@@ -1,5 +1,20 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-19 — C2F Patient Public Email-OTP Registration
+
+- Added a separate public patient email-registration start flow: required normalized `last_name` + `first_name`,
+  optional `patronymic`, and a derived compatibility `display_name`; it creates only an unverified `client`
+  `platform_users` identity and creates no organization, membership, specialist, enrollment, clinic, or booking data.
+- Ordinary `/api/auth/email-otp/start` is now lookup-only. Unknown email addresses receive the existing generic
+  success shape without a new identity or delivery; already-issued historical challenges continue through the
+  unchanged confirmation lookup/session path.
+- Pending structured registrations can resend without rewriting their identity fields; verified, non-client, and
+  legacy unstructured pending duplicates fail closed. A delivery failure rolls back only the identity created by
+  that request.
+- Added the forward function-only migration, journal entry, public-bootstrap overlay, base-login grants, and grant
+  checker coverage for the narrow SECURITY DEFINER accessors. No DB, TEST, production, deploy, env, or delivery
+  operation was performed.
+
 ## 2026-07-19 — C2F Owner-Unambiguous Structured Registration Foundation
 
 - Updated the owned compatibility `POST /api/auth/email-password/register` contract and the shared

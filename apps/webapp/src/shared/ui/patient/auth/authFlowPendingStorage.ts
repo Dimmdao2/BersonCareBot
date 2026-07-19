@@ -17,6 +17,7 @@ export type AuthFlowPendingStored =
       lastName: string | null;
       firstName: string | null;
       patronymic: string | null;
+      purpose?: "patient_email_otp";
       /** Old payloads keep confirming the existing challenge, but cannot resend via the structured API. */
       legacyDisplayName?: string;
     }
@@ -147,6 +148,7 @@ export function patchRegisterVerifyChallenge(challengeId: string, retryAfterSeco
     lastName: cur.lastName,
     firstName: cur.firstName,
     patronymic: cur.patronymic,
+    purpose: cur.purpose,
   });
 }
 

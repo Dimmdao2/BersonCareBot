@@ -56,3 +56,25 @@ describe("pgEmailOtpPublic.findOrCreatePublicEmailUser", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("pgEmailOtpPublic structured patient registration", () => {
+  beforeEach(() => runWebappPgTextMock.mockReset());
+
+  it("uses lookup-only accessor for ordinary email OTP login", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    const result = await createPgEmailOtpPublicPort().findPublicEmailUser("unknown@example.com");
+    expect(result).toBeNull();
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.email_otp_public_find_user_by_email");
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).not.toContain("find_or_create");
+  });
+
+  it("passes structured FIO and optional null patronymic only through the narrow registration accessor", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ ok: true, user_id: "patient-user", was_created: true }] });
+    const result = await createPgEmailOtpPublicPort().registerPublicEmailPatient({
+      emailNormalized: "patient@example.com", lastName: "Иванов", firstName: "Иван", patronymic: null,
+    });
+    expect(result).toEqual({ ok: true, userId: "patient-user", wasCreated: true });
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.email_otp_public_register_patient");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["patient@example.com", "Иванов", "Иван", null]);
+  });
+});

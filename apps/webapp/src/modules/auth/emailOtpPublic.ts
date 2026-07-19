@@ -9,9 +9,11 @@
  * email exists in the DB.  The only distinguishing error is rate_limited (timing-only).
  */
 
+import { randomUUID } from "node:crypto";
 import { startEmailChallenge, normalizeEmail, confirmEmailChallenge } from "./emailAuth";
 import { OTP_RESEND_COOLDOWN_SEC } from "./otpConstants";
 import type { EmailOtpPublicDbPort } from "./emailOtpPublicPort";
+import { normalizeFioPart } from "@/shared/lib/fio";
 
 export type StartPublicEmailOtpResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
@@ -20,6 +22,10 @@ export type StartPublicEmailOtpResult =
       code: "invalid_email" | "rate_limited" | "email_send_failed" | "too_many_attempts";
       retryAfterSeconds?: number;
     };
+
+export type StartPublicEmailOtpRegistrationResult =
+  | StartPublicEmailOtpResult
+  | { ok: false; code: "duplicate_email" | "invalid_fio" };
 
 export type ConfirmPublicEmailOtpResult =
   /** No redirectTo here on purpose: the route derives the redirect from the REAL user role after loading the session user. */
@@ -31,7 +37,8 @@ export type ConfirmPublicEmailOtpResult =
  * Steps:
  *  1. Normalize & validate email.
  *  2. Rate-limit by email (anti-enumeration: same shape for known/unknown).
- *  3. Find existing user OR create provisional 'client' row.
+ *  3. Find an existing user only. Unknown addresses get the same successful
+ *     response shape without an identity or delivered challenge.
  *  4. Delegate to startEmailChallenge (existing infra: code gen, hash, DB insert, send).
  */
 export async function startPublicEmailOtpChallenge(
@@ -52,11 +59,50 @@ export async function startPublicEmailOtpChallenge(
     }
   }
 
-  // Resolve or create user (needed for FK in email_challenges table).
-  const { userId } = await publicDb.findOrCreatePublicEmailUser(email);
+  const user = await publicDb.findPublicEmailUser(email);
+  if (!user) {
+    return { ok: true, challengeId: randomUUID(), retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
+  }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
-  return startEmailChallenge(userId, email);
+  return startEmailChallenge(user.userId, email);
+}
+
+/** Start a distinct structured patient email-registration flow. */
+export async function startPublicEmailOtpRegistration(
+  input: { email: string; lastName: string; firstName: string; patronymic?: string | null },
+  publicDb: EmailOtpPublicDbPort,
+): Promise<StartPublicEmailOtpRegistrationResult> {
+  const email = normalizeEmail(input.email);
+  const lastName = normalizeFioPart(input.lastName);
+  const firstName = normalizeFioPart(input.firstName);
+  const patronymic = normalizeFioPart(input.patronymic) || null;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, code: "invalid_email" };
+  }
+  if (!lastName || !firstName) return { ok: false, code: "invalid_fio" };
+
+  const lastSent = await publicDb.findEmailSendCooldownByEmail(email);
+  if (lastSent) {
+    const deltaSec = Math.floor((Date.now() - new Date(lastSent).getTime()) / 1000);
+    if (deltaSec < OTP_RESEND_COOLDOWN_SEC) {
+      return { ok: false, code: "rate_limited", retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec };
+    }
+  }
+
+  const registration = await publicDb.registerPublicEmailPatient({
+    emailNormalized: email,
+    lastName,
+    firstName,
+    patronymic,
+  });
+  if (!registration.ok) return { ok: false, code: registration.reason };
+
+  const challenge = await startEmailChallenge(registration.userId, email);
+  if (!challenge.ok && registration.wasCreated) {
+    await publicDb.deleteUnverifiedPublicEmailRegistration(registration.userId);
+  }
+  return challenge;
 }
 
 /**

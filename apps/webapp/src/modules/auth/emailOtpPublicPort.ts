@@ -4,11 +4,22 @@
  */
 
 export type EmailOtpPublicDbPort = {
-  /**
-   * Find existing user by email_normalized, or create a new 'client' row with that email (unverified).
-   * Safe to call multiple times — returns existing userId if already exists.
-   */
+  /** Invite-acceptance bootstrap only; ordinary email OTP login must use lookup. */
   findOrCreatePublicEmailUser(emailNorm: string): Promise<{ userId: string; wasCreated: boolean }>;
+
+  /** Lookup only: public login must not create an unknown identity. */
+  findPublicEmailUser(emailNorm: string): Promise<{ userId: string } | null>;
+
+  /** Create structured patient registration, preserving an existing pending identity unchanged. */
+  registerPublicEmailPatient(input: {
+    emailNormalized: string;
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
+  }): Promise<{ ok: true; userId: string; wasCreated: boolean } | { ok: false; reason: "duplicate_email" }>;
+
+  /** Roll back only a newly-created unverified registration after delivery failure. */
+  deleteUnverifiedPublicEmailRegistration(userId: string): Promise<void>;
 
   /**
    * Find most recent unexpired challenge by email (normalized).

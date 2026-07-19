@@ -46,7 +46,9 @@ DROP FUNCTION IF EXISTS app.email_auth_delete_email_challenges_for_user(uuid);
 DROP FUNCTION IF EXISTS app.email_auth_find_email_send_cooldown(uuid, text);
 DROP FUNCTION IF EXISTS app.email_otp_public_find_email_send_cooldown_by_email(text);
 DROP FUNCTION IF EXISTS app.email_otp_public_find_latest_email_challenge_by_email(text, bigint);
-DROP FUNCTION IF EXISTS app.email_otp_public_find_or_create_user(text);
+DROP FUNCTION IF EXISTS app.email_otp_public_find_user_by_email(text);
+DROP FUNCTION IF EXISTS app.email_otp_public_register_patient(text, text, text, text);
+DROP FUNCTION IF EXISTS app.email_otp_public_delete_unverified_registration(uuid);
 DROP FUNCTION IF EXISTS app.accept_org_invite(text, uuid, text);
 DROP FUNCTION IF EXISTS app.lookup_pending_org_invite(text);
 
@@ -303,6 +305,77 @@ REVOKE ALL ON FUNCTION app.accept_org_invite(text, uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.lookup_pending_org_invite(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) TO app_patient;
 
+CREATE OR REPLACE FUNCTION app.email_otp_public_find_user_by_email(p_email_norm text)
+RETURNS TABLE (user_id uuid)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  WITH RECURSIVE chain AS (
+    SELECT u.id, u.merged_into_id, 0 AS depth, ARRAY[u.id] AS path
+    FROM public.platform_users AS u
+    WHERE u.email_normalized = lower(btrim(p_email_norm))
+    UNION ALL
+    SELECT u.id, u.merged_into_id, chain.depth + 1, chain.path || u.id
+    FROM public.platform_users AS u
+    JOIN chain ON u.id = chain.merged_into_id
+    WHERE chain.depth < 5 AND NOT u.id = ANY(chain.path)
+  )
+  SELECT chain.id FROM chain
+  ORDER BY (chain.merged_into_id IS NULL) DESC, chain.depth DESC
+  LIMIT 1
+$$;
+
+CREATE OR REPLACE FUNCTION app.email_otp_public_register_patient(
+  p_email_norm text, p_last_name text, p_first_name text, p_patronymic text
+)
+RETURNS TABLE (ok boolean, code text, user_id uuid, was_created boolean)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_email_norm text := lower(btrim(p_email_norm));
+  v_last_name text := NULLIF(btrim(p_last_name), '');
+  v_first_name text := NULLIF(btrim(p_first_name), '');
+  v_patronymic text := NULLIF(btrim(p_patronymic), '');
+  v_existing public.platform_users%ROWTYPE;
+  v_user_id uuid;
+BEGIN
+  IF v_email_norm = '' THEN RETURN QUERY SELECT false, 'invalid_email'::text, NULL::uuid, false; RETURN; END IF;
+  IF v_last_name IS NULL OR v_first_name IS NULL THEN RETURN QUERY SELECT false, 'invalid_fio'::text, NULL::uuid, false; RETURN; END IF;
+  SELECT u.* INTO v_existing FROM public.platform_users AS u WHERE u.email_normalized = v_email_norm AND u.merged_into_id IS NULL LIMIT 1;
+  IF FOUND THEN
+    IF v_existing.email_verified_at IS NULL
+      AND v_existing.role = 'client'
+      AND v_existing.last_name IS NOT NULL
+      AND v_existing.first_name IS NOT NULL THEN
+      RETURN QUERY SELECT true, 'pending_registration'::text, v_existing.id, false;
+    ELSE
+      RETURN QUERY SELECT false, 'duplicate_email'::text, NULL::uuid, false;
+    END IF;
+    RETURN;
+  END IF;
+  INSERT INTO public.platform_users (display_name, last_name, first_name, patronymic, email, email_normalized, role)
+  VALUES (concat_ws(' ', v_last_name, v_first_name, v_patronymic), v_last_name, v_first_name, v_patronymic, v_email_norm, v_email_norm, 'client')
+  ON CONFLICT (email_normalized) WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL DO NOTHING
+  RETURNING id INTO v_user_id;
+  IF v_user_id IS NULL THEN RETURN QUERY SELECT false, 'duplicate_email'::text, NULL::uuid, false; RETURN; END IF;
+  RETURN QUERY SELECT true, NULL::text, v_user_id, true;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION app.email_otp_public_delete_unverified_registration(p_user_id uuid)
+RETURNS void LANGUAGE sql VOLATILE SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+  DELETE FROM public.platform_users
+  WHERE id = p_user_id AND role = 'client' AND merged_into_id IS NULL AND email_verified_at IS NULL
+$$;
+
+-- Invite acceptance still needs this compatibility bootstrap operation. Public
+-- email OTP login itself calls the lookup-only accessor above.
 CREATE OR REPLACE FUNCTION app.email_otp_public_find_or_create_user(p_email_norm text)
 RETURNS TABLE (user_id uuid, was_created boolean)
 LANGUAGE plpgsql
@@ -595,12 +668,21 @@ AS $$
   LIMIT 1
 $$;
 
+COMMENT ON FUNCTION app.email_otp_public_find_user_by_email(text) IS
+  'SECURITY DEFINER lookup for public email OTP login; it never creates platform_users.';
 COMMENT ON FUNCTION app.email_otp_public_find_or_create_user(text) IS
-  'SECURITY DEFINER accessor for public email OTP start under app_patient without platform_users INSERT grant.';
+  'SECURITY DEFINER invite-acceptance bootstrap accessor; public email OTP login uses lookup-only accessor.';
+COMMENT ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) IS
+  'SECURITY DEFINER structured public patient registration; derives display_name and never overwrites pending FIO.';
+COMMENT ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) IS
+  'SECURITY DEFINER rollback for a newly-created public email OTP patient registration after delivery failure.';
 COMMENT ON FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) IS
   'SECURITY DEFINER accessor for email OTP challenge creation under app_patient without email_challenges table grants.';
 
+ALTER FUNCTION app.email_otp_public_find_user_by_email(text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_otp_public_find_or_create_user(text) OWNER TO :organization_member_invites_owner_ident;
+ALTER FUNCTION app.email_otp_public_register_patient(text, text, text, text) OWNER TO :organization_member_invites_owner_ident;
+ALTER FUNCTION app.email_otp_public_delete_unverified_registration(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
@@ -616,7 +698,10 @@ ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 
+REVOKE ALL ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM PUBLIC;
@@ -632,7 +717,10 @@ REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uui
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
 
+GRANT EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO app_patient;

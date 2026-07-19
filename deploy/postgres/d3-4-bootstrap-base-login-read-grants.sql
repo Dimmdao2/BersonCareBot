@@ -165,7 +165,10 @@ REVOKE EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) FROM :"d3_
 REVOKE EXECUTE ON FUNCTION app.get_public_reference_baseline(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.lookup_pending_org_invite(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) FROM :"d3_4_bootstrap_base_role";
@@ -318,7 +321,10 @@ GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) TO :"d3_4_b
 GRANT EXECUTE ON FUNCTION app.get_public_reference_baseline(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.lookup_pending_org_invite(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.accept_org_invite(text, uuid, text) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) TO :"d3_4_bootstrap_base_role";
+GRANT EXECUTE ON FUNCTION app.email_otp_public_delete_unverified_registration(uuid) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, bigint) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) TO :"d3_4_bootstrap_base_role";

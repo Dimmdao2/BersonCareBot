@@ -536,6 +536,50 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.queryByLabelText("Код подтверждения")).not.toBeInTheDocument();
   });
 
+  it("keeps ordinary code login FIO-free and opens a separate structured patient registration", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
+    await screen.findByRole("button", { name: "Получить код" });
+    expect(screen.queryByLabelText("Фамилия")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
+    expect(await screen.findByLabelText("Фамилия")).toBeInTheDocument();
+    expect(screen.getByLabelText("Имя")).toBeInTheDocument();
+    expect(screen.getByLabelText("Отчество")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/display/i)).not.toBeInTheDocument();
+  });
+
+  it("validates and persists structured patient registration for refresh and resend", async () => {
+    const user = userEvent.setup();
+    const payloads: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/auth/email-otp/register")) {
+        payloads.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return jsonRes({ ok: true, challengeId: `patient-ch-${payloads.length}`, retryAfterSeconds: 0 });
+      }
+      return jsonRes({});
+    }));
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
+    await user.click(await screen.findByRole("button", { name: "Зарегистрироваться" }));
+    await user.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
+    expect(toastError).toHaveBeenCalledWith("Укажите email, фамилию и имя");
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Фамилия"), "Иванов");
+    await user.type(screen.getByLabelText("Имя"), "Иван");
+    await user.type(screen.getByLabelText("Отчество"), "Иванович");
+    await user.click(screen.getByRole("button", { name: "Зарегистрироваться" }));
+    expect(await screen.findByLabelText("Код подтверждения")).toBeInTheDocument();
+    expect(JSON.parse(sessionStorage.getItem("bc_auth_flow_pending_v1") ?? "{}")).toMatchObject({
+      purpose: "patient_email_otp", lastName: "Иванов", firstName: "Иван", patronymic: "Иванович",
+    });
+    await user.click(await screen.findByRole("button", { name: "Отправить код повторно" }));
+    expect(payloads).toEqual([
+      { email: "patient@example.com", lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" },
+      { email: "patient@example.com", lastName: "Иванов", firstName: "Иван", patronymic: "Иванович" },
+    ]);
+  });
+
   it("can switch from patient email login to specialist signup and back", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn(() => jsonRes({})));

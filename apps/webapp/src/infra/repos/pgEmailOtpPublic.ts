@@ -14,10 +14,41 @@ export function createPgEmailOtpPublicPort(): EmailOtpPublicDbPort {
         [emailNorm],
       );
       const row = result.rows[0];
-      if (!row) {
-        throw new Error("pgEmailOtpPublic: could not find or create user for email " + emailNorm);
-      }
+      if (!row) throw new Error("email_otp_public_find_or_create_user_failed");
       return { userId: row.user_id, wasCreated: row.was_created };
+    },
+
+    async findPublicEmailUser(emailNorm) {
+      const result = await runWebappPgText<{ user_id: string }>(
+        `SELECT user_id::text
+         FROM app.email_otp_public_find_user_by_email($1)`,
+        [emailNorm],
+      );
+      const row = result.rows[0];
+      return row ? { userId: row.user_id } : null;
+    },
+
+    async registerPublicEmailPatient(input) {
+      const result = await runWebappPgText<{
+        ok: boolean;
+        user_id: string | null;
+        was_created: boolean;
+      }>(
+        `SELECT ok, user_id::text AS user_id, was_created
+         FROM app.email_otp_public_register_patient($1, $2, $3, $4)`,
+        [input.emailNormalized, input.lastName, input.firstName, input.patronymic],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error("email_otp_public_register_patient_failed");
+      if (!row.ok || !row.user_id) return { ok: false, reason: "duplicate_email" };
+      return { ok: true, userId: row.user_id, wasCreated: row.was_created };
+    },
+
+    async deleteUnverifiedPublicEmailRegistration(userId) {
+      await runWebappPgText(
+        "SELECT app.email_otp_public_delete_unverified_registration($1::uuid)",
+        [userId],
+      );
     },
 
     async findLatestEmailChallengeByEmail(emailNorm, nowSec) {
@@ -63,11 +94,28 @@ export function resetEmailOtpPublicMemStateForTests(): void {
 
 export const inMemoryEmailOtpPublicPort: EmailOtpPublicDbPort = {
   async findOrCreatePublicEmailUser(emailNorm) {
-    let userId = memEmailUserByNorm.get(emailNorm);
-    if (userId) return { userId, wasCreated: false };
-    userId = crypto.randomUUID();
+    const existing = memEmailUserByNorm.get(emailNorm);
+    if (existing) return { userId: existing, wasCreated: false };
+    const userId = crypto.randomUUID();
     memEmailUserByNorm.set(emailNorm, userId);
     return { userId, wasCreated: true };
+  },
+
+  async findPublicEmailUser(emailNorm) {
+    const userId = memEmailUserByNorm.get(emailNorm);
+    return userId ? { userId } : null;
+  },
+
+  async registerPublicEmailPatient({ emailNormalized }) {
+    const existing = memEmailUserByNorm.get(emailNormalized);
+    if (existing) return { ok: true, userId: existing, wasCreated: false };
+    const userId = crypto.randomUUID();
+    memEmailUserByNorm.set(emailNormalized, userId);
+    return { ok: true, userId, wasCreated: true };
+  },
+
+  async deleteUnverifiedPublicEmailRegistration(userId) {
+    for (const [email, id] of memEmailUserByNorm) if (id === userId) memEmailUserByNorm.delete(email);
   },
 
   async findLatestEmailChallengeByEmail(_emailNorm, _nowSec) {
