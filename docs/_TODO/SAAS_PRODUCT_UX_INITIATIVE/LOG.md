@@ -2322,3 +2322,19 @@ coherent correction rounds with full re-audit, then targeted auth/provisioning/S
 scoped lint. Full CI waits for the next accumulated milestone. An unresolved product interpretation or any finding
 without an owner-review §19 line stops as an owner question rather than expanding scope. `#856` is intentionally
 serialized after `#855` because it touches the same identity writers and displays.
+
+The read-only launch trace then found a material current-code conflict that the older FIO plan did not resolve. Since
+commit `f6193b324`, the live patient surface is passwordless email OTP: its start path creates an unknown provisional
+client immediately with an email-local compatibility name, while the old email/password registration API remains
+only in stale restore/resend compatibility code and has no initial UI. Phase 6 simultaneously requires every owned
+identity-creation path to write structured FIO and the initiative's journey canon keeps patient launch passwordless.
+Changing only the legacy route would therefore produce a false PASS; asking every returning patient for FIO would
+degrade login; adding a new post-create transition would create an ambiguous identity before the gate.
+
+Task `#855` is consequently `blocked`, `owner_waiting=true`, with one product question: restore a separate structured
+patient registration and make `Войти по коду` existing-account login only (recommended), or collect FIO from every
+email entrant before OTP. The unambiguous specialist and shared protected-writer work may continue in the isolated
+branch, but the patient acceptance and task cannot be closed without that ruling. The first worker was interrupted
+before a completed pass when its draft began adding structured columns to `specialist_signup_intents`, contradicting
+the explicit Phase 6 `existing columns only` rule. Those uncommitted draft edits are being corrected in the same
+worktree; no commit, DB mutation, deploy or external send occurred.
