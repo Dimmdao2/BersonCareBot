@@ -40,10 +40,14 @@ function invite(overrides: Partial<OrganizationInviteRecord> = {}): Organization
 function makeService(params: {
   members?: OrganizationMemberDirectoryRecord[];
   pendingInvites?: OrganizationInviteRecord[];
+  inviteSeatReservations?: number;
   seatLimit?: number | null;
+  clinicTeamEnabled?: boolean;
 }) {
   const members = params.members ?? [];
   const pendingInvites = params.pendingInvites ?? [];
+  const inviteSeatReservations =
+    params.inviteSeatReservations ?? pendingInvites.filter((item) => item.invitedRole === "doctor").length;
   const membershipPort: OrganizationMembershipPort = {
     listByPlatformUser: async () => [],
     listActiveByPlatformUser: async () => [],
@@ -57,60 +61,96 @@ function makeService(params: {
       throw new Error("not used in this test");
     },
     listPendingByOrganization: async () => pendingInvites,
+    countSeatReservationsByOrganization: async () => inviteSeatReservations,
     getByTokenHash: async () => null,
     expireInvite: async () => {},
     revokePendingByOrganization: async () => true,
     acceptPendingByTokenHash: async () => ({ ok: false, code: "invalid_token" }),
   };
   const orgEntitlementsPort: OrgEntitlementsPort = {
-    getTariffForOrg: async () => ({ mechanics: {}, includedSeats: params.seatLimit ?? null }),
+    getTariffForOrg: async () => ({
+      mechanics: { clinic_team: params.clinicTeamEnabled ?? true },
+      includedSeats: params.seatLimit ?? null,
+    }),
     listOverrides: async () => [],
   };
   return createClinicSeatsService({ membershipPort, invitesPort, orgEntitlementsPort });
 }
 
 describe("getSeatStatus", () => {
-  it("counts an active owner/doctor as a seat and leaves admin uncounted", async () => {
+  it("counts an active specialist-bound member as a seat, regardless of role", async () => {
     const service = makeService({
       members: [
-        member({ id: "m1", role: "owner" }),
-        member({ id: "m2", role: "doctor" }),
-        member({ id: "m3", role: "admin" }),
+        member({ id: "m1", role: "owner", specialistId: null }),
+        member({ id: "m2", role: "doctor", specialistId: "spec-2" }),
+        member({ id: "m3", role: "admin", specialistId: "spec-3" }),
       ],
       seatLimit: 3,
     });
     const status = await service.getSeatStatus("org-a");
+    // m1 (owner, no binding) does not consume; m2 (doctor, bound) and m3 (admin, bound) do.
     expect(status).toEqual({ limit: 3, used: 2, available: 1 });
+  });
+
+  it("does not count an active owner without a specialist binding", async () => {
+    const service = makeService({
+      members: [member({ id: "m1", role: "owner", specialistId: null })],
+      seatLimit: 3,
+    });
+    const status = await service.getSeatStatus("org-a");
+    expect(status).toEqual({ limit: 3, used: 0, available: 3 });
   });
 
   it("counts a pending doctor invite as a reservation but not a pending admin invite", async () => {
     const service = makeService({
-      members: [member({ id: "m1", role: "owner" })],
+      members: [member({ id: "m1", role: "owner", specialistId: null })],
       pendingInvites: [invite({ invitedRole: "doctor" }), invite({ id: "invite-2", invitedRole: "admin" })],
       seatLimit: 2,
     });
     const status = await service.getSeatStatus("org-a");
-    expect(status).toEqual({ limit: 2, used: 2, available: 0 });
+    expect(status).toEqual({ limit: 2, used: 1, available: 1 });
   });
 
-  it("does not double-count a disabled/historical membership row", async () => {
+  it("keeps an accepted doctor invite reserved until its membership receives a specialist binding", async () => {
     const service = makeService({
-      members: [member({ id: "m1", role: "owner" }), member({ id: "m2", role: "doctor", status: "disabled" })],
+      members: [member({ id: "accepted-membership", role: "doctor", specialistId: null })],
+      inviteSeatReservations: 1,
+      seatLimit: 2,
+    });
+    await expect(service.getSeatStatus("org-a")).resolves.toEqual({ limit: 2, used: 1, available: 1 });
+  });
+
+  it("does not double-count a disabled/historical membership row even with a specialist binding", async () => {
+    const service = makeService({
+      members: [
+        member({ id: "m1", role: "owner", specialistId: "spec-1" }),
+        member({ id: "m2", role: "doctor", status: "disabled", specialistId: "spec-2" }),
+      ],
       seatLimit: 5,
     });
     const status = await service.getSeatStatus("org-a");
     expect(status).toEqual({ limit: 5, used: 1, available: 4 });
   });
 
-  it("reports unlimited availability when there is no seat limit", async () => {
-    const service = makeService({ members: [member()], seatLimit: null });
+  it("reports a 0 limit and 0 availability when clinic_team is not enabled", async () => {
+    const service = makeService({ members: [member({ specialistId: "spec-1" })], clinicTeamEnabled: false });
     const status = await service.getSeatStatus("org-a");
-    expect(status).toEqual({ limit: null, used: 1, available: null });
+    expect(status).toEqual({ limit: 0, used: 1, available: 0 });
+  });
+
+  it("falls back to the fail-closed baseline when clinic_team is enabled without an explicit seat count", async () => {
+    const service = makeService({ members: [member({ specialistId: "spec-1" })], seatLimit: null });
+    const status = await service.getSeatStatus("org-a");
+    expect(status).toEqual({ limit: 1, used: 1, available: 0 });
   });
 
   it("never reports negative availability when usage already exceeds a downgraded limit", async () => {
     const service = makeService({
-      members: [member({ id: "m1", role: "owner" }), member({ id: "m2", role: "doctor" }), member({ id: "m3", role: "doctor" })],
+      members: [
+        member({ id: "m1", role: "owner", specialistId: "spec-1" }),
+        member({ id: "m2", role: "doctor", specialistId: "spec-2" }),
+        member({ id: "m3", role: "doctor", specialistId: "spec-3" }),
+      ],
       seatLimit: 1,
     });
     const status = await service.getSeatStatus("org-a");
@@ -121,19 +161,28 @@ describe("getSeatStatus", () => {
 describe("assertSeatAvailableForInvite", () => {
   it("always allows an admin invite regardless of seat usage", async () => {
     const service = makeService({
-      members: [member({ id: "m1", role: "owner" }), member({ id: "m2", role: "doctor" })],
+      members: [
+        member({ id: "m1", role: "owner", specialistId: "spec-1" }),
+        member({ id: "m2", role: "doctor", specialistId: "spec-2" }),
+      ],
       seatLimit: 1,
     });
     await expect(service.assertSeatAvailableForInvite("org-a", "admin")).resolves.toEqual({ ok: true });
   });
 
   it("allows a doctor invite below the limit", async () => {
-    const service = makeService({ members: [member({ id: "m1", role: "owner" })], seatLimit: 2 });
+    const service = makeService({
+      members: [member({ id: "m1", role: "owner", specialistId: "spec-1" })],
+      seatLimit: 2,
+    });
     await expect(service.assertSeatAvailableForInvite("org-a", "doctor")).resolves.toEqual({ ok: true });
   });
 
   it("blocks a doctor invite at the limit", async () => {
-    const service = makeService({ members: [member({ id: "m1", role: "owner" })], seatLimit: 1 });
+    const service = makeService({
+      members: [member({ id: "m1", role: "owner", specialistId: "spec-1" })],
+      seatLimit: 1,
+    });
     await expect(service.assertSeatAvailableForInvite("org-a", "doctor")).resolves.toEqual({
       ok: false,
       code: "seat_limit_reached",
@@ -142,7 +191,11 @@ describe("assertSeatAvailableForInvite", () => {
 
   it("blocks a doctor invite over the limit after a downgrade", async () => {
     const service = makeService({
-      members: [member({ id: "m1", role: "owner" }), member({ id: "m2", role: "doctor" }), member({ id: "m3", role: "doctor" })],
+      members: [
+        member({ id: "m1", role: "owner", specialistId: "spec-1" }),
+        member({ id: "m2", role: "doctor", specialistId: "spec-2" }),
+        member({ id: "m3", role: "doctor", specialistId: "spec-3" }),
+      ],
       seatLimit: 1,
     });
     await expect(service.assertSeatAvailableForInvite("org-a", "doctor")).resolves.toEqual({
@@ -151,11 +204,11 @@ describe("assertSeatAvailableForInvite", () => {
     });
   });
 
-  it("allows a doctor invite when the tariff has no seat limit", async () => {
-    const service = makeService({
-      members: Array.from({ length: 50 }, (_, i) => member({ id: `m${i}`, role: "doctor" })),
-      seatLimit: null,
+  it("blocks a doctor invite entirely when clinic_team is not enabled", async () => {
+    const service = makeService({ members: [], clinicTeamEnabled: false });
+    await expect(service.assertSeatAvailableForInvite("org-a", "doctor")).resolves.toEqual({
+      ok: false,
+      code: "seat_limit_reached",
     });
-    await expect(service.assertSeatAvailableForInvite("org-a", "doctor")).resolves.toEqual({ ok: true });
   });
 });

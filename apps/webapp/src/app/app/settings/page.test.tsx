@@ -88,7 +88,7 @@ describe("settings hub role and direct-tab guards", () => {
     requireEntitlementForActionMock.mockResolvedValue({ ok: false, mechanic: "clinic_team" });
     listOrganizationMembersMock.mockResolvedValue([]);
     listPendingInvitesMock.mockResolvedValue([]);
-    getSeatStatusMock.mockResolvedValue({ limit: null, used: 0, available: null });
+    getSeatStatusMock.mockResolvedValue({ limit: 0, used: 0, available: 0 });
   });
 
   it("renders the retained appointment-reminder contract exactly once in the organization tab", async () => {

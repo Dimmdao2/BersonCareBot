@@ -20,7 +20,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 const ORG_ID = "ed63b540-3fb6-499d-897c-f52227ea5dd8";
-const defaultSeats = { limit: null, used: 1, available: null };
+const defaultSeats = { limit: 3, used: 1, available: 2 };
 
 describe("GET /api/clinic/members", () => {
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe("GET /api/clinic/members", () => {
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
-  it("lists only members from the guard organization", async () => {
+  it("lists only members from the guard organization and derives seatConsuming from the specialist binding, not role", async () => {
     const listOrganizationMembers = vi.fn().mockResolvedValue([
       {
         id: "membership-1",
@@ -52,7 +52,7 @@ describe("GET /api/clinic/members", () => {
         platformUserId: "user-1",
         role: "owner",
         status: "active",
-        specialistId: "specialist-1",
+        specialistId: null,
         displayName: "Owner",
         createdAt: "2026-07-07T00:00:00.000Z",
         updatedAt: "2026-07-07T00:00:00.000Z",
@@ -63,8 +63,19 @@ describe("GET /api/clinic/members", () => {
         platformUserId: "user-2",
         role: "doctor",
         status: "active",
-        specialistId: null,
+        specialistId: "specialist-2",
         displayName: null,
+        createdAt: "2026-07-07T00:00:00.000Z",
+        updatedAt: "2026-07-07T00:00:00.000Z",
+      },
+      {
+        id: "membership-3",
+        organizationId: ORG_ID,
+        platformUserId: "user-3",
+        role: "admin",
+        status: "active",
+        specialistId: "specialist-3",
+        displayName: "Admin who also treats patients",
         createdAt: "2026-07-07T00:00:00.000Z",
         updatedAt: "2026-07-07T00:00:00.000Z",
       },
@@ -84,21 +95,33 @@ describe("GET /api/clinic/members", () => {
       ok: true,
       members: [
         {
+          // Owner without a specialist binding: manages the org but does not consume a seat.
           id: "membership-1",
           displayName: "Owner",
           role: "owner",
           status: "active",
           canManageOrganization: true,
-          specialistLinked: true,
-          seatConsuming: true,
+          specialistLinked: false,
+          seatConsuming: false,
         },
         {
+          // Doctor with a specialist binding: consumes a seat.
           id: "membership-2",
           displayName: null,
           role: "doctor",
           status: "active",
           canManageOrganization: false,
-          specialistLinked: false,
+          specialistLinked: true,
+          seatConsuming: true,
+        },
+        {
+          // Non-clinical role can still consume a seat once bound to a specialist profile.
+          id: "membership-3",
+          displayName: "Admin who also treats patients",
+          role: "admin",
+          status: "active",
+          canManageOrganization: true,
+          specialistLinked: true,
           seatConsuming: true,
         },
       ],

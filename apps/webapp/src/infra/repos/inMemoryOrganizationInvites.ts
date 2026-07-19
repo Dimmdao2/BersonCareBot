@@ -65,6 +65,17 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
       );
     },
 
+    async countSeatReservationsByOrganization(organizationId) {
+      const now = Date.now();
+      return invites.filter(
+        (invite) =>
+          invite.organizationId === organizationId &&
+          invite.invitedRole === "doctor" &&
+          ((invite.status === "pending" && new Date(invite.expiresAt).getTime() > now) ||
+            invite.status === "accepted"),
+      ).length;
+    },
+
     async getByTokenHash(tokenHash) {
       return invites.find((invite) => invite.tokenHash === tokenHash) ?? null;
     },

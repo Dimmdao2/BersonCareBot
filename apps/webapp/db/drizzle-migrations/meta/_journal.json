@@ -1492,6 +1492,13 @@
       "when": 1793539200007,
       "tag": "0212_clinic_team_seat_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1793539200008,
+      "tag": "0213_clinic_team_seat_nonnegative",
+      "breakpoints": true
     }
   ]
 }

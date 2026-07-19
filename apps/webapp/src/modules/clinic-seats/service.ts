@@ -1,20 +1,25 @@
 import { resolveClinicSeatLimit } from "@/modules/org-entitlements/service";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
-import type { OrganizationMembershipPort } from "@/modules/organization-membership/ports";
+import type { OrganizationMemberDirectoryRecord, OrganizationMembershipPort } from "@/modules/organization-membership/ports";
 import type { OrganizationInviteRole, OrganizationInvitesPort } from "@/modules/organization-invites/ports";
 
 /**
  * C4A — clinic boundary. Owner-approved seat policy (OWNER_REVIEW_2026-07-18.md addendum, C4C5-05):
- * an active `owner`/`doctor` membership consumes a seat; a non-clinical `admin` does not; a pending
- * `doctor` invite reserves a seat; a pending `admin` invite does not (it never consumes one on
- * accept either). `limit` is the effective included/override seat count; `null` means unlimited.
+ * a seat is consumed by an ACTIVE membership with an active specialist binding
+ * (`status === "active" && specialistId != null`), independent of role — an owner or admin without
+ * a specialist binding does not consume a seat, a bound admin does. A pending `doctor` invite
+ * reserves a seat (the specialist binding doesn't exist yet at invite time); a pending `admin`
+ * invite does not. `limit` is always a finite, nonnegative effective seat count (never unlimited);
+ * see `resolveClinicSeatLimit`.
  */
-const SEAT_CONSUMING_MEMBERSHIP_ROLES = new Set(["owner", "doctor"]);
+export function isSeatConsumingMember(member: Pick<OrganizationMemberDirectoryRecord, "status" | "specialistId">): boolean {
+  return member.status === "active" && member.specialistId !== null;
+}
 
 export type ClinicSeatStatus = {
-  limit: number | null;
+  limit: number;
   used: number;
-  available: number | null;
+  available: number;
 };
 
 export function createClinicSeatsService(deps: {
@@ -23,29 +28,31 @@ export function createClinicSeatsService(deps: {
   orgEntitlementsPort: OrgEntitlementsPort;
 }) {
   async function getSeatStatus(organizationId: string): Promise<ClinicSeatStatus> {
-    const [members, pendingInvites, limit] = await Promise.all([
+    const [members, inviteSeatReservations, limit] = await Promise.all([
       deps.membershipPort.listByOrganization(organizationId),
-      deps.invitesPort.listPendingByOrganization(organizationId),
+      deps.invitesPort.countSeatReservationsByOrganization(organizationId),
       resolveClinicSeatLimit(deps.orgEntitlementsPort, organizationId),
     ]);
-    const activeSeatConsumers = members.filter(
-      (member) => member.status === "active" && SEAT_CONSUMING_MEMBERSHIP_ROLES.has(member.role),
-    ).length;
-    const pendingSeatReservations = pendingInvites.filter((invite) => invite.invitedRole === "doctor").length;
-    const used = activeSeatConsumers + pendingSeatReservations;
-    return { limit, used, available: limit === null ? null : Math.max(limit - used, 0) };
+    const activeSeatConsumers = members.filter(isSeatConsumingMember).length;
+    const used = activeSeatConsumers + inviteSeatReservations;
+    return { limit, used, available: Math.max(limit - used, 0) };
   }
 
   return {
     getSeatStatus,
-    /** An `admin` invite never consumes a seat and is always allowed by seat policy. */
+    /**
+     * An `admin` invite never consumes a seat and is always allowed by seat policy. This is a
+     * best-effort, non-atomic pre-check for fast UX feedback — the authoritative, race-safe
+     * enforcement runs inside the same DB transaction as the invite insert
+     * (`pgOrganizationInvites.createReplacingPending`).
+     */
     async assertSeatAvailableForInvite(
       organizationId: string,
       role: OrganizationInviteRole,
     ): Promise<{ ok: true } | { ok: false; code: "seat_limit_reached" }> {
       if (role !== "doctor") return { ok: true };
       const status = await getSeatStatus(organizationId);
-      if (status.limit !== null && status.used >= status.limit) {
+      if (status.used >= status.limit) {
         return { ok: false, code: "seat_limit_reached" };
       }
       return { ok: true };

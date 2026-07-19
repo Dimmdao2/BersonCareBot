@@ -18,6 +18,7 @@ import { buildDoctorNotificationTopicModels } from "@/modules/doctor-notificatio
 import { parseSpecialistTaskReminderChannels } from "@/modules/specialist-tasks/reminderChannels";
 import { getDoctorAccountTimezone } from "@/app-layer/doctor/accountTimezone";
 import { ADMIN_TAB_REDIRECTS, parseHealthArchiveProbeParam } from "./adminSettingsData";
+import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)
@@ -105,7 +106,7 @@ export default async function SettingsPage({
           displayName: member.displayName,
           role: member.role,
           status: member.status,
-          seatConsuming: member.role === "owner" || member.role === "doctor",
+          seatConsuming: isSeatConsumingMember(member),
         }))}
         invites={invites.map((invite) => ({
           id: invite.id,

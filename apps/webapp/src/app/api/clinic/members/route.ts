@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
+import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext();
@@ -24,7 +25,7 @@ export async function GET() {
       status: member.status,
       canManageOrganization: member.role === "owner" || member.role === "admin",
       specialistLinked: member.specialistId !== null,
-      seatConsuming: member.role === "owner" || member.role === "doctor",
+      seatConsuming: isSeatConsumingMember(member),
     })),
     seats,
   });

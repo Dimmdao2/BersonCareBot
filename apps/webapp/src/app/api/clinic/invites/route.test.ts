@@ -58,7 +58,7 @@ describe("clinic invites route", () => {
 
   const defaultClinicSeats = {
     assertSeatAvailableForInvite: vi.fn().mockResolvedValue({ ok: true }),
-    getSeatStatus: vi.fn().mockResolvedValue({ limit: null, used: 0, available: null }),
+    getSeatStatus: vi.fn().mockResolvedValue({ limit: 0, used: 0, available: 0 }),
   };
 
   it("returns the clinic-management guard response before resolving deps", async () => {
@@ -133,5 +133,21 @@ describe("clinic invites route", () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "already_member" });
+  });
+
+  it("maps the atomic seat_limit_reached denial from the service (not just the pre-check) to 409", async () => {
+    // The best-effort assertSeatAvailableForInvite pre-check can pass under a race and the
+    // authoritative, transaction-atomic check inside createInvite can still deny — the route must
+    // surface that denial the same way as the pre-check's.
+    const createInvite = vi.fn().mockResolvedValue({ ok: false, code: "seat_limit_reached" });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
+    });
+
+    const res = await POST(makeRequest({ email: "doctor-race@example.com", role: "doctor" }));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "seat_limit_reached" });
   });
 });

@@ -30,7 +30,7 @@ export type CreateOrganizationInviteInput = {
 
 export type CreateOrganizationInviteResult =
   | { ok: true; invite: OrganizationInviteRecord }
-  | { ok: false; code: "already_member" };
+  | { ok: false; code: "already_member" | "seat_limit_reached" };
 
 export type AcceptOrganizationInviteResult =
   | {
@@ -41,11 +41,13 @@ export type AcceptOrganizationInviteResult =
       specialistId: string | null;
       role: OrganizationInviteRole;
     }
-  | { ok: false; code: "invalid_token" | "expired_token" | "reused_token" | "email_mismatch" };
+  | { ok: false; code: "invalid_token" | "expired_token" | "reused_token" | "email_mismatch" | "seat_limit_reached" };
 
 export type OrganizationInvitesPort = {
   createReplacingPending(input: CreateOrganizationInviteInput): Promise<CreateOrganizationInviteResult>;
   listPendingByOrganization(organizationId: string): Promise<OrganizationInviteRecord[]>;
+  /** Pending doctor invites plus accepted doctor invites awaiting their specialist binding. */
+  countSeatReservationsByOrganization(organizationId: string): Promise<number>;
   getByTokenHash(tokenHash: string): Promise<OrganizationInviteRecord | null>;
   expireInvite(inviteId: string): Promise<void>;
   revokePendingByOrganization(input: { organizationId: string; inviteId: string }): Promise<boolean>;

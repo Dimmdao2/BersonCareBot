@@ -19,6 +19,10 @@ function errorStatus(code: string): number {
   return 400;
 }
 
+function acceptErrorStatus(code: string): number {
+  return code === "seat_limit_reached" ? 409 : 400;
+}
+
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/clinic/invites/accept/confirm:POST");
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
     expectedEmail: lookup.invite.invitedEmail,
   });
   if (!accepted.ok) {
-    return NextResponse.json({ ok: false, error: accepted.code }, { status: 400 });
+    return NextResponse.json({ ok: false, error: accepted.code }, { status: acceptErrorStatus(accepted.code) });
   }
 
   const user = await deps.userByPhone.findByUserId(accepted.platformUserId);

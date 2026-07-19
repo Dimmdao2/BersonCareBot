@@ -11,6 +11,7 @@ import {
   ORGANIZATION_INVITE_ROLES,
   ORGANIZATION_INVITE_STATUSES,
 } from "@/modules/organization-invites/ports";
+import { CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE } from "@/modules/org-entitlements/types";
 
 type InviteRow = {
   id: string;
@@ -57,6 +58,7 @@ function mapAcceptFailureCode(value: string | null): Exclude<AcceptOrganizationI
     case "expired_token":
     case "reused_token":
     case "email_mismatch":
+    case "seat_limit_reached":
       return value;
     default:
       throw new Error(`Unexpected app.accept_org_invite failure code: ${value ?? "<null>"}`);
@@ -102,12 +104,14 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
   return {
     async createReplacingPending(input): Promise<CreateOrganizationInviteResult> {
       return runWebappTransaction(async (tx) => {
-        // The partial pending-invite unique index is the invariant. Serialize the
-        // replacement lifecycle for its exact natural key so concurrent resend
-        // requests deterministically revoke the predecessor then insert one row.
+        // C4A correction: lock the whole organization (not organizationId+email) so that
+        // concurrent invite-create calls for *different* emails in the same organization also
+        // serialize, not just resends of the same email. This is the atomicity boundary the seat
+        // capacity check below relies on — without it, two different-email requests could both
+        // observe the last free seat and both insert.
         await runWebappPgText(
-          `SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2, 0))`,
-          [input.organizationId, input.invitedEmail],
+          `SELECT pg_advisory_xact_lock(hashtextextended('clinic_invite_seats:' || $1::text, 0))`,
+          [input.organizationId],
           tx,
         );
         const activeMember = await runWebappPgText<{ id: string }>(
@@ -125,6 +129,67 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         );
         if (activeMember.rows[0]) {
           return { ok: false, code: "already_member" };
+        }
+
+        if (input.invitedRole === "doctor") {
+          // Atomic, race-safe seat capacity check — the authoritative enforcement (the JS-level
+          // clinicSeats.assertSeatAvailableForInvite pre-check is best-effort UX only). Mirrors
+          // resolveClinicSeatLimit's override > tariff > fail-closed-baseline precedence and
+          // isMechanicEnabled's clinic_team default-off precedence (org-entitlements/service.ts) —
+          // duplicated in SQL because it must run inside this same lock+transaction to be atomic.
+          // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
+          // same-email replacement at the limit does not add a reservation, so it must not be
+          // counted against itself.
+          const capacity = await runWebappPgText<{ limit_value: number; used_value: number }>(
+            `WITH clinic_team_enabled AS (
+               SELECT COALESCE(
+                 (SELECT eo.enabled FROM saas_org_entitlement_overrides eo
+                  WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
+                 (SELECT (t.mechanics ->> 'clinic_team')::boolean
+                  FROM be_organizations o
+                  JOIN saas_tariffs t ON t.id = o.tariff_id
+                  WHERE o.id = $1),
+                 false
+               ) AS enabled
+             ),
+             seat_limit AS (
+               SELECT CASE
+                 WHEN NOT (SELECT enabled FROM clinic_team_enabled) THEN 0
+                 ELSE COALESCE(
+                   (SELECT eo.seat_limit_override FROM saas_org_entitlement_overrides eo
+                    WHERE eo.organization_id = $1 AND eo.mechanic = 'clinic_team'),
+                   (SELECT t.included_seats
+                    FROM be_organizations o
+                    JOIN saas_tariffs t ON t.id = o.tariff_id
+                    WHERE o.id = $1),
+                   $3::int
+                 )
+               END AS value
+             )
+             SELECT
+               (SELECT value FROM seat_limit)::int AS limit_value,
+               (
+                 (SELECT COUNT(*) FROM be_organization_members m
+                  WHERE m.organization_id = $1 AND m.status = 'active' AND m.specialist_id IS NOT NULL)
+                 +
+                 (SELECT COUNT(*) FROM organization_member_invites i
+                  WHERE i.organization_id = $1 AND i.status = 'pending' AND i.expires_at > now()
+                    AND i.invited_role = 'doctor' AND i.invited_email <> $2)
+                 +
+                 (SELECT COUNT(*) FROM organization_member_invites i
+                  JOIN be_organization_members m ON m.id = i.accepted_membership_id
+                  WHERE i.organization_id = $1 AND i.status = 'accepted' AND i.invited_role = 'doctor'
+                    AND m.status = 'active' AND m.specialist_id IS NULL)
+               )::int AS used_value`,
+            [input.organizationId, input.invitedEmail, CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE],
+            tx,
+          );
+          const row = capacity.rows[0];
+          const limitValue = row?.limit_value ?? 0;
+          const usedValue = row?.used_value ?? 0;
+          if (usedValue >= limitValue) {
+            return { ok: false, code: "seat_limit_reached" };
+          }
         }
 
         await runWebappPgText(
@@ -219,6 +284,23 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
         );
         return rows.rows.map(mapInvite);
       });
+    },
+
+    async countSeatReservationsByOrganization(organizationId) {
+      const rows = await runWebappPgText<{ reservation_count: number }>(
+        `SELECT COUNT(*)::int AS reservation_count
+         FROM organization_member_invites i
+         LEFT JOIN be_organization_members m ON m.id = i.accepted_membership_id
+         WHERE i.organization_id = $1
+           AND i.invited_role = 'doctor'
+           AND (
+             (i.status = 'pending' AND i.expires_at > now())
+             OR
+             (i.status = 'accepted' AND m.status = 'active' AND m.specialist_id IS NULL)
+           )`,
+        [organizationId],
+      );
+      return rows.rows[0]?.reservation_count ?? 0;
     },
 
     async getByTokenHash(tokenHash) {

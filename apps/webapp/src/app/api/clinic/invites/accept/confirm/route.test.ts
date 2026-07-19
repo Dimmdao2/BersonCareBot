@@ -140,6 +140,31 @@ describe("clinic invite accept confirm route", () => {
     });
   });
 
+  it("denies with 409 seat_limit_reached without establishing a session when capacity/entitlement is denied atomically", async () => {
+    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: "seat_limit_reached" });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: {
+        lookupPendingByToken: vi.fn().mockResolvedValue({
+          ok: true,
+          invite: {
+            invitedEmail: "doctor-r1@example.com",
+            invitedRole: "doctor",
+            organizationTitle: "Clinic",
+          },
+        }),
+        acceptInvite,
+      },
+      emailOtpPublicDb: {},
+      userByPhone: { findByUserId: vi.fn() },
+    });
+
+    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "seat_limit_reached" });
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+  });
+
   it("rejects email mismatch before OTP verification", async () => {
     const res = await POST(
       makeRequest({

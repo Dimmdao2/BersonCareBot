@@ -31,6 +31,25 @@ export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 /** Compatibility iterator for resolver and data contracts; keys come only from the registry above. */
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
+/**
+ * C4A — scoped fail-closed exception to the compatibility default-true resolver (see
+ * `resolveOrgEntitlements` in `service.ts`). Every mechanic except `clinic_team` keeps the
+ * pre-existing "no tariff/override => enabled" compatibility behavior. `clinic_team` is a new
+ * capability with no legacy fleet depending on it being on, so a missing tariff/override must
+ * mean OFF, per OWNER_REVIEW_2026-07-18.md §§P1, 15 / C4C5-05.
+ */
+export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
+  MECHANICS.map((mechanic) => [mechanic, mechanic !== "clinic_team"]),
+) as Record<OrgMechanic, boolean>;
+
+/**
+ * C4A — fail-closed effective seat count used only when `clinic_team` is enabled (by tariff or
+ * override) but no explicit seat count was configured (no `includedSeats`, no
+ * `seatLimitOverride`). Owner decision (C4C5-05): "solo includes one seat" — this is the same
+ * finite baseline, not a real tariff row. Never treated as unlimited; see `resolveClinicSeatLimit`.
+ */
+export const CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE = 1;
+
 export type Tariff = {
   id: string;
   name: string;
@@ -38,7 +57,11 @@ export type Tariff = {
   priceMinor: number | null;
   currency: string | null;
   mechanics: Record<string, boolean>;
-  /** Included specialist seats for `clinic_team`. `null` = unlimited. */
+  /**
+   * Included specialist seats for `clinic_team`, as configured on this tariff. `null` means this
+   * tariff does not explicitly configure a count (falls back to `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE`
+   * via `resolveClinicSeatLimit`) — it is never treated as unlimited.
+   */
   includedSeats: number | null;
   isActive: boolean;
   createdAt: string;
@@ -50,7 +73,11 @@ export type OrgEntitlementOverride = {
   organizationId: string;
   mechanic: string;
   enabled: boolean;
-  /** Per-org override of the `clinic_team` included-seats count; unused for other mechanics. */
+  /**
+   * Per-org override of the `clinic_team` included-seats count; unused for other mechanics. `null`
+   * means no explicit override (falls back to the tariff, then the fail-closed baseline) — never
+   * unlimited.
+   */
   seatLimitOverride: number | null;
   createdAt: string;
   updatedAt: string;

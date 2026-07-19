@@ -40,9 +40,9 @@ export type TeamInviteRow = {
 };
 
 export type TeamSeatStatus = {
-  limit: number | null;
+  limit: number;
   used: number;
-  available: number | null;
+  available: number;
 };
 
 type Props = {
@@ -52,9 +52,7 @@ type Props = {
 };
 
 function formatSeatStatus(seats: TeamSeatStatus): string {
-  return seats.limit === null
-    ? `Занято мест: ${seats.used} (без ограничения по тарифу)`
-    : `Занято мест: ${seats.used} из ${seats.limit}`;
+  return `Занято мест: ${seats.used} из ${seats.limit}`;
 }
 
 export function TeamSection({ members, invites, seats }: Props) {
@@ -65,7 +63,7 @@ export function TeamSection({ members, invites, seats }: Props) {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const seatsExhaustedForDoctor = seats.limit !== null && seats.available === 0;
+  const seatsExhaustedForDoctor = seats.available === 0;
 
   async function submitInvite() {
     setInviteError(null);

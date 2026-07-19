@@ -18,9 +18,26 @@ function portFor(
 }
 
 describe("resolveOrgEntitlements", () => {
-  it("defaults every mechanic to enabled when there is no tariff and no overrides", async () => {
+  it("defaults every legacy mechanic to enabled but clinic_team to disabled when there is no tariff and no overrides", async () => {
     const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
-    for (const mechanic of MECHANICS) expect(result[mechanic]).toBe(true);
+    for (const mechanic of MECHANICS) {
+      if (mechanic === "clinic_team") continue;
+      expect(result[mechanic]).toBe(true);
+    }
+    expect(result.clinic_team).toBe(false);
+  });
+
+  it("enables clinic_team once a tariff explicitly turns it on", async () => {
+    const result = await resolveOrgEntitlements(portFor({ mechanics: { clinic_team: true } }, []), "org-a");
+    expect(result.clinic_team).toBe(true);
+  });
+
+  it("lets an org override enable clinic_team with no tariff", async () => {
+    const result = await resolveOrgEntitlements(
+      portFor(null, [{ mechanic: "clinic_team", enabled: true }]),
+      "org-a",
+    );
+    expect(result.clinic_team).toBe(true);
   });
 
   it("uses assigned tariff values", async () => {
@@ -64,8 +81,18 @@ describe("isMechanicEnabled", () => {
 });
 
 describe("resolveClinicSeatLimit", () => {
-  it("returns null (unlimited) when there is no tariff and no override", async () => {
-    await expect(resolveClinicSeatLimit(portFor(null, []), "org-a")).resolves.toBeNull();
+  it("returns 0 when there is no tariff and no override (clinic_team defaults off)", async () => {
+    await expect(resolveClinicSeatLimit(portFor(null, []), "org-a")).resolves.toBe(0);
+  });
+
+  it("returns the fail-closed baseline when clinic_team is enabled but no seat count is configured", async () => {
+    const port = portFor({ mechanics: { clinic_team: true } }, []);
+    await expect(resolveClinicSeatLimit(port, "org-a")).resolves.toBe(1);
+  });
+
+  it("returns 0 when a tariff sets includedSeats but does not enable clinic_team", async () => {
+    const port = portFor({ mechanics: { clinic_team: false }, includedSeats: 5 }, []);
+    await expect(resolveClinicSeatLimit(port, "org-a")).resolves.toBe(0);
   });
 
   it("uses the tariff's includedSeats when there is no override", async () => {
@@ -89,6 +116,14 @@ describe("resolveClinicSeatLimit", () => {
     await expect(resolveClinicSeatLimit(port, "org-a")).resolves.toBe(3);
   });
 
+  it("lets an org override disable clinic_team even when the tariff enables it, returning 0", async () => {
+    const port = portFor(
+      { mechanics: { clinic_team: true }, includedSeats: 3 },
+      [{ mechanic: "clinic_team", enabled: false }],
+    );
+    await expect(resolveClinicSeatLimit(port, "org-a")).resolves.toBe(0);
+  });
+
   it("does not leak an override from organization A into organization B", async () => {
     const ports = new Map<string, OrgEntitlementsPort>([
       ["org-a", portFor(null, [{ mechanic: "clinic_team", enabled: true, seatLimitOverride: 5 }])],
@@ -99,6 +134,6 @@ describe("resolveClinicSeatLimit", () => {
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
     };
     await expect(resolveClinicSeatLimit(scopedPort, "org-a")).resolves.toBe(5);
-    await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBeNull();
+    await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBe(0);
   });
 });

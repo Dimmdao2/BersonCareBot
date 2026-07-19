@@ -2729,3 +2729,59 @@ are on a writable bind mount. `git add`/`git commit` fail with `Unable to create
 system` — the same class of blocker the `#888` worker recorded in its evidence log. All files listed above are
 written and verified on disk; no commit exists yet. The lead/owner needs to run the commit from a writable context
 (e.g. the live/main worktree, pulling this branch's working tree) before this stage can be pushed or merged.
+
+### C4A audit correction (`#843`)
+
+The critical re-audit found five issues in the initial submission (commit `0c437a970`), all closed in this
+correction:
+
+- **Seat consumption was keyed on role, not clinical capacity.** `owner`/`doctor` role was used as the seat-consuming
+  signal; an `owner`/`admin` with no specialist binding does not treat patients and must not consume a seat, while an
+  `admin` bound to a specialist profile does. `isSeatConsumingMember()` (`modules/clinic-seats/service.ts`) now keys
+  strictly on `status === "active" && specialistId != null`, independent of role; `api/clinic/members/route.ts` and
+  `settings/page.tsx` both call it instead of re-deriving the old role check.
+- **`clinic_team` silently defaulted to enabled/unlimited.** The compatibility resolver's `override ?? tariff ?? true`
+  gave every org with no tariff/override an enabled mechanic and a `null` (unlimited) seat limit. `clinic_team` is a
+  new capability with no legacy fleet depending on default-on, so `MECHANIC_DEFAULT_ENABLED` (`org-entitlements/types.ts`)
+  makes it the one fail-closed (default-OFF) exception, and `resolveClinicSeatLimit` returns `0` whenever the
+  mechanic itself is off.
+- **No finite fallback when enabled without an explicit seat count.** Owner ruling (C4C5-05: "solo includes one
+  seat") is now encoded as `CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE = 1`; `resolveClinicSeatLimit` and both SQL-side
+  re-checks use it in place of the removed unlimited (`null`) state. `ClinicSeatStatus.limit`/`available` are now
+  `number`, not `number | null`.
+- **The seat check and invite insert were not atomic.** The advisory lock in
+  `pgOrganizationInvites.createReplacingPending` was keyed per `(organizationId, email)`, so two different-email
+  doctor invites at the same instant could both pass the JS-level pre-check before either committed (the residual
+  risk flagged in the original submission). The lock is now organization-wide
+  (`pg_advisory_xact_lock(hashtextextended('clinic_invite_seats:' || organizationId, 0))`), and the authoritative
+  `clinic_team` enabled + seat-capacity check is duplicated as SQL inside that same locked transaction, both in
+  `createReplacingPending` and in `app.accept_org_invite` (so an invite created before a downgrade or exhaustion
+  re-checks current capacity at accept time, not creation time, and is left pending — not accepted — on denial).
+  Acceptance takes the same organization-wide lock before its invite-row lock. An accepted doctor invite remains a
+  reservation while its new membership is waiting for first-session specialist provisioning; once the binding is
+  created, the reservation is replaced by the active specialist-binding count without a temporary free-seat gap.
+  `accept_org_invite`'s `SECURITY DEFINER` owner grants `SELECT` on `saas_tariffs` and
+  `saas_org_entitlement_overrides` to read them.
+- **Seat columns had no data-level nonnegative guarantee.** New additive migration `0213_clinic_team_seat_nonnegative.sql`
+  adds `CHECK (... IS NULL OR ... >= 0)` on `saas_tariffs.included_seats` and
+  `saas_org_entitlement_overrides.seat_limit_override`, mirrored in the Drizzle schema
+  (`db/schema/saasEntitlements.ts`) so `check-drizzle-journal-sync` stays green. No migration was applied to any live
+  database.
+
+**Validation.** Targeted Vitest re-run across the ten touched files: `10` files / `69` tests pass, including the new
+race-condition (org-wide lock, atomic SQL re-check exclusion of the invite's own reservation) and nonnegative-check
+coverage. Full `org-entitlements`/`app-layer` sweep: `64` files / `321` tests pass (`2` pre-existing unrelated
+skips). `pnpm --dir apps/webapp run typecheck` passes. Scoped `eslint` on the 16 changed TS/TSX files passes.
+`check-drizzle-journal-sync` passes. `check:s4-entitlement-coverage` passes (`29` protected actions, unchanged).
+`git diff --check` is clean on all task-related paths. No DB, DEV/TEST/PROD, deploy or external send.
+
+**Lead pre-commit closure.** Before committing, the orchestrator caught that the accept path also had to acquire
+the organization-wide lock before its invite-row lock, and that an accepted doctor invite must keep reserving its
+seat until first-session specialist provisioning creates the binding. The shared invites port now counts this
+transitional reservation; PostgreSQL create/accept capacity queries count it atomically. Focused post-change tests
+covered clinic-seat service, organization-invite service/in-memory port and the PostgreSQL SQL contract (`28`
+tests; one new source-order assertion was corrected and only its `9`-test file rerun). Webapp typecheck, scoped
+ESLint, journal sync, S4 coverage (`29` actions) and `git diff --check` all pass after the closure.
+
+**Environment note.** The sandbox could not write the linked-worktree Git admin directory, so the lead performs the
+exact-path commit after reviewing the diff. Host-side `git status` contains only the task paths listed above.

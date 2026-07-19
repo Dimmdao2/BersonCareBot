@@ -35,6 +35,7 @@ function createPort(): OrganizationInvitesPort {
       }),
     })),
     listPendingByOrganization: vi.fn(async () => []),
+    countSeatReservationsByOrganization: vi.fn(async () => 0),
     getByTokenHash: vi.fn(async () => null),
     expireInvite: vi.fn(async () => undefined),
     revokePendingByOrganization: vi.fn(async () => true),
