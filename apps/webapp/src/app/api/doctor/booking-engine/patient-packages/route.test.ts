@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const offerCatalogPackageToPatientMock = vi.hoisted(() => vi.fn());
 const createManualPatientPackageMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
   vi.fn(async <T,>(
@@ -24,7 +25,7 @@ vi.mock("../_requireDoctorBookingEngine", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -41,6 +42,7 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 }));
 
 import { POST } from "./route";
+import { NextResponse } from "next/server";
 
 type MembershipWriteOptions = {
   runMembershipWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
@@ -57,6 +59,8 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
         session: { user: { userId: "550e8400-e29b-41d4-a716-446655440099" } },
       },
     });
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     offerCatalogPackageToPatientMock.mockImplementation(
       async (_input: unknown, options?: MembershipWriteOptions) =>
         options?.runMembershipWrite
@@ -143,5 +147,41 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
     expect(res.status).toBe(404);
     expect(json.ok).toBe(false);
     expect(json.error).toBe("catalog_not_found");
+  });
+
+  it("does not resolve entitlement when the composed auth gate denies", async () => {
+    requireDoctorBookingEngineMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }),
+    });
+
+    const res = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({}) }));
+
+    expect(res.status).toBe(403);
+    expect(requireEntitlementMock).not.toHaveBeenCalled();
+    expect(createManualPatientPackageMock).not.toHaveBeenCalled();
+    expect(offerCatalogPackageToPatientMock).not.toHaveBeenCalled();
+  });
+
+  it("returns entitlement denial after auth without creating a patient package", async () => {
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "subscriptions" }, { status: 403 }),
+    });
+
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "manual", platformUserId: "550e8400-e29b-41d4-a716-446655440001", priceMinor: 1, items: [] }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(createManualPatientPackageMock).not.toHaveBeenCalled();
+    expect(offerCatalogPackageToPatientMock).not.toHaveBeenCalled();
+    expect(requireDoctorBookingEngineMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementMock.mock.invocationCallOrder[0]!,
+    );
   });
 });

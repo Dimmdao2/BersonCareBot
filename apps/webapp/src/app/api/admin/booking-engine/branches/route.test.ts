@@ -6,13 +6,14 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() =>
 );
 const listBranchesMock = vi.hoisted(() => vi.fn());
 const upsertBranchMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
@@ -34,6 +35,8 @@ describe("/api/admin/booking-engine/branches", () => {
         service: { catalog: { listBranches: listBranchesMock, upsertBranch: upsertBranchMock } },
       },
     });
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
   });
 
   it("GET lists branches for the caller's organization", async () => {
@@ -81,5 +84,21 @@ describe("/api/admin/booking-engine/branches", () => {
       }),
     );
     expect(upsertBranchMock).toHaveBeenCalledWith(expect.objectContaining({ shortTitle: null }));
+  });
+
+  it("denies booking entitlement after composed auth without upserting a branch", async () => {
+    const { NextResponse } = await import("next/server");
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "booking" }, { status: 403 }),
+    });
+
+    const res = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({ title: "M", cityCode: "msk" }) }));
+
+    expect(res.status).toBe(403);
+    expect(upsertBranchMock).not.toHaveBeenCalled();
+    expect(requireClinicManagementBookingEngineMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementMock.mock.invocationCallOrder[0]!,
+    );
   });
 });

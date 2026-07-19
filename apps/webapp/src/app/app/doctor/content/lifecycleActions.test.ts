@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: async () => ({ ok: true }),
+  requireEntitlementForAction: requireEntitlementForActionMock,
 }));
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
@@ -44,6 +45,8 @@ describe("applyContentLifecycle", () => {
       canManageOrganization: false,
       canManageAllSpecialists: false,
     });
+    requireEntitlementForActionMock.mockReset();
+    requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     getById.mockImplementation(async () => {
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
       return {
@@ -73,5 +76,20 @@ describe("applyContentLifecycle", () => {
     expect(getById).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000");
     expect(requireDoctorWorkspaceContext).toHaveBeenCalledTimes(1);
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("returns cms_pages denial after auth without loading or updating the page", async () => {
+    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+    const fd = new FormData();
+    fd.set("id", "550e8400-e29b-41d4-a716-446655440000");
+    fd.set("op", "archive");
+
+    await expect(applyContentLifecycle(null, fd)).resolves.toEqual({ ok: false, error: "entitlement_required" });
+
+    expect(getById).not.toHaveBeenCalled();
+    expect(updateLifecycle).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceContext.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
+    );
   });
 });

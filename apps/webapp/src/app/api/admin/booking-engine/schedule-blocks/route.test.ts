@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 
 const requireAdminBookingEngineMock = vi.hoisted(() => vi.fn());
@@ -38,6 +39,8 @@ describe("/api/admin/booking-engine/schedule-blocks", () => {
     withDoctorWorkspacePrincipalMock.mockImplementation(
       async (_ctx: unknown, _source: string, callback: () => Promise<unknown>) => callback(),
     );
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
   });
 
   it("GET passes scope filters to listScheduleBlocks", async () => {
@@ -98,6 +101,23 @@ describe("/api/admin/booking-engine/schedule-blocks", () => {
         blockType: "block",
         createdByActorId: "user-1",
       }),
+    );
+  });
+
+  it("denies booking entitlement after auth without creating a schedule block", async () => {
+    const { NextResponse } = await import("next/server");
+    requireAdminBookingEngineMock.mockResolvedValue({ ok: true, ctx: { organizationId: "org-1", session: { user: { userId: "user-1" } } } });
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "booking" }, { status: 403 }),
+    });
+
+    const res = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify({}) }));
+
+    expect(res.status).toBe(403);
+    expect(createScheduleBlockMock).not.toHaveBeenCalled();
+    expect(requireAdminBookingEngineMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementMock.mock.invocationCallOrder[0]!,
     );
   });
 

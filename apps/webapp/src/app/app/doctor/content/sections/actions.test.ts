@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: async () => ({ ok: true }),
+  requireEntitlementForAction: requireEntitlementForActionMock,
 }));
 
 const upsertMock = vi.fn();
@@ -68,6 +69,8 @@ describe("saveContentSection", () => {
       organizationId: "org-1",
       session: { user: { userId: "00000000-0000-4000-8000-000000000001", role: "doctor" } },
     });
+    requireEntitlementForActionMock.mockReset();
+    requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     vi.mocked(revalidatePath).mockClear();
@@ -243,6 +246,23 @@ describe("saveContentSection", () => {
     const res = await renameContentSectionSlug(null, fd);
     expect(res?.ok).toBe(false);
     expect(renameSectionSlugMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["save", () => saveContentSection(null, formWith({ slug: "new", title: "New" })), upsertMock],
+    ["attach", () => attachArticleSectionToSystemFolder(null, formWith({ section_slug: "new", system_parent_code: "sos" })), updateMock],
+    ["rename", () => renameContentSectionSlug(null, formWith({ old_slug: "old", new_slug: "new", confirm_rename: "on" })), renameSectionSlugMock],
+    ["delete", () => deleteContentSection(null, formWith({ section_slug: "old", confirm_delete: "on" })), deleteSectionWithPageReassignMock],
+  ])("returns typed cms_pages denial before %s service", async (_name, invoke, service) => {
+    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+
+    const result = await invoke();
+
+    expect(result).toMatchObject({ ok: false, error: "entitlement_required" });
+    expect(service).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
+    );
   });
 });
 

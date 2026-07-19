@@ -40,9 +40,10 @@ owner gates remain in the canonical SaaS Product UX roadmap/review; this log rec
 - **Boundary:** `assertMechanicEnabled` and both route/action adapters are
   `apps/webapp/src/app-layer/guards/requireEntitlement.ts:13-44`. They accept only an already-authorized
   `organizationId`, resolve only `orgEntitlements`, and return route `403 entitlement_required` or action typed deny.
-- **Coverage:** all mapped protected method-level write actions call the common adapters after their existing auth or
-  composed context. The machine checker is `apps/webapp/scripts/check-s4-entitlement-coverage.ts`; its self-test
-  rejects duplicate and unknown exported actions and the production scan rejects resolver/tariff bypass.
+- **Coverage (historical implementation note, superseded by correction round 1 below):** the initial claim that all
+  mapped actions were covered and that the checker established complete semantics was overbroad; the independent
+  audit found two omitted CMS exports and insufficient checker/test proof. Its batch-PATCH allegation was later
+  rejected because that request shape is modes-only. The precise current guarantee is recorded below.
 - **Compatibility/source/merchant/payment contracts:** resolver tests retain assigned/override/unassigned default-on;
   `tariffAccessContract.ts`, `merchantIdentityContracts.ts`, and `saasActivationContract.ts` are dormant typed
   contracts only. No DDL, migration, fixture/backfill apply, provider activation, secret, env key, billing UI, or
@@ -52,3 +53,36 @@ owner gates remain in the canonical SaaS Product UX roadmap/review; this log rec
 - **Local verification blocker:** the worktree has no `apps/webapp/node_modules`; focused Vitest stops before test
   discovery because the required workspace package cannot resolve `drizzle-orm`, and the checker command cannot find
   `tsx`. `git add` cannot create this worktree's git index lock (`Read-only file system`), so no commit was made.
+
+## 2026-07-19 — independent audit FAIL and correction round 1 (`#888`)
+
+- **Audit:** `/home/dev/brain/runs/agent-port/bcb-s4-entitlement-foundation-audit-20260719.json` returned **FAIL**
+  before any correction round. Only findings with direct sources in S4 §§5–6 or the mandatory S4 registry/rules were
+  accepted: two CMS mutations omitted from `cms_pages`, incomplete checker proof, and missing per-family denial
+  contracts. The alleged payment-settings `items[]` bypass was rejected after lead inspection: the batch schema is
+  restricted to `MODES_FORM_KEYS`, so payment keys cannot enter that branch. Expanding it would be audit-driven API
+  scope growth. The audit recommendation about schedule-block `DELETE` remains explicitly out of scope because the
+  S4/Tariffs Phase-2 booking inventory is create-only.
+- **CMS correction:** `sections/actions.ts:130-237` now calls `requireEntitlementForAction(workspace, "cms_pages")`
+  immediately after workspace auth for both attach and rename; the registry maps them at
+  `protectedActionRegistry.ts:30-31`. The CMS matrix is now four section mutations plus page save/lifecycle.
+- **Payments verification:** the existing single-key payment-settings gate is retained and now has denial/success
+  contract coverage. The modes-only batch schema and `persistAdminModesBatch` type remain unchanged; payment keys are
+  intentionally not admitted into that request shape.
+- **Checker correction:** `check-s4-entitlement-coverage.ts:32-176` exports pure helpers and checks every exported
+  action in declared mechanic-bearing files against exactly one mapping or `PROTECTED_ACTION_EXEMPTIONS`
+  (`protectedActionRegistry.ts:45-67`). It reports duplicate IDs, duplicate file/export mapping, unknown/omitted
+  export, unregistered mechanic, mapping/exemption collision, and direct resolver/tariff/override bypass across
+  `app/api`, `app/app`, `app-layer`, and `modules`, with only the guard/resolver boundary excluded. It guarantees
+  declared inventory coverage plus bypass detection; it cannot infer arbitrary future protected business semantics.
+- **Contract evidence:** existing compact harnesses now have configurable entitlement mocks and prove denial/order/
+  service-not-called for mailings; page/lifecycle/each of four CMS section mutations; subscriptions; representative
+  patient-card visits; files; branch/service/schedule-block creates; and payment single-key. Courses retains its
+  existing dedicated evidence; resolver A/B and forged-org evidence remain in their existing focused tests.
+- **Checks:** `pnpm --dir apps/webapp run check:s4-entitlement-coverage` and
+  `pnpm --dir apps/webapp exec tsx scripts/check-s4-entitlement-coverage.ts --self-test` passed (18 mappings).
+  The focused stage set passed 23 files / 238 tests: the first run exposed one incomplete success-fixture in the new
+  settings contract, then only that failed file was rerun after the fixture correction (CI resume/reuse policy).
+  `pnpm --dir apps/webapp typecheck` passed after the isolated worktree was linked to the already-installed workspace
+  dependencies; scoped ESLint for every changed TS/TSX file since the stage base and `git diff --check` passed. No
+  root full CI or full app suite was run; those remain milestone gates.

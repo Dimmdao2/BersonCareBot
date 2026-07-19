@@ -9,13 +9,14 @@ const withDoctorWorkspacePrincipalMock = vi.hoisted(() => vi.fn((_: unknown, sou
   return fn();
 }));
 const pgEnsureClientPatientFolderMock = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -61,6 +62,8 @@ describe("doctor patient files collection route", () => {
         session: { user: { userId: DOCTOR_ID, role: "doctor" } },
       },
     });
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
         const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
@@ -146,6 +149,33 @@ describe("doctor patient files collection route", () => {
     expect(res.status).toBe(404);
     expect(pgEnsureClientPatientFolderMock).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
+  });
+
+  it("returns files entitlement denial after auth without creating folder or metadata", async () => {
+    const getClientIdentityForOrganization = vi.fn();
+    const createFile = vi.fn();
+    buildAppDepsMock.mockReturnValue({ doctorClientsPort: { getClientIdentityForOrganization }, patientFiles: { createFile } });
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "files" }, { status: 403 }),
+    });
+
+    const res = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ category: "анализ", fileName: "blood.pdf", mimeType: "application/pdf", sizeBytes: 10 }),
+      }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(res.status).toBe(403);
+    expect(getClientIdentityForOrganization).not.toHaveBeenCalled();
+    expect(pgEnsureClientPatientFolderMock).not.toHaveBeenCalled();
+    expect(createFile).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceApiContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementMock.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("creates file metadata for canonical patient under selected workspace principal", async () => {

@@ -132,6 +132,8 @@ export async function attachArticleSectionToSystemFolder(
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   const slug = ((formData.get("section_slug") as string) ?? "").trim();
@@ -196,6 +198,8 @@ export async function renameContentSectionSlug(
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   if (formData.get("confirm_rename") !== "on") {

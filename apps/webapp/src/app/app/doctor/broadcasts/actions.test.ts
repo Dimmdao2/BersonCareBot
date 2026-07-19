@@ -17,6 +17,7 @@ const {
   getChannelCountsMock,
   requireDoctorAccessMock,
   requireDoctorWorkspaceContextMock,
+  requireEntitlementForActionMock,
 } = vi.hoisted(() => ({
   previewMock: vi.fn(),
   executeMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   getChannelCountsMock: vi.fn(),
   requireDoctorAccessMock: vi.fn(),
   requireDoctorWorkspaceContextMock: vi.fn(),
+  requireEntitlementForActionMock: vi.fn(),
 }));
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -43,7 +45,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: async () => ({ ok: true }),
+  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForActionMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -100,9 +102,11 @@ beforeEach(() => {
   getChannelCountsMock.mockReset();
   requireDoctorAccessMock.mockReset();
   requireDoctorWorkspaceContextMock.mockReset();
+  requireEntitlementForActionMock.mockReset();
 
   requireDoctorAccessMock.mockResolvedValue({ user: { userId: DOCTOR_USER_ID } });
   requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
+  requireEntitlementForActionMock.mockResolvedValue({ ok: true });
   revalidatePathMock.mockImplementation(() => {
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
@@ -182,6 +186,17 @@ describe("executeBroadcastAction", () => {
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+  });
+
+  it("checks entitlement after workspace auth and does not execute a disabled mailing", async () => {
+    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "mailings" });
+
+    await expect(executeBroadcastAction(baseCommand)).rejects.toThrow("entitlement_required:mailings");
+
+    expect(executeMock).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
+    );
   });
 });
 

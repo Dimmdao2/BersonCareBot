@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 import { NextResponse } from "next/server";
 
@@ -51,6 +52,8 @@ describe("POST /api/doctor/patients/[userId]/visits", () => {
         session: { user: { userId: DOCTOR_ID, role: "doctor" } },
       },
     });
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     withDoctorWorkspacePrincipalMock.mockImplementation(
       (_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
         const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
@@ -77,6 +80,29 @@ describe("POST /api/doctor/patients/[userId]/visits", () => {
 
     expect(res.status).toBe(403);
     expect(buildAppDepsMock).not.toHaveBeenCalled();
+    expect(requireEntitlementMock).not.toHaveBeenCalled();
+  });
+
+  it("returns patient_card entitlement denial after auth without resolving patient or service", async () => {
+    const createVisit = vi.fn();
+    const getClientIdentityForOrganization = vi.fn();
+    buildAppDepsMock.mockReturnValue({ doctorClientsPort: { getClientIdentityForOrganization }, patientClinical: { createVisit } });
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "patient_card" }, { status: 403 }),
+    });
+
+    const res = await POST(
+      new Request("http://localhost", { method: "POST", body: JSON.stringify({ visitType: "first" }) }),
+      { params: Promise.resolve({ userId: PATIENT_ID }) },
+    );
+
+    expect(res.status).toBe(403);
+    expect(getClientIdentityForOrganization).not.toHaveBeenCalled();
+    expect(createVisit).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceApiContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementMock.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("rejects visit creation outside selected workspace", async () => {

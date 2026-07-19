@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: async () => ({ ok: true }),
+  requireEntitlementForAction: requireEntitlementForActionMock,
 }));
 
 const upsertMock = vi.fn();
@@ -80,6 +81,8 @@ describe("saveContentPage", () => {
       organizationId: "org-1",
       session: { user: { userId: "doc-1", role: "doctor" } },
     });
+    requireEntitlementForActionMock.mockReset();
+    requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation((_: unknown, fn: () => unknown) => fn());
     getBySlugMock.mockResolvedValue({
@@ -109,6 +112,18 @@ describe("saveContentPage", () => {
         bodyHtml: "",
         slug: "test-page",
       }),
+    );
+  });
+
+  it("returns cms_pages denial after auth without calling page service", async () => {
+    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+
+    const res = await saveContentPage(null, formWith({ section: "lessons", slug: "test-page", title: "T" }));
+
+    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(upsertMock).not.toHaveBeenCalled();
+    expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
     );
   });
 

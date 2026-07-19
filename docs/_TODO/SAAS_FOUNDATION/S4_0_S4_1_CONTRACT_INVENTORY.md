@@ -9,19 +9,22 @@ contract, not a tariff constructor, billing activation, migration, or data apply
 The fourteen canonical keys and Russian labels live only in
 [`types.ts`](../../../apps/webapp/src/modules/org-entitlements/types.ts:11). The method registry is
 [`protectedActionRegistry.ts`](../../../apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:18);
-`check:s4-entitlement-coverage` imports that typed registry and validates exported action symbols, matching guard,
-missing mechanic coverage, duplicate IDs, and direct resolver/tariff reads in protected entries.
+`check:s4-entitlement-coverage` imports that typed registry and validates every exported action in its declared
+mechanic-bearing files: exactly one protected mapping or an explicit read/non-protected exemption, matching guard,
+missing mechanic coverage, duplicate IDs and file/export mappings, and direct resolver/tariff reads outside the
+approved boundary. This is a declared-inventory guarantee plus a bypass scan; it does not infer arbitrary future
+business semantics from unrelated files.
 
 | Mechanic | Entrypoint / action | Auth and trusted context | Gate | Service / port |
 |---|---|---|---|---|
 | courses | `courses/route.ts:49` `POST` | `requireDoctorWorkspaceApiContext` | `:52` route adapter | `deps.courses.createCourse` |
 | mailings | `broadcasts/actions.ts:64` | `requireDoctorWorkspaceContext` | `:68` action adapter | `deps.doctorBroadcasts.execute` |
-| cms_pages | `content/actions.ts:14`, `lifecycleActions.ts:12`, `sections/actions.ts:23,238` | `requireDoctorWorkspaceContext` | `:19`, `:14`, `:28,:243` action adapter | page upsert/update/lifecycle; section upsert/delete |
+| cms_pages | `content/actions.ts:14`, `lifecycleActions.ts:12`, `sections/actions.ts:23,130,196,242` | `requireDoctorWorkspaceContext` | `:19`, `:14`, `:28,:135,:201,:247` action adapter | page upsert/update/lifecycle; section upsert/attach/rename/delete |
 | subscriptions | `patient-packages/route.ts:70` `POST` | `requireDoctorBookingEngine` | `:73` route adapter | memberships create/offer command boundary |
 | patient_card | visits `:71`, anamnesis `:80`, complaints `:23`, diagnoses `:24` | `requireDoctorWorkspaceApiContext` | `:77`, `:86`, `:29`, `:30` | `patientClinical` visit/anamnesis/complaint/diagnosis writes |
 | files | `files/route.ts:103` `POST` | `requireDoctorWorkspaceApiContext` | `:109` route adapter | `deps.patientFiles.createFile` |
 | booking | branch `:26`, service `:29`, slot/schedule block `:39` `POST` | composed booking-engine contexts | `:29`, `:32`, `:42` route adapter | catalog/service/scheduling command boundary |
-| payments | `admin/settings/route.ts:276` `PATCH`, only `booking_payment_providers` / `booking_payment_enabled` | `requireClinicManagementApiContext` | `:375` route adapter | `deps.systemSettings.updateSetting` |
+| payments | `admin/settings/route.ts:276` `PATCH`, only single-key `booking_payment_providers` / `booking_payment_enabled` | `requireClinicManagementApiContext` | single-key route adapter | `deps.systemSettings.updateSetting` |
 
 `exercise_catalog`, `exercise_packages`, `patient_app`, `patient_app_paid_subscription`, `branding`, and
 `custom_domain` are explicitly `declared_no_surface` in

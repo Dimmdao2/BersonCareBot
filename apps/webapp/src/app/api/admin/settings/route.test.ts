@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlement: requireEntitlementMock,
 }));
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
@@ -84,6 +85,7 @@ import { createSystemSettingsService } from "@/modules/system-settings/service";
 import { GET, PATCH } from "./route";
 import { createECDH } from "node:crypto";
 import { Buffer } from "node:buffer";
+import { NextResponse } from "next/server";
 
 function sampleWebPushVapidKeyPair() {
   const ecdh = createECDH("prime256v1");
@@ -283,6 +285,8 @@ describe("PATCH /api/admin/settings", () => {
         updatedBy: "a1",
       })),
     );
+    requireEntitlementMock.mockReset();
+    requireEntitlementMock.mockResolvedValue({ ok: true });
   });
 
   it("returns 403 for doctor role", async () => {
@@ -921,6 +925,7 @@ describe("PATCH /api/admin/settings", () => {
       })
     );
     expect(res.status).toBe(401);
+    expect(requireEntitlementMock).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid integrator_linked_phone_source string", async () => {
@@ -2003,6 +2008,55 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(400);
     expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("single: denies payment key after auth without updating setting", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required", mechanic: "payments" }, { status: 403 }),
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_payment_enabled", value: true }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+    expect(requireEntitlementMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("single: updates payment key after successful entitlement", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} }, adminMode: true });
+    updateSettingMock.mockResolvedValueOnce({
+      key: "booking_payment_enabled",
+      scope: "admin",
+      organizationId: "550e8400-e29b-41d4-a716-446655440010",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "booking_payment_enabled", value: true }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "booking_payment_enabled",
+      "admin",
+      { value: true },
+      "a1",
+      { organizationId: "550e8400-e29b-41d4-a716-446655440010" },
+    );
   });
 
   it("batch: returns 200 and calls persistAdminModesBatch (not updateSetting)", async () => {

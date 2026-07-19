@@ -11,6 +11,12 @@ export type ProtectedActionMapping = Readonly<{
   serviceBoundary: string;
 }>;
 
+export type ProtectedActionExemption = Readonly<{
+  file: string;
+  exportName: string;
+  reason: string;
+}>;
+
 /**
  * S4-0's method-level inventory. `file` is relative to apps/webapp and the
  * checker proves the named export and the selected guard in that source.
@@ -21,6 +27,8 @@ export const PROTECTED_ACTION_MAPPINGS = [
   { id: "cms-pages.save", mechanic: "cms_pages", file: "src/app/app/doctor/content/actions.ts", exportName: "saveContentPage", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentPages.updateFull/upsert" },
   { id: "cms-pages.lifecycle", mechanic: "cms_pages", file: "src/app/app/doctor/content/lifecycleActions.ts", exportName: "applyContentLifecycle", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentPages.updateLifecycle" },
   { id: "cms-sections.save", mechanic: "cms_pages", file: "src/app/app/doctor/content/sections/actions.ts", exportName: "saveContentSection", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentSections.upsert" },
+  { id: "cms-sections.attach", mechanic: "cms_pages", file: "src/app/app/doctor/content/sections/actions.ts", exportName: "attachArticleSectionToSystemFolder", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentSections.update" },
+  { id: "cms-sections.rename", mechanic: "cms_pages", file: "src/app/app/doctor/content/sections/actions.ts", exportName: "renameContentSectionSlug", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentSections.renameSectionSlug" },
   { id: "cms-sections.delete", mechanic: "cms_pages", file: "src/app/app/doctor/content/sections/actions.ts", exportName: "deleteContentSection", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentSections.deleteSectionWithPageReassign" },
   { id: "subscriptions.patient-package.create", mechanic: "subscriptions", file: "src/app/api/doctor/booking-engine/patient-packages/route.ts", exportName: "POST", method: "POST", authContext: "requireDoctorBookingEngine", guard: "requireEntitlement", serviceBoundary: "deps.memberships.createManualPatientPackage/offerCatalogPackageToPatient" },
   { id: "patient-card.visits.create", mechanic: "patient_card", file: "src/app/api/doctor/patients/[userId]/visits/route.ts", exportName: "POST", method: "POST", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.patientClinical.createVisit" },
@@ -33,6 +41,30 @@ export const PROTECTED_ACTION_MAPPINGS = [
   { id: "booking.slot.create", mechanic: "booking", file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "POST", method: "POST", authContext: "requireAdminBookingEngine", guard: "requireEntitlement", serviceBoundary: "bookingScheduling.createScheduleBlock" },
   { id: "payments.booking-settings.patch", mechanic: "payments", file: "src/app/api/admin/settings/route.ts", exportName: "PATCH", method: "PATCH", authContext: "requireClinicManagementApiContext", guard: "requireEntitlement", serviceBoundary: "deps.systemSettings.updateSetting" },
 ] as const satisfies readonly ProtectedActionMapping[];
+
+/**
+ * Every exported handler/action in a declared mechanic-bearing file is either
+ * protected above or deliberately exempted here. This is an inventory
+ * guarantee, not an attempt to infer arbitrary future business semantics.
+ */
+export const PROTECTED_ACTION_EXEMPTIONS = [
+  { file: "src/app/api/doctor/courses/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "previewBroadcastAction", reason: "non-mutating preview" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "listBroadcastAuditAction", reason: "read action" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "loadDraftAction", reason: "read action" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "saveDraftAction", reason: "draft persistence is not the protected mailing execution boundary" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "getChannelCountsAction", reason: "read action" },
+  { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "getChannelCountsByAudienceAction", reason: "read action" },
+  { file: "src/app/app/doctor/content/lifecycleActions.ts", exportName: "applyContentLifecycleForm", reason: "form wrapper delegates to mapped applyContentLifecycle" },
+  { file: "src/app/api/doctor/booking-engine/patient-packages/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/doctor/patients/[userId]/anamnesis/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/doctor/patients/[userId]/files/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/admin/booking-engine/branches/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/admin/booking-engine/services/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "GET", reason: "read route" },
+  { file: "src/app/api/admin/booking-engine/schedule-blocks/route.ts", exportName: "DELETE", reason: "S4 Phase 2 scopes booking to create only" },
+  { file: "src/app/api/admin/settings/route.ts", exportName: "GET", reason: "read route" },
+] as const satisfies readonly ProtectedActionExemption[];
 
 export const DECLARED_NO_SURFACE = {
   exercise_catalog: "S4-3/C5D deferred; no protected write surface in this stage",
