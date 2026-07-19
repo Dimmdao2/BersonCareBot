@@ -17,6 +17,7 @@
 |---|-----------|-------|-------------|
 | 1 | `DB_ACCESS_CHOKEPOINT_INITIATIVE/` — единый перехватываемый ствол доступа к БД (консолидация сырого SQL) | **ЗАВЕРШЕНО для R0** | нет |
 | 2 | `SAAS_FOUNDATION/` — мультитенантность (shared-DB + Postgres RLS) | **Phase 0/R1 завершена; текущий next = T0/R2 audit/cutover checklist** | использует готовый chokepoint из #1 |
+| — | [`RU_PRIVACY_AND_PRODUCTION_READINESS/`](RU_PRIVACY_AND_PRODUCTION_READINESS/README.md) — 152-ФЗ/health-data evidence, host security, secrets, backup/DR и incident response | **DRAFT; параллельный production gate, не меняет SaaS order** | app/DB stages после D4 + S5-7; payment retention после #751 |
 
 #1 — поведение-сохраняющий рефактор, который делает БД-доступ перехватываемым. Phase 0/R1
 `SAAS_FOUNDATION` завершена; дальнейшая работа начинается с

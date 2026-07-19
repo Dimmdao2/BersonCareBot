@@ -6,6 +6,7 @@
 
 - **[docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md](ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md)** — что внедряем/откладываем/не берём из списка сторонних инструментов и библиотек (разбор 2026-07-19). Перед тем как тащить новый self-hosted сервис или npm-пакет — свериться там.
 - **Внедрять сейчас — Security CI** (Gitleaks · Semgrep · Trivy · OWASP ZAP): план подключения — **[docs/_TODO/SECURITY_CI_STACK_PLAN.md](_TODO/SECURITY_CI_STACK_PLAN.md)**.
+- **Сверх product/SaaS roadmap — RU privacy и production readiness:** детальный порядок, зависимости, owner/legal gates и host packages — **[docs/_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md)**. План не меняет уже исполняемые D3/D4/S4/S5/billing стадии.
 - Ключевое из разбора: анкеты — **нативные** (не Formbricks); faster-whisper — под **голосовые в чатах**; видео — Jitsi MVP → LiveKit; **Recharts/dnd-kit уже стоят** (переиспользовать); **react-table не внедрять**, справочники доктора не трогать; поиск по знаниям — **pgvector, не Qdrant**; **Penpot уже развёрнут** (`penpot.bersonservicex.ru`, taskdb #6).
 
 ## Cursor-планы и доки (сводка)
