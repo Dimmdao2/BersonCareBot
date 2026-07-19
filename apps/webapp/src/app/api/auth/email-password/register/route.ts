@@ -10,11 +10,14 @@ import {
 } from "@/app-layer/product-analytics/recordAuthRegistration";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
+import { normalizeFioPart } from "@/shared/lib/fio";
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  displayName: z.string().trim().max(200).optional(),
+  lastName: z.string().trim().min(1).max(100),
+  firstName: z.string().trim().min(1).max(100),
+  patronymic: z.string().trim().max(100).optional(),
 });
 
 const LOG_BASE = {
@@ -42,7 +45,19 @@ export async function POST(request: Request) {
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
-  const displayName = (parsed.data.displayName?.trim() || emailNorm.split("@")[0] || "Пациент").slice(0, 500);
+  const lastName = normalizeFioPart(parsed.data.lastName);
+  const firstName = normalizeFioPart(parsed.data.firstName);
+  const patronymic = normalizeFioPart(parsed.data.patronymic);
+  if (!lastName || !firstName) {
+    await recordAuthRegistrationFailure({
+      ...LOG_BASE,
+      attemptId,
+      stage: "start",
+      contactValue: emailNorm,
+      errorCode: "invalid_body",
+    });
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
 
   await recordAuthRegistrationAttempt({
     ...LOG_BASE,
@@ -57,7 +72,9 @@ export async function POST(request: Request) {
   const reg = await deps.userPasswordCredentials.registerPendingVerification({
     emailNormalized: emailNorm,
     passwordHash,
-    displayName,
+    lastName,
+    firstName,
+    patronymic,
   });
 
   async function respondWithChallenge(userId: string, rollbackOnSendFail: boolean) {

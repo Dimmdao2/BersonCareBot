@@ -74,7 +74,13 @@ describe("POST /api/auth/email-password/register", () => {
       new Request("http://localhost/api/auth/email-password/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "new@example.com", password: "password12", displayName: "New" }),
+        body: JSON.stringify({
+          email: "new@example.com",
+          password: "password12",
+          lastName: " New ",
+          firstName: " Patient ",
+          patronymic: " Middle ",
+        }),
       }),
     );
 
@@ -82,6 +88,13 @@ describe("POST /api/auth/email-password/register", () => {
     expect(recordAuthRegistrationAttemptMock).toHaveBeenCalledWith(
       expect.objectContaining({ authMethod: "email_password", stage: "start" }),
     );
+    expect(registerPending).toHaveBeenCalledWith({
+      emailNormalized: "new@example.com",
+      passwordHash: "hashed:password12",
+      lastName: "New",
+      firstName: "Patient",
+      patronymic: "Middle",
+    });
     expect(recordAuthRegistrationSuccessMock).toHaveBeenCalledWith(
       expect.objectContaining({ stage: "challenge_sent", challengeId: "chal-1" }),
     );
@@ -97,7 +110,12 @@ describe("POST /api/auth/email-password/register", () => {
       new Request("http://localhost/api/auth/email-password/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "new@example.com", password: "password12" }),
+        body: JSON.stringify({
+          email: "new@example.com",
+          password: "password12",
+          lastName: "New",
+          firstName: "Patient",
+        }),
       }),
     );
 
@@ -127,7 +145,8 @@ describe("POST /api/auth/email-password/register", () => {
         body: JSON.stringify({
           email: "patient@example.com",
           password: "password12",
-          displayName: "Patient",
+          lastName: "Patient",
+          firstName: "One",
         }),
       }),
     );
@@ -171,7 +190,8 @@ describe("POST /api/auth/email-password/register", () => {
         body: JSON.stringify({
           email: "pending@example.com",
           password: "password12",
-          displayName: "Pending",
+          lastName: "Pending",
+          firstName: "Patient",
         }),
       }),
     );
@@ -181,5 +201,21 @@ describe("POST /api/auth/email-password/register", () => {
     expect(body.ok).toBe(true);
     expect(body.challengeId).toBe("chal-1");
     expect(tryResend).toHaveBeenCalled();
+  });
+
+  it.each([
+    { lastName: "", firstName: "Patient" },
+    { lastName: "Patient", firstName: " " },
+  ])("rejects missing required structured identity parts", async ({ lastName, firstName }) => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "new@example.com", password: "password12", lastName, firstName }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(registerPending).not.toHaveBeenCalled();
   });
 });

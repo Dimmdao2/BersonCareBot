@@ -47,7 +47,7 @@ const requiredFunctions = [
   "app.get_public_config_bool(text)",
   "app.current_patient_has_password_credentials()",
   "app.current_patient_has_web_oauth_binding()",
-  "app.email_password_register_pending(text, text, text, text)",
+  "app.email_password_register_pending(text, text, text, text, text, text)",
   "app.email_password_delete_unverified_registration(uuid)",
   "app.email_password_find_user_id_by_email_challenge(uuid)",
   "app.email_password_find_login_candidate(text)",

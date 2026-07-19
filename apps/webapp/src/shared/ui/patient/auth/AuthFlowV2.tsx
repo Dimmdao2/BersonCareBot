@@ -238,8 +238,12 @@ export function AuthFlowV2({
   const [emailRegRetrySec, setEmailRegRetrySec] = useState(60);
   const [emailPasswordReturn, setEmailPasswordReturn] =
     useState<"oauth_first" | "phone" | "email_password">("oauth_first");
-  const [emailRegDisplayName, setEmailRegDisplayName] = useState("");
-  const [specialistSignupName, setSpecialistSignupName] = useState("");
+  const [emailRegLastName, setEmailRegLastName] = useState("");
+  const [emailRegFirstName, setEmailRegFirstName] = useState("");
+  const [emailRegPatronymic, setEmailRegPatronymic] = useState("");
+  const [specialistSignupLastName, setSpecialistSignupLastName] = useState("");
+  const [specialistSignupFirstName, setSpecialistSignupFirstName] = useState("");
+  const [specialistSignupPatronymic, setSpecialistSignupPatronymic] = useState("");
   const [specialistSignupOrganizationTitle, setSpecialistSignupOrganizationTitle] = useState("");
   const [specialistSignupPassword, setSpecialistSignupPassword] = useState("");
   const [pwRecoveryPhase, setPwRecoveryPhase] = useState<"none" | "reset_code">("none");
@@ -298,7 +302,9 @@ export function AuthFlowV2({
       setStep("email_password");
       setEmailPasswordReturn((prefetchedAuthConfig?.oauthProviders?.yandex || prefetchedAuthConfig?.oauthProviders?.google || prefetchedAuthConfig?.oauthProviders?.apple) ? "oauth_first" : "email_password");
       setEmailLoginEmail(p.email);
-      setEmailRegDisplayName(p.displayName);
+      setEmailRegLastName(p.lastName ?? "");
+      setEmailRegFirstName(p.firstName ?? "");
+      setEmailRegPatronymic(p.patronymic ?? "");
       setEmailRegChallengeId(p.challengeId);
       setEmailRegAttemptId(p.attemptId ?? null);
       setEmailVerifyPurpose("registration");
@@ -319,7 +325,9 @@ export function AuthFlowV2({
           : "email_password",
       );
       setEmailLoginEmail(p.email);
-      setSpecialistSignupName(p.specialistName);
+      setSpecialistSignupLastName(p.lastName ?? "");
+      setSpecialistSignupFirstName(p.firstName ?? "");
+      setSpecialistSignupPatronymic(p.patronymic ?? "");
       setSpecialistSignupOrganizationTitle(p.organizationTitle);
       setEmailRegChallengeId(p.challengeId);
       setEmailVerifyPurpose("specialist_signup");
@@ -385,10 +393,14 @@ export function AuthFlowV2({
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
     setEmailRegPassword("");
-    setEmailRegDisplayName("");
+    setEmailRegLastName("");
+    setEmailRegFirstName("");
+    setEmailRegPatronymic("");
     setEmailLoginEmail("");
     setEmailLoginPassword("");
-    setSpecialistSignupName("");
+    setSpecialistSignupLastName("");
+    setSpecialistSignupFirstName("");
+    setSpecialistSignupPatronymic("");
     setSpecialistSignupOrganizationTitle("");
     setSpecialistSignupPassword("");
     setPwRecoveryPhase("none");
@@ -577,7 +589,9 @@ export function AuthFlowV2({
     setEmailRegChallengeId(null);
     setEmailRegRetrySec(60);
     setEmailLoginEmail("");
-    setSpecialistSignupName("");
+    setSpecialistSignupLastName("");
+    setSpecialistSignupFirstName("");
+    setSpecialistSignupPatronymic("");
     setSpecialistSignupOrganizationTitle("");
     setSpecialistSignupPassword("");
   };
@@ -587,9 +601,11 @@ export function AuthFlowV2({
     engageInteractive();
     const email = emailLoginEmail.trim();
     const password = specialistSignupPassword;
-    const specialistName = specialistSignupName.trim();
+    const lastName = specialistSignupLastName.trim();
+    const firstName = specialistSignupFirstName.trim();
+    const patronymic = specialistSignupPatronymic.trim();
     const organizationTitle = specialistSignupOrganizationTitle.trim();
-    if (!email || !password || !specialistName || !organizationTitle) {
+    if (!email || !password || !lastName || !firstName || !organizationTitle) {
       toast.error("Заполните все поля");
       return;
     }
@@ -608,7 +624,7 @@ export function AuthFlowV2({
       }>("/api/auth/specialist-signup/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password, specialistName, organizationTitle }),
+        body: JSON.stringify({ email, password, lastName, firstName, patronymic: patronymic || undefined, organizationTitle }),
       });
       if (!result.ok) {
         toast.error(AUTH_NETWORK_ERROR_MESSAGE);
@@ -624,7 +640,9 @@ export function AuthFlowV2({
           email,
           challengeId: data.challengeId,
           retryAfterSeconds: data.retryAfterSeconds ?? 60,
-          specialistName,
+          lastName,
+          firstName,
+          patronymic,
           organizationTitle,
         });
         return;
@@ -1107,16 +1125,46 @@ export function AuthFlowV2({
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label htmlFor="auth-specialist-name" className={authFormFieldLabelClass}>
-                    Имя специалиста
+                  <label htmlFor="auth-specialist-last-name" className={authFormFieldLabelClass}>
+                    Фамилия
                   </label>
                   <Input
-                    id="auth-specialist-name"
+                    id="auth-specialist-last-name"
                     type="text"
-                    name="specialistName"
-                    autoComplete="name"
-                    value={specialistSignupName}
-                    onChange={(e) => setSpecialistSignupName(e.target.value)}
+                    name="lastName"
+                    autoComplete="family-name"
+                    value={specialistSignupLastName}
+                    onChange={(e) => setSpecialistSignupLastName(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-first-name" className={authFormFieldLabelClass}>
+                    Имя
+                  </label>
+                  <Input
+                    id="auth-specialist-first-name"
+                    type="text"
+                    name="firstName"
+                    autoComplete="given-name"
+                    value={specialistSignupFirstName}
+                    onChange={(e) => setSpecialistSignupFirstName(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-specialist-patronymic" className={authFormFieldLabelClass}>
+                    Отчество
+                  </label>
+                  <Input
+                    id="auth-specialist-patronymic"
+                    type="text"
+                    name="patronymic"
+                    autoComplete="additional-name"
+                    value={specialistSignupPatronymic}
+                    onChange={(e) => setSpecialistSignupPatronymic(e.target.value)}
                     disabled={loading}
                     className={authEmailInputClass}
                   />
@@ -1290,10 +1338,12 @@ export function AuthFlowV2({
                 const email = emailLoginEmail.trim();
                 if (emailVerifyPurpose === "specialist_signup") {
                   const password = specialistSignupPassword;
-                  const specialistName = specialistSignupName.trim();
+                  const lastName = specialistSignupLastName.trim();
+                  const firstName = specialistSignupFirstName.trim();
+                  const patronymic = specialistSignupPatronymic.trim();
                   const organizationTitle = specialistSignupOrganizationTitle.trim();
-                  if (!email || !password || !specialistName || !organizationTitle) {
-                    return { kind: "error" as const, message: "Заполните email, пароль, имя и организацию" };
+                  if (!email || !password || !lastName || !firstName || !organizationTitle) {
+                    return { kind: "error" as const, message: "Заполните email, пароль, фамилию, имя и организацию" };
                   }
                   const r = await fetchJsonSafe<{
                     ok?: boolean;
@@ -1304,7 +1354,14 @@ export function AuthFlowV2({
                   }>("/api/auth/specialist-signup/start", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ email, password, specialistName, organizationTitle }),
+                    body: JSON.stringify({
+                      email,
+                      password,
+                      lastName,
+                      firstName,
+                      patronymic: patronymic || undefined,
+                      organizationTitle,
+                    }),
                   });
                   if (!r.ok) return { kind: "error" as const, message: AUTH_NETWORK_ERROR_MESSAGE };
                   const { response: res, data } = r;
@@ -1315,7 +1372,9 @@ export function AuthFlowV2({
                       email,
                       challengeId: data.challengeId,
                       retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                      specialistName,
+                      lastName,
+                      firstName,
+                      patronymic,
                       organizationTitle,
                     });
                     return { kind: "ok" as const };
@@ -1359,7 +1418,10 @@ export function AuthFlowV2({
                   return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
                 }
                 const password = emailRegPassword;
-                if (!email || !password) {
+                const lastName = emailRegLastName.trim();
+                const firstName = emailRegFirstName.trim();
+                const patronymic = emailRegPatronymic.trim();
+                if (!email || !password || !lastName || !firstName) {
                   return { kind: "error" as const, message: "Нет данных для повторной отправки" };
                 }
                 const resendRegisterResult = await fetchJsonSafe<{
@@ -1381,7 +1443,9 @@ export function AuthFlowV2({
                       : {
                           email,
                           password,
-                          displayName: emailRegDisplayName.trim() || undefined,
+                          lastName,
+                          firstName,
+                          patronymic: patronymic || undefined,
                         },
                   ),
                   },
@@ -1398,7 +1462,9 @@ export function AuthFlowV2({
                       email,
                       challengeId: data.challengeId,
                       retryAfterSeconds: data.retryAfterSeconds ?? 60,
-                      displayName: emailRegDisplayName.trim() || email.split("@")[0] || "Пациент",
+                      lastName,
+                      firstName,
+                      patronymic,
                     });
                   }
                   return { kind: "ok" as const };

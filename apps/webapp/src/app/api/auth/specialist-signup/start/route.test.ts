@@ -56,7 +56,8 @@ describe("POST /api/auth/specialist-signup/start", () => {
         body: JSON.stringify({
           email: "doctor@example.com",
           password: "password12",
-          specialistName: "Doctor Owner",
+          lastName: "Doctor",
+          firstName: "Owner",
           organizationTitle: "Clinic One",
         }),
       }),
@@ -85,7 +86,9 @@ describe("POST /api/auth/specialist-signup/start", () => {
         body: JSON.stringify({
           email: "Doctor@Example.COM",
           password: "password12",
-          specialistName: "Doctor Owner",
+          lastName: " Doctor ",
+          firstName: " owner ",
+          patronymic: "  Ivanovich ",
           organizationTitle: "Clinic One",
         }),
       }),
@@ -95,14 +98,16 @@ describe("POST /api/auth/specialist-signup/start", () => {
     expect(registerPendingSpecialistVerificationMock).toHaveBeenCalledWith({
       emailNormalized: "doctor@example.com",
       passwordHash: "hashed:password12",
-      displayName: "Doctor Owner",
+      lastName: "Doctor",
+      firstName: "Owner",
+      patronymic: "Ivanovich",
     });
     expect(createSpecialistSignupIntentMock).toHaveBeenCalledWith({
       userId: "user-1",
       challengeId: "22222222-2222-4222-8222-222222222222",
       emailNormalized: "doctor@example.com",
       organizationTitle: "Clinic One",
-      specialistFullName: "Doctor Owner",
+      specialistFullName: "Doctor Owner Ivanovich",
     });
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
@@ -121,7 +126,8 @@ describe("POST /api/auth/specialist-signup/start", () => {
         body: JSON.stringify({
           email: "doctor@example.com",
           password: "password12",
-          specialistName: "Doctor Owner",
+          lastName: "Doctor",
+          firstName: "Owner",
           organizationTitle: "Clinic One",
         }),
       }),
@@ -145,7 +151,8 @@ describe("POST /api/auth/specialist-signup/start", () => {
         body: JSON.stringify({
           email: "doctor@example.com",
           password: "password12",
-          specialistName: "Doctor Owner",
+          lastName: "Doctor",
+          firstName: "Owner",
           organizationTitle: "Clinic One",
         }),
       }),
@@ -153,5 +160,27 @@ describe("POST /api/auth/specialist-signup/start", () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "duplicate_email" });
+  });
+
+  it.each([
+    { lastName: "", firstName: "Owner" },
+    { lastName: "Doctor", firstName: " " },
+  ])("rejects a missing structured specialist name", async ({ lastName, firstName }) => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "doctor@example.com",
+          password: "password12",
+          lastName,
+          firstName,
+          organizationTitle: "Clinic One",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(registerPendingSpecialistVerificationMock).not.toHaveBeenCalled();
   });
 });

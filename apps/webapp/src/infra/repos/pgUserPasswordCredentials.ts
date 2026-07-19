@@ -7,13 +7,17 @@ export type UserPasswordCredentialsPort = {
   registerPendingVerification(params: {
     emailNormalized: string;
     passwordHash: string;
-    displayName: string;
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
   /** Регистрация специалиста с паролем до подтверждения email; role остаётся doctor для compat projection. */
   registerPendingSpecialistVerification(params: {
     emailNormalized: string;
     passwordHash: string;
-    displayName: string;
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }>;
   /** Удалить канон без подтверждения email (откат после сбоя отправки кода и т.п.). */
   deleteUnverifiedEmailPasswordRegistration(userId: string): Promise<void>;
@@ -47,7 +51,9 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
   async function registerPendingVerificationWithRole(params: {
     emailNormalized: string;
     passwordHash: string;
-    displayName: string;
+    lastName: string;
+    firstName: string;
+    patronymic: string | null;
     role: "client" | "doctor";
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: "duplicate_email" }> {
     try {
@@ -58,8 +64,15 @@ export function createPgUserPasswordCredentialsPort(): UserPasswordCredentialsPo
           user_id: string | null;
         }>(
           `SELECT ok, code, user_id::text AS user_id
-           FROM app.email_password_register_pending($1, $2, $3, $4)`,
-          [params.emailNormalized, params.passwordHash, params.displayName, params.role],
+           FROM app.email_password_register_pending($1, $2, $3, $4, $5, $6)`,
+          [
+            params.emailNormalized,
+            params.passwordHash,
+            params.lastName,
+            params.firstName,
+            params.patronymic,
+            params.role,
+          ],
           tx,
         );
         const row = result.rows[0];

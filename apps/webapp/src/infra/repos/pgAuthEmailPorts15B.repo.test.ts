@@ -212,11 +212,21 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     const r = await port.registerPendingVerification({
       emailNormalized: "user@example.com",
       passwordHash: "hash",
-      displayName: "User",
+      lastName: "User",
+      firstName: "One",
+      patronymic: null,
     });
     expect(r).toEqual({ ok: true, userId: "u-new" });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
     expect(String(runWebappPgTextMock.mock.calls[0]?.[0])).toContain("app.email_password_register_pending");
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "user@example.com",
+      "hash",
+      "User",
+      "One",
+      null,
+      "client",
+    ]);
   });
 
   it("createPgUserPasswordCredentialsPort registerPendingSpecialistVerification stores doctor role", async () => {
@@ -227,7 +237,9 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
     const r = await port.registerPendingSpecialistVerification({
       emailNormalized: "doctor@example.com",
       passwordHash: "hash",
-      displayName: "Doctor",
+      lastName: "Doctor",
+      firstName: "Owner",
+      patronymic: "Middle",
     });
     expect(r).toEqual({ ok: true, userId: "u-doctor" });
     expect(runWebappTransactionMock).toHaveBeenCalledTimes(1);
@@ -235,6 +247,8 @@ describe("pgAuthEmailPorts (SQL parity)", () => {
       "doctor@example.com",
       "hash",
       "Doctor",
+      "Owner",
+      "Middle",
       "doctor",
     ]);
   });

@@ -555,12 +555,13 @@ describe("AuthFlowV2 — browser", () => {
 
     await waitFor(() => expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy());
     await user.click(screen.getByRole("button", { name: "Я специалист" }));
-    expect(await screen.findByLabelText("Имя специалиста")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Фамилия")).toBeInTheDocument();
+    expect(screen.getByLabelText("Имя")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Создать кабинет" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Войти как пациент" }));
     expect(await screen.findByRole("button", { name: "Получить код" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Имя специалиста")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Фамилия")).not.toBeInTheDocument();
   });
 
   it("opens the explicit registration surface without creating an authenticated public role", async () => {
@@ -594,7 +595,9 @@ describe("AuthFlowV2 — browser", () => {
         expect(body).toMatchObject({
           email: "doctor@example.com",
           password: "password12",
-          specialistName: "Doctor Owner",
+          lastName: "Doctor",
+          firstName: "Owner",
+          patronymic: "Middle",
           organizationTitle: "Clinic One",
         });
         return jsonRes({ ok: true, challengeId: "signup-ch-1", retryAfterSeconds: 60 });
@@ -623,7 +626,9 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Я специалист" }));
     await user.type(screen.getByLabelText("Email"), "doctor@example.com");
     await user.type(screen.getByLabelText("Пароль"), "password12");
-    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Фамилия"), "Doctor");
+    await user.type(screen.getByLabelText("Имя"), "Owner");
+    await user.type(screen.getByLabelText("Отчество"), "Middle");
     await user.type(screen.getByLabelText("Название организации"), "Clinic One");
     await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
 
@@ -632,6 +637,64 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
+  it("retains structured specialist FIO for a resend", async () => {
+    const user = userEvent.setup();
+    const payloads: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/specialist-signup/start")) {
+          payloads.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+          return jsonRes({ ok: true, challengeId: `signup-ch-${payloads.length}`, retryAfterSeconds: 0 });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Я специалист" }));
+    await user.type(screen.getByLabelText("Email"), "doctor@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.type(screen.getByLabelText("Фамилия"), "Doctor");
+    await user.type(screen.getByLabelText("Имя"), "Owner");
+    await user.type(screen.getByLabelText("Отчество"), "Middle");
+    await user.type(screen.getByLabelText("Название организации"), "Clinic One");
+    await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
+    await user.click(await screen.findByRole("button", { name: "Отправить код повторно" }));
+
+    expect(payloads).toEqual([
+      {
+        email: "doctor@example.com",
+        password: "password12",
+        lastName: "Doctor",
+        firstName: "Owner",
+        patronymic: "Middle",
+        organizationTitle: "Clinic One",
+      },
+      {
+        email: "doctor@example.com",
+        password: "password12",
+        lastName: "Doctor",
+        firstName: "Owner",
+        patronymic: "Middle",
+        organizationTitle: "Clinic One",
+      },
+    ]);
   });
 
   it("specialist signup shows duplicate email error from start endpoint", async () => {
@@ -664,7 +727,8 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Я специалист" }));
     await user.type(screen.getByLabelText("Email"), "doctor@example.com");
     await user.type(screen.getByLabelText("Пароль"), "password12");
-    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Фамилия"), "Doctor");
+    await user.type(screen.getByLabelText("Имя"), "Owner");
     await user.type(screen.getByLabelText("Название организации"), "Clinic One");
     await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
 
@@ -709,7 +773,8 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Я специалист" }));
     await user.type(screen.getByLabelText("Email"), "doctor@example.com");
     await user.type(screen.getByLabelText("Пароль"), "password12");
-    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Фамилия"), "Doctor");
+    await user.type(screen.getByLabelText("Имя"), "Owner");
     await user.type(screen.getByLabelText("Название организации"), "Clinic One");
     await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
 
@@ -757,7 +822,8 @@ describe("AuthFlowV2 — browser", () => {
     await user.click(screen.getByRole("button", { name: "Я специалист" }));
     await user.type(screen.getByLabelText("Email"), "doctor@example.com");
     await user.type(screen.getByLabelText("Пароль"), "password12");
-    await user.type(screen.getByLabelText("Имя специалиста"), "Doctor Owner");
+    await user.type(screen.getByLabelText("Фамилия"), "Doctor");
+    await user.type(screen.getByLabelText("Имя"), "Owner");
     await user.type(screen.getByLabelText("Название организации"), "Clinic One");
     await user.click(screen.getByRole("button", { name: "Создать кабинет" }));
 

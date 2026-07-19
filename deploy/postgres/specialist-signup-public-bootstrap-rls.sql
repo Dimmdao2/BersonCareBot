@@ -51,6 +51,7 @@ DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, te
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
 DROP FUNCTION IF EXISTS app.email_password_find_login_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
+DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text, text, text);
 DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text);
 DROP FUNCTION IF EXISTS app.staff_user_has_web_oauth_binding(uuid);
 DROP FUNCTION IF EXISTS app.staff_user_has_password_credentials(uuid);
@@ -260,10 +261,14 @@ COMMENT ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) IS
 
 ALTER FUNCTION app.staff_user_has_web_oauth_binding(uuid) OWNER TO :specialist_signup_oauth_bindings_owner_ident;
 
+DROP FUNCTION IF EXISTS app.email_password_register_pending(text, text, text, text);
+
 CREATE OR REPLACE FUNCTION app.email_password_register_pending(
   p_email_norm text,
   p_password_hash text,
-  p_display_name text,
+  p_last_name text,
+  p_first_name text,
+  p_patronymic text,
   p_role text
 )
 RETURNS TABLE (ok boolean, code text, user_id uuid)
@@ -275,7 +280,10 @@ AS $$
 #variable_conflict use_column
 DECLARE
   v_email_norm text := lower(btrim(p_email_norm));
-  v_display_name text := COALESCE(NULLIF(btrim(p_display_name), ''), split_part(lower(btrim(p_email_norm)), '@', 1), lower(btrim(p_email_norm)));
+  v_last_name text := NULLIF(btrim(p_last_name), '');
+  v_first_name text := NULLIF(btrim(p_first_name), '');
+  v_patronymic text := NULLIF(btrim(p_patronymic), '');
+  v_display_name text;
   v_user_id uuid;
 BEGIN
   IF p_role NOT IN ('client', 'doctor') THEN
@@ -288,8 +296,23 @@ BEGIN
     RETURN;
   END IF;
 
-  INSERT INTO public.platform_users (display_name, email, email_normalized, role)
-  VALUES (v_display_name, v_email_norm, v_email_norm, p_role)
+  IF v_last_name IS NULL OR v_first_name IS NULL THEN
+    RETURN QUERY SELECT false, 'invalid_fio'::text, NULL::uuid;
+    RETURN;
+  END IF;
+
+  v_display_name := concat_ws(' ', v_last_name, v_first_name, v_patronymic);
+
+  INSERT INTO public.platform_users (
+    display_name,
+    last_name,
+    first_name,
+    patronymic,
+    email,
+    email_normalized,
+    role
+  )
+  VALUES (v_display_name, v_last_name, v_first_name, v_patronymic, v_email_norm, v_email_norm, p_role)
   ON CONFLICT (email_normalized) WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL DO NOTHING
   RETURNING id INTO v_user_id;
 
@@ -305,10 +328,10 @@ BEGIN
 END
 $$;
 
-COMMENT ON FUNCTION app.email_password_register_pending(text, text, text, text) IS
-  'Narrow SECURITY DEFINER for public email/password pending registration. Allows only client/doctor roles; no app_patient table DML grants.';
+COMMENT ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) IS
+  'Narrow SECURITY DEFINER for public structured email/password pending registration. Derives display_name and allows only client/doctor roles; no app_patient table DML grants.';
 
-ALTER FUNCTION app.email_password_register_pending(text, text, text, text) OWNER TO :specialist_signup_platform_users_owner_ident;
+ALTER FUNCTION app.email_password_register_pending(text, text, text, text, text, text) OWNER TO :specialist_signup_platform_users_owner_ident;
 
 CREATE OR REPLACE FUNCTION app.email_password_delete_unverified_registration(p_user_id uuid)
 RETURNS void
@@ -490,7 +513,7 @@ REVOKE ALL ON FUNCTION app.current_patient_has_password_credentials() FROM PUBLI
 REVOKE ALL ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.current_patient_has_web_oauth_binding() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC;
@@ -503,7 +526,7 @@ GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO app_
 GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;
 GRANT EXECUTE ON FUNCTION app.current_patient_has_web_oauth_binding() TO app_staff, app_patient;
 GRANT EXECUTE ON FUNCTION app.staff_user_has_web_oauth_binding(uuid) TO app_staff;
-GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_patient;

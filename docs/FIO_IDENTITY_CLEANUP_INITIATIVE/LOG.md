@@ -1,5 +1,28 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-19 — C2F Owner-Unambiguous Structured Registration Foundation
+
+- Updated the owned compatibility `POST /api/auth/email-password/register` contract and the shared
+  password-credentials port to require normalized `lastName` + `firstName`, accept optional `patronymic`, and
+  write only the derived `display_name` together with the existing structured `platform_users` columns through
+  `app.email_password_register_pending`.
+- Specialist/clinic signup now collects structured specialist FIO, derives the unchanged
+  `specialistFullName` compatibility/provisioning label with the shared formatter, and keeps
+  `organizationTitle` separate. `specialist_signup_intents`, its Drizzle schema, port, service, and PostgreSQL
+  repository remain structurally unchanged.
+- Added a function-only forward migration plus journal entry and updated the public-bootstrap overlay, base-login
+  grant artifact, and signature checker for the six-argument SECURITY DEFINER function. No table or column was
+  added.
+- The pending-registration storage stores structured fields. Old `sessionStorage` entries with a display label are
+  retained only for confirmation of their existing challenge; they are not parsed and cannot resend through the new
+  structured API.
+- Focused route/repository/UI/provisioning tests, webapp typecheck, scoped ESLint, Drizzle journal/frozen checks,
+  and affected grant/protocol checkers passed locally. No DB, TEST, production, deploy, or real delivery action was
+  performed.
+- This is not task completion: live patient `/api/auth/email-otp/start` remains passwordless and may create an
+  unknown identity without structured FIO. Restoring separate registration or asking email-OTP entrants for FIO is
+  an explicit owner decision and remains blocked.
+
 ## 2026-07-19 — Owner-reviewed TEST Apply Re-established After Fresh Restore
 
 - Applied the exact hash-bound owner-reviewed manifest to the prepared `bersoncarebot_test` after canonical

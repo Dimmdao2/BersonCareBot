@@ -5,11 +5,14 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
+import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
 
 const bodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
-  specialistName: z.string().trim().min(1).max(200),
+  lastName: z.string().trim().min(1).max(100),
+  firstName: z.string().trim().min(1).max(100),
+  patronymic: z.string().trim().max(100).optional(),
   organizationTitle: z.string().trim().min(1).max(200),
 });
 
@@ -27,15 +30,23 @@ export async function POST(request: Request) {
   }
 
   const emailNorm = normalizeEmail(parsed.data.email);
-  const specialistName = parsed.data.specialistName.trim();
+  const lastName = normalizeFioPart(parsed.data.lastName);
+  const firstName = normalizeFioPart(parsed.data.firstName);
+  const patronymic = normalizeFioPart(parsed.data.patronymic);
   const organizationTitle = parsed.data.organizationTitle.trim();
+  if (!lastName || !firstName) {
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
+  const specialistFullName = formatDoctorFio({ lastName, firstName, patronymic });
   const deps = buildAppDeps();
   const passwordHash = await hashPin(parsed.data.password);
 
   const reg = await deps.userPasswordCredentials.registerPendingSpecialistVerification({
     emailNormalized: emailNorm,
     passwordHash,
-    displayName: specialistName,
+    lastName,
+    firstName,
+    patronymic,
   });
 
   if (!reg.ok) {
@@ -57,7 +68,7 @@ export async function POST(request: Request) {
       challengeId: challenge.challengeId,
       emailNormalized: emailNorm,
       organizationTitle,
-      specialistFullName: specialistName,
+      specialistFullName,
     });
   } catch {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);

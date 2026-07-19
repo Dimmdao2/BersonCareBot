@@ -14,8 +14,11 @@ export type AuthFlowPendingStored =
       attemptId?: string;
       retryAfterSeconds: number;
       savedAt: number;
-      /** Отображение и resend через API */
-      displayName: string;
+      lastName: string | null;
+      firstName: string | null;
+      patronymic: string | null;
+      /** Old payloads keep confirming the existing challenge, but cannot resend via the structured API. */
+      legacyDisplayName?: string;
     }
   | {
       v: 1;
@@ -33,7 +36,11 @@ export type AuthFlowPendingStored =
       challengeId: string;
       retryAfterSeconds: number;
       savedAt: number;
-      specialistName: string;
+      lastName: string | null;
+      firstName: string | null;
+      patronymic: string | null;
+      /** Old payloads keep confirming the existing challenge, but cannot resend via the structured API. */
+      legacySpecialistName?: string;
       organizationTitle: string;
     };
 
@@ -50,12 +57,14 @@ function readRaw(): AuthFlowPendingStored | null {
       return null;
     }
     if (o.mode === "register_verify") {
-      if (
-        typeof o.email !== "string" ||
-        typeof o.challengeId !== "string" ||
-        typeof o.retryAfterSeconds !== "number" ||
-        typeof o.displayName !== "string"
-      ) {
+      if (typeof o.email !== "string" || typeof o.challengeId !== "string" || typeof o.retryAfterSeconds !== "number") {
+        return null;
+      }
+      if (typeof o.lastName === "string" && typeof o.firstName === "string" && typeof o.patronymic === "string") {
+        // Current structured payload.
+      } else if (typeof (o as { displayName?: unknown }).displayName === "string") {
+        Object.assign(o, { lastName: null, firstName: null, patronymic: null, legacyDisplayName: (o as { displayName: string }).displayName });
+      } else {
         return null;
       }
     } else if (o.mode === "password_reset") {
@@ -66,9 +75,24 @@ function readRaw(): AuthFlowPendingStored | null {
         typeof specialistPending.email !== "string" ||
         typeof specialistPending.challengeId !== "string" ||
         typeof specialistPending.retryAfterSeconds !== "number" ||
-        typeof specialistPending.specialistName !== "string" ||
         typeof specialistPending.organizationTitle !== "string"
       ) {
+        return null;
+      }
+      if (
+        typeof specialistPending.lastName === "string" &&
+        typeof specialistPending.firstName === "string" &&
+        typeof specialistPending.patronymic === "string"
+      ) {
+        // Current structured payload.
+      } else if (typeof (specialistPending as { specialistName?: unknown }).specialistName === "string") {
+        Object.assign(specialistPending, {
+          lastName: null,
+          firstName: null,
+          patronymic: null,
+          legacySpecialistName: (specialistPending as { specialistName: string }).specialistName,
+        });
+      } else {
         return null;
       }
     }
@@ -120,7 +144,9 @@ export function patchRegisterVerifyChallenge(challengeId: string, retryAfterSeco
     email: cur.email,
     challengeId,
     retryAfterSeconds,
-    displayName: cur.displayName,
+    lastName: cur.lastName,
+    firstName: cur.firstName,
+    patronymic: cur.patronymic,
   });
 }
 
