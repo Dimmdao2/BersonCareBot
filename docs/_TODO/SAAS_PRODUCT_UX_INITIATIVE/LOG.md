@@ -2338,3 +2338,18 @@ branch, but the patient acceptance and task cannot be closed without that ruling
 before a completed pass when its draft began adding structured columns to `specialist_signup_intents`, contradicting
 the explicit Phase 6 `existing columns only` rule. Those uncommitted draft edits are being corrected in the same
 worktree; no commit, DB mutation, deploy or external send occurred.
+
+The corrected owner-unambiguous pass `bcb-c2f-855-unambiguous-20260719` then removed all intent schema/port/service
+draft changes and delivered the common safe foundation: structured specialist signup UI/API/resend; the structured
+legacy patient email/password API; one six-argument protected credential writer that atomically fills the existing
+platform-user FIO columns and derives `display_name`; function-only migration `0208`; and aligned overlay,
+REVOKE/GRANT and foundation checks. The unchanged intent stores only its derived specialist full-name label and the
+separate organization title. It reported `65` focused tests plus webapp typecheck, scoped ESLint, Drizzle
+journal/frozen and D3.4/hard-migration checks green.
+
+Independent cross-model audit `bcb-c2f-855-unambiguous-audit-20260719` returned **PASS** for exactly that bounded
+subset and reconfirmed that live email-OTP/invite behavior was not changed or falsely claimed complete. Its sandbox
+reported unreadable `.env*` mounts; the lead independently inspected the real worktree status/diff and proved that
+zero env files were changed. Commit `a9d70dc85` is integrated and pushed to `feat/doctor-ui-rebuild`; patch identity
+was verified with `git cherry`, then the temporary worktree and branch were deleted. Task `#855` remains blocked on
+the single patient passwordless-flow ruling and has no completion seals.
