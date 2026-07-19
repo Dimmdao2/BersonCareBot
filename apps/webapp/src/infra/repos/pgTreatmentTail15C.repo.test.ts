@@ -220,6 +220,7 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
       });
     const port = createPgMaterialRatingPort();
     const out = await port.getDoctorDetail({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       targetKind: "lfk_exercise",
       targetId: "550e8400-e29b-41d4-a716-446655440099",
       iana: "UTC",
@@ -247,6 +248,7 @@ describe("pgTreatmentTail15C (SQL parity)", () => {
       .mockResolvedValueOnce({ rows: [] });
     const port = createPgMaterialRatingPort();
     const out = await port.getDoctorDetail({
+      organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       targetKind: "lfk_exercise",
       targetId: EXERCISE_ID,
       iana: "UTC",

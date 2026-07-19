@@ -327,7 +327,7 @@ export function createPgTestSetsPort(): TestSetsPort {
       const q = filter.search?.trim();
       if (q) {
         const p = `%${q}%`;
-        conds.push(or(ilike(testSetsTable.title, p), ilike(testSetsTable.description, p)));
+        conds.push(or(ilike(testSetsTable.title, p), ilike(testSetsTable.description, p))!);
       }
 
       const sets = await db

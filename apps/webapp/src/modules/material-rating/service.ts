@@ -106,7 +106,11 @@ export function createMaterialRatingService(deps: {
         await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
       } else {
         try {
-          await assertTargetExistsNonContent(input);
+          await assertTargetExistsNonContent({
+            organizationId: input.organizationId,
+            targetKind: input.targetKind,
+            targetId: input.targetId,
+          });
         } catch {
           throw new MaterialRatingAccessError("not_found");
         }
@@ -142,7 +146,11 @@ export function createMaterialRatingService(deps: {
         }
         if (!assignedProgramTarget) {
           try {
-            await assertTargetExistsNonContent(input);
+            await assertTargetExistsNonContent({
+              organizationId: input.organizationId,
+              targetKind: input.targetKind,
+              targetId: input.targetId,
+            });
           } catch {
             throw new MaterialRatingAccessError("not_found");
           }
@@ -245,7 +253,11 @@ export function createMaterialRatingService(deps: {
       }
 
       try {
-        await assertTargetExistsNonContent(input);
+        await assertTargetExistsNonContent({
+          organizationId: input.organizationId,
+          targetKind: input.targetKind,
+          targetId: input.targetId,
+        });
       } catch {
         return { ok: false, code: "not_found" };
       }
@@ -317,7 +329,11 @@ export function createMaterialRatingService(deps: {
         await loadContentPageOrThrow({ targetId: input.targetId, organizationId: input.organizationId });
       } else {
         try {
-          await assertTargetExistsNonContent(input);
+          await assertTargetExistsNonContent({
+            organizationId: input.organizationId,
+            targetKind: input.targetKind,
+            targetId: input.targetId,
+          });
         } catch {
           throw new MaterialRatingAccessError("not_found");
         }

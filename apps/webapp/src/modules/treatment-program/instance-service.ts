@@ -97,9 +97,13 @@ export function createTreatmentProgramInstanceService(deps: {
       }
 
       if (deps.snapshotDiaryDaysBeforePromoRefresh) {
+        if (!row.organizationId) {
+          throw new Error("Не определена организация промо-программы");
+        }
         await deps.snapshotDiaryDaysBeforePromoRefresh({
           patientUserId: row.patientUserId,
           closingInstanceId: row.id,
+          organizationId: row.organizationId,
         });
       }
 

@@ -582,6 +582,7 @@ describe("treatment-program instance service", () => {
         });
 
         const promoInst = await instSvc.assignTemplateToPatient({
+          organizationId: ORG_ID,
           templateId: tplPromo.id,
           patientUserId: patient,
           assignedBy: null,
@@ -601,6 +602,7 @@ describe("treatment-program instance service", () => {
 
         vi.setSystemTime(new Date("2026-05-14T12:00:00.000Z"));
         await instSvc.assignTemplateToPatient({
+          organizationId: ORG_ID,
           templateId: tplDoc.id,
           patientUserId: patient,
           assignedBy: doctorId,

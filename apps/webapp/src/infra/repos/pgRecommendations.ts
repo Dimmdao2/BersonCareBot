@@ -283,7 +283,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       const q = filter.search?.trim();
       if (q) {
         const p = `%${q}%`;
-        conds.push(or(ilike(recommendationsTable.title, p), ilike(recommendationsTable.bodyMd, p)));
+        conds.push(or(ilike(recommendationsTable.title, p), ilike(recommendationsTable.bodyMd, p))!);
       }
       const domainFilter = filter.domain;
       if (domainFilter) {

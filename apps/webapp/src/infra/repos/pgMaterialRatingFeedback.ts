@@ -108,6 +108,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
         .offset(offset);
       return rows.map((row) => ({
         id: row.id,
+        organizationId,
         userId: row.userId,
         contentPageId: row.contentPageId,
         ratingValue: row.ratingValue,

@@ -363,7 +363,7 @@ export function createPgClinicalTestsPort(): ClinicalTestsPort {
       if (q) {
         const p = `%${q}%`;
         conds.push(
-          or(ilike(clinicalTestsTable.title, p), ilike(clinicalTestsTable.description, p)),
+          or(ilike(clinicalTestsTable.title, p), ilike(clinicalTestsTable.description, p))!,
         );
       }
       const rows = await db
