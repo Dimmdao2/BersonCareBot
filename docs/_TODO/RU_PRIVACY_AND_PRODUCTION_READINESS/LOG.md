@@ -96,3 +96,18 @@ Append-only журнал. Планирование не переводит ни 
   controls`; неизвестное/подразумеваемое решение не проходит `PR-04A`.
 - Wazuh не выбран заранее. Агенты сравнивают coverage/privileges/load/RU storage/operations, проверяют кандидата на
   disposable VPS; при adopt manager/sink находится отдельно от единственного PROD, alerts имеют owner/SLA.
+
+## 2026-07-19 — owner activation and PR-00 DEV execution registry
+
+- Владелец активировал юридико-технический план: всё безопасно реализуемое в repository/DEV выполняется сейчас;
+  production-host encryption/hardening/secrets, реальные данные и cutover остаются на подготовку нового PROD.
+- Зафиксирована граница: перенос host controls не откладывает application security, consent, audit, retention,
+  crypto или Security CI. Они стартуют сразу после собственных D4/S5/legal gates.
+- Taskdb и foundation evidence сверены на integration SHA `2f8147e91`: S5-0…S5-3 приняты; D3 остаётся blocked на
+  доказанном 16/17 TEST smoke; D4 и S5-4…S5-7 не закрыты; billing `#751` остаётся active dependency своей части.
+- `PR-00` переведён на taxonomy `covered / active_dependency / executable_now / owner_or_legal_gate /
+  prod_host_later` и получил launch manifests для SEC-01, PR-01, repository SEC-02/DR-01, CRYPTO C0, negative
+  purge guard и SEC-03 contract/census design.
+- Production FIO backfill сохранён в едином финальном full cutover: ручные решения владельца не пересчитываются,
+  parser retirement идёт только после apply/evidence. Эта инициатива не создаёт параллельный FIO migration.
+- Никаких application/schema/DB/deploy/TEST/PROD mutations в PR-00 не выполнялось.

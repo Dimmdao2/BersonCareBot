@@ -1,18 +1,22 @@
 # Master plan
 
-Статус: `draft`. План не меняет порядок текущих SaaS/Product UX работ.
+Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
 
 Taskdb: master `#898`; `PR-00/01 #899`; `SEC-02 #900`; `DR-01/02 #901`; `PR-03 #905`; `SEC-04 #906`;
-`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`. Все новые задачи имеют `auto_ok=false`. Security CI остаётся
-отдельной существующей задачей `#881`. `CRYPTO-01` и `INFRA-01` до owner review остаются детальными sub-stages
-umbrella `#898/#900/#901`; отдельные implementation-задачи создаются только с exact file scope и stable dependency
-SHA, чтобы не пересечь активные D3/D4/S5/billing работы.
+`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`. Security CI остаётся
+отдельной существующей задачей `#881`. `CRYPTO-01` и `INFRA-01` до выделения exact implementation scopes остаются
+sub-stages umbrella `#898/#900/#901`; отдельные implementation-задачи создаются только с exact file scope и stable
+dependency SHA, чтобы не пересечь активные D3/D4/S5/billing работы.
+
+Owner activation не снимает gates: `auto_ok` и `doing` меняются оркестратором через taskdb только для конкретного
+launch manifest. DEV/repository-only implementation разрешён по реестру `PR-00`; реальные TEST/PROD/host changes,
+production data и secrets этим решением не разрешены.
 
 ## 1. Порядок и объём
 
 | Этап | Когда | Основной результат | Оценка |
 |---|---|---|---:|
-| `PR-00` Scope lock | сейчас | доказательный реестр: уже закрыто / уже запланировано / новый gap / owner question | 1–2 дня |
+| `PR-00` Scope lock | сейчас | доказательный реестр по пяти статусам + launch manifests | 1–2 дня |
 | `PR-01` Processing register | немедленно, docs/legal | карта обработки, РКН status, interim containment, роли/основания | 2–4 дня + юрист |
 | `SEC-01` Security CI | сейчас, параллельно, taskdb `#881` | Gitleaks/Semgrep/Trivy в PR; ZAP/full Trivy по расписанию; первый triage | 2–4 дня |
 | `SEC-02` Host and secrets | preflight сейчас; TEST после scope lock; PROD только owner window | SSH/SG/firewall, service users, systemd hardening, secret lifecycle | 4–7 дней + окно |
@@ -21,7 +25,7 @@ SHA, чтобы не пересечь активные D3/D4/S5/billing рабо
 | `CRYPTO-01` Data/key encryption | ADR сейчас; application после D4/S5-7/legal gates | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets | 3–6 недель |
 | `INFRA-01` Encrypted PROD migration | disposable proof после owner/provider gates; cutover только после PR-04A | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого | 1–2 недели + окно |
 | `PR-02` Health consent | после D4 + S5-7 + legal text | отдельный versioned consent lifecycle | 4–7 дней |
-| `PR-03A/B` Data rights/lifecycle | A после `PR-02` и до launch; B до purge; payment slice после freeze #751 | launch manual containment; затем DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
+| `PR-03A/B` Data rights/lifecycle | A0 negative purge guard сейчас; остальной A после `PR-02`; B до purge; payment slice после freeze #751 | сначала доказанный запрет purge; затем manual containment и DSAR/export/reminders/purge/offboarding automation | 1–2 недели |
 | `SEC-03` Clinical access audit | после D4 | защищённый audit чувствительных reads/downloads/exports/denies | 4–7 дней |
 | `SEC-04` Governance/incidents | после `SEC-03` + log/break-glass gates | JML, vulnerability SLA, protected logs и 24/72 incident drill | 4–7 дней |
 | `PR-04A/B` ISPDn release gate | A перед cutover, B после soak/decommission | модель угроз/мер, evidence pack, внешний review, owner go/no-go и closure фактической topology | 3–7 дней + review |
@@ -57,6 +61,8 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
   чтения актуальных runbooks, rehearsal и owner gate.
 - `CRYPTO-01` ADR/ports/tests можно проектировать сейчас, но media/settings/schema implementation ждёт stable
   D4/S5-7 SHA и свои legal/owner gates.
+- `PR-03A0` может сейчас добавить только census/checker/test, доказывающий отсутствие доступного account/org purge.
+  Он не добавляет deletion state, таймер, job, schema или hard delete и не закрывает остальной `PR-03A`.
 - `INFRA-01/I1-I4` строит и проверяет dark target без production traffic; `I5` невозможен до `PR-04A` и `G-11`.
 - `PR-04` не меняет SaaS `SEQUENCE.md`: `PR-04A` является отдельным release gate после TEST-ready результата,
   `PR-04B` подтверждает фактический post-cutover state.
@@ -70,7 +76,8 @@ PR-04A GO ─> INFRA-01/I5 cutover ─> soak/I6 ─> PR-04B closure
 Что: инвентаризировать данные, flows, роли, хранилища, секреты, текущие планы и production controls.
 
 Как: code-search → точечное чтение → read-only host preflight по каноническим runbooks → gap registry. Каждый gap
-получает ровно один статус: `covered`, `active_dependency`, `new_stage`, `owner_question`, `not_applicable`.
+получает ровно один статус: `covered`, `active_dependency`, `executable_now`, `owner_or_legal_gate` или
+`prod_host_later`.
 
 Результат: нет дублирования активных планов; известен реальный scope следующих этапов.
 

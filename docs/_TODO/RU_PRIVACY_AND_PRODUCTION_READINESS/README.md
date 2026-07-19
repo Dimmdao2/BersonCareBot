@@ -1,7 +1,8 @@
 # RU Privacy & Production Readiness
 
-Статус: **DRAFT / OWNER REVIEW**. Инициатива находится в `_TODO`, не исполняется оркестратором и не меняет
-утверждённый порядок SaaS Foundation.
+Статус: **OWNER-ACTIVATED / DEV EXECUTION** с 2026-07-19. Технические, кодовые и безопасные DB-slices выполняются
+на DEV по реестру `PR-00`; production-host hardening, production data migration и любые production mutations
+остаются отдельным owner-gated cutover. Инициатива не меняет утверждённый порядок SaaS Foundation.
 
 ## Зачем создана инициатива
 
@@ -47,15 +48,17 @@ billing и перечисленные задачи остаются защищё
 Инициатива потребляет их закрытые результаты как зависимости. Перекрёстные ссылки в активные планы добавляются
 только после закрытия соответствующего этапа либо по прямому решению владельца.
 
-## Что можно начать сейчас
+## Граница активированного исполнения
 
-- `PR-00` — read-only baseline и реестр пробелов;
-- `PR-01` — карта обработки, немедленная сверка РКН и interim legal containment без ПДн в репозитории;
-- существующий `SEC-01`, taskdb `#881` — Security CI;
-- read-only preflight для `SEC-02` и проектирование `DR-01`.
-- crypto/host ADR, owner/provider packets и repository-only проектирование `CRYPTO-01`/`INFRA-01` без изменения
-  active application files и без production mutations.
+- Реестр статусов и self-contained launch manifests: [`stages/PR-00_SCOPE_LOCK.md`](stages/PR-00_SCOPE_LOCK.md).
+- Сейчас разрешены DEV/repository-only slices, явно помеченные там `executable_now`: `SEC-01`, фактический `PR-01`,
+  безопасные repository slices `SEC-02`/`DR-01`, `CRYPTO-01/C0` и negative purge guard `PR-03A0`.
+- Application-level безопасность, consent, audit, retention, crypto и CI не откладываются из-за будущего переноса
+  production-хоста; они идут сразу после своих D4/S5/legal gates.
+- Шифрование диска, firewall/SSH/systemd/packages/secrets на реальном production-хосте, реальные backup/restore,
+  production DB/backfill и cutover остаются `prod_host_later` и требуют отдельного `G-11`.
 
 До закрытия `G-05/G-05A` не расширяются цели health-data processing, список получателей/подрядчиков и onboarding
-новых организаций с health data. Изменения БД, API, UI, прав доступа, systemd, firewall, backup и production-конфигурации до прохождения своих
-dependency/owner gates запрещены.
+новых организаций с health data. Изменения БД, API, UI и прав доступа выполняются только в DEV после своих
+dependency/owner gates. Изменения systemd/firewall/production backup и production-конфигурации до rehearsal и
+`G-11` запрещены.

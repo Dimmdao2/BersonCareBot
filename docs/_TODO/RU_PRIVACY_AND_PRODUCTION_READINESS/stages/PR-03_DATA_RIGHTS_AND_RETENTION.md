@@ -2,7 +2,9 @@
 
 ## Зависимости
 
-PR-02 принят; data ownership/retention matrix утверждены. Payment slice ждёт freeze billing contract `#751`.
+Для `PR-03A0` (только negative purge-disabled checker) PR-02 и retention matrix не требуются, потому что slice не
+добавляет deletion behavior, schema или срок. Остальной PR-03 требует принятый PR-02 и утверждённую
+data ownership/retention matrix. Payment slice ждёт freeze billing contract `#751`.
 
 Stage делится на два gate:
 
@@ -12,9 +14,17 @@ Stage делится на два gate:
 
 ## File scope gate
 
-Allowed до exact manifest: только эта инициатива. Перед каждым domain slice в LOG фиксируются конкретные
+Allowed до exact manifest: только эта инициатива. Для `PR-03A0` exact manifest из `PR-00` разрешает только
+standalone census/checker/test и минимальную CI/package wiring после фиксации точных путей. Перед каждым domain slice в LOG фиксируются конкретные
 schema/domain/service/API/job/S3/test/docs files. Out of scope: изменение billing contract #751, active SaaS plans,
 unscoped delete scripts и production purge без dry-run/owner gate.
+
+## PR-03A0 — immediate negative guard
+
+- [ ] Census различает account/organization hard purge и существующие resource-specific cleanup paths.
+- [ ] Checker/test падает при появлении доступного account/org purge route, cron, timer или admin action.
+- [ ] Slice не создаёт `pending_deletion`, deadline, notification, export, S3 delete, job или schema.
+- [ ] PASS доказывает только отсутствие доступного irreversible purge; он не закрывает `PR-03A`.
 
 ## PR-03A — pre-launch containment
 
