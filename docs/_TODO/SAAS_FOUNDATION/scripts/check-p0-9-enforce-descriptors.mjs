@@ -275,6 +275,18 @@ assertNotIncludes(
   "P0.9 runtime config generic bootstrap policy must never expose server audience",
 );
 
+const runtimeAudit = getP09EnforceDescriptorByTable("public.app_runtime_settings_audit");
+const runtimeAuditSql = renderP09EnforcePolicyStatements(runtimeAudit).join("\n");
+if (runtimeAudit.enforceMode.action !== "bootstrap_runtime_audit") {
+  fail("P0.9 app_runtime_settings_audit must use bootstrap_runtime_audit enforce action");
+}
+assertIncludes(runtimeAuditSql, "app.is_staff()", "P0.9 runtime audit must require staff capability");
+assertIncludes(
+  runtimeAuditSql,
+  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
+  "P0.9 runtime audit tenant rows must require matching protected organization context",
+);
+
 if (bootstrapGlobal.enforceMode.action !== "bootstrap_global_read") {
   fail("P0.9 bootstrap global rows must use bootstrap_global_read");
 }
@@ -312,7 +324,7 @@ assertNoRawContextSettingsInGeneratedPolicySql(
 console.log(
   [
     "P0.9 enforce descriptors OK:",
-    "234 descriptors,",
+    "235 descriptors,",
     "missing/unknown deny,",
     "SCOPED enforce app.org,",
     "BOOTSTRAP explicit pre-context behavior,",

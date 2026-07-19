@@ -159,6 +159,10 @@ const checks = [
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-locked-policy-artifact.mjs"],
   },
   {
+    label: "SAAS S5-2 settings RLS/grants/config-reader contract",
+    command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs"],
+  },
+  {
     label: "SAAS Phase 4 prod-copy DB-state safety self-test",
     command: ["node", "docs/_TODO/SAAS_FOUNDATION/scripts/check-phase4-prod-copy-db-state.mjs", "--self-test-safety"],
   },

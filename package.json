@@ -31,6 +31,8 @@
     "typecheck": "bash scripts/ensure-booking-sync-built.sh && pnpm -r --parallel run typecheck",
     "check:hls-helpers-sync": "node scripts/check-hls-helpers-sync.mjs",
     "check:saas-db-regression": "node scripts/check-saas-db-regression.mjs",
+    "check:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-s5-2-settings-security.mjs",
+    "smoke:saas-s5-2-settings-security": "node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs",
     "check:new-table-rls-coverage": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs",
     "check:rubitime-retirement-r0": "node docs/_TODO/SAAS_FOUNDATION/scripts/check-rubitime-retirement-r0-freeze.mjs",
     "check:rubitime-retirement-inventory": "node docs/_TODO/SAAS_FOUNDATION/scripts/rubitime-r6-r7-static-inventory.mjs",

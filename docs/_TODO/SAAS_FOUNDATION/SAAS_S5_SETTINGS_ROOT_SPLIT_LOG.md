@@ -125,3 +125,99 @@ files were left unchanged. No DB, env, deploy, TEST/DEV/PROD action or full CI w
   aggregate PASS line, never fixture values, PII or secrets.
 - S5-1 is complete for its additive schema/data/audit-contract scope. S5-2 through S5-7 remain unexecuted; in
   particular, no RLS/grant/runtime-write-chokepoint or live TEST/ops claim is implied.
+
+## 2026-07-19 — S5-1 audit-gate correction: explicit RLS-coverage guard exception
+
+`0209` added `public.app_runtime_settings_audit` (has `organization_id`) without RLS/grants by design (S5-1 is
+additive-only; S5-2 owns policy/grants per the S5-2 checklist above). `pnpm run audit` failed at
+`check-new-table-rls-coverage` because the table had neither a descriptor nor a documented exception.
+
+- Fix: added a `public.app_runtime_settings_audit` entry to `nonLockedPolicyExceptions` in
+  `docs/_TODO/SAAS_FOUNDATION/scripts/check-new-table-rls-coverage.mjs`, with no `policyPath`/`policyTokens`
+  (intentionally no policy exists yet) and a reason citing S5-1 default-deny-by-default-privileges and S5-2
+  ownership of the eventual policy/grants. No 0209 RLS/grants, descriptor model, or S5-2 code changed.
+- PASS: `pnpm run audit` reaches and passes `check-new-table-rls-coverage` (153 public organization_id tables
+  covered) and its self-test.
+- **Open blocker, not fixed here:** `pnpm run audit` still fails downstream at `check-p0-10-tier-completeness`
+  (P0.10.1), because `public.app_runtime_settings_audit` is not yet in
+  `docs/_TODO/SAAS_FOUNDATION/scope-derivation/tiers-218.tsv`. That check has no exception mechanism — it requires
+  every actual base table to have exactly one tier assignment. Adding the table to the tier inventory is explicit
+  S5-2 scope ("Добавить runtime table/audit в SaaS table inventory и явную custom-policy классификацию" — S5-2
+  checklist above), so it is out of scope for this S5-1 correction pass. `pnpm run audit` will not go fully green
+  until S5-2 does this.
+
+## 2026-07-19 — S5-2 RLS, grants and config-reader capability executor pass
+
+S5-2 is implemented as one security-contract stage. This pass changed only canonical policy/grant/role sources,
+their generated artifacts, SaaS inventory/checkers, the DB-principal package and the dedicated infra pool contract.
+It did not add a settings consumer, service/repository write path or DI wiring (S5-3), and did not connect to an
+application DB, alter env, deploy, provision TEST credentials or run full CI.
+
+### Implemented contract
+
+- `public.app_runtime_settings_audit` is now an explicit BOOTSTRAP custom-policy descriptor. The inventory has 235
+  exact descriptors (BOOTSTRAP 29), and the temporary S5-1 RLS-coverage exceptions for both runtime tables are gone.
+- The generated locked-policy artifact and FORCE-cutover target set contain 166 tables. Runtime rows are limited to
+  staff global/current-org, patient safe-audience global/current-org, bootstrap public-only, and the preserved worker
+  server-global path. Runtime audit is staff global/current-org only. Every org predicate uses the protected
+  `app.current_org_id()` helper; missing/wrong context is closed.
+- The canonical P0.5b grant generator gives patient only runtime SELECT, staff full runtime DML and exact audit
+  `SELECT, INSERT`, while preserving explicit `REVOKE ALL` on restricted settings, restricted audit and the
+  integrator mirror for patient/bootstrap.
+- Generated `s5-config-reader-runtime.sql` creates `app_config_reader` as a SET-only capability behind an
+  operator-created isolated login. It strips stale membership/ACL edges, grants only restricted settings SELECT plus
+  protected context helpers, applies exact global/current-org RLS, and carries repeatable membership/ACL tripwires.
+- `@bersoncare/db-principal` has a closed typed `app_config_reader` role and protected operational-org context helper.
+  The webapp exposes a callback-only, separately bounded config-reader pool. Every checkout selects the capability,
+  installs exact org context, clears even partially installed context, resets role and destroys failed checkouts;
+  concurrent org operations use separate clients. No raw pool is exported to routes or modules.
+
+### Evidence
+
+- PASS: `pnpm run check:saas-db-regression`, including the descriptor/tier/accessor/chokepoint suite, 166-target
+  FORCE/locked-policy checks and the dedicated S5-2 generated-artifact checker.
+- PASS: `node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-s5-2-settings-security.mjs` on a private disposable PostgreSQL
+  16 cluster. The real-role matrix proves staff/patient/config-reader positive and negative access,
+  missing/wrong-org denial, audit/restricted denial, SET ROLE denial, zero clinical privileges and membership closure.
+  Its bootstrap positive case is deliberately only an RLS-policy probe with a local scratch grant: the real
+  bootstrap login retains zero direct table SELECT and continues to read public runtime config through the existing
+  accessor. Wiring that later consumer/grant is S5-5 scope, not S5-2.
+  It also runs config-reader DOWN twice and restores UP, proving repeatable rollback. The runner reads no application
+  env, reaches no DEV/TEST/PROD DB and emits only a fixed PII-free result.
+- PASS: targeted `webappPoolProvider.test.ts` — 1 file, 31/31 tests, including concurrent org isolation, failed
+  operation disposal and partial-setup cleanup.
+- PASS: `pnpm --dir apps/webapp typecheck` and targeted ESLint for the changed webapp TS files.
+- PASS: `pnpm --dir packages/db-principal test` — build, type-contract tests and 5/5 runtime tests.
+- PASS: `git diff --check` (recorded after final documentation synchronization).
+
+S5-2 is complete for source/generated security contracts and disposable proof. Live credential creation and TEST
+installation remain S5-7 operator work; S5-3 must wire the restricted port and new store without broadening this
+capability or introducing a second write/audit owner.
+
+## 2026-07-19 — S5-2 independent-audit correction
+
+The independent audit found one in-scope P1: the first grant renderer gave runtime audit the same broad DML as the
+runtime table. The canonical renderer now first revokes all stale staff privileges, then restores full DML only on
+`app_runtime_settings` and exact `SELECT, INSERT` on `app_runtime_settings_audit`. Static generation checks reject
+any audit UPDATE/DELETE grant; the disposable real-role proof checks the exact ACL snapshot, allows audit INSERT and
+denies direct UPDATE and DELETE. No policy, trigger, consumer or later-stage mechanism changed.
+
+The audit's non-blocking P2 is documentation-only: bootstrap positive smoke coverage is a policy probe using a local
+scratch grant. Deployed bootstrap direct table SELECT remains revoked and the existing accessor remains its real read
+path; no S5-5 grant was added.
+
+## 2026-07-19 — S5-2 final re-audit and milestone CI
+
+- PASS: final independent full-checklist re-audit
+  `bcb-s5-2-security-final-reaudit-20260719-1200`. It independently confirmed the corrected least-privilege audit
+  ACL (`app_staff` has exact `SELECT, INSERT`, with direct audit `UPDATE`/`DELETE` denied), the bootstrap policy-probe
+  wording, generated artifact consistency, custom RLS descriptors, config-reader capability closure, callback-only
+  pool boundary and DB-principal role/context contract. No blocking finding remains.
+- PASS: one milestone `pnpm run ci`. Lint, typecheck, all tests and both builds passed. Test totals were integrator
+  1263, webapp 8060 and media-worker 56. The final audit initially stopped at one stale mechanical FORCE-target guard
+  (`164` instead of the generated/current `166`); only
+  `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-test-strict-finalizer.mjs` was updated. The failed
+  `check:saas-test-strict-finalizer` gate then passed, and `pnpm run ci:resume:after-build-webapp` completed the audit
+  and dependency audit without repeating the already-green lint, typecheck, test or build gates.
+- The existing non-blocking Turbopack NFT warning remains unchanged. No DEV/TEST/PROD DB, credentials, service or
+  deployment was touched by these verification passes.

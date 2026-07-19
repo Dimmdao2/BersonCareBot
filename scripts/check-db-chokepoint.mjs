@@ -12,6 +12,8 @@ const allowedPoolProviderFiles = new Set([
   "apps/webapp/src/infra/db/webappPoolProvider.ts",
   "apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts",
   "apps/webapp/src/infra/db/integratorPurgePoolProvider.ts",
+  // S5-2 restricted settings capability: separate LOGIN/pool, bounded callback-only checkout.
+  "apps/webapp/src/infra/db/configReaderPoolProvider.ts",
   "apps/integrator/src/infra/db/integratorPoolProvider.ts",
   "apps/integrator/src/infra/db/integratorMigrationPoolProvider.ts",
   "apps/integrator/src/infra/scripts/projectionHealthPoolProvider.ts",
@@ -26,6 +28,7 @@ const allowedConnectFiles = new Set([
   // Phase 1 DB principal chokepoint: provider-level promise pool.query wrappers
   // must checkout a client so labels can be installed and cleared around the query.
   "apps/webapp/src/infra/db/webappPoolProvider.ts",
+  "apps/webapp/src/infra/db/configReaderPoolProvider.ts",
   "apps/integrator/src/infra/db/integratorPoolProvider.ts",
   "apps/media-worker/src/poolProvider.ts",
   // One-off ops backfill keeps paired sessions + SAVEPOINT flow by ADR Class C.

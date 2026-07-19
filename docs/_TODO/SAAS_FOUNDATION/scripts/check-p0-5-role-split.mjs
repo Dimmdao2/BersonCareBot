@@ -63,10 +63,11 @@ function countByTier(tables) {
 
 function assertGrantSetMatchesTiers() {
   if (
-    p05DedicatedRoleTables.size !== 1 ||
-    !p05DedicatedRoleTables.has("public.app_runtime_settings")
+    p05DedicatedRoleTables.size !== 2 ||
+    !p05DedicatedRoleTables.has("public.app_runtime_settings") ||
+    !p05DedicatedRoleTables.has("public.app_runtime_settings_audit")
   ) {
-    fail("P0.5 dedicated-role exclusion must contain only public.app_runtime_settings");
+    fail("P0.5 dedicated-role exclusion must contain only the S5 runtime and runtime-audit tables");
   }
 
   const grantTables = getP05AppGrantTables();
@@ -81,6 +82,9 @@ function assertGrantSetMatchesTiers() {
 
   if (grantTableNames.has("public.app_runtime_settings")) {
     fail("P0.5 generic app role must not receive app_runtime_settings; it uses dedicated audience-aware roles");
+  }
+  if (grantTableNames.has("public.app_runtime_settings_audit")) {
+    fail("P0.5 generic app role must not receive app_runtime_settings_audit; it is staff-only");
   }
 
   if (grantTableNames.size !== expectedTables.size) {

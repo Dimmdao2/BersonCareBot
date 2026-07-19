@@ -26,6 +26,7 @@ export const p09EnforceActions = new Set([
   "bootstrap_hybrid",
   "bootstrap_hybrid_org_gated",
   "bootstrap_runtime_audience",
+  "bootstrap_runtime_audit",
   "bootstrap_global_read",
   "explicit_global",
   "legacy_frozen_deny",
@@ -39,6 +40,7 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   bootstrap_hybrid: 3,
   bootstrap_hybrid_org_gated: 2,
   bootstrap_runtime_audience: 1,
+  bootstrap_runtime_audit: 1,
   bootstrap_global_read: 22,
   explicit_global: 30,
   legacy_frozen_deny: 16,
@@ -149,6 +151,17 @@ export function buildP09EnforceDescriptor(descriptor) {
         },
       };
     }
+    if (descriptor.scopingKind === "bootstrap_runtime_audit") {
+      return {
+        ...base,
+        predicateTemplate: "staff_global_or_exact_org_audit",
+        enforceMode: {
+          ...base.enforceMode,
+          action: "bootstrap_runtime_audit",
+          reason: "runtime_audit_rows_require_staff_and_global_or_matching_org",
+        },
+      };
+    }
 
     if (descriptor.scopingKind === "bootstrap_global") {
       return {
@@ -227,8 +240,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 234) {
-    throw new Error(`Expected 234 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 235) {
+    throw new Error(`Expected 235 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {
@@ -306,6 +319,9 @@ export function renderP09EnforcePredicate(descriptor) {
       audienceColumn: descriptor.audienceColumn,
       safeAudiences: descriptor.safeAudiences,
     });
+  }
+  if (action === "bootstrap_runtime_audit") {
+    return `(${renderStaffActorCheck()} AND ${renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn })})`;
   }
 
   if (action === "bootstrap_global_read" || action === "explicit_global") {

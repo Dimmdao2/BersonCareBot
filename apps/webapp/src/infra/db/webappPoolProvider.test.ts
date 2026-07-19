@@ -17,6 +17,7 @@ import {
   WEB_PUSH_REMINDER_INFRA_SOURCE,
 } from "@/infra/db/webappPoolProvider";
 import { createSaasIsolationTelemetryPoolProvider } from "@/infra/db/saasIsolationTelemetryPoolProvider";
+import { createConfigReaderPoolProvider } from "@/infra/db/configReaderPoolProvider";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 
 const { reportSaasIsolationEventBestEffortMock } = vi.hoisted(() => ({
@@ -127,6 +128,100 @@ describe("webapp pool provider", () => {
       statement_timeout: 200,
       idle_in_transaction_session_timeout: 200,
     });
+  });
+
+  it("uses a dedicated config-reader pool with exact org setup and cleanup", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const provider = createConfigReaderPoolProvider({
+      connectionString: "postgres://config-reader/db",
+      poolFactory: factory,
+    });
+
+    await provider.withOrganizationContext(ORG_ID, async (client) => {
+      await client.query("SELECT restricted_config_marker");
+    });
+
+    expect(pools).toHaveLength(1);
+    expect(pools[0]?.config).toMatchObject({
+      connectionString: "postgres://config-reader/db",
+      max: 2,
+      application_name: "bcb_webapp_config_reader",
+    });
+    const client = pools[0]?.clients[0];
+    expect(client?.query.mock.calls).toEqual([
+      ["SET ROLE app_config_reader"],
+      ["SELECT set_config('app.org', $1, false)", [ORG_ID]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+      ["SELECT restricted_config_marker"],
+      ["SELECT set_config('app.org', $1, false)", [""]],
+      ["SELECT set_config('app.patient_user_id', $1, false)", [""]],
+      ["SELECT set_config('app.integrator_user_id', $1, false)", [""]],
+      ["RESET ROLE"],
+    ]);
+    expect(client?.release).toHaveBeenCalledWith(undefined);
+  });
+
+  it("isolates concurrent config-reader org contexts and destroys a failed checkout", async () => {
+    const failure = new Error("config read failed");
+    const { factory, pools } = createFakePoolFactory();
+    const provider = createConfigReaderPoolProvider({
+      connectionString: "postgres://config-reader/db",
+      poolFactory: factory,
+    });
+    const secondOrg = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+    const results = await Promise.allSettled([
+      provider.withOrganizationContext(ORG_ID, async (client) => {
+        await client.query("SELECT first_org");
+        return "first";
+      }),
+      provider.withOrganizationContext(secondOrg, async (client) => {
+        await client.query("SELECT second_org");
+        throw failure;
+      }),
+    ]);
+
+    expect(results[0]).toMatchObject({ status: "fulfilled", value: "first" });
+    expect(results[1]).toMatchObject({ status: "rejected", reason: failure });
+    expect(pools[0]?.clients).toHaveLength(2);
+    expect(pools[0]?.clients[0]?.query.mock.calls).toContainEqual([
+      "SELECT set_config('app.org', $1, false)",
+      [ORG_ID],
+    ]);
+    expect(pools[0]?.clients[1]?.query.mock.calls).toContainEqual([
+      "SELECT set_config('app.org', $1, false)",
+      [secondOrg],
+    ]);
+    expect(pools[0]?.clients[0]?.release).toHaveBeenCalledWith(undefined);
+    expect(pools[0]?.clients[1]?.release).toHaveBeenCalledWith(failure);
+  });
+
+  it("clears partial config-reader context when setup fails after role selection", async () => {
+    const failure = new Error("context setup failed");
+    let failPatientContextOnce = true;
+    const { factory, pools } = createFakePoolFactory(async (sql) => {
+      if (failPatientContextOnce && sql.includes("app.patient_user_id")) {
+        failPatientContextOnce = false;
+        throw failure;
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const provider = createConfigReaderPoolProvider({
+      connectionString: "postgres://config-reader/db",
+      poolFactory: factory,
+    });
+
+    await expect(
+      provider.withOrganizationContext(ORG_ID, async () => {
+        throw new Error("operation must not run");
+      }),
+    ).rejects.toBe(failure);
+
+    const client = pools[0]?.clients[0];
+    expect(client?.query.mock.calls).toContainEqual(["SELECT set_config('app.org', $1, false)", [""]]);
+    expect(client?.query.mock.calls.at(-1)).toEqual(["RESET ROLE"]);
+    expect(client?.release).toHaveBeenCalledWith(failure);
   });
 
   it("routes staff and organization-scoped principals to the staff pool before checkout", async () => {

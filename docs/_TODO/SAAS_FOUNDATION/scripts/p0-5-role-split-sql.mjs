@@ -6,7 +6,10 @@ const grantTiers = new Set(["SCOPED", "BOOTSTRAP"]);
 
 // This runtime store has role-specific grants (patient/staff/worker/integrator accessor) and an
 // audience-aware policy. Granting it to the generic legacy app role would bypass that split.
-export const p05DedicatedRoleTables = new Set(["public.app_runtime_settings"]);
+export const p05DedicatedRoleTables = new Set([
+  "public.app_runtime_settings",
+  "public.app_runtime_settings_audit",
+]);
 
 function sqlString(value) {
   return `'${value.replaceAll("'", "''")}'`;

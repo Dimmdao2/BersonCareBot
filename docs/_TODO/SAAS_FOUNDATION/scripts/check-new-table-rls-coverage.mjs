@@ -13,24 +13,11 @@ import { getPhase4LockedPolicyTargets } from "./phase4-locked-policy-artifact.mj
 
 const repoRoot = process.cwd();
 const cutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
-const runtimeSettingsPolicyPath = "apps/webapp/db/drizzle-migrations/0188_media_worker_runtime_flags.sql";
 
-// These are not a parallel classification registry. They are the two public
-// organization_id tables deliberately outside the generic Phase 4 locked
+// This is not a parallel classification registry. It holds a public organization_id
+// table deliberately outside the generic Phase 4 locked
 // policy renderer, with the reason/policy evidence kept beside the guard.
 const nonLockedPolicyExceptions = new Map([
-  [
-    "public.app_runtime_settings",
-    {
-      reason:
-        "BOOTSTRAP runtime-audience rows use their dedicated safe-read/staff-write policy instead of generic P0.8.6.",
-      policyPath: runtimeSettingsPolicyPath,
-      policyTokens: [
-        "CREATE POLICY app_runtime_settings_safe_read ON public.app_runtime_settings",
-        "CREATE POLICY app_runtime_settings_staff_write ON public.app_runtime_settings",
-      ],
-    },
-  ],
   [
     "public.be_organization_members",
     {

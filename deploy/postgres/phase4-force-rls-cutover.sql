@@ -92,6 +92,8 @@ CREATE TEMP TABLE phase4_force_rls_targets (
 INSERT INTO phase4_force_rls_targets (target)
 VALUES
   ('"public"."admin_audit_log"'),
+  ('"public"."app_runtime_settings"'),
+  ('"public"."app_runtime_settings_audit"'),
   ('"public"."be_appointment_cancellations"'),
   ('"public"."be_appointment_events"'),
   ('"public"."be_appointment_history_events"'),
@@ -283,8 +285,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-  IF v_expected_count <> 164 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 164, got %', v_expected_count;
+  IF v_expected_count <> 166 THEN
+    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 166, got %', v_expected_count;
   END IF;
 
   SELECT count(*)

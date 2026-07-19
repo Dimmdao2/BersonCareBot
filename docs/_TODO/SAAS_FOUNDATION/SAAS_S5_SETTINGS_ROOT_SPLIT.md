@@ -316,30 +316,30 @@ idempotent reapply, aggregate source/destination counts, restricted-key absence,
 
 **Scope:** canonical RLS/grant sources, generated artifacts, role/pool contract tests. Никаких broad grants.
 
-- [ ] Добавить runtime table/audit в SaaS table inventory и явную custom-policy классификацию; обновить
+- [x] Добавить runtime table/audit в SaaS table inventory и явную custom-policy классификацию; обновить
   `docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs:34-43,228-230` и связанные target/check scripts.
   **Где:** указанные descriptor/target/check scripts; **доказательство:** descriptor checker не считает таблицу
   unknown/unclassified.
-- [ ] Политики runtime table: staff — global/current org; patient — global/current resource org; bootstrap — только
+- [x] Политики runtime table: staff — global/current org; patient — global/current resource org; bootstrap — только
   `audience='public'`; missing/forged context fail-closed. Audit table пациенту недоступна.
   **Где:** canonical policy source, anchor
   `deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1340`; **доказательство:** real-role matrix
   S1/S2/P1/P2/bootstrap на disposable DB.
-- [ ] Обновить source generator
+- [x] Обновить source generator
   `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:49-53,155-170,772-811`, затем regenerated artifact;
   `app_patient` получает только `SELECT app_runtime_settings`, staff — нужный DML, patient — zero audit writes.
   **Где:** указанный source generator и generated artifact из его header; **доказательство:** generated diff + grant
   smoke; ручная правка generated list запрещена.
-- [ ] Явно сохранить `REVOKE ALL` для patient/bootstrap на restricted table/audit/mirror.
+- [x] Явно сохранить `REVOKE ALL` для patient/bootstrap на restricted table/audit/mirror.
   **Где:** `docs/_TODO/SAAS_FOUNDATION/scripts/p0-5b-grants-sql.mjs:49-53,155-170,772-811`;
   **доказательство:** privilege snapshot и прямые negative SELECT.
-- [ ] Добавить `app_config_reader` и отдельный config-reader login/pool без membership в staff/patient; grant только
+- [x] Добавить `app_config_reader` и отдельный config-reader login/pool без membership в staff/patient; grant только
   на restricted config surface; policy разрешает global/exact current org и fail-closed org-row. **Где:** role/grant
   source рядом с C0 topology artifacts, locked policy source и
   `apps/webapp/src/infra/db/webappPoolProvider.ts:11-29,137-180`; **доказательство:** membership/SET ROLE negative
   matrix, global/exact-org positive tests, missing/wrong-org denial, pool cleanup/concurrency tests, zero
   clinical-table privileges.
-- [ ] Синхронизировать generated locked policy artifact
+- [x] Синхронизировать generated locked policy artifact
   (`deploy/postgres/phase4-locked-helper-rls-policies.sql:1325-1340`) через его generator, не ручной вставкой.
   **Где:** указанный artifact и canonical generator из его header; **доказательство:**
   `pnpm run check:saas-db-regression` и policy artifact self-test green.

@@ -19,7 +19,8 @@ export type DbOperationalRuntimeRole =
   | "app_operational_delivery_worker"
   | "app_operational_media_worker"
   | "app_operational_scheduler"
-  | "app_operational_web_push_reminder";
+  | "app_operational_web_push_reminder"
+  | "app_config_reader";
 
 export type DbPrincipalKind = "organization" | "staff" | "patient" | "integrator" | "bootstrap" | "infra";
 
@@ -132,6 +133,9 @@ export async function setDbOperationalRuntimeRole(
     case "app_operational_web_push_reminder":
       statement = "SET ROLE app_operational_web_push_reminder";
       break;
+    case "app_config_reader":
+      statement = "SET ROLE app_config_reader";
+      break;
     default:
       throw new Error("Unsupported DB operational runtime role");
   }
@@ -141,6 +145,42 @@ export async function setDbOperationalRuntimeRole(
 /** Clears a role selected through `setDbOperationalRuntimeRole` at the shared DB chokepoint. */
 export async function resetDbOperationalRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
   await client.query("RESET ROLE");
+}
+
+/** Installs only an organization context for a narrow operational capability after its SET ROLE. */
+export async function applyDbOperationalOrganizationContextToConnection(
+  client: DbPrincipalQueryable,
+  organizationId: string | undefined,
+  options: DbPrincipalApplyOptions = {},
+): Promise<void> {
+  if (options.mode === "locked" || options.mode === "shadow") {
+    if (organizationId === undefined) {
+      await client.query("SELECT app.release_principal_context()");
+      return;
+    }
+    await installSignedDbPrincipalContext(
+      client,
+      createDbOrganizationPrincipal({ organizationId, source: "operational-config-reader" }),
+      options.signer,
+    );
+    return;
+  }
+
+  await setDbPrincipalConfig(client, APP_ORG_CONFIG_KEY, organizationId ?? "", "connection");
+  await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", "connection");
+  await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, "", "connection");
+}
+
+/** Clears the operational organization context without changing the caller-selected capability role. */
+export async function clearDbOperationalOrganizationContextFromConnection(
+  client: DbPrincipalQueryable,
+  options: DbPrincipalApplyOptions = {},
+): Promise<void> {
+  if (options.mode === "locked" || options.mode === "shadow") {
+    await client.query("SELECT app.release_principal_context()");
+    return;
+  }
+  await clearDbPrincipalConfig(client, "connection");
 }
 
 export type DbPrincipalSigner = {

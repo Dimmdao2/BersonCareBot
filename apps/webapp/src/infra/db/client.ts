@@ -1,14 +1,23 @@
 import type { Pool } from "pg";
-import { runWithDbBootstrapPrincipal } from "@bersoncare/db-principal";
+import {
+  buildDbPrincipalApplyOptionsFromEnv,
+  runWithDbBootstrapPrincipal,
+} from "@bersoncare/db-principal";
 import { env } from "@/config/env";
+import {
+  createConfigReaderPoolProvider,
+  type ConfigReaderPoolProvider,
+} from "@/infra/db/configReaderPoolProvider";
 import { withPoolClient } from "@/infra/db/withClient";
 import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
 
 export const DATABASE_URL_STAFF_ENV = "DATABASE_URL_STAFF";
 export const DATABASE_URL_NONSTAFF_ENV = "DATABASE_URL_NONSTAFF";
 export const DATABASE_URL_WEB_PUSH_REMINDER_ENV = "DATABASE_URL_WEB_PUSH_REMINDER";
+export const DATABASE_URL_CONFIG_READER_ENV = "DATABASE_URL_CONFIG_READER";
 
 let pool: Pool | null = null;
+let configReaderPool: ConfigReaderPoolProvider | null = null;
 
 type WebappRuntimeDatabaseEnv = {
   DATABASE_URL?: string;
@@ -65,6 +74,19 @@ export function getPool(): Pool {
   pool ??= createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
 
   return pool;
+}
+
+export function getConfigReaderPool(): ConfigReaderPoolProvider {
+  if (configReaderPool) return configReaderPool;
+  const connectionString = trimOptionalEnv(process.env[DATABASE_URL_CONFIG_READER_ENV]);
+  if (!connectionString) {
+    throw new Error(`${DATABASE_URL_CONFIG_READER_ENV} is not set`);
+  }
+  configReaderPool = createConfigReaderPoolProvider({
+    connectionString,
+    principalApplyOptions: buildDbPrincipalApplyOptionsFromEnv(process.env),
+  });
+  return configReaderPool;
 }
 
 export async function checkDbHealth(): Promise<boolean> {
