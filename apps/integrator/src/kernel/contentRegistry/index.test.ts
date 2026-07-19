@@ -5,11 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { ensureNoDuplicateScriptIds, getContentBundle, getEffectiveBundleKey, loadContentRegistry } from './index.js';
 
 describe('contentRegistry', () => {
-  it('loads rubitime and telegram/user, telegram/admin bundles from workspace content root', async () => {
+  it('loads telegram/user, telegram/admin bundles from workspace content root and keeps rubitime retired (no resurrection)', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
 
-    expect(getContentBundle(registry, 'rubitime')).not.toBeNull();
+    const rubitimeBundle = getContentBundle(registry, 'rubitime');
+    expect(rubitimeBundle?.scripts ?? []).toEqual([]);
+    expect(Object.keys(rubitimeBundle?.templates ?? {})).toEqual([]);
     expect(getContentBundle(registry, 'telegram/user')).not.toBeNull();
     expect(getContentBundle(registry, 'telegram/admin')).not.toBeNull();
   });
