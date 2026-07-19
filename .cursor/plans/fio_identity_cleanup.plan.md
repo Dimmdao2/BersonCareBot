@@ -23,7 +23,7 @@ todos:
     status: completed
   - id: fio-6
     content: Make patient email and specialist/clinic registrations write structured FIO and derived display_name.
-    status: pending
+    status: completed
   - id: fio-7
     content: Audit/correct remaining manual, booking, provisioning, OAuth, Telegram, and MAX writers.
     status: pending
@@ -426,7 +426,8 @@ Validation run:
 
 ## Phase 6 — Structured FIO At Identity Creation
 
-Status: pending.
+Status: completed on `feat/doctor-ui-rebuild` at `50eba2619` (`a9d70dc85` specialist/clinic foundation,
+`4d53e003e` separate patient email registration, `50eba2619` milestone test alignment).
 
 Goal:
 
@@ -446,6 +447,13 @@ Gate:
 
 - Patient and specialist registration tests prove required surname/given name, optional patronymic, derived
   `display_name`, and no organization/specialist name mixing.
+
+Evidence:
+
+- Independent C2F audit: `bcb-c2f-855-patient-registration-audit-20260719` — PASS.
+- Post-rebase focused registration suite: 6 files / 60 tests — PASS.
+- Combined S4/C2F milestone: lint, typecheck, integrator/webapp/media-worker tests, builds and `pnpm run audit` — PASS.
+- No TEST/production DB, deploy or real delivery action was performed.
 
 ## Phase 7 — Remaining Writers And Provider Priority
 

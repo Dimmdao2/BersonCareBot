@@ -303,7 +303,7 @@ Implemented:
 
 ### Phase 6 — Structured FIO At Identity Creation
 
-Status: pending.
+Status: completed on `feat/doctor-ui-rebuild` at `50eba2619`.
 
 Goal: stop creating new ambiguous identities before migration cleanup.
 
@@ -326,6 +326,13 @@ Gate:
 
 - Every owned **new-identity registration** path writes structured FIO; existing-account OTP login does not become an
   identity-creation writer.
+
+Evidence:
+
+- Specialist/clinic structured registration foundation: `a9d70dc85`.
+- Separate structured patient email registration and lookup-only existing-account OTP login: `4d53e003e`.
+- Independent audit `bcb-c2f-855-patient-registration-audit-20260719`: PASS.
+- Post-rebase focused registration suite: 6 files / 60 tests; combined milestone CI and audit: PASS at `50eba2619`.
 
 ### Phase 7 — Remaining Writers And Provider Priority
 
