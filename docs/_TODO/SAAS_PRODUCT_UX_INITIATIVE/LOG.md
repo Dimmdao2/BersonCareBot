@@ -2554,3 +2554,46 @@ The worker did not claim its own audit gate.
   mount artifact. No correction or second audit round was opened.
 - **Closure:** all U0 completion boxes are checked. No app tests, typecheck, build, DB, DEV/TEST/PROD, deploy or full
   CI was run because the complete stage is documentation/current-state reconciliation only.
+
+## 2026-07-19 — C4B CMS tenant boundary and master-detail launch (`#853`)
+
+**Checkpoint.** Integration branch `feat/doctor-ui-rebuild` is at `2718fe68b`; origin is aligned. The latest live
+TEST code remains `4a889093d` on the prepared persistent TEST database. This stage does not deploy or reset TEST and
+does not touch production. Task `#853` maps only to owner-review §§11-12 and roadmap C4B. Prerequisites are closed:
+C2 identity/membership, U0 current-contract handoff, and S4-0/S4-1 entitlement registry/chokepoint `#888`.
+
+**Current facts and gap.** Existing CMS writes already reuse doctor-workspace principal stamping, Drizzle repositories,
+the existing `cms_pages` entitlement, and `content_sections.organization_id` / `content_pages.organization_id`.
+Migration `0153_p0_4_p8_catalog_content_audit_org.sql` assigned legacy NULL content rows to the canonical owner
+organization, so C4B does not invent a migration or NULL-row policy. Read paths and direct doctor pages are not yet
+consistently organization-scoped or entitlement-gated. The current shell also renders the selected section's
+materials/actions below navigation in the left pane, keeps a duplicate `Разделы` row, and sends create-section to a
+full page instead of opening the form on the right.
+
+**One-stage acceptance.** Owner organization with `cms_pages`: the left pane contains only available system/user
+sections and create-section; choosing `Разминки` or a user section shows its materials/actions on the right; choosing
+a material opens the editor there; create-section opens on the right and the saved row appears on the left. A second
+organization without the entitlement sees no CMS shell and cannot obtain owner sections/pages/media through list,
+direct doctor routes, counts, search or picker. `_cms_unassigned`, duplicate service rows, and a CMS `Медиа` nav row
+remain absent; `Файлы и медиа` stays the canonical media-management surface. No blog/CMS product expansion.
+
+**Ownership and file scope.** Reuse `requireDoctorWorkspaceContext`, `withDoctorWorkspacePrincipal`,
+`requireEntitlementForAction(..., "cms_pages")`, the existing organization columns, Drizzle ports/repos, and existing
+media/files authorization. Allowed implementation scope is the current doctor content page/shell/nav and direct
+new/edit/section pages/actions, `modules/content-sections` ports only where contract scoping requires it,
+`pgContentSections.ts`, `pgContentPages.ts`, their focused tests, and a compact existing-principal patient read guard
+only if needed to prevent an authenticated cross-organization leak without changing anonymous legacy behavior.
+Schema/migrations, a new entitlement/resolver/route tree, courses, tariff/billing, FIO, privacy/legal docs, shared
+Doctor DNA primitives/theme files, and `docs/_TODO/SESSION_HANDOFF_2026-07-17.md` are protected. Current Doctor DNA
+S0 owns shell/theme plus Today/Clients/Settings; C4B changes no shared DNA file, so file ownership is reconciled.
+
+**Validation and live scenario.** Focused CMS and repository tests must include organization A/B list/direct/count/
+picker negatives and entitlement OFF/ON; webapp typecheck and scoped lint follow. Full CI runs once at the completed
+C4B integration milestone, not during correction iterations. Live DEV uses the single existing `127.0.0.1:5200`
+server: `dev:admin` at `/app/doctor/content?section=warmups` and `dev:clinic-admin` for entitlement-off denial,
+desktop `1440x900` and mobile `390x844`. No real send, second Next server, DB reset, TEST/PROD action or PII output.
+
+**Execution mode.** One Terra high `worker-hard` owns the coherent data/API/UI/test slice in an isolated worktree;
+one independent critical tenant audit checks the whole C4B checklist. If it fails, one integrated correction owner
+gets the full report followed by one full re-audit. Findings outside owner-review §§11-12 are owner questions, never
+automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
