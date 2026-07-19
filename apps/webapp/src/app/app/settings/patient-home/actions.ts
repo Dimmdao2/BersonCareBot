@@ -308,7 +308,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
     if (!isPatientHomeBlockCode(blockCode)) {
       return { ok: false, error: "invalid_block_code" };
     }
-    if (!allowedTargetTypesForBlock(input.blockCode).includes("content_section")) {
+    if (!allowedTargetTypesForBlock(blockCode).includes("content_section")) {
       return { ok: false, error: "invalid_target_type_for_block" };
     }
 

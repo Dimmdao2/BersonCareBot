@@ -196,7 +196,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          WHERE m.id = ${id}::uuid
-           AND (m.usage_purpose = 'program_item_submission' OR m.organization_id = ${organizationId}::uuid)
+           AND m.organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicateM}`,
       );
       const row = res.rows[0];
@@ -227,7 +227,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         getWebappSqlDb(),
         sql`SELECT s3_key FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
-           AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+           AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
       );
       const row = res.rows[0];
@@ -239,7 +239,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const organizationId = currentPrincipalOrganizationId();
       const whereParts: SQL[] = [
         mediaReadableStatusPredicateM,
-        sql`(m.usage_purpose = 'program_item_submission' OR m.organization_id = ${organizationId}::uuid)`,
+        sql`m.organization_id = ${organizationId}::uuid`,
       ];
 
       if (params.kind && params.kind !== "all") {
@@ -449,7 +449,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         getWebappSqlDb(),
         sql`SELECT s3_key FROM media_files
              WHERE id = ${mediaId}::uuid
-               AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)`,
+               AND organization_id = ${organizationId}::uuid`,
       );
       const s3Key = keyRes.rows[0]?.s3_key ?? null;
       const publicUrl =
@@ -583,6 +583,7 @@ export async function insertPendingProgramSubmissionMediaFileTx(
   },
 ): Promise<void> {
   const isVideo = params.mimeType.toLowerCase().startsWith("video/");
+  const organizationId = currentPrincipalOrganizationId();
   const db = getWebappSqlFromPgClient(client);
   await db.insert(mediaFiles).values({
     id: params.id,
@@ -594,6 +595,7 @@ export async function insertPendingProgramSubmissionMediaFileTx(
     status: "pending",
     uploadedBy: params.userId,
     folderId: params.folderId,
+    organizationId,
     usagePurpose: "program_item_submission",
     videoDeliveryOverride: isVideo ? "mp4" : null,
   });
@@ -669,10 +671,14 @@ export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
 
 /** Confirm patient program submission upload (must have usage_purpose set at presign). */
 export async function confirmProgramSubmissionMediaFileReady(mediaId: string): Promise<boolean> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql(
     getWebappSqlDb(),
     sql`UPDATE media_files SET status = 'ready'
-     WHERE id = ${mediaId}::uuid AND status = 'pending' AND usage_purpose = 'program_item_submission'`,
+     WHERE id = ${mediaId}::uuid
+       AND organization_id = ${organizationId}::uuid
+       AND status = 'pending'
+       AND usage_purpose = 'program_item_submission'`,
   );
   return (res.rowCount ?? 0) > 0;
 }
@@ -697,11 +703,13 @@ export async function getProgramSubmissionMediaStatusRow(
   mediaId: string,
   patientUserId: string,
 ): Promise<ProgramSubmissionMediaStatusRow | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<ProgramSubmissionMediaStatusRow>(
     getWebappSqlDb(),
     sql`SELECT id::text, mime_type, status, video_processing_status, video_processing_error
      FROM media_files
      WHERE id = ${mediaId}::uuid
+       AND organization_id = ${organizationId}::uuid
        AND uploaded_by = ${patientUserId}::uuid
        AND usage_purpose = 'program_item_submission'`,
   );
@@ -734,13 +742,20 @@ export async function markProgramSubmissionVideoProcessingFailed(
   errorMessage: string,
 ): Promise<void> {
   const msg = errorMessage.slice(0, 8000);
+  const organizationId = currentPrincipalOrganizationId();
   await getWebappSqlDb()
     .update(mediaFiles)
     .set({
       videoProcessingStatus: "failed",
       videoProcessingError: msg,
     })
-    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.usagePurpose, "program_item_submission")));
+    .where(
+      and(
+        eq(mediaFiles.id, mediaId),
+        eq(mediaFiles.organizationId, organizationId),
+        eq(mediaFiles.usagePurpose, "program_item_submission"),
+      ),
+    );
 }
 
 export type MediaAccessRow = {
@@ -758,7 +773,7 @@ export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | nu
     sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
      FROM media_files
      WHERE id = ${id}::uuid
-       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
@@ -837,7 +852,7 @@ export async function getMediaRowForPlayback(
             usage_purpose, uploaded_by::text
      FROM media_files
      WHERE id = ${id}::uuid AND ${storagePredicate}
-       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
@@ -850,7 +865,7 @@ export async function getMediaS3KeyForRedirect(id: string): Promise<string | nul
     getWebappSqlDb(),
     sql`SELECT s3_key FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
-           AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+           AND organization_id = ${organizationId}::uuid
            AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0]?.s3_key ?? null;
@@ -871,7 +886,7 @@ export async function getMediaPreviewS3KeyForRedirect(
     sql`SELECT preview_sm_key, preview_md_key, preview_status
      FROM media_files
      WHERE id = ${id}::uuid
-       AND (usage_purpose = 'program_item_submission' OR organization_id = ${organizationId}::uuid)
+       AND organization_id = ${organizationId}::uuid
        AND ${mediaReadableStatusPredicate}`,
   );
   const row = res.rows[0];

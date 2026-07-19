@@ -2627,3 +2627,24 @@ automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
   scoped ESLint plus `git diff --check` pass. Candidate typecheck exposed and fixed two route syntax errors and two
   Patient Home narrowing errors; its remaining failures are dependency-resolution artifacts of the isolated
   worktree, so the authoritative typecheck and milestone CI run once after integration.
+
+### Final C4B submission tenant correction
+
+- The critical re-audit reproduced a cross-organization path for `program_item_submission`: the patient insert did
+  not stamp `organization_id`, and read predicates treated the usage type as an organization bypass. The final
+  correction stamps the active principal organization on submission insert and requires exact `organization_id` on
+  list/search/count/picker, direct metadata/URL, access, playback, redirect and preview reads. The existing uploader
+  or doctor/admin submission ACL now runs only after the repository returns a same-organization row. Migration
+  `0152` remains the legacy-row authority; no resolver, schema or migration was added.
+- A deterministic fake SQL/Drizzle adapter evaluates the real query predicate against normal and submission rows
+  belonging to organizations A and B. It proves A/B list totals, search, picker-shaped video selection and direct
+  reads; the vulnerable `usage_purpose OR organization_id` query exposes the B submission and fails the matrix.
+  The corrected query denies doctor B the org A submission, while uploader A and staff A remain allowed inside org A.
+- PASS focused C4B/security matrix: `14` files / `126` tests. This includes behavioral `cms_pages` denial/success for
+  content actions and direct auth mutation. The complete entitlement ON/OFF shell click-through remains the declared
+  post-integration live DEV gate at desktop `1440x900` and mobile `390x844`; it is not replaced by source-string tests.
+  PASS scoped ESLint and `git diff --check`.
+- Candidate typecheck found and fixed the C4B Patient Home narrowing call at `actions.ts:311`; its remaining output
+  is limited to known isolated-worktree dependency-resolution artifacts (`luxon` through missing integrator
+  dependencies and stale linked `@bersoncare/db-principal` exports). Full typecheck and milestone CI remain mandatory
+  after integration. No DB, DEV/TEST/PROD, deploy, external send or PII action was performed.

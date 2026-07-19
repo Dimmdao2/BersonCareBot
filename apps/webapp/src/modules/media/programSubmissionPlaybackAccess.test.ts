@@ -29,7 +29,7 @@ describe("canAccessProgramSubmissionMedia", () => {
     ).toBe(true);
   });
 
-  it("allows doctor for submission media", () => {
+  it("allows doctor for a submission row already scoped to the active organization", () => {
     expect(
       canAccessProgramSubmissionMedia(session("d1", "doctor"), {
         usagePurpose: "program_item_submission",

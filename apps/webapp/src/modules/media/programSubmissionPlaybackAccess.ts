@@ -6,7 +6,10 @@ export type ProgramSubmissionAccessRow = {
   uploadedBy: string;
 };
 
-/** P14: submission media — uploader patient or doctor/admin only; other media unchanged at call site. */
+/**
+ * P14: submission media — uploader patient or doctor/admin only.
+ * Precondition: the repository already restricted the row to the active organization.
+ */
 export function canAccessProgramSubmissionMedia(
   session: AppSession,
   row: ProgramSubmissionAccessRow,

@@ -1,10 +1,14 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PoolClient } from "pg";
 import { drizzleSqlFragmentToApproximateSql } from "@/infra/db/drizzleSqlDebugText";
+import { canAccessProgramSubmissionMedia } from "@/modules/media/programSubmissionPlaybackAccess";
+import type { AppSession } from "@/shared/types/session";
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const insertMock = vi.hoisted(() => vi.fn());
+const insertValuesMock = vi.hoisted(() => vi.fn());
 const connectQueryMock = vi.hoisted(() => vi.fn());
 const s3PutObjectBodyMock = vi.hoisted(() => vi.fn());
 const s3DeleteObjectMock = vi.hoisted(() => vi.fn());
@@ -28,7 +32,7 @@ vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlDb: vi.fn(() => ({
     insert: insertMock,
   })),
-  getWebappSqlFromPgClient: vi.fn(() => ({})),
+  getWebappSqlFromPgClient: vi.fn(() => ({ insert: insertMock })),
   runWebappSql: runWebappSqlMock,
   runWebappTransaction: vi.fn((fn: (tx: unknown) => unknown) => fn({})),
 }));
@@ -75,6 +79,8 @@ import {
   collectS3KeysForMediaPurge,
   createS3MediaStoragePort,
   getMediaAccessRow,
+  getMediaRowForPlayback,
+  insertPendingProgramSubmissionMediaFileTx,
   purgePendingMediaDeleteBatch,
 } from "./s3MediaStorage";
 
@@ -83,10 +89,140 @@ function approxSqlAt(callIndex: number): string {
   return drizzleSqlFragmentToApproximateSql(fragment);
 }
 
+const ORG_A = "11111111-1111-4111-8111-111111111111";
+const ORG_B = "22222222-2222-4222-8222-222222222222";
+
+type TenantMediaFixture = {
+  id: string;
+  organizationId: string;
+  usagePurpose: string | null;
+  uploadedBy: string;
+  originalName: string;
+};
+
+const TENANT_MEDIA_FIXTURES: TenantMediaFixture[] = [
+  {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+    organizationId: ORG_A,
+    usagePurpose: null,
+    uploadedBy: "aaaaaaaa-0000-4000-8000-000000000001",
+    originalName: "alpha-a.png",
+  },
+  {
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+    organizationId: ORG_A,
+    usagePurpose: "program_item_submission",
+    uploadedBy: "aaaaaaaa-0000-4000-8000-000000000002",
+    originalName: "submission-a.mp4",
+  },
+  {
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+    organizationId: ORG_B,
+    usagePurpose: null,
+    uploadedBy: "bbbbbbbb-0000-4000-8000-000000000001",
+    originalName: "normal-b.png",
+  },
+  {
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+    organizationId: ORG_B,
+    usagePurpose: "program_item_submission",
+    uploadedBy: "bbbbbbbb-0000-4000-8000-000000000002",
+    originalName: "alpha-b.mp4",
+  },
+];
+
+function mediaSqlRow(row: TenantMediaFixture) {
+  return {
+    id: row.id,
+    original_name: row.originalName,
+    display_name: null,
+    mime_type: row.originalName.endsWith(".mp4") ? "video/mp4" : "image/png",
+    size_bytes: "100",
+    uploaded_by: row.uploadedBy,
+    uploaded_by_name: null,
+    created_at: new Date("2026-07-19T00:00:00.000Z"),
+    s3_key: `media/${row.id}/${row.originalName}`,
+    stored_path: `media/${row.id}/${row.originalName}`,
+    folder_id: null,
+    preview_status: "ready",
+    preview_sm_key: `preview/${row.id}/sm.jpg`,
+    preview_md_key: `preview/${row.id}/md.jpg`,
+    source_width: 640,
+    source_height: 480,
+    video_processing_status: "ready",
+    video_processing_error: null,
+    hls_master_playlist_s3_key: null,
+    hls_artifact_prefix: null,
+    poster_s3_key: null,
+    video_duration_seconds: null,
+    available_qualities_json: null,
+    video_delivery_override: row.usagePurpose ? "mp4" : null,
+    usage_purpose: row.usagePurpose,
+  };
+}
+
+/**
+ * Deterministic SQL adapter: it evaluates the organization predicate encoded by the
+ * real Drizzle query against rows from both organizations. The old submission `OR`
+ * bypass deliberately leaves foreign submission rows visible, so these tests fail
+ * against the vulnerable query rather than merely asserting a source string.
+ */
+function installTenantMediaSqlAdapter(): void {
+  runWebappSqlMock.mockImplementation((_db: unknown, fragment: unknown) => {
+    const query = drizzleSqlFragmentToApproximateSql(fragment);
+    const principalOrganizationId = [ORG_A, ORG_B].find((id) => query.includes(id));
+    const hasSubmissionBypass = /program_item_submission[\s\S]*\bOR\b[\s\S]*organization_id/i.test(query);
+    const hasExactOrganizationPredicate =
+      principalOrganizationId !== undefined && /organization_id/i.test(query) && !hasSubmissionBypass;
+
+    let rows = hasExactOrganizationPredicate
+      ? TENANT_MEDIA_FIXTURES.filter((row) => row.organizationId === principalOrganizationId)
+      : [...TENANT_MEDIA_FIXTURES];
+
+    const requestedId = TENANT_MEDIA_FIXTURES.find((row) => query.includes(row.id))?.id;
+    if (requestedId) rows = rows.filter((row) => row.id === requestedId);
+    if (/alpha/i.test(query)) {
+      rows = rows.filter((row) => row.originalName.toLowerCase().includes("alpha"));
+    }
+    if (/mime_type LIKE ['"]?video\/%/i.test(query)) {
+      rows = rows.filter((row) => row.originalName.endsWith(".mp4"));
+    }
+
+    const mapped = rows.map(mediaSqlRow);
+    if (/COUNT\(\*\) OVER/i.test(query)) {
+      return Promise.resolve({
+        rows: mapped.map((row) => ({ ...row, total_count: String(mapped.length) })),
+      });
+    }
+    if (/SELECT\s+usage_purpose/i.test(query)) {
+      return Promise.resolve({ rows: mapped });
+    }
+    if (/SELECT\s+id::text,\s*mime_type/i.test(query)) {
+      return Promise.resolve({ rows: mapped });
+    }
+    if (/SELECT\s+m\.id,\s*m\.original_name/i.test(query)) {
+      return Promise.resolve({ rows: mapped });
+    }
+    if (/SELECT\s+s3_key/i.test(query)) {
+      return Promise.resolve({ rows: mapped });
+    }
+    throw new Error(`Unhandled tenant media SQL fixture query: ${query}`);
+  });
+}
+
+function appSession(userId: string, role: AppSession["user"]["role"]): AppSession {
+  return {
+    user: { userId, role, displayName: "Fixture", bindings: {} },
+    issuedAt: 0,
+    expiresAt: 9_999_999_999,
+  };
+}
+
 describe("createS3MediaStoragePort", () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
     insertMock.mockReset();
+    insertValuesMock.mockReset();
     connectQueryMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
@@ -96,9 +232,8 @@ describe("createS3MediaStoragePort", () => {
     s3PutObjectBodyMock.mockResolvedValue(undefined);
     s3DeleteObjectMock.mockResolvedValue(undefined);
     s3ListObjectKeysUnderPrefixMock.mockResolvedValue([]);
-    insertMock.mockReturnValue({
-      values: vi.fn().mockResolvedValue(undefined),
-    });
+    insertValuesMock.mockResolvedValue(undefined);
+    insertMock.mockReturnValue({ values: insertValuesMock });
   });
 
   it("upload puts object to S3 and inserts ready row", async () => {
@@ -145,15 +280,98 @@ describe("createS3MediaStoragePort", () => {
     expect(listSql).toMatch(/client_tree/i);
     expect(listSql).toMatch(/client_files_root/i);
     expect(listSql).toContain("99999999-9999-4999-8999-999999999999");
-    expect(listSql).toMatch(/program_item_submission/);
+    expect(listSql).not.toMatch(/program_item_submission[\s\S]*\bOR\b/i);
   });
 
-  it("direct media metadata is organization-scoped while preserving program-submission ACL rows", async () => {
+  it("direct media metadata is organization-scoped before program-submission ACL", async () => {
     runWebappSqlMock.mockResolvedValueOnce({ rows: [] });
     await expect(getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")).resolves.toBeNull();
     const accessSql = approxSqlAt(0);
     expect(accessSql).toContain("99999999-9999-4999-8999-999999999999");
-    expect(accessSql).toMatch(/program_item_submission/);
+    expect(accessSql).not.toMatch(/program_item_submission[\s\S]*\bOR\b/i);
+  });
+
+  it("stamps the active organization on pending program-submission uploads", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+
+    await insertPendingProgramSubmissionMediaFileTx({} as PoolClient, {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      filename: "submission.jpg",
+      key: "media/submission.jpg",
+      mimeType: "image/jpeg",
+      sizeBytes: 123,
+      userId: "aaaaaaaa-0000-4000-8000-000000000002",
+      folderId: "aaaaaaaa-ffff-4fff-8fff-ffffffffffff",
+    });
+
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG_A,
+        usagePurpose: "program_item_submission",
+      }),
+    );
+  });
+
+  it("evaluates organization A/B for list, total, search, picker and direct media reads", async () => {
+    installTenantMediaSqlAdapter();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    const port = createS3MediaStoragePort();
+
+    const listA = await port.list({ limit: 20, offset: 0, excludeClientFiles: false });
+    expect(listA.total).toBe(2);
+    expect(listA.items.map((item) => item.id)).toEqual([
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+    ]);
+
+    const searchA = await port.list({
+      limit: 20,
+      offset: 0,
+      query: "alpha",
+      excludeClientFiles: false,
+    });
+    expect(searchA.total).toBe(1);
+    expect(searchA.items.map((item) => item.filename)).toEqual(["alpha-a.png"]);
+
+    const pickerA = await port.list({
+      limit: 20,
+      offset: 0,
+      kind: "video",
+      excludeClientFiles: false,
+    });
+    expect(pickerA.total).toBe(1);
+    expect(pickerA.items[0]?.id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2");
+
+    await expect(port.getById("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1")).resolves.toBeNull();
+    await expect(port.getUrl("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")).resolves.toBeNull();
+    await expect(getMediaRowForPlayback("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2")).resolves.toBeNull();
+
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_B);
+    await expect(getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2")).resolves.toBeNull();
+    await expect(getMediaRowForPlayback("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2")).resolves.toBeNull();
+  });
+
+  it("denies doctor B the org A submission while uploader A and staff A remain allowed", async () => {
+    installTenantMediaSqlAdapter();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    const submissionA = await getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2");
+    expect(submissionA).not.toBeNull();
+    expect(
+      canAccessProgramSubmissionMedia(appSession(submissionA!.uploaded_by, "client"), {
+        usagePurpose: submissionA!.usage_purpose,
+        uploadedBy: submissionA!.uploaded_by,
+      }),
+    ).toBe(true);
+    expect(
+      canAccessProgramSubmissionMedia(appSession("aaaaaaaa-0000-4000-8000-000000000099", "doctor"), {
+        usagePurpose: submissionA!.usage_purpose,
+        uploadedBy: submissionA!.uploaded_by,
+      }),
+    ).toBe(true);
+
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_B);
+    const rowVisibleToDoctorB = await getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2");
+    expect(rowVisibleToDoctorB).toBeNull();
   });
 
   it("updateDisplayName requires DB principal", async () => {
