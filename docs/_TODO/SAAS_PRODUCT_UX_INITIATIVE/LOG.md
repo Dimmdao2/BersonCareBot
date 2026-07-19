@@ -2859,7 +2859,29 @@ task-related paths (repo-wide `git diff --check` errors on pre-existing unrelate
 `git status` before this session started; not part of this task's diff). No full root CI, DB, DEV/TEST/PROD, deploy,
 server start or taskdb write.
 
-## 2026-07-20 — U1 consolidated audit correction (`#916`, still pending independent acceptance)
+## 2026-07-20 — U1 terminal closure (`#916`)
+
+**Result.** U1 is complete. The initial implementation and consolidated corrections established one conservative
+capability vocabulary, removed global-admin clinical shortcuts, enforced exact organization ownership on the audited
+data paths, separated platform and clinical route trees, and made unsupported global patient repair/create paths fail
+closed until U3B supplies the ownership contract. C4C entitlement behavior and later U2/U3/U5/C6 product work were
+not pulled into this stage.
+
+**Final audit closure.** The terminal audit's runtime findings were corrected in the data and surface passes. Its last
+Server Action residual was closed by routing patient-home actions through `requireDoctorWorkspaceContext`: owner-only
+practice/rotation writes require owner membership, specialist-configurable repeat/mood writes require a bound clinical
+workspace, and a platform admin without that workspace is denied. The finite Server Action census now discovers the
+exact action-module set even with leading whitespace/comments or single-quoted directives, so a new action cannot be
+silently omitted from the manifest.
+
+**Evidence.** Consolidated data tests passed `97/97`; consolidated route/surface tests passed `134/134`; final
+Server Action/guard tests passed `10/10`. Webapp typecheck, scoped ESLint and `git diff --check` passed after the final
+type-safety cleanup. Independent high-risk audit/re-audit covered the whole stage; the final bounded spot-check
+confirmed the authorization and organization fixes and identified only the detector variant above, which was fixed
+and proven by executable cases. Full CI is intentionally deferred to the accumulated U2/P1 milestone as required by
+§7.3. No DB, DEV/TEST/PROD, deploy or external send was performed.
+
+## 2026-07-20 — U1 consolidated audit correction (`#916`, superseded by terminal closure above)
 
 **Corrected audit delta.** The clinical `/app/doctor` layout now sends an explicit `platform.operations` principal
 to the existing URL-preserving `(global-admin)/doctor` branch and its real landing

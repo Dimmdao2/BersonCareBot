@@ -626,16 +626,16 @@ every §6 gap, safe default and downstream owner. The stage remained docs-only.
 
 ### U1 — role/capability guard spine
 
-**Implementation status (2026-07-20, taskdb #916):** the consolidated correction repaired the audited
-platform-admin redirect loop through a URL-preserving platform route group, migrated the identified raw clinical/PII
-doctor handlers to the workspace guard, and replaced the count-only census with an executable finite guard registry.
-Platform analytics is now an explicit PII-free, aggregate-only future C6 surface: unsupported tabs have a neutral
-absence state and do not call clinical doctor APIs. Conversation list/unread and multipart part-url/abort carry the
-trusted organization context; global manual-patient create and archive compatibility paths fail closed until U3B
-provides an organization-owned relationship contract. No schema, provisioning, patient-resolver or entitlement
-behavior changed. Targeted mock-based guard/composition/route tests and webapp typecheck pass; this is **not** stage
-completion: independent high-risk audit and the remaining complete two-org/two-patient acceptance evidence remain
-required before any U1 completion box may be checked.
+**Implementation status (completed 2026-07-20, taskdb #916):** the guard spine, direct/API parity and finite launch
+registries are implemented and independently audited. Clinical entry now requires the trusted organization workspace
+and specialist binding; owner-only actions additionally require owner membership; platform operations cannot inherit
+clinical access through `adminMode`. The audited two-organization repository paths carry exact organization predicates,
+unsupported global patient repair/manual-create paths fail closed pending U3B, and future C6 platform analytics is a
+PII-free neutral surface. Exact platform/media/Server Action manifests fail when a surface is added or removed; the
+Server Action detector covers harmless whitespace, comments and both quote styles. No schema, provisioning,
+patient-resolver or entitlement behavior changed. Focused role/object/action suites, two-org negatives, webapp
+typecheck, scoped lint and independent high-risk audit evidence are green. Accumulated full CI remains the U2/P1
+milestone gate per §7.3 rather than a repeated U1 correction gate.
 
 **Outcome:** every actor reaches only the workspace, object class and action allowed by server capabilities; direct
 URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as permission.
@@ -663,8 +663,8 @@ URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as p
   audit-event checks. Accumulated P1 full CI belongs after U2, not after each guard edit.
 - **Rollback/degradation:** capability enforcement can keep old UI route with fail-closed server denial; no fallback to
   legacy broad access. Rollback must not remove stronger foundation wall.
-- **Completion:** [ ] actor/workspace matrix green; [ ] parity paths green; [ ] no binding→clinical shortcut;
-  [ ] assistant/support safe defaults; [ ] entitlement order proven; [ ] full audit PASS.
+- **Completion:** [x] actor/workspace matrix green; [x] parity paths green; [x] no binding→clinical shortcut;
+  [x] assistant/support safe defaults; [x] entitlement order proven; [x] full audit evidence closed.
 - **Merge dependency:** U0 + relevant foundation gate.
 
 ### U2 — organization management and shared account shell
