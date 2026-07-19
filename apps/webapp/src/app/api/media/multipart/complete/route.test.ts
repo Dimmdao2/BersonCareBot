@@ -163,6 +163,9 @@ describe("POST /api/media/multipart/complete", () => {
     expect(res.status).toBe(404);
     const j = (await res.json()) as { error?: string };
     expect(j.error).toBe("session_not_found");
+    expect(claimTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
+    expect(getCompletingTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
+    expect(classifyRejectMock).toHaveBeenCalledWith(expect.anything(), SESSION, "doc-1", "org-a");
   });
 
   it("returns 409 session_expired when classify says expired", async () => {
@@ -212,7 +215,7 @@ describe("POST /api/media/multipart/complete", () => {
     expect(j.ok).toBe(true);
     expect(j.url).toBe(`/api/media/${MEDIA}`);
     expect(completeS3Mock).toHaveBeenCalled();
-    expect(tryFinalizeTxMock).toHaveBeenCalled();
+    expect(tryFinalizeTxMock).toHaveBeenCalledWith(expect.anything(), SESSION, MEDIA, "doc-1", "org-a");
     expect(autoEnqueueMock).toHaveBeenCalledWith(MEDIA);
   });
 

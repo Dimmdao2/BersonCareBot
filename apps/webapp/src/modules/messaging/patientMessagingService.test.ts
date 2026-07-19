@@ -40,7 +40,6 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationByIntegratorId: async () => null,
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
-    claimLegacyConversationForOrganization: async () => true,
     ensureWebappConversationForUser: async () => ({ id: "conv-1" }),
     mergeLegacySupportConversationsForPlatformUser: async () => ({ mergedConversationCount: 0, movedMessageCount: 0 }),
     appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),

@@ -221,11 +221,11 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
   },
 
-  async getConversationWithMessages(conversationId) {
+  async getConversationWithMessages(conversationId, organizationId) {
     const conversation = conversations.get(conversationId);
-    if (!conversation) return null;
+    if (!conversation || (organizationId != null && conversation.organizationId !== organizationId)) return null;
     const messagesList = Array.from(messages.values())
-      .filter((m) => m.conversationId === conversationId)
+      .filter((m) => m.conversationId === conversationId && (organizationId == null || m.organizationId === organizationId))
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     return { conversation, messages: messagesList };
   },
@@ -379,20 +379,6 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
 
   async mergeLegacySupportConversationsForPlatformUser(_platformUserId) {
     return { mergedConversationCount: 0, movedMessageCount: 0 };
-  },
-
-  async claimLegacyConversationForOrganization(input) {
-    const conv = conversations.get(input.conversationId);
-    if (!conv) return false;
-    if (conv.organizationId && conv.organizationId !== input.organizationId) return false;
-    conv.organizationId = input.organizationId;
-    conv.updatedAt = new Date().toISOString();
-    for (const message of messages.values()) {
-      if (message.conversationId === input.conversationId && !message.organizationId) {
-        message.organizationId = input.organizationId;
-      }
-    }
-    return true;
   },
 
   async ensureWebappConversationForUser(platformUserId) {

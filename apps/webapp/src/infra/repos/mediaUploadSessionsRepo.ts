@@ -34,8 +34,8 @@ export type AbortMultipartDbResult =
   | { ok: "not_found" };
 
 const uploadSessionReturning = sql`
-  id, media_id, s3_key, upload_id, owner_user_id, status,
-  expected_size_bytes::text, mime_type, part_size_bytes, expires_at
+  s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
+  s.expected_size_bytes::text, s.mime_type, s.part_size_bytes, s.expires_at
 `;
 
 export async function insertUploadSessionTx(
@@ -72,16 +72,20 @@ export async function claimUploadSessionForCompletingTx(
   client: PoolClient,
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<UploadSessionRow | null> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql<UploadSessionRow>(
     db,
-    sql`UPDATE media_upload_sessions
+    sql`UPDATE media_upload_sessions s
         SET status = 'completing', updated_at = now()
-      WHERE id = ${sessionId}::uuid
-        AND owner_user_id = ${ownerUserId}::uuid
-        AND status IN ('initiated', 'uploading')
-        AND expires_at > now()
+      FROM media_files m
+      WHERE s.id = ${sessionId}::uuid
+        AND s.media_id = m.id
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid
+        AND s.status IN ('initiated', 'uploading')
+        AND s.expires_at > now()
       RETURNING ${uploadSessionReturning}`,
   );
   return res.rows[0] ?? null;
@@ -91,10 +95,11 @@ export async function claimUploadSessionForCompletingTx(
 export async function claimUploadSessionForCompleting(
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<UploadSessionRow | null> {
   const pool = getPool();
   return withPoolTransaction(pool, async (client) => {
-    const row = await claimUploadSessionForCompletingTx(client, sessionId, ownerUserId);
+    const row = await claimUploadSessionForCompletingTx(client, sessionId, ownerUserId, organizationId);
     return row;
   });
 }
@@ -104,16 +109,19 @@ export async function getCompletingSessionTx(
   client: PoolClient,
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<UploadSessionRow | null> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql<UploadSessionRow>(
     db,
     sql`SELECT ${uploadSessionReturning}
-       FROM media_upload_sessions
-      WHERE id = ${sessionId}::uuid
-        AND owner_user_id = ${ownerUserId}::uuid
-        AND status = 'completing'
-        AND expires_at > now()`,
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid
+        AND s.status = 'completing'
+        AND s.expires_at > now()`,
   );
   return res.rows[0] ?? null;
 }
@@ -122,14 +130,19 @@ export async function getCompletingSessionTx(
 export async function markCompletingSessionFailedTx(
   client: PoolClient,
   sessionId: string,
+  organizationId: string,
   message: string,
 ): Promise<boolean> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql(
     db,
-    sql`UPDATE media_upload_sessions
+    sql`UPDATE media_upload_sessions s
         SET status = 'failed', last_error = ${message.slice(0, 2000)}, updated_at = now()
-      WHERE id = ${sessionId}::uuid AND status = 'completing'`,
+      FROM media_files m
+      WHERE s.id = ${sessionId}::uuid
+        AND s.media_id = m.id
+        AND m.organization_id = ${organizationId}::uuid
+        AND s.status = 'completing'`,
   );
   return (res.rowCount ?? 0) > 0;
 }
@@ -139,20 +152,27 @@ export async function finalizeMultipartSuccessTx(
   sessionId: string,
   mediaId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<FinalizeMultipartResult> {
   const db = getWebappSqlFromPgClient(client);
   const sessionRes = await runWebappSql(
     db,
-    sql`UPDATE media_upload_sessions
+    sql`UPDATE media_upload_sessions s
         SET status = 'completed', completed_at = now(), updated_at = now()
-      WHERE id = ${sessionId}::uuid
-        AND media_id = ${mediaId}::uuid
-        AND owner_user_id = ${ownerUserId}::uuid
-        AND status = 'completing'`,
+      FROM media_files m
+      WHERE s.id = ${sessionId}::uuid
+        AND s.media_id = ${mediaId}::uuid
+        AND s.media_id = m.id
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid
+        AND s.status = 'completing'`,
   );
   const mediaRes = await runWebappSql(
     db,
-    sql`UPDATE media_files SET status = 'ready' WHERE id = ${mediaId}::uuid AND status = 'pending'`,
+    sql`UPDATE media_files SET status = 'ready'
+      WHERE id = ${mediaId}::uuid
+        AND organization_id = ${organizationId}::uuid
+        AND status = 'pending'`,
   );
   return {
     sessionRows: sessionRes.rowCount ?? 0,
@@ -166,6 +186,7 @@ export async function tryFinalizeMultipartIdempotentTx(
   sessionId: string,
   mediaId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<{ kind: "finalized" | "already_done" | "partial"; result: FinalizeMultipartResult }> {
   const db = getWebappSqlFromPgClient(client);
   const state = await runWebappSql<{ s: string; m: string }>(
@@ -173,7 +194,10 @@ export async function tryFinalizeMultipartIdempotentTx(
     sql`SELECT s.status AS s, m.status AS m
        FROM media_upload_sessions s
        JOIN media_files m ON m.id = s.media_id
-      WHERE s.id = ${sessionId}::uuid AND s.media_id = ${mediaId}::uuid AND s.owner_user_id = ${ownerUserId}::uuid`,
+      WHERE s.id = ${sessionId}::uuid
+        AND s.media_id = ${mediaId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid`,
   );
   const row = state.rows[0];
   if (!row) {
@@ -182,7 +206,7 @@ export async function tryFinalizeMultipartIdempotentTx(
   if (row.s === "completed" && row.m === "ready") {
     return { kind: "already_done", result: { sessionRows: 0, mediaRows: 0 } };
   }
-  const result = await finalizeMultipartSuccessTx(client, sessionId, mediaId, ownerUserId);
+  const result = await finalizeMultipartSuccessTx(client, sessionId, mediaId, ownerUserId, organizationId);
   if (result.sessionRows > 0 && result.mediaRows > 0) {
     return { kind: "finalized", result };
   }
@@ -283,10 +307,16 @@ export async function deletePendingMediaFileTx(client: PoolClient, mediaId: stri
   return res.rowCount ?? 0;
 }
 
-export async function finalizeMultipartSuccess(sessionId: string, mediaId: string): Promise<void> {
+export async function finalizeMultipartSuccess(sessionId: string, mediaId: string, organizationId: string): Promise<void> {
   const pool = getPool();
   const r = await withPoolTransaction(pool, async (client) => {
-    const r = await finalizeMultipartSuccessTx(client, sessionId, mediaId, await ownerForSession(client, sessionId));
+    const r = await finalizeMultipartSuccessTx(
+      client,
+      sessionId,
+      mediaId,
+      await ownerForSession(client, sessionId, organizationId),
+      organizationId,
+    );
     return r;
   });
   if (r.sessionRows === 0 || r.mediaRows === 0) {
@@ -294,11 +324,14 @@ export async function finalizeMultipartSuccess(sessionId: string, mediaId: strin
   }
 }
 
-async function ownerForSession(client: PoolClient, sessionId: string): Promise<string> {
+async function ownerForSession(client: PoolClient, sessionId: string, organizationId: string): Promise<string> {
   const db = getWebappSqlFromPgClient(client);
   const res = await runWebappSql<{ owner_user_id: string }>(
     db,
-    sql`SELECT owner_user_id::text FROM media_upload_sessions WHERE id = ${sessionId}::uuid`,
+    sql`SELECT s.owner_user_id::text
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid AND m.organization_id = ${organizationId}::uuid`,
   );
   const id = res.rows[0]?.owner_user_id;
   if (!id) throw new Error("session_not_found");
@@ -364,13 +397,17 @@ export async function classifyMultipartCompleteRejection(
   _pool: Pool,
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<MultipartCompleteRejectError> {
   const res = await runWebappSql<{ status: string; expired: boolean }>(
     getWebappSqlDb(),
     sql`SELECT status,
             (expires_at <= now()) AS expired
-       FROM media_upload_sessions
-      WHERE id = ${sessionId}::uuid AND owner_user_id = ${ownerUserId}::uuid`,
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid`,
   );
   const row = res.rows[0];
   if (!row) {

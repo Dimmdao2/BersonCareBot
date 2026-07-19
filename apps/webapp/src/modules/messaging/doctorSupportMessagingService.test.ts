@@ -48,7 +48,6 @@ function createPort(overrides: Partial<SupportCommunicationPort> = {}): SupportC
     getConversationByIntegratorId: async () => null,
     listUnansweredQuestionsForAdmin: async () => [],
     getQuestionByIntegratorConversationId: async () => null,
-    claimLegacyConversationForOrganization: async () => true,
     ensureWebappConversationForUser: async () => ({ id: "conv-webapp-1" }),
     appendWebappMessage: async () => ({ id: "msg-webapp-1", created: true }),
     listMessagesSince: async () => [],
@@ -262,7 +261,7 @@ describe("doctorSupportMessagingService", () => {
     const count = await service.unreadFromPatient("patient-1");
 
     expect(count).toBe(3);
-    expect(countUnreadUserMessagesForAdminByPatient).toHaveBeenCalledWith("patient-1");
+    expect(countUnreadUserMessagesForAdminByPatient).toHaveBeenCalledWith("patient-1", undefined);
   });
 
   it("returns not_found for missing conversation in sendAdminReply", async () => {

@@ -6,8 +6,6 @@ const {
   getMessagesMock,
   sendMock,
   getConversationWithMessagesMock,
-  claimLegacyConversationForOrganizationMock,
-  getClientIdentityForOrganizationMock,
   requireDoctorWorkspaceApiContextMock,
   withDoctorWorkspacePrincipalMock,
   buildAppDepsMock,
@@ -16,8 +14,6 @@ const {
   const getMessagesMockInner = vi.fn();
   const sendMockInner = vi.fn();
   const getConversationWithMessagesMockInner = vi.fn();
-  const claimLegacyConversationForOrganizationMockInner = vi.fn();
-  const getClientIdentityForOrganizationMockInner = vi.fn();
   const requireDoctorWorkspaceApiContextMockInner = vi.fn();
   const withDoctorWorkspacePrincipalMockInner = vi.fn((_: unknown, sourceOrFn: string | (() => unknown), maybeFn?: () => unknown) => {
   const fn = typeof sourceOrFn === "function" ? sourceOrFn : maybeFn;
@@ -29,17 +25,11 @@ const {
     getMessagesMock: getMessagesMockInner,
     sendMock: sendMockInner,
     getConversationWithMessagesMock: getConversationWithMessagesMockInner,
-    claimLegacyConversationForOrganizationMock: claimLegacyConversationForOrganizationMockInner,
-    getClientIdentityForOrganizationMock: getClientIdentityForOrganizationMockInner,
     requireDoctorWorkspaceApiContextMock: requireDoctorWorkspaceApiContextMockInner,
     withDoctorWorkspacePrincipalMock: withDoctorWorkspacePrincipalMockInner,
     buildAppDepsMock: vi.fn(() => ({
-      doctorClientsPort: {
-        getClientIdentityForOrganization: getClientIdentityForOrganizationMockInner,
-      },
       supportCommunication: {
         getConversationWithMessages: getConversationWithMessagesMockInner,
-        claimLegacyConversationForOrganization: claimLegacyConversationForOrganizationMockInner,
       },
       messaging: {
         doctorSupport: {
@@ -107,9 +97,6 @@ describe("GET /api/doctor/messages/[conversationId]", () => {
     getSessionMock.mockReset();
     getMessagesMock.mockReset();
     getConversationWithMessagesMock.mockReset();
-    claimLegacyConversationForOrganizationMock.mockReset();
-    getClientIdentityForOrganizationMock.mockReset();
-    claimLegacyConversationForOrganizationMock.mockResolvedValue(true);
     requireDoctorWorkspaceApiContextMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({
       ok: true,
@@ -179,23 +166,17 @@ describe("GET /api/doctor/messages/[conversationId]", () => {
     expect(data.messages).toHaveLength(1);
   });
 
-  it("allows legacy unowned channel-only conversation read", async () => {
+  it("rejects NULL organization conversations without a trusted organization ownership", async () => {
     getConversationWithMessagesMock.mockResolvedValue({
       conversation: conversation({ organizationId: null, platformUserId: null }),
       messages: [],
     });
-    getMessagesMock.mockResolvedValue({ messages: [] });
-
     const res = await GET(new Request(`http://localhost/api/doctor/messages/${cid}`), {
       params: Promise.resolve({ conversationId: cid }),
     });
 
-    expect(res.status).toBe(200);
-    expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
-    expect(claimLegacyConversationForOrganizationMock).toHaveBeenCalledWith({
-      conversationId: cid,
-      organizationId: orgId,
-    });
+    expect(res.status).toBe(404);
+    expect(getMessagesMock).not.toHaveBeenCalled();
   });
 });
 
@@ -204,8 +185,6 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
     getSessionMock.mockReset();
     sendMock.mockReset();
     getConversationWithMessagesMock.mockReset();
-    claimLegacyConversationForOrganizationMock.mockReset();
-    getClientIdentityForOrganizationMock.mockReset();
     requireDoctorWorkspaceApiContextMock.mockReset();
     withDoctorWorkspacePrincipalMock.mockClear();
     withDoctorWorkspacePrincipalMock.mockImplementation(
@@ -219,7 +198,6 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       ok: true,
       ctx: { organizationId: orgId, session: { user: { userId: "d1", role: "doctor", bindings: {} } } },
     });
-    claimLegacyConversationForOrganizationMock.mockResolvedValue(true);
   });
 
   it("returns workspace gate response", async () => {
@@ -273,14 +251,11 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("allows legacy null-org conversation only when patient belongs to workspace", async () => {
+  it("rejects a NULL-organization conversation even when its patient identity is supplied", async () => {
     getConversationWithMessagesMock.mockResolvedValue({
       conversation: conversation({ organizationId: null }),
       messages: [],
     });
-    getClientIdentityForOrganizationMock.mockResolvedValue({ userId: "00000000-0000-4000-8000-000000000111" });
-    sendMock.mockResolvedValue({ ok: true });
-
     const res = await POST(
       new Request(`http://localhost/api/doctor/messages/${cid}`, {
         method: "POST",
@@ -290,24 +265,15 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       { params: Promise.resolve({ conversationId: cid }) }
     );
 
-    expect(res.status).toBe(200);
-    expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(
-      "00000000-0000-4000-8000-000000000111",
-      orgId,
-    );
-    expect(claimLegacyConversationForOrganizationMock).toHaveBeenCalledWith({
-      conversationId: cid,
-      organizationId: orgId,
-    });
+    expect(res.status).toBe(404);
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("allows legacy unowned channel-only conversation reply", async () => {
+  it("rejects a NULL-organization channel-only conversation instead of first-workspace claiming", async () => {
     getConversationWithMessagesMock.mockResolvedValue({
       conversation: conversation({ organizationId: null, platformUserId: null }),
       messages: [],
     });
-    sendMock.mockResolvedValue({ ok: true });
-
     const res = await POST(
       new Request(`http://localhost/api/doctor/messages/${cid}`, {
         method: "POST",
@@ -317,11 +283,7 @@ describe("POST /api/doctor/messages/[conversationId]", () => {
       { params: Promise.resolve({ conversationId: cid }) }
     );
 
-    expect(res.status).toBe(200);
-    expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
-    expect(claimLegacyConversationForOrganizationMock).toHaveBeenCalledWith({
-      conversationId: cid,
-      organizationId: orgId,
-    });
+    expect(res.status).toBe(404);
+    expect(sendMock).not.toHaveBeenCalled();
   });
 });

@@ -44,22 +44,24 @@ export function createDoctorSupportMessagingService(
 
     async getMessages(
       conversationId: string,
-      params: { sinceCreatedAt?: string | null; limit?: number }
+      params: { sinceCreatedAt?: string | null; limit?: number; organizationId?: string }
     ): Promise<{ messages: SupportConversationMessageRow[] } | null> {
-      const exists = await port.conversationExists(conversationId);
+      const exists = await port.conversationExists(conversationId, params.organizationId);
       if (!exists) return null;
       const messages = await port.listMessagesSince(conversationId, {
         sinceCreatedAt: params.sinceCreatedAt ?? null,
         limit: params.limit ?? 100,
+        ...(params.organizationId ? { organizationId: params.organizationId } : {}),
       });
       return { messages: messages.filter(isSupportChatMessage) };
     },
 
     async sendAdminReply(
       conversationId: string,
-      text: string
+      text: string,
+      organizationId?: string,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
-      const convInfo = await port.getConversationRelayInfo(conversationId);
+      const convInfo = await port.getConversationRelayInfo(conversationId, organizationId);
       if (!convInfo) return { ok: false, error: "not_found" };
       const trimmed = text.trim();
       if (!trimmed) return { ok: false, error: "empty" };
@@ -77,6 +79,7 @@ export function createDoctorSupportMessagingService(
         text: trimmed,
         source: "webapp",
         createdAt: now,
+        ...(organizationId ? { organizationId } : {}),
       });
 
       if (platformUserId && convInfo.organizationId && opts?.notifyPatientOfDoctorReply) {
@@ -108,8 +111,8 @@ export function createDoctorSupportMessagingService(
       return { ok: true };
     },
 
-    markUserMessagesRead(conversationId: string): Promise<void> {
-      return port.markUserMessagesReadByAdmin(conversationId);
+    markUserMessagesRead(conversationId: string, organizationId?: string): Promise<void> {
+      return port.markUserMessagesReadByAdmin(conversationId, organizationId);
     },
 
     unreadFromUsers(params?: { organizationId?: string }): Promise<number> {

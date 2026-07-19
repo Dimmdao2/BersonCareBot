@@ -142,15 +142,14 @@ describe("doctor support/task workspace principal cutover", () => {
     }
   });
 
-  it("doctor message read and write routes preserve legacy unowned conversations", () => {
+  it("doctor message read and write routes fail closed for legacy NULL conversations", () => {
     for (const file of [
       "src/app/api/doctor/messages/[conversationId]/route.ts",
       "src/app/api/doctor/messages/[conversationId]/read/route.ts",
     ]) {
       const src = readSource(file);
-      expect(src).toContain("return conversation.organizationId == null");
-      expect(src).toContain("claimLegacyConversationForWorkspace");
-      expect(src).toContain("claimLegacyConversationForOrganization");
+      expect(src).toContain("return conversation.organizationId === organizationId");
+      expect(src).not.toContain("claimLegacyConversation");
     }
   });
 

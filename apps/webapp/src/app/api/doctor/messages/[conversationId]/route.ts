@@ -13,42 +13,14 @@ const postBodySchema = z.object({
   text: z.string().min(1).max(4000),
 });
 
-type WorkspaceConversationRef = {
-  organizationId?: string | null;
-  platformUserId?: string | null;
-};
+type WorkspaceConversationRef = { organizationId?: string | null };
 
 async function conversationBelongsToWorkspace(
   deps: ReturnType<typeof buildAppDeps>,
   conversation: WorkspaceConversationRef,
   organizationId: string,
 ): Promise<boolean> {
-  if (conversation.organizationId) {
-    return conversation.organizationId === organizationId;
-  }
-  if (!conversation.platformUserId) {
-    return conversation.organizationId == null;
-  }
-  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
-    conversation.platformUserId,
-    organizationId,
-  );
-  return Boolean(identity);
-}
-
-async function claimLegacyConversationForWorkspace(
-  deps: ReturnType<typeof buildAppDeps>,
-  conversationId: string,
-  conversation: WorkspaceConversationRef,
-  organizationId: string,
-): Promise<boolean> {
-  if (conversation.organizationId != null) {
-    return true;
-  }
-  return deps.supportCommunication.claimLegacyConversationForOrganization({
-    conversationId,
-    organizationId,
-  });
+  return conversation.organizationId === organizationId;
 }
 
 export async function GET(
@@ -68,25 +40,20 @@ export async function GET(
   const since = sinceRaw?.trim() ? sinceRaw.trim() : undefined;
 
   const deps = buildAppDeps();
-  const full = await deps.supportCommunication.getConversationWithMessages(conversationId);
+  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  );
   if (!full || !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (
-    !(await claimLegacyConversationForWorkspace(
-      deps,
-      conversationId,
-      full.conversation,
-      gate.ctx.organizationId,
-    ))
-  ) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
 
-  const data = await deps.messaging.doctorSupport.getMessages(conversationId, {
-    sinceCreatedAt: since ?? null,
-    limit: 100,
-  });
+  const data = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.messaging.doctorSupport.getMessages(conversationId, {
+      sinceCreatedAt: since ?? null,
+      limit: 100,
+      organizationId: gate.ctx.organizationId,
+    }),
+  );
   if (!data) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -116,23 +83,14 @@ export async function POST(
   }
 
   const deps = buildAppDeps();
-  const full = await deps.supportCommunication.getConversationWithMessages(conversationId);
+  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  );
   if (!full || !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (
-    !(await claimLegacyConversationForWorkspace(
-      deps,
-      conversationId,
-      full.conversation,
-      gate.ctx.organizationId,
-    ))
-  ) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
-
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text),
+    deps.messaging.doctorSupport.sendAdminReply(conversationId, parsed.data.text, gate.ctx.organizationId),
   );
   if (!result.ok) {
     if (result.error === "not_found") {

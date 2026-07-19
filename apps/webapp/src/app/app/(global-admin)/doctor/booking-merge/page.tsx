@@ -1,15 +1,16 @@
-import { requireAdminDoctorPage } from "@/app/app/settings/requireAdminDoctorPage";
-import { BookingMergeCandidatesSection } from "@/app/app/settings/BookingMergeCandidatesSection";
+import { requirePlatformOperationsPage } from "@/app-layer/guards/requireRole";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 
 export default async function DoctorBookingMergePage() {
-  await requireAdminDoctorPage();
+  const session = await requirePlatformOperationsPage();
 
   return (
-    <DoctorAppShell title="Объединение профилей (запись с сайта)">
-      <DoctorPageHeader title="Объединение профилей (запись с сайта)" />
-      <BookingMergeCandidatesSection />
+    <DoctorAppShell title="Объединение профилей" user={session.user}>
+      <DoctorPageHeader title="Объединение профилей" />
+      <section className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        Глобальное объединение и восстановление профилей пациентов недоступно.
+      </section>
     </DoctorAppShell>
   );
 }

@@ -7,42 +7,14 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
-type WorkspaceConversationRef = {
-  organizationId?: string | null;
-  platformUserId?: string | null;
-};
+type WorkspaceConversationRef = { organizationId?: string | null };
 
 async function conversationBelongsToWorkspace(
   deps: ReturnType<typeof buildAppDeps>,
   conversation: WorkspaceConversationRef,
   organizationId: string,
 ): Promise<boolean> {
-  if (conversation.organizationId) {
-    return conversation.organizationId === organizationId;
-  }
-  if (!conversation.platformUserId) {
-    return conversation.organizationId == null;
-  }
-  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
-    conversation.platformUserId,
-    organizationId,
-  );
-  return Boolean(identity);
-}
-
-async function claimLegacyConversationForWorkspace(
-  deps: ReturnType<typeof buildAppDeps>,
-  conversationId: string,
-  conversation: WorkspaceConversationRef,
-  organizationId: string,
-): Promise<boolean> {
-  if (conversation.organizationId != null) {
-    return true;
-  }
-  return deps.supportCommunication.claimLegacyConversationForOrganization({
-    conversationId,
-    organizationId,
-  });
+  return conversation.organizationId === organizationId;
 }
 
 export async function POST(_request: Request, context: { params: Promise<{ conversationId: string }> }) {
@@ -55,23 +27,14 @@ export async function POST(_request: Request, context: { params: Promise<{ conve
   }
 
   const deps = buildAppDeps();
-  const full = await deps.supportCommunication.getConversationWithMessages(conversationId);
+  const full = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.supportCommunication.getConversationWithMessages(conversationId, gate.ctx.organizationId),
+  );
   if (!full || !(await conversationBelongsToWorkspace(deps, full.conversation, gate.ctx.organizationId))) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  if (
-    !(await claimLegacyConversationForWorkspace(
-      deps,
-      conversationId,
-      full.conversation,
-      gate.ctx.organizationId,
-    ))
-  ) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
-
   await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    deps.messaging.doctorSupport.markUserMessagesRead(conversationId),
+    deps.messaging.doctorSupport.markUserMessagesRead(conversationId, gate.ctx.organizationId),
   );
   return NextResponse.json({ ok: true });
 }

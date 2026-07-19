@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   const { sessionId } = parsed.data;
 
   const claimed = await withMultipartSessionLock(pool, sessionId, async (client) =>
-    claimUploadSessionForCompletingTx(client, sessionId, ownerId),
+    claimUploadSessionForCompletingTx(client, sessionId, ownerId, gate.ctx.organizationId),
   );
 
   let row = claimed;
@@ -80,10 +80,10 @@ export async function POST(request: Request) {
 
   if (!row) {
     const stuck = await withMultipartSessionLock(pool, sessionId, async (client) =>
-      getCompletingSessionTx(client, sessionId, ownerId),
+      getCompletingSessionTx(client, sessionId, ownerId, gate.ctx.organizationId),
     );
     if (!stuck) {
-      const err = await classifyMultipartCompleteRejection(pool, sessionId, ownerId);
+      const err = await classifyMultipartCompleteRejection(pool, sessionId, ownerId, gate.ctx.organizationId);
       const status = err === "session_not_found" ? 404 : 409;
       return NextResponse.json({ ok: false, error: err }, { status });
     }
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
   if (!validateParts(parsed.data.parts, maxPart)) {
     await withMultipartSessionLock(pool, sessionId, async (client) => {
-      await markCompletingSessionFailedTx(client, sessionId, "invalid_parts");
+      await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "invalid_parts");
     });
     await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
       /* ignore */
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     } catch (e) {
       logger.error({ err: e, sessionId }, "[media/multipart/complete] s3_complete_failed");
       await withMultipartSessionLock(pool, sessionId, async (client) => {
-        await markCompletingSessionFailedTx(client, sessionId, "s3_complete_failed");
+        await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "s3_complete_failed");
       });
       await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
         /* ignore */
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       "[media/multipart/complete] integrity_mismatch",
     );
     await withMultipartSessionLock(pool, sessionId, async (client) => {
-      await markCompletingSessionFailedTx(client, sessionId, "integrity_mismatch");
+      await markCompletingSessionFailedTx(client, sessionId, gate.ctx.organizationId, "integrity_mismatch");
     });
     await s3DeleteObject(row.s3_key).catch(() => {
       /* ignore */
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
 
   try {
     const fin = await withMultipartSessionLock(pool, sessionId, async (client) =>
-      tryFinalizeMultipartIdempotentTx(client, sessionId, row.media_id, ownerId),
+      tryFinalizeMultipartIdempotentTx(client, sessionId, row.media_id, ownerId, gate.ctx.organizationId),
     );
 
     if (fin.kind === "finalized" || fin.kind === "already_done") {

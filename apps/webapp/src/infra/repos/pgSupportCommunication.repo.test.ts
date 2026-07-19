@@ -27,6 +27,7 @@ vi.mock("@/infra/repos/mergeLegacySupportConversations", () => ({
 import { createPgSupportCommunicationPort } from "./pgSupportCommunication";
 
 const TS = "2025-06-01T10:00:00.000Z";
+const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 describe("createPgSupportCommunicationPort", () => {
   beforeEach(() => {
@@ -153,20 +154,20 @@ describe("createPgSupportCommunicationPort", () => {
     it("passes normalized source, limit and unreadOnly as bound params", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
-      await port.listOpenConversationsForAdmin({ source: "  telegram  ", limit: 200, unreadOnly: true });
+      await port.listOpenConversationsForAdmin({ source: "  telegram  ", limit: 200, unreadOnly: true, organizationId: ORG_ID });
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("sc.status <> 'closed'");
       expect(sql).toContain("last_personal.personal_msg_at IS NOT NULL");
       expect(sql).toContain("$1::text IS NULL OR sc.source = $1");
       expect(sql).toContain("$3::boolean = false OR");
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true, null]);
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["telegram", 100, true, ORG_ID]);
     });
 
     it("uses null source when filter omitted", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
       const port = createPgSupportCommunicationPort();
-      await port.listOpenConversationsForAdmin({ limit: 10 });
-      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, null]);
+      await port.listOpenConversationsForAdmin({ limit: 10, organizationId: ORG_ID });
+      expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, ORG_ID]);
     });
 
     it("uses full structured FIO for communications while retaining a legacy label fallback", async () => {
@@ -218,7 +219,7 @@ describe("createPgSupportCommunicationPort", () => {
       });
       const port = createPgSupportCommunicationPort();
 
-      const rows = await port.listOpenConversationsForAdmin({});
+      const rows = await port.listOpenConversationsForAdmin({ organizationId: ORG_ID });
 
       expect(rows.map((row) => row.displayName)).toEqual(["Petrov Ivan Sergeevich", "Legacy only"]);
     });
@@ -228,7 +229,7 @@ describe("createPgSupportCommunicationPort", () => {
     it("restricts to open conversations", async () => {
       runWebappPgTextMock.mockResolvedValueOnce({ rows: [{ c: "3" }] });
       const port = createPgSupportCommunicationPort();
-      const n = await port.countUnreadUserMessagesForAdmin();
+      const n = await port.countUnreadUserMessagesForAdmin({ organizationId: ORG_ID });
       expect(n).toBe(3);
       const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
       expect(sql).toContain("c.status <> 'closed'");
@@ -247,42 +248,6 @@ describe("createPgSupportCommunicationPort", () => {
   });
 
   describe("webapp support chat principal stamping", () => {
-    it("claims legacy conversations and backfills legacy message organization", async () => {
-      const orgId = "10000000-0000-4000-8000-000000000001";
-      runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [{ id: "conv-legacy-1" }] })
-        .mockResolvedValueOnce({ rows: [], rowCount: 2 });
-
-      const port = createPgSupportCommunicationPort();
-      await expect(
-        port.claimLegacyConversationForOrganization({
-          conversationId: "00000000-0000-4000-8000-000000000222",
-          organizationId: orgId,
-        }),
-      ).resolves.toBe(true);
-
-      const claimSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
-      expect(claimSql).toContain("WHERE id = $1::uuid AND organization_id IS NULL");
-      const messageSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
-      expect(messageSql).toContain("WHERE conversation_id = $1::uuid AND organization_id IS NULL");
-    });
-
-    it("does not claim conversations scoped to another organization", async () => {
-      runWebappPgTextMock
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({ rows: [] });
-
-      const port = createPgSupportCommunicationPort();
-      await expect(
-        port.claimLegacyConversationForOrganization({
-          conversationId: "00000000-0000-4000-8000-000000000222",
-          organizationId: "10000000-0000-4000-8000-000000000001",
-        }),
-      ).resolves.toBe(false);
-
-      expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
-    });
-
     it("preserves the legacy global key when no organization principal exists", async () => {
       const patientUserId = "00000000-0000-4000-8000-000000000111";
       runWebappPgTextMock
@@ -437,7 +402,7 @@ describe("createPgSupportCommunicationPort", () => {
       expect(runWebappPgTextMock.mock.calls[2]?.[1]?.[2]).toBe(orgId);
     });
 
-    it("marks user messages read while backfilling message organization from conversation", async () => {
+    it("marks only messages already stamped with the trusted conversation organization", async () => {
       const orgId = "10000000-0000-4000-8000-000000000001";
       runWebappPgTextMock
         .mockResolvedValueOnce({ rows: [{ organization_id: orgId }] })
@@ -450,7 +415,7 @@ describe("createPgSupportCommunicationPort", () => {
       );
 
       const markSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-      expect(markSql).toContain("organization_id = COALESCE(organization_id, $2::uuid)");
+      expect(markSql).toContain("organization_id = $2::uuid");
       expect(runWebappPgTextMock.mock.calls[2]?.[1]).toEqual([
         "00000000-0000-4000-8000-000000000222",
         orgId,

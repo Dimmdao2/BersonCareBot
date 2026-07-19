@@ -23,6 +23,8 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 import {
   abortMultipartPendingTx,
+  claimUploadSessionForCompletingTx,
+  classifyMultipartCompleteRejection,
   claimUploadSessionForCompleting,
   deletePendingMediaFileTx,
   finalizeMultipartSuccess,
@@ -108,6 +110,28 @@ describe("mediaUploadSessionsRepo cleanup helpers", () => {
   });
 });
 
+describe("multipart complete organization wall", () => {
+  beforeEach(() => runWebappSqlMock.mockReset());
+
+  it("claims only organization A media, never a foreign organization B session", async () => {
+    runWebappSqlMock.mockResolvedValue({ rows: [] });
+    const client = {} as import("pg").PoolClient;
+    await expect(claimUploadSessionForCompletingTx(client, "sess-foreign", "owner-a", "org-a")).resolves.toBeNull();
+    const query = approxSql(runWebappSqlMock.mock.calls[0]?.[1]);
+    expect(query).toContain("FROM media_files m");
+    expect(query).toContain("m.organization_id");
+  });
+
+  it("classifies NULL-owned media as not found for organization A", async () => {
+    runWebappSqlMock.mockResolvedValue({ rows: [] });
+    const result = await classifyMultipartCompleteRejection({} as import("pg").Pool, "sess-null", "owner-a", "org-a");
+    expect(result).toBe("session_not_found");
+    const query = approxSql(runWebappSqlMock.mock.calls[0]?.[1]);
+    expect(query).toContain("JOIN media_files m ON m.id = s.media_id");
+    expect(query).toContain("m.organization_id");
+  });
+});
+
 describe("insertUploadSessionTx", () => {
   beforeEach(() => {
     insertValuesMock.mockClear();
@@ -175,7 +199,7 @@ describe("mediaUploadSessionsRepo pool wrappers", () => {
       ],
     });
 
-    await expect(claimUploadSessionForCompleting("sess-1", "owner-1")).resolves.toMatchObject({
+    await expect(claimUploadSessionForCompleting("sess-1", "owner-1", "org-a")).resolves.toMatchObject({
       id: "sess-1",
     });
 
@@ -195,7 +219,7 @@ describe("mediaUploadSessionsRepo pool wrappers", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await expect(finalizeMultipartSuccess("sess-1", "media-1")).resolves.toBeUndefined();
+    await expect(finalizeMultipartSuccess("sess-1", "media-1", "org-a")).resolves.toBeUndefined();
 
     expect(client.query.mock.calls.map((call: unknown[]) => call[0])).toEqual([
       "BEGIN",
