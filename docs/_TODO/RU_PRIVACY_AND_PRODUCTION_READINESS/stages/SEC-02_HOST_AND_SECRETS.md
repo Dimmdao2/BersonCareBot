@@ -13,6 +13,20 @@ Allowed сейчас: эта инициатива и read-only host commands п�
 существующих `deploy/host/*`, unit/config templates и test scripts. Out of scope: active SaaS/Product UX files,
 application domain code и любые production mutations до отдельного `G-11` task.
 
+## Slice 0 — urgent current-PROD containment
+
+Агенты сейчас могут подготовить repository patch, tests, preflight и rollback; применять на PROD можно только в
+короткое окно `G-11`. Новый encrypted host не является причиной оставлять критические текущие gaps открытыми.
+
+- [ ] Исправить canonical backup path: `umask 077`, directories `0700`, files `0600`, encrypted output before
+      offsite и safe disposition для существующих plaintext dumps. Детали — `DR-01`.
+- [ ] После проверенного owner/recovery key path запретить SSH password и direct root login; SSH ограничить approved
+      sources/VPN через SG + host rules.
+- [ ] Сузить root-equivalent deploy sudo; deploy/runtime user не меняет root-owned unit, privileged script и release.
+- [ ] Убрать raw SQL params/clinical payload из production error logs.
+- [ ] Каждый change — отдельный reversible slice; firewall/SSH change имеет rollback timer и вторую живую recovery
+      session. Никаких пакетных команд «сделать всё» без промежуточного health proof.
+
 ## Slice A — perimeter and SSH
 
 - [ ] Сверить Selectel SG, listening sockets, nginx upstreams, SSH users/keys и whitelist sudo.
@@ -26,6 +40,7 @@ application domain code и любые production mutations до отдельно
 - [ ] Зафиксировать `User/Group`, `NoNewPrivileges`, `PrivateTmp`, filesystem capabilities и необходимые исключения.
 - [ ] Проверить ownership/mode env, units, backups, logs и release paths; секретные файлы не читаются app-непотребителями.
 - [ ] Добавить `systemd-analyze security` baseline и smoke каждого процесса после sandboxing.
+- [ ] Зафиксировать root-owned immutable release activation: root-сервис не исполняет deploy-writable artifact.
 
 ## Slice C — secret lifecycle
 

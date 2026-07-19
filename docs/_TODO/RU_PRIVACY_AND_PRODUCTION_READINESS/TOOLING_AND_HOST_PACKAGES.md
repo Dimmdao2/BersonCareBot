@@ -29,34 +29,41 @@ Active scan отправляет attack payloads и разрешён тольк�
 GitHub runners общие для разных клиентов; временное открытие TEST допускается только узким auto-closing окном,
 без реальных ПДн/секретов, после owner-approved threat review.
 
-## 2. Host packages: новый предлагаемый baseline
+## 2. Host packages: подтверждённый PROD и target baseline
 
 До этой инициативы утверждённого списка host security packages в репозитории не было. Ниже — предложение для
-`SEC-02`/`DR-01`, а не факт production-установки. Production в рамках этого планирования не инспектировался.
+`SEC-02`/`DR-01`/`INFRA-01`. Read-only production audit выполнен 2026-07-19; полный обезличенный результат —
+[`CURRENT_PROD_BASELINE_2026-07-19.md`](CURRENT_PROD_BASELINE_2026-07-19.md). Наличие пакета не означает, что control
+настроен или принят.
 
 В репозитории уже есть канонический `deploy/postgres/postgres-backup.sh`: unified `pg_dump`, hourly/daily/weekly
 retention и `operator_job_status` health tick. `DR-01` усиливает этот путь permissions/encryption/offsite/restore
 proof и не создаёт параллельный backup script.
 
-| Package/tool | Dev-host сейчас | Вердикт плана | Роль и критерий |
+| Package/tool | PROD сейчас | Вердикт плана | Роль и критерий |
 |---|---|---|---|
-| `nftables` | установлен `1.0.9` | **adopt** | один host firewall под Selectel SG; ruleset default-deny, reboot-persistent, rollback-tested |
-| `ufw` | не установлен | **reject** | не вводить второй frontend рядом с canonical `nftables` |
-| `fail2ban` | не установлен | **adopt** | SSH brute-force ban; proof через synthetic failed logins без блокировки deploy path |
-| `auditd` + `audispd-plugins` | не установлены | **adopt** | изменения env/systemd/SSH/backup-конфигов и privileged actions; без секретов в events |
-| `age` | не установлен | **adopt** | шифрование standalone dump-артефактов до перемещения; ключ восстановления хранится отдельно |
-| `restic` | не установлен | **adopt после G-07** | шифрованная, checksum-verifiable offsite копия в российское object storage |
-| `pgbackrest` | не установлен | **decision в DR-01** | принять для WAL/PITR, если утверждённый RPO не закрывается текущими dumps; решение фиксирует proof/rollback |
-| `awscli` | не установлен | **admin/CI only** | проверка S3 encryption/versioning/lifecycle/policy; не нужен app runtime |
-| `postgresql-<server-major>-pgaudit` | не проверялся | **proof before adopt/reject** | сначала подтвердить production major; проверить объём, performance и риск чувствительных параметров в логах; слепая установка запрещена |
+| `cryptsetup` | установлен `2.7`, encrypted devices отсутствуют | **adopt на новом host** | LUKS2 только после disposable reboot/unlock/rescue proof; текущий root in-place не конвертировать |
+| `cryptsetup-initramfs` | не подтверждён | **conditional** | только для принятого encrypted-root boot path |
+| `dropbear-initramfs` | не установлен | **conditional/high-risk** | только если принят remote unlock; отдельный SSH trust boundary, allowlist и recovery audit |
+| `nftables` | установлен, ruleset фактически пуст/default-allow | **adopt** | один host firewall под Selectel SG; default-deny, reboot-persistent, rollback-tested |
+| `ufw` | не активен | **reject** | не вводить второй frontend рядом с canonical `nftables` |
+| `fail2ban` | отсутствует/не активен | **adopt** | SSH brute-force ban; proof без блокировки owner/deploy recovery path |
+| `auditd` + `audispd-plugins` | отсутствуют/не активны | **adopt** | изменения env/systemd/SSH/backup-конфигов и privileged actions; без секретов в events |
+| `age` | не установлен | **adopt** | потоковое шифрование dump до offsite; recovery key отдельно от VPS/repository |
+| `restic` | не установлен | **adopt после G-07** | encrypted checksum-verifiable offsite copy в отдельное российское object storage |
+| `pgbackrest` | не установлен | **decision в DR-01** | WAL/PITR только если утверждённый RPO не закрывается dumps; не запускать второй неуправляемый backup path |
+| `awscli`/repo SDK diagnostic | AWS CLI не установлен | **admin/rehearsal only** | capability/policy/version inventory; unsupported API фиксируется как `unsupported`, runtime не зависит от CLI |
+| `apparmor` + utils | не активен | **compatibility proof** | включать profile-by-profile после TEST; не блокировать сервисы вслепую |
+| `postgresql-16-pgaudit` | не установлен | **proof before adopt/reject** | не заменяет clinical access audit; сначала volume/performance/redaction proof |
 
 ## 3. Что не добавлять
 
-- Vault/отдельный secrets platform до появления нескольких hosts/регионов и операционной команды: сейчас
-  root-owned systemd credentials + DB-backed org settings по S5, с documented rotation.
+- Vault/отдельный secrets platform не внедрять по умолчанию. `CRYPTO-01/C0`, `G-06/G-13` могут потребовать
+  независимый KEK/key-management контур; тогда решение, threat coverage и операционная модель фиксируются до кода.
 - AIDE/второй file-integrity stack поверх `auditd`, пока не доказана недостающая модель detection.
 - Runtime npm «security packages» без конкретной уязвимости и архитектурного места.
 - Одновременно UFW и nftables как два источника правил.
+- Gitleaks/Semgrep/Trivy/ZAP/Garak на production runtime: они остаются CI/admin tooling.
 
 ## 4. Installation gate
 

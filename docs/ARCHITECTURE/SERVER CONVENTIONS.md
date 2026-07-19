@@ -2,14 +2,19 @@
 
 ---
 
-## ⛔ КРИТИЧНО: ПОЛЬЗОВАТЕЛЬ `deploy` НЕ ИМЕЕТ ОБЩЕГО `sudo` В SSH
+## ⛔ КРИТИЧНО: `deploy` НЕ СЧИТАТЬ БЕЗОПАСНО ОГРАНИЧЕННЫМ `sudo`
 
 **Никогда не давать агенту команды с `sudo` для выполнения от имени `deploy` в SSH-терминале.**
 
-Пользователь `deploy` имеет `NOPASSWD sudo` **только** для строго перечисленных команд (systemctl restart/daemon-reload/is-active для bersoncarebot-сервисов, backup-скрипт, install для unit-файлов). Всё остальное — `sudo: permission denied`.
+Read-only проверка PROD `2026-07-19` через `sudo -n -l` показала: literal `NOPASSWD: ALL` отсутствует, но кроме
+unit-specific rules разрешены широкие root-команды `/bin/systemctl`, `/usr/bin/sed`, `/usr/sbin/nginx` и
+`/usr/bin/apt-get`. Это практически root-equivalent boundary и противоречит старому описанию «только строгий
+whitelist». До закрытия `SEC-02` нельзя опираться на sudoers как на containment control. Обезличенный снимок:
+[`../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/CURRENT_PROD_BASELINE_2026-07-19.md`](../_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/CURRENT_PROD_BASELINE_2026-07-19.md).
 
 **Практические следствия:**
-- `sudo rm`, `sudo chown`, `sudo tee`, `sudo cp` — **не работают** от `deploy`.
+- Не предполагать, что произвольная команда с `sudo` разрешена или запрещена: exact allow-list сначала проверяет
+  root/operator; агент не экспериментирует на PROD.
 - Если нужно почистить root-owned артефакты (например, `.next/` после `cp` от root) — это должен делать **root** в отдельной сессии, или задача должна быть переформулирована так, чтобы deploy-пользователь не создавал root-owned файлы изначально.
 - Не предлагать `sudo install` для произвольных файлов вне unit-файлов сервисов.
 - Никаких `sudo chown`, `sudo mkdir`, `sudo rm` в инструкциях для деплоя.
@@ -20,7 +25,7 @@
 
 Этот документ хранит только подтвержденные данные по текущему состоянию `BersonCareBot`.
 
-- Источник: audit хоста от `2026-03-19`.
+- Источники: audit хоста от `2026-03-19`; targeted security re-audit PROD от `2026-07-19`.
 - Scope: только `BersonCareBot`.
 - Данные по другим проектам сюда не входят.
 - Если хост поменялся, сначала снять новый audit, потом обновлять этот файл.

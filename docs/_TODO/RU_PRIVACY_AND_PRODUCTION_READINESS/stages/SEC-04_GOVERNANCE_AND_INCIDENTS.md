@@ -22,7 +22,10 @@ findings, реальные уведомления субъектам и producti
 - [ ] Central security sink: least-privilege append/read, retention, alert delivery и redaction proof.
 - [ ] Severity/triggers, incident role matrix и защищённый канал координации.
 - [ ] Detect → contain → preserve evidence → scope subjects/data/tenants → eradicate → recover.
+- [ ] Классифицировать событие: обычный security event либо установленная неправомерная/случайная передача/доступ,
+      повлекшие нарушение прав субъектов. Только применимый второй класс запускает workflow 24/72.
 - [ ] Таймеры 24/72 и notification decision; адресата/текст утверждает ответственное лицо.
+- [ ] Утвердить и проверить процедуру взаимодействия с ГосСОПКА для применимого компьютерного инцидента.
 - [ ] Emergency secret rotation, account revoke, tenant isolation и delivery shutdown имеют safe runbooks.
 - [ ] Tabletop + technical drill на synthetic scenario без реальных сообщений/ПДн; lessons становятся tasks.
 

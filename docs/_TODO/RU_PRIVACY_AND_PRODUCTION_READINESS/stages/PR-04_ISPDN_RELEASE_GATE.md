@@ -2,7 +2,10 @@
 
 ## Зависимости
 
-Все предыдущие stages имеют evidence; active SaaS TEST roadmap принят владельцем; production release SHA выбран.
+Для `PR-04A`: все launch-blocking application/security/DR/crypto stages имеют evidence; `PR-03A` принят;
+`PR-03B` допускается только как явный accepted deferral с технически доказанным `purge disabled`; `INFRA-01/I1-I4`
+доказал dark target и rollback; active SaaS TEST roadmap принят владельцем; release SHA выбран. Для `PR-04B`:
+cutover/soak/rotation/decommission evidence из `INFRA-01/I5-I6` закрыто.
 
 ## File scope gate
 
@@ -20,6 +23,14 @@ scope: новый product/application scope, исправления «заодн
 - [ ] Независимый technical audit проверяет release SHA и evidence provenance.
 - [ ] Внешний reviewer подписывает свою область; владелец закрывает `G-12` и выдаёт GO/NO-GO.
 
+## Два решения вместо циклического gate
+
+- `PR-04A PRE-CUTOVER GO`: относится к release SHA и подготовленной target topology; разрешает открыть `G-11`, но
+  не объявляет фактическую миграцию завершённой.
+- `PR-04B POST-CUTOVER CLOSURE`: проверяет реальный host, encrypted mounts/swap/PG, storage coverage, secret
+  rotation, soak и удаление старых resources/copies. B может принять продолжающийся `PR-03B` только с выключенным
+  purge, owner/deadline и работающим manual request process; полный initiative closure ждёт `PR-03B`.
+
 ## Запреты
 
 - Не писать «полное соответствие» без внешнего заключения и закрытого checklist.
@@ -28,6 +39,6 @@ scope: новый product/application scope, исправления «заодн
 
 ## Выход
 
-- `FINAL_ACCEPTANCE.md` закрыт фактами.
+- `PR-04A` заполнен до cutover; `FINAL_ACCEPTANCE.md` окончательно закрыт фактами только в `PR-04B`.
 - Каждый residual risk имеет severity, compensating control, owner, deadline и acceptance provenance.
 - GO относится только к указанному release SHA, topology и дате; изменение границ запускает delta review.
