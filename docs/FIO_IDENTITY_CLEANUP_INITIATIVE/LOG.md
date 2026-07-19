@@ -232,3 +232,20 @@ No DB writes were made.
   `bash /home/dev/orch/run-tests.sh "bash -lc 'set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp run fio:backfill-dry-run'"`.
 
 No DB writes were made.
+
+## 2026-07-19 — Phases 7-8 Remaining Writers And Display Cleanup
+
+- Integrated structured writer priority and display cleanup at `c8492fec5`.
+- Telegram/MAX hints now fill empty structured fields without replacing existing strong FIO.
+- Doctor/manual edit paths derive the compatibility `display_name`; doctor labels use full structured FIO with
+  legacy fallback, while patient profile and booking prefill prefer patient-facing structured fields.
+- Validation passed: focused integrator writer tests, changed webapp matrix, scoped lint, integrator/webapp
+  typecheck, and `git diff --check`. Full CI was not repeated because the previous C2F milestone was green and the
+  next full run remains reserved for the next milestone.
+- Independent audit `bcb-c2f-856-audit-20260719`: PASS, safe to integrate, no P0/P1.
+- Deferred P2 debt for the final report/legacy audit: messenger projection and pre-bind merge may still make
+  compatibility `display_name` disagree with preserved structured FIO; the patient shell legacy fallback is not yet
+  consolidated on the profile helper; several source-scan tests can be hardened later.
+- Owner question for Phase 10: when Telegram/MAX supplies a different name for the same existing row, is silently
+  preserving strong FIO plus manual edit/merge preview sufficient, or is a new visible conflict indicator required?
+- No DB, TEST, production, deploy, migration, backfill, PII artifact, or real delivery action was performed.

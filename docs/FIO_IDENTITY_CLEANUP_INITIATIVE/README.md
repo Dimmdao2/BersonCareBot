@@ -1,7 +1,7 @@
 # FIO / Identity Cleanup Initiative
 
-Status: execution. Core phases 0-5 and owner-reviewed TEST apply are complete; registration writers, display cleanup,
-production closeout, legacy audit, and parser retirement remain open.
+Status: execution. Core phases 0-8 and owner-reviewed TEST apply are complete; production closeout, legacy audit,
+and parser retirement remain open.
 
 Owner requirements authority:
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §19.
@@ -336,7 +336,7 @@ Evidence:
 
 ### Phase 7 — Remaining Writers And Provider Priority
 
-Status: pending audit/correction.
+Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
 
 - Audit manual edit, booking, provisioning, OAuth, Telegram, and MAX writers.
 - Provider names remain weak hints: fill empty fields only and never replace manual/booking/Rubitime FIO.
@@ -345,7 +345,20 @@ Status: pending audit/correction.
 
 Gate: regression tests prove every weak provider path preserves strong structured FIO.
 
+Evidence:
+
+- Telegram/MAX structured hints fill empty strong fields and do not replace existing manual/booking/Rubitime FIO.
+- Manual doctor/admin edits normalize structured parts and derive the compatibility label.
+- Focused integrator/webapp tests, scoped lint, integrator/webapp typecheck, and diff-check passed.
+- Independent audit `bcb-c2f-856-audit-20260719`: PASS, safe to integrate, no P0/P1.
+- Deferred P2 audit debt: messenger projection and pre-bind merge can still make the compatibility `display_name`
+  disagree with preserved structured FIO; patient shell legacy fallback is not yet consolidated on the same helper.
+- Owner question deferred to the Phase 10 legacy audit: when a provider name disagrees with strong FIO on the same
+  row, is strong-wins plus manual edit sufficient, or is a new visible conflict indicator required?
+
 ### Phase 8 — Display Cleanup
+
+Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
 
 Goal: make the app consistently use structured names.
 
@@ -368,6 +381,14 @@ Validation:
 Gate:
 
 - Doctor sees full FIO where available; patient sees given name.
+
+Evidence:
+
+- Doctor client list/card, appointments, schedule search, communications, search and broadcast previews use the
+  shared full-FIO formatter with legacy fallback.
+- Patient profile and booking prefill prefer structured fields; booking prefill does not parse `display_name` when
+  structured parts exist.
+- The same focused validation and independent audit recorded for Phase 7 cover this combined Phase 7-8 stage.
 
 ### Phase 9 — Production Backfill Closeout
 

@@ -437,6 +437,11 @@ card; запрещено строить временный resolver, второ�
   recalculated by parser.
 - **Task mapping:** `#855` structured registrations; `#856` remaining writers + display; `#857` owner-gated
   production closeout; `#858` fallback audit + parser retirement. All start `auto_ok=false`.
+- **Status (2026-07-19):** [x] `#855` structured registration and [x] `#856` remaining writers/display are
+  integrated through `c8492fec5`; focused tests, scoped lint/typecheck and independent C2F audit passed. The audit
+  left only recorded P2 compatibility-label/helper debt and one Phase 10 owner question about a possible same-row
+  provider-conflict indicator. `#857` remains part of the final full production cutover, not a standalone change;
+  `#858` follows its reconciliation.
 - **Dependencies:** `#855` owner gate is resolved by the 2026-07-19 addendum: a separate new-patient registration
   collects required `lastName` + `firstName` and optional `patronymic`, derives `display_name`, while «Войти по коду»
   remains existing-account login without repeated FIO. Registration/writer work can proceed after U0/U1 identity

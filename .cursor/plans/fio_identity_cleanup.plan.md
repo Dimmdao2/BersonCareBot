@@ -457,7 +457,7 @@ Evidence:
 
 ## Phase 7 — Remaining Writers And Provider Priority
 
-Status: pending audit/correction.
+Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
 
 Goal:
 
@@ -474,7 +474,18 @@ Gate:
 
 - Contract and regression tests cover every writer and prove weak providers cannot degrade strong structured FIO.
 
+Evidence:
+
+- Focused writer/display tests, scoped lint, integrator/webapp typecheck and diff-check passed.
+- Independent audit `bcb-c2f-856-audit-20260719`: PASS, safe to integrate, no P0/P1.
+- Deferred P2: provider writes may still make compatibility `display_name` disagree with preserved structured FIO;
+  the patient shell legacy fallback still uses its older helper.
+- Owner question for Phase 10: whether a same-row provider/FIO disagreement needs a new visible conflict indicator,
+  or whether strong-wins plus the existing manual-edit/merge-preview paths are sufficient.
+
 ## Phase 8 — Display Cleanup
+
+Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
 
 Goal:
 
@@ -506,6 +517,12 @@ Validation:
 Gate:
 
 - Doctor sees full FIO where available; patient sees given name.
+
+Evidence:
+
+- Doctor label matrix uses the shared full-FIO helper with legacy fallback.
+- Patient profile and structured booking prefill use structured identity fields; schema fallback remains intact.
+- Covered by the Phase 7-8 combined validation and independent audit above.
 
 ## Phase 9 — Production Backfill Closeout
 
