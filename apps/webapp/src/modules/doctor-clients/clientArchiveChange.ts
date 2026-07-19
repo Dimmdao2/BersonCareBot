@@ -4,9 +4,6 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
-
-const doctorClientsPort = createPgDoctorClientsPort();
 
 export const clientArchiveBodySchema = z.object({
   archived: z.boolean(),
@@ -19,20 +16,11 @@ export async function applyClientArchiveChange(
   userId: string,
   archived: boolean,
 ): Promise<NextResponse> {
-  // Дешёвый SELECT роли до getClientIdentity (JOIN привязок) — быстрый 404 для не-клиентов.
-  const role = await doctorClientsPort.getPlatformUserRole(userId);
-  if (role === null) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
-  if (role !== "client") {
-    return NextResponse.json({ ok: false, error: "not_client" }, { status: 404 });
-  }
-
-  const identity = await doctorClientsPort.getClientIdentity(userId);
-  if (!identity) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
-  }
-
-  await doctorClientsPort.setUserArchived(userId, archived);
-  return NextResponse.json({ ok: true });
+  // `platform_users.is_archived` is global while a patient can have more than
+  // one organization enrollment. There is no sanctioned per-enrollment archive
+  // port yet, therefore a compatibility route cannot safely mutate it.
+  return NextResponse.json(
+    { ok: false, error: "patient_archive_not_available" },
+    { status: 409 },
+  );
 }

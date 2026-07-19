@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getCurrentSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -18,14 +18,13 @@ import { POST } from "./route";
 
 describe("POST /api/doctor/clients", () => {
   beforeEach(() => {
-    getCurrentSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
   });
 
   it("returns 403 for client role", async () => {
-    getCurrentSessionMock.mockResolvedValueOnce({
-      user: { userId: "c1", role: "client", displayName: "C", bindings: {} },
-      issuedAt: 1,
-      expiresAt: 9e9,
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
     });
 
     const res = await POST(

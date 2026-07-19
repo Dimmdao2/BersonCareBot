@@ -353,10 +353,12 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
     async listInstancesWhere(filter: {
       assignmentSource: TreatmentProgramAssignmentSource;
       status?: TreatmentProgramInstanceStatus;
+      organizationId?: string;
     }) {
       return [...instances.values()]
         .filter((i) => {
           if (i.assignmentSource !== filter.assignmentSource) return false;
+          if (filter.organizationId && i.organizationId !== filter.organizationId) return false;
           if (filter.status !== undefined && i.status !== filter.status) return false;
           return true;
         })
@@ -1244,7 +1246,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     },
 
-    async countPendingEvaluationAttemptsGlobal(): Promise<number> {
+    async countPendingEvaluationAttemptsGlobal(organizationId: string): Promise<number> {
       const attemptIds = new Set<string>();
       for (const r of results.values()) {
         if (r.decidedBy) continue;
@@ -1255,7 +1257,7 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
         const st = stages.get(item.stageId);
         if (!st) continue;
         const inst = instances.get(st.instanceId);
-        if (!inst || inst.status !== "active") continue;
+        if (!inst || inst.organizationId !== organizationId || inst.status !== "active") continue;
         if (inst.assignmentSource === "promo") continue;
         attemptIds.add(att.id);
       }

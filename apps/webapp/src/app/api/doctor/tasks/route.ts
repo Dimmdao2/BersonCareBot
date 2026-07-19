@@ -4,18 +4,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { specialistTaskBodySchema } from "@/modules/specialist-tasks/apiSchemas";
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const { session } = gate.ctx;
 
   const url = new URL(request.url);
   const includeCompleted = url.searchParams.get("includeCompleted") === "1";

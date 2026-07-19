@@ -4,6 +4,7 @@ import { AppAccessDeniedToastEffect } from "@/shared/ui/AppAccessDeniedToastEffe
 import { StaffPwaBootstrap } from "@/shared/ui/doctor/pwa/StaffPwaBootstrap";
 import { StaffWebPushBootstrap } from "@/shared/ui/doctor/pwa/StaffWebPushBootstrap";
 import { canAccessDoctor } from "@/modules/roles/service";
+import { resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
 import { DoctorAdminSidebar } from "@/shared/ui/doctor/shell/DoctorAdminSidebar";
 import { DoctorHeader } from "@/shared/ui/doctor/shell/DoctorHeader";
 import { DoctorSupportUnreadProvider } from "@/shared/ui/doctor/shell/DoctorSupportUnreadProvider";
@@ -44,12 +45,23 @@ export function DoctorWorkspaceShell({
   enableTenantRuntime = true,
   children,
 }: DoctorWorkspaceShellProps) {
-  const showDoctorDesktopNav = canAccessDoctor(userRole);
+  const capabilities = Array.from(
+    resolveLaunchCapabilities({
+      sessionRole: userRole,
+      adminMode,
+      membershipRole: workspaceContext?.membershipRole,
+      specialistId: workspaceContext?.specialistId,
+      canManageOrganization: workspaceContext?.canManageOrganization,
+      canAccessClinicalWorkspace: workspaceContext?.canAccessClinicalWorkspace,
+    }),
+  );
+  const showDoctorDesktopNav =
+    canAccessDoctor(userRole) &&
+    (capabilities.includes("clinical.workspace") ||
+      capabilities.includes("organization.management") ||
+      capabilities.includes("platform.operations"));
   const menuAccess = {
-    role: userRole,
-    adminMode,
-    canManageOrganization: workspaceContext?.canManageOrganization ?? false,
-    canAccessClinicalWorkspace: workspaceContext?.canAccessClinicalWorkspace ?? false,
+    capabilities,
   };
 
   return (

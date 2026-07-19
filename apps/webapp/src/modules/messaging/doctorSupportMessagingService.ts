@@ -116,8 +116,8 @@ export function createDoctorSupportMessagingService(
       return port.countUnreadUserMessagesForAdmin(params);
     },
 
-    unreadFromPatient(platformUserId: string): Promise<number> {
-      return port.countUnreadUserMessagesForAdminByPatient(platformUserId);
+    unreadFromPatient(platformUserId: string, organizationId?: string): Promise<number> {
+      return port.countUnreadUserMessagesForAdminByPatient(platformUserId, organizationId);
     },
   };
 }

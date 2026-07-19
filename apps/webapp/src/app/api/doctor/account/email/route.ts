@@ -3,18 +3,13 @@
  */
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireDoctorApiSession } from "@/app-layer/guards/requireRole";
 
 export async function DELETE() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (session.user.role !== "doctor" && session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorApiSession();
+  if (!gate.ok) return gate.response;
 
-  const result = await buildAppDeps().userProjection.clearStaffAccountEmail(session.user.userId);
+  const result = await buildAppDeps().userProjection.clearStaffAccountEmail(gate.session.user.userId);
   if (!result.ok) {
     if (result.reason === "already_empty") {
       return NextResponse.json({ ok: false, error: "already_empty" }, { status: 400 });

@@ -5,8 +5,8 @@ import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { DoctorMenuAccordion, formatNavBadgeCount } from "./DoctorMenuAccordion";
 
-const menuAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false };
-const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false };
+const menuAccess = { capabilities: ["clinical.workspace"] as const };
+const adminAccess = { capabilities: ["platform.operations", "organization.management", "clinical.workspace"] as const };
 
 const pathnameRef = vi.hoisted(() => ({ value: "/app/doctor" }));
 const unreadCountRef = vi.hoisted(() => ({ value: 0 }));
@@ -197,7 +197,7 @@ describe("DoctorMenuAccordion", () => {
       <DoctorMenuAccordion
         variant="sidebar"
         pathname="/app/doctor"
-        menuAccess={{ role: "doctor", adminMode: false, canManageOrganization: true }}
+        menuAccess={{ capabilities: ["organization.management"] }}
       />,
     );
     expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();

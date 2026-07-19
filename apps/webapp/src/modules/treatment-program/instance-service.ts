@@ -329,7 +329,7 @@ export function createTreatmentProgramInstanceService(deps: {
       });
     },
 
-    async refreshActivePromoProgramsFromDefaultTemplate(input: { actorUserId: string | null }) {
+    async refreshActivePromoProgramsFromDefaultTemplate(input: { actorUserId: string | null; organizationId: string }) {
       const getId = deps.getDefaultPromoTemplateId;
       if (!getId) {
         throw new Error("Промо-программа не настроена");
@@ -347,6 +347,7 @@ export function createTreatmentProgramInstanceService(deps: {
       const activePromo = await instances.listInstancesWhere({
         assignmentSource: "promo",
         status: "active",
+        organizationId: input.organizationId,
       });
 
       const pairs: Array<{ patientUserId: string; oldInstanceId: string; newInstanceId: string }> = [];

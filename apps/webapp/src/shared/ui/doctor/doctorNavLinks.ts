@@ -1,8 +1,8 @@
 /** Навигация кабинета врача: верхнеуровневые пункты (desktop sidebar и mobile Sheet). */
 
 import { routePaths } from "@/app-layer/routes/paths";
+import { hasLaunchCapability, type LaunchCapability } from "@/app-layer/guards/workspaceCapabilities";
 import { resolvePatientTerms } from "@/modules/system-settings/patientTerms";
-import type { UserRole } from "@/shared/types/session";
 
 /** Устаревший ключ: один открытый кластер. Читается только для миграции в формат множества. */
 export const DOCTOR_MENU_OPEN_CLUSTER_STORAGE_KEY = "doctorMenu.openCluster.v1";
@@ -36,23 +36,22 @@ export type DoctorMenuLinkItem = {
 export type DoctorMenuAccessTier = "doctor" | "staff" | "clinic_admin" | "global_admin";
 
 export type DoctorMenuAccess = {
-  role: UserRole;
-  adminMode: boolean;
-  canManageOrganization: boolean;
-  canAccessClinicalWorkspace?: boolean;
+  capabilities: readonly LaunchCapability[];
 };
 
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
   const tier = item.accessTier ?? "doctor";
-  if (tier === "doctor") return access.canAccessClinicalWorkspace !== false;
-  const isGlobalAdmin = access.role === "admin" && access.adminMode;
+  if (tier === "doctor") return hasLaunchCapability(access.capabilities, "clinical.workspace");
   if (tier === "staff") {
-    return isGlobalAdmin || access.canManageOrganization || access.canAccessClinicalWorkspace !== false;
+    return (
+      hasLaunchCapability(access.capabilities, "organization.management") ||
+      hasLaunchCapability(access.capabilities, "clinical.workspace")
+    );
   }
   if (tier === "clinic_admin") {
-    return isGlobalAdmin || access.canManageOrganization;
+    return hasLaunchCapability(access.capabilities, "organization.management");
   }
-  return isGlobalAdmin;
+  return hasLaunchCapability(access.capabilities, "platform.operations");
 }
 
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
@@ -106,13 +105,24 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     label: "Система",
     accessTier: "global_admin",
     items: [
-      { id: "system-health", label: "Здоровье системы", href: "/app/doctor/system-health" },
-      { id: "health-archive", label: "Архив сбоев", href: "/app/doctor/health-archive" },
+      {
+        id: "system-health",
+        label: "Здоровье системы",
+        href: "/app/doctor/system-health",
+        accessTier: "global_admin",
+      },
+      {
+        id: "health-archive",
+        label: "Архив сбоев",
+        href: "/app/doctor/health-archive",
+        accessTier: "global_admin",
+      },
       {
         id: "audit-log",
         label: "Журнал операций",
         href: "/app/doctor/audit-log",
         badgeKey: "registrationSystemFailures",
+        accessTier: "global_admin",
       },
     ],
   },

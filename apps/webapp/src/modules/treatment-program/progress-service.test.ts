@@ -1393,7 +1393,7 @@ describe("treatment-program progress-service", () => {
     expect(global.some((x) => x.instanceId === instA.id && x.patientUserId === patient)).toBe(true);
     expect(global.some((x) => x.instanceId === promoInst.id)).toBe(false);
 
-    const count = await progress.countPendingTestEvaluationAttemptsGlobal();
+    const count = await progress.countPendingTestEvaluationAttemptsGlobal("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(count).toBe(1);
   });
 

@@ -4,21 +4,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   patientUserId: z.string().uuid(),
 });
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -27,10 +21,16 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const identity = await deps.doctorClientsPort.getClientIdentity(parsed.data.patientUserId);
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    parsed.data.patientUserId,
+    auth.ctx.organizationId,
+  );
   if (!identity) {
     return NextResponse.json({ ok: false, error: "patient_not_found" }, { status: 404 });
   }
-  const unreadCount = await deps.messaging.doctorSupport.unreadFromPatient(parsed.data.patientUserId);
+  const unreadCount = await deps.messaging.doctorSupport.unreadFromPatient(
+    parsed.data.patientUserId,
+    auth.ctx.organizationId,
+  );
   return NextResponse.json({ ok: true, unreadCount });
 }

@@ -4,13 +4,15 @@
  */
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import "../../styles/doctor.css";
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { getCurrentSession } from "@/modules/auth/service";
+import { hasLaunchCapability, resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
 import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { DoctorWorkspaceContext } from "@/modules/doctor-workspace/types";
-import { logger } from "@/infra/logging/logger";
 
 export const metadata: Metadata = staffPwaLayoutMetadata;
 
@@ -22,41 +24,38 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
+  // Platform URLs live in `(global-admin)/doctor/**`, outside this clinical layout.
+  // Keep the historical `/app/doctor` entry as a non-looping platform landing rather
+  // than allowing a platform principal to render a clinical child beneath this shell.
+  const currentSession = await getCurrentSession();
+  if (
+    currentSession &&
+    hasLaunchCapability(
+      resolveLaunchCapabilities({
+        sessionRole: currentSession.user.role,
+        adminMode: currentSession.adminMode,
+      }),
+      "platform.operations",
+    )
+  ) {
+    redirect("/app/doctor/system-health");
+  }
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
-  const deps = buildAppDeps();
-  let effectiveSpecialistId = workspaceAccess.specialistId;
-  try {
-    effectiveSpecialistId =
-      (await deps.organizationProvisioning.ensureOwnBookableSpecialist({
-        organizationId: workspaceAccess.organizationId,
-        membershipId: workspaceAccess.membershipId,
-        membershipRole: workspaceAccess.membershipRole,
-        specialistId: workspaceAccess.specialistId,
-        displayName: session.user.displayName,
-      })) ?? effectiveSpecialistId;
-  } catch (err) {
-    logger.error(
-      {
-        err,
-        organizationId: workspaceAccess.organizationId,
-        membershipId: workspaceAccess.membershipId,
-      },
-      "doctor_workspace_specialist_auto_provision_failed",
-    );
+  if (!workspaceAccess.canAccessClinicalWorkspace) {
+    redirect("/app/settings");
   }
+  const deps = buildAppDeps();
   const workspaceContext: DoctorWorkspaceContext = {
     organizationId: workspaceAccess.organizationId,
     organizationName: null,
     membershipId: workspaceAccess.membershipId,
     membershipRole: workspaceAccess.membershipRole,
-    specialistId: effectiveSpecialistId,
+    specialistId: workspaceAccess.specialistId,
     canManageOrganization: workspaceAccess.canManageOrganization,
     canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
-    canAccessClinicalWorkspace:
-      (workspaceAccess.membershipRole === "owner" || workspaceAccess.membershipRole === "doctor") &&
-      effectiveSpecialistId !== null,
-    selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : effectiveSpecialistId,
+    canAccessClinicalWorkspace: workspaceAccess.canAccessClinicalWorkspace,
+    selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : workspaceAccess.specialistId,
   };
   // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
   const doctorSettings = await deps.systemSettings.listSettingsByScope("doctor", {

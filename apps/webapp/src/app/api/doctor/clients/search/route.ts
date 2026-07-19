@@ -5,9 +5,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { formatDoctorFio } from "@/shared/lib/fio";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { isDoctorClientSearchQueryAllowed } from "@/modules/doctor-clients/clientSearchMatch";
-import { canAccessDoctor } from "@/modules/roles/service";
 
 const querySchema = z.object({
   q: z.string().max(200).optional().default(""),
@@ -15,13 +15,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -38,7 +33,7 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const clients = await deps.doctorClients.listClients({ search: q });
+  const clients = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.doctorClients.listClients({ search: q }));
   return NextResponse.json({
     ok: true,
     clients: clients.slice(0, parsed.data.limit).map((c) => ({

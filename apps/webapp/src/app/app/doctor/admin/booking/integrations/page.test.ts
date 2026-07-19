@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-import DoctorAdminBookingIntegrationsPage from "./page";
+import DoctorAdminBookingIntegrationsPage from "@/app/app/(global-admin)/doctor/admin/booking/integrations/page";
 
 describe("DoctorAdminBookingIntegrationsPage", () => {
   beforeEach(() => vi.clearAllMocks());

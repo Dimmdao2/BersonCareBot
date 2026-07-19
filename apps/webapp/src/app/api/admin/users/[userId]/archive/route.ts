@@ -1,6 +1,6 @@
 /**
- * PATCH /api/admin/users/:userId/archive — архив / снятие архива (только role=admin).
- * Та же бизнес-логика, что и у `/api/doctor/clients/.../archive`, иной guard по роли вызывающего.
+ * PATCH /api/admin/users/:userId/archive — compatibility alias for an organization-scoped
+ * client archive action. It is deliberately not a global-admin patient-repair surface.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,13 +8,11 @@ import {
   applyClientArchiveChange,
   clientArchiveBodySchema,
 } from "@/modules/doctor-clients/clientArchiveChange";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdminWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
 
   const { userId } = await context.params;
   if (!z.string().uuid().safeParse(userId).success) {

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const querySchema = z.object({
   contentPageId: z.string().uuid(),
@@ -11,11 +10,8 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));

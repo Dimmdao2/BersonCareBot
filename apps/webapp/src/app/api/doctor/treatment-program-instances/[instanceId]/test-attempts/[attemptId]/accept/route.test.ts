@@ -75,6 +75,8 @@ function workspaceContext(): DoctorWorkspaceAccessContext {
     specialistId: "specialist-1",
     canManageOrganization: false,
     canManageAllSpecialists: false,
+    canAccessClinicalWorkspace: true,
+    capabilities: ["clinical.workspace"],
   };
 }
 

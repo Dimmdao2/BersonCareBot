@@ -746,8 +746,8 @@ export function createTreatmentProgramProgressService(deps: {
       return tests.listPendingEvaluationResultsForPatient(patientUserId);
     },
 
-    async countPendingTestEvaluationAttemptsGlobal(): Promise<number> {
-      return tests.countPendingEvaluationAttemptsGlobal();
+    async countPendingTestEvaluationAttemptsGlobal(organizationId: string): Promise<number> {
+      return tests.countPendingEvaluationAttemptsGlobal(organizationId);
     },
 
     async listPendingTestEvaluationsGlobal(maxAttempts: number): Promise<PendingProgramTestEvaluationGlobalRow[]> {

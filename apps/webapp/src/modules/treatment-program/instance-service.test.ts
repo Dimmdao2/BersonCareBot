@@ -26,6 +26,7 @@ import {
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const refB = "22222222-2222-4222-8222-222222222222";
+const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function instStageForTpl(inst: TreatmentProgramInstanceDetail, templateStageId: string) {
   const s = inst.stages.find((x) => x.sourceStageId === templateStageId);
@@ -676,7 +677,7 @@ describe("treatment-program instance service", () => {
         assignmentSource: "promo",
       });
 
-      const result = await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId });
+      const result = await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID });
       expect(result.refreshedCount).toBe(1);
       expect(result.pairs[0]).toMatchObject({
         patientUserId: patient,
@@ -761,7 +762,7 @@ describe("treatment-program instance service", () => {
         });
 
         vi.setSystemTime(new Date("2026-05-14T12:00:00.000Z"));
-        await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId });
+        await instSvc.refreshActivePromoProgramsFromDefaultTemplate({ actorUserId: doctorId, organizationId: ORG_ID });
 
         const snaps = await diarySnapshots.listForUserDateRange(patient, "2026-05-11", "2026-05-13");
         const wed = snaps.find((s) => s.localDate === "2026-05-13");

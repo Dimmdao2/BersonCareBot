@@ -6,8 +6,7 @@ import { getPool } from "@/app-layer/db/client";
 import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
 import { abortMultipartPendingTx } from "@/app-layer/media/mediaUploadSessionsRepo";
 import { s3AbortMultipartUpload } from "@/app-layer/media/s3Client";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   sessionId: z.string().uuid(),
@@ -18,10 +17,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
   }
 
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   let json: unknown;
   try {
@@ -39,7 +36,7 @@ export async function POST(request: Request) {
   const { sessionId } = parsed.data;
 
   const dbResult = await withMultipartSessionLock(pool, sessionId, async (client) =>
-    abortMultipartPendingTx(client, sessionId, session.user.userId),
+    abortMultipartPendingTx(client, sessionId, gate.ctx.session.user.userId, gate.ctx.organizationId),
   );
 
   if (dbResult.ok === "not_found") {

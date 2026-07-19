@@ -55,15 +55,38 @@ describe("requireDoctorAccess", () => {
   it("returns session for doctor", async () => {
     const doc = session("doctor");
     getCurrentSessionMock.mockResolvedValueOnce(doc);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: "org-1",
+        platformUserId: doc.user.userId,
+        role: "doctor",
+        specialistId: "specialist-1",
+        canManageOrganization: false,
+        canManageAllSpecialists: false,
+      },
+    });
     await expect(requireDoctorAccess()).resolves.toBe(doc);
     expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("returns session for admin", async () => {
+  it("redirects a bindingless owner/admin to the safe settings destination", async () => {
     const admin = session("admin");
     getCurrentSessionMock.mockResolvedValueOnce(admin);
-    await expect(requireDoctorAccess()).resolves.toBe(admin);
-    expect(redirectMock).not.toHaveBeenCalled();
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: "org-1",
+        platformUserId: admin.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
+    await expect(requireDoctorAccess()).rejects.toThrow("redirect:/app/settings");
   });
 
   it("redirects to /app when no session", async () => {

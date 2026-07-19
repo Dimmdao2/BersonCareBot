@@ -9,10 +9,14 @@ import {
   isDoctorMenuLinkVisible,
   isDoctorNavItemActive,
 } from "./doctorNavLinks";
+import { resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
 
-const doctorAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false, canAccessClinicalWorkspace: true };
-const clinicAdminAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: true, canAccessClinicalWorkspace: false };
-const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false, canAccessClinicalWorkspace: true };
+const doctorAccess = { capabilities: ["clinical.workspace", "account.self"] as const };
+const clinicAdminAccess = { capabilities: ["organization.management", "account.self"] as const };
+const adminAccess = {
+  capabilities: ["platform.operations", "organization.management", "clinical.workspace"] as const,
+};
+const platformOnlyAccess = { capabilities: ["platform.operations"] as const };
 
 describe("isDoctorNavItemActive", () => {
   it("matches overview only on /app/doctor", () => {
@@ -69,6 +73,23 @@ describe("doctor menu structure", () => {
       "analytics",
       "system",
     ]);
+  });
+
+  it("shows a global platform operator only platform destinations", () => {
+    const ids = getDoctorMenuItems(platformOnlyAccess).map((item) => item.id);
+    expect(ids).toEqual(["analytics", "system"]);
+  });
+
+  it("uses the same conservative capability result as server guards", () => {
+    const capabilities = Array.from(
+      resolveLaunchCapabilities({
+        sessionRole: "admin",
+        adminMode: true,
+        membershipRole: "doctor",
+        specialistId: "specialist-1",
+      }),
+    );
+    expect(getDoctorMenuItems({ capabilities }).map((item) => item.id)).toEqual(["analytics", "system"]);
   });
 
   it("keeps settings visible for a plain doctor and hides restricted sections", () => {
@@ -270,12 +291,8 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuLinkVisible(clinicItem, adminAccess)).toBe(true);
     expect(isDoctorMenuLinkVisible(globalItem, doctorAccess)).toBe(false);
     expect(isDoctorMenuLinkVisible(globalItem, clinicAdminAccess)).toBe(false);
-    expect(isDoctorMenuLinkVisible(globalItem, { role: "admin", adminMode: false, canManageOrganization: true })).toBe(
-      false,
-    );
-    expect(isDoctorMenuLinkVisible(globalItem, { role: "admin", adminMode: false, canManageOrganization: false })).toBe(
-      false,
-    );
+    expect(isDoctorMenuLinkVisible(globalItem, { capabilities: ["organization.management"] })).toBe(false);
+    expect(isDoctorMenuLinkVisible(globalItem, { capabilities: ["clinical.workspace"] })).toBe(false);
     expect(isDoctorMenuLinkVisible(globalItem, adminAccess)).toBe(true);
   });
 });

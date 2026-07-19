@@ -3,22 +3,18 @@
  * Guard: role doctor | admin
  */
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { refreshDefaultPromoPrograms } from "@/app-layer/treatment-program/refreshDefaultPromoPrograms";
 
 export async function POST() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
 
   const deps = buildAppDeps();
 
   try {
-    const result = await refreshDefaultPromoPrograms(deps, session.user.userId);
+    const result = await refreshDefaultPromoPrograms(deps, auth.ctx.session.user.userId, auth.ctx.organizationId);
     return NextResponse.json({
       ok: true,
       templateId: result.templateId,

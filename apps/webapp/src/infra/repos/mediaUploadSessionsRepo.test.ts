@@ -84,7 +84,7 @@ describe("mediaUploadSessionsRepo cleanup helpers", () => {
       })
       .mockResolvedValueOnce({ rowCount: 1, rows: [] });
     const client = {} as import("pg").PoolClient;
-    const out = await abortMultipartPendingTx(client, "sess-1", "owner-1");
+    const out = await abortMultipartPendingTx(client, "sess-1", "owner-1", "org-1");
     expect(out).toEqual({ ok: "aborted", s3Key: "media/x/f.png", uploadId: "up-1" });
     expect(approxSql(runWebappSqlMock.mock.calls[1]?.[1])).toContain("status = 'pending'");
   });
@@ -103,7 +103,7 @@ describe("mediaUploadSessionsRepo cleanup helpers", () => {
       ],
     });
     const client = {} as import("pg").PoolClient;
-    const out = await abortMultipartPendingTx(client, "sess-1", "owner-1");
+    const out = await abortMultipartPendingTx(client, "sess-1", "owner-1", "org-1");
     expect(out).toEqual({ ok: "already_completed" });
   });
 });

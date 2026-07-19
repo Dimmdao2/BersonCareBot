@@ -2859,6 +2859,75 @@ task-related paths (repo-wide `git diff --check` errors on pre-existing unrelate
 `git status` before this session started; not part of this task's diff). No full root CI, DB, DEV/TEST/PROD, deploy,
 server start or taskdb write.
 
+## 2026-07-20 — U1 consolidated audit correction (`#916`, still pending independent acceptance)
+
+**Corrected audit delta.** The clinical `/app/doctor` layout now sends an explicit `platform.operations` principal
+to the existing URL-preserving `(global-admin)/doctor` branch and its real landing
+`/app/doctor/system-health`; platform pages no longer compose beneath the clinical layout. Bindingless staff and
+management-only staff redirect to `/app/settings`, outside the clinical loop. No platform principal can fall through
+into the clinical shell.
+
+**API parity.** Migrated the raw `getCurrentSession` + `canAccessDoctor` clinical/PII reads and write identified by
+the independent audit: messages conversation/unread endpoints, promo refresh, material ratings, content stats,
+pending-program-test summary, and the mixed catalog GETs (clinical tests, courses, measure kinds, recommendations,
+tasks, test sets and treatment-program templates). The unread-by-patient/count routes now resolve the patient through
+the guard's organization. The legacy `/api/admin/users/[userId]/archive` alias now requires organization management;
+it is not a global-admin patient-repair surface. The doctor health-archive compatibility endpoint is explicit
+platform-admin-mode only.
+
+**Executable evidence.** `doctorLaunchCensus` now rejects any doctor API route outside its finite guard/wrapper
+registry, verifies booking wrappers resolve to the canonical workspace/management guards, rejects raw session-role
+clinical pairs, asserts the exact platform-page registry and verifies the separate platform layout is tenantless.
+Targeted safe-mock validation: `12` files / `99` tests pass; `pnpm --dir apps/webapp typecheck` passes. No DB,
+dev server, deploy, taskdb write, commit or push was performed.
+
+**Honest residual.** This closes the owner-mapped P0/P1 correction delta but does not mark U1 complete: independent
+acceptance and the broader two-org/two-patient role-harness evidence remain required; P2 401/403 semantics were left
+for owner decision. C4C course entitlement/nav/layout work was not touched; later integration must preserve
+capability-before-entitlement ordering.
+
+**Terminal re-audit correction.** Platform analytics routes now expose no clinical analytics, patient names, phones,
+cards or `/api/doctor/*` calls: they are neutral PII-free placeholders until C6 defines aggregate formulas and an
+approved projection. Conversation list and unread paths pass the trusted organization through service and repository
+filters; the nullable SQL predicate was removed. Multipart `part-url` and `abort` use the clinical workspace guard and
+require the session's joined media object to belong to the same organization. The mutable media route family is an
+exact finite manifest in `doctorLaunchCensus`, so a new or deleted route fails the structural test. Because no existing
+organization-enrollment writer or per-enrollment archive contract exists, client-create and archive compatibility
+routes are truthful 409 fail-closed paths until U3B; no global patient identity is created or mutated. Promo refresh
+and pending-program-test summary receive the authenticated organization id. U1 is still not complete: representative
+catalog/rating ownership needs the remaining dedicated two-org repository proof, and 401-versus-403 stays an owner
+decision; U2, U3B and C4C/C6 product behavior were not implemented.
+
+## 2026-07-19 — U1 guard/capability spine worker pass (`#916`, pending independent audit)
+
+**Scope delivered.** Added one trusted-facts capability vocabulary (`platform.operations`,
+`organization.management`, `clinical.workspace`, `account.self`, patient/public reservations) and made the
+existing membership resolver its single staff mapping input. Explicit global-admin mode now projects only platform
+operations: it cannot enter clinical APIs, organization-management APIs or the legacy organization-scoped repair
+guard. Bound owner/doctor remains clinical; bindingless owner/admin remains management-only; assistant receives no
+management or clinical workspace capability.
+
+**Guard and entry evidence.** `requireDoctorAccess` is now a compatibility clinical adapter over
+`requireDoctorWorkspaceContext`; `requireDoctorWorkspaceApiContext` no longer has the `adminMode` bypass. The
+doctor layout no longer invokes `ensureOwnBookableSpecialist`; a missing clinical binding redirects to `/app/settings`
+without writing data. The direct client-create and client-search APIs now enter the same clinical adapter before
+parsing/service access; search additionally executes under the resolved organization principal.
+
+**Census / navigation.** Added an executable focused census over all current doctor/admin API routes and doctor RSC
+pages, with explicit clinical / management / platform / account-self classes and representative direct, list, count,
+search, export and write checks. Doctor navigation consumes the same conservative capability result and no longer
+uses `canAccessClinicalWorkspace !== false`, broad role grants or route-dependent visibility.
+
+**Audit policy boundary.** The bounded launch census found no existing policy-defined sensitive-denial persistence
+class. Existing operational `writeAuditLog` paths are not a generic authorization-denial seam, so no denial logger,
+payload field or LOG-01 file was added.
+
+**Not done / still required.** No U1 completion is claimed. Independent high-risk guard audit and live role evidence
+remain mandatory. U2 shell/settings composition, U3S binding/provisioning, U3A team/invites, U3B/U5B patient flows,
+U5A patient resolver, C4C courses, LOG-01, schema/migrations/RLS, DBs and deployment are out of scope.
+
+### C4A handoff notes (preceding entry; preserved for its owner)
+
 **Residual risk / owner note.** The in-memory `OrganizationInvitesPort` test double
 (`infra/repos/inMemoryOrganizationInvites.ts`) never implemented the doctor-only seat/entitlement re-check at all
 (pre-existing gap, unrelated to and not widened by this correction) — it is not exercised by production RLS/route

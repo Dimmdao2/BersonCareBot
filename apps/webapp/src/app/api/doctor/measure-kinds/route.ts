@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
@@ -21,11 +19,8 @@ const patchBodySchema = z.object({
 });
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  if (!canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const auth = await requireDoctorWorkspaceApiContext();
+  if (!auth.ok) return auth.response;
 
   const deps = buildAppDeps();
   const items = await deps.measureKinds.listMeasureKinds();

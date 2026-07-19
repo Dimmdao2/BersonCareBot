@@ -619,9 +619,11 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return list;
   },
 
-  async countUnreadUserMessagesForAdmin() {
+  async countUnreadUserMessagesForAdmin({ organizationId } = {}) {
     let n = 0;
     for (const m of messages.values()) {
+      const conversation = conversations.get(m.conversationId);
+      if (!conversation || conversation.organizationId !== organizationId) continue;
       const c = conversations.get(m.conversationId);
       if (!c || c.status === "closed" || c.closedAt != null) continue;
       if (m.senderRole === "user" && m.readAt == null) n += 1;
@@ -637,10 +639,10 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return n;
   },
 
-  async countUnreadUserMessagesForAdminByPatient(platformUserId) {
+  async countUnreadUserMessagesForAdminByPatient(platformUserId, organizationId) {
     const convIds = new Set(
       Array.from(conversations.values())
-        .filter((c) => c.platformUserId === platformUserId)
+        .filter((c) => c.platformUserId === platformUserId && c.organizationId === organizationId)
         .map((c) => c.id),
     );
     let n = 0;

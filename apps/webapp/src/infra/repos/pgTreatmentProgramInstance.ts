@@ -479,10 +479,12 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
     async listInstancesWhere(filter: {
       assignmentSource: TreatmentProgramAssignmentSource;
       status?: TreatmentProgramInstanceStatus;
+      organizationId?: string;
     }): Promise<TreatmentProgramInstanceSummary[]> {
       const db = getDrizzleOrMutationTx();
       const conds = [
         eq(instTable.assignmentSource, filter.assignmentSource),
+        ...(filter.organizationId ? [eq(instTable.organizationId, filter.organizationId)] : []),
         ...(filter.status !== undefined ? [eq(instTable.status, filter.status)] : []),
       ];
       const rows = await db

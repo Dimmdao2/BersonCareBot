@@ -3,9 +3,8 @@ import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { bumpSessionToUploading, gateUploadSessionForPartUrl } from "@/app-layer/media/mediaUploadSessionsRepo";
 import { presignUploadPartUrl } from "@/app-layer/media/s3Client";
-import { getCurrentSession } from "@/modules/auth/service";
 import { multipartMaxPartNumber } from "@/modules/media/multipartConstants";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   sessionId: z.string().uuid(),
@@ -17,10 +16,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
   }
 
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
 
   let json: unknown;
   try {
@@ -34,7 +31,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const gated = await gateUploadSessionForPartUrl(parsed.data.sessionId, session.user.userId);
+  const gated = await gateUploadSessionForPartUrl(
+    parsed.data.sessionId,
+    gate.ctx.session.user.userId,
+    gate.ctx.organizationId,
+  );
   if (!gated.ok) {
     const status = gated.error === "session_not_found" ? 404 : 409;
     return NextResponse.json({ ok: false, error: gated.error }, { status });

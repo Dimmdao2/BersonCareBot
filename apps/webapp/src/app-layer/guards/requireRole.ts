@@ -15,6 +15,11 @@ import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDenie
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { AppSession } from "@/shared/types/session";
 import type { OrganizationMembershipRole } from "@/modules/organization-membership/ports";
+import {
+  hasLaunchCapability,
+  resolveLaunchCapabilities,
+  type LaunchCapability,
+} from "./workspaceCapabilities";
 
 export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
@@ -73,14 +78,19 @@ export async function patientRscPersonalDataGate(
 }
 
 export async function requireDoctorAccess(): Promise<AppSession> {
-  ensureDbPrincipalContext({ source: "requireDoctorAccess:pending" });
+  return (await requireDoctorWorkspaceContext()).session;
+}
+
+/** Platform-only RSC entry. It intentionally does not resolve an organization membership. */
+export async function requirePlatformOperationsPage(): Promise<AppSession> {
+  ensureDbPrincipalContext({ source: "requirePlatformOperationsPage:pending" });
   const session = await requireSession();
-  if (!canAccessDoctor(session.user.role)) {
-    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
-  }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session);
-  if (resolved.ok && !resolved.ctx.canAccessClinicalWorkspace) {
-    redirect("/app/doctor/clinic/members");
+  const capabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (!hasLaunchCapability(capabilities, "platform.operations")) {
+    redirect("/app");
   }
   return session;
 }
@@ -93,7 +103,8 @@ export type DoctorWorkspaceAccessContext = {
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
-  canAccessClinicalWorkspace?: boolean;
+  canAccessClinicalWorkspace: boolean;
+  capabilities: readonly LaunchCapability[];
 };
 
 function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
@@ -186,8 +197,22 @@ async function resolveDoctorWorkspaceAccessContext(
       canAccessClinicalWorkspace:
         context.canAccessClinicalWorkspace ??
         ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null),
+      capabilities: Array.from(
+        resolveLaunchCapabilities({
+          sessionRole: session.user.role,
+          adminMode: session.adminMode,
+          membershipRole: context.role,
+          specialistId: context.specialistId,
+          canManageOrganization: context.canManageOrganization,
+          canAccessClinicalWorkspace: context.canAccessClinicalWorkspace,
+        }),
+      ),
     },
   };
+}
+
+function contextHasCapability(ctx: DoctorWorkspaceAccessContext, capability: LaunchCapability): boolean {
+  return hasLaunchCapability(ctx.capabilities, capability);
 }
 
 /** Resolves an organization membership for both clinical and management surfaces. */
@@ -199,7 +224,16 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
-    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+    // A staff account without an active organization belongs to no clinical workspace.
+    // `/app/settings` is outside the doctor layout; sending it to its role hub would
+    // re-enter this guard and create a redirect loop.
+    redirect("/app/settings");
+  }
+  if (
+    !contextHasCapability(resolved.ctx, "organization.management") &&
+    !contextHasCapability(resolved.ctx, "clinical.workspace")
+  ) {
+    redirect("/app/settings");
   }
   stampStaffPrincipal(resolved.ctx, "requireOrganizationWorkspaceContext");
   return resolved.ctx;
@@ -208,8 +242,8 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
 /** Clinical doctor workspace: a bound owner/doctor, never a management-only admin membership. */
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
-  if (!ctx.canAccessClinicalWorkspace) {
-    redirect("/app/doctor/clinic/members");
+  if (!contextHasCapability(ctx, "clinical.workspace")) {
+    redirect("/app/settings");
   }
   return ctx;
 }
@@ -220,11 +254,17 @@ export async function requireDoctorApiSession(): Promise<
 > {
   ensureDbPrincipalContext({ source: "requireDoctorApiSession:pending" });
   const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
+  if (!session) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
-  const resolved = await resolveDoctorWorkspaceAccessContext(session).catch(() => null);
-  if (resolved?.ok && !resolved.ctx.canAccessClinicalWorkspace) {
+  if (!canAccessDoctor(session.user.role)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  const accountCapabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (!hasLaunchCapability(accountCapabilities, "account.self")) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
@@ -242,39 +282,42 @@ export async function requireDoctorWorkspaceApiContext(): Promise<{ ok: true; ct
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
-  // A platform admin in explicit admin mode keeps its global administration contract. Every
-  // organization-scoped management-only admin, however, must stop here: `/api/doctor/*`
-  // is the clinical surface and may only receive a bound clinical principal.
-  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
-  if (!isGlobalAdmin && !resolved.ctx.canAccessClinicalWorkspace) {
+  if (!contextHasCapability(resolved.ctx, "clinical.workspace")) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse("forbidden") };
   }
   stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceApiContext");
   return resolved;
 }
 
-/** Для Route Handlers под `/api/admin/*`: admin + adminMode + resolved organization membership. */
+/**
+ * Legacy organization-scoped repair guard. Despite its historical name, it is
+ * not a platform grant: explicit global-admin mode is denied, and the caller
+ * must hold organization.management for the one resolved membership.
+ */
 export async function requireAdminWorkspaceApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: "requireAdminWorkspaceApiContext:pending" });
   const session = await getCurrentSession();
   if (!session) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
   }
-  if (session.user.role !== "admin" || !session.adminMode) {
+  if (!canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
+  if (!contextHasCapability(resolved.ctx, "organization.management")) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse("forbidden") };
+  }
   stampStaffPrincipal(resolved.ctx, "requireAdminWorkspaceApiContext");
   return resolved;
 }
 
 /**
- * Для clinic-management API: platform admin in adminMode OR a management-capable member
- * (`owner`/`admin`) of the resolved organization. Organization is always resolved from the
- * caller's sole active staff membership.
+ * Для clinic-management API: только management-capable member (`owner`/`admin`) of the
+ * resolved organization. Platform admin is a separate capability and cannot inherit an
+ * organization workspace through adminMode.
  */
 export async function requireClinicManagementApiContext(): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
   ensureDbPrincipalContext({ source: "requireClinicManagementApiContext:pending" });
@@ -289,8 +332,7 @@ export async function requireClinicManagementApiContext(): Promise<{ ok: true; c
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
   }
-  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
-  if (!isGlobalAdmin && !resolved.ctx.canManageOrganization) {
+  if (!contextHasCapability(resolved.ctx, "organization.management")) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   stampStaffPrincipal(resolved.ctx, "requireClinicManagementApiContext");

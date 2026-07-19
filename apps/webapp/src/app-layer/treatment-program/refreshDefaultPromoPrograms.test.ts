@@ -37,7 +37,7 @@ describe("refreshDefaultPromoPrograms", () => {
       reminders: { retargetRehabProgramInstanceLinkedId: retargetMock },
     } as never;
 
-    const result = await refreshDefaultPromoPrograms(deps, "dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+    const result = await refreshDefaultPromoPrograms(deps, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
 
     expect(result.refreshedCount).toBe(1);
     expect(retargetMock).toHaveBeenCalledWith(
@@ -60,7 +60,7 @@ describe("refreshDefaultPromoPrograms", () => {
       reminders: { retargetRehabProgramInstanceLinkedId: retargetMock },
     } as never;
 
-    await refreshDefaultPromoPrograms(deps, null);
+    await refreshDefaultPromoPrograms(deps, null, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
 
     expect(retargetMock).not.toHaveBeenCalled();
     expect(revalidateMock).not.toHaveBeenCalled();

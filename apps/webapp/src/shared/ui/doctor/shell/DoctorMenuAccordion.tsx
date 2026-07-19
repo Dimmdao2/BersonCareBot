@@ -19,6 +19,7 @@ import {
   type DoctorMenuBadgeKey,
   type DoctorMenuLinkItem,
 } from "@/shared/ui/doctor/doctorNavLinks";
+import { hasLaunchCapability } from "@/app-layer/guards/workspaceCapabilities";
 import { NAV_STRIP_ICON_STROKE } from "@/shared/ui/doctor/navChrome";
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
@@ -423,7 +424,7 @@ export function DoctorMenuAccordion({
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
   const proactiveInsights = useDoctorProactiveInsightsCount(enableBadgePolling);
   const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
-    enableBadgePolling && menuAccess.role === "admin",
+    enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, "platform.operations"),
   );
 
   const badgeCounts = useMemo(

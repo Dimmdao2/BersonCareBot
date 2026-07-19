@@ -248,7 +248,7 @@ export type SupportCommunicationPort = {
   /** Непрочитанные от пациентов (роль `user`) в **открытых** диалогах — согласовано с `listOpenConversationsForAdmin`. */
   countUnreadUserMessagesForAdmin(params?: { organizationId?: string }): Promise<number>;
   countUnreadUserMessagesForAdminByConversation(conversationId: string): Promise<number>;
-  countUnreadUserMessagesForAdminByPatient(platformUserId: string): Promise<number>;
+  countUnreadUserMessagesForAdminByPatient(platformUserId: string, organizationId?: string): Promise<number>;
 };
 
 function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRow {
@@ -831,10 +831,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async listOpenConversationsForAdmin(params) {
       const limit = typeof params.limit === "number" && params.limit > 0 ? Math.min(params.limit, 100) : 20;
       const source = typeof params.source === "string" && params.source.trim() ? params.source.trim() : null;
-      const organizationId =
-        typeof params.organizationId === "string" && params.organizationId.trim()
-          ? params.organizationId.trim()
-          : null;
+      const organizationId = params?.organizationId?.trim() ?? "";
+      if (!organizationId) throw new Error("organization_id_required");
       const r = await runWebappPgText<AdminConversationListDbRow>(
         `SELECT
           sc.id AS conversation_id,
@@ -878,7 +876,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND last_personal.personal_msg_at IS NOT NULL
            AND ($1::text IS NULL OR sc.source = $1)
            AND ($3::boolean = false OR COALESCE(unread.unread_from_user_count, 0) > 0)
-           AND ($4::uuid IS NULL OR sc.organization_id = $4::uuid)
+           AND sc.organization_id = $4::uuid
          ORDER BY (COALESCE(unread.unread_from_user_count, 0) > 0) DESC,
                   COALESCE(last_personal.personal_msg_at, sc.created_at) DESC
          LIMIT $2`,
@@ -1371,10 +1369,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async countUnreadUserMessagesForAdmin(params) {
-      const organizationId =
-        typeof params?.organizationId === "string" && params.organizationId.trim()
-          ? params.organizationId.trim()
-          : null;
+      const organizationId = params?.organizationId?.trim() ?? "";
+      if (!organizationId) throw new Error("organization_id_required");
       const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM support_conversation_messages m
@@ -1383,7 +1379,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
            AND m.read_at IS NULL
            AND c.status <> 'closed'
            AND c.closed_at IS NULL
-           AND ($1::uuid IS NULL OR c.organization_id = $1::uuid)`,
+           AND c.organization_id = $1::uuid`,
         [organizationId],
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
@@ -1398,15 +1394,17 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },
 
-    async countUnreadUserMessagesForAdminByPatient(platformUserId) {
+    async countUnreadUserMessagesForAdminByPatient(platformUserId, organizationId) {
+      if (!organizationId?.trim()) throw new Error("organization_id_required");
       const r = await runWebappPgText<{ c: string }>(
         `SELECT COUNT(*)::text AS c
          FROM support_conversation_messages m
          JOIN support_conversations c ON c.id = m.conversation_id
          WHERE c.platform_user_id = $1::uuid
+           AND c.organization_id = $2::uuid
            AND m.sender_role = 'user'
            AND m.read_at IS NULL`,
-        [platformUserId]
+        [platformUserId, organizationId]
       );
       return parseInt(r.rows[0]?.c ?? "0", 10);
     },

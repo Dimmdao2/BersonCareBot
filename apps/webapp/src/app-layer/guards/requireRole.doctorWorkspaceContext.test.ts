@@ -35,6 +35,7 @@ import {
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
 } from "./requireRole";
+import { resolveLaunchCapabilities } from "./workspaceCapabilities";
 
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
@@ -54,6 +55,42 @@ beforeEach(() => {
   getCurrentSessionMock.mockReset();
   resolveOrganizationForUserMock.mockReset();
   redirectMock.mockReset();
+});
+
+describe("U1 launch capability mapping", () => {
+  it("maps only trusted owner/admin binding facts to management and clinical workspaces", () => {
+    expect(
+      Array.from(
+        resolveLaunchCapabilities({
+          sessionRole: "doctor",
+          membershipRole: "owner",
+          specialistId: null,
+        }),
+      ),
+    ).toEqual(["account.self", "organization.management"]);
+    expect(
+      resolveLaunchCapabilities({
+        sessionRole: "doctor",
+        membershipRole: "owner",
+        specialistId: "specialist-1",
+      }),
+    ).toEqual(new Set(["account.self", "organization.management", "clinical.workspace"]));
+    expect(
+      resolveLaunchCapabilities({
+        sessionRole: "doctor",
+        membershipRole: "assistant",
+        specialistId: null,
+      }),
+    ).toEqual(new Set(["account.self"]));
+    expect(
+      resolveLaunchCapabilities({
+        sessionRole: "admin",
+        adminMode: true,
+        membershipRole: "doctor",
+        specialistId: "specialist-1",
+      }),
+    ).toEqual(new Set(["platform.operations"]));
+  });
 });
 
 describe("requireDoctorWorkspaceApiContext", () => {
@@ -96,7 +133,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
 
     const gate = await requireDoctorWorkspaceApiContext();
 
-    expect(gate).toEqual({
+    expect(gate).toMatchObject({
       ok: true,
       ctx: {
         session: doctor,
@@ -107,6 +144,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
         canManageOrganization: false,
         canManageAllSpecialists: false,
         canAccessClinicalWorkspace: true,
+        capabilities: expect.arrayContaining(["clinical.workspace", "account.self"]),
       },
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
@@ -175,7 +213,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 
-  it("preserves explicit global-admin access in admin mode", async () => {
+  it("denies global admin in admin mode from clinical APIs", async () => {
     const admin = { ...session("admin"), adminMode: true };
     getCurrentSessionMock.mockResolvedValueOnce(admin);
     resolveOrganizationForUserMock.mockResolvedValueOnce({
@@ -194,14 +232,10 @@ describe("requireDoctorWorkspaceApiContext", () => {
 
     const gate = await requireDoctorWorkspaceApiContext();
 
-    expect(gate.ok).toBe(true);
-    if (!gate.ok) return;
-    expect(gate.ctx.membershipRole).toBe("admin");
-    expect(getCurrentDbPrincipal()).toMatchObject({
-      kind: "staff",
-      organizationId: ORG_1,
-      platformUserId: admin.user.userId,
-    });
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
   });
 
   it("maps missing membership to forbidden response", async () => {
@@ -228,6 +262,18 @@ describe("requireDoctorWorkspaceApiContext", () => {
 });
 
 describe("requireDoctorApiSession", () => {
+  it("distinguishes an authenticated non-staff actor from a missing session", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(session("client"));
+
+    const gate = await requireDoctorApiSession();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    await expect(gate.response.json()).resolves.toMatchObject({ error: "forbidden" });
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
   it("does not block when best-effort staff principal resolution fails", async () => {
     const doctor = session("doctor");
     getCurrentSessionMock.mockResolvedValueOnce(doctor);
@@ -251,19 +297,20 @@ describe("requireAdminWorkspaceApiContext", () => {
     expect(gate.response.status).toBe(401);
   });
 
-  it("returns forbidden for admin when adminMode is disabled", async () => {
+  it("returns forbidden when no organization membership is resolved", async () => {
     getCurrentSessionMock.mockResolvedValueOnce({ ...session("admin"), adminMode: false });
+    resolveOrganizationForUserMock.mockResolvedValueOnce({ ok: false, reason: "no_active_membership" });
 
     const gate = await requireAdminWorkspaceApiContext();
 
     expect(gate.ok).toBe(false);
     if (gate.ok) return;
     expect(gate.response.status).toBe(403);
-    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns resolved organization membership context for admin mode", async () => {
-    const admin = { ...session("admin"), adminMode: true };
+  it("returns a resolved organization-management context for a staff admin", async () => {
+    const admin = session("doctor");
     getCurrentSessionMock.mockResolvedValueOnce(admin);
     resolveOrganizationForUserMock.mockResolvedValueOnce({
       ok: true,
@@ -281,7 +328,7 @@ describe("requireAdminWorkspaceApiContext", () => {
 
     const gate = await requireAdminWorkspaceApiContext();
 
-    expect(gate).toEqual({
+    expect(gate).toMatchObject({
       ok: true,
       ctx: {
         session: admin,
@@ -292,6 +339,7 @@ describe("requireAdminWorkspaceApiContext", () => {
         canManageOrganization: true,
         canManageAllSpecialists: true,
         canAccessClinicalWorkspace: false,
+        capabilities: expect.arrayContaining(["organization.management"]),
       },
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
@@ -304,21 +352,33 @@ describe("requireAdminWorkspaceApiContext", () => {
     });
   });
 
-  it("does not grant admin API access from membership role alone", async () => {
-    const doctor = session("doctor");
-    getCurrentSessionMock.mockResolvedValueOnce(doctor);
+  it("does not grant repair to an explicit platform admin", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-1",
+        organizationId: ORG_1,
+        platformUserId: admin.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+      },
+    });
 
     const gate = await requireAdminWorkspaceApiContext();
 
     expect(gate.ok).toBe(false);
     if (gate.ok) return;
     expect(gate.response.status).toBe(403);
-    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(resolveOrganizationForUserMock).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("requireClinicManagementApiContext", () => {
-  it("returns resolved context for admin in admin mode", async () => {
+  it("denies platform admin from organization management in admin mode", async () => {
     const admin = { ...session("admin"), adminMode: true };
     getCurrentSessionMock.mockResolvedValueOnce(admin);
     resolveOrganizationForUserMock.mockResolvedValueOnce({
@@ -336,14 +396,9 @@ describe("requireClinicManagementApiContext", () => {
 
     const gate = await requireClinicManagementApiContext();
 
-    expect(gate.ok).toBe(true);
-    if (!gate.ok) return;
-    expect(gate.ctx.organizationId).toBe(ORG_1);
-    expect(getCurrentDbPrincipal()).toMatchObject({
-      kind: "staff",
-      organizationId: ORG_1,
-      platformUserId: admin.user.userId,
-    });
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
   });
 
   it("returns resolved context for a management-capable doctor membership", async () => {
@@ -450,6 +505,6 @@ describe("requireDoctorWorkspaceContext", () => {
       },
     });
 
-    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/doctor/clinic/members");
+    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/settings");
   });
 });

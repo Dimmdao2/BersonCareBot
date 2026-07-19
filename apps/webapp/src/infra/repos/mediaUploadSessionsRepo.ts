@@ -197,6 +197,7 @@ export async function abortMultipartPendingTx(
   client: PoolClient,
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<AbortMultipartDbResult> {
   const db = getWebappSqlFromPgClient(client);
   const sel = await runWebappSql<SessionWithMediaRow>(
@@ -204,7 +205,9 @@ export async function abortMultipartPendingTx(
     sql`SELECT s.id AS session_id, s.media_id, s.s3_key, s.upload_id, s.status AS session_status, m.status AS media_status
        FROM media_upload_sessions s
        INNER JOIN media_files m ON m.id = s.media_id
-      WHERE s.id = ${sessionId}::uuid AND s.owner_user_id = ${ownerUserId}::uuid
+      WHERE s.id = ${sessionId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid
       FOR UPDATE OF s, m`,
   );
   const row = sel.rows[0];
@@ -322,14 +325,18 @@ export type GatePartUrlResult =
 export async function gateUploadSessionForPartUrl(
   sessionId: string,
   ownerUserId: string,
+  organizationId: string,
 ): Promise<GatePartUrlResult> {
   const res = await runWebappSql<UploadSessionRow & { expired: boolean }>(
     getWebappSqlDb(),
-    sql`SELECT id, media_id, s3_key, upload_id, owner_user_id, status,
-            expected_size_bytes::text, mime_type, part_size_bytes, expires_at,
+    sql`SELECT s.id, s.media_id, s.s3_key, s.upload_id, s.owner_user_id, s.status,
+            s.expected_size_bytes::text, s.mime_type, s.part_size_bytes, s.expires_at,
             (expires_at <= now()) AS expired
-       FROM media_upload_sessions
-      WHERE id = ${sessionId}::uuid AND owner_user_id = ${ownerUserId}::uuid`,
+       FROM media_upload_sessions s
+       JOIN media_files m ON m.id = s.media_id
+      WHERE s.id = ${sessionId}::uuid
+        AND s.owner_user_id = ${ownerUserId}::uuid
+        AND m.organization_id = ${organizationId}::uuid`,
   );
   const raw = res.rows[0];
   if (!raw) {

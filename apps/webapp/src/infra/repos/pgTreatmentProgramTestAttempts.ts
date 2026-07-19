@@ -412,7 +412,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
       }));
     },
 
-    async countPendingEvaluationAttemptsGlobal(): Promise<number> {
+    async countPendingEvaluationAttemptsGlobal(organizationId: string): Promise<number> {
       const db = getDrizzle();
       const [row] = await db
         .select({ count: sql<number>`count(distinct ${attemptTable.id})::int` })
@@ -421,7 +421,7 @@ export function createPgTreatmentProgramTestAttemptsPort(): TreatmentProgramTest
         .innerJoin(itemTable, eq(attemptTable.instanceStageItemId, itemTable.id))
         .innerJoin(stageTable, eq(itemTable.stageId, stageTable.id))
         .innerJoin(instanceTable, eq(stageTable.instanceId, instanceTable.id))
-        .where(pendingEvaluationGlobalWhere());
+        .where(and(pendingEvaluationGlobalWhere(), eq(instanceTable.organizationId, organizationId)));
       return row?.count ?? 0;
     },
 

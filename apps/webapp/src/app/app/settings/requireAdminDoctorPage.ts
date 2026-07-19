@@ -1,25 +1,17 @@
 import { redirect } from "next/navigation";
 import {
-  requireDoctorAccess,
   requireOrganizationWorkspaceContext,
+  requirePlatformOperationsPage,
 } from "@/app-layer/guards/requireRole";
 
 /** Страницы админ-разделов в кабинете специалиста: только role=admin. */
 export async function requireAdminDoctorPage() {
-  const session = await requireDoctorAccess();
-  if (session.user.role !== "admin") {
-    redirect("/app/doctor");
-  }
-  return session;
+  return requirePlatformOperationsPage();
 }
 
 /** Глобальные operator pages: global admin и обязательно явно включённый admin mode. */
 export async function requireGlobalAdminDoctorPage() {
-  const session = await requireDoctorAccess();
-  if (session.user.role !== "admin" || session.adminMode !== true) {
-    redirect("/app/doctor");
-  }
-  return session;
+  return requirePlatformOperationsPage();
 }
 
 /** Страницы управления клиникой: global admin in admin mode или управляющий участник клиники. */
