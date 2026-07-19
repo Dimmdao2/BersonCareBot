@@ -86,3 +86,21 @@ owner gates remain in the canonical SaaS Product UX roadmap/review; this log rec
   `pnpm --dir apps/webapp typecheck` passed after the isolated worktree was linked to the already-installed workspace
   dependencies; scoped ESLint for every changed TS/TSX file since the stage base and `git diff --check` passed. No
   root full CI or full app suite was run; those remain milestone gates.
+
+## 2026-07-19 — full re-audit owner gate (`#888`)
+
+- **Re-audit:** `bcb-s4-entitlement-foundation-reaudit-20260719` confirmed the accepted correction findings closed:
+  all four named CMS mutations are gated, the checker/export inventory and bypass self-tests are substantive, the
+  payment batch finding remains correctly rejected, and the planned action-family denial/order contracts exist.
+- **Unresolved classification:** the re-audit found additional `patientClinical` and `patientFiles` mutations outside
+  the current registry. The general S4 wording says to gate all protected actions, while the concrete Phase-2 matrix
+  in `TARIFFS_PAYMENTS_ADMIN_PLAN.md` deliberately scopes `patient_card` to one representative write per listed
+  subresource and `files` to `POST`. Extending the capability to every mutation would therefore change the approved
+  action matrix rather than merely fix the accepted correction.
+- **Execution decision:** no correction round 2 was opened. The branch stops at the owner gate: decide whether
+  `patient_card` / `files` disables only the representative rollout matrix or every mutation in those domains. The
+  recommendation is full mutation coverage for a capability that is advertised as disabled, but the safe current
+  default preserves the explicit matrix and does not silently broaden tariff behavior.
+- **Deferred recommendations:** keep a regression test that payment keys remain invalid in the modes-only batch;
+  decide separately whether schedule-block deletion and other patient-card-adjacent ports belong to these mechanics.
+  None was converted into code or a new task by the auditor.
