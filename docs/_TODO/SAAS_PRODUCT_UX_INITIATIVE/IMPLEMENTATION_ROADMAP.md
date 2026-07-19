@@ -26,7 +26,7 @@ clinical work, operations, patient и public journeys; старые маршру
 - заменяет `SAAS_FOUNDATION/SEQUENCE.md`, `SAAS_ENFORCE_ROADMAP.md` или их TEST acceptance;
 - обещает public launch, custom-domain/PWA rollout, custom sender или separate native organization app.
 
-Канон результата: `57/57` target screen IDs из `TARGET_IA.md`, семь UX-04 journey families и `150/150` current
+Канон результата: `57/57` target screen IDs из `TARGET_IA.md`, семь UX-04 journey families и `152/152` current
 `page.tsx` из `ROUTE_MIGRATION_MAP.md` имеют один непротиворечивый implementation destination, guard, compatibility
 и acceptance path. Это не означает, что все 57 screens обязательно создаются отдельными route files: tabs,
 states, aliases и shared account surfaces остаются ровно такими, как классифицировано в UX-06.
@@ -199,10 +199,58 @@ none of them may create a new screen family.
 | Public/profile | Current patient-first landing, booking and legal pages | Specialist-first landing, published org projection, trusted join and directory release boundary incomplete |
 | Branding/domain/sender | Some settings/content/preview/PWA primitives | No complete org brand resolver, publication version, hostname base/binding UI, authenticated sender readiness or per-origin PWA |
 | Platform admin | Analytics, health, audit, settings and aggregate identity-integrity diagnostics | Current doctor/admin shell and `adminMode` mix platform/org/clinical ownership; patient merge/name-match pages are not reusable platform-admin product surfaces |
-| Routes | 150 current pages classified, many reusable components | 57 canonical target IDs are logical; route moves need guard-equivalent redirects, link census and no duplicate trees |
+| Routes | 152 current pages classified, many reusable components | 57 canonical target IDs are logical; route moves need guard-equivalent redirects, link census and no duplicate trees |
 
 Любой gap, который предполагает новую persistence shape, сначала получает reviewed data/API contract. Название
 будущей таблицы или поля не является частью этого roadmap.
+
+### 6.2a U0 current-contract handoff (2026-07-19)
+
+**Basis.** Current-source handoff only: base
+`be30065f24810a49a46a2aa3b5ef5095f3a27309`; Foundation canon `SEQUENCE.md`,
+`SAAS_ENFORCE_ROADMAP.md`, `R2_READINESS_CLOSURE.md`, T0.4 and P0.11; current screen/route/journey canon.
+Historical P0/R2 checklists were used only as provenance and not executed. C2/C3 closure at `4a889093d` and the
+bounded FIO subset at `a9d70dc85` are evidence, not completion of residual contracts.
+
+**Sanctioned reuse, not substitutes.** Staff context is
+`OrganizationMembershipPort` → `createOrganizationMembershipService().resolveOrganizationForUser` →
+`requireOrganizationWorkspaceContext` / `requireDoctorWorkspaceContext` / `require*WorkspaceApiContext`; exactly
+one active staff membership is resolved and multiples are a data-integrity error. Clinical authorship remains the
+resolved `specialistId` binding, not management membership. Specialist provisioning is the existing
+`organization-provisioning` port/service. Patient context is the existing `patient-organization` port/service/repo.
+Settings use only `createSystemSettingsService().updateSetting` and its matching-org mirror
+`syncSettingToIntegrator`; global fallback is NULL-org. Entitlement reads use only `resolveOrgEntitlements` /
+`isMechanicEnabled` behind `requireEntitlement`; they are currently default-on/dormant and therefore do **not**
+prove a feature entitlement wall.
+
+| §6 gap | Current fact / ownership | Missing contract → stage/task gate | Safe default |
+|---|---|---|---|
+| Signup/auth | Global identity; staff org comes from membership; specialist binding is separate. | Binding, first-run, 2FA/recovery → **U3S**. Patient passwordless structured-registration policy is existing **#855 owner question**. | Stop only that patient writer branch; no second writer/persona overwrite. |
+| Future staff invite | Current member/invite mechanics are reuse; assistant has no launch workspace. | Clinic grants/seats → future **U3A/C4A** after S4-0/S4-1. | Unentitled team route/API absent or denied. |
+| Manual patient/linking | Global patient; org-scoped relationship/enrollment; exact-org booking resolver exists. | Card + scheduled/walk-in + verified link → **U3B**, consuming **U5A**. | Delivery/auth creates neither enrollment nor merge. |
+| SMS | Notification infrastructure is transport, not identity authority. | Attempt/consent/suppression lifecycle → **U3B SMS-01…03**; custom sender → future **U8C**. | Email-bound route; no SMS elevation or real send. |
+| Public booking | Exact-org/canonical-phone path exists; response currently exposes `userId`. | Atomic booking+enrollment and narrow continuation → **U3B**, publication → **U6B**. | Booking may complete without portal access; never use internal ID as authority. |
+| Staff capabilities | Membership/role guards exist; management and clinical binding are distinct. | Real-principal object/capability parity → **U1**; C4 stays Foundation S4-owned. | Missing binding/capability denies; entitlement never expands access. |
+| Patient context | Enrollment resolver exists; Today has recorded `organization_principal_required` defect. | Last-active/chooser/switch/deep link → **U5A**. | Neutral chooser/recovery, never arbitrary/global org fallback. |
+| Card/history | Workbench/visit/program surfaces are reuse only. | One card, visit relation and all parity paths → **U5B**. | Missing class → own/assigned subset only. |
+| Future clinic visits | Current appointment relation only; transfer premise rejected. | Future ordinary clinic contract → absent **U5C**. | No transfer queue/hierarchy/cross-org movement. |
+| Management | Members/settings/booking and `/app/settings` are mixed. | MGMT/ACC shell → **U2**; team/billing bodies → **C4/C5**. | No second settings tree; absent body stays fail-closed. |
+| Public/profile | Existing landing is patient-first; route name is not publication proof. | Landing **U6A**, published profile/trusted join **U6B**. | Directory absent; unknown context fails closed. |
+| Branding/domain/sender | DB-backed org-aware settings exists; TEST integrator mirror lacks locked-mode principal stamping. | Brand resolver → **U7**; origin/PWA/sender → future **U8A/B/C**. | No env secret path; configured custom channel holds/expires, never platform-falls-back. |
+| Platform admin | Current shell mixes platform/org/clinical ownership. | Aggregate diagnostics/config boundary → **U9**. | No patient browse/merge/repair/impersonation. |
+| Routes | `152` current pages are classified; `57` IDs are logical screen ownership. | Guard-equivalent migration/link census → later owners, converged **U10**. | Preserve guarded compatibility; no duplicate route tree. |
+
+**Present/missing migration and API boundary.** P0.11 already provides org-aware settings storage/read/write and the
+webapp service chokepoint; the mirror principal defect is a Foundation follow-up, not a UX workaround. Existing
+membership/provisioning/patient-organization APIs are sanctioned reuse. No U0 evidence proves a migration/API for
+atomic booking enrollment, patient invite/SMS lifecycle, switcher, safe booking continuation, record-class parity,
+publication version, branded origin/PWA, custom sender, or commercial quota lifecycle: those belong to the named
+stages, not to a guessed schema.
+
+**No overlap and decisions.** #888/S4 is blocked in isolated commits and is not assumed landed; C2/C3 are verified,
+not reimplemented. All dated UX08 outcomes remain classified. Resolved-future/absent nodes (`U3A`, `U5C`, `U5D`,
+`U8A`, `U8B`, `U8C`) remain absent from launch. C4/C5 commercial questions and #855 are explicit owner-gated
+branches with recorded defaults, not unclassified owner decisions.
 
 ### 6.3 Journey ownership registry
 
@@ -232,7 +280,7 @@ or authentication policies into one object.
 | P4 — public acquisition | Platform entry и org profile/booking/join | U6A, U6B | Published projection/trusted continuation; full CI after U6B |
 | P5 — core presentation and platform operations | Base brand plus core PLAT shell/config/reliability/org ops | U7, U9 | One sanctioned platform ops/config path; full CI after U9 |
 | P6 — deferred future branches | Staff/team invite, multi-specialist visit coordination, clinic communications, domain/PWA/sender work; all absent from initial release | U3A, U5C, U5D, U8A, U8B, U8C | Not a launch dependency; approved domain/generated-PWA work needs future commercial/implementation activation, readiness and audit; native org app remains research-only |
-| P7 — final convergence | Route, responsive, visual and acceptance consolidation | U10 | 57/57, 150/150 and final full CI after U10 |
+| P7 — final convergence | Route, responsive, visual and acceptance consolidation | U10 | 57/57, 152/152 and final full CI after U10 |
 
 Не объединять U0–U10 в один megastage и не дробить stage на двухстрочные fixes. Один worker получает весь stage и
 его checklist. Этап может занять 5–20 минут и дольше; статус-проверка не является timeout или failure.
@@ -511,8 +559,12 @@ Taskdb хранит status/owner/acceptance links, а не копию требо
 **Outcome:** implementation team знает, какие существующие ports/objects переиспользует, какие contracts отсутствуют
 и какой foundation gate обязан прийти раньше; UI work больше не вынуждает изобретать schema по ходу.
 
+**Current completion (2026-07-19):** worker run `U0-889-20260719-BE30065F`; independent cross-model audit
+`bcb-u0-contract-readiness-audit-20260719` — **PASS**. §6.2a records the current-source Foundation/accessor basis,
+every §6 gap, safe default and downstream owner. The stage remained docs-only.
+
 - **Screens/flows:** все `PUB/ORG-PUB/PLAT/MGMT/CLIN/OPS/PAT/ACC`; J1…J7; особый trace `ACQ/STF/PIN/SMS/PBK/MOR/ERR`.
-- **Reuse/gaps:** baseline §6; exact route denominator `150`, registry `57`, current APIs/migrations verified against
+- **Reuse/gaps:** baseline §6; exact route denominator `152`, registry `57`, current APIs/migrations verified against
   current branch rather than copied from UX audit date.
 - **Scope:** code-search-first census of membership/principal/capability, enrollment, invitation, delivery, auth,
   booking, publication, brand, settings, entitlement, audit and route guards; define ports/state contracts and
@@ -534,8 +586,8 @@ Taskdb хранит status/owner/acceptance links, а не копию требо
   markdown links; `git diff --check`. No app/DB tests because stage changes documentation only.
 - **Rollback/degradation:** not applicable to runtime; unresolved ownership becomes `waiting dependency`, never global
   fallback.
-- **Completion:** [ ] 57/57 IDs mapped; [ ] 150/150 files mapped; [ ] J1…J7 traced; [ ] every gap has owner/path/gate;
-  [ ] no invented schema; [ ] foundation no-overlap reviewed; [ ] full audit PASS.
+- **Completion:** [x] 57/57 IDs mapped; [x] 152/152 files mapped; [x] J1…J7 traced; [x] every gap has owner/path/gate;
+  [x] no invented schema; [x] foundation no-overlap reviewed; [x] full audit PASS.
 - **Merge dependency:** prerequisite to every later stage; planning artifact merges separately from foundation code.
 
 ### U1 — role/capability guard spine
@@ -1113,7 +1165,7 @@ responsive, accessibility and visual acceptance.
 
 - **Screens/flows:** all `57/57` are accounted for, but deferred `PUB-06`, `MGMT-02`, `CLIN-05`, `OPS-01…04` and U8 surfaces
   pass launch acceptance by explicit absence/reservation, not implementation; launch UX-04 scenarios and all
-  `150/150` current page allocations remain traced.
+  `152/152` current page allocations remain traced.
 - **Reuse/gaps:** shared patient/doctor/public primitives and accepted UX-07 direction; remove navigation duplication
   only after behavior is green.
 - **Scope:** canonical internal links; compatibility redirects/resolvers; alias retirement census; one component
@@ -1139,7 +1191,7 @@ responsive, accessibility and visual acceptance.
   manifests and two independent visual seals.
 - **Rollback/degradation:** compatibility map allows reverting links/shell without weakening new server guards;
   unavailable optional mechanics degrade to explicit recovery; no owner-gated feature is silently enabled.
-- **Completion:** [ ] 57/57 accounted with deferred IDs absent; [ ] 150/150 reconciled to current denominator; [ ] no duplicate route/component
+- **Completion:** [ ] 57/57 accounted with deferred IDs absent; [ ] 152/152 reconciled to current denominator; [ ] no duplicate route/component
   family; [ ] all journey/recovery states; [ ] role/context matrix green; [ ] final CI; [ ] two visual seals;
   [ ] owner decisions traced/absent safely; [ ] full independent implementation audit PASS.
 - **Merge dependency:** final integration only after launch-included stages and foundation handoff gates. Deferred

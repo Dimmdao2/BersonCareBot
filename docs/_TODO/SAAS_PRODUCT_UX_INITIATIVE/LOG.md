@@ -2453,3 +2453,78 @@ micro-slice. `#751` remains only C5A constructor/quotas/trial, while billing rem
 record this split so the old broad `#751` title cannot create duplicate implementation. Full stage scope, protected
 files, acceptance and execution mode are recorded in the required S4 execution log. After integration the intended
 order is bounded C4C hide/deny, C4B tenant cutover/master-detail after DNA reconciliation, then C4D own/base library.
+
+## 2026-07-19 — U0 contract, ownership and data-gap readiness (`#889`)
+
+**Run ID:** `U0-889-20260719-BE30065F`. **Base:**
+`be30065f24810a49a46a2aa3b5ef5095f3a27309` (`feat/doctor-ui-rebuild`). This was one docs-only current-source
+handoff: no application/schema/migration/script/DB/service/deploy/environment/taskdb write, commit or push.
+Changed files are this `LOG.md`, `IMPLEMENTATION_ROADMAP.md`, and the directly proven stale existing
+`ROUTE_MIGRATION_MAP.md`; the latter was corrected in place because the U0 route denominator is acceptance-critical.
+The lead current-state consistency pass also updated only the active denominator notices in `TARGET_IA.md`,
+`CURRENT_STATE_BASELINE.md`, and `ROADMAP.md`; dated inventories and historical audit results remain unchanged.
+The live worktree has no tracked environment-file changes; provider-sandbox hash warnings were not treated as
+repository state.
+
+### Canonical basis and current facts
+
+Read authority: `AGENTS.md`, `CLAUDE.md`, repository/docs READMEs, `AGENT_AUTORUN_SCHEME.md`,
+`ORCHESTRATION_BINDINGS.md`, owner review, roadmap §§1–7.3/U0/dependency registry, initiative README/log,
+Foundation `SEQUENCE.md`, `SAAS_ENFORCE_ROADMAP.md`, `R2_READINESS_CLOSURE.md`, T0.4 and P0.11, plus current
+membership/principal/settings/entitlement, provisioning, patient-organization, booking and route/screen/journey
+sources. Historical P0/R2 material was read as provenance only; no historical checklist was run as live work.
+
+The roadmap §6.2a is the integration handoff: Foundation basis; direct/scoped ownership paths; sanctioned
+membership/principal/settings/entitlement accessors; present versus missing migration/API contracts; every §6 gap's
+stage/task gate and safe fail-closed behavior. It records the material current limitations rather than inferring
+readiness: P0.11's webapp settings write chokepoint is present, but TEST integrator mirror sync lacks locked-mode
+principal stamping; `requireEntitlement` exists but its resolver remains default-on/dormant; public booking's exact
+organization path does not yet prove atomic enrollment or safe portal continuation; patient context still has the
+recorded Today principal defect.
+
+### Reconciliation and boundary
+
+The current target/composition mapping remains `57/57` canonical screen IDs. Re-running the route census found
+`152` current `page.tsx`, not the historical `150`: the map lacked public `book/[slug]`, clinic invite acceptance,
+and the global-admin system-health alias. They are now exactly once in the existing map, so its current denominator
+is `152/152`; the former `150/150` evidence is explicitly historical. J1–J7 and
+ACQ/STF/PIN/SMS/PBK/MOR/ERR are traced in the existing journey registry and reattached in §6.2a to their current
+mechanics, downstream stages and defaults. All owner outcomes are classified: resolved-future and absent nodes remain
+absent; C4/C5 commercial questions and the already recorded #855 patient passwordless-registration policy are
+explicit named owner-gated branches, not unclassified decisions. No new owner question was created.
+
+No overlap: #888 S4 registry/chokepoint remains blocked in isolated commits and was neither copied nor assumed to be
+in this base. C2/C3 are evidence-only (verified, not reimplemented); #855's integrated `a9d70dc85` subset is not
+misreported as its blocked patient-flow completion. U0 does not alter Foundation/S4/FIO owned files.
+
+### Validation and remaining gate
+
+- Mechanical checks used read-only Node/shell: target ↔ composition is `57/57` with missing/extra/duplicate `0`;
+  `find apps/webapp/src/app -name page.tsx` is `152`; route-map allocation is now `21 + 82 + 49 = 152`.
+  The normative direct-dependency table has `19` rows. Its U8 family is deliberately a deferred family with three
+  level-4 stages, so the document has `16` level-3 U-stage headings rather than pretending the two counts are the
+  same check.
+- Initiative-local link scan found one pre-existing historical missing screenshot manifest referenced by
+  `UX07_PROTOTYPE_INDEX.md`; it is outside U0's allowed factual-correction scope and does not alter the current
+  route/screen/DAG result. No new link was introduced by U0.
+- Focused code-search followed by targeted source reads confirmed the sanctioned accessors and the stated current
+  gaps; names/tables were not treated as proof without a call-path/checklist trace.
+- Scoped `git diff --check -- docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/{IMPLEMENTATION_ROADMAP.md,ROUTE_MIGRATION_MAP.md,TARGET_IA.md,CURRENT_STATE_BASELINE.md,ROADMAP.md,LOG.md}`
+  passed. The lead repeated unscoped `git diff --check` in the live worktree and it passed; the worker sandbox's
+  `.env.example` hash warning was a mount artifact, not a tracked diff.
+
+**Result:** U0 worker evidence is complete and later U-stages have one sanctioned handoff in the existing roadmap.
+The worker did not claim its own audit gate.
+
+### Independent U0 audit and closure
+
+- **Audit run:** `bcb-u0-contract-readiness-audit-20260719`; Claude Sonnet 5, high, read-only, cross-model to the
+  Terra worker. Verdict: **PASS** against every U0 roadmap requirement; no owner question and no valid finding.
+- The auditor independently counted `57` target/composition IDs, `152` current page files, all `19` DAG rows and
+  the complete J1–J7/alias ownership. Its shell-less sandbox could not reproduce the exact commands, so the lead
+  repeated them in the live worktree: `57/57`, `152 actual = 152 refs = 152 unique`, missing/stale/duplicate `0`,
+  DAG unknown/cycle `0`, changed-doc broken links `0`, and unscoped `git diff --check` PASS.
+- Live `git status` confirms no environment file changed; the auditor's `.env.example` rows were the known read-only
+  mount artifact. No correction or second audit round was opened.
+- **Closure:** all U0 completion boxes are checked. No app tests, typecheck, build, DB, DEV/TEST/PROD, deploy or full
+  CI was run because the complete stage is documentation/current-state reconciliation only.

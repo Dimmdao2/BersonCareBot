@@ -3,9 +3,12 @@
 **Статус:** owner rulings 2026-07-16 integrated; awaiting independent audit. The earlier full UX-06 re-audit
 **PASS** is historical evidence for the pre-ruling map, not an audit of the current owner decisions. Its allocation
 result remains: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
-(`150 actual = 150 references = 150 unique`; missing/stale/duplicate `0`).
+(`150 actual = 150 references = 150 unique`; missing/stale/duplicate `0`). **U0 factual correction
+(2026-07-19):** current base `be30065f24810a49a46a2aa3b5ef5095f3a27309` had three page files omitted from this
+allocation; the current
+allocation below is `152 actual = 152 references = 152 unique`. The former 150 result is historical evidence only.
 **Authority:** производная route map; `OWNER_RULINGS_2026-07-16.md` имеет product/UX приоритет.
-**Allocation:** every current `page.tsx` is listed exactly once below: **150 / 150**.
+**Allocation:** every current `page.tsx` is listed exactly once below: **152 / 152**.
 **Rule:** disposition is a migration instruction, not evidence that the target capability/data contract already exists.
 
 ## 1. Disposition vocabulary and sequencing
@@ -21,7 +24,7 @@ result remains: [`UX06_INDEPENDENT_AUDIT.md`](./UX06_INDEPENDENT_AUDIT.md) §7
 Migration order is contract-first: capability/data ownership → target shells → canonical target routes → internal
 links → compatibility redirects → observed deep-link sunset. No redirect is used to bypass a target guard.
 
-## 2. Platform, entry and public organization allocation — 20 files
+## 2. Platform, entry and public organization allocation — 21 files
 
 | # | Current page file(s) | Disposition | Target screen | Reuse and dependencies |
 |---:|---|---|---|---|
@@ -32,8 +35,9 @@ links → compatibility redirects → observed deep-link sunset. No redirect is 
 | P05 | `apps/webapp/src/app/book/service/page.tsx`<br>`apps/webapp/src/app/book/slot/page.tsx`<br>`apps/webapp/src/app/book/confirm/page.tsx`<br>`apps/webapp/src/app/book/done/page.tsx` | retire | ORG-PUB-02 compatibility redirects | Sunset only after external link census |
 | P06 | `apps/webapp/src/app/book/pay/page.tsx` | merge | ORG-PUB-02 booking payment state | Preserve idempotent continuation and organization ownership |
 | P07 | `apps/webapp/src/app/book/product/[token]/page.tsx`<br>`apps/webapp/src/app/book/product/[token]/pay/page.tsx` | split / future-contract | ORG-PUB-02 product booking/payment or PAT-07 benefits | Trusted product token exchange; future product publication and data ownership require implementation contract, not an owner launch gate |
+| P08 | `apps/webapp/src/app/book/[slug]/page.tsx` | keep | ORG-PUB-02 public organization booking | Existing slug is resolved server-side before catalog reads; unknown/unpublished/inactive slug stays uniform 404. This is reuse evidence, not proof of target enrollment/continuation. |
 
-## 3. Staff and platform allocation — 81 files
+## 3. Staff and platform allocation — 82 files
 
 | # | Current page file(s) | Disposition | Target screen | Reuse and dependencies |
 |---:|---|---|---|---|
@@ -60,10 +64,12 @@ links → compatibility redirects → observed deep-link sunset. No redirect is 
 | S21 | `apps/webapp/src/app/app/doctor/clinic/members/page.tsx`<br>`apps/webapp/src/app/app/doctor/clinic/settings/page.tsx` | split | future-reserved MGMT-02 + launch MGMT-09 settings | Preserve guarded current members entry without expanding it; no MGMT-02 migration in solo launch. Reuse only settings sections for MGMT-09 |
 | S22 | `apps/webapp/src/app/app/doctor/analytics/page.tsx`<br>`apps/webapp/src/app/app/doctor/analytics/clients/page.tsx`<br>`apps/webapp/src/app/app/doctor/analytics/notifications/page.tsx`<br>`apps/webapp/src/app/app/doctor/usage/page.tsx`<br>`apps/webapp/src/app/app/doctor/stats/page.tsx` | move / split / merge | PLAT-04 analytics and CLIN-11 org analytics | Separate global aggregates from organization metrics; retire aliases after link census |
 | S23 | `apps/webapp/src/app/app/doctor/admin/app-settings/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/auth/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/integrations/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/technical/page.tsx` | move / split | PLAT-05 configuration + MGMT-07 org integrations | Reuse settings clients only with correct ownership and secret-safe states |
-| S24 | `apps/webapp/src/app/app/doctor/system-health/page.tsx`<br>`apps/webapp/src/app/app/doctor/health-archive/page.tsx`<br>`apps/webapp/src/app/app/doctor/audit-log/page.tsx` | move | PLAT-07 reliability | Separate platform shell; identifier-safe detail/export |
+| S24 | `apps/webapp/src/app/app/doctor/health-archive/page.tsx`<br>`apps/webapp/src/app/app/doctor/audit-log/page.tsx` | move | PLAT-07 reliability | Separate platform shell; identifier-safe detail/export. Current system health is the global-admin guarded S28 alias. |
 | S25 | `apps/webapp/src/app/app/doctor/admin/booking/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/catalog/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/form-public/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/payments/page.tsx`<br>`apps/webapp/src/app/app/doctor/admin/booking/integrations/page.tsx` | split / move | MGMT-03 booking + MGMT-07 integrations + PLAT-05 legacy/platform ops | Organization ownership first; Rubitime/platform controls must not leak into ordinary setup |
 | S26 | `apps/webapp/src/app/app/doctor/booking-merge/page.tsx`<br>`apps/webapp/src/app/app/doctor/clients/name-match-hints/page.tsx` | retire / reclassify before any reuse | No global-admin patient-repair destination; aggregate system signals may inform PLAT-08 only | Existing global patient merge/name-match UI is not migrated. Any future correction must use a separately reviewed, authorized patient/specialist identity-resolution workflow; no merge mutation or schema is specified here |
 | S27 | `apps/webapp/src/app/app/doctor/dev/chart-test/page.tsx` | retire | no product target | Keep dev-only outside product IA only if tooling still uses it |
+| S28 | `apps/webapp/src/app/app/(global-admin)/doctor/system-health/page.tsx` | move | PLAT-07 reliability | Global-admin guarded alias of system health; converge with S24 under the bounded platform reliability shell, without creating a second operational surface. |
+| S29 | `apps/webapp/src/app/app/clinic/invites/accept/page.tsx` | keep / future-reserved | MGMT-02 future team invitation acceptance | Existing token acceptance is historical reuse evidence only. It remains guarded compatibility while clinic staffing is absent from launch; no assistant grant or new membership path is implied. |
 
 ## 4. Patient allocation — 49 files
 
@@ -115,7 +121,7 @@ screens.
 
 The accepted map preserves two independent invariants, both of which must be rechecked after future map changes:
 
-1. all 150 current `page.tsx` files appear exactly once in the allocation tables;
+1. all 152 current `page.tsx` files appear exactly once in the allocation tables;
 2. every inventoried material view above has a target screen or is explicitly classified as guarded
    state/redirect/deep-link behavior.
 
@@ -124,10 +130,10 @@ The accepted map preserves two independent invariants, both of which must be rec
 Allocation invariant:
 
 ```text
-platform/public/entry  20
-staff/platform         81
+platform/public/entry  21
+staff/platform         82
 patient                49
-total                 150
+total                 152
 ```
 
 The map must be mechanically compared with the repository page-file list before every UX-06 audit. A file added or

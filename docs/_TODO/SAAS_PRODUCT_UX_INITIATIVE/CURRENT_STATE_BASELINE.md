@@ -1,6 +1,8 @@
 # Current State Baseline
 
-Стартовый факт-снимок. Route inventory UX-01 reconciled `150/150`; patient replay выполнен. Независимый
+Стартовый факт-снимок UX-01 на 2026-07-15 reconciled route inventory `150/150`; U0 current-source reconciliation
+2026-07-19 supersedes only that live denominator with `152/152` while preserving this dated runtime evidence.
+Patient replay выполнен. Независимый
 patient-replay audit завершён с **PASS — UX-01 factual current-state audit complete**; канонический verdict и
 сохранённые finding-only ограничения: [`UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md`](./UX01_PATIENT_REPLAY_AUDIT_2026-07-15.md).
 

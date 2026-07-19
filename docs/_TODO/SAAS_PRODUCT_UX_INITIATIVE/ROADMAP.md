@@ -241,9 +241,10 @@ existing outputs in place: `TARGET_IA.md` now owns canonical IDs and aliases, `S
 canonical/deferred surface and all six UX-04 prototype journeys, and `ROUTE_MIGRATION_MAP.md` preserves exact file
 allocation while separately tracing multi-state/query-tab/redirect/mixed pages. Full independent re-audit confirmed
 `150/150`, exact `57/57` canonical registry/composition parity, complete responsive navigation and all UX-04 journey
-handoffs with **PASS**. This is historical pre-ruling evidence. Current `57/57` and `150/150` registries are retained,
-and the integrated owner outcomes are now covered by the full cross-contract audit in `LOG.md`. Historical audit
-record: `UX06_INDEPENDENT_AUDIT.md`.
+handoffs with **PASS**. This is historical pre-ruling evidence. The integrated owner outcomes are covered by the
+full cross-contract audit in `LOG.md`. U0 current-source reconciliation 2026-07-19 preserves `57/57` and supersedes
+the live route denominator with `152/152`; the preceding `150/150` statement remains historical audit evidence.
+Historical audit record: `UX06_INDEPENDENT_AUDIT.md`.
 
 ## UX-07 — Wireframes и scenario prototype
 
@@ -392,7 +393,8 @@ card + scheduled/walk-in visit + later portal identity linking. Текущая �
 - [x] Historical pre-ruling audit covered UX-01…09 scope: roles, solo/clinic, card/history/handoff, multi-org patient,
       specialist landing, signup, email-first invite, optional SMS, activation/install, branding, domains, PWA и
       sender identity.
-- [x] Current/target registries воспроизведены: `150/150` current routes и `57/57` canonical target compositions.
+- [x] Current/target registries воспроизведены: U0 current-source pass 2026-07-19 подтверждает `152/152` current
+      routes и `57/57` canonical target compositions; прежний `150/150` результат остаётся датированным evidence.
 - [x] UX-01 runtime evidence доступно и согласовано; UX-07 exact source/manifests и оба independent visual seals
       воспроизведены без hash/status drift.
 - [x] Owner packet preserves `12/12` original alternatives and dated outcomes/classifications; full independent

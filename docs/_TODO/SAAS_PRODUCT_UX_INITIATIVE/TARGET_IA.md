@@ -1,7 +1,8 @@
 # UX-06 — Target information architecture
 
-**Статус:** latest owner clarifications integrated; awaiting full independent audit. Registry remains `57/57` and
-current-route allocation remains `150/150`; previous UX-06 PASS is a historical pre-ruling baseline.
+**Статус:** latest owner clarifications integrated; awaiting full independent audit. Registry remains `57/57`.
+U0 current-source reconciliation on 2026-07-19 updated the route denominator to `152/152`; the previous UX-06
+`150/150` PASS is a historical pre-ruling/pre-drift baseline.
 **Authority:** производная IA; `OWNER_RULINGS_2026-07-16.md` побеждает прежние candidate/prototype assumptions.
 **Scope:** logical IA and navigation contract; this is not an implementation route freeze.
 **Inputs:** dated UX owner rulings first; UX-01 factual inventory and UX-02 patterns; corrected UX-03…05 contracts.
