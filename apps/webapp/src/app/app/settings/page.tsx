@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -41,7 +41,7 @@ export default async function SettingsPage({
     redirect(probe ? `${target}?probe=${encodeURIComponent(probe)}` : target);
   }
 
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext();
   const canManageOrganization = workspace.canManageOrganization ||
     (workspace.session.user.role === "admin" && workspace.session.adminMode === true);
   const isGlobalAdmin = workspace.session.user.role === "admin" && workspace.session.adminMode === true;

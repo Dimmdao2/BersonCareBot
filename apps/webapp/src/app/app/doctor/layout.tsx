@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "../../styles/doctor.css";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -22,7 +22,7 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
-  const workspaceAccess = await requireDoctorWorkspaceContext();
+  const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
   const deps = buildAppDeps();
   let effectiveSpecialistId = workspaceAccess.specialistId;
@@ -53,6 +53,9 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
     specialistId: effectiveSpecialistId,
     canManageOrganization: workspaceAccess.canManageOrganization,
     canManageAllSpecialists: workspaceAccess.canManageAllSpecialists,
+    canAccessClinicalWorkspace:
+      (workspaceAccess.membershipRole === "owner" || workspaceAccess.membershipRole === "doctor") &&
+      effectiveSpecialistId !== null,
     selectedSpecialistId: workspaceAccess.canManageAllSpecialists ? null : effectiveSpecialistId,
   };
   // P0.11.3: patient_label is PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.

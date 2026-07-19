@@ -60,6 +60,7 @@ function parseMembersResponse(value: unknown): ClinicMemberView[] {
       displayName: typeof row.displayName === "string" ? row.displayName : null,
       role,
       status,
+      canManageOrganization: row.canManageOrganization === true,
       specialistLinked: row.specialistLinked === true,
     }];
   });
@@ -195,12 +196,11 @@ export function ClinicMembersClient({ initialMembers, initialInvites }: Props) {
                     <p className="truncate text-sm font-medium text-foreground">
                       {member.displayName || "Без имени"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {member.specialistLinked ? "Карточка специалиста привязана" : "Без карточки специалиста"}
-                    </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                     <Badge variant="secondary">{roleLabels[member.role]}</Badge>
+                    {member.canManageOrganization ? <Badge variant="outline">Управление</Badge> : null}
+                    {member.specialistLinked ? <Badge variant="outline">Специалист</Badge> : null}
                     <Badge variant={member.status === "active" ? "outline" : "secondary"}>
                       {statusLabels[member.status]}
                     </Badge>

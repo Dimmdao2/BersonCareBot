@@ -12,6 +12,7 @@ export type ClinicMemberView = {
   displayName: string | null;
   role: OrganizationMembershipRole;
   status: OrganizationMembershipStatus;
+  canManageOrganization: boolean;
   specialistLinked: boolean;
 };
 

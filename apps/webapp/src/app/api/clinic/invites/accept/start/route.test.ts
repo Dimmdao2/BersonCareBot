@@ -63,6 +63,32 @@ describe("clinic invite accept start route", () => {
     );
   });
 
+  it("reuses an existing email account instead of requiring preregistration", async () => {
+    const existingUserId = "33333333-3333-4333-8333-333333333333";
+    const findOrCreatePublicEmailUser = vi.fn().mockResolvedValue({
+      userId: existingUserId,
+      wasCreated: false,
+    });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: {
+        lookupPendingByToken: vi.fn().mockResolvedValue({
+          ok: true,
+          invite: {
+            invitedEmail: "newdoc-r1@example.com",
+            invitedRole: "doctor",
+            organizationTitle: "Clinic",
+          },
+        }),
+      },
+      emailOtpPublicDb: { findOrCreatePublicEmailUser },
+    });
+
+    const res = await POST(makeRequest({ token: "invite-token-with-length" }));
+
+    expect(res.status).toBe(200);
+    expect(startEmailChallengeMock).toHaveBeenCalledWith(existingUserId, "newdoc-r1@example.com");
+  });
+
   it("rejects an explicit email mismatch", async () => {
     const res = await POST(
       makeRequest({

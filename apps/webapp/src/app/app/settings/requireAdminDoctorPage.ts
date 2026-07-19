@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import {
+  requireDoctorAccess,
+  requireOrganizationWorkspaceContext,
+} from "@/app-layer/guards/requireRole";
 
 /** Страницы админ-разделов в кабинете специалиста: только role=admin. */
 export async function requireAdminDoctorPage() {
@@ -21,7 +24,7 @@ export async function requireGlobalAdminDoctorPage() {
 
 /** Страницы управления клиникой: global admin in admin mode или управляющий участник клиники. */
 export async function requireClinicManagementDoctorPage() {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext();
   const isGlobalAdmin = workspace.session.user.role === "admin" && workspace.session.adminMode === true;
   if (!isGlobalAdmin && !workspace.canManageOrganization) {
     redirect("/app/doctor");

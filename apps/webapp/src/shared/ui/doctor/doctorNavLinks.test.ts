@@ -10,9 +10,9 @@ import {
   isDoctorNavItemActive,
 } from "./doctorNavLinks";
 
-const doctorAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false };
-const clinicAdminAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: true };
-const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false };
+const doctorAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: false, canAccessClinicalWorkspace: true };
+const clinicAdminAccess = { role: "doctor" as const, adminMode: false, canManageOrganization: true, canAccessClinicalWorkspace: false };
+const adminAccess = { role: "admin" as const, adminMode: true, canManageOrganization: false, canAccessClinicalWorkspace: true };
 
 describe("isDoctorNavItemActive", () => {
   it("matches overview only on /app/doctor", () => {
@@ -86,6 +86,8 @@ describe("doctor menu structure", () => {
     expect(ids).toContain("settings");
     expect(ids).not.toContain("analytics");
     expect(ids).not.toContain("system");
+    expect(ids).not.toContain("today");
+    expect(ids).not.toContain("patients");
   });
 
   it("library has 8 sub-items (Курсы moved to top level)", () => {

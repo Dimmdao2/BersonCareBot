@@ -293,7 +293,7 @@ END
 $$;
 
 COMMENT ON FUNCTION app.accept_org_invite(text, uuid, text) IS
-  'Narrow SECURITY DEFINER accept operation for organization member invites. Performs token lock, email/user check, membership/specialist provisioning, and single-use invite update without granting app_patient table writes.';
+  'Narrow SECURITY DEFINER accept operation for organization member invites. Performs token lock, email/user check, membership activation, and single-use invite update without granting app_patient table writes. Specialist provisioning is deferred to the first valid staff session.';
 
 ALTER FUNCTION app.lookup_pending_org_invite(text) OWNER TO app_owner;
 ALTER FUNCTION app.accept_org_invite(text, uuid, text) OWNER TO app_owner;

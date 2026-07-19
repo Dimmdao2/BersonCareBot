@@ -57,6 +57,7 @@ describe("createOrganizationMembershipService", () => {
         specialistId: "specialist-1",
         canManageOrganization: false,
         canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
       },
     });
     expect(port.listActiveByPlatformUser).toHaveBeenCalledWith("user-1");
@@ -80,12 +81,12 @@ describe("createOrganizationMembershipService", () => {
   });
 
   it.each([
-    ["owner", true],
-    ["admin", true],
-    ["doctor", false],
-    ["assistant", false],
-  ] as const)("sets management flags for %s role", async (role, canManage) => {
-    const { service } = serviceFor([membership({ role })]);
+    ["owner", true, true],
+    ["admin", true, false],
+    ["doctor", false, true],
+    ["assistant", false, false],
+  ] as const)("sets membership capabilities for %s role", async (role, canManage, canAccessClinicalWorkspace) => {
+    const { service } = serviceFor([membership({ role, specialistId: role === "admin" || role === "assistant" ? null : "specialist-1" })]);
 
     const result = await service.resolveOrganizationForUser({ platformUserId: "user-1" });
     expect(result).toMatchObject({
@@ -94,6 +95,7 @@ describe("createOrganizationMembershipService", () => {
         role,
         canManageOrganization: canManage,
         canManageAllSpecialists: canManage,
+        canAccessClinicalWorkspace,
       },
     });
   });
@@ -106,5 +108,15 @@ describe("createOrganizationMembershipService", () => {
       { ...row, displayName: null },
     ]);
     expect(port.listByOrganization).toHaveBeenCalledWith("org-1");
+  });
+
+  it("does not project disabled historical memberships into the current team", async () => {
+    const active = membership({ id: "membership-active", status: "active" });
+    const disabled = membership({ id: "membership-disabled", status: "disabled" });
+    const { service } = serviceFor([active, disabled]);
+
+    await expect(service.listOrganizationMembers("org-1")).resolves.toEqual([
+      { ...active, displayName: null },
+    ]);
   });
 });

@@ -53,7 +53,7 @@ describe("clinic invite accept confirm route", () => {
       userByPhone: {
         findByUserId: vi.fn().mockResolvedValue({
           userId: "11111111-1111-4111-8111-111111111111",
-          role: "client",
+          role: "doctor",
           displayName: "Clinic Admin",
           bindings: {},
         }),
@@ -65,7 +65,7 @@ describe("clinic invite accept confirm route", () => {
     });
   });
 
-  it("verifies OTP for the invite email and starts a doctor-surface session for clinic admin", async () => {
+  it("verifies OTP for the invite email and preserves the post-accept staff session role", async () => {
     const res = await POST(
       makeRequest({
         token: "invite-token-with-length",
@@ -95,6 +95,47 @@ describe("clinic invite accept confirm route", () => {
       ok: true,
       redirectTo: "/app/doctor",
       invitedRole: "admin",
+      specialistId: null,
+    });
+  });
+
+  it("does not claim a specialist from doctor invite acceptance before the staff workspace entry", async () => {
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: {
+        lookupPendingByToken: vi.fn().mockResolvedValue({
+          ok: true,
+          invite: {
+            invitedEmail: "doctor-r1@example.com",
+            invitedRole: "doctor",
+            organizationTitle: "Clinic",
+          },
+        }),
+        acceptInvite: vi.fn().mockResolvedValue({
+          ok: true,
+          organizationId: "ed63b540-3fb6-499d-897c-f52227ea5dd8",
+          membershipId: "33333333-3333-4333-8333-333333333333",
+          platformUserId: "11111111-1111-4111-8111-111111111111",
+          specialistId: null,
+          role: "doctor",
+        }),
+      },
+      emailOtpPublicDb: {},
+      userByPhone: {
+        findByUserId: vi.fn().mockResolvedValue({
+          userId: "11111111-1111-4111-8111-111111111111",
+          role: "doctor",
+          displayName: "Clinic Doctor",
+          bindings: {},
+        }),
+      },
+    });
+
+    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      invitedRole: "doctor",
       specialistId: null,
     });
   });

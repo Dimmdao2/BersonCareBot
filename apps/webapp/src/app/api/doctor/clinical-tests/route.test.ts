@@ -75,6 +75,25 @@ describe("POST /api/doctor/clinical-tests", () => {
     expect(res.status).toBe(403);
   });
 
+  it("returns the clinical guard's 403 for a management-only organization admin", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403 }),
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "No clinical access" }),
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "forbidden" });
+    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+  });
+
   it("creates test with assessmentKind from catalog", async () => {
     const res = await POST(
       new Request("http://localhost/api", {

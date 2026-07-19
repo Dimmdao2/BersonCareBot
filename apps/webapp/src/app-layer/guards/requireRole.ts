@@ -78,6 +78,10 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session);
+  if (resolved.ok && !resolved.ctx.canAccessClinicalWorkspace) {
+    redirect("/app/doctor/clinic/members");
+  }
   return session;
 }
 
@@ -89,6 +93,7 @@ export type DoctorWorkspaceAccessContext = {
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
+  canAccessClinicalWorkspace?: boolean;
 };
 
 function doctorWorkspaceAccessDeniedResponse(reason: string): NextResponse {
@@ -178,18 +183,35 @@ async function resolveDoctorWorkspaceAccessContext(
       specialistId: context.specialistId,
       canManageOrganization: context.canManageOrganization,
       canManageAllSpecialists: context.canManageAllSpecialists,
+      canAccessClinicalWorkspace:
+        context.canAccessClinicalWorkspace ??
+        ((context.role === "owner" || context.role === "doctor") && context.specialistId !== null),
     },
   };
 }
 
-export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
-  const session = await requireDoctorAccess();
+/** Resolves an organization membership for both clinical and management surfaces. */
+export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
+  ensureDbPrincipalContext({ source: "requireOrganizationWorkspaceContext:pending" });
+  const session = await requireSession();
+  if (!canAccessDoctor(session.user.role)) {
+    redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
-  stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceContext");
+  stampStaffPrincipal(resolved.ctx, "requireOrganizationWorkspaceContext");
   return resolved.ctx;
+}
+
+/** Clinical doctor workspace: a bound owner/doctor, never a management-only admin membership. */
+export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
+  const ctx = await requireOrganizationWorkspaceContext();
+  if (!ctx.canAccessClinicalWorkspace) {
+    redirect("/app/doctor/clinic/members");
+  }
+  return ctx;
 }
 
 /** Для Route Handlers под `/api/doctor/*`: doctor или admin. */
@@ -200,6 +222,10 @@ export async function requireDoctorApiSession(): Promise<
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  const resolved = await resolveDoctorWorkspaceAccessContext(session).catch(() => null);
+  if (resolved?.ok && !resolved.ctx.canAccessClinicalWorkspace) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
   await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
   return { ok: true, session };
@@ -215,6 +241,13 @@ export async function requireDoctorWorkspaceApiContext(): Promise<{ ok: true; ct
   const resolved = await resolveDoctorWorkspaceAccessContext(session);
   if (!resolved.ok) {
     return { ok: false, response: doctorWorkspaceAccessDeniedResponse(resolved.reason) };
+  }
+  // A platform admin in explicit admin mode keeps its global administration contract. Every
+  // organization-scoped management-only admin, however, must stop here: `/api/doctor/*`
+  // is the clinical surface and may only receive a bound clinical principal.
+  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
+  if (!isGlobalAdmin && !resolved.ctx.canAccessClinicalWorkspace) {
+    return { ok: false, response: doctorWorkspaceAccessDeniedResponse("forbidden") };
   }
   stampStaffPrincipal(resolved.ctx, "requireDoctorWorkspaceApiContext");
   return resolved;

@@ -98,7 +98,9 @@ export function createInMemoryOrganizationInvitesPort(): OrganizationInvitesPort
         return { ok: false, code: "email_mismatch" };
       }
       const membershipId = randomUUID();
-      const specialistId = invite.invitedRole === "doctor" ? randomUUID() : null;
+      // Invite acceptance is deliberately pre-session. The doctor specialist is
+      // provisioned idempotently by the first valid staff workspace entrypoint.
+      const specialistId = null;
       invite.status = "accepted";
       invite.acceptedByPlatformUserId = platformUserId;
       invite.acceptedMembershipId = membershipId;

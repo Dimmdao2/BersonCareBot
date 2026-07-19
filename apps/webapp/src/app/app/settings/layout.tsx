@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import "../../styles/doctor.css";
-import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { staffPwaLayoutMetadata } from "@/shared/lib/pwa/staffPwaLayoutMetadata";
 import { DoctorWorkspaceShell } from "@/shared/ui/doctor/shell/DoctorWorkspaceShell";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -21,7 +21,7 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 }
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
-  const workspace = await requireDoctorWorkspaceContext();
+  const workspace = await requireOrganizationWorkspaceContext();
   const session = workspace.session;
 
   const deps = buildAppDeps();
@@ -37,6 +37,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
     specialistId: workspace.specialistId,
     canManageOrganization: workspace.canManageOrganization,
     canManageAllSpecialists: workspace.canManageAllSpecialists,
+    canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
     selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
   };
 

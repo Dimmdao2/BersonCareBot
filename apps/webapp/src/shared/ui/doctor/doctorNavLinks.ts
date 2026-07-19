@@ -33,18 +33,22 @@ export type DoctorMenuLinkItem = {
   accessTier?: DoctorMenuAccessTier;
 };
 
-export type DoctorMenuAccessTier = "doctor" | "clinic_admin" | "global_admin";
+export type DoctorMenuAccessTier = "doctor" | "staff" | "clinic_admin" | "global_admin";
 
 export type DoctorMenuAccess = {
   role: UserRole;
   adminMode: boolean;
   canManageOrganization: boolean;
+  canAccessClinicalWorkspace?: boolean;
 };
 
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
   const tier = item.accessTier ?? "doctor";
-  if (tier === "doctor") return true;
+  if (tier === "doctor") return access.canAccessClinicalWorkspace !== false;
   const isGlobalAdmin = access.role === "admin" && access.adminMode;
+  if (tier === "staff") {
+    return isGlobalAdmin || access.canManageOrganization || access.canAccessClinicalWorkspace !== false;
+  }
   if (tier === "clinic_admin") {
     return isGlobalAdmin || access.canManageOrganization;
   }
@@ -90,7 +94,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: "content", label: "Контент", href: "/app/doctor/content" },
   { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
   { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
-  { id: "settings", label: "Настройки", href: "/app/settings" },
+  { id: "settings", label: "Настройки", href: "/app/settings", accessTier: "staff" },
   {
     id: "analytics",
     label: "Аналитика",

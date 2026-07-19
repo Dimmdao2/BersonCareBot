@@ -49,6 +49,7 @@ export function DoctorWorkspaceShell({
     role: userRole,
     adminMode,
     canManageOrganization: workspaceContext?.canManageOrganization ?? false,
+    canAccessClinicalWorkspace: workspaceContext?.canAccessClinicalWorkspace ?? false,
   };
 
   return (

@@ -11,6 +11,7 @@ export type DoctorWorkspaceContext = {
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
+  canAccessClinicalWorkspace?: boolean;
   selectedSpecialistId: string | null;
 };
 

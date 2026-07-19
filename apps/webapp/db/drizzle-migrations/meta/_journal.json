@@ -1450,6 +1450,13 @@
       "when": 1793539200001,
       "tag": "0206_booking_appointment_chains",
       "breakpoints": true
+    },
+    {
+      "idx": 207,
+      "version": "7",
+      "when": 1793539200002,
+      "tag": "0207_remove_seeded_global_admin_membership",
+      "breakpoints": true
     }
   ]
 }

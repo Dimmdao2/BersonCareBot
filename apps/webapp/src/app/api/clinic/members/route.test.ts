@@ -78,6 +78,7 @@ describe("GET /api/clinic/members", () => {
           displayName: "Owner",
           role: "owner",
           status: "active",
+          canManageOrganization: true,
           specialistLinked: true,
         },
         {
@@ -85,6 +86,7 @@ describe("GET /api/clinic/members", () => {
           displayName: null,
           role: "doctor",
           status: "active",
+          canManageOrganization: false,
           specialistLinked: false,
         },
       ],

@@ -17,6 +17,7 @@ export type OrganizationMembershipContext = {
   specialistId: string | null;
   canManageOrganization: boolean;
   canManageAllSpecialists: boolean;
+  canAccessClinicalWorkspace?: boolean;
 };
 
 export type OrganizationResolution =
@@ -25,6 +26,10 @@ export type OrganizationResolution =
 
 function canManageOrganization(role: OrganizationMembershipRole): boolean {
   return role === "owner" || role === "admin";
+}
+
+function canAccessClinicalWorkspace(membership: OrganizationMembership): boolean {
+  return (membership.role === "owner" || membership.role === "doctor") && membership.specialistId !== null;
 }
 
 function toMembershipContext(membership: OrganizationMembership): OrganizationMembershipContext {
@@ -37,6 +42,7 @@ function toMembershipContext(membership: OrganizationMembership): OrganizationMe
     specialistId: membership.specialistId,
     canManageOrganization: canManage,
     canManageAllSpecialists: canManage,
+    canAccessClinicalWorkspace: canAccessClinicalWorkspace(membership),
   };
 }
 
@@ -58,7 +64,10 @@ export function createOrganizationMembershipService(deps: {
     },
 
     async listOrganizationMembers(organizationId: string): Promise<OrganizationMemberDirectoryRecord[]> {
-      return deps.membershipPort.listByOrganization(organizationId);
+      const members = await deps.membershipPort.listByOrganization(organizationId);
+      // The team surface is a projection of current organization people; disabled
+      // historical rows do not belong alongside pending invites.
+      return members.filter((member) => member.status === "active");
     },
 
     async hasActiveMembership(platformUserId: string, organizationId: string): Promise<boolean> {

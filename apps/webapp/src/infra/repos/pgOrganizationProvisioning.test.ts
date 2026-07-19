@@ -36,5 +36,6 @@ describe("createPgOrganizationProvisioningPort", () => {
     expect(src).toContain("ensureOwnBookableSpecialist");
     expect(src).toContain('.for("update")');
     expect(src).toContain("isNull(beOrganizationMembers.specialistId)");
+    expect(src).toContain("specialist_membership_backfill_conflict");
   });
 });

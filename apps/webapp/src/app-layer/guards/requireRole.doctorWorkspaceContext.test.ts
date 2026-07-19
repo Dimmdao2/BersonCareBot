@@ -90,6 +90,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
         specialistId: "specialist-1",
         canManageOrganization: false,
         canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
       },
     });
 
@@ -105,6 +106,7 @@ describe("requireDoctorWorkspaceApiContext", () => {
         specialistId: "specialist-1",
         canManageOrganization: false,
         canManageAllSpecialists: false,
+        canAccessClinicalWorkspace: true,
       },
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
@@ -140,6 +142,61 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(gate.ctx.session.user.role).toBe("admin");
     expect(gate.ctx.membershipRole).toBe("doctor");
     expect(gate.ctx.specialistId).toBe("specialist-1");
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "staff",
+      organizationId: ORG_1,
+      platformUserId: admin.user.userId,
+    });
+  });
+
+  it("fails closed for a management-only organization admin", async () => {
+    const admin = { ...session("admin"), adminMode: false };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-admin",
+        organizationId: ORG_1,
+        platformUserId: admin.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
+      },
+    });
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    await expect(gate.response.json()).resolves.toEqual({ ok: false, error: "forbidden" });
+    expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
+  });
+
+  it("preserves explicit global-admin access in admin mode", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-admin",
+        organizationId: ORG_1,
+        platformUserId: admin.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
+      },
+    });
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(true);
+    if (!gate.ok) return;
+    expect(gate.ctx.membershipRole).toBe("admin");
     expect(getCurrentDbPrincipal()).toMatchObject({
       kind: "staff",
       organizationId: ORG_1,
@@ -218,6 +275,7 @@ describe("requireAdminWorkspaceApiContext", () => {
         specialistId: null,
         canManageOrganization: true,
         canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
       },
     });
 
@@ -233,6 +291,7 @@ describe("requireAdminWorkspaceApiContext", () => {
         specialistId: null,
         canManageOrganization: true,
         canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
       },
     });
     expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
@@ -372,5 +431,25 @@ describe("requireDoctorWorkspaceContext", () => {
 
     await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:");
     expect(redirectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an admin membership in management but out of the clinical workspace", async () => {
+    const adminMember = session("doctor");
+    getCurrentSessionMock.mockResolvedValueOnce(adminMember);
+    resolveOrganizationForUserMock.mockResolvedValueOnce({
+      ok: true,
+      context: {
+        membershipId: "membership-admin",
+        organizationId: ORG_1,
+        platformUserId: adminMember.user.userId,
+        role: "admin",
+        specialistId: null,
+        canManageOrganization: true,
+        canManageAllSpecialists: true,
+        canAccessClinicalWorkspace: false,
+      },
+    });
+
+    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/doctor/clinic/members");
   });
 });

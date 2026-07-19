@@ -50,6 +50,32 @@ describe("ensureOwnBookableSpecialist", () => {
     expect(port.ensureOwnBookableSpecialist).not.toHaveBeenCalled();
   });
 
+  it("creates exactly one specialist for an invited doctor on the first valid staff entry", async () => {
+    const port = createPort();
+
+    await expect(
+      ensureOwnBookableSpecialist(port, {
+        organizationId: "org-1",
+        membershipId: "membership-1",
+        membershipRole: "doctor",
+        specialistId: null,
+        displayName: "Invited Doctor",
+      }),
+    ).resolves.toBe("specialist-1");
+    expect(port.ensureOwnBookableSpecialist).toHaveBeenCalledTimes(1);
+
+    await expect(
+      ensureOwnBookableSpecialist(port, {
+        organizationId: "org-1",
+        membershipId: "membership-1",
+        membershipRole: "doctor",
+        specialistId: "specialist-1",
+        displayName: "Invited Doctor",
+      }),
+    ).resolves.toBe("specialist-1");
+    expect(port.ensureOwnBookableSpecialist).toHaveBeenCalledTimes(1);
+  });
+
   it("creates a specialist for owner by default", async () => {
     const port = createPort();
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSession } from "@/shared/types/session";
 
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationForUserMock = vi.hoisted(() => vi.fn());
 const redirectMock = vi.hoisted(() =>
   vi.fn((url: string) => {
     throw new Error(`redirect:${url}`);
@@ -10,6 +11,10 @@ const redirectMock = vi.hoisted(() =>
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getCurrentSessionMock,
+}));
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({ organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock } }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -34,6 +39,8 @@ function session(role: AppSession["user"]["role"]): AppSession {
 
 beforeEach(() => {
   getCurrentSessionMock.mockReset();
+  resolveOrganizationForUserMock.mockReset();
+  resolveOrganizationForUserMock.mockResolvedValue({ ok: false, reason: "no_active_membership" });
   redirectMock.mockReset();
 });
 

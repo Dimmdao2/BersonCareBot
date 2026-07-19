@@ -69,7 +69,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 
-  await setSessionFromUser({ ...user, role: "doctor" });
+  // The current platform role model still promotes a staff invitee to `doctor` in
+  // the accept transaction. Clinic authority is deliberately determined from the
+  // membership role below, never from this coarse session role.
+  await setSessionFromUser(user);
 
   return NextResponse.json({
     ok: true,

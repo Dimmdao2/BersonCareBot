@@ -102,6 +102,14 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
   return {
     async createReplacingPending(input): Promise<CreateOrganizationInviteResult> {
       return runWebappTransaction(async (tx) => {
+        // The partial pending-invite unique index is the invariant. Serialize the
+        // replacement lifecycle for its exact natural key so concurrent resend
+        // requests deterministically revoke the predecessor then insert one row.
+        await runWebappPgText(
+          `SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2, 0))`,
+          [input.organizationId, input.invitedEmail],
+          tx,
+        );
         const activeMember = await runWebappPgText<{ id: string }>(
           `SELECT m.id::text
            FROM platform_users u

@@ -16,6 +16,7 @@ export async function GET() {
       displayName: member.displayName,
       role: member.role,
       status: member.status,
+      canManageOrganization: member.role === "owner" || member.role === "admin",
       specialistLinked: member.specialistId !== null,
     })),
   });

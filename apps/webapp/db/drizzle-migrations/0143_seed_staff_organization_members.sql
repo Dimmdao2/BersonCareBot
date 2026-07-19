@@ -7,9 +7,7 @@ DECLARE
   v_specialist_active boolean;
   v_primary_appt_count integer;
   v_doctor_count integer;
-  v_admin_count integer;
   v_seeded_doctor_count integer;
-  v_seeded_admin_count integer;
 BEGIN
   SELECT count(*)::integer
   INTO v_org_count
@@ -42,17 +40,15 @@ BEGIN
     RAISE EXCEPTION 'P0.1.2 seed expected primary specialist % to have appointments; inactive duplicate must not be selected', v_primary_specialist_id;
   END IF;
 
-  SELECT
-    count(*) FILTER (WHERE role = 'doctor')::integer,
-    count(*) FILTER (WHERE role = 'admin')::integer
-  INTO v_doctor_count, v_admin_count
+  SELECT count(*)::integer
+  INTO v_doctor_count
   FROM platform_users
-  WHERE role IN ('doctor', 'admin')
+  WHERE role = 'doctor'
     AND merged_into_id IS NULL
     AND is_archived IS FALSE;
 
   IF v_doctor_count <> 1 THEN
-    RAISE EXCEPTION 'P0.1.2 seed expected 1 doctor, found doctors=% admins=%', v_doctor_count, v_admin_count;
+    RAISE EXCEPTION 'P0.1.2 seed expected 1 doctor, found doctors=%', v_doctor_count;
   END IF;
 
   INSERT INTO be_organization_members (
@@ -69,7 +65,7 @@ BEGIN
     CASE WHEN pu.role = 'doctor' THEN v_primary_specialist_id ELSE NULL END,
     'active'
   FROM platform_users pu
-  WHERE pu.role IN ('doctor', 'admin')
+  WHERE pu.role = 'doctor'
     AND pu.merged_into_id IS NULL
     AND pu.is_archived IS FALSE
   ON CONFLICT (organization_id, platform_user_id) DO UPDATE
@@ -86,15 +82,7 @@ BEGIN
     AND specialist_id = v_primary_specialist_id
     AND status = 'active';
 
-  SELECT count(*)::integer
-  INTO v_seeded_admin_count
-  FROM be_organization_members
-  WHERE organization_id = v_default_org_id
-    AND role = 'admin'
-    AND specialist_id IS NULL
-    AND status = 'active';
-
-  IF v_seeded_doctor_count <> 1 OR v_seeded_admin_count <> v_admin_count THEN
-    RAISE EXCEPTION 'P0.1.2 seed expected membership rows doctor=1 admin=%, found doctor=% admin=%', v_admin_count, v_seeded_doctor_count, v_seeded_admin_count;
+  IF v_seeded_doctor_count <> 1 THEN
+    RAISE EXCEPTION 'P0.1.2 seed expected membership rows doctor=1, found doctor=%', v_seeded_doctor_count;
   END IF;
 END $$;
