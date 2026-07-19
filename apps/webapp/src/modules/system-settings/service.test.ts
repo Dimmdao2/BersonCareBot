@@ -87,7 +87,7 @@ describe("SystemSettingsService", () => {
   it("routes a runtime setting through the committed write UoW before compatibility sync", async () => {
     const events: string[] = [];
     const writeUnitOfWork: SettingsWriteUnitOfWork = {
-      write: vi.fn(async (input) => {
+      write: vi.fn(async (input): Promise<SystemSetting[]> => {
         events.push("commit");
         expect(input.authoritativeRuntimeRows).toEqual([{
           key: "patient_program_discussion_ui_enabled", scope: "admin", organizationId: null,
@@ -107,7 +107,7 @@ describe("SystemSettingsService", () => {
 
   it("keeps mixed payment credentials legacy-authoritative for the trigger-owned projection", async () => {
     const writeUnitOfWork: SettingsWriteUnitOfWork = {
-      write: vi.fn(async (input) => {
+      write: vi.fn(async (input): Promise<SystemSetting[]> => {
         expect(input.authoritativeRuntimeRows).toEqual([]);
         return [{ key: "booking_payment_providers", scope: "admin", organizationId: "org-1", valueJson: input.legacyRows[0]!.valueJson, updatedAt: "", updatedBy: "u1" }];
       }),

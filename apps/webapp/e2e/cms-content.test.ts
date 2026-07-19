@@ -30,6 +30,10 @@ vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
   withDoctorWorkspacePrincipal: vi.fn((_ctx, fn: () => unknown) => fn()),
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     media: { upload: uploadMock, folderExists: folderExistsMock },

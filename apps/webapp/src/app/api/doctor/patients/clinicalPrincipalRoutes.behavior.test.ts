@@ -43,6 +43,10 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: async () => ({ ok: true }),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     doctorClientsPort: {
