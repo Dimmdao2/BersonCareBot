@@ -7,6 +7,8 @@ const insertSessionMock = vi.fn();
 const createMultipartMock = vi.fn();
 const deletePendingByIdMock = vi.fn();
 const abortMultipartMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.fn();
+const withDoctorWorkspacePrincipalMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: {
@@ -52,8 +54,12 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: () => sessionMock(),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: (...args: unknown[]) => requireDoctorWorkspaceApiContextMock(...args),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (...args: unknown[]) => withDoctorWorkspacePrincipalMock(...args),
 }));
 
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
@@ -67,11 +73,22 @@ describe("POST /api/media/multipart/init", () => {
     deletePendingByIdMock.mockReset();
     abortMultipartMock.mockReset();
     sessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockReset();
     insertPendingMock.mockResolvedValue(undefined);
     insertSessionMock.mockResolvedValue(undefined);
     deletePendingByIdMock.mockResolvedValue(true);
     abortMultipartMock.mockResolvedValue(undefined);
     createMultipartMock.mockResolvedValue({ uploadId: "s3-upload-id-1" });
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await sessionMock();
+      return session
+        ? { ok: true, ctx: { session, organizationId: "org-a" } }
+        : { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      async (_ctx: unknown, fn: () => Promise<unknown>) => fn(),
+    );
   });
 
   it("returns 403 without doctor session", async () => {
@@ -201,6 +218,7 @@ describe("POST /api/media/multipart/init", () => {
     expect(deletePendingByIdMock).toHaveBeenCalledWith(expect.stringMatching(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     ));
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledTimes(2);
   });
 
   it("aborts S3 multipart and deletes pending media when session insert fails after pending", async () => {
@@ -220,5 +238,6 @@ describe("POST /api/media/multipart/init", () => {
     expect(deletePendingByIdMock).toHaveBeenCalledWith(expect.stringMatching(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     ));
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledTimes(2);
   });
 });

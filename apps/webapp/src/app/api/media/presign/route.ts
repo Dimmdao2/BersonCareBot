@@ -89,9 +89,11 @@ export async function POST(request: Request) {
       readUrl,
     });
   } catch (e) {
-    await deletePendingMediaFileById(mediaId).catch(() => {
-      /* best-effort rollback */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(mediaId)).catch(
+      () => {
+        /* best-effort rollback */
+      },
+    );
     logger.error({ err: e }, "[media/presign] presign_failed");
     return NextResponse.json({ ok: false, error: "presign_failed" }, { status: 500 });
   }

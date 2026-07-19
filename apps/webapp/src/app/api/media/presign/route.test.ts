@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const insertPendingMock = vi.fn();
 const deletePendingMock = vi.fn();
 const presignPutUrlMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.fn();
+const withDoctorWorkspacePrincipalMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: {
@@ -45,8 +47,12 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: () => sessionMock(),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: (...args: unknown[]) => requireDoctorWorkspaceApiContextMock(...args),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (...args: unknown[]) => withDoctorWorkspacePrincipalMock(...args),
 }));
 
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
@@ -58,9 +64,20 @@ describe("POST /api/media/presign", () => {
     deletePendingMock.mockReset();
     presignPutUrlMock.mockReset();
     sessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockReset();
     presignPutUrlMock.mockResolvedValue("https://signed-put.example/upload");
     insertPendingMock.mockResolvedValue(undefined);
     deletePendingMock.mockResolvedValue(true);
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await sessionMock();
+      return session
+        ? { ok: true, ctx: { session, organizationId: "org-a" } }
+        : { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      async (_ctx: unknown, fn: () => Promise<unknown>) => fn(),
+    );
   });
 
   it("returns 403 without doctor session", async () => {
@@ -172,5 +189,6 @@ describe("POST /api/media/presign", () => {
     // Rollback must have been called with the same mediaId that was inserted
     const insertedId = (insertPendingMock.mock.calls[0]![1] as { id: string }).id;
     expect(deletePendingMock).toHaveBeenCalledWith(insertedId);
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledTimes(2);
   });
 });

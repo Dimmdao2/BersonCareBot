@@ -4,8 +4,8 @@ import { env, isS3MediaEnabled } from "@/config/env";
 import { confirmMediaFileReady, getMediaRowForConfirm } from "@/app-layer/media/s3MediaStorage";
 import { maybeAutoEnqueueVideoTranscodeAfterUpload } from "@/app-layer/media/mediaTranscodeAutoEnqueue";
 import { s3HeadObject } from "@/app-layer/media/s3Client";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   mediaId: z.string().uuid(),
@@ -16,10 +16,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
   }
 
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const session = gate.ctx.session;
 
   let json: unknown;
   try {
@@ -33,7 +32,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const row = await getMediaRowForConfirm(parsed.data.mediaId, session.user.userId);
+  const row = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    getMediaRowForConfirm(parsed.data.mediaId, session.user.userId),
+  );
   if (!row) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
@@ -60,9 +61,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "file_not_found_in_s3" }, { status: 404 });
   }
 
-  const updated = await confirmMediaFileReady(parsed.data.mediaId);
+  const updated = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    confirmMediaFileReady(parsed.data.mediaId),
+  );
   if (!updated) {
-    const again = await getMediaRowForConfirm(parsed.data.mediaId, session.user.userId);
+    const again = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+      getMediaRowForConfirm(parsed.data.mediaId, session.user.userId),
+    );
     if (again?.status === "ready" && again.s3_key) {
       return NextResponse.json({
         ok: true as const,

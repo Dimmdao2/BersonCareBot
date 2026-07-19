@@ -135,9 +135,11 @@ export async function POST(request: Request) {
         /* best-effort */
       });
     }
-    await deletePendingMediaFileById(mediaId).catch(() => {
-      /* ignore */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(mediaId)).catch(
+      () => {
+        /* ignore */
+      },
+    );
     logger.error({ err: e }, "[media/multipart/init] failed");
     return NextResponse.json({ ok: false, error: "multipart_init_failed" }, { status: 500 });
   }

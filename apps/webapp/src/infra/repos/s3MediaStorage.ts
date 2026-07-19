@@ -637,6 +637,7 @@ export async function getMediaRowForConfirm(
   usage_purpose: string | null;
   size_bytes: number | null;
 } | null> {
+  const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
     s3_key: string | null;
     status: string;
@@ -646,7 +647,10 @@ export async function getMediaRowForConfirm(
   }>(
     getWebappSqlDb(),
     sql`SELECT s3_key, status, mime_type, usage_purpose, size_bytes::text
-     FROM media_files WHERE id = ${mediaId}::uuid AND uploaded_by = ${userId}::uuid`,
+     FROM media_files
+     WHERE id = ${mediaId}::uuid
+       AND organization_id = ${organizationId}::uuid
+       AND uploaded_by = ${userId}::uuid`,
   );
   const row = res.rows[0];
   if (!row) return null;
@@ -661,10 +665,17 @@ export async function getMediaRowForConfirm(
 }
 
 export async function confirmMediaFileReady(mediaId: string): Promise<boolean> {
+  const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .update(mediaFiles)
     .set({ status: "ready" })
-    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.status, "pending")))
+    .where(
+      and(
+        eq(mediaFiles.id, mediaId),
+        eq(mediaFiles.organizationId, organizationId),
+        eq(mediaFiles.status, "pending"),
+      ),
+    )
     .returning({ id: mediaFiles.id });
   return rows.length > 0;
 }
@@ -781,9 +792,16 @@ export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | nu
 
 /** Roll back presign INSERT when presigned URL generation fails. */
 export async function deletePendingMediaFileById(mediaId: string): Promise<boolean> {
+  const organizationId = currentPrincipalOrganizationId();
   const rows = await getWebappSqlDb()
     .delete(mediaFiles)
-    .where(and(eq(mediaFiles.id, mediaId), eq(mediaFiles.status, "pending")))
+    .where(
+      and(
+        eq(mediaFiles.id, mediaId),
+        eq(mediaFiles.organizationId, organizationId),
+        eq(mediaFiles.status, "pending"),
+      ),
+    )
     .returning({ id: mediaFiles.id });
   return rows.length > 0;
 }

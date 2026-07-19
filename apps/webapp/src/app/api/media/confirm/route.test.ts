@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getMediaRowMock = vi.fn();
 const confirmReadyMock = vi.fn();
 const headMock = vi.fn();
+const requireDoctorWorkspaceApiContextMock = vi.fn();
+const withDoctorWorkspacePrincipalMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: {
@@ -34,8 +36,12 @@ vi.mock("@/app-layer/media/mediaTranscodeAutoEnqueue", () => ({
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: () => sessionMock(),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: (...args: unknown[]) => requireDoctorWorkspaceApiContextMock(...args),
+}));
+
+vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
+  withDoctorWorkspacePrincipal: (...args: unknown[]) => withDoctorWorkspacePrincipalMock(...args),
 }));
 
 import { POST } from "./route";
@@ -46,8 +52,19 @@ describe("POST /api/media/confirm", () => {
     confirmReadyMock.mockReset();
     headMock.mockReset();
     sessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    withDoctorWorkspacePrincipalMock.mockReset();
     autoEnqueueMock.mockReset();
     confirmReadyMock.mockResolvedValue(true);
+    requireDoctorWorkspaceApiContextMock.mockImplementation(async () => {
+      const session = await sessionMock();
+      return session
+        ? { ok: true, ctx: { session, organizationId: "org-a" } }
+        : { ok: false, response: new Response(null, { status: 403 }) };
+    });
+    withDoctorWorkspacePrincipalMock.mockImplementation(
+      async (_ctx: unknown, fn: () => Promise<unknown>) => fn(),
+    );
   });
 
   it("returns 403 without doctor session", async () => {
@@ -125,6 +142,7 @@ describe("POST /api/media/confirm", () => {
     expect(json.ok).toBe(true);
     expect(json.url).toBe("/api/media/00000000-0000-4000-8000-000000000003");
     expect(confirmReadyMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000003");
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalled();
     expect(autoEnqueueMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000003");
   });
 

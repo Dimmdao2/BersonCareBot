@@ -20,8 +20,8 @@ import {
   s3HeadObjectDetails,
 } from "@/app-layer/media/s3Client";
 import { multipartMaxPartNumber } from "@/modules/media/multipartConstants";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
+import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 
 const partSchema = z.object({
   PartNumber: z.number().int().min(1).max(10_000),
@@ -51,10 +51,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "s3_not_configured" }, { status: 501 });
   }
 
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requireDoctorWorkspaceApiContext();
+  if (!gate.ok) return gate.response;
+  const session = gate.ctx.session;
 
   let json: unknown;
   try {
@@ -102,9 +101,11 @@ export async function POST(request: Request) {
     await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
       /* ignore */
     });
-    await deletePendingMediaFileById(row.media_id).catch(() => {
-      /* ignore */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
+      () => {
+        /* ignore */
+      },
+    );
     return NextResponse.json({ ok: false, error: "invalid_parts", maxPart }, { status: 400 });
   }
 
@@ -119,9 +120,11 @@ export async function POST(request: Request) {
       await s3AbortMultipartUpload(row.s3_key, row.upload_id).catch(() => {
         /* ignore */
       });
-      await deletePendingMediaFileById(row.media_id).catch(() => {
-        /* ignore */
-      });
+      await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
+        () => {
+          /* ignore */
+        },
+      );
       return NextResponse.json({ ok: false, error: "complete_failed" }, { status: 502 });
     }
   }
@@ -146,9 +149,11 @@ export async function POST(request: Request) {
     await s3DeleteObject(row.s3_key).catch(() => {
       /* ignore */
     });
-    await deletePendingMediaFileById(row.media_id).catch(() => {
-      /* ignore */
-    });
+    await withDoctorWorkspacePrincipal(gate.ctx, () => deletePendingMediaFileById(row.media_id)).catch(
+      () => {
+        /* ignore */
+      },
+    );
     return NextResponse.json({ ok: false, error: "integrity_mismatch" }, { status: 409 });
   }
 

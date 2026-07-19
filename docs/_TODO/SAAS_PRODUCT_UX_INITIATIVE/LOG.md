@@ -2648,3 +2648,13 @@ automatic scope. Census evidence: `bcb-c4b-853-census-20260719`.
   is limited to known isolated-worktree dependency-resolution artifacts (`luxon` through missing integrator
   dependencies and stale linked `@bersoncare/db-principal` exports). Full typecheck and milestone CI remain mandatory
   after integration. No DB, DEV/TEST/PROD, deploy, external send or PII action was performed.
+
+### Final confirm/rollback organization closure
+
+- Confirm pre-read, ready mutation and pending rollback deletion now require the exact active `organization_id` in
+  addition to media ID/uploader/status. Existing doctor presign, confirm and multipart init/complete paths enter the
+  canonical workspace principal around these calls, preserving same-organization uploads without an overload or
+  bypass. A stateful A/B adapter proves that the same uploader in org B cannot receive ready/pending rows from org A,
+  confirm them or delete them after invalid S3 metadata; org A can still confirm and delete its own pending rows.
+- PASS focused confirm/security matrix: `7` files / `57` tests; PASS scoped ESLint and `git diff --check`. No schema,
+  migration, resolver, DB write, DEV/TEST/PROD, deploy, external send or PII action.

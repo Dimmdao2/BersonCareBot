@@ -9,6 +9,8 @@ import type { AppSession } from "@/shared/types/session";
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const insertMock = vi.hoisted(() => vi.fn());
 const insertValuesMock = vi.hoisted(() => vi.fn());
+const updateMock = vi.hoisted(() => vi.fn());
+const deleteMock = vi.hoisted(() => vi.fn());
 const connectQueryMock = vi.hoisted(() => vi.fn());
 const s3PutObjectBodyMock = vi.hoisted(() => vi.fn());
 const s3DeleteObjectMock = vi.hoisted(() => vi.fn());
@@ -31,6 +33,8 @@ vi.mock("@bersoncare/db-principal", () => ({
 vi.mock("@/infra/db/runWebappSql", () => ({
   getWebappSqlDb: vi.fn(() => ({
     insert: insertMock,
+    update: updateMock,
+    delete: deleteMock,
   })),
   getWebappSqlFromPgClient: vi.fn(() => ({ insert: insertMock })),
   runWebappSql: runWebappSqlMock,
@@ -77,8 +81,11 @@ vi.mock("@/config/env", () => ({
 
 import {
   collectS3KeysForMediaPurge,
+  confirmMediaFileReady,
   createS3MediaStoragePort,
+  deletePendingMediaFileById,
   getMediaAccessRow,
+  getMediaRowForConfirm,
   getMediaRowForPlayback,
   insertPendingProgramSubmissionMediaFileTx,
   purgePendingMediaDeleteBatch,
@@ -91,6 +98,7 @@ function approxSqlAt(callIndex: number): string {
 
 const ORG_A = "11111111-1111-4111-8111-111111111111";
 const ORG_B = "22222222-2222-4222-8222-222222222222";
+const SHARED_UPLOADER = "cccccccc-0000-4000-8000-000000000001";
 
 type TenantMediaFixture = {
   id: string;
@@ -218,11 +226,99 @@ function appSession(userId: string, role: AppSession["user"]["role"]): AppSessio
   };
 }
 
+function collectSqlPrimitiveValues(node: unknown, seen = new WeakSet<object>()): string[] {
+  if (typeof node === "string" || typeof node === "number" || typeof node === "boolean") {
+    return [String(node)];
+  }
+  if (node === null || node === undefined || typeof node !== "object") return [];
+  if (seen.has(node)) return [];
+  seen.add(node);
+  if (Array.isArray(node)) {
+    return node.flatMap((item) => collectSqlPrimitiveValues(item, seen));
+  }
+  return Object.values(node).flatMap((value) => collectSqlPrimitiveValues(value, seen));
+}
+
+type ConfirmFixture = {
+  id: string;
+  organizationId: string;
+  uploadedBy: string;
+  status: "pending" | "ready";
+};
+
+function installConfirmABAdapter(initialRows: ConfirmFixture[]): {
+  remainingIds: () => string[];
+} {
+  let rows = initialRows.map((row) => ({ ...row }));
+
+  runWebappSqlMock.mockImplementation((_db: unknown, fragment: unknown) => {
+    const query = drizzleSqlFragmentToApproximateSql(fragment);
+    const principalOrganizationId = [ORG_A, ORG_B].find((id) => query.includes(id));
+    const requestedId = rows.find((row) => query.includes(row.id))?.id;
+    const requestedUploader = rows.find((row) => query.includes(row.uploadedBy))?.uploadedBy;
+    const hasExactOrganizationPredicate =
+      principalOrganizationId !== undefined && /organization_id/i.test(query);
+
+    const matched = rows.filter(
+      (row) =>
+        (!requestedId || row.id === requestedId) &&
+        (!requestedUploader || row.uploadedBy === requestedUploader) &&
+        (!hasExactOrganizationPredicate || row.organizationId === principalOrganizationId),
+    );
+    return Promise.resolve({
+      rows: matched.map((row) => ({
+        s3_key: `media/${row.id}/submission.jpg`,
+        status: row.status,
+        mime_type: "image/jpeg",
+        usage_purpose: "program_item_submission",
+        size_bytes: "100",
+      })),
+    });
+  });
+
+  const mutationBuilder = (kind: "update" | "delete") => ({
+    set: (_values: unknown) => mutationWhereBuilder(kind),
+    where: (condition: unknown) => mutationReturningBuilder(kind, condition),
+  });
+  const mutationWhereBuilder = (kind: "update" | "delete") => ({
+    where: (condition: unknown) => mutationReturningBuilder(kind, condition),
+  });
+  const mutationReturningBuilder = (kind: "update" | "delete", condition: unknown) => ({
+    returning: () => {
+      const conditionValues = collectSqlPrimitiveValues(condition);
+      const principalOrganizationId = [ORG_A, ORG_B].find((id) => conditionValues.includes(id));
+      const requestedId = rows.find((row) => conditionValues.includes(row.id))?.id;
+      const hasExactOrganizationPredicate = principalOrganizationId !== undefined;
+      const matched = rows.filter(
+        (row) =>
+          row.status === "pending" &&
+          (!requestedId || row.id === requestedId) &&
+          (!hasExactOrganizationPredicate || row.organizationId === principalOrganizationId),
+      );
+      if (kind === "update") {
+        matched.forEach((row) => {
+          row.status = "ready";
+        });
+      } else {
+        const removed = new Set(matched.map((row) => row.id));
+        rows = rows.filter((row) => !removed.has(row.id));
+      }
+      return Promise.resolve(matched.map((row) => ({ id: row.id })));
+    },
+  });
+
+  updateMock.mockImplementation(() => mutationBuilder("update"));
+  deleteMock.mockImplementation(() => mutationBuilder("delete"));
+  return { remainingIds: () => rows.map((row) => row.id) };
+}
+
 describe("createS3MediaStoragePort", () => {
   beforeEach(() => {
     runWebappSqlMock.mockReset();
     insertMock.mockReset();
     insertValuesMock.mockReset();
+    updateMock.mockReset();
+    deleteMock.mockReset();
     connectQueryMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     s3DeleteObjectMock.mockReset();
@@ -372,6 +468,61 @@ describe("createS3MediaStoragePort", () => {
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_B);
     const rowVisibleToDoctorB = await getMediaAccessRow("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2");
     expect(rowVisibleToDoctorB).toBeNull();
+  });
+
+  it("denies org B confirm pre-read for org A ready and pending rows owned by the same user", async () => {
+    installConfirmABAdapter([
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        organizationId: ORG_A,
+        uploadedBy: SHARED_UPLOADER,
+        status: "ready",
+      },
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+        organizationId: ORG_A,
+        uploadedBy: SHARED_UPLOADER,
+        status: "pending",
+      },
+    ]);
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_B);
+
+    await expect(
+      getMediaRowForConfirm("dddddddd-dddd-4ddd-8ddd-ddddddddddd1", SHARED_UPLOADER),
+    ).resolves.toBeNull();
+    await expect(
+      getMediaRowForConfirm("dddddddd-dddd-4ddd-8ddd-ddddddddddd2", SHARED_UPLOADER),
+    ).resolves.toBeNull();
+  });
+
+  it("protects a foreign pending row from invalid-S3 rollback and preserves same-org confirm/delete", async () => {
+    const state = installConfirmABAdapter([
+      {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+        organizationId: ORG_A,
+        uploadedBy: SHARED_UPLOADER,
+        status: "pending",
+      },
+      {
+        id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2",
+        organizationId: ORG_A,
+        uploadedBy: SHARED_UPLOADER,
+        status: "pending",
+      },
+    ]);
+
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_B);
+    await expect(deletePendingMediaFileById("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1")).resolves.toBe(false);
+    await expect(confirmMediaFileReady("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2")).resolves.toBe(false);
+    expect(state.remainingIds()).toEqual([
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+      "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2",
+    ]);
+
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    await expect(confirmMediaFileReady("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2")).resolves.toBe(true);
+    await expect(deletePendingMediaFileById("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1")).resolves.toBe(true);
+    expect(state.remainingIds()).toEqual(["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2"]);
   });
 
   it("updateDisplayName requires DB principal", async () => {
