@@ -21,11 +21,15 @@ function collectFiles(dir: URL, suffix: string, result: URL[] = []): URL[] {
   return result;
 }
 
+function hasUseServerDirective(source: string): boolean {
+  return /^\uFEFF?\s*(?:(?:\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))\s*)*["']use server["'];?/.test(source);
+}
+
 function collectServerActionFiles(dir: URL, result: URL[] = []): URL[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
     if (entry.isDirectory()) collectServerActionFiles(child, result);
-    else if (/\.tsx?$/.test(entry.name) && readFileSync(child, "utf8").startsWith('"use server"')) result.push(child);
+    else if (/\.tsx?$/.test(entry.name) && hasUseServerDirective(readFileSync(child, "utf8"))) result.push(child);
   }
   return result;
 }
@@ -99,6 +103,14 @@ describe("U1 finite doctor launch manifest", () => {
   const platformRoot = new URL("app/(global-admin)/doctor/", appRoot);
   const doctorRoot = new URL("app/doctor/", appRoot);
   const mediaRoot = new URL("api/media/", appRoot);
+
+  it("recognizes valid Server Action directives despite harmless leading syntax", () => {
+    expect(hasUseServerDirective('"use server";\nexport async function action() {}')).toBe(true);
+    expect(hasUseServerDirective("  'use server';\nexport async function action() {}" )).toBe(true);
+    expect(hasUseServerDirective('/* action module */\n"use server";\nexport async function action() {}')).toBe(true);
+    expect(hasUseServerDirective('// action module\n"use server";\nexport async function action() {}')).toBe(true);
+    expect(hasUseServerDirective('const marker = "use server";')).toBe(false);
+  });
 
   it("is exact for platform URLs and marks analytics and repair as PII-free absence", () => {
     const discovered = new Set(
