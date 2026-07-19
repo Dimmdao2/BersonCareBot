@@ -2434,3 +2434,22 @@ The lead independently ran the missing live checks on the exact commit: only `OW
 audited patch was integrated as `66c95c0bb`. No CI, build, DB, TEST or deploy is warranted for this docs-only gate.
 Task `#887` can therefore be sealed `done`; owner answers to C4C5-01…07 remain separate branch-local gates, while
 C4C5-08 stays explicitly deferred. `accepted` remains owner-only.
+
+## 2026-07-19 — C4 readiness and shared S4-0/S4-1 launch (`#888`)
+
+Two independent read-only traces checked C4B/C4C and C4D against current code, taskdb and the roadmap. C2 identity
+dependencies are closed by `#840/#841`; blocked C2F `#855` is downstream identity cleanup and does not block C4.
+Future store decisions do not block C4D. No active C4/S4 agent process, branch or worktree was found, and the
+integration worktree was clean except for the protected owner handoff file.
+
+The genuine shared blocker is S4-0/S4-1: the current 14-key entitlement foundation is still dormant/default-on,
+`requireEntitlement(mechanic)` repeats doctor-workspace auth, and only course creation is partially gated. CMS,
+courses and library cannot honestly close list/direct/action/nav isolation by adding local checks around that old
+boundary. C4B also overlaps the separate active Doctor DNA task `#885` in master-detail UI files, so it must not run
+in parallel before file ownership is reconciled.
+
+Task `#888` therefore starts as one complete high-risk shared-foundation stage covering S4 §§5-6, not a courses/CMS
+micro-slice. `#751` remains only C5A constructor/quotas/trial, while billing remains `#844/#845`; the taskdb notes
+record this split so the old broad `#751` title cannot create duplicate implementation. Full stage scope, protected
+files, acceptance and execution mode are recorded in the required S4 execution log. After integration the intended
+order is bounded C4C hide/deny, C4B tenant cutover/master-detail after DNA reconciliation, then C4D own/base library.
