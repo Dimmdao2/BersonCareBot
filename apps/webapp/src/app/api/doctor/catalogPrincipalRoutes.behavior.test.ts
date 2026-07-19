@@ -69,7 +69,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       addStageItem: addStageItemMock,
     },
     orgEntitlements: {
-      getTariffForOrg: vi.fn(async () => null),
+      getTariffForOrg: vi.fn(async () => ({ mechanics: { courses: true }, includedSeats: null })),
       listOverrides: vi.fn(async () => []),
     },
   }),
@@ -114,9 +114,9 @@ describe("doctor catalog API write principal behavior", () => {
     requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: workspace });
   });
 
-  it("POST /courses executes create through the course principal option", async () => {
+  it("POST /courses keeps all course reads and the mutation inside the selected workspace principal", async () => {
     createCourseMock.mockImplementation(async (_input: unknown, options: CourseWriteOptions) => {
-      expect(principalState.inside).toBe(false);
+      expect(principalState.inside).toBe(true);
       expect(options.runCourseWrite).toBeDefined();
       return options.runCourseWrite!(async () => {
         expect(principalState.inside).toBe(true);

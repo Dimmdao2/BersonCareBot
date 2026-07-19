@@ -6,6 +6,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+const getOptionalPatientSessionMock = vi.hoisted(() => vi.fn());
+const resolvePatientEnrollmentOrganizationIdMock = vi.hoisted(() => vi.fn());
+const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
+const patientPrincipalContexts = vi.hoisted(() => [] as Array<{ organizationId: string; platformUserId: string }>);
+
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     const e = new Error("NEXT_NOT_FOUND");
@@ -40,8 +45,26 @@ vi.mock("@/app-layer/platform-access", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  getOptionalPatientSession: vi.fn(async () => null),
+  getOptionalPatientSession: getOptionalPatientSessionMock,
   patientRscPersonalDataGate: vi.fn(),
+}));
+
+vi.mock("@/app/api/booking/bookingTenant", () => ({
+  resolvePatientEnrollmentOrganizationId: resolvePatientEnrollmentOrganizationIdMock,
+}));
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: requireEntitlementForActionMock,
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withPatientOrganizationPrincipal: (
+    ctx: { organizationId: string; platformUserId: string },
+    fn: () => unknown,
+  ) => {
+    patientPrincipalContexts.push(ctx);
+    return fn();
+  },
 }));
 
 const FIXTURE_SLUG = "fixture-subscription-section";
@@ -106,6 +129,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     courses: {
       getCourseForDoctor: getCourseForDoctorMock,
     },
+    patientOrganization: { resolveActiveOrganizationForPatient: vi.fn() },
     entitlements: null,
   }),
 }));
@@ -114,6 +138,10 @@ import PatientSectionPage from "./page";
 
 describe("PatientSectionPage / subscription (Phase 7)", () => {
   beforeEach(() => {
+    getOptionalPatientSessionMock.mockResolvedValue(null);
+    resolvePatientEnrollmentOrganizationIdMock.mockResolvedValue({ ok: false });
+    requireEntitlementForActionMock.mockResolvedValue({ ok: false });
+    patientPrincipalContexts.length = 0;
     listBlocksWithItemsMock.mockResolvedValue(subscriptionCarouselWithFixtureItem());
     listBySectionMock.mockResolvedValue([]);
     getCourseForDoctorMock.mockReset();
@@ -170,11 +198,19 @@ describe("PatientSectionPage / subscription (Phase 7)", () => {
     getCourseForDoctorMock.mockImplementation(async (id: string) =>
       id === courseId ? { id: courseId, title: "Курс", description: null, status: "published" } : null,
     );
+    getOptionalPatientSessionMock.mockResolvedValue({ user: { userId: "patient-a", role: "client" } });
+    resolvePatientEnrollmentOrganizationIdMock.mockResolvedValue({ ok: true, organizationId: "org-a" });
+    requireEntitlementForActionMock.mockResolvedValue({ ok: true });
     const ui = await PatientSectionPage({ params: Promise.resolve({ slug: FIXTURE_SLUG }) });
     render(ui);
     expect(screen.getByRole("link", { name: "Открыть курс" })).toHaveAttribute(
       "href",
       `/app/patient/courses?highlight=${encodeURIComponent(courseId)}`,
     );
+    expect(patientPrincipalContexts).toEqual([{
+      organizationId: "org-a",
+      platformUserId: "patient-a",
+      source: "app.patient.sections.course-projections",
+    }]);
   });
 });

@@ -5,6 +5,7 @@
  */
 
 import { cache } from "react";
+import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
   getCurrentSession,
@@ -733,10 +734,16 @@ const paymentsService =
           : undefined,
         onProductPaymentCaptured: async ({ productPurchaseId, paymentId, organizationId }) => {
           if (productsServiceResolved) {
-            await productsServiceResolved.activatePurchase(
-              productPurchaseId,
-              organizationId,
-              paymentId,
+            await withExplicitOrganizationPrincipal(
+              {
+                organizationId,
+                source: "payments.product-capture.fulfillment",
+              },
+              () => productsServiceResolved!.activatePurchase(
+                productPurchaseId,
+                organizationId,
+                paymentId,
+              ),
             );
           }
         },

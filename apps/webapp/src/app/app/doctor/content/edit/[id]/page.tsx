@@ -20,6 +20,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const coursesEnabled = (await requireEntitlementForAction(workspace, "courses")).ok;
   const { id } = await params;
 
   const page = await withDoctorWorkspacePrincipal(workspace, "doctor.content.edit.read", () => deps.contentPages.getById(id));
@@ -32,7 +33,9 @@ export default async function DoctorContentEditPage({ params }: Props) {
   try {
     ({ sections, publishedCourses } = await withDoctorWorkspacePrincipal(workspace, "doctor.content.edit.related-read", async () => ({
       sections: await deps.contentSections.listAll(),
-      publishedCourses: (await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })).map((c) => ({ id: c.id, title: c.title })),
+      publishedCourses: coursesEnabled
+        ? (await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })).map((c) => ({ id: c.id, title: c.title }))
+        : [],
     })));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/edit", err, { pageId: id });

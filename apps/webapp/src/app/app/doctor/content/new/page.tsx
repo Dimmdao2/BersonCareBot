@@ -40,13 +40,16 @@ export default async function DoctorContentNewPage({
   const systemParentFilter = isSystemParentCode(systemParentRaw) ? systemParentRaw : undefined;
 
   const deps = buildAppDeps();
+  const coursesEnabled = (await requireEntitlementForAction(workspace, "courses")).ok;
   let allSections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
   let publishedCourses: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
     ({ allSections, publishedCourses } = await withDoctorWorkspacePrincipal(workspace, "doctor.content.new.read", async () => ({
       allSections: await deps.contentSections.listAll(),
-      publishedCourses: (await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })).map((c) => ({ id: c.id, title: c.title })),
+      publishedCourses: coursesEnabled
+        ? (await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })).map((c) => ({ id: c.id, title: c.title }))
+        : [],
     })));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/new", err);

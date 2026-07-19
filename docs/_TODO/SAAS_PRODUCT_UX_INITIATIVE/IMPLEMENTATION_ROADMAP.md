@@ -485,8 +485,18 @@ card; запрещено строить временный resolver, второ�
   становятся global. Future store surface/commerce не блокирует C4D.
 - **Status (2026-07-19):** C4A clinic boundary, seat enforcement, downgrade preservation and executable concurrency
   proof are integrated through `e7adc50f5`; terminal critical audit passed. C4B code, tenant/security audit and
-  milestone CI are integrated through `d1fad7c65`. Live DEV entitlement OFF/ON/at-limit acceptance remains open for
-  C4A/C4B; C4C/C4D remain separate pending substages. C5C seat commerce is not part of the completed C4A scope.
+  milestone CI are integrated through `d1fad7c65`. C4C phase-A code and focused tests are prepared in isolated
+  worktree `codex/c4c-courses-26` on base `1cbedd46d`: explicit `courses` entitlement, trusted doctor/patient
+  organization principals, strict no-NULL course reads and related-object checks. The final convergence pass closed
+  the independent audit P1s: server-derived OFF/ON navigation visibility; patient-home/content/section course
+  projections through enrollment-org → `courses` entitlement → patient principal; CMS and patient-home optional
+  pickers hidden/empty on OFF and course-reference writes denied; exact-org UPDATE predicate without ownership
+  reassignment; and `0214` provenance corrected to canonical-owner migration `0086`. The payment-capture fulfillment
+  bridge also establishes its trusted organization principal before an indirect course enrollment. Targeted C4C
+  validation, S4 entitlement coverage and webapp typecheck pass; no DB/test/prod action was taken. **C4C is still
+  non-terminal:** U1/U2 and the prescribed live two-organization OFF/ON acceptance (including migration apply and
+  postcondition in an authorized environment) remain required. C4D remains a separate pending substage. C5C seat
+  commerce is not part of the completed C4A scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
   library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
   останавливает готовую tenant isolation.

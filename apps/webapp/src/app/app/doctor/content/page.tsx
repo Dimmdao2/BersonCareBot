@@ -16,6 +16,7 @@ export default async function DoctorContentPage() {
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const deps = buildAppDeps();
+  const coursesEnabled = (await requireEntitlementForAction(workspace, "courses")).ok;
 
   let pages: Awaited<ReturnType<typeof deps.contentPages.listAll>> = [];
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
@@ -36,7 +37,9 @@ export default async function DoctorContentPage() {
             targetKind: "content_page",
             targetIds: scopedPages.map((p) => p.id),
           }),
-          deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false }),
+          coursesEnabled
+            ? deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+            : Promise.resolve([]),
         ]);
         return {
           pages: scopedPages,

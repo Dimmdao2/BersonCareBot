@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
@@ -33,6 +34,8 @@ export async function GET(
 ) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  if (!entitlement.ok) return entitlement.response;
 
   const { id } = await context.params;
   if (!z.string().uuid().safeParse(id).success) {
@@ -40,7 +43,9 @@ export async function GET(
   }
 
   const deps = buildAppDeps();
-  const item = await deps.courses.getCourseForDoctor(id);
+  const item = await withDoctorWorkspacePrincipal(auth.ctx, "doctor.courses.get", () =>
+    deps.courses.getCourseForDoctor(id),
+  );
   if (!item) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   return NextResponse.json({ ok: true, item });
 }
@@ -51,6 +56,8 @@ export async function PATCH(
 ) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 
   const { id } = await context.params;
@@ -68,13 +75,15 @@ export async function PATCH(
   const { acknowledgeUsageWarning, ...patch } = parsed.data;
   try {
     const source = patch.status === "archived" ? "doctor.courses.archive" : "doctor.courses.update";
-    const item = await deps.courses.updateCourse(
-      id,
-      patch,
-      { acknowledgeUsageWarning },
-      {
-        runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, source, fn),
-      },
+    const item = await withDoctorWorkspacePrincipal(workspace, source, () =>
+      deps.courses.updateCourse(
+        id,
+        patch,
+        { acknowledgeUsageWarning },
+        {
+          runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, source, fn),
+        },
+      ),
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {

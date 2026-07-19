@@ -32,14 +32,13 @@ export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
 /**
- * C4A — scoped fail-closed exception to the compatibility default-true resolver (see
- * `resolveOrgEntitlements` in `service.ts`). Every mechanic except `clinic_team` keeps the
- * pre-existing "no tariff/override => enabled" compatibility behavior. `clinic_team` is a new
- * capability with no legacy fleet depending on it being on, so a missing tariff/override must
- * mean OFF, per OWNER_REVIEW_2026-07-18.md §§P1, 15 / C4C5-05.
+ * C4A/C4C — scoped fail-closed exceptions to the compatibility default-true resolver (see
+ * `resolveOrgEntitlements` in `service.ts`). `clinic_team` and `courses` require an explicit
+ * tariff or organization override. `courses` is the current owner-only legacy surface: treating
+ * a missing entitlement as enabled would expose it to a newly provisioned organization.
  */
 export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
-  MECHANICS.map((mechanic) => [mechanic, mechanic !== "clinic_team"]),
+  MECHANICS.map((mechanic) => [mechanic, mechanic !== "clinic_team" && mechanic !== "courses"]),
 ) as Record<OrgMechanic, boolean>;
 
 /**

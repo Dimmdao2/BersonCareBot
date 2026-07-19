@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { COURSE_LESSON_SECTIONS, type CourseUsageSnapshot } from "@/modules/courses/types";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
@@ -16,14 +18,17 @@ function isLessonSection(section: string): boolean {
 }
 
 export default async function DoctorCourseEditPage(props: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage({ organizationId: workspace.organizationId }, "courses");
   const { id } = await props.params;
   if (!z.string().uuid().safeParse(id).success) {
     notFound();
   }
 
   const deps = buildAppDeps();
-  let course = await deps.courses.getCourseForDoctor(id);
+  let course = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.get", () =>
+    deps.courses.getCourseForDoctor(id),
+  );
   if (!course) {
     notFound();
   }
@@ -34,18 +39,24 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   let usage: CourseUsageSnapshot | null = null;
 
   try {
-    usage = await deps.courses.getCourseUsage(id);
+    usage = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.usage", () =>
+      deps.courses.getCourseUsage(id),
+    );
   } catch {
     usage = null;
   }
 
   try {
-    const rows = await deps.treatmentProgram.listTemplates({});
+    const rows = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+      deps.treatmentProgram.listTemplates({}),
+    );
     templates = rows.map((r) => ({ id: r.id, title: r.title, status: r.status }));
     const templateIds = new Set(templates.map((t) => t.id));
     if (!templateIds.has(course.programTemplateId)) {
       try {
-        const d = await deps.treatmentProgram.getTemplate(course.programTemplateId);
+        const d = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+          deps.treatmentProgram.getTemplate(course.programTemplateId),
+        );
         templates = [{ id: d.id, title: d.title, status: d.status }, ...templates];
       } catch {
         templates = [
@@ -55,13 +66,17 @@ export default async function DoctorCourseEditPage(props: PageProps) {
       }
     }
 
-    const allPages = await deps.contentPages.listAll();
+    const allPages = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+      deps.contentPages.listAll(),
+    );
     const opts = allPages
       .filter((p) => !p.deletedAt && isLessonSection(p.section))
       .map((p) => ({ id: p.id, title: p.title }));
     const byId = new Map(opts.map((o) => [o.id, o]));
     if (course.introLessonPageId && !byId.has(course.introLessonPageId)) {
-      const extra = await deps.contentPages.getById(course.introLessonPageId);
+      const extra = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+        deps.contentPages.getById(course.introLessonPageId!),
+      );
       if (extra) {
         opts.push({ id: extra.id, title: `${extra.title} (текущая)` });
       }
@@ -74,7 +89,7 @@ export default async function DoctorCourseEditPage(props: PageProps) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <DoctorAppShell title={course.title} user={session.user} backHref="/app/doctor/courses">
+    <DoctorAppShell title={course.title} user={workspace.session.user} backHref="/app/doctor/courses">
       <section className={doctorCatalogEditorSectionClass}>
         <p className="font-mono text-xs text-muted-foreground">{course.id}</p>
         {loadError ? (

@@ -12,10 +12,14 @@ import {
 } from "./doctorNavLinks";
 import { resolveLaunchCapabilities } from "@/app-layer/guards/workspaceCapabilities";
 
-const doctorAccess = { capabilities: ["clinical.workspace", "account.self"] as const };
+const doctorAccess = {
+  capabilities: ["clinical.workspace", "account.self"] as const,
+  coursesEnabled: true,
+};
 const clinicAdminAccess = { capabilities: ["organization.management", "account.self"] as const };
 const adminAccess = {
   capabilities: ["platform.operations", "organization.management", "clinical.workspace"] as const,
+  coursesEnabled: true,
 };
 const platformOnlyAccess = { capabilities: ["platform.operations"] as const };
 
@@ -59,6 +63,18 @@ describe("isDoctorNavItemActive", () => {
 });
 
 describe("doctor menu structure", () => {
+  it("requires both clinical workspace and the trusted courses entitlement", () => {
+    expect(getDoctorMenuItems({ ...doctorAccess, coursesEnabled: false }).map((item) => item.id)).not.toContain(
+      "courses",
+    );
+    expect(getDoctorMenuItems(doctorAccess).map((item) => item.id)).toContain("courses");
+    expect(
+      getDoctorMenuItems({ capabilities: ["organization.management"], coursesEnabled: true }).map(
+        (item) => item.id,
+      ),
+    ).not.toContain("courses");
+  });
+
   it("returns stable management and account links in the same position for a dual-capability actor", () => {
     const items = getDoctorMenuItems(adminAccess);
     expect(items.map((i) => i.id)).toEqual([

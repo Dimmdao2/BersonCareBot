@@ -22,7 +22,13 @@ export type ProtectedActionExemption = Readonly<{
  * checker proves the named export and the selected guard in that source.
  */
 export const PROTECTED_ACTION_MAPPINGS = [
+  { id: "courses.list", mechanic: "courses", file: "src/app/api/doctor/courses/route.ts", exportName: "GET", method: "GET", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.courses.listCoursesForDoctor" },
   { id: "courses.create", mechanic: "courses", file: "src/app/api/doctor/courses/route.ts", exportName: "POST", method: "POST", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.courses.createCourse" },
+  { id: "courses.get", mechanic: "courses", file: "src/app/api/doctor/courses/[id]/route.ts", exportName: "GET", method: "GET", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.courses.getCourseForDoctor" },
+  { id: "courses.update", mechanic: "courses", file: "src/app/api/doctor/courses/[id]/route.ts", exportName: "PATCH", method: "PATCH", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.courses.updateCourse" },
+  { id: "courses.usage", mechanic: "courses", file: "src/app/api/doctor/courses/[id]/usage/route.ts", exportName: "GET", method: "GET", authContext: "requireDoctorWorkspaceApiContext", guard: "requireEntitlement", serviceBoundary: "deps.courses.getCourseUsage" },
+  { id: "courses.patient.list", mechanic: "courses", file: "src/app/api/patient/courses/route.ts", exportName: "GET", method: "GET", authContext: "requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId", guard: "requireEntitlement", serviceBoundary: "deps.courses.listAssignedForPatient" },
+  { id: "courses.patient.enroll", mechanic: "courses", file: "src/app/api/patient/courses/[courseId]/enroll/route.ts", exportName: "POST", method: "POST", authContext: "requirePatientApiBusinessAccess + resolvePatientEnrollmentOrganizationId", guard: "requireEntitlement", serviceBoundary: "deps.courses.enrollPatient" },
   { id: "mailings.execute", mechanic: "mailings", file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "executeBroadcastAction", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.doctorBroadcasts.execute" },
   { id: "cms-pages.save", mechanic: "cms_pages", file: "src/app/app/doctor/content/actions.ts", exportName: "saveContentPage", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentPages.updateFull/upsert" },
   { id: "cms-pages.lifecycle", mechanic: "cms_pages", file: "src/app/app/doctor/content/lifecycleActions.ts", exportName: "applyContentLifecycle", method: "action", authContext: "requireDoctorWorkspaceContext", guard: "requireEntitlementForAction", serviceBoundary: "deps.contentPages.updateLifecycle" },
@@ -59,7 +65,6 @@ export const PROTECTED_ACTION_MAPPINGS = [
  * guarantee, not an attempt to infer arbitrary future business semantics.
  */
 export const PROTECTED_ACTION_EXEMPTIONS = [
-  { file: "src/app/api/doctor/courses/route.ts", exportName: "GET", reason: "read route" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "previewBroadcastAction", reason: "non-mutating preview" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "listBroadcastAuditAction", reason: "read action" },
   { file: "src/app/app/doctor/broadcasts/actions.ts", exportName: "loadDraftAction", reason: "read action" },

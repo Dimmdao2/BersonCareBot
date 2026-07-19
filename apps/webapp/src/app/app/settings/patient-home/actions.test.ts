@@ -245,6 +245,21 @@ describe("patient-home settings actions", () => {
     if (!res.ok) expect(res.error).toContain("invalid_target_type");
   });
 
+  it("denies an OFF course reference after workspace/CMS authorization and before the patient-home write", async () => {
+    entitlementMock
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
+
+    const res = await addPatientHomeItem({
+      blockCode: "courses",
+      targetType: "course",
+      targetRef: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(addItemMock).not.toHaveBeenCalled();
+  });
+
   it("reorder items validates block code", async () => {
     const res = await reorderPatientHomeItems("bad-code", ["550e8400-e29b-41d4-a716-446655440000"]);
     expect(res.ok).toBe(false);
@@ -291,6 +306,21 @@ describe("patient-home settings actions", () => {
       targetType: "content_page",
       targetRef: "new-slug",
     });
+  });
+
+  it("denies retargeting to a course while courses is OFF", async () => {
+    entitlementMock
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
+
+    const res = await retargetPatientHomeItem({
+      itemId: "550e8400-e29b-41d4-a716-446655440000",
+      targetType: "course",
+      targetRef: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(updateItemMock).not.toHaveBeenCalled();
   });
 
   it("retarget rejects empty target ref", async () => {

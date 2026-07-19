@@ -2,8 +2,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
 const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
+}));
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: requireEntitlementMock,
+}));
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withPatientOrganizationPrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
 }));
 
 const enrollPatientMock = vi.hoisted(() => vi.fn());
@@ -11,6 +18,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     courses: {
       enrollPatient: (...args: unknown[]) => enrollPatientMock(...args),
+    },
+    patientOrganization: {
+      resolveActiveOrganizationForPatient: vi.fn(async () => ({ ok: true, organizationId: "org-a" })),
     },
   }),
 }));
@@ -42,6 +52,7 @@ describe("POST /api/patient/courses/[courseId]/enroll", () => {
     enrollPatientMock.mockReset();
     mockRequirePatientApiBusinessAccess.mockReset();
     mockRequirePatientApiBusinessAccess.mockResolvedValue(makeAllowedGate());
+    requireEntitlementMock.mockResolvedValue({ ok: true });
     enrollPatientMock.mockResolvedValue({ id: "instance-1", title: "Программа" });
   });
 
@@ -105,5 +116,18 @@ describe("POST /api/patient/courses/[courseId]/enroll", () => {
     const body = (await res.json()) as { ok?: boolean; error?: string };
     expect(body.ok).toBe(false);
     expect(body.error).toBe("Курс не найден");
+  });
+
+  it("denies entitlement-off before enrolling and never accepts a request-selected organization", async () => {
+    requireEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required" }, { status: 403 }),
+    });
+    const res = await POST(new Request("http://localhost/api?organizationId=forged-org-b"), {
+      params: Promise.resolve({ courseId: COURSE_ID }),
+    });
+    expect(res.status).toBe(403);
+    expect(requireEntitlementMock).toHaveBeenCalledWith({ organizationId: "org-a" }, "courses");
+    expect(enrollPatientMock).not.toHaveBeenCalled();
   });
 });

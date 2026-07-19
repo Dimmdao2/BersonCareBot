@@ -1,6 +1,8 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
@@ -22,7 +24,8 @@ export default async function DoctorCoursesNewPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage({ organizationId: workspace.organizationId }, "courses");
   const sp = await searchParams;
   const returnContext: PatientHomeCmsReturnQuery =
     parsePatientHomeCmsReturnQuery({
@@ -37,7 +40,9 @@ export default async function DoctorCoursesNewPage({
   let templates: { id: string; title: string; status: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    const rows = await deps.treatmentProgram.listTemplates({});
+    const rows = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.picker", () =>
+      deps.treatmentProgram.listTemplates({}),
+    );
     templates = rows.map((r) => ({ id: r.id, title: r.title, status: r.status }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/courses/new", err);
@@ -48,7 +53,7 @@ export default async function DoctorCoursesNewPage({
   return (
     <DoctorAppShell
       title="Новый курс (черновик)"
-      user={session.user}
+      user={workspace.session.user}
      
       backHref={returnContext.returnTo}
       backLabel="Назад"

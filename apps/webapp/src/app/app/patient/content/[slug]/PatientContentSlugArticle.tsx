@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Clock3 } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { MarkdownContent } from "@/shared/ui/patient/markdown/MarkdownContent";
@@ -89,19 +92,28 @@ export async function PatientContentSlugArticle({
   const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   let courseCta: { courseTitle: string; href: string } | null = null;
-  if (dbRow?.linkedCourseId) {
-    const course = await deps.courses.getCourseForDoctor(dbRow.linkedCourseId);
-    if (course?.status === "published") {
-      let href = `${routePaths.patientCourses}?highlight=${encodeURIComponent(course.id)}`;
-      const userId = session?.user?.userId;
-      if (userId) {
-        const instances = await deps.treatmentProgramInstance.listForPatient(userId);
-        const match = instances.find((i) => i.status === "active" && i.templateId === course.programTemplateId);
-        if (match) {
-          href = routePaths.patientTreatmentProgram(match.id);
-        }
-      }
-      courseCta = { courseTitle: course.title, href };
+  if (dbRow?.linkedCourseId && session) {
+    const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
+    if (patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok) {
+      courseCta = await withPatientOrganizationPrincipal(
+        {
+          organizationId: patientOrganization.organizationId,
+          platformUserId: session.user.userId,
+          source: "app.patient.content.course-cta",
+        },
+        async () => {
+          const course = await deps.courses.getCourseForDoctor(dbRow.linkedCourseId!);
+          if (course?.status !== "published") return null;
+          const instances = await deps.treatmentProgramInstance.listForPatient(session.user.userId);
+          const match = instances.find((i) => i.status === "active" && i.templateId === course.programTemplateId);
+          return {
+            courseTitle: course.title,
+            href: match
+              ? routePaths.patientTreatmentProgram(match.id)
+              : `${routePaths.patientCourses}?highlight=${encodeURIComponent(course.id)}`,
+          };
+        },
+      );
     }
   }
 

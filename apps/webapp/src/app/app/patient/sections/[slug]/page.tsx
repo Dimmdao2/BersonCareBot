@@ -7,6 +7,9 @@ import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
+import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
@@ -75,13 +78,23 @@ export default async function PatientSectionPage({ params }: Props) {
   ].map((id) => id.trim());
 
   const courseHighlightByLinkedId = new Map<string, string>();
-  if (linkedCourseIds.length > 0) {
-    const courseRows = await Promise.all(linkedCourseIds.map((id) => deps.courses.getCourseForDoctor(id)));
-    for (let i = 0; i < linkedCourseIds.length; i += 1) {
-      const row = courseRows[i];
-      const key = linkedCourseIds[i]!;
-      if (row?.status === "published") {
-        courseHighlightByLinkedId.set(key, `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`);
+  if (linkedCourseIds.length > 0 && session) {
+    const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
+    if (patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok) {
+      const courseRows = await withPatientOrganizationPrincipal(
+        {
+          organizationId: patientOrganization.organizationId,
+          platformUserId: session.user.userId,
+          source: "app.patient.sections.course-projections",
+        },
+        () => Promise.all(linkedCourseIds.map((id) => deps.courses.getCourseForDoctor(id))),
+      );
+      for (let i = 0; i < linkedCourseIds.length; i += 1) {
+        const row = courseRows[i];
+        const key = linkedCourseIds[i]!;
+        if (row?.status === "published") {
+          courseHighlightByLinkedId.set(key, `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`);
+        }
       }
     }
   }

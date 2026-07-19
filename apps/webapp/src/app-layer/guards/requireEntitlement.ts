@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import type { OrgMechanic } from "@/modules/org-entitlements/types";
@@ -40,4 +41,18 @@ export async function requireEntitlementForAction(
   return (await assertMechanicEnabled(ctx.organizationId, mechanic))
     ? { ok: true }
     : { ok: false, mechanic };
+}
+
+/**
+ * RSC page adapter: fail-closed `notFound()` when the trusted organization lacks the mechanic.
+ * Keeps entitlement resolution inside this boundary — pages must call this instead of resolving
+ * the mechanic themselves.
+ */
+export async function requireEntitlementForPage(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<void> {
+  if (!(await assertMechanicEnabled(ctx.organizationId, mechanic))) {
+    notFound();
+  }
 }

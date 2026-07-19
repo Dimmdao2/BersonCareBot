@@ -39,6 +39,7 @@ export default async function DoctorPatientHomeSettingsPage() {
   const deps = buildAppDeps();
   // P0.11.3: all settings read below are PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
   const organizationId = workspace.organizationId;
+  const coursesEnabled = (await requireEntitlementForAction(workspace, "courses")).ok;
   const [
     blocks,
     pages,
@@ -54,7 +55,7 @@ export default async function DoctorPatientHomeSettingsPage() {
     deps.patientHomeBlocks.listBlocksWithItems(),
     deps.contentPages.listAll(),
     deps.contentSections.listAll(),
-    deps.courses.listCoursesForDoctor({ includeArchived: true }),
+    coursesEnabled ? deps.courses.listCoursesForDoctor({ includeArchived: true }) : Promise.resolve([]),
     canManagePatientHome
       ? deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin", { organizationId })
       : Promise.resolve(null),

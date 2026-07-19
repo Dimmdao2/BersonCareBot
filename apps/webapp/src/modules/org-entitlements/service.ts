@@ -9,12 +9,10 @@ import type { OrgEntitlementsPort } from "./ports";
 
 /**
  * Store P0 — entitlement foundation. Resolves, for EACH canonical mechanic, the precedence
- * override > tariff > `MECHANIC_DEFAULT_ENABLED[mechanic]`. Default-true is intentional for every
- * pre-C4A mechanic: no route was gated before P0, so an org with no tariff assigned (the legacy
- * fleet) resolves to all-enabled — identical behavior to before this module existed. `clinic_team`
- * is the scoped exception (C4A): it defaults OFF with no tariff/override, see
- * `MECHANIC_DEFAULT_ENABLED`. See STORE_P0_ENTITLEMENTS_PLAN.md and OWNER_REVIEW_2026-07-18.md
- * §§P1, 15 (C4C5-05).
+ * override > tariff > `MECHANIC_DEFAULT_ENABLED[mechanic]`. Default-true remains intentional for
+ * compatibility mechanics. `clinic_team` (C4A) and the current owner-only `courses` surface
+ * (C4C) are scoped exceptions: both default OFF without a tariff or override. See
+ * STORE_P0_ENTITLEMENTS_PLAN.md and OWNER_REVIEW_2026-07-18.md §§13, 15.
  */
 export async function resolveOrgEntitlements(
   port: OrgEntitlementsPort,

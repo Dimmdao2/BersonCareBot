@@ -18,13 +18,14 @@ function portFor(
 }
 
 describe("resolveOrgEntitlements", () => {
-  it("defaults every legacy mechanic to enabled but clinic_team to disabled when there is no tariff and no overrides", async () => {
+  it("defaults compatibility mechanics to enabled but clinic_team and courses to disabled when there is no tariff and no overrides", async () => {
     const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
     for (const mechanic of MECHANICS) {
-      if (mechanic === "clinic_team") continue;
+      if (mechanic === "clinic_team" || mechanic === "courses") continue;
       expect(result[mechanic]).toBe(true);
     }
     expect(result.clinic_team).toBe(false);
+    expect(result.courses).toBe(false);
   });
 
   it("enables clinic_team once a tariff explicitly turns it on", async () => {
@@ -53,9 +54,9 @@ describe("resolveOrgEntitlements", () => {
     expect(result.courses).toBe(true);
   });
 
-  it("keeps intentionally-unassigned existing organizations default-on until a data gate", async () => {
+  it("keeps courses fail-closed for an unassigned organization", async () => {
     const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
-    expect(result.courses).toBe(true);
+    expect(result.courses).toBe(false);
   });
 
   it("does not leak an override from organization A into organization B", async () => {
@@ -68,7 +69,7 @@ describe("resolveOrgEntitlements", () => {
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
     };
     await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(false);
-    await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(true);
+    await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(false);
   });
 });
 

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 const authMock = vi.hoisted(() => vi.fn());
 const entitlementMock = vi.hoisted(() => vi.fn());
 const createCourseMock = vi.hoisted(() => vi.fn());
+const listCoursesMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: authMock,
@@ -12,13 +13,13 @@ vi.mock("@/app-layer/guards/requireEntitlement", () => ({
   requireEntitlement: entitlementMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
-  buildAppDeps: () => ({ courses: { createCourse: createCourseMock } }),
+  buildAppDeps: () => ({ courses: { createCourse: createCourseMock, listCoursesForDoctor: listCoursesMock } }),
 }));
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: (_ctx: unknown, _source: string, fn: () => unknown) => fn(),
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const workspace = {
   organizationId: "org-a",
@@ -35,6 +36,7 @@ describe("courses entitlement ordering", () => {
     authMock.mockResolvedValue({ ok: true, ctx: workspace });
     entitlementMock.mockResolvedValue({ ok: true });
     createCourseMock.mockResolvedValue({ id: "course-a" });
+    listCoursesMock.mockResolvedValue([]);
   });
 
   it("does not resolve entitlement or call service when authentication fails", async () => {
@@ -60,5 +62,16 @@ describe("courses entitlement ordering", () => {
     const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify(validBody) }));
     expect(response.status).toBe(200);
     expect(createCourseMock).toHaveBeenCalledOnce();
+  });
+
+  it("denies list access before the service when courses are disabled", async () => {
+    entitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "entitlement_required" }, { status: 403 }),
+    });
+    const response = await GET(new Request("http://localhost/api/doctor/courses?organizationId=forged-org-b"));
+    expect(response.status).toBe(403);
+    expect(entitlementMock).toHaveBeenCalledWith(workspace, "courses");
+    expect(listCoursesMock).not.toHaveBeenCalled();
   });
 });

@@ -58,6 +58,8 @@ export async function saveContentPage(
       return { ok: false, error: "Связанный курс: укажите корректный UUID или оставьте пустым." };
     }
     linkedCourseId = uuidParsed.data;
+    const coursesEntitlement = await requireEntitlementForAction(workspace, "courses");
+    if (!coursesEntitlement.ok) return { ok: false, error: "entitlement_required" };
   }
 
   if (!slug || !title) return { ok: false, error: "Заполните заголовок и slug" };
@@ -117,7 +119,9 @@ export async function saveContentPage(
             .reduce((max, pageRow) => Math.max(max, pageRow.sortOrder), -1) + 1;
 
     if (linkedCourseId) {
-      const course = await deps.courses.getCourseForDoctor(linkedCourseId);
+      const course = await withDoctorWorkspacePrincipal(workspace, () =>
+        deps.courses.getCourseForDoctor(linkedCourseId!),
+      );
       if (!course || course.status !== "published") {
         return { ok: false, error: "Курс не найден или не опубликован." };
       }
@@ -177,7 +181,9 @@ export async function saveContentPage(
         .reduce((max, pageRow) => Math.max(max, pageRow.sortOrder), -1) + 1;
 
   if (linkedCourseId) {
-    const course = await deps.courses.getCourseForDoctor(linkedCourseId);
+    const course = await withDoctorWorkspacePrincipal(workspace, () =>
+      deps.courses.getCourseForDoctor(linkedCourseId!),
+    );
     if (!course || course.status !== "published") {
       return { ok: false, error: "Курс не найден или не опубликован." };
     }

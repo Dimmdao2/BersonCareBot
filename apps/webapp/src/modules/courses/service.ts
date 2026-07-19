@@ -179,7 +179,7 @@ export function createCoursesService(deps: {
       }
 
       const row = await runCourseWrite(writeOptions, () => courses.update(id.trim(), patch));
-      if (!row) throw new Error("Курс не найден");
+      if (!row) throw new CourseArchiveNotFoundError();
       return row;
     },
 

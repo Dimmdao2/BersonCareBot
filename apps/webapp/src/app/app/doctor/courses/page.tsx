@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type { CourseStatus } from "@/modules/courses/types";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DataLoadFailureNotice } from "@/shared/ui/doctor/DataLoadFailureNotice";
@@ -53,7 +55,8 @@ type PageProps = {
 };
 
 export default async function DoctorCoursesPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  await requireEntitlementForPage({ organizationId: workspace.organizationId }, "courses");
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const listStatus = parseTemplateCourseCatalogListStatus(sp);
@@ -62,7 +65,9 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   let courses: Awaited<ReturnType<typeof deps.courses.listCoursesForDoctor>> = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
-    courses = await deps.courses.listCoursesForDoctor(courseFilter);
+    courses = await withDoctorWorkspacePrincipal(workspace, "app.doctor.courses.list", () =>
+      deps.courses.listCoursesForDoctor(courseFilter),
+    );
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/courses", err);
   }
@@ -70,7 +75,7 @@ export default async function DoctorCoursesPage({ searchParams }: PageProps) {
   const isDev = process.env.NODE_ENV === "development";
 
   return (
-    <DoctorAppShell title="Курсы" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell title="Курсы" user={workspace.session.user} backHref="/app/doctor">
       <DoctorPageHeader title="Курсы" />
       <DoctorCatalogFiltersToolbar
         filters={

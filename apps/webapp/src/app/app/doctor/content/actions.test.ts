@@ -509,6 +509,23 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it("denies a course reference when courses is off, after CMS authorization and before any course/page write", async () => {
+    requireEntitlementForActionMock
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
+
+    const res = await saveContentPage(null, formWith({
+      section: "lessons",
+      slug: "course-off",
+      title: "T",
+      linked_course_id: publishedCourseId,
+    }));
+
+    expect(res).toEqual({ ok: false, error: "entitlement_required" });
+    expect(getCourseForDoctorMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it("saves linked_course_id when course is published", async () => {
     upsertMock.mockResolvedValue(undefined);
     getCourseForDoctorMock.mockResolvedValue({

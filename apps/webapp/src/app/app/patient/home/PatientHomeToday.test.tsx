@@ -32,6 +32,7 @@ const refresh = vi.fn();
 const systemSettingsGetSetting = vi.hoisted(() => vi.fn().mockImplementation(async () => null));
 const getReminderMutedUntil = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const messagingPatientUnreadCount = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+const patientPrincipalContexts = vi.hoisted(() => [] as Array<{ organizationId: string; platformUserId: string; source: string }>);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
@@ -81,6 +82,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     patientMood: { getCheckinState, getRecentDaysSparkline },
     messaging: { patient: { unreadCount: messagingPatientUnreadCount } },
   }),
+}));
+
+vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
+  withPatientOrganizationPrincipal: (
+    ctx: { organizationId: string; platformUserId: string; source: string },
+    fn: () => unknown,
+  ) => {
+    patientPrincipalContexts.push(ctx);
+    return fn();
+  },
 }));
 
 vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
@@ -250,6 +261,12 @@ function reminderRulesProgressTargetFour(): ReminderRule[] {
 
 describe("PatientHomeToday", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    patientPrincipalContexts.length = 0;
+    listRulesByUser.mockClear();
+    listForPatient.mockClear();
+    loadPatientHomeProgressMetrics.mockClear();
+    coursesGetCourseForDoctor.mockClear();
     vi.mocked(getPatientHomeTodayConfig).mockResolvedValue({
       dailyWarmupItem: {
         blockItem: homeItem("i-w", "daily_warmup", "content_page", "fixture-warmup-page", 0),
@@ -354,6 +371,57 @@ describe("PatientHomeToday", () => {
     getPatientDefaultPromoTreatmentProgramTemplateId.mockReset();
     getPatientDefaultPromoTreatmentProgramTemplateId.mockResolvedValue(null);
     treatmentProgramGetTemplate.mockReset();
+  });
+
+  it("keeps course cards neutral without a trusted entitled enrollment organization", async () => {
+    listBlocksWithItems.mockResolvedValueOnce([
+      homeBlock("courses", 80, [homeItem("course-item", "courses", "course", "course-a", 0)]),
+    ]);
+
+    render(
+      await PatientHomeToday({
+        session: fixtureSession,
+        personalTierOk: true,
+        canViewAuthOnlyContent: true,
+        coursesOrganizationId: null,
+      }),
+    );
+
+    expect(coursesGetCourseForDoctor).not.toHaveBeenCalled();
+    expect(patientPrincipalContexts).toEqual([]);
+  });
+
+  it("uses only the trusted enrollment organization for an enabled course card", async () => {
+    listBlocksWithItems.mockResolvedValueOnce([
+      homeBlock("courses", 80, [homeItem("course-item", "courses", "course", "course-a", 0)]),
+    ]);
+    coursesGetCourseForDoctor.mockResolvedValueOnce({
+      id: "course-a",
+      title: "Курс A",
+      description: "Описание",
+      status: "published",
+    });
+
+    render(
+      await PatientHomeToday({
+        session: fixtureSession,
+        personalTierOk: true,
+        canViewAuthOnlyContent: true,
+        coursesOrganizationId: "org-a",
+      }),
+    );
+
+    expect(patientPrincipalContexts).toEqual([
+      {
+        organizationId: "org-a",
+        platformUserId: fixtureSession.user.userId,
+        source: "app.patient.home.courses",
+      },
+    ]);
+    expect(screen.getByRole("link", { name: /Курс A/i })).toHaveAttribute(
+      "href",
+      "/app/patient/courses?highlight=course-a",
+    );
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, shows personal blocks with guest CTAs", async () => {

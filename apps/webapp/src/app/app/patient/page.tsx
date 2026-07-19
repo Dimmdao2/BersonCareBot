@@ -5,6 +5,9 @@
 
 import { DateTime } from "luxon";
 import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { patientGreetingPersonalizedName } from "@/modules/patient-home/patientGreetingPersonalizedName";
@@ -26,6 +29,11 @@ export default async function PatientHomePage() {
 
   const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
+  const patientOrganization = await resolvePatientEnrollmentOrganizationId(buildAppDeps(), session.user.userId);
+  const coursesOrganizationId =
+    patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok
+      ? patientOrganization.organizationId
+      : null;
   const appTz = await getAppDisplayTimeZone();
   const personalizedName =
     personalTierOk ? patientGreetingPersonalizedName(session.user) : null;
@@ -49,6 +57,7 @@ export default async function PatientHomePage() {
           session={session}
           personalTierOk={personalTierOk}
           canViewAuthOnlyContent={canViewAuthOnlyContent}
+          coursesOrganizationId={coursesOrganizationId}
         />
       </Suspense>
       <LegalFooterLinks className="mt-3 pb-2" />

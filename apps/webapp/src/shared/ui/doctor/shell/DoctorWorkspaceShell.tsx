@@ -63,6 +63,7 @@ export function DoctorWorkspaceShell({
       capabilities.includes("platform.operations"));
   const menuAccess = {
     capabilities,
+    coursesEnabled,
   };
   const homeHref = getDoctorShellHomeHref(menuAccess);
   const showClinicalShortcuts = capabilities.includes("clinical.workspace");

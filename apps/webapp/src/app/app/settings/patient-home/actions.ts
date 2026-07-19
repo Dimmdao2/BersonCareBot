@@ -85,6 +85,15 @@ async function requireDoctorForPatientHomeBlocks(): Promise<DoctorWorkspaceAcces
   return workspace;
 }
 
+async function requireCoursesForPatientHomeReference(
+  workspace: DoctorWorkspaceAccessContext,
+  targetType: string,
+): Promise<ActionState | null> {
+  if (targetType !== "course") return null;
+  const entitlement = await requireEntitlementForAction(workspace, "courses");
+  return entitlement.ok ? null : fail("entitlement_required");
+}
+
 function revalidatePatientHomeSettings(): void {
   revalidatePath("/app/settings/patient-home");
   revalidatePath("/app/doctor/patient-home");
@@ -157,6 +166,8 @@ export async function addPatientHomeItem(input: {
     if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const targetTypeParsed = targetTypeSchema.safeParse(input.targetType);
     if (!targetTypeParsed.success) return fail("invalid_target_type");
+    const courseDenied = await requireCoursesForPatientHomeReference(workspace, targetTypeParsed.data);
+    if (courseDenied) return courseDenied;
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.add-item", () => deps.patientHomeBlocks.addItem({
       blockCode,
@@ -279,6 +290,8 @@ export async function retargetPatientHomeItem(input: {
       const msg = parsed.error.issues[0]?.message ?? "retarget_failed";
       return fail(msg);
     }
+    const courseDenied = await requireCoursesForPatientHomeReference(workspace, parsed.data.targetType);
+    if (courseDenied) return courseDenied;
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.retarget-item", () => deps.patientHomeBlocks.updateItem(parsed.data.itemId, {
       targetType: parsed.data.targetType as PatientHomeBlockItemTargetType,
@@ -392,6 +405,10 @@ export async function listPatientHomeCandidates(blockCode: string): Promise<
   try {
     const workspace = await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(blockCode)) return { ok: false, error: "invalid_block_code", items: [] };
+    if (blockCode === "courses") {
+      const entitlement = await requireEntitlementForAction(workspace, "courses");
+      if (!entitlement.ok) return { ok: true, items: [] };
+    }
     const deps = buildAppDeps();
     const items = await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.list-candidates", () =>
       deps.patientHomeBlocks.listCandidatesForBlock(blockCode),

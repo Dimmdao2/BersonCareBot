@@ -73,11 +73,14 @@ import { resolveFirstPendingProgramTabItemId } from "./resolveFirstPendingProgra
 import { loadPatientHomeProgressMetrics } from "@/modules/patient-home/loadPatientHomeProgressMetrics";
 import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientHomeProgressMetrics";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
+import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 type Props = {
   session: AppSession | null;
   personalTierOk: boolean;
   canViewAuthOnlyContent: boolean;
+  /** Trusted enrollment org only when its courses entitlement is on; otherwise course cards stay neutral. */
+  coursesOrganizationId?: string | null;
 };
 
 function mapSituationChipsForGuest(chips: ResolvedSituationChip[], anonymousGuest: boolean): ResolvedSituationChip[] {
@@ -125,7 +128,7 @@ export async function PatientHomeToday(props: Props) {
   return runWithWebappDbOperationFamily("patient_content_catalog", () => renderPatientHomeToday(props));
 }
 
-async function renderPatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
+async function renderPatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent, coursesOrganizationId = null }: Props) {
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
   const serverRenderInstant = new Date();
@@ -179,7 +182,16 @@ async function renderPatientHomeToday({ session, personalTierOk, canViewAuthOnly
       resolveSubscriptionCarouselCards(subscriptionBlock.items, resolverDeps, canViewAuthOnlyContent)
     : Promise.resolve([]),
     sosBlock ? resolveSosCard(sosBlock.items, resolverDeps, canViewAuthOnlyContent) : Promise.resolve(null),
-    coursesBlock ? resolveCourseRowCards(coursesBlock.items, resolverDeps) : Promise.resolve([]),
+    coursesBlock && session && coursesOrganizationId
+      ? withPatientOrganizationPrincipal(
+          {
+            organizationId: coursesOrganizationId,
+            platformUserId: session.user.userId,
+            source: "app.patient.home.courses",
+          },
+          () => resolveCourseRowCards(coursesBlock.items, resolverDeps),
+        )
+      : Promise.resolve([]),
     usefulPostBlock ?
       resolveUsefulPostCard(usefulPostBlock.items, resolverDeps, canViewAuthOnlyContent)
     : Promise.resolve(null),

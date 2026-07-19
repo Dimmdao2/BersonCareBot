@@ -26,6 +26,8 @@ const postBodySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
+  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  if (!entitlement.ok) return entitlement.response;
 
   const { searchParams } = new URL(request.url);
   const parsed = listQuerySchema.safeParse(Object.fromEntries(searchParams));
@@ -34,10 +36,12 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const items = await deps.courses.listCoursesForDoctor({
-    status: parsed.data.status ?? null,
-    includeArchived: parsed.data.includeArchived ?? false,
-  });
+  const items = await withDoctorWorkspacePrincipal(auth.ctx, "doctor.courses.list", () =>
+    deps.courses.listCoursesForDoctor({
+      status: parsed.data.status ?? null,
+      includeArchived: parsed.data.includeArchived ?? false,
+    }),
+  );
   return NextResponse.json({ ok: true, items });
 }
 
@@ -56,20 +60,22 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   try {
-    const item = await deps.courses.createCourse(
-      {
-        title: parsed.data.title,
-        description: parsed.data.description ?? null,
-        programTemplateId: parsed.data.programTemplateId,
-        introLessonPageId: parsed.data.introLessonPageId ?? null,
-        accessSettings: parsed.data.accessSettings ?? {},
-        status: parsed.data.status,
-        priceMinor: parsed.data.priceMinor,
-        currency: parsed.data.currency,
-      },
-      {
-        runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", fn),
-      },
+    const item = await withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", () =>
+      deps.courses.createCourse(
+        {
+          title: parsed.data.title,
+          description: parsed.data.description ?? null,
+          programTemplateId: parsed.data.programTemplateId,
+          introLessonPageId: parsed.data.introLessonPageId ?? null,
+          accessSettings: parsed.data.accessSettings ?? {},
+          status: parsed.data.status,
+          priceMinor: parsed.data.priceMinor,
+          currency: parsed.data.currency,
+        },
+        {
+          runCourseWrite: (fn) => withDoctorWorkspacePrincipal(workspace, "doctor.courses.create", fn),
+        },
+      ),
     );
     return NextResponse.json({ ok: true, item });
   } catch (e) {

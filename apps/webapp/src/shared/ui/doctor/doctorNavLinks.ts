@@ -37,6 +37,7 @@ export type DoctorMenuAccessTier = "doctor" | "staff" | "clinic_admin" | "global
 
 export type DoctorMenuAccess = {
   capabilities: readonly LaunchCapability[];
+  coursesEnabled?: boolean;
 };
 
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
@@ -48,6 +49,7 @@ export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
 }
 
 export function isDoctorMenuLinkVisible(item: DoctorMenuLinkItem, access: DoctorMenuAccess): boolean {
+  if (item.requiresCoursesEntitlement && !access.coursesEnabled) return false;
   const tier = item.accessTier ?? "doctor";
   if (tier === "doctor") return hasLaunchCapability(access.capabilities, "clinical.workspace");
   if (tier === "staff") {
@@ -100,7 +102,12 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   },
   { id: "content", label: "Контент", href: "/app/doctor/content" },
   { id: "files-and-media", label: "Файлы и медиа", href: "/app/doctor/content/library" },
-  { id: "courses", label: "Курсы", href: "/app/doctor/courses" },
+  {
+    id: "courses",
+    label: "Курсы",
+    href: "/app/doctor/courses",
+    requiresCoursesEntitlement: true,
+  },
   {
     id: "management",
     label: "Управление практикой",

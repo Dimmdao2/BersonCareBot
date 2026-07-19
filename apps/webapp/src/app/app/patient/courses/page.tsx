@@ -1,11 +1,14 @@
 /**
  * Каталог курсов (§9): метаданные и цена; запись создаёт экземпляр программы как при назначении врача.
  */
+import { notFound } from "next/navigation";
 import { z } from "zod";
+import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForPage } from "@/app-layer/guards/requireEntitlement";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
+import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { cn } from "@/lib/utils";
 import { PatientAppShell } from "@/shared/ui/patient/PatientAppShell";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
@@ -18,22 +21,24 @@ export default async function PatientCoursesPage({ searchParams }: PageProps) {
   const rawHighlight = Array.isArray(sp.highlight) ? sp.highlight[0] : sp.highlight;
   const highlightCourseId =
     rawHighlight && z.string().uuid().safeParse(rawHighlight).success ? rawHighlight : undefined;
-  const session = await getOptionalPatientSession();
+  const session = await requirePatientAccessWithPhone(routePaths.patientCourses);
   const deps = buildAppDeps();
-  const items = await deps.courses.listPublishedCatalog();
-
-  let enrollReady = false;
-  let loggedIn = false;
-  if (session) {
-    loggedIn = true;
-    const g = await patientClientBusinessGate(session);
-    enrollReady = g === "allow";
-  }
+  const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
+  if (!patientOrganization.ok) notFound();
+  await requireEntitlementForPage({ organizationId: patientOrganization.organizationId }, "courses");
+  const items = await withPatientOrganizationPrincipal(
+    {
+      organizationId: patientOrganization.organizationId,
+      platformUserId: session.user.userId,
+      source: "app.patient.courses.catalog",
+    },
+    () => deps.courses.listPublishedCatalog(),
+  );
 
   return (
     <PatientAppShell
       title="Курсы"
-      user={session?.user ?? null}
+      user={session.user}
       backHref={routePaths.patient}
       backLabel="Меню"
      
@@ -43,8 +48,8 @@ export default async function PatientCoursesPage({ searchParams }: PageProps) {
       </p>
       <PatientCoursesCatalogClient
         items={items}
-        enrollReady={enrollReady}
-        loggedIn={loggedIn}
+        enrollReady
+        loggedIn
         highlightCourseId={highlightCourseId}
       />
     </PatientAppShell>

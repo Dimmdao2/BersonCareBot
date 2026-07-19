@@ -1,9 +1,8 @@
-import { and, desc, eq, isNull, ne, or } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
-import { getPool } from "@/infra/db/client";
 import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
-import { runPgPoolPgText } from "@/infra/db/runWebappSql";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { courses as coursesTable } from "../../../db/schema/courses";
 import { contentPages } from "../../../db/schema/schema";
 import { treatmentProgramTemplates } from "../../../db/schema/treatmentProgramTemplates";
@@ -19,32 +18,20 @@ import type {
 } from "@/modules/courses/types";
 import { COURSE_USAGE_DETAIL_LIMIT } from "@/modules/courses/types";
 
-function optionalPrincipalOrganizationId(): string | null {
-  return getCurrentDbPrincipalOrganizationId() ?? null;
-}
-
 function currentPrincipalOrganizationId(): string {
-  const principalOrganizationId = optionalPrincipalOrganizationId();
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId() ?? null;
   if (!principalOrganizationId) {
     throw new Error("organization_principal_required");
   }
   return principalOrganizationId;
 }
 
-function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string {
+function requireCurrentOrganizationOwnership(relatedOrganizationId: string | null | undefined): string {
   const principalOrganizationId = currentPrincipalOrganizationId();
-  const fallbackOrganizationIds = fallbacks.filter((x): x is string => Boolean(x));
-  const fallbackOrganizationId = fallbackOrganizationIds[0] ?? null;
-  const hasFallbackMismatch = fallbackOrganizationIds.some((id) => id !== fallbackOrganizationId);
-  if (hasFallbackMismatch || (fallbackOrganizationId && principalOrganizationId !== fallbackOrganizationId)) {
+  if (!relatedOrganizationId || principalOrganizationId !== relatedOrganizationId) {
     throw new Error("organization_principal_mismatch");
   }
   return principalOrganizationId;
-}
-
-function organizationReadCondition(organizationId: string | null) {
-  if (!organizationId) return undefined;
-  return or(eq(coursesTable.organizationId, organizationId), isNull(coursesTable.organizationId));
 }
 
 function mapRow(row: typeof coursesTable.$inferSelect): CourseRecord {
@@ -108,17 +95,11 @@ function parsePageRefs(raw: unknown): Extract<CourseUsageRef, { kind: "content_p
   return parseCourseUsageRefs(raw).filter((r): r is Extract<CourseUsageRef, { kind: "content_page" }> => r.kind === "content_page");
 }
 
-async function loadCourseUsageSummary(
-  pool: ReturnType<typeof getPool>,
-  courseId: string,
-): Promise<CourseUsageSnapshot | null> {
+async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnapshot | null> {
   const lim = COURSE_USAGE_DETAIL_LIMIT;
-  const principalOrganizationId = optionalPrincipalOrganizationId();
-  const organizationPredicate = principalOrganizationId
-    ? ` AND (c.organization_id = $2::uuid OR c.organization_id IS NULL)`
-    : "";
-  const values = principalOrganizationId ? [courseId, principalOrganizationId] : [courseId];
-  const r = await runPgPoolPgText<{
+  const principalOrganizationId = currentPrincipalOrganizationId();
+  const values = [courseId, principalOrganizationId];
+  const r = await runWebappPgText<{
     tpl_id: string | null;
     tpl_title: string | null;
     active_inst: string | number | null;
@@ -132,20 +113,19 @@ async function loadCourseUsageSummary(
     draft_page_refs: unknown;
     arch_page_refs: unknown;
   }>(
-    pool,
     `SELECT
        c.program_template_id::text AS tpl_id,
        tpl.title AS tpl_title,
        (SELECT COUNT(*)::int FROM treatment_program_instances i
-          WHERE i.template_id = c.program_template_id AND i.status = 'active') AS active_inst,
+          WHERE i.template_id = c.program_template_id AND i.organization_id = c.organization_id AND i.status = 'active') AS active_inst,
        (SELECT COUNT(*)::int FROM treatment_program_instances i
-          WHERE i.template_id = c.program_template_id AND i.status = 'completed') AS completed_inst,
+          WHERE i.template_id = c.program_template_id AND i.organization_id = c.organization_id AND i.status = 'completed') AS completed_inst,
        (SELECT COUNT(*)::int FROM content_pages p
-          WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = true) AS pub_pages,
+          WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = true) AS pub_pages,
        (SELECT COUNT(*)::int FROM content_pages p
-          WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = false) AS draft_pages,
+          WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = false) AS draft_pages,
        (SELECT COUNT(*)::int FROM content_pages p
-          WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NOT NULL) AS arch_pages,
+          WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NOT NULL) AS arch_pages,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (i.id)
@@ -156,7 +136,7 @@ async function loadCourseUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = c.program_template_id AND i.status = 'active'
+            WHERE i.template_id = c.program_template_id AND i.organization_id = c.organization_id AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_inst_refs,
@@ -170,7 +150,7 @@ async function loadCourseUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = c.program_template_id AND i.status = 'completed'
+            WHERE i.template_id = c.program_template_id AND i.organization_id = c.organization_id AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_inst_refs,
@@ -179,7 +159,7 @@ async function loadCourseUsageSummary(
             SELECT DISTINCT ON (p.id)
               jsonb_build_object('kind', 'content_page', 'id', p.id::text, 'title', p.title) AS obj
             FROM content_pages p
-            WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = true
+            WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = true
             ORDER BY p.id, p.title ASC
             LIMIT ${lim}
           ) q) AS pub_page_refs,
@@ -188,7 +168,7 @@ async function loadCourseUsageSummary(
             SELECT DISTINCT ON (p.id)
               jsonb_build_object('kind', 'content_page', 'id', p.id::text, 'title', p.title) AS obj
             FROM content_pages p
-            WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = false
+            WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NULL AND p.is_published = false
             ORDER BY p.id, p.title ASC
             LIMIT ${lim}
           ) q) AS draft_page_refs,
@@ -197,13 +177,14 @@ async function loadCourseUsageSummary(
             SELECT DISTINCT ON (p.id)
               jsonb_build_object('kind', 'content_page', 'id', p.id::text, 'title', p.title) AS obj
             FROM content_pages p
-            WHERE p.linked_course_id = c.id AND p.deleted_at IS NULL AND p.archived_at IS NOT NULL
+            WHERE p.linked_course_id = c.id AND p.organization_id = c.organization_id AND p.deleted_at IS NULL AND p.archived_at IS NOT NULL
             ORDER BY p.id, p.title ASC
             LIMIT ${lim}
           ) q) AS arch_page_refs
      FROM courses c
-     LEFT JOIN treatment_program_templates tpl ON tpl.id = c.program_template_id
-     WHERE c.id = $1::uuid${organizationPredicate}`,
+     LEFT JOIN treatment_program_templates tpl
+       ON tpl.id = c.program_template_id AND tpl.organization_id = c.organization_id
+     WHERE c.id = $1::uuid AND c.organization_id = $2::uuid`,
     values,
   );
   const row = r.rows[0];
@@ -241,10 +222,11 @@ export function createPgCoursesPort(): CoursesPort {
   return {
     async listPublished() {
       const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const rows = await db
         .select()
         .from(coursesTable)
-        .where(eq(coursesTable.status, "published"))
+        .where(and(eq(coursesTable.organizationId, organizationId), eq(coursesTable.status, "published")))
         .orderBy(desc(coursesTable.updatedAt));
       return rows.map(mapRow);
     },
@@ -258,6 +240,7 @@ export function createPgCoursesPort(): CoursesPort {
      */
     async listAssignedToPatient(patientUserId) {
       const db = getDrizzle();
+      const organizationId = currentPrincipalOrganizationId();
       const rows = await db
         .select({ course: coursesTable })
         .from(coursesTable)
@@ -265,7 +248,13 @@ export function createPgCoursesPort(): CoursesPort {
           treatmentProgramInstances,
           eq(treatmentProgramInstances.templateId, coursesTable.programTemplateId),
         )
-        .where(eq(treatmentProgramInstances.patientUserId, patientUserId));
+        .where(
+          and(
+            eq(coursesTable.organizationId, organizationId),
+            eq(treatmentProgramInstances.organizationId, organizationId),
+            eq(treatmentProgramInstances.patientUserId, patientUserId),
+          ),
+        );
       const byId = new Map<string, typeof coursesTable.$inferSelect>();
       for (const r of rows) byId.set(r.course.id, r.course);
       return [...byId.values()]
@@ -275,9 +264,7 @@ export function createPgCoursesPort(): CoursesPort {
 
     async listForDoctor(filter) {
       const db = getDrizzle();
-      const conds = [];
-      const orgCond = organizationReadCondition(optionalPrincipalOrganizationId());
-      if (orgCond) conds.push(orgCond);
+      const conds = [eq(coursesTable.organizationId, currentPrincipalOrganizationId())];
       if (filter.status) {
         conds.push(eq(coursesTable.status, filter.status));
       } else if (!filter.includeArchived) {
@@ -293,11 +280,10 @@ export function createPgCoursesPort(): CoursesPort {
 
     async getById(id) {
       const db = getDrizzle();
-      const orgCond = organizationReadCondition(optionalPrincipalOrganizationId());
       const rows = await db
         .select()
         .from(coursesTable)
-        .where(and(eq(coursesTable.id, id), ...(orgCond ? [orgCond] : [])))
+        .where(and(eq(coursesTable.id, id), eq(coursesTable.organizationId, currentPrincipalOrganizationId())))
         .limit(1);
       return rows[0] ? mapRow(rows[0]) : null;
     },
@@ -311,14 +297,14 @@ export function createPgCoursesPort(): CoursesPort {
           .from(treatmentProgramTemplates)
           .where(eq(treatmentProgramTemplates.id, input.programTemplateId))
           .limit(1);
-        currentWriteOrganizationId(template?.organizationId);
+        requireCurrentOrganizationOwnership(template?.organizationId);
         if (input.introLessonPageId) {
           const [page] = await tx
             .select({ organizationId: contentPages.organizationId })
             .from(contentPages)
             .where(eq(contentPages.id, input.introLessonPageId))
             .limit(1);
-          currentWriteOrganizationId(page?.organizationId);
+          requireCurrentOrganizationOwnership(page?.organizationId);
         }
         return tx
           .insert(coursesTable)
@@ -341,8 +327,8 @@ export function createPgCoursesPort(): CoursesPort {
     },
 
     async update(id, patch: UpdateCourseInput) {
+      const organizationId = currentPrincipalOrganizationId();
       const sets: Partial<typeof coursesTable.$inferInsert> = {
-        organizationId: currentPrincipalOrganizationId(),
         updatedAt: new Date().toISOString(),
       };
       if (patch.title !== undefined) sets.title = patch.title;
@@ -358,17 +344,17 @@ export function createPgCoursesPort(): CoursesPort {
         const [existing] = await tx
           .select({ organizationId: coursesTable.organizationId })
           .from(coursesTable)
-          .where(eq(coursesTable.id, id))
+          .where(and(eq(coursesTable.id, id), eq(coursesTable.organizationId, organizationId)))
           .limit(1);
         if (!existing) return [];
-        currentWriteOrganizationId(existing.organizationId);
+        requireCurrentOrganizationOwnership(existing.organizationId);
         if (patch.programTemplateId !== undefined) {
           const [template] = await tx
             .select({ organizationId: treatmentProgramTemplates.organizationId })
             .from(treatmentProgramTemplates)
             .where(eq(treatmentProgramTemplates.id, patch.programTemplateId))
             .limit(1);
-          currentWriteOrganizationId(template?.organizationId);
+          requireCurrentOrganizationOwnership(template?.organizationId);
         }
         if (patch.introLessonPageId !== undefined && patch.introLessonPageId !== null) {
           const [page] = await tx
@@ -376,20 +362,19 @@ export function createPgCoursesPort(): CoursesPort {
             .from(contentPages)
             .where(eq(contentPages.id, patch.introLessonPageId))
             .limit(1);
-          currentWriteOrganizationId(page?.organizationId);
+          requireCurrentOrganizationOwnership(page?.organizationId);
         }
         return tx
           .update(coursesTable)
           .set(sets)
-          .where(eq(coursesTable.id, id))
+          .where(and(eq(coursesTable.id, id), eq(coursesTable.organizationId, organizationId)))
           .returning();
       });
       return rows[0] ? mapRow(rows[0]) : null;
     },
 
     async getCourseUsageSummary(courseId: string): Promise<CourseUsageSnapshot | null> {
-      const pool = getPool();
-      return loadCourseUsageSummary(pool, courseId);
+      return loadCourseUsageSummary(courseId);
     },
   };
 }
