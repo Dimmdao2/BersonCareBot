@@ -9,6 +9,19 @@
 
 Ревизия планов из **`~/.cursor/plans`**: подкаталоги `archive/*` — закрытые и устаревшие копии; после 2026-05-14 волна **`archive/2026-05-14-closed/`** дополняет **`2026-05-01-closed/`**.
 
+## Актуальный census репозиторных планов (2026-07-19)
+
+В корне **`<репо>/.cursor/plans/`** осталось ровно два plan-файла; все остальные репозиторные планы находятся в
+`archive/`. Это не task queue: оперативные статусы берутся из taskdb, а scope — из текущего owner-roadmap.
+
+| План | Текущая трактовка |
+|---|---|
+| `doctor_communications_client_shell.plan.md` | Исторический implementation artifact. Почти все todos закрыты, но общий `status: pending` и live-verify остались незавершёнными. Его старый product/layout acceptance заменён C1 owner-roadmap и taskdb `#852`; оставшийся технический live-check нужно сопоставить с текущей acceptance, а не возобновлять весь план. Архивировать после этой сверки и owner acceptance соответствующего UI-пакета. |
+| `fio_identity_cleanup.plan.md` | Живой long-running tracker FIO. Frontmatter `fio-7`/`fio-8` отстал от факта: phases 7–8 закрыты taskdb `#856` и initiative README. Файл защищён от механической правки в `#912`; остаток — `#857`/`#858`, оба owner-gated/blocked. |
+
+Канонический execution index: [`INITIATIVES.md`](INITIATIVES.md). Снимок домашнего `~/.cursor/plans` ниже остаётся
+историческим и не должен использоваться для восстановления очереди.
+
 ## Методика и ограничения
 
 - **Быстрые маркеры:** блок `todos` во frontmatter (`pending` / `in_progress` / `completed` / `cancelled`), при наличии — поле `status`/`completed_at` у плана.

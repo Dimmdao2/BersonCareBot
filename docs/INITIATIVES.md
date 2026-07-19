@@ -1,20 +1,44 @@
 # РЕЕСТР ИНИЦИАТИВ — что активно / ждёт / архив
 
-> Стратегический индекс для оркестратора. Канон процесса — `docs/AGENT_AUTORUN_SCHEME.md`. Входящие — `docs/_INBOX/`.
-> **Правило оркестратора:** текущий пул кончился → смотри сюда. Есть ⏳ QUEUED → бери следующую по порядку → в работу. QUEUED пуст → смотри `docs/_INBOX/` → планируй новую (схема §3). Готовую → ✅ ARCHIVED (перенос в `docs/_ARCHIVE/`).
-> Статусы: 📥 INBOX (сырьё) · 🅣 _TODO (заготовка, не в очереди) · ⏳ QUEUED (спланировано, ждёт) · ▶️ ACTIVE (в работе) · ✅ ARCHIVED.
+> Стратегический индекс для оркестратора. Канон процесса — `docs/AGENT_AUTORUN_SCHEME.md`; оперативная очередь —
+> taskdb (`project=bcb`). `docs/_INBOX/` и статусы 📥/🅣/⏳ из исторического workflow ниже не заменяют taskdb или
+> owner-roadmap.
 
-## ▶️ ACTIVE (драйвит durable-луп «Минионы»)
+> **Актуализация 2026-07-19:** execution-status берётся из taskdb (`project=bcb`) через
+> `node /home/dev/brain/tools/taskdb.mjs`, а продуктовый scope — из owner-review и roadmap конкретной инициативы.
+> Старый durable-loop реестр ниже сохранён как исторический снимок и **не является очередью исполнения**.
+
+## Текущий execution registry (2026-07-19)
+
+| Контур | Канон | Taskdb / состояние |
+|---|---|---|
+| Owner product/SaaS roadmap | [`_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md) + [`IMPLEMENTATION_ROADMAP.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md) | активный CMS stage `#853`; commercial `#751`; следующие этапы берутся только по DAG roadmap |
+| Tenant foundation | [`_TODO/SAAS_FOUNDATION/README.md`](_TODO/SAAS_FOUNDATION/README.md) + [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md) | Phase 0 закрыта; дальнейшая работа — T0/R2 и явно связанные карточки, не старые D3.3–D3.5 записи |
+| RU privacy / production readiness | [`_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md`](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md) + stage manifests | umbrella `#898`, текущий scope/register `#899`; dev/code/DB-подготовка отделена от owner-gated действий на production host |
+| Doctor Design DNA | [`_TODO/DOCTOR_DNA_MIGRATION/PLAN.md`](_TODO/DOCTOR_DNA_MIGRATION/PLAN.md) | `#885`, отдельный owner-review контур; не смешивать с Product UX stage-файлами |
+| FIO identity | [`FIO_IDENTITY_CLEANUP_INITIATIVE/README.md`](FIO_IDENTITY_CLEANUP_INITIATIVE/README.md) + [`.cursor/plans/fio_identity_cleanup.plan.md`](../.cursor/plans/fio_identity_cleanup.plan.md) | phases 0–8 закрыты; `#857`/`#858` blocked до общего production cutover и последующего legacy audit |
+| Process/docs hygiene | этот индекс + [`_TODO/README.md`](_TODO/README.md) + [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md) | `#912`; не меняет product scope |
+
+Датированный git-census на старте `#912`: интеграционная ветка `feat/doctor-ui-rebuild` и `origin` совпадали на
+`2f8147e91`; отдельные worktree существовали только для `#853`, `#899` и `#912`. Это evidence-снимок, а не
+постоянный источник HEAD; перед новым этапом состояние проверяется заново.
+
+## Исторический registry snapshot (2026-06-17; не исполнять)
+
+Разделы ниже оставлены для истории решений и ссылок. Маркеры `ACTIVE`/`QUEUED` в этом снимке не описывают текущее
+состояние; запрещено запускать по ним агентов без актуальной taskdb-карточки и канонического roadmap.
+
+### Бывший ▶️ ACTIVE (durable-loop «Минионы»)
 | Инициатива | Папка / очередь | Примечание |
 |-----------|-----------------|-----------|
 | **Round-3 doctor-UI fix wave** | `/home/dev/orch/round3/QUEUE.md` + `REBUILD_PLAN/ACCEPTANCE_ROUND3.md` | Все actionable items ✅ DONE (самоштамп лупа — нужна независимая приёмка качества). BLOCKED-OWNER: ANL-10/11/13, Q-F5. |
 | **Финансы (BIG-07) полный эквайринг** | `docs/ACQUIRING_INTEGRATION/` | Q-F1..F4 ✅ MERGED (provider settings, webhook, timeline API+UI, pay-link). Q-F5 ⛔ BLOCKED-OWNER (убрать старую PaymentsPanel — после проверки владельцем новой вкладки «Финансы»). |
 | **Аналитика** | `docs/PRODUCT_ANALYTICS_INITIATIVE/` (+ ANL-*) | ANL-04/05/07/09/12/14 ✅. ANL-10/11/13 ⛔ BLOCKED-OWNER (карточки первич./повторн.; monthly bars; branch cards). |
 
-## ⏳ QUEUED (спланировано, ждёт)
+### Бывший ⏳ QUEUED
 _Пусто — всё либо выполнено, либо в ACTIVE (заблокировано владельцем), либо в 🅣 _TODO._
 
-## 🅣 _TODO (заготовки — НЕ в очереди лупа; ждут запуска владельцем)
+### Бывший 🅣 _TODO
 | Инициатива | Папка | Когда / зависимость |
 |---|---|---|
 | **DB-access chokepoint** (единый ствол доступа к БД, pre-SAAS) | `docs/_TODO/DB_ACCESS_CHOKEPOINT_INITIATIVE/` | ПЕРВОЙ; поведение-сохраняющий рефактор; ~2.5–4 нед. Вердикт 2 Opus + план готовы. |

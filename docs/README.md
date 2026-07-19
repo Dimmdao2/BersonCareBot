@@ -2,10 +2,11 @@
 
 - **Инструкции для AI-агентов (онбординг, правила):** [`../AGENTS.md`](../AGENTS.md) — сводка `.cursor/rules/`; канон scoped-правил — `.cursor/rules/*.mdc`.
 - **Продукт (суть и возможности для пациента и специалиста):** [`PRODUCT_OVERVIEW.md`](PRODUCT_OVERVIEW.md) — канонический обзор без детализации экранов.
-- **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — сводка **активных Cursor-планов** и ссылка на архив в начале файла.
+- **Backlog (security, rate limit, observability, URL/UUID в адресах):** [`TODO.md`](TODO.md) — долгоживущие хвосты, актуальный census корневых Cursor-планов и ссылки на архив.
+- **Текущий registry исполнения:** [`INITIATIVES.md`](INITIATIVES.md) — указатель канонов и датированный census; оперативный статус задач хранится только в taskdb (`project=bcb`).
 - **SaaS Foundation / T0 tenant-context cutover:** [`_TODO/SAAS_FOUNDATION/README.md`](_TODO/SAAS_FOUNDATION/README.md) — Phase 0/R1 закрыта; текущий next = [`T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md`](_TODO/SAAS_FOUNDATION/T0_TENANT_CONTEXT_CUTOVER_CHECKLIST.md).
-- **SaaS Product UX discovery (роли, IA, лендинг, invite/install, branding/domains):** [`_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md) — отдельный параллельный planning-трек, не меняющий текущий SaaS enforcement order.
-- **RU privacy и production readiness (draft):** [`_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md`](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md) — отдельный gate по health-data/152-ФЗ, host security, secrets, backup/DR и incident response; не меняет исполняемые SaaS/Product UX стадии.
+- **SaaS Product UX owner roadmap (роли, IA, CMS, коммерция, invite/install, branding/domains):** [`_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/README.md) + [`IMPLEMENTATION_ROADMAP.md`](_TODO/SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md) — исполняемый DAG; Foundation остаётся authority в tenant/security областях.
+- **RU privacy и production readiness:** [`_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md`](_TODO/RU_PRIVACY_AND_PRODUCTION_READINESS/README.md) — активный параллельный planning/dev-readiness gate (`#898`/`#899`); production-host hardening и внешние/необратимые действия требуют отдельного owner gate.
 - **Очередь workqueue (врач / пациент / CMS, фазы 0–7):** [`ACTIVE_WORKQUEUE.md`](ACTIVE_WORKQUEUE.md) — **закрыта** 2026-06-02; план [`.cursor/plans/archive/active_workqueue_plan_30236040.plan.md`](../.cursor/plans/archive/active_workqueue_plan_30236040.plan.md). Активные хвосты — [`TODO.md`](TODO.md) (diary, D5, proactive этап 8).
 - **Отложенные работы (не сейчас):** [`TODO_NOT_NOW/README.md`](TODO_NOT_NOW/README.md) — черновики и ТЗ без активного исполнения (карточка + ссылка на `.cursor/plans`).
 - **Архив (завершённые инициативы и разовые журналы):** [`archive/README.md`](archive/README.md)

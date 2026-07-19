@@ -12,6 +12,8 @@
 ## Cursor-планы и доки (сводка)
 
 - **Репозиторий** vs **домашний каталог Cursor:** планы **в монорепо** — `<репо>/.cursor/plans/` (см. ниже и [`.cursor/plans/archive/README.md`](../.cursor/plans/archive/README.md)); планы **на машине** — `~/.cursor/plans`. Не смешивать: пояснение в начале [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md). Закрытый план MAX/TG pre-prod (integrator): [`.cursor/plans/archive/max_tg_pre-prod_automation.plan.md`](../.cursor/plans/archive/max_tg_pre-prod_automation.plan.md) · журнал [`ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md`](ARCHITECTURE/MAX_PREPROD_AUTOMATION_LOG.md).
+- **Оперативная очередь — не plan-файлы:** task status хранится только в taskdb (`project=bcb`); текущие каноны и dated census сведены в [`INITIATIVES.md`](INITIATIVES.md).
+- **Текущий корень репозиторных планов (2026-07-19):** только `doctor_communications_client_shell.plan.md` (исторический; старый product/layout acceptance заменён C1/#852, остаточный live-check нужно сопоставить перед архивом) и `fio_identity_cleanup.plan.md` (живой FIO tracker; остаток `#857`/`#858`). Подробная классификация — [`CURSOR_PLANS_REVIEW_2026-05-01.md`](CURSOR_PLANS_REVIEW_2026-05-01.md) §«Актуальный census».
 
 - **Закрытые планы (архив, 2026-05-15 / перенос 2026-06-04):** Integrator → Drizzle — [`.cursor/plans/archive/integrator_drizzle_migration_master.plan.md`](../.cursor/plans/archive/integrator_drizzle_migration_master.plan.md) + `integrator_drizzle_phase_*.plan.md` (**`status: completed`**); журнал [`docs/INTEGRATOR_DRIZZLE_MIGRATION/LOG.md`](INTEGRATOR_DRIZZLE_MIGRATION/LOG.md).
 - **Закрытые планы booking (2026-06-06):** gaps closeout [`booking_gaps_closeout_e5b725fb`](../.cursor/plans/archive/booking_gaps_closeout_e5b725fb.plan.md) (`eb9eba63`, CI green), sync desync [`booking_sync_desync_fix_4709fb07`](../.cursor/plans/archive/booking_sync_desync_fix_4709fb07.plan.md), scenarios audit [`booking_scenarios_audit_e9c4ce97`](../.cursor/plans/archive/booking_scenarios_audit_e9c4ce97.plan.md) — канон только `.cursor/plans/archive/`; копии в `~/.cursor/plans/` удалены.
@@ -200,6 +202,6 @@
 
 ## Recommendations catalog — D5 rename `domain` → `kind` (deferred)
 
-- **Статус:** отложено owner; **не блокирует** архив [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) и закрытие ROADMAP_2 patient/doctor polish.
+- **Статус:** отложено owner; **не блокирует** архив [`ASSIGNMENT_CATALOGS_REWORK_INITIATIVE`](archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/README.md) и закрытие ROADMAP_2 patient/doctor polish.
 - **Канон сейчас:** колонка `recommendations.domain`, UI «Тип», справочник `recommendation_type`.
-- **Когда вернёмся:** план [`STAGE_D5_PLAN.md`](../archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md) — spike + миграция + код/API/UI в одном релизе.
+- **Когда вернёмся:** план [`STAGE_D5_PLAN.md`](archive/2026-05-initiatives/ASSIGNMENT_CATALOGS_REWORK_INITIATIVE/STAGE_D5_PLAN.md) — spike + миграция + код/API/UI в одном релизе.
