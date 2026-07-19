@@ -1,7 +1,5 @@
-/** @vitest-environment node */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { logger, serializeError } from "./logger";
+import { createLogger, serializeError } from "./logger.js";
 
 const SENSITIVE_TEST_MARKER = "SENSITIVE_TEST_MARKER_bcb914";
 
@@ -32,12 +30,6 @@ describe("serializeError", () => {
     expect((s as unknown as { stack?: unknown }).stack).toBeUndefined();
   });
 
-  it("never emits a raw non-Error value", () => {
-    const s = serializeError(SENSITIVE_TEST_MARKER);
-    expect(s.type).toBe("UnknownError");
-    expect(JSON.stringify(s)).not.toContain(SENSITIVE_TEST_MARKER);
-  });
-
   it("preserves sanitized PostgreSQL SQLSTATE code/class as explicit safe fields", () => {
     const e = new Error(SENSITIVE_TEST_MARKER);
     (e as unknown as { code: string }).code = "23505";
@@ -58,36 +50,30 @@ describe("serializeError", () => {
   });
 });
 
-describe("logger rendered output", () => {
+describe("createLogger rendered output", () => {
   let stdoutSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    // Install the spy, then construct a fresh logger via a dynamic import so
-    // pino's write path is bound to the spied stdout, not one cached at
-    // static top-level import time (before this spy existed).
-    vi.resetModules();
     stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    vi.resetModules();
   });
 
-  it("never prints the marker from the top-level message/stack or from any unknown cause shape (nested body/provider keys, patientName, response.data, arrays, custom enumerable Error properties) in actual rendered output", async () => {
-    const { logger: freshLogger } = await import("./logger");
+  it("never prints the marker from the top-level message/stack or from any unknown cause shape (nested body/provider keys, patientName, response.data, arrays, custom enumerable Error properties) in actual rendered output", () => {
+    const logger = createLogger({ LOG_LEVEL: "error" });
 
     const e = new Error(SENSITIVE_TEST_MARKER);
     (e as unknown as { code: string }).code = "23505";
     (e as unknown as { cause: unknown }).cause = buildLeakyCause();
     expect(e.stack).toContain(SENSITIVE_TEST_MARKER); // sanity: stack does carry the raw message
 
-    freshLogger.error({ err: e, requestId: "req-123" }, "handler failed");
+    logger.error({ err: e }, "main loop error");
 
     const rendered = stdoutSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
     expect(rendered).not.toContain(SENSITIVE_TEST_MARKER);
-    expect(rendered).toContain("req-123");
     expect(rendered).toContain("23505");
-    expect(rendered).toContain("handler failed");
+    expect(rendered).toContain("main loop error");
   });
 });

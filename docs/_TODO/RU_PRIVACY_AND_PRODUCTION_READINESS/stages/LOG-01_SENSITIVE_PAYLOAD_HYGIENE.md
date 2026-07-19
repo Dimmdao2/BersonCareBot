@@ -27,16 +27,42 @@ delivery attempts, retries, dead-letter и очередей. Это отдель
 
 ## L1 — immediate logging guard (`AI`, executable now)
 
-- [ ] Удалить raw SQL params и query text из integrator error output/`console.error`.
-- [ ] Оставить безопасные operation/query fingerprint, PostgreSQL code/class, request/job/correlation ID и timing.
-- [ ] Не сериализовать неизвестный error/cause целиком; применить общий allowlist/redaction contract к webapp,
-      integrator и media-worker.
-- [ ] Logger config redacts token/authorization/cookie/params/payload/message/body nested variants; test доказывает
-      не название ключа, а отсутствие marker в фактическом rendered output.
-- [ ] Диагностика остаётся достаточной: synthetic failure коррелируется с operation/request без payload.
+- [x] Удалить raw SQL params и query text из integrator error output/`console.error` (taskdb `#914`,
+      `apps/integrator/src/infra/db/client.ts`: все `query`/`tx` error paths и duplicate `console.error` calls).
+- [x] Оставить безопасные operation/query fingerprint (sha256/16), PostgreSQL code/class и correlation
+      (`dbPrincipalSource` from `getCurrentDbPrincipal()`) where supplied. **Не закрыто:** elapsed timing — не было
+      измерено до этого slice (`client.ts` не хранил start/duration), поэтому не заявляется как "оставлено"; добавление
+      timing instrumentation осталось за пределами этой узкой правки.
+- [x] `cause` не сериализуется вообще — ни целиком, ни через key-blacklist/redaction. Correction round 1
+      добавляла `sanitizeErrorCause`/`redactUnknownErrorShape` (key-blacklist по имени), но независимый audit
+      (correction round 2) нашёл, что любой ключ вне blacklist (`patientName`, `response.data`, array elements,
+      enumerable-свойства кастомного `Error`) по-прежнему копировался — это нарушало "не сериализовать
+      неизвестный error/cause целиком". Исправление: `cause` убран из `SerializedError` и из возвращаемого
+      значения `serializeError` во всех трёх приложениях (`apps/integrator/src/infra/observability/logger.ts`,
+      `apps/webapp/src/infra/logging/logger.ts`, `apps/media-worker/src/logger.ts`); `sanitizeErrorCause`/
+      `redactUnknownErrorShape` удалены.
+- [x] `serializeError` safe-by-construction, закрытая value-free форма: `SerializedError` = `{ type: string;
+      code?: string; class?: string }`. Top-level `Error.message`/`stack`/`JSON.stringify(err)` и любые поля
+      `cause` (значения, массивы, enumerable-свойства) никогда не проходят verbatim ни при каком входе.
+      Единственное сохранённое явное диагностическое поле сверх `type` — валидированный PostgreSQL SQLSTATE
+      `code`/`class`.
+- [x] Executable tests (все три app suites) assert marker absence в actual rendered stdout output (не только
+      config) при маркере одновременно в top-level `Error.message`/`stack` и в `cause.body.message`/
+      `cause.providerError.{message,phone}`, `cause.patientName`, `cause.response.data`, array elements и
+      enumerable-свойстве кастомного `Error`; `serializeError`-юнит-тест дополнительно проверяет, что
+      `Object.keys(result)` строго `['type']` при такой input-форме (доказывает закрытую форму, не только
+      marker absence).
+- [x] Диагностика остаётся достаточной для этой узкой правки: query fingerprint + PG code/class + dbPrincipalSource
+      корреспондируют без payload; terminal security re-audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719`
+      дал PASS по полному L1 checklist после correction round 2.
+- [ ] **Уточнение, не claim "готово":** санитизирован только payload сериализатора `err`/`error` (объект,
+      переданный как `{ err }`/`{ error }`). Caller-supplied Pino message-строка (`msg` в
+      `logger.error(fields, msg)`) — отдельный путь, этот slice его не проверяет и не гарантирует его
+      безопасность.
 
-Checks: targeted logger/DB tests, captured stdout/stderr, nested/error-cause fixtures, lint/typecheck, independent
-security audit.
+Checks: PASS — targeted logger/DB tests, captured stdout/stderr, nested/error-cause fixtures (including patientName,
+response.data, arrays, custom enumerable Error properties), scoped typecheck, `git diff --check`; independent
+terminal security audit `bcb-log01-l1-914-codex-terminal-reaudit-20260719` — PASS.
 
 ## L2 — queues, attempts and retries (`AI`, after NTF census/retention gate)
 

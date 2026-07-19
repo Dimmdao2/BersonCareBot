@@ -1,6 +1,7 @@
 import type { Pool, QueryResultRow } from 'pg';
+import { createHash } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import { env } from '../../config/env.js';
 import { logger } from '../observability/logger.js';
@@ -36,6 +37,53 @@ function databaseUrlDiagnostics(): {
   }
 }
 
+const PG_SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
+
+/** PostgreSQL SQLSTATE ("code") и его класс (первые 2 символа), если ошибка похожа на pg. */
+function safeErrorCodeContext(err: unknown): Record<string, string> {
+  if (err !== null && typeof err === 'object' && 'code' in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === 'string' && PG_SQLSTATE_PATTERN.test(code)) {
+      return { pgCode: code, pgClass: code.slice(0, 2) };
+    }
+  }
+  return {};
+}
+
+/** Стабильный отпечаток запроса без текста SQL — для корреляции повторяющихся ошибок. */
+function queryFingerprint(sql: string): string {
+  return createHash('sha256').update(sql, 'utf8').digest('hex').slice(0, 16);
+}
+
+/** Безопасный контекст запроса: отпечаток + источник DB-принципала, без sql/params. */
+function safeQueryErrorContext(sql: string): Record<string, string> {
+  const principal = getCurrentDbPrincipal();
+  return {
+    queryFingerprint: queryFingerprint(sql),
+    ...(principal?.source ? { dbPrincipalSource: principal.source } : {}),
+  };
+}
+
+/**
+ * Логирует ошибку БД без raw sql/params/error dump. Если сам логгер падает,
+ * fallback печатает только уже безопасные поля — никогда исходную ошибку целиком.
+ */
+function logDbError(fields: Record<string, unknown>, msg: string): void {
+  try {
+    logger.error(fields, msg);
+  } catch {
+    try {
+      console.error(msg, {
+        queryFingerprint: fields.queryFingerprint,
+        pgCode: fields.pgCode,
+        pgClass: fields.pgClass,
+      });
+    } catch {
+      /* logging must never throw past the original DB error */
+    }
+  }
+}
+
 /** Общий пул подключений к PostgreSQL. */
 export const db = createIntegratorPoolProvider({
 	connectionString: env.DATABASE_URL,
@@ -45,10 +93,10 @@ export const db = createIntegratorPoolProvider({
 });
 
 db.on('error', (err) => {
-	const dbDiag = databaseUrlDiagnostics();
-	logger.error({
+	logDbError({
 		err,
-		...dbDiag,
+		...databaseUrlDiagnostics(),
+		...safeErrorCodeContext(err),
 		db_env: {
 			PGHOST: process.env.PGHOST,
 			PGPORT: process.env.PGPORT,
@@ -57,16 +105,6 @@ db.on('error', (err) => {
 			PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 		}
 	}, '[db][pool] connection error');
-	console.error('[db][pool] connection error', err, {
-		...dbDiag,
-		db_env: {
-			PGHOST: process.env.PGHOST,
-			PGPORT: process.env.PGPORT,
-			PGUSER: process.env.PGUSER,
-			PGDATABASE: process.env.PGDATABASE,
-			PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
-		}
-	});
 });
 
 export function createDbPort(pool: Pool = db): DbPort {
@@ -81,12 +119,11 @@ export function createDbPort(pool: Pool = db): DbPort {
 					};
 				});
 			} catch (err) {
-				const dbDiag = databaseUrlDiagnostics();
-				logger.error({
+				logDbError({
 					err,
-					sql,
-					params,
-					...dbDiag,
+					...databaseUrlDiagnostics(),
+					...safeQueryErrorContext(sql),
+					...safeErrorCodeContext(err),
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,
@@ -95,7 +132,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][query] error');
-				console.error('[db][query] error', err, sql, params);
 				throw err;
 			}
 		},
@@ -104,10 +140,10 @@ export function createDbPort(pool: Pool = db): DbPort {
 			try {
 				client = await checkoutIntegratorPoolClient(pool);
 			} catch (err) {
-				const dbDiag = databaseUrlDiagnostics();
-				logger.error({
+				logDbError({
 					err,
-					...dbDiag,
+					...databaseUrlDiagnostics(),
+					...safeErrorCodeContext(err),
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,
@@ -116,7 +152,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][tx] failed to connect');
-				console.error('[db][tx] failed to connect', err);
 				throw err;
 			}
 			try {
@@ -133,12 +168,11 @@ export function createDbPort(pool: Pool = db): DbPort {
 								...(typeof res.rowCount === 'number' ? { rowCount: res.rowCount } : {}),
 							};
 						} catch (err) {
-							const dbDiag = databaseUrlDiagnostics();
-							logger.error({
+							logDbError({
 								err,
-								sql,
-								params,
-								...dbDiag,
+								...databaseUrlDiagnostics(),
+								...safeQueryErrorContext(sql),
+								...safeErrorCodeContext(err),
 								db_env: {
 									PGHOST: process.env.PGHOST,
 									PGPORT: process.env.PGPORT,
@@ -147,7 +181,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 									PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 								}
 							}, '[db][tx][query] error');
-							console.error('[db][tx][query] error', err, sql, params);
 							throw err;
 						}
 					},
@@ -158,10 +191,10 @@ export function createDbPort(pool: Pool = db): DbPort {
 				return result;
 			} catch (err) {
 				await client.query('ROLLBACK');
-				const dbDiag = databaseUrlDiagnostics();
-				logger.error({
+				logDbError({
 					err,
-					...dbDiag,
+					...databaseUrlDiagnostics(),
+					...safeErrorCodeContext(err),
 					db_env: {
 						PGHOST: process.env.PGHOST,
 						PGPORT: process.env.PGPORT,
@@ -170,7 +203,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][tx] error, rolled back');
-				console.error('[db][tx] error, rolled back', err);
 				throw err;
 			} finally {
 				await releasePreparedIntegratorClient(client);

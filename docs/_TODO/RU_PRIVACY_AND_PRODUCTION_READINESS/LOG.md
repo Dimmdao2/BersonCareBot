@@ -173,3 +173,134 @@ Append-only журнал. Планирование не переводит ни 
   во всех operational scripts. Negative fixture теперь отдельно доказывает FAIL для integrator delete call + SQL.
 - PASS после correction: checker; node test 3/3; scoped ESLint; webapp typecheck; `git diff --check`. Strict core,
   `platformUserFullPurge` и media pending-delete по-прежнему имеют zero diff. DB/TEST/PROD/deploy не выполнялись.
+
+## 2026-07-19 — LOG-01/L1 immediate logging guard (taskdb `#914`)
+
+- `apps/integrator/src/infra/db/client.ts`: убраны raw `sql`/`params` и duplicate `console.error(err, sql, params)`
+  dumps из всех `query`/`tx` error paths (query, tx-connect, tx-query, tx-rollback, pool `error` event). Заменены на
+  безопасный контекст: `queryFingerprint` (sha256 от текста запроса, 16 hex), `pgCode`/`pgClass` (SQLSTATE, если у
+  ошибки валидный `code`) и `dbPrincipalSource` (уже существующий ambient DB-principal source — без изменения
+  `DbPort`/`kernel/contracts`). Единая `logDbError()` логирует через `logger`, а если сам логгер бросает — safe
+  console fallback печатает только `queryFingerprint`/`pgCode`/`pgClass`, никогда исходную ошибку/sql/params.
+- `apps/integrator/src/infra/observability/logger.ts` и `apps/webapp/src/infra/logging/logger.ts`: `serializeError`
+  больше не прокидывает `err.cause`/`e.cause` целиком. Добавлен `sanitizeErrorCause` + `redactUnknownErrorShape` —
+  рекурсивный redaction по имени ключа (token/authorization/cookie/secret/apikey/password/phone/sql/query/param(s)/
+  payload/body/message/detail/hint/cause/filename/providerError/value(s)) на любой глубине вложенности. Логика
+  дублирована per-app (не единая cross-package абстракция), как разрешено launch-manifest.
+- `apps/media-worker/src/logger.ts`: тот же `serializeError`/redaction contract добавлен в `createLogger` (`err`/
+  `error` serializers) — до этого был bare `pino()` без serializers, поэтому `log.error({ err })` в `main.ts` мог
+  напечатать `err.cause` целиком (own-enumerable свойства проходят JSON-сериализацию pino по умолчанию). `main.ts` и
+  другие DB/queue файлы media-worker не менялись.
+- Новые executable marker-negative тесты (captured actual rendered stdout через `process.stdout.write` spy, не
+  только redact-конфигурация): `apps/integrator/src/infra/db/client.test.ts` (query error, tx query error, logger-
+  throws console fallback), `apps/integrator/src/infra/observability/logger.test.ts`, `apps/webapp/src/infra/logging/
+  logger.test.ts`, `apps/media-worker/src/logger.test.ts`. Все используют `SENSITIVE_TEST_MARKER_bcb914` в SQL params
+  и в nested `cause.{body.message, providerError.{message,phone}, filename, token}`; assert marker отсутствует в
+  рендере, а `pgCode`/`requestId` остаются видимы (safe diagnostics preserved). **Исправлено correction round 1
+  (см. ниже)**: изначально top-level `Error.message` (`"outer failure"`) целиком проходил в рендер — это была
+  отдельная утечка от nested-cause redaction.
+- **Не тронуто:** `dispatchPort.ts`, `delivery_attempt_logs`, `outgoing_delivery_queue`, queue/retry/dead-letter
+  schema, retention/cleanup, NTF-01/notification routing, DB migrations, deploy/env/servers, taskdb. Elapsed-time
+  instrumentation не добавлена (не было "already available" до этой правки — см. stage doc note).
+- PASS: `apps/integrator` full `test` (172 files / 1270 tests) и `typecheck`/`lint`; `apps/webapp` full `test:webapp`
+  (1416 files / 8141 tests) и `typecheck`/`lint`; `apps/media-worker` full `test` (14 files / 58 tests) и
+  `typecheck`. `git diff --check` clean на изменённых файлах. Независимый security audit ещё предстоит.
+
+## 2026-07-19 — LOG-01/L1 correction round 1: `serializeError` top-level message/stack leak (taskdb `#914`)
+
+- Lead review диффа нашёл gap до independent audit: `serializeError` во всех трёх приложениях по-прежнему
+  прокидывал `err.message`/`err.stack` (и `JSON.stringify(err)` для non-Error значений) **дословно** на верхнем
+  уровне. Nested-key redaction (`sanitizeErrorCause`/`redactUnknownErrorShape`) защищала только `cause`/вложенные
+  поля; сам top-level `Error.message`/`stack` мог содержать raw provider response, SQL detail, patient data,
+  телефон, filename, token или body, если они когда-либо оказывались в тексте исключения (например, PostgreSQL
+  unique-constraint ошибка вида `Key (phone)=(...) already exists.`). Тесты это маскировали: `serializeError`/
+  logger rendered-output тесты во всех трёх апп намеренно использовали безобидное сообщение (`"outer failure"`,
+  `"x"`) и assert'или, что оно остаётся видимым — то есть проверяли redaction только вложенных полей.
+- Исправление — `SerializedError` теперь safe-by-construction: тип сузился до `{ type; code?; class?; cause? }`.
+  Raw `message`/`stack`/`JSON.stringify(err)` больше не попадают в возвращаемую форму ни при каком входе (`Error`,
+  error-like object, primitive). Единственное сохранённое диагностическое поле помимо `type`/`cause` — валидированный
+  PostgreSQL SQLSTATE `code`/`class` (regex `^[0-9A-Z]{5}$`, первые 2 символа как class), извлекаемый безопасно из
+  `err.code`, если формат совпадает; иначе поля просто отсутствуют. Логика (`safePgErrorCode`) дублирована per-app
+  (не единая cross-package абстракция), тем же паттерном, что и существующий `sanitizeErrorCause`/
+  `redactUnknownErrorShape`. `requestId`/`dbPrincipalSource`/`queryFingerprint`/`pgCode`/`pgClass` в `client.ts`
+  остаются sibling-полями лога (не частью `err`) и не менялись.
+- Обновлены `apps/integrator/src/infra/observability/logger.test.ts`, `apps/webapp/src/infra/logging/logger.test.ts`,
+  `apps/media-worker/src/logger.test.ts`: `serializeError`-юнит-тесты и rendered-output тесты теперь кладут
+  `SENSITIVE_TEST_MARKER_bcb914` **одновременно** в top-level `Error.message` (что автоматически попадает и в
+  `Error.stack`, т.к. V8 включает message в текст stack trace) и в nested `cause.{body.message, providerError.
+  {message,phone}, filename, token}`; assert'ится реальное отсутствие маркера в captured stdout, а не только
+  redact-конфигурация. Отдельный тест проверяет, что `code`/`class` (`23505`/`23`) сохраняются как safe explicit
+  поля. Прежний assert `expect(s.message).toBe(...)`/`rendered.toContain("outer failure")` удалён — это была
+  проверка утечки, а не безопасности. `apps/integrator/src/infra/db/client.test.ts`: `buildSensitiveError()` теперь
+  тоже кладёт маркер в top-level `Error.message` (реалистичный PostgreSQL constraint-error текст) — раньше тест
+  проверял только nested/nested-SQL пути, не сам DB-driver message.
+- **Не тронуто:** `serverRuntimeLog.ts` (`errMessage`/`ServerRuntimeLogResult.message` — pre-existing, отдельный от
+  `serializeError` путь, не модифицировался в этом slice; не входил в исходный diff и не относится к найденному
+  gap), L2 queues/schema/notification файлы, DB/deploy/prod, `.env.example`/`deploy/env` (git status их не изменял
+  сверх уже отмеченного baseline diff — здесь новых изменений нет).
+- PASS (targeted only, per correction scope — full package test/lint/build не перезапускались): `apps/integrator`
+  `vitest run src/infra/observability/logger.test.ts src/infra/db/client.test.ts` (2 files / 8 tests) и `tsc --noEmit`;
+  `apps/webapp` `vitest run src/infra/logging/logger.test.ts src/infra/logging/serverRuntimeLog.test.ts` (2 files /
+  6 tests) и `tsc --noEmit`; `apps/media-worker` `vitest run src/logger.test.ts` (1 file / 4 tests) и `tsc --noEmit`.
+  `git diff --check` clean на изменённых файлах (в т.ч. игнорируя pre-existing corrupted `.env.example` character-
+  device artifacts вне scope этой правки). Независимый security audit по-прежнему предстоит.
+
+## 2026-07-19 — LOG-01/L1 correction round 2: arbitrary `cause` serialization (taskdb `#914`)
+
+- Независимый security audit (`codex`, read-only) дал **FAIL** по P1: во всех трёх сериализаторах
+  `sanitizeErrorCause`/`redactUnknownErrorShape` из correction round 1 по-прежнему рекурсивно копировали
+  значения всех НЕ-blacklisted ключей и элементов массивов из произвольной формы `cause` — это key-blacklist,
+  а не allowlist/safe-by-construction. Synthetic in-memory rendered-output probe аудитора подтвердил утечку
+  маркера через `patientName`, `response.data`, элементы массива и enumerable-свойства кастомного `Error`
+  (любой ключ вне жёстко заданного blacklist проходил как есть). Это прямое нарушение LOG-01 L1 requirement
+  "не сериализовать неизвестный error/cause целиком".
+- Исправление — произвольная сериализация `cause` убрана полностью, а не сужена до более широкого blacklist.
+  `SerializedError` теперь закрытая value-free форма: `{ type: string; code?: string; class?: string }` —
+  поле `cause` удалено из типа и из возвращаемого значения `serializeError` во всех трёх приложениях
+  (`apps/integrator/src/infra/observability/logger.ts`, `apps/webapp/src/infra/logging/logger.ts`,
+  `apps/media-worker/src/logger.ts`). Удалены `sanitizeErrorCause`, `redactUnknownErrorShape`,
+  `SENSITIVE_ERROR_SHAPE_KEYS`, `normalizeErrorShapeKey`, `isSensitiveErrorShapeKey`,
+  `MAX_ERROR_SHAPE_REDACT_DEPTH` — редактирования по имени ключа для `cause` больше нет, потому что самого
+  копирования `cause` больше нет. Единственные сохранённые поля сверх `type` — валидированный PostgreSQL
+  SQLSTATE `code`/`class` (не изменялись). Logger-level `redact.paths` (`headers.authorization`, `*.token` и
+  т.д.) и `client.ts`/`logDbError` — не тронуты, они не относятся к `cause` внутри `err`.
+- Обновлены `apps/integrator/src/infra/observability/logger.test.ts`, `apps/webapp/src/infra/logging/
+  logger.test.ts`, `apps/media-worker/src/logger.test.ts`: общий `buildLeakyCause()` кладёт
+  `SENSITIVE_TEST_MARKER_bcb914` одновременно в top-level `Error.message`/`stack`, nested `cause.body.message`/
+  `cause.providerError.{message,phone}`, ранее непроверенные `cause.patientName`, `cause.response.data`,
+  элементы массива (`cause.items`) и enumerable-свойство кастомного `Error` (`cause.wrappedError.patientName`
+  на `Object.assign(new Error(marker), { patientName: marker })`). `serializeError`-юнит-тест дополнительно
+  проверяет `Object.keys(s)` строго равен `['type']` при таком input — доказывает закрытую форму, а не только
+  отсутствие маркера. Rendered-output тесты подтверждают отсутствие маркера в фактическом captured stdout при
+  сохранении `pgCode`/`requestId`/correlation-полей. `apps/integrator/src/infra/db/client.test.ts` не менялся
+  (raw SQL/params/fallback assertions вне scope этой правки, marker-negative assertions там продолжают
+  проходить без изменений).
+- **Уточнение claim (было неточно в предыдущих записях этого файла и в stage doc):** этот и предыдущие L1
+  slices санитизируют только payload сериализатора `err`/`error` (то, что передаётся как `{ err }`/`{ error }`
+  в `logger.error(...)`). Caller-supplied Pino message-аргумент (строка `msg` в `logger.error(fields, msg)`)
+  — отдельный, несанитизированный путь; этот slice не проверяет и не гарантирует его безопасность.
+- **Не тронуто:** `client.ts` raw SQL/params/fallback logic, `serverRuntimeLog.ts`, L2 queues/schema/dispatch/
+  retries/retention, C4/SaaS/registration файлы, DB/deploy/env/DEV/TEST/PROD/taskdb. L2 и полный LOG-01 остаются
+  open.
+- PASS (targeted only, per correction scope): `apps/integrator` `vitest run src/infra/observability/
+  logger.test.ts src/infra/db/client.test.ts` (2 files / 8 tests) и `tsc --noEmit -p .`; `apps/webapp`
+  `vitest run src/infra/logging/logger.test.ts` (1 file / 5 tests) и `tsc --noEmit -p .`; `apps/media-worker`
+  `vitest run src/logger.test.ts` (1 file / 4 tests) и `tsc --noEmit -p .`. `git diff --check` clean на
+  изменённых tracked-файлах (`apps/integrator/src/infra/observability/logger.ts`, `apps/webapp/src/infra/
+  logging/logger.ts`, `apps/webapp/src/infra/logging/logger.test.ts`, `apps/media-worker/src/logger.ts`).
+  Full package test/lint/build не перезапускались (вне scope этой узкой правки). Следующий независимый audit —
+  терминальный по этому P1.
+
+## 2026-07-19 — LOG-01/L1 terminal security re-audit PASS (taskdb `#914`)
+
+- Независимый cross-model terminal re-audit
+  `bcb-log01-l1-914-codex-terminal-reaudit-20260719` проверил полный L1 diff и предыдущий P1; verdict **PASS**.
+- Подтверждены закрытая форма `{ type, code?, class? }` во всех трёх runtime serializers, применение к `err` и
+  `error`, marker-negative rendered-output coverage для top-level message/stack, unknown cause keys, массивов и
+  enumerable custom Error properties, а также отсутствие raw SQL/params/duplicate console dump во всех query/tx
+  error paths integrator DB client.
+- Переиспользованы зелёные targeted tests/typechecks correction round 2; read-only auditor сверил их фактическое
+  покрытие. Его собственный повтор Vitest не стартовал из-за read-only `.vite-temp` (`EROFS`), что классифицировано
+  как ограничение audit sandbox, а не test failure.
+- L1 immediate logging guard закрыт. Caller-supplied Pino message strings, `serverRuntimeLog.ts`, L2 queues/retention,
+  production cleanup и broad L0/L3 census остаются явно отложенными и не приписываются этому PASS.

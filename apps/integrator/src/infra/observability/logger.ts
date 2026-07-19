@@ -2,39 +2,55 @@ import pino from 'pino';
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 
-/** Унифицированная форма ошибки для структурированных логов. */
+/**
+ * Унифицированная форма ошибки для структурированных логов — safe-by-construction,
+ * закрытая value-free форма: сюда никогда не попадают сырые `message`/`stack`/
+ * `JSON.stringify(err)` или произвольные поля из `cause` — только `type` и
+ * провалидированный PostgreSQL SQLSTATE `code`/`class`.
+ */
 export type SerializedError = {
   type: string;
-  message: string;
-  stack: string | undefined;
-  cause?: unknown;
+  code?: string;
+  class?: string;
 };
+
+const PG_SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
+
+/** PostgreSQL SQLSTATE ("code") и его класс (первые 2 символа), если ошибка похожа на pg. */
+function safePgErrorCode(err: unknown): Pick<SerializedError, 'code' | 'class'> {
+  if (err !== null && typeof err === 'object' && 'code' in err) {
+    const code = (err as { code?: unknown }).code;
+    if (typeof code === 'string' && PG_SQLSTATE_PATTERN.test(code)) {
+      return { code, class: code.slice(0, 2) };
+    }
+  }
+  return {};
+}
 
 /**
  * Приводит любое значение ошибки к предсказуемой структуре
- * для pino-сериализаторов.
+ * для pino-сериализаторов. `cause` намеренно не сериализуется ни в каком виде:
+ * это поле произвольной, неконтролируемой формы (provider errors, HTTP body,
+ * custom Error properties и т.п.), и любое копирование его содержимого —
+ * даже частичное — нарушает safe-by-construction контракт.
  */
 export function serializeError(err: unknown): SerializedError {
   if (err instanceof Error) {
     return {
       type: err.name,
-      message: err.message,
-      stack: err.stack,
-      cause: err.cause,
+      ...safePgErrorCode(err),
     };
   }
 
   if (typeof err === 'object' && err !== null) {
-    const e = err as { name?: unknown; message?: unknown; stack?: unknown; cause?: unknown };
+    const e = err as { name?: unknown };
     return {
       type: typeof e.name === 'string' ? e.name : 'ErrorLike',
-      message: typeof e.message === 'string' ? e.message : JSON.stringify(err),
-      stack: typeof e.stack === 'string' ? e.stack : undefined,
-      cause: e.cause,
+      ...safePgErrorCode(err),
     };
   }
 
-  return { type: 'UnknownError', message: String(err), stack: undefined };
+  return { type: 'UnknownError' };
 }
 
 /**
