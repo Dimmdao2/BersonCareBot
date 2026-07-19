@@ -23,6 +23,10 @@ vi.mock("../_requireDoctorBookingEngine", () => ({
   requireDoctorBookingEngine: requireDoctorBookingEngineMock,
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: async () => ({ ok: true }),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     memberships: {

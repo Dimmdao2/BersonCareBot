@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorAccess, requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type {
@@ -64,6 +65,8 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, "actorId">
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "mailings");
+  if (!entitlement.ok) throw new Error(`entitlement_required:${entitlement.mechanic}`);
   const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
     {

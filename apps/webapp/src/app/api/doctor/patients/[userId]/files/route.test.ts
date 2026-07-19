@@ -14,6 +14,10 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: () => requireDoctorWorkspaceApiContextMock(),
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: async () => ({ ok: true }),
+}));
+
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
   withDoctorWorkspacePrincipal: (
     ctx: unknown,

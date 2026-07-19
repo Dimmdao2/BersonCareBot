@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
@@ -190,6 +191,8 @@ const OWNER_ONLY_PATIENT_HOME_KEYS = new Set<string>([
   "patient_treatment_plan_item_done_repeat_cooldown_minutes",
 ]);
 
+const PAYMENT_ENTITLEMENT_SETTING_KEYS = new Set(["booking_payment_providers", "booking_payment_enabled"]);
+
 function redactWebPushVapidForAudit(envelope: unknown): unknown {
   if (envelope === null || typeof envelope !== "object") return envelope;
   if (!("value" in envelope)) return envelope;
@@ -366,6 +369,10 @@ export async function PATCH(request: Request) {
       { ok: false, error: "forbidden_global_setting", key: parsed.data.key },
       { status: 403 },
     );
+  }
+  if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key)) {
+    const entitlement = await requireEntitlement(gate.ctx, "payments");
+    if (!entitlement.ok) return entitlement.response;
   }
   if (
     OWNER_ONLY_PATIENT_HOME_KEYS.has(parsed.data.key) &&

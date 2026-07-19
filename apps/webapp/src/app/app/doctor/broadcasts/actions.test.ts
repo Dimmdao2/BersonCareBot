@@ -42,6 +42,10 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
     requireDoctorWorkspaceContextMock(...args),
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: async () => ({ ok: true }),
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     doctorBroadcasts: {

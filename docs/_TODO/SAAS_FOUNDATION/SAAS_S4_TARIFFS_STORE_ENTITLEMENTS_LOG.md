@@ -30,3 +30,25 @@ owner gates remain in the canonical SaaS Product UX roadmap/review; this log rec
   correction rounds with full re-audit. Audit findings without an S4 §5-6/mandatory repo-rule source are owner
   questions or recommendations, not automatic scope.
 
+## 2026-07-19 — S4-0/S4-1 implementation evidence (`#888`)
+
+- **Run:** `s4-0-s4-1-888-20260719`.
+- **Registry and inventory:** the fourteen-key typed registry with Russian labels is
+  `apps/webapp/src/modules/org-entitlements/types.ts:11-31`; the method-level mapping and explicit no-surface
+  declarations are `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts:18-44`; the human-readable
+  contract/payment/ownership inventory is [`S4_0_S4_1_CONTRACT_INVENTORY.md`](./S4_0_S4_1_CONTRACT_INVENTORY.md).
+- **Boundary:** `assertMechanicEnabled` and both route/action adapters are
+  `apps/webapp/src/app-layer/guards/requireEntitlement.ts:13-44`. They accept only an already-authorized
+  `organizationId`, resolve only `orgEntitlements`, and return route `403 entitlement_required` or action typed deny.
+- **Coverage:** all mapped protected method-level write actions call the common adapters after their existing auth or
+  composed context. The machine checker is `apps/webapp/scripts/check-s4-entitlement-coverage.ts`; its self-test
+  rejects duplicate and unknown exported actions and the production scan rejects resolver/tariff bypass.
+- **Compatibility/source/merchant/payment contracts:** resolver tests retain assigned/override/unassigned default-on;
+  `tariffAccessContract.ts`, `merchantIdentityContracts.ts`, and `saasActivationContract.ts` are dormant typed
+  contracts only. No DDL, migration, fixture/backfill apply, provider activation, secret, env key, billing UI, or
+  subscription/grant write was added.
+- **Data-gate residual:** the required future `unassigned org = 0` fixture/report is not produced here: it requires
+  a separately approved data inventory/backfill scope. Existing unassigned organizations deliberately remain default-on.
+- **Local verification blocker:** the worktree has no `apps/webapp/node_modules`; focused Vitest stops before test
+  discovery because the required workspace package cannot resolve `drizzle-orm`, and the checker command cannot find
+  `tsx`. `git add` cannot create this worktree's git index lock (`Read-only file system`), so no commit was made.

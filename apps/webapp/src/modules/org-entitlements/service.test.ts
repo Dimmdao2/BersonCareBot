@@ -15,62 +15,45 @@ function portFor(
 
 describe("resolveOrgEntitlements", () => {
   it("defaults every mechanic to enabled when there is no tariff and no overrides", async () => {
-    const port = portFor(null, []);
-
-    const result = await resolveOrgEntitlements(port, "org-1");
-
-    for (const mechanic of MECHANICS) {
-      expect(result[mechanic]).toBe(true);
-    }
+    const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
+    for (const mechanic of MECHANICS) expect(result[mechanic]).toBe(true);
   });
 
-  it("a tariff-level false wins over the default-true", async () => {
-    const port = portFor({ mechanics: { payments: false } }, []);
+  it("uses assigned tariff values", async () => {
+    const result = await resolveOrgEntitlements(portFor({ mechanics: { courses: false } }, []), "org-a");
+    expect(result.courses).toBe(false);
+  });
 
-    const result = await resolveOrgEntitlements(port, "org-1");
-
-    expect(result.payments).toBe(false);
+  it("lets an organization override win over an assigned tariff", async () => {
+    const result = await resolveOrgEntitlements(
+      portFor({ mechanics: { courses: false } }, [{ mechanic: "courses", enabled: true }]),
+      "org-a",
+    );
     expect(result.courses).toBe(true);
   });
 
-  it("an org override wins over the tariff value", async () => {
-    const port = portFor(
-      { mechanics: { branding: true } },
-      [{ mechanic: "branding", enabled: false }],
-    );
-
-    const result = await resolveOrgEntitlements(port, "org-1");
-
-    expect(result.branding).toBe(false);
-  });
-
-  it("an org override wins over the default-true when the tariff is silent on that mechanic", async () => {
-    const port = portFor({ mechanics: {} }, [{ mechanic: "booking", enabled: false }]);
-
-    const result = await resolveOrgEntitlements(port, "org-1");
-
-    expect(result.booking).toBe(false);
-  });
-
-  it("matches the SQL-proven fixture: booking=default true, branding=override false, payments=tariff false, courses=default true", async () => {
-    const port = portFor(
-      { mechanics: { payments: false } },
-      [{ mechanic: "branding", enabled: false }],
-    );
-
-    const result = await resolveOrgEntitlements(port, "org-1");
-
-    expect(result.booking).toBe(true);
-    expect(result.branding).toBe(false);
-    expect(result.payments).toBe(false);
+  it("keeps intentionally-unassigned existing organizations default-on until a data gate", async () => {
+    const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
     expect(result.courses).toBe(true);
+  });
+
+  it("does not leak an override from organization A into organization B", async () => {
+    const ports = new Map<string, OrgEntitlementsPort>([
+      ["org-a", portFor(null, [{ mechanic: "courses", enabled: false }])],
+      ["org-b", portFor(null, [])],
+    ]);
+    const scopedPort: OrgEntitlementsPort = {
+      getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
+      listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
+    };
+    await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(false);
+    await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(true);
   });
 });
 
 describe("isMechanicEnabled", () => {
-  it("delegates to resolveOrgEntitlements for a single mechanic", async () => {
+  it("delegates to the same compatibility resolver", async () => {
     const port = portFor(null, [{ mechanic: "files", enabled: false }]);
-
     await expect(isMechanicEnabled(port, "org-1", "files")).resolves.toBe(false);
     await expect(isMechanicEnabled(port, "org-1", "cms_pages")).resolves.toBe(true);
   });

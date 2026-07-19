@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
   CMS_UNASSIGNED_SECTION_SLUG,
@@ -24,6 +25,8 @@ export async function saveContentSection(
   formData: FormData,
 ): Promise<SaveContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   const slug = (formData.get("slug") as string)?.trim() || "";
@@ -237,6 +240,8 @@ export async function deleteContentSection(
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   if (formData.get("confirm_delete") !== "on") {

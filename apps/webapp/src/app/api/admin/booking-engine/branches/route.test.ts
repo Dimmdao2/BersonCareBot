@@ -11,6 +11,10 @@ vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlement: async () => ({ ok: true }),
+}));
+
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));

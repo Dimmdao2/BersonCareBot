@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireDoctorWorkspaceApiContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
 import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import type { OrgMechanic } from "@/modules/org-entitlements/types";
 
-export async function requireEntitlement(
-  mechanic: OrgMechanic,
-): Promise<{ ok: true; ctx: DoctorWorkspaceAccessContext } | { ok: false; response: NextResponse }> {
-  const gate = await requireDoctorWorkspaceApiContext();
-  if (!gate.ok) return gate;
+/** A route/action may pass only an already-authorized, server-derived organization. */
+export type EntitlementContext = Readonly<{ organizationId: string }>;
 
-  // P1 wires only selected mechanics route-by-route; the remaining mechanics are intentionally ungated for now.
-  const enabled = await isMechanicEnabled(buildAppDeps().orgEntitlements, gate.ctx.organizationId, mechanic);
+/**
+ * The sole resolver bridge for application code. It intentionally performs no
+ * session, role, request-body, or response work.
+ */
+export async function assertMechanicEnabled(
+  organizationId: string,
+  mechanic: OrgMechanic,
+): Promise<boolean> {
+  return isMechanicEnabled(buildAppDeps().orgEntitlements, organizationId, mechanic);
+}
+
+export async function requireEntitlement(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const enabled = await assertMechanicEnabled(ctx.organizationId, mechanic);
   if (!enabled) {
     return {
       ok: false,
@@ -19,5 +29,15 @@ export async function requireEntitlement(
     };
   }
 
-  return gate;
+  return { ok: true };
+}
+
+/** Server Action adapter: same resolver, intentionally no NextResponse dependency in its result. */
+export async function requireEntitlementForAction(
+  ctx: EntitlementContext,
+  mechanic: OrgMechanic,
+): Promise<{ ok: true } | { ok: false; mechanic: OrgMechanic }> {
+  return (await assertMechanicEnabled(ctx.organizationId, mechanic))
+    ? { ok: true }
+    : { ok: false, mechanic };
 }

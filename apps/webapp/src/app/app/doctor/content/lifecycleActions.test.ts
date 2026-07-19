@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: async () => ({ ok: true }),
+}));
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
 const updateLifecycle = vi.fn();

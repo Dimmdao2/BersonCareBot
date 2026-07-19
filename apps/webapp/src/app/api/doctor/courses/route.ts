@@ -49,9 +49,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement("courses");
+  const entitlement = await requireEntitlement(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
-  const { ctx: workspace } = entitlement;
+  const workspace = auth.ctx;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = postBodySchema.safeParse(raw);

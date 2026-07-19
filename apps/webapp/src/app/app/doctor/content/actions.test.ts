@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  requireEntitlementForAction: async () => ({ ok: true }),
+}));
+
 const upsertMock = vi.fn();
 const getBySlugMock = vi.fn();
 const listAllMock = vi.fn();
