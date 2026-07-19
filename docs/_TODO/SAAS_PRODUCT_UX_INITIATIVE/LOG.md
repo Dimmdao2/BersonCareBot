@@ -2291,3 +2291,34 @@ Taskdb `#840`, `#841`, and `#842` were moved to `done` with `seal_test=true`, `s
 explicitly set `accepted`. This conflicts with the current repo rule that only the owner sets acceptance and is
 retained as a process/tooling finding rather than silently treating the automated flag as a new owner decision.
 The non-roadmap process regression is tracked separately as taskdb `#886` (`auto_ok=false`); it does not block C2F.
+
+## 2026-07-19 — C2F launch checkpoint: structured registrations (`#855`)
+
+Stage C2F starts from clean integrated branch `feat/doctor-ui-rebuild` at `cc9238fe6`; origin is equal, the only
+untracked path is the protected owner file `docs/_TODO/SESSION_HANDOFF_2026-07-17.md`, and there is one integration
+worktree. The current live TEST code is the previously accepted code-only deployment `4a889093d`; this stage does
+not reset or mutate TEST and does not touch PROD.
+
+Task `#855` implements only owner-review §19 steps 1–2 / FIO Phase 6: patient email registration requires structured
+surname and given name with optional patronymic; specialist/clinic registration uses the same structured specialist
+identity while keeping organization title separate and preserving the current invite/provisioning/membership flow.
+Compatibility `display_name` and specialist full-name labels are derived deterministically from those submitted
+parts. Dependencies already present are the canonical `platform_users.last_name/first_name/patronymic` fields, the
+existing FIO normalization/formatting helpers, the C2 identity and specialist-provisioning contracts, and the single
+SECURITY DEFINER `app.email_password_register_pending` write path. No second registration writer or table is allowed.
+
+The traced primary file scope is the existing patient auth flow and pending-session contract, the two registration
+API routes and tests, the password-credential port/repository and repository tests, the existing specialist signup
+intent/provisioning port/repository/schema and tests, their additive Drizzle migration and existing bootstrap
+function/grant/check/smoke artifacts. `#856` provider writers and display surfaces, historical backfill artifacts,
+parser retirement, billing/settings/Rubitime and notification templates are protected adjacent scope. No PII may be
+printed or committed; no real send, TEST/PROD DB operation, deploy, main/test push or destructive action is allowed.
+
+Acceptance is API/UI required last+first and optional patronymic for both journeys; deterministic compatibility
+display; structured columns written through the sanctioned function; resend/reload preserves all fields; specialist
+FIO never aliases organization title; provisioning, duplicate-email rollback, OTP confirmation, retry and
+membership idempotency remain green. The stage uses one whole-stage high-risk worker, independent audit, at most two
+coherent correction rounds with full re-audit, then targeted auth/provisioning/SQL-contract tests, typecheck and
+scoped lint. Full CI waits for the next accumulated milestone. An unresolved product interpretation or any finding
+without an owner-review §19 line stops as an owner question rather than expanding scope. `#856` is intentionally
+serialized after `#855` because it touches the same identity writers and displays.
