@@ -6,14 +6,14 @@ import type { ReactNode } from "react";
 
 const {
   redirectMock,
-  requireDoctorWorkspaceContextMock,
+  requireOrganizationWorkspaceContextMock,
   listSettingsByScopeMock,
   getDoctorAccountTimezoneMock,
   settingsHubTabsMock,
   appointmentReminderMock,
 } = vi.hoisted(() => ({
   redirectMock: vi.fn((url: string) => { throw new Error(`redirect:${url}`); }),
-  requireDoctorWorkspaceContextMock: vi.fn(),
+  requireOrganizationWorkspaceContextMock: vi.fn(),
   listSettingsByScopeMock: vi.fn(),
   getDoctorAccountTimezoneMock: vi.fn(),
   settingsHubTabsMock: vi.fn((props: { tabs: Array<{ id: string }> }) => {
@@ -24,7 +24,7 @@ const {
 }));
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
-vi.mock("@/app-layer/guards/requireRole", () => ({ requireDoctorWorkspaceContext: requireDoctorWorkspaceContextMock }));
+vi.mock("@/app-layer/guards/requireRole", () => ({ requireOrganizationWorkspaceContext: requireOrganizationWorkspaceContextMock }));
 vi.mock("@/app-layer/doctor/accountTimezone", () => ({ getDoctorAccountTimezone: getDoctorAccountTimezoneMock }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -67,7 +67,7 @@ describe("settings hub role and direct-tab guards", () => {
       { key: "doctor_appointment_reminder_offsets_minutes", valueJson: { value: [1440, 120] } },
     ]);
     getDoctorAccountTimezoneMock.mockResolvedValue(null);
-    requireDoctorWorkspaceContextMock.mockResolvedValue(ownerWorkspace);
+    requireOrganizationWorkspaceContextMock.mockResolvedValue(ownerWorkspace);
   });
 
   it("renders the retained appointment-reminder contract exactly once in the organization tab", async () => {
@@ -101,7 +101,7 @@ describe("settings hub role and direct-tab guards", () => {
   });
 
   it("redirects an ordinary specialist away from organization and billing direct tabs", async () => {
-    requireDoctorWorkspaceContextMock.mockResolvedValue({
+    requireOrganizationWorkspaceContextMock.mockResolvedValue({
       ...ownerWorkspace,
       membershipRole: "doctor",
       canManageOrganization: false,

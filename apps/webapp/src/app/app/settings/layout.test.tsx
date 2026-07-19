@@ -2,13 +2,13 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireDoctorWorkspaceContextMock, listSettingsByScopeMock } = vi.hoisted(() => ({
-  requireDoctorWorkspaceContextMock: vi.fn(),
+const { requireOrganizationWorkspaceContextMock, listSettingsByScopeMock } = vi.hoisted(() => ({
+  requireOrganizationWorkspaceContextMock: vi.fn(),
   listSettingsByScopeMock: vi.fn(),
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorWorkspaceContext: () => requireDoctorWorkspaceContextMock(),
+  requireOrganizationWorkspaceContext: () => requireOrganizationWorkspaceContextMock(),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -25,9 +25,9 @@ import SettingsLayout from "./layout";
 
 describe("SettingsLayout", () => {
   beforeEach(() => {
-    requireDoctorWorkspaceContextMock.mockReset();
+    requireOrganizationWorkspaceContextMock.mockReset();
     listSettingsByScopeMock.mockReset();
-    requireDoctorWorkspaceContextMock.mockResolvedValue({
+    requireOrganizationWorkspaceContextMock.mockResolvedValue({
       session: {
         user: {
           userId: "00000000-0000-4000-8000-000000000001",
@@ -47,7 +47,7 @@ describe("SettingsLayout", () => {
 
   it("resolves and stamps the staff workspace before reading restricted settings", async () => {
     const callOrder: string[] = [];
-    requireDoctorWorkspaceContextMock.mockImplementation(async () => {
+    requireOrganizationWorkspaceContextMock.mockImplementation(async () => {
       callOrder.push("workspace");
       return {
         session: {
