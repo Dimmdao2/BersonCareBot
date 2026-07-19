@@ -45,11 +45,10 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const seatCheck = await deps.clinicSeats.assertSeatAvailableForInvite(gate.ctx.organizationId, parsed.data.role);
-  if (!seatCheck.ok) {
-    return NextResponse.json({ ok: false, error: seatCheck.code }, { status: 409 });
-  }
-
+  // Seat capacity is enforced only inside the org-locked transaction of createInvite
+  // (createReplacingPending) — a route-level pre-check here cannot know that a same-email
+  // request replaces (rather than adds to) that email's own pending reservation, and would
+  // wrongly reject a same-email replacement at the exact limit. See pgOrganizationInvites.ts.
   const result = await deps.organizationInvites.createInvite({
     organizationId: gate.ctx.organizationId,
     email: parsed.data.email,

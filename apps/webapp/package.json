@@ -15,6 +15,7 @@
     "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",
     "check:s4-entitlement-coverage": "tsx scripts/check-s4-entitlement-coverage.ts",
+    "check:c4a-843-clinic-invite-concurrency": "node scripts/check-c4a-843-clinic-invite-concurrency.mjs",
     "build": "rm -rf .next/standalone && NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=4096}\" NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start -H 127.0.0.1 -p 6200",

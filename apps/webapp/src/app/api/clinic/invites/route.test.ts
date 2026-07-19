@@ -57,7 +57,6 @@ describe("clinic invites route", () => {
   });
 
   const defaultClinicSeats = {
-    assertSeatAvailableForInvite: vi.fn().mockResolvedValue({ ok: true }),
     getSeatStatus: vi.fn().mockResolvedValue({ limit: 0, used: 0, available: 0 }),
   };
 
@@ -149,5 +148,39 @@ describe("clinic invites route", () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "seat_limit_reached" });
+  });
+
+  it("allows a same-email replacement at the exact limit without a route-level pre-check rejecting it first", async () => {
+    // Regression for the C4A re-audit P1: a route-level best-effort seat pre-check does not know
+    // a same-email request replaces (not adds to) its own prior reservation, and would wrongly
+    // reject it at the limit. The route must defer entirely to createInvite's atomic, org-locked
+    // result, which does know about same-email replacement (pgOrganizationInvites.ts).
+    const createInvite = vi.fn().mockResolvedValue({
+      ok: true,
+      token: "raw-token",
+      invite: {
+        id: "44444444-4444-4444-8444-444444444444",
+        invitedEmail: "same-email-replacement@example.com",
+        invitedRole: "doctor",
+        expiresAt: "2026-07-27T00:00:00.000Z",
+        organizationTitle: "Clinic",
+      },
+    });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
+    });
+
+    const res = await POST(
+      makeRequest({ email: "same-email-replacement@example.com", role: "doctor" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(createInvite).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      email: "same-email-replacement@example.com",
+      role: "doctor",
+      createdByPlatformUserId: CREATOR_ID,
+    });
   });
 });

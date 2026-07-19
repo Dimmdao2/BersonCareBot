@@ -78,12 +78,11 @@ describe("organization invite PostgreSQL contract", () => {
     expect(acceptSource).not.toContain("INSERT INTO public.be_specialists");
   });
 
-  it("atomically re-checks clinic_team entitlement and seat capacity before activating a doctor invite, leaving it pending on denial", () => {
+  it("atomically re-checks current clinic_team entitlement for EVERY invited role, leaving the invite pending on denial", () => {
     const acceptStart = overlaySource.indexOf("CREATE OR REPLACE FUNCTION app.accept_org_invite");
     const acceptEnd = overlaySource.indexOf("COMMENT ON FUNCTION app.accept_org_invite", acceptStart);
     const acceptSource = overlaySource.slice(acceptStart, acceptEnd);
 
-    expect(acceptSource).toContain("IF v_invite.invited_role = 'doctor' THEN");
     const orgLockIndex = acceptSource.indexOf("pg_advisory_xact_lock");
     const inviteRowLockIndex = acceptSource.indexOf("\n  FOR UPDATE;");
     expect(orgLockIndex).toBeGreaterThan(-1);
@@ -91,16 +90,37 @@ describe("organization invite PostgreSQL contract", () => {
     expect(acceptSource).toContain("'clinic_invite_seats:' || v_invite_organization_id::text");
     expect(acceptSource).toContain("saas_org_entitlement_overrides");
     expect(acceptSource).toContain("saas_tariffs");
-    expect(acceptSource).toContain("m.specialist_id IS NOT NULL");
-    expect(acceptSource).toContain("i.invited_role = 'doctor' AND i.id <> v_invite.id");
-    expect(acceptSource).toContain("i.status = 'accepted'");
-    expect(acceptSource).toContain("m.status = 'active' AND m.specialist_id IS NULL");
-    expect(acceptSource).toContain("'seat_limit_reached'");
+    expect(acceptSource).toContain("'entitlement_disabled'");
+
+    // The entitlement check is NOT scoped inside `IF v_invite.invited_role = 'doctor'` — it must
+    // run, and be able to deny, for every invited role (admin included) before any mutation.
+    const entitlementCheckIndex = acceptSource.indexOf("IF NOT v_clinic_team_enabled THEN");
+    const doctorOnlyBlockIndex = acceptSource.indexOf("IF v_invite.invited_role = 'doctor' THEN");
+    expect(entitlementCheckIndex).toBeGreaterThan(-1);
+    expect(doctorOnlyBlockIndex).toBeGreaterThan(-1);
+    expect(entitlementCheckIndex).toBeLessThan(doctorOnlyBlockIndex);
+    expect(entitlementCheckIndex).toBeLessThan(acceptSource.indexOf("INSERT INTO public.be_organization_members"));
+    expect(entitlementCheckIndex).toBeLessThan(acceptSource.indexOf("SET status = 'accepted'"));
+  });
+
+  it("atomically re-checks seat capacity before activating a doctor invite, doctor-role only, leaving it pending on denial", () => {
+    const acceptStart = overlaySource.indexOf("CREATE OR REPLACE FUNCTION app.accept_org_invite");
+    const acceptEnd = overlaySource.indexOf("COMMENT ON FUNCTION app.accept_org_invite", acceptStart);
+    const acceptSource = overlaySource.slice(acceptStart, acceptEnd);
+    const doctorBlockStart = acceptSource.indexOf("IF v_invite.invited_role = 'doctor' THEN");
+    const doctorBlock = acceptSource.slice(doctorBlockStart);
+
+    expect(doctorBlockStart).toBeGreaterThan(-1);
+    expect(doctorBlock).toContain("m.specialist_id IS NOT NULL");
+    expect(doctorBlock).toContain("i.invited_role = 'doctor' AND i.id <> v_invite.id");
+    expect(doctorBlock).toContain("i.status = 'accepted'");
+    expect(doctorBlock).toContain("m.status = 'active' AND m.specialist_id IS NULL");
+    expect(doctorBlock).toContain("'seat_limit_reached'");
     // The capacity check must run, and deny, before any membership/invite mutation.
-    const capacityCheckIndex = acceptSource.indexOf("IF v_seat_used >= v_seat_limit THEN");
+    const capacityCheckIndex = doctorBlock.indexOf("IF v_seat_used >= v_seat_limit THEN");
     expect(capacityCheckIndex).toBeGreaterThan(-1);
-    expect(capacityCheckIndex).toBeLessThan(acceptSource.indexOf("INSERT INTO public.be_organization_members"));
-    expect(capacityCheckIndex).toBeLessThan(acceptSource.indexOf("SET status = 'accepted'"));
+    expect(capacityCheckIndex).toBeLessThan(doctorBlock.indexOf("INSERT INTO public.be_organization_members"));
+    expect(capacityCheckIndex).toBeLessThan(doctorBlock.indexOf("SET status = 'accepted'"));
   });
 
   it("counts accepted doctor invites as reservations until specialist provisioning replaces the reservation", () => {

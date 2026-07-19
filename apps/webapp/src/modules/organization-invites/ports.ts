@@ -41,7 +41,16 @@ export type AcceptOrganizationInviteResult =
       specialistId: string | null;
       role: OrganizationInviteRole;
     }
-  | { ok: false; code: "invalid_token" | "expired_token" | "reused_token" | "email_mismatch" | "seat_limit_reached" };
+  | {
+      ok: false;
+      code:
+        | "invalid_token"
+        | "expired_token"
+        | "reused_token"
+        | "email_mismatch"
+        | "entitlement_disabled"
+        | "seat_limit_reached";
+    };
 
 export type OrganizationInvitesPort = {
   createReplacingPending(input: CreateOrganizationInviteInput): Promise<CreateOrganizationInviteResult>;

@@ -2785,3 +2785,96 @@ ESLint, journal sync, S4 coverage (`29` actions) and `git diff --check` all pass
 
 **Environment note.** The sandbox could not write the linked-worktree Git admin directory, so the lead performs the
 exact-path commit after reviewing the diff. Host-side `git status` contains only the task paths listed above.
+
+### Second correction (`#843`) — same-email route bypass, admin accept-after-OFF, executable concurrency proof
+
+The second critical re-audit (`bcb-c4a-843-critical-reaudit-20260719.md`, base `f082e6e01`, candidate `0c437a970` +
+`b676d8073`, verdict FAIL) found three remaining plan-aligned blockers on top of the first correction above, all
+closed in this pass. Scope stayed inside the same three files/areas the audit named; no DB mutation, deploy, server
+start, taskdb change or full CI was performed.
+
+- **P1 — same-email replacement still failed through the real route at the limit.** `POST /api/clinic/invites`
+  called a route-level best-effort pre-check (`clinicSeats.assertSeatAvailableForInvite`) that only received
+  `(organizationId, role)` — it could not know a same-email request replaces (not adds to) that email's own pending
+  reservation, so at limit=used it always returned `seat_limit_reached` before the authoritative, replacement-aware
+  `createReplacingPending` transaction ever ran. Fix: removed the pre-check call from
+  `api/clinic/invites/route.ts` entirely; the route now relies solely on `createInvite`'s atomic, org-locked result
+  (already mapped to `409` for both `already_member` and `seat_limit_reached`). Deleted the now-dead
+  `assertSeatAvailableForInvite` from `clinic-seats/service.ts` (no other caller existed) and its tests; updated
+  `route.test.ts` (new same-email-at-limit regression), `route.entitlement.test.ts` (re-authored the entitlement/
+  ordering suite without the removed seat pre-check step) and `protectedActionRegistry.ts`'s descriptive
+  `serviceBoundary` text for `clinic-team.invites.create`.
+- **P1 — an admin invite could still activate membership after `clinic_team` was switched OFF.** Inside
+  `app.accept_org_invite` (`deploy/postgres/organization-member-invites-rls.sql`), the current-entitlement re-check
+  was scoped inside `IF v_invite.invited_role = 'doctor' THEN`, so an `admin` invite skipped it and could still
+  insert/activate a membership after downgrade/OFF (admin invites never consume a numeric seat, but acceptance is
+  still growth through the paid `clinic_team` capability). Fix: hoisted the `clinic_team` enabled check out of the
+  doctor-only block so it runs, and can fail closed, for **every** invited role before any
+  `platform_users`/membership/invite mutation; added a new terminal code `entitlement_disabled` (function now
+  returns it and stops before mutation when disabled). Numeric seat-capacity computation stays doctor-only,
+  unchanged in shape. Propagated the new code through `organization-invites/ports.ts`
+  (`AcceptOrganizationInviteResult`), `pgOrganizationInvites.ts`'s `mapAcceptFailureCode`, and
+  `accept/confirm/route.ts`'s `acceptErrorStatus` (`entitlement_disabled` → `403`, `seat_limit_reached` stays `409`).
+  Added a negative regression in `accept/confirm/route.test.ts` (admin invite denied `403` after OFF, no session
+  established) and re-authored the two SQL contract assertions in `pgOrganizationInvites.test.ts` to check the
+  entitlement gate runs before, and independently of, the doctor-only capacity block. The client-facing
+  `inviteAcceptState.ts` copy map has no dedicated case for the new code (falls through to the existing generic
+  "service unavailable" default) — the same fallback the pre-existing `seat_limit_reached` code already uses; left
+  as-is to avoid unrelated UI scope.
+- **P1 validation gap — concurrency was asserted structurally, not executed.** Added
+  `apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` (new package script
+  `check:c4a-843-clinic-invite-concurrency`), following the private `/tmp` PostgreSQL 16 pattern from
+  `smoke-s5-1-runtime-settings-contract.mjs`: owns a disposable cluster/socket/database, reads no application env
+  and never touches DEV/TEST/PROD, aggregate-only output, guaranteed stop+cleanup in `finally`. It applies the
+  `app.accept_org_invite` function **verbatim** (string-sliced straight out of the overlay SQL, not retyped) into a
+  minimal synthetic schema, and replays `createReplacingPending`'s five SQL statements — also extracted verbatim
+  from `pgOrganizationInvites.ts` by stripping `//` comments and slicing template literals, not hand-duplicated —
+  through real concurrent `pg` client connections (control-flow glue between statements is hand-written but mirrors
+  the source 1:1, checked by `--self-test`). Four scenarios pass against a real PostgreSQL 16 server in this
+  sandbox: (1) two concurrent different-email doctor creates at the final seat → exactly one succeeds, the other
+  denied `seat_limit_reached`; (2) same-email replacement at the exact limit run concurrently against a
+  different-email contender → replacement succeeds, contender denied, exactly one pending reservation remains; (3)
+  concurrent create-vs-accept for the last seat (two separate connections, `Promise.all`) → accept succeeds (its own
+  reservation excluded), the concurrent different-email create is denied regardless of which side the advisory lock
+  favors, no oversubscription; (4) after accept, the membership is an active, unbound reservation
+  (`countSeatReservationsByOrganization` = 1); binding a specialist correctly drops that reservation-only count to 0
+  while the seat stays consumed via the bound-member clause (verified both by direct count and by a further
+  different-email create attempt still being denied `seat_limit_reached` post-binding). `apps/webapp/src/infra/
+  repos/pgOrganizationInvites.test.ts` keeps its static SQL-shape contract role; it does not replace it.
+  Deadlock note for future maintainers: each concurrent branch commits its own transaction the instant its own
+  work finishes (`runInTransaction` helper), not after `Promise.all` settles every branch — committing late would
+  hold the org-wide advisory lock open past the point of real work, deadlocking a sibling that's genuinely blocked
+  waiting on that same lock.
+
+**Validation.** `node apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs --self-test` and the full run
+(private PostgreSQL 16 cluster) both pass, all four scenarios above green. Targeted Vitest re-run across the nine
+affected files: `9` files / `49` tests pass (`route.test.ts`, `route.entitlement.test.ts`, `accept/confirm/
+route.test.ts`, `pgOrganizationInvites.test.ts`, `organization-invites/service.test.ts`, `clinic-seats/
+service.test.ts`, `invites/[id]/route.test.ts`, `clinic/members/route.test.ts`, `accept/start/route.test.ts`).
+`pnpm --dir apps/webapp run typecheck` passes. Scoped `eslint` on all 12 changed TS files plus the new `.mjs` script
+passes with no findings. `bash apps/webapp/scripts/check-drizzle-journal-sync.sh` passes (no schema/migration touched
+this round). `pnpm --dir apps/webapp run check:s4-entitlement-coverage` passes (`29` protected actions, self-test
+green, unchanged count — only the descriptive `serviceBoundary` string changed). `git diff --check` is clean on all
+task-related paths (repo-wide `git diff --check` errors on pre-existing unrelated `.env.example` files present in
+`git status` before this session started; not part of this task's diff). No full root CI, DB, DEV/TEST/PROD, deploy,
+server start or taskdb write.
+
+**Residual risk / owner note.** The in-memory `OrganizationInvitesPort` test double
+(`infra/repos/inMemoryOrganizationInvites.ts`) never implemented the doctor-only seat/entitlement re-check at all
+(pre-existing gap, unrelated to and not widened by this correction) — it is not exercised by production RLS/route
+paths, only by lighter-weight unit tests that don't need it. Left untouched per bounded scope.
+
+**Environment note.** Same as the first correction above: this worktree's shared
+`.git/worktrees/bcb-c4a-clinic-boundary-843/` admin directory is still on the sandbox's read-only root filesystem, so
+`git add`/`git commit` cannot run from here. Exact paths for the lead to commit on this branch
+(`codex/c4a-clinic-boundary-843`):
+`apps/webapp/package.json`, `apps/webapp/src/app-layer/entitlements/protectedActionRegistry.ts`,
+`apps/webapp/src/app/api/clinic/invites/accept/confirm/route.ts`,
+`apps/webapp/src/app/api/clinic/invites/accept/confirm/route.test.ts`,
+`apps/webapp/src/app/api/clinic/invites/route.ts`, `apps/webapp/src/app/api/clinic/invites/route.test.ts`,
+`apps/webapp/src/app/api/clinic/invites/route.entitlement.test.ts`,
+`apps/webapp/src/infra/repos/pgOrganizationInvites.ts`, `apps/webapp/src/infra/repos/pgOrganizationInvites.test.ts`,
+`apps/webapp/src/modules/clinic-seats/service.ts`, `apps/webapp/src/modules/clinic-seats/service.test.ts`,
+`apps/webapp/src/modules/organization-invites/ports.ts`, `deploy/postgres/organization-member-invites-rls.sql`,
+`apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` (new, untracked),
+`docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/LOG.md`.

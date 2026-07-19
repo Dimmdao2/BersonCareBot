@@ -257,39 +257,43 @@ BEGIN
     RETURN;
   END IF;
 
-  -- C4A correction: fail closed and atomic against the CURRENT clinic_team entitlement/seat
-  -- policy, not the policy at invite-creation time. An invite created before a downgrade or a
-  -- limit exhaustion must not activate new growth. Only a `doctor` invite is gated — an `admin`
-  -- invite never consumes or is blocked by seat policy. Mirrors resolveClinicSeatLimit's
-  -- override > tariff > fail-closed-baseline precedence and isMechanicEnabled's clinic_team
-  -- default-off precedence (src/modules/org-entitlements/service.ts) — duplicated here because it
-  -- must run inside this same FOR UPDATE-locked transaction to be atomic. `i.id <> v_invite.id`
-  -- excludes this invite's own prior pending reservation from the pending count: accepting does
-  -- not add a NEW reservation on top of the one already held since it was created.
+  -- C4A correction: fail closed and atomic against the CURRENT clinic_team entitlement, not the
+  -- entitlement at invite-creation time. An invite issued before a downgrade/OFF must not activate
+  -- ANY clinic-team membership growth — this applies to every invited role, including `admin`,
+  -- which never consumes a numeric seat but still grows the paid clinic-team capability. Mirrors
+  -- isMechanicEnabled's clinic_team default-off precedence (src/modules/org-entitlements/service.ts)
+  -- — duplicated here because it must run inside this same FOR UPDATE-locked transaction to be
+  -- atomic. Checked, and denied, before any platform_users/membership/invite mutation below.
+  SELECT COALESCE(
+    (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
+     WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
+    (SELECT (t.mechanics ->> 'clinic_team')::boolean
+     FROM public.be_organizations AS o
+     JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
+     WHERE o.id = v_invite.organization_id),
+    false
+  ) INTO v_clinic_team_enabled;
+
+  IF NOT v_clinic_team_enabled THEN
+    RETURN QUERY SELECT false, 'entitlement_disabled'::text, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text;
+    RETURN;
+  END IF;
+
+  -- Numeric seat CAPACITY remains doctor-only: an `admin` invite never consumes or is blocked by
+  -- seat count, only by the entitlement gate above. Mirrors resolveClinicSeatLimit's override >
+  -- tariff > fail-closed-baseline precedence (src/modules/org-entitlements/service.ts). `i.id <>
+  -- v_invite.id` excludes this invite's own prior pending reservation from the pending count:
+  -- accepting does not add a NEW reservation on top of the one already held since it was created.
   IF v_invite.invited_role = 'doctor' THEN
     SELECT COALESCE(
-      (SELECT eo.enabled FROM public.saas_org_entitlement_overrides AS eo
+      (SELECT eo.seat_limit_override FROM public.saas_org_entitlement_overrides AS eo
        WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-      (SELECT (t.mechanics ->> 'clinic_team')::boolean
+      (SELECT t.included_seats
        FROM public.be_organizations AS o
        JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
        WHERE o.id = v_invite.organization_id),
-      false
-    ) INTO v_clinic_team_enabled;
-
-    IF NOT v_clinic_team_enabled THEN
-      v_seat_limit := 0;
-    ELSE
-      SELECT COALESCE(
-        (SELECT eo.seat_limit_override FROM public.saas_org_entitlement_overrides AS eo
-         WHERE eo.organization_id = v_invite.organization_id AND eo.mechanic = 'clinic_team'),
-        (SELECT t.included_seats
-         FROM public.be_organizations AS o
-         JOIN public.saas_tariffs AS t ON t.id = o.tariff_id
-         WHERE o.id = v_invite.organization_id),
-        1 -- CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE (src/modules/org-entitlements/types.ts)
-      ) INTO v_seat_limit;
-    END IF;
+      1 -- CLINIC_TEAM_FAIL_CLOSED_SEAT_BASELINE (src/modules/org-entitlements/types.ts)
+    ) INTO v_seat_limit;
 
     SELECT
       (SELECT COUNT(*) FROM public.be_organization_members AS m
@@ -375,7 +379,7 @@ END
 $$;
 
 COMMENT ON FUNCTION app.accept_org_invite(text, uuid, text) IS
-  'Narrow SECURITY DEFINER accept operation for organization member invites. Performs token lock, email/user check, current clinic_team entitlement/seat capacity re-check for doctor invites (fail-closed, leaves the invite pending on denial), membership activation, and single-use invite update without granting app_patient table writes. Specialist provisioning is deferred to the first valid staff session.';
+  'Narrow SECURITY DEFINER accept operation for organization member invites. Performs token lock, email/user check, current clinic_team entitlement re-check for ALL invited roles plus seat capacity re-check for doctor invites (fail-closed, leaves the invite pending on denial), membership activation, and single-use invite update without granting app_patient table writes. Specialist provisioning is deferred to the first valid staff session.';
 
 ALTER FUNCTION app.lookup_pending_org_invite(text) OWNER TO app_owner;
 ALTER FUNCTION app.accept_org_invite(text, uuid, text) OWNER TO app_owner;

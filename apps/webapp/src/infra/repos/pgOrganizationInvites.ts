@@ -58,6 +58,7 @@ function mapAcceptFailureCode(value: string | null): Exclude<AcceptOrganizationI
     case "expired_token":
     case "reused_token":
     case "email_mismatch":
+    case "entitlement_disabled":
     case "seat_limit_reached":
       return value;
     default:

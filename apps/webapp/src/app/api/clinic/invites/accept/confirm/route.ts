@@ -20,7 +20,9 @@ function errorStatus(code: string): number {
 }
 
 function acceptErrorStatus(code: string): number {
-  return code === "seat_limit_reached" ? 409 : 400;
+  if (code === "seat_limit_reached") return 409;
+  if (code === "entitlement_disabled") return 403;
+  return 400;
 }
 
 export async function POST(request: Request) {

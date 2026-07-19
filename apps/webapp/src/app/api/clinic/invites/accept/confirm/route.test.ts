@@ -165,6 +165,34 @@ describe("clinic invite accept confirm route", () => {
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
+  it("denies with 403 entitlement_disabled without establishing a session when an admin invite is accepted after clinic_team is turned OFF", async () => {
+    // Regression for the C4A re-audit P1: an admin invite issued while clinic_team was ON must
+    // not activate membership after downgrade/OFF, even though admin invites never consume a
+    // numeric seat. The accept SQL re-checks current entitlement for every invited role.
+    const acceptInvite = vi.fn().mockResolvedValue({ ok: false, code: "entitlement_disabled" });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: {
+        lookupPendingByToken: vi.fn().mockResolvedValue({
+          ok: true,
+          invite: {
+            invitedEmail: "admin-r1@example.com",
+            invitedRole: "admin",
+            organizationTitle: "Clinic",
+          },
+        }),
+        acceptInvite,
+      },
+      emailOtpPublicDb: {},
+      userByPhone: { findByUserId: vi.fn() },
+    });
+
+    const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "entitlement_disabled" });
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+  });
+
   it("rejects email mismatch before OTP verification", async () => {
     const res = await POST(
       makeRequest({
