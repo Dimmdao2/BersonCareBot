@@ -182,6 +182,7 @@ describe("writePort user.upsert projection payload", () => {
     expect(ev.payload.integratorUserId).toBe("uid-tg");
     expect(ev.payload.channelCode).toBe("telegram");
     expect(ev.payload.externalId).toBe("123");
+    expect(ev.payload).toMatchObject({ firstName: "Ivan", lastName: "Petrov", displayName: "Petrov Ivan" });
   });
 
   it("emits user.upserted for max with canonical integratorUserId", async () => {
@@ -205,6 +206,7 @@ describe("writePort user.upsert projection payload", () => {
     expect(ev.payload.integratorUserId).toBe("uid-max");
     expect(ev.payload.channelCode).toBe("max");
     expect(ev.payload.externalId).toBe("555123");
+    expect(ev.payload).toMatchObject({ firstName: "Max", lastName: "Admin", displayName: "Admin Max" });
   });
 
   it("user.phone.link updates public + integrator without contact.linked projection fanout", async () => {

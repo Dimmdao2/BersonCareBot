@@ -122,7 +122,7 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
     expect(runWebappPgTextMock.mock.calls[1]?.[2]).toBe(client);
   });
 
-  it("upsertFromProjection update path does not blindly overwrite display_name with weak displayName", async () => {
+  it("upsertFromProjection keeps structured FIO when Telegram/MAX hints disagree", async () => {
     installPoolClient();
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [{ id: "pu-existing" }] })
@@ -131,6 +131,9 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
     const result = await pgUserProjectionPort.upsertFromProjection({
       integratorUserId: "99",
       displayName: "Telegram Name",
+      firstName: "Telegram",
+      lastName: "Name",
+      channelCode: "telegram",
     });
 
     expect(result).toEqual({ platformUserId: "pu-existing" });
@@ -138,6 +141,8 @@ describe("pgUserProjectionPort (repo SQL parity)", () => {
     expect(updateSql).toContain("WHEN (display_name IS NULL OR trim(display_name) = '')");
     expect(updateSql).toContain("AND $3::text IS NOT NULL");
     expect(updateSql).toContain("AND $4::text IS NOT NULL");
+    expect(updateSql).toContain("WHEN $8::text IN ('telegram', 'max') THEN COALESCE(first_name, $3::text)");
+    expect(updateSql).toContain("WHEN $8::text IN ('telegram', 'max') THEN COALESCE(last_name, $4::text)");
   });
 
   it("updatePhone runs UPDATE in TX and applies phone history transition", async () => {

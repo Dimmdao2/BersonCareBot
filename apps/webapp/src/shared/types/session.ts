@@ -18,6 +18,9 @@ export type SessionUser = {
   displayName: string;
   /** `platform_users.first_name` — для приветствия и короткого обращения. */
   firstName?: string;
+  /** Structured compatibility fields for forms that must not parse `display_name`. */
+  lastName?: string;
+  patronymic?: string;
   phone?: string;
   bindings: ChannelBindings;
 };

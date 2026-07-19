@@ -168,6 +168,60 @@ describe("createPgSupportCommunicationPort", () => {
       await port.listOpenConversationsForAdmin({ limit: 10 });
       expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([null, 10, false, null]);
     });
+
+    it("uses full structured FIO for communications while retaining a legacy label fallback", async () => {
+      runWebappPgTextMock.mockResolvedValueOnce({
+        rows: [
+          {
+            conversation_id: "conv-1",
+            integrator_conversation_id: "int-conv-1",
+            source: "telegram",
+            integrator_user_id: "42",
+            admin_scope: "support",
+            status: "open",
+            opened_at: TS,
+            last_message_at: TS,
+            closed_at: null,
+            close_reason: null,
+            display_name: "Legacy label",
+            first_name: "Ivan",
+            last_name: "Petrov",
+            patronymic: "Sergeevich",
+            phone_normalized: null,
+            channel_external_id: null,
+            last_message_text: "",
+            last_sender_role: "user",
+            unread_from_user_count: 0,
+          },
+          {
+            conversation_id: "conv-2",
+            integrator_conversation_id: "int-conv-2",
+            source: "telegram",
+            integrator_user_id: "43",
+            admin_scope: "support",
+            status: "open",
+            opened_at: TS,
+            last_message_at: TS,
+            closed_at: null,
+            close_reason: null,
+            display_name: "Legacy only",
+            first_name: null,
+            last_name: null,
+            patronymic: null,
+            phone_normalized: null,
+            channel_external_id: null,
+            last_message_text: "",
+            last_sender_role: "user",
+            unread_from_user_count: 0,
+          },
+        ],
+      });
+      const port = createPgSupportCommunicationPort();
+
+      const rows = await port.listOpenConversationsForAdmin({});
+
+      expect(rows.map((row) => row.displayName)).toEqual(["Petrov Ivan Sergeevich", "Legacy only"]);
+    });
   });
 
   describe("countUnreadUserMessagesForAdmin", () => {

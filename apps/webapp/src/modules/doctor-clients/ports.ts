@@ -289,13 +289,13 @@ export type DoctorClientsPort = {
    */
   setPatientGender(userId: string, gender: "male" | "female" | null): Promise<void>;
   /**
-   * Обновляет имя клиента (platform_users.display_name / first_name / last_name).
-   * Обновляются только переданные поля. displayName — непустая строка; first/last допускают null (сброс).
+   * Обновляет structured FIO клиента. Compatibility display_name derives from the resulting fields.
+   * Обновляются только переданные поля; structured parts допускают null (сброс).
    * Работает только для клиентов (role='client').
    */
   setPatientNames(
     userId: string,
-    names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
+    names: { firstName?: string | null; lastName?: string | null; patronymic?: string | null },
   ): Promise<void>;
   /**
    * Возвращает физические параметры пациента (рост/вес).

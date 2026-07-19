@@ -29,6 +29,7 @@ import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
 import { patientCardHref } from "./patientCardHref";
+import { formatDoctorFio } from "@/shared/lib/fio";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -255,11 +256,10 @@ function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): 
 }
 
 function clientFioSortKey(item: ClientListItem): string {
-  const fio = [item.lastName, item.firstName, item.patronymic]
-    .map((part) => part?.trim() ?? "")
-    .filter(Boolean)
-    .join(" ");
-  return fio || item.displayName.trim();
+  return formatDoctorFio(
+    { lastName: item.lastName ?? null, firstName: item.firstName ?? null, patronymic: item.patronymic ?? null },
+    item.displayName,
+  ).trim();
 }
 
 function compareClientsByFio(a: ClientListItem, b: ClientListItem): number {
@@ -288,11 +288,10 @@ function sortClients(list: ClientListItem[], sort: ClientListSort, direction: Cl
 }
 
 function clientPrimaryName(item: ClientListItem): string {
-  const structured = [item.lastName, item.firstName, item.patronymic]
-    .map((part) => part?.trim() ?? "")
-    .filter(Boolean)
-    .join(" ");
-  return structured || item.displayName.trim() || "—";
+  return formatDoctorFio(
+    { lastName: item.lastName ?? null, firstName: item.firstName ?? null, patronymic: item.patronymic ?? null },
+    item.displayName.trim() || "—",
+  );
 }
 
 // ---------------------------------------------------------------------------

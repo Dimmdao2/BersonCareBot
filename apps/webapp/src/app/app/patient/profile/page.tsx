@@ -14,6 +14,7 @@ import { getSupportContactUrl } from "@/modules/system-settings/supportContactUr
 import { LogoutSection } from "./LogoutSection";
 import { PatientCalendarTimezoneSection } from "./PatientCalendarTimezoneSection";
 import { PatientProfileHero } from "./PatientProfileHero";
+import { formatPatientGreetingName, type StructuredFio } from "@/shared/lib/fio";
 
 /** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
@@ -39,7 +40,14 @@ export default async function PatientProfilePage() {
     <PatientAppShell title="Мой профиль" user={session.user} backHref={routePaths.patient} backLabel="Меню">
       <div className={patientInnerPageStackClass}>
         <PatientProfileHero
-          displayName={session.user.displayName ?? ""}
+          displayName={formatPatientGreetingName(
+            {
+              lastName: session.user.lastName ?? null,
+              firstName: session.user.firstName ?? null,
+              patronymic: session.user.patronymic ?? null,
+            } satisfies StructuredFio,
+            session.user.displayName ?? "",
+          )}
           phone={session.user.phone ?? null}
           supportContactHref={supportContactHref}
           fallbackDisplayName={fallbackDisplayName}

@@ -1,8 +1,9 @@
 /**
  * PATCH /api/doctor/patients/[userId]/fio
  *
- * Update patient FIO fields (Фамилия / Имя / Отчество), displayName, birthDate, and gender.
- * Accepts: { firstName, lastName, patronymic, displayName, birthDate, gender }
+ * Update patient FIO fields (Фамилия / Имя / Отчество), birthDate, and gender.
+ * The compatibility display label is derived by the repository from structured FIO.
+ * Accepts: { firstName, lastName, patronymic, birthDate, gender }
  * All fields optional and nullable. At least one must be provided.
  *
  * Response: { ok: true } | { ok: false, error: string }
@@ -12,12 +13,12 @@ import { z } from "zod";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { normalizeFioPart } from "@/shared/lib/fio";
 
 const bodySchema = z.object({
   firstName: z.string().trim().max(200).nullable().optional(),
   lastName: z.string().trim().max(200).nullable().optional(),
   patronymic: z.string().trim().max(200).nullable().optional(),
-  displayName: z.string().trim().min(1).max(200).optional(),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   gender: z.enum(["male", "female"]).nullable().optional(),
 });
@@ -51,16 +52,14 @@ export async function PATCH(
 
   const data = parsed.data;
   const nameFields: {
-    displayName?: string;
     firstName?: string | null;
     lastName?: string | null;
     patronymic?: string | null;
   } = {};
 
-  if ("displayName" in data && data.displayName !== undefined) nameFields.displayName = data.displayName;
-  if ("firstName" in data) nameFields.firstName = data.firstName ?? null;
-  if ("lastName" in data) nameFields.lastName = data.lastName ?? null;
-  if ("patronymic" in data) nameFields.patronymic = data.patronymic ?? null;
+  if ("firstName" in data) nameFields.firstName = normalizeFioPart(data.firstName) ?? null;
+  if ("lastName" in data) nameFields.lastName = normalizeFioPart(data.lastName) ?? null;
+  if ("patronymic" in data) nameFields.patronymic = normalizeFioPart(data.patronymic) ?? null;
 
   const hasBirthDate = "birthDate" in data;
   const hasGender = "gender" in data;

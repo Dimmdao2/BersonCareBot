@@ -6,6 +6,7 @@ const listOnSupportPatientUserIdsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
+  runWebappTransaction: (fn: (tx: unknown) => unknown) => fn({}),
 }));
 
 vi.mock("@/infra/db/client", () => ({
@@ -501,6 +502,25 @@ describe("pgDoctorClients repo", () => {
       bindings: { telegramId: "tg-1" },
       isBlocked: false,
     });
+  });
+
+  it("setPatientNames derives the compatibility label from the supplied structured fields", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const port = createPgDoctorClientsPort();
+
+    await port.setPatientNames("u1", {
+      lastName: "Petrov",
+      firstName: "Ivan",
+      patronymic: null,
+    });
+
+    const [sql, params] = runWebappPgTextMock.mock.calls[0] ?? [];
+    expect(String(sql)).toContain("display_name = COALESCE(NULLIF(concat_ws");
+    expect(String(sql)).toContain("$2::text,");
+    expect(String(sql)).toContain("$3::text,");
+    expect(String(sql)).toContain("$4::text");
+    expect(String(sql)).not.toContain("COALESCE($2::text, last_name)");
+    expect(params).toEqual(["u1", "Ivan", "Petrov", null]);
   });
 
   it("setClientBlocked block true updates blocked columns", async () => {

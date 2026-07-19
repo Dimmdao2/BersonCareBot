@@ -90,6 +90,26 @@ describe("patchAdminClientProfile (PHASE_02 contact email)", () => {
     expect(updateSql).toContain("ELSE email_verified_at");
   });
 
+  it("derives display_name from the manual structured FIO update", async () => {
+    const sqlLog: string[] = [];
+    installPool(async (sql) => {
+      sqlLog.push(sql);
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rows: [], rowCount: 0 };
+      if (sql.includes("UPDATE platform_users SET")) return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+
+    await pgUserProjectionPort.patchAdminClientProfile({
+      platformUserId: "client-1",
+      patch: { firstName: "Ivan", lastName: "Petrov" },
+    });
+
+    const updateSql = sqlLog.find((s) => s.includes("UPDATE platform_users SET"))!;
+    expect(updateSql).toContain("display_name = COALESCE(NULLIF(concat_ws");
+    expect(updateSql).toContain("$2::text");
+    expect(updateSql).toContain("$1::text");
+  });
+
   it("applyRubitimeEmailAutobind sets unverified contact email without password row", async () => {
     const sqlLog: string[] = [];
     runWebappPgTextMock.mockImplementation(async (queryText: string, values?: readonly unknown[]) => {

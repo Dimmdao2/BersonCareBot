@@ -9,7 +9,6 @@ import { doctorClientSectionTitleClass } from "./doctorClientCardChrome";
 
 type Props = {
   userId: string;
-  displayName: string;
   firstName: string | null | undefined;
   lastName: string | null | undefined;
   email: string | null | undefined;
@@ -25,7 +24,6 @@ type Props = {
 
 export function AdminClientProfileEditPanel({
   userId,
-  displayName: initialDisplayName,
   firstName: initialFirst,
   lastName: initialLast,
   email: initialEmail,
@@ -36,7 +34,6 @@ export function AdminClientProfileEditPanel({
   onSaved,
 }: Props) {
   const router = useRouter();
-  const [displayName, setDisplayName] = useState(initialDisplayName);
   const [firstName, setFirstName] = useState(initialFirst ?? "");
   const [lastName, setLastName] = useState(initialLast ?? "");
   const [email, setEmail] = useState(initialEmail ?? "");
@@ -51,7 +48,6 @@ export function AdminClientProfileEditPanel({
       setPending(true);
       try {
         const body: Record<string, unknown> = {};
-        if (displayName !== initialDisplayName) body.displayName = displayName;
         if (firstName !== (initialFirst ?? "")) body.firstName = firstName.trim() === "" ? null : firstName.trim();
         if (lastName !== (initialLast ?? "")) body.lastName = lastName.trim() === "" ? null : lastName.trim();
         const emailNorm = email.trim();
@@ -100,12 +96,10 @@ export function AdminClientProfileEditPanel({
       }
     },
     [
-      displayName,
       firstName,
       lastName,
       email,
       phone,
-      initialDisplayName,
       initialFirst,
       initialLast,
       initialEmail,
@@ -129,16 +123,6 @@ export function AdminClientProfileEditPanel({
         </h2>
       )}
       <form id={formId} onSubmit={onSubmit} className="flex flex-col gap-3 max-w-lg">
-        <div className="space-y-1.5">
-          <Label htmlFor="admin-edit-display-name">Отображаемое имя (ФИО)</Label>
-          <Input
-            id="admin-edit-display-name"
-            value={displayName}
-            onChange={(ev) => setDisplayName(ev.target.value)}
-            autoComplete="name"
-            maxLength={500}
-          />
-        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="admin-edit-first-name">Имя</Label>

@@ -1177,27 +1177,34 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async setPatientNames(
       userId: string,
-      names: { displayName?: string; firstName?: string | null; lastName?: string | null; patronymic?: string | null },
+      names: { firstName?: string | null; lastName?: string | null; patronymic?: string | null },
     ): Promise<void> {
       const sets: string[] = [];
       const params: unknown[] = [userId];
-      if (names.displayName !== undefined) {
-        params.push(names.displayName);
-        sets.push(`display_name = $${params.length}`);
-      }
+      let firstNameExpr = "first_name";
+      let lastNameExpr = "last_name";
+      let patronymicExpr = "patronymic";
       if (names.firstName !== undefined) {
         params.push(names.firstName);
         sets.push(`first_name = $${params.length}`);
+        firstNameExpr = `$${params.length}::text`;
       }
       if (names.lastName !== undefined) {
         params.push(names.lastName);
         sets.push(`last_name = $${params.length}`);
+        lastNameExpr = `$${params.length}::text`;
       }
       if (names.patronymic !== undefined) {
         params.push(names.patronymic);
         sets.push(`patronymic = $${params.length}`);
+        patronymicExpr = `$${params.length}::text`;
       }
       if (sets.length === 0) return;
+      sets.push(`display_name = COALESCE(NULLIF(concat_ws(' ',
+          ${lastNameExpr},
+          ${firstNameExpr},
+          ${patronymicExpr}
+        ), ''), '')`);
       await runWebappTransaction((tx) =>
         runWebappPgText(
           `UPDATE platform_users SET ${sets.join(", ")}, updated_at = now()

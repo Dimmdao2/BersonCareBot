@@ -58,6 +58,14 @@ describe("buildRecipientsPreviewFromClients", () => {
     expect(p.total).toBe(1);
     expect(p.truncated).toBe(false);
   });
+
+  it("uses structured full FIO for audience labels with legacy fallback", () => {
+    const p = buildRecipientsPreviewFromClients([
+      client({ userId: "1", displayName: "Legacy", lastName: "Петров", firstName: "Иван", patronymic: "Сергеевич" }),
+      client({ userId: "2", displayName: "Анна" }),
+    ], 20);
+    expect(p.names).toEqual(["Анна", "Петров Иван Сергеевич"]);
+  });
 });
 
 describe("computeDevModeRelayBroadcastReach", () => {

@@ -3,14 +3,12 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
-import { InlineEditField } from "@/shared/ui/patient/InlineEditField";
 import { EmailAccountPanel } from "@/shared/ui/patient/EmailAccountPanel";
 import {
   patientHeroBookingSectionClass,
   patientMutedTextClass,
 } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
-import { updateDisplayName } from "./actions";
 
 type Props = {
   displayName: string;
@@ -31,13 +29,6 @@ export function PatientProfileHero({
 }: Props) {
   const router = useRouter();
 
-  const handleSaveName = async (next: string) => {
-    const trimmedName = next.trim();
-    if (!trimmedName || trimmedName === displayName) return;
-    await updateDisplayName(trimmedName);
-    router.refresh();
-  };
-
   const goToBindPhone = () => {
     router.push(`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`);
   };
@@ -45,16 +36,10 @@ export function PatientProfileHero({
   return (
     <section className={patientHeroBookingSectionClass}>
       <div className="flex flex-col gap-4">
-        <InlineEditField
-          label="ФИО"
-          value={displayName}
-          placeholder="Иванов Иван Иванович"
-          type="text"
-          emptyLabel={fallbackDisplayName}
-          onSave={handleSaveName}
-          labelClassName="font-normal"
-          editLinkClassName="font-normal"
-        />
+        <div className="space-y-1.5">
+          <p className={cn(patientMutedTextClass, "text-xs font-normal uppercase tracking-wide")}>Имя</p>
+          <p className="text-sm text-[var(--patient-text-primary)]">{displayName || fallbackDisplayName}</p>
+        </div>
 
         <div className="flex flex-col gap-1 border-t border-[var(--patient-border)] pt-4">
           <div className="flex flex-wrap items-start justify-between gap-2">

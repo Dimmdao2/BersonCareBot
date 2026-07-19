@@ -12,24 +12,6 @@ import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 
 const authOtpChannelSchema = z.enum(["auto", "telegram", "max", "email", "sms"]);
 
-export async function updateDisplayName(newName: string) {
-  const trimmedName = newName.trim();
-  if (!trimmedName) return;
-  if (trimmedName.length > 200) return;
-
-  if (!(await patientOnboardingServerActionSurfaceOk())) return;
-
-  const session = await requirePatientAccess(routePaths.profile);
-  const deps = buildAppDeps();
-  try {
-    await deps.userProjection.updateDisplayName(session.user.userId, trimmedName);
-  } catch (err) {
-    console.error("updateDisplayName failed:", err);
-    return;
-  }
-  revalidatePath(routePaths.profile);
-}
-
 /** Сохранить предпочтительный канал доставки кода при входе по телефону (или сброс на «авто»). */
 export async function setPreferredAuthOtpChannelAction(
   channel: unknown

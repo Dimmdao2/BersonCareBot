@@ -3,6 +3,7 @@ import type { TestAccountIdentifiers } from "@/modules/system-settings/testAccou
 import type { BroadcastChannel } from "./broadcastChannels";
 import type { BroadcastAudienceFilter, BroadcastRecipientsPreview } from "./ports";
 import { BROADCAST_RECIPIENT_PREVIEW_NAME_CAP } from "./ports";
+import { formatDoctorFio } from "@/shared/lib/fio";
 
 /**
  * Список клиентов в сегменте рассылки (та же логика фильтров, что в `buildAppDeps` → doctorBroadcasts).
@@ -110,12 +111,20 @@ export function buildRecipientsPreviewFromClients(
   effective: readonly ClientListItem[],
   cap = BROADCAST_RECIPIENT_PREVIEW_NAME_CAP,
 ): BroadcastRecipientsPreview {
+  const labelFor = (client: ClientListItem) => formatDoctorFio(
+    {
+      lastName: client.lastName ?? null,
+      firstName: client.firstName ?? null,
+      patronymic: client.patronymic ?? null,
+    },
+    client.displayName,
+  ).trim();
   const sorted = [...effective].sort((a, b) =>
-    a.displayName.localeCompare(b.displayName, "ru", { sensitivity: "base" }),
+    labelFor(a).localeCompare(labelFor(b), "ru", { sensitivity: "base" }),
   );
   const total = sorted.length;
   const names = sorted.slice(0, cap).map((c) => {
-    const n = c.displayName.trim();
+    const n = labelFor(c);
     return n || "Без имени";
   });
   return { names, total, truncated: total > cap };

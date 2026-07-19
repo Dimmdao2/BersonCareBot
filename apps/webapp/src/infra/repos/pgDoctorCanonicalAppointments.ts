@@ -21,6 +21,7 @@ import {
   PURGED_CANONICAL_BE_APPOINTMENTS_NOT_EXISTS_SQL,
 } from "@/infra/repos/doctorAppointmentPurgeFilter";
 import type { AppointmentStatus } from "@/modules/booking-engine/types";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import type {
   AppointmentRow,
   AppointmentStats,
@@ -64,11 +65,12 @@ function patientDisplayName(row: {
   displayName: string;
   firstName: string | null;
   lastName: string | null;
+  patronymic: string | null;
 }): string {
-  const fromParts = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
-  if (fromParts) return fromParts;
-  const dn = row.displayName.trim();
-  return dn || "Неизвестный клиент";
+  return formatDoctorFio(
+    { lastName: row.lastName, firstName: row.firstName, patronymic: row.patronymic },
+    row.displayName,
+  ) || "Неизвестный клиент";
 }
 
 function contactNameFromAttribution(attr: Record<string, unknown> | null | undefined): string | null {
@@ -92,6 +94,7 @@ type ListRow = {
   displayName: string | null;
   firstName: string | null;
   lastName: string | null;
+  patronymic: string | null;
   serviceTitle: string | null;
   branchTitle: string | null;
   packageUsageRef: string | null;
@@ -108,6 +111,7 @@ function mapListRow(row: ListRow): AppointmentRow {
           displayName: row.displayName,
           firstName: row.firstName,
           lastName: row.lastName,
+          patronymic: row.patronymic,
         })
       : null;
   const phoneLabel = row.phoneNormalized?.trim() || null;
@@ -141,6 +145,7 @@ const listSelect = {
   displayName: platformUsers.displayName,
   firstName: platformUsers.firstName,
   lastName: platformUsers.lastName,
+  patronymic: platformUsers.patronymic,
   serviceTitle: beClinicServices.title,
   branchTitle: beBranches.title,
   packageUsageRef: beAppointments.packageUsageRef,

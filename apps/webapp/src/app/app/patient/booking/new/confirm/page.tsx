@@ -54,8 +54,17 @@ function looksLikePatronymic(value: string | undefined): boolean {
 }
 
 function deriveDefaultFio(user: SessionUser): StructuredFio {
+  const structured: StructuredFio = {
+    lastName: user.lastName?.trim() || null,
+    firstName: user.firstName?.trim() || null,
+    patronymic: user.patronymic?.trim() || null,
+  };
+  // Current profiles already carry structured FIO in the session. Keep the legacy parser
+  // strictly for old display-name-only sessions, never as a competing source for these rows.
+  if (structured.lastName || structured.firstName || structured.patronymic) return structured;
+
   const parsed = parseFioCandidate(user.displayName, "display_name").value;
-  const firstName = user.firstName?.trim() || parsed.firstName;
+  const firstName = parsed.firstName;
   const tokens = user.displayName.trim().split(/\s+/).filter(Boolean);
   if (firstName && tokens.length >= 2) {
     const firstLower = firstName.toLowerCase().replace(/ё/g, "е");

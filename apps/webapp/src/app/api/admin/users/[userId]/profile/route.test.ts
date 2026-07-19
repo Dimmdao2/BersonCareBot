@@ -141,7 +141,7 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
       new Request(`http://localhost/api/admin/users/${uid}/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: "Новое ФИО" }),
+        body: JSON.stringify({ firstName: "Новое" }),
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
@@ -189,19 +189,19 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
     expect(requestContactEmailSetupMock).not.toHaveBeenCalled();
   });
 
-  it("patches profile and writes audit", async () => {
+  it("normalizes structured FIO, derives its compatibility label downstream, and writes audit", async () => {
     const res = await PATCH(
       new Request(`http://localhost/api/admin/users/${uid}/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: "Новое ФИО" }),
+        body: JSON.stringify({ firstName: "иван", lastName: "петров" }),
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(200);
     expect(patchMock).toHaveBeenCalledWith({
       platformUserId: uid,
-      patch: { displayName: "Новое ФИО" },
+      patch: { firstName: "Иван", lastName: "Петров" },
     });
     expect(writeAuditLogMock).toHaveBeenCalledWith(
       expect.anything(),
@@ -209,7 +209,7 @@ describe("PATCH /api/admin/users/[userId]/profile", () => {
         actorId: "a1",
         action: "admin_client_profile_patch",
         targetId: uid,
-        details: expect.objectContaining({ fields: ["displayName"] }),
+        details: expect.objectContaining({ fields: ["firstName", "lastName"] }),
       }),
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(

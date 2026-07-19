@@ -154,6 +154,13 @@ describe("PatientCardClient header", () => {
     const init = call?.[1] as RequestInit | undefined;
     expect(init?.method).toBe("PATCH");
     expect(JSON.parse(String(init?.body))).toMatchObject({ birthDate: null });
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty("displayName");
+  });
+
+  it("renders structured FIO ahead of an incompatible legacy display label", () => {
+    render(<PatientCardClient cardHeader={makeHeader({ displayName: "Старое имя", lastName: "Петров", firstName: "Иван", patronymic: "Сергеевич" })} />);
+    expect(screen.getByText("Петров Иван Сергеевич")).toBeInTheDocument();
+    expect(screen.queryByText("отобр.: Старое имя")).not.toBeInTheDocument();
   });
 
   it("updates birth date and age after profile save without reload", async () => {

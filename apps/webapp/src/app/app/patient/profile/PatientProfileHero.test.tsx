@@ -17,6 +17,23 @@ describe("PatientProfileHero", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows the supplied structured greeting as static given-name content", () => {
+    render(
+      <PatientProfileHero
+        displayName="Иван"
+        phone={null}
+        supportContactHref="https://support.example"
+        fallbackDisplayName="Гость"
+        initialEmail={null}
+        emailVerified={false}
+      />,
+    );
+
+    expect(screen.getByText("Имя")).toBeInTheDocument();
+    expect(screen.getByText("Иван")).toBeInTheDocument();
+    expect(screen.queryByText("ФИО")).not.toBeInTheDocument();
+  });
+
   it("shows bind link when no phone and redirects to bind-phone", async () => {
     pushMock.mockClear();
     const user = userEvent.setup();
@@ -58,8 +75,7 @@ describe("PatientProfileHero", () => {
 
     expect(screen.getByText("+79991234567")).toBeInTheDocument();
 
-    const editButtons = screen.getAllByRole("button", { name: "Изменить" });
-    await user.click(editButtons[1]!);
+    await user.click(screen.getByRole("button", { name: "Изменить" }));
 
     expect(pushMock).toHaveBeenCalledWith(
       `${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.profile)}`,

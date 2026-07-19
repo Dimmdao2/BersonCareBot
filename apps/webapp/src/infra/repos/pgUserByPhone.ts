@@ -49,7 +49,7 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
 async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    "SELECT id, display_name, first_name, role, phone_normalized FROM platform_users WHERE id = $1",
+    "SELECT id, display_name, first_name, last_name, patronymic, role, phone_normalized FROM platform_users WHERE id = $1",
     [canonicalId],
   );
   if (userRow.rows.length === 0) {
@@ -57,6 +57,8 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
   }
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], "load_session_user");
   const firstName = u.first_name?.trim() || undefined;
+  const lastName = u.last_name?.trim() || undefined;
+  const patronymic = u.patronymic?.trim() || undefined;
   const bindingsRows = await runIdentityPoolPgText(
     "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
     [canonicalId],
@@ -67,6 +69,8 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
     role: parseUserRole(u.role, "load_session_user.role"),
     displayName: u.display_name ?? "",
     ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(patronymic ? { patronymic } : {}),
     phone: u.phone_normalized ?? undefined,
     bindings,
   };
@@ -100,12 +104,14 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const canonicalId = await resolveCanonicalUserId(pool, userId);
     if (!canonicalId) return null;
     const userRow = await runIdentityPoolPgText(
-      "SELECT id, display_name, first_name, role, phone_normalized FROM platform_users WHERE id = $1",
+      "SELECT id, display_name, first_name, last_name, patronymic, role, phone_normalized FROM platform_users WHERE id = $1",
       [canonicalId],
     );
     if (userRow.rows.length === 0) return null;
     const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], "find_by_user_id");
     const firstName = u.first_name?.trim() || undefined;
+    const lastName = u.last_name?.trim() || undefined;
+    const patronymic = u.patronymic?.trim() || undefined;
     const bindingsRows = await runIdentityPoolPgText(
       "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
       [canonicalId],
@@ -116,6 +122,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
       role: parseUserRole(u.role, "find_by_user_id.role"),
       displayName: u.display_name ?? "",
       ...(firstName ? { firstName } : {}),
+      ...(lastName ? { lastName } : {}),
+      ...(patronymic ? { patronymic } : {}),
       phone: u.phone_normalized ?? undefined,
       bindings,
     };
@@ -156,10 +164,19 @@ export const pgUserByPhonePort: UserByPhonePort = {
         const canonicalId = (await resolveCanonicalUserId(client, userId)) ?? userId;
         userId = canonicalId;
         const displayName = parsedContext.displayName ?? normalized;
-        await runIdentityClientPgText(client, "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2", [
-          displayName,
-          userId,
-        ]);
+        await runIdentityClientPgText(
+          client,
+          `UPDATE platform_users
+           SET display_name = CASE
+                 WHEN first_name IS NOT NULL OR last_name IS NOT NULL OR patronymic IS NOT NULL
+                   THEN display_name
+                 WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN $1::text
+                 ELSE display_name
+               END,
+               updated_at = now()
+           WHERE id = $2`,
+          [displayName, userId],
+        );
         trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
         await runIdentityClientPgText(
           client,
@@ -225,10 +242,19 @@ export const pgUserByPhonePort: UserByPhonePort = {
         const u = parseIdentityRow(platformUserPhoneRoleRowSchema, phoneRow.rows[0], "phone_row");
         userId = u.id;
         const displayName = parsedContext.displayName ?? u.display_name ?? normalized;
-        await runIdentityClientPgText(client, "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2", [
-          displayName,
-          userId,
-        ]);
+        await runIdentityClientPgText(
+          client,
+          `UPDATE platform_users
+           SET display_name = CASE
+                 WHEN first_name IS NOT NULL OR last_name IS NOT NULL OR patronymic IS NOT NULL
+                   THEN display_name
+                 WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN $1::text
+                 ELSE display_name
+               END,
+               updated_at = now()
+           WHERE id = $2`,
+          [displayName, userId],
+        );
       } else {
         wasCreated = true;
         const insert = await runIdentityClientPgText(

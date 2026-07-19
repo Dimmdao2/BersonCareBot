@@ -13,10 +13,10 @@ import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole
 import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { normalizeFioPart } from "@/shared/lib/fio";
 
 const bodySchema = z
   .object({
-    displayName: z.string().max(500).optional(),
     firstName: z.union([z.string().max(200), z.null()]).optional(),
     lastName: z.union([z.string().max(200), z.null()]).optional(),
     email: z.union([z.string().email().max(320), z.literal(""), z.null()]).optional(),
@@ -26,7 +26,6 @@ const bodySchema = z
   .refine((o) => Object.keys(o).length > 0, { message: "empty_patch" });
 
 type AdminClientProfilePatch = {
-  displayName?: string;
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
@@ -35,9 +34,8 @@ type AdminClientProfilePatch = {
 
 function normalizePatch(data: z.infer<typeof bodySchema>): AdminClientProfilePatch {
   const out: AdminClientProfilePatch = {};
-  if (data.displayName !== undefined) out.displayName = data.displayName;
-  if (data.firstName !== undefined) out.firstName = data.firstName;
-  if (data.lastName !== undefined) out.lastName = data.lastName;
+  if (data.firstName !== undefined) out.firstName = normalizeFioPart(data.firstName) ?? null;
+  if (data.lastName !== undefined) out.lastName = normalizeFioPart(data.lastName) ?? null;
   if (data.email !== undefined) {
     out.email = data.email === "" || data.email === null ? null : data.email;
   }

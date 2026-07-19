@@ -59,7 +59,6 @@ export function DoctorClientAccountTab({
           {contactsEditing && canEditClientProfile ? (
             <AdminClientProfileEditPanel
               userId={userId}
-              displayName={identity.displayName}
               firstName={identity.firstName}
               lastName={identity.lastName}
               email={identity.email}

@@ -92,6 +92,21 @@ describe("pgUserByPhonePort.createOrBind", () => {
     expect(runWebappPgTextMock.mock.calls[0]?.[0]).toContain("user_channel_bindings");
   });
 
+  it("does not let a Telegram display-name hint replace a structured profile label", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ user_id: "bound-user" }] })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    mockSessionUserLoad("bound-user");
+
+    await pgUserByPhonePort.createOrBind(phone, telegramCtx);
+
+    const [sql, params] = runWebappPgTextMock.mock.calls[1] ?? [];
+    expect(String(sql)).toContain("first_name IS NOT NULL OR last_name IS NOT NULL OR patronymic IS NOT NULL");
+    expect(String(sql)).toContain("THEN display_name");
+    expect(params).toEqual(["Pat", "bound-user"]);
+  });
+
   it("creates new user when no binding and no phone row", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [] })

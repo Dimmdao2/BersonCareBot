@@ -10,4 +10,12 @@ describe("booking/new/confirm page (success redirect + city)", () => {
     expect(src).toContain("bookingNewHref(cityCodeForLinks)");
     expect(src).toContain("successRedirectPath={successRedirectPath}");
   });
+
+  it("uses structured session FIO before the legacy display-name parser", () => {
+    const src = readFileSync(pagePath, "utf8");
+    expect(src).toContain("if (structured.lastName || structured.firstName || structured.patronymic) return structured;");
+    expect(src.indexOf("if (structured.lastName || structured.firstName || structured.patronymic) return structured;")).toBeLessThan(
+      src.indexOf('parseFioCandidate(user.displayName, "display_name")'),
+    );
+  });
 });

@@ -152,7 +152,6 @@ export type IntegratorEventsDeps = {
       firstName?: string | null;
       lastName?: string | null;
       email?: string | null;
-      displayName?: string | null;
     }) => Promise<void>;
     /** Rubitime: ensure `platform_users` row exists for appointment phone (create / enrich / merge). */
     ensureClientFromAppointmentProjection?: (params: {
@@ -488,6 +487,8 @@ export async function handleIntegratorEvent(
         integratorUserId,
         phoneNormalized: typeof payload.phoneNormalized === "string" ? payload.phoneNormalized : undefined,
         displayName: typeof payload.displayName === "string" ? payload.displayName : undefined,
+        firstName: typeof payload.firstName === "string" ? payload.firstName : undefined,
+        lastName: typeof payload.lastName === "string" ? payload.lastName : undefined,
         channelCode: typeof payload.channelCode === "string" ? payload.channelCode : undefined,
         externalId: typeof payload.externalId === "string" ? payload.externalId : undefined,
       });

@@ -71,14 +71,12 @@ export type UserProjectionPort = {
   } | null>;
   findByPhoneNormalized: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
-  updateDisplayName: (platformUserId: string, displayName: string) => Promise<void>;
-  /** Update profile (first_name, last_name, email, display_name) by phone; no-op if no user found. */
+  /** Update structured profile fields (first_name, last_name, email) by phone; no-op if no user found. */
   updateProfileByPhone: (params: {
     phoneNormalized: string;
     firstName?: string | null;
     lastName?: string | null;
     email?: string | null;
-    displayName?: string | null;
   }) => Promise<void>;
   upsertNotificationTopics: (params: {
     platformUserId: string;
@@ -100,7 +98,6 @@ export type UserProjectionPort = {
   patchAdminClientProfile: (params: {
     platformUserId: string;
     patch: {
-      displayName?: string;
       firstName?: string | null;
       lastName?: string | null;
       email?: string | null;
@@ -290,8 +287,14 @@ async function upsertFromProjectionTx(
            THEN $2::text
            ELSE display_name
          END,
-         first_name = COALESCE($3::text, first_name),
-         last_name = COALESCE($4::text, last_name),
+         first_name = CASE
+           WHEN $8::text IN ('telegram', 'max') THEN COALESCE(first_name, $3::text)
+           ELSE COALESCE($3::text, first_name)
+         END,
+         last_name = CASE
+           WHEN $8::text IN ('telegram', 'max') THEN COALESCE(last_name, $4::text)
+           ELSE COALESCE($4::text, last_name)
+         END,
          email = COALESCE($5::text, email),
          phone_normalized = COALESCE($6::text, phone_normalized),
          patient_phone_trust_at = CASE
@@ -309,6 +312,7 @@ async function upsertFromProjectionTx(
         params.email ?? null,
         params.phoneNormalized ?? null,
         params.integratorUserId,
+        params.channelCode ?? null,
       ],
     );
   }
@@ -600,16 +604,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
     });
   },
 
-  async updateDisplayName(platformUserId, displayName) {
-    const result = await runWebappPgText(
-      "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2",
-      [displayName, platformUserId],
-    );
-    if (result.rowCount === 0) {
-      throw new Error(`updateDisplayName: user ${platformUserId} not found`);
-    }
-  },
-
   async updateProfileByPhone(params) {
     const sets: string[] = ["updated_at = now()"];
     const vals: unknown[] = [];
@@ -625,10 +619,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (params.email !== undefined) {
       sets.push(`email = $${++idx}`);
       vals.push(params.email);
-    }
-    if (params.displayName !== undefined) {
-      sets.push(`display_name = $${++idx}`);
-      vals.push(params.displayName);
     }
     if (vals.length === 0) return;
     vals.push(params.phoneNormalized);
@@ -744,21 +734,27 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const sets: string[] = ["updated_at = now()"];
     const vals: unknown[] = [];
     let n = 0;
+    let firstNameExpr = "first_name";
+    let lastNameExpr = "last_name";
 
-    if (patch.displayName !== undefined) {
-      n += 1;
-      sets.push(`display_name = $${n}`);
-      vals.push(patch.displayName);
-    }
     if (patch.firstName !== undefined) {
       n += 1;
       sets.push(`first_name = $${n}`);
       vals.push(patch.firstName);
+      firstNameExpr = `$${n}::text`;
     }
     if (patch.lastName !== undefined) {
       n += 1;
       sets.push(`last_name = $${n}`);
       vals.push(patch.lastName);
+      lastNameExpr = `$${n}::text`;
+    }
+    if (patch.firstName !== undefined || patch.lastName !== undefined) {
+      sets.push(`display_name = COALESCE(NULLIF(concat_ws(' ',
+        ${lastNameExpr},
+        ${firstNameExpr},
+        patronymic
+      ), ''), '')`);
     }
     if (patch.email !== undefined) {
       n += 1;
@@ -851,7 +847,6 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   findByIntegratorId: async () => null,
   findByPhoneNormalized: async () => null,
   updatePhone: async () => {},
-  updateDisplayName: async () => {},
   updateProfileByPhone: async () => {},
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},

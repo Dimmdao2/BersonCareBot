@@ -1,7 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { runWebappPgText } from "@/infra/db/runWebappSql";
 
-const runWebappPgTextMock = vi.hoisted(() =>
-  vi.fn(async (sql: string, _params?: unknown[]) => {
+type AppointmentListMockRow = {
+  integrator_record_id: string;
+  phone_normalized: string | null;
+  record_at: Date | null;
+  status: string;
+  payload_json: Record<string, unknown>;
+  user_id: string | null;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  patronymic: string | null;
+  branch_name: string | null;
+};
+
+const runWebappPgTextMock = vi.hoisted(() => {
+  const mock = vi.fn<typeof runWebappPgText>();
+  mock.mockImplementation(async (sql) => {
     if (sql.includes("AS total")) {
       return {
         rows: [
@@ -19,8 +35,9 @@ const runWebappPgTextMock = vi.hoisted(() =>
       return { rows: [{ count: "0" }] };
     }
     return { rows: [{ c: "0" }] };
-  }),
-);
+  });
+  return mock;
+});
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
@@ -69,6 +86,43 @@ describe("pgDoctorAppointments cancellation rules", () => {
     const listQuery = queries.find((sql) => sql.includes("integrator_record_id"));
     expect(listQuery).toBeDefined();
     expect(listQuery).toContain("deleted_at IS NULL");
+  });
+
+  it("uses full structured FIO for appointment labels and retains the legacy fallback", async () => {
+    const appointmentRows = [
+      {
+        integrator_record_id: "rec-structured",
+        phone_normalized: null,
+        record_at: null,
+        status: "created",
+        payload_json: {},
+        user_id: "u1",
+        display_name: "Legacy label",
+        first_name: "Ivan",
+        last_name: "Petrov",
+        patronymic: "Sergeevich",
+        branch_name: null,
+      },
+      {
+        integrator_record_id: "rec-legacy",
+        phone_normalized: null,
+        record_at: null,
+        status: "created",
+        payload_json: {},
+        user_id: "u2",
+        display_name: "Legacy only",
+        first_name: null,
+        last_name: null,
+        patronymic: null,
+        branch_name: null,
+      },
+    ] satisfies AppointmentListMockRow[];
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: appointmentRows });
+    const port = createPgDoctorAppointmentsPort();
+
+    const rows = await port.listAppointmentsForSpecialist({ kind: "futureActive" });
+
+    expect(rows.map((row) => row.clientLabel)).toEqual(["Petrov Ivan Sergeevich", "Legacy only"]);
   });
 
   it("getAppointmentStats excludes soft-deleted rows", async () => {

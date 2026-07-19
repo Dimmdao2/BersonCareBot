@@ -7,10 +7,14 @@ import { Label } from "@/shared/ui/doctor/primitives/label";
 import { isDoctorClientSearchQueryAllowed } from "@/modules/doctor-clients/clientSearchMatch";
 import { cn } from "@/lib/utils";
 import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVisual";
+import { formatDoctorFio } from "@/shared/lib/fio";
 
 export type CalendarPatientOption = {
   id: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  patronymic?: string | null;
   phone: string | null;
 };
 
@@ -21,7 +25,11 @@ type Props = {
 };
 
 function formatPatientLabel(option: CalendarPatientOption): string {
-  return option.phone ? `${option.displayName} · ${option.phone}` : option.displayName;
+  const name = formatDoctorFio(
+    { lastName: option.lastName ?? null, firstName: option.firstName ?? null, patronymic: option.patronymic ?? null },
+    option.displayName,
+  );
+  return option.phone ? `${name} · ${option.phone}` : name;
 }
 
 function queryLooksLikePhone(query: string): boolean {

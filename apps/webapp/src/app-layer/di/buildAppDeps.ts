@@ -1546,7 +1546,6 @@ function _buildAppDeps() {
       findByIntegratorId: userProjectionPort.findByIntegratorId,
       findByPhoneNormalized: userProjectionPort.findByPhoneNormalized,
       updatePhone: userProjectionPort.updatePhone,
-      updateDisplayName: userProjectionPort.updateDisplayName,
       updateProfileByPhone: userProjectionPort.updateProfileByPhone,
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,

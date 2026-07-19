@@ -8,6 +8,7 @@ import { localDayRangeBoundsIso } from "@/shared/datetime/localDayRangeBounds";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import { rubitimeNameIfDifferent } from "@/shared/lib/appointmentRubitimeNameMismatch";
 import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import type {
   AppointmentBranchPoint,
   AppointmentDayPoint,
@@ -45,7 +46,10 @@ const LIST_SELECT = `SELECT
           ar.status,
           ar.payload_json,
           pu.id AS user_id,
-          COALESCE(pu.display_name, pu.first_name || ' ' || NULLIF(pu.last_name, ''), pu.first_name, pu.last_name) AS display_name,
+          pu.display_name,
+          pu.first_name,
+          pu.last_name,
+          pu.patronymic,
           b.name AS branch_name`;
 
 function mapListRows(
@@ -63,6 +67,9 @@ function mapListRows(
     };
     user_id: string | null;
     display_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    patronymic: string | null;
     branch_name: string | null;
   }[]
 ): AppointmentRow[] {
@@ -77,7 +84,10 @@ function mapListRows(
       typeof payload.name === "string" && payload.name.trim().length > 0 ? payload.name.trim() : null;
     const phoneLabel = row.phone_normalized?.trim() || null;
     const clientLabel =
-      (row.display_name && row.display_name.trim()) ||
+      formatDoctorFio(
+        { lastName: row.last_name, firstName: row.first_name, patronymic: row.patronymic },
+        row.display_name ?? "",
+      ) ||
       nameFromPayload ||
       phoneLabel ||
       "Неизвестный клиент";

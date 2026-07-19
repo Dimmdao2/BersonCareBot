@@ -56,6 +56,8 @@ export const platformUserSessionRowSchema = z.object({
   id: z.string(),
   display_name: z.string().nullable(),
   first_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
+  patronymic: z.string().nullable().optional(),
   role: z.string(),
   phone_normalized: z.string().nullable(),
 });

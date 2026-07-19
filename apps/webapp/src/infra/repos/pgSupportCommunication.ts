@@ -8,6 +8,7 @@
 import { getPool } from "@/infra/db/client";
 import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { withPoolTransaction } from "@/infra/db/withClient";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { mergeLegacySupportConversationsForPlatformUser as runMergeLegacySupportConversations } from "@/infra/repos/mergeLegacySupportConversations";
@@ -367,7 +368,10 @@ type AdminConversationListDbRow = {
   last_message_at: string;
   closed_at: string | null;
   close_reason: string | null;
-  display_name: string;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  patronymic: string | null;
   phone_normalized: string | null;
   channel_external_id: string | null;
   last_message_text: string | null;
@@ -386,7 +390,10 @@ type AdminQuestionListDbRow = {
   created_at: string;
   answered: boolean;
   answered_at: string | null;
-  display_name: string;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  patronymic: string | null;
   phone_normalized: string | null;
   channel_external_id: string | null;
 };
@@ -403,7 +410,10 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
     lastMessageAt: row.last_message_at,
     closedAt: row.closed_at,
     closeReason: row.close_reason,
-    displayName: row.display_name ?? "",
+    displayName: formatDoctorFio(
+      { lastName: row.last_name, firstName: row.first_name, patronymic: row.patronymic },
+      row.display_name ?? "",
+    ),
     phoneNormalized: row.phone_normalized,
     channelExternalId: row.channel_external_id,
     lastMessageText: row.last_message_text,
@@ -837,7 +847,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           COALESCE(last_personal.personal_msg_at, sc.created_at)::text AS last_message_at,
           sc.closed_at::text,
           sc.close_reason,
-          COALESCE(pu.display_name, '') AS display_name,
+          pu.display_name,
+          pu.first_name,
+          pu.last_name,
+          pu.patronymic,
           pu.phone_normalized,
           sc.channel_external_id,
           last_personal.last_msg_text AS last_message_text,
@@ -887,7 +900,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.last_message_at::text,
           sc.closed_at::text,
           sc.close_reason,
-          COALESCE(pu.display_name, '') AS display_name,
+          pu.display_name,
+          pu.first_name,
+          pu.last_name,
+          pu.patronymic,
           pu.phone_normalized,
           sc.channel_external_id,
           lm.text AS last_message_text,
@@ -937,7 +953,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sq.created_at::text,
           (sq.status = 'answered') AS answered,
           sq.answered_at::text,
-          COALESCE(pu.display_name, '') AS display_name,
+          pu.display_name,
+          pu.first_name,
+          pu.last_name,
+          pu.patronymic,
           pu.phone_normalized,
           sc.channel_external_id
          FROM support_questions sq
@@ -962,7 +981,10 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         createdAt: row.created_at,
         answered: Boolean(row.answered),
         answeredAt: row.answered_at,
-        displayName: row.display_name ?? "",
+        displayName: formatDoctorFio(
+          { lastName: row.last_name, firstName: row.first_name, patronymic: row.patronymic },
+          row.display_name ?? "",
+        ),
         phoneNormalized: row.phone_normalized,
         channelExternalId: row.channel_external_id,
       }));

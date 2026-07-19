@@ -11,6 +11,7 @@ import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { DoctorGlobalTasksSection } from "./DoctorGlobalTasksSection";
 import { DoctorTodayLeftKpiRow } from "./DoctorTodayLeftKpiRow";
 import { DoctorTodaySignalsSection } from "./DoctorTodaySignalsSection";
@@ -40,11 +41,10 @@ type Props = {
 };
 
 function onSupportClientName(client: TodayDashboardData["onSupportClients"][number]): string {
-  const structuredName = [client.lastName, client.firstName, client.patronymic]
-    .map((part) => part?.trim() ?? "")
-    .filter(Boolean)
-    .join(" ");
-  return structuredName || client.displayName.trim() || "—";
+  return formatDoctorFio(
+    { lastName: client.lastName ?? null, firstName: client.firstName ?? null, patronymic: client.patronymic ?? null },
+    client.displayName.trim() || "—",
+  );
 }
 
 export function DoctorTodayDashboard({

@@ -495,7 +495,11 @@ export function createDbWritePort(input: {
               integratorUserId: canonicalUserId,
               channelCode: resource,
               externalId,
-              displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+              // Messenger profile names are weak hints. Send their structured parts so the
+              // webapp projection can fill genuinely empty fields without parsing a label.
+              firstName: firstName ?? undefined,
+              lastName: lastName ?? undefined,
+              displayName: [lastName, firstName].filter(Boolean).join(' ') || undefined,
             };
             pendingUserUpsert.push({
               eventType: 'user.upserted',

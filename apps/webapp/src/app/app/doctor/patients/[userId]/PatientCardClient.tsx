@@ -28,7 +28,7 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { DoctorDatePicker } from "@/shared/ui/doctor/DoctorDatePicker";
 import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/doctor/primitives/select";
-import { formatFioForDoctor } from "@/lib/parseFullName";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { PatientTabOverview } from "./tabs/PatientTabOverview";
 import { PatientTabKarta } from "./tabs/PatientTabKarta";
 import { PatientTabProgram } from "./tabs/PatientTabProgram";
@@ -166,7 +166,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
     firstName: string | null;
     lastName: string | null;
     patronymic: string | null;
-    displayName?: string | null;
     birthDate?: string | null;
     gender?: "male" | "female" | null;
   } | null>(null);
@@ -174,7 +173,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const [fioLastName, setFioLastName] = useState("");
   const [fioFirstName, setFioFirstName] = useState("");
   const [fioPatronymic, setFioPatronymic] = useState("");
-  const [fioDisplayName, setFioDisplayName] = useState("");
   const [fioBirthDate, setFioBirthDate] = useState("");
   const [fioGender, setFioGender] = useState<"male" | "female" | "">("");
 
@@ -238,20 +236,19 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
   const resolvedLastName = fioOverride ? fioOverride.lastName : identity.lastName;
   const resolvedPatronymic = fioOverride ? fioOverride.patronymic : identity.patronymic;
-  const resolvedDisplayName =
-    fioOverride?.displayName !== undefined ? fioOverride.displayName : identity.displayName;
   const resolvedBirthDate =
     fioOverride?.birthDate !== undefined ? fioOverride.birthDate : identity.birthDate;
   const resolvedGender =
     fioOverride?.gender !== undefined ? fioOverride.gender : identity.gender;
-  const fioDisplay = formatFioForDoctor(resolvedLastName, resolvedFirstName, resolvedPatronymic);
-  const hasFio = Boolean(resolvedFirstName || resolvedLastName || resolvedPatronymic);
+  const fioDisplay = formatDoctorFio(
+    { lastName: resolvedLastName, firstName: resolvedFirstName, patronymic: resolvedPatronymic },
+    identity.displayName || "—",
+  );
 
   function openFioEdit() {
     setFioLastName(resolvedLastName ?? "");
     setFioFirstName(resolvedFirstName ?? "");
     setFioPatronymic(resolvedPatronymic ?? "");
-    setFioDisplayName(resolvedDisplayName ?? "");
     setFioBirthDate(resolvedBirthDate ?? "");
     setFioGender(resolvedGender ?? "");
     setFioError(null);
@@ -274,7 +271,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
           lastName: fioLastName.trim() || null,
           firstName: fioFirstName.trim() || null,
           patronymic: fioPatronymic.trim() || null,
-          displayName: fioDisplayName.trim() || undefined,
           birthDate: fioBirthDate.trim() || null,
           gender: fioGender || null,
         }),
@@ -289,7 +285,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
         lastName: fioLastName.trim() || null,
         firstName: fioFirstName.trim() || null,
         patronymic: fioPatronymic.trim() || null,
-        displayName: fioDisplayName.trim() || null,
         birthDate: fioBirthDate.trim() || null,
         gender: fioGender || null,
       });
@@ -382,7 +377,7 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 {/* FIO row */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-base font-bold text-foreground leading-tight">
-                    {hasFio ? fioDisplay : (identity.displayName || "—")}
+                    {fioDisplay}
                   </span>
                   <Button
                     variant="ghost"
@@ -395,12 +390,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                   </Button>
                 </div>
 
-                {/* displayName as secondary label (отображаемое имя) */}
-                {hasFio && resolvedDisplayName && (
-                  <div className={cn(doctorSectionSubtitleClass, "mt-0 text-xs text-muted-foreground/70")}>
-                    отобр.: {resolvedDisplayName}
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -459,16 +448,6 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                       className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wide">Отображаемое имя</label>
-                  <Input
-                    type="text"
-                    value={fioDisplayName}
-                    onChange={(e) => setFioDisplayName(e.target.value)}
-                    placeholder="Как обращаться к пациенту"
-                    className="rounded border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-0.5">

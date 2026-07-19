@@ -3,6 +3,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { formatDoctorFio } from "@/shared/lib/fio";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { isDoctorClientSearchQueryAllowed } from "@/modules/doctor-clients/clientSearchMatch";
@@ -42,7 +43,13 @@ export async function GET(request: Request) {
     ok: true,
     clients: clients.slice(0, parsed.data.limit).map((c) => ({
       id: c.userId,
-      displayName: c.displayName,
+      displayName: formatDoctorFio(
+        { lastName: c.lastName ?? null, firstName: c.firstName ?? null, patronymic: c.patronymic ?? null },
+        c.displayName,
+      ),
+      firstName: c.firstName ?? null,
+      lastName: c.lastName ?? null,
+      patronymic: c.patronymic ?? null,
       phone: c.phone,
     })),
   });

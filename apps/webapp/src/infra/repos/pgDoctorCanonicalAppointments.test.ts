@@ -29,6 +29,15 @@ describe("pgDoctorCanonicalAppointments typed joins", () => {
   });
 });
 
+describe("pgDoctorCanonicalAppointments FIO display", () => {
+  it("derives appointment labels from structured FIO with a display_name fallback", () => {
+    const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");
+    expect(src).toContain("formatDoctorFio");
+    expect(src).toContain("patronymic: row.patronymic");
+    expect(src).toContain("row.displayName,");
+  });
+});
+
 describe("pgDoctorCanonicalAppointments soft-delete filter (F1b)", () => {
   it("excludes soft-deleted canonical rows across list/stats/KPI/dashboard reads", () => {
     const src = readFileSync(join(repoDir, "pgDoctorCanonicalAppointments.ts"), "utf8");

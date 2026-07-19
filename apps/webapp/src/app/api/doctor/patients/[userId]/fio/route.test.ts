@@ -143,4 +143,30 @@ describe("doctor patient fio route", () => {
     expect(setPatientBirthDate).toHaveBeenCalledWith(canonicalPatientId, "2026-01-02");
     expect(setPatientGender).toHaveBeenCalledWith(canonicalPatientId, "female");
   });
+
+  it("normalizes structured FIO and ignores an independent displayName", async () => {
+    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({ userId: canonicalPatientId });
+    const setPatientNames = vi.fn().mockResolvedValue(undefined);
+    buildAppDepsMock.mockReturnValue({
+      doctorClientsPort: { getClientIdentityForOrganization },
+      doctorClients: { setPatientNames },
+    });
+
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: " иВАН ", lastName: " пЕТРОВ ", patronymic: " сЕРГЕЕВИЧ ", displayName: "Contradictory" }),
+      }),
+      { params: Promise.resolve({ userId: patientId }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(setPatientNames).toHaveBeenCalledWith(canonicalPatientId, {
+      firstName: "Иван",
+      lastName: "Петров",
+      patronymic: "Сергеевич",
+    });
+  });
 });
