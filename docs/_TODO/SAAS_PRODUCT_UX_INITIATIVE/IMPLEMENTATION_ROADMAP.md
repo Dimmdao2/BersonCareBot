@@ -483,8 +483,10 @@ card; запрещено строить временный resolver, второ�
   обязательного template — отдельный deferred pass.
 - **C4D — library ownership (`#724`):** own-only и новая platform base library; owner-clinic exercises никогда не
   становятся global. Future store surface/commerce не блокирует C4D.
-- **Status (2026-07-19):** C4B code, tenant/security audit and milestone CI are integrated through `d1fad7c65`;
-  live DEV entitlement OFF/ON acceptance remains open. C4A/C4C/C4D remain separate pending substages.
+- **Status (2026-07-19):** C4A clinic boundary, seat enforcement, downgrade preservation and executable concurrency
+  proof are integrated through `e7adc50f5`; terminal critical audit passed. C4B code, tenant/security audit and
+  milestone CI are integrated through `d1fad7c65`. Live DEV entitlement OFF/ON/at-limit acceptance remains open for
+  C4A/C4B; C4C/C4D remain separate pending substages. C5C seat commerce is not part of the completed C4A scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
   library modes. C4A-C4D исполняются/аудируются независимо; blocked seat pricing, course redesign или store не
   останавливает готовую tenant isolation.
