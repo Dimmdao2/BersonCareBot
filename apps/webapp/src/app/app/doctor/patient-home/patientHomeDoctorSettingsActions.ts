@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { canAccessDoctor } from "@/modules/roles/service";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import {
   PATIENT_REPEAT_COOLDOWN_MINUTES_MAX,
@@ -28,35 +27,16 @@ function revalidatePatientHomePages(): void {
  * workspace gate). No active membership → `forbidden`, matching this file's existing throw-on-denial style.
  */
 async function requireDoctorWorkspaceOrThrow(): Promise<{ userId: string; organizationId: string }> {
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
-    throw new Error("forbidden");
-  }
-  const resolved = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
-    platformUserId: session.user.userId,
-  });
-  if (!resolved.ok) {
-    throw new Error("forbidden");
-  }
-  return { userId: session.user.userId, organizationId: resolved.context.organizationId };
+  const workspace = await requireDoctorWorkspaceContext();
+  return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
 }
 
-async function requirePatientHomeOwnerOrGlobalAdminOrThrow(): Promise<{ userId: string; organizationId: string }> {
-  const session = await getCurrentSession();
-  if (!session || !canAccessDoctor(session.user.role)) {
+async function requirePatientHomeOwnerOrThrow(): Promise<{ userId: string; organizationId: string }> {
+  const workspace = await requireDoctorWorkspaceContext();
+  if (workspace.membershipRole !== "owner") {
     throw new Error("forbidden");
   }
-  const resolved = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
-    platformUserId: session.user.userId,
-  });
-  if (!resolved.ok) {
-    throw new Error("forbidden");
-  }
-  const isGlobalAdmin = session.user.role === "admin" && session.adminMode === true;
-  if (!isGlobalAdmin && resolved.context.role !== "owner") {
-    throw new Error("forbidden");
-  }
-  return { userId: session.user.userId, organizationId: resolved.context.organizationId };
+  return { userId: workspace.session.user.userId, organizationId: workspace.organizationId };
 }
 
 const moodRowSchema = z.object({
@@ -67,7 +47,7 @@ const moodRowSchema = z.object({
 
 export async function savePatientHomePracticeTargetAction(target: number): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId, organizationId } = await requirePatientHomeOwnerOrGlobalAdminOrThrow();
+    const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     if (!Number.isFinite(target) || target < 1 || target > 10) {
       return { ok: false, error: "invalid_range" };
     }
@@ -143,7 +123,7 @@ export async function savePatientHomeWarmupRotationAction(input: {
   times: string[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const { userId, organizationId } = await requirePatientHomeOwnerOrGlobalAdminOrThrow();
+    const { userId, organizationId } = await requirePatientHomeOwnerOrThrow();
     if (typeof input.enabled !== "boolean" || !isValidPatientHomeDailyWarmupRotationTimesPayload(input.times)) {
       return { ok: false, error: "invalid_body" };
     }

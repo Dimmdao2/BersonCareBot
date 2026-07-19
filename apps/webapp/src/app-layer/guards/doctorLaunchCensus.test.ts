@@ -21,6 +21,15 @@ function collectFiles(dir: URL, suffix: string, result: URL[] = []): URL[] {
   return result;
 }
 
+function collectServerActionFiles(dir: URL, result: URL[] = []): URL[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
+    if (entry.isDirectory()) collectServerActionFiles(child, result);
+    else if (/\.tsx?$/.test(entry.name) && readFileSync(child, "utf8").startsWith('"use server"')) result.push(child);
+  }
+  return result;
+}
+
 /**
  * Finite U1 launch proof. It deliberately records the public surface and object policy,
  * instead of inferring authority from source text or route counts.
@@ -59,9 +68,36 @@ const rejectedPlatformRepairRoutes = [
   "clients/merge/route.ts",
 ] as const;
 
+const doctorServerActionManifest = [
+  "broadcasts/actions.ts",
+  "clinical-tests/actions.ts",
+  "clinical-tests/actionsInline.ts",
+  "content/actions.ts",
+  "content/contentPageAuthActions.ts",
+  "content/inlineEditorActions.ts",
+  "content/lifecycleActions.ts",
+  "content/motivation/actions.ts",
+  "content/reorderContentPages.ts",
+  "content/sections/actions.ts",
+  "content/sections/reorderContentSections.ts",
+  "content/sections/sectionVisibilityActions.ts",
+  "exercises/actions.ts",
+  "exercises/actionsInline.ts",
+  "lfk-templates/actions.ts",
+  "patient-home/patientHomeDoctorSettingsActions.ts",
+  "recommendations/actions.ts",
+  "recommendations/actionsInline.ts",
+  "references/actions.ts",
+  "test-sets/actions.ts",
+  "test-sets/actionsInline.ts",
+] as const;
+
+const delegatedActionFiles = new Set(doctorServerActionManifest.filter((route) => route.endsWith("actionsInline.ts")));
+
 describe("U1 finite doctor launch manifest", () => {
   const appRoot = new URL("../../app/", import.meta.url);
   const platformRoot = new URL("app/(global-admin)/doctor/", appRoot);
+  const doctorRoot = new URL("app/doctor/", appRoot);
   const mediaRoot = new URL("api/media/", appRoot);
 
   it("is exact for platform URLs and marks analytics and repair as PII-free absence", () => {
@@ -91,6 +127,25 @@ describe("U1 finite doctor launch manifest", () => {
       const source = readFileSync(new URL(`api/doctor/${route}`, appRoot), "utf8");
       expect(source, route).toContain('error: "not_available"');
       expect(source, route).not.toContain("getPool(");
+    }
+  });
+
+  it("has an exact Server Action manifest and forbids raw role/session authorization", () => {
+    const discovered = collectServerActionFiles(doctorRoot).map((file) =>
+      fileURLToPath(file).replace(fileURLToPath(doctorRoot), ""),
+    );
+    expect(new Set(discovered)).toEqual(new Set(doctorServerActionManifest));
+
+    for (const route of doctorServerActionManifest) {
+      const source = readFileSync(new URL(route, doctorRoot), "utf8");
+      expect(source, route).not.toContain("getCurrentSession");
+      expect(source, route).not.toContain("canAccessDoctor");
+      if (!delegatedActionFiles.has(route)) {
+        expect(
+          source.includes("requireDoctorWorkspaceContext(") || source.includes("requireDoctorAccess("),
+          route,
+        ).toBe(true);
+      }
     }
   });
 
