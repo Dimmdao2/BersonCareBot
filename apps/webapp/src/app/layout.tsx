@@ -7,7 +7,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./styles/tailwind-engine.css";
-import { Geist, Roboto } from "next/font/google";
+import { Geist, Nunito, Roboto } from "next/font/google";
 import { ClientToaster } from "@/components/ClientToaster";
 import { TooltipProvider } from "@/shared/ui/patient/primitives/tooltip";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,12 @@ import { PWA_APP_ROOT_CLASS } from "@/shared/ui/patient/pwaLayoutClasses";
 import { TelegramMiniAppScript } from "@/shared/ui/TelegramMiniAppScript";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
+const nunito = Nunito({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-nunito",
+  display: "swap",
+});
 const robotoHeading = Roboto({
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500", "700", "900"],
@@ -64,7 +70,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const platformEntry = await getPlatformEntry();
   const buildId = (process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || "").trim();
   return (
-    <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable, robotoHeading.variable)}>
+    <html
+      lang="ru"
+      suppressHydrationWarning
+      className={cn("font-sans", geist.variable, nunito.variable, robotoHeading.variable)}
+    >
       <head>
         <meta name={BUILD_ID_META_NAME} content={buildId} />
       </head>

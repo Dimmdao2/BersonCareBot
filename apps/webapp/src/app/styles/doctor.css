@@ -2,7 +2,7 @@
 
 #app-shell-doctor {
   /* Doctor visual identity tokens (white background; depth via borders/soft surfaces). */
-  --doctor-surface-subtle: #f7f9fc;
+  --doctor-surface-subtle: var(--bc-rail, #FBFAF6);
   --doctor-border-soft: color-mix(in srgb, var(--border) 75%, transparent);
   --doctor-nav-active-bg: color-mix(in srgb, var(--primary) 12%, #ffffff);
   --doctor-nav-active-fg: var(--primary);

@@ -32,7 +32,7 @@ export function DoctorAppShell({ children, layout = "default" }: DoctorAppShellP
   // (см. doctorWorkspaceLayout.ts): <md → высота мобильной DoctorHeader, md+ → высота per-page DoctorPageHeader.
   if (layout === "full-height") {
     return (
-      <div id="app-shell-doctor" className={DOCTOR_FULL_HEIGHT_PAGE_CLASS}>
+      <div id="app-shell-doctor" className={`${DOCTOR_FULL_HEIGHT_PAGE_CLASS} theme-bersoncare-doctor-dna`}>
         <main id="app-shell-content" className="flex min-h-0 flex-1 flex-col gap-3">
           {children}
         </main>
@@ -40,7 +40,7 @@ export function DoctorAppShell({ children, layout = "default" }: DoctorAppShellP
     );
   }
   return (
-    <div id="app-shell-doctor" className={DOCTOR_PAGE_CONTAINER_CLASS}>
+    <div id="app-shell-doctor" className={`${DOCTOR_PAGE_CONTAINER_CLASS} theme-bersoncare-doctor-dna`}>
       <main id="app-shell-content" className="flex flex-col gap-3">
         {children}
       </main>

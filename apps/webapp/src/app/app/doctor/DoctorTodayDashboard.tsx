@@ -8,6 +8,12 @@ import type { AdminRegistrationFailureAttention } from "@/app-layer/product-anal
 import type { AdminDoctorTodayHealthBanner } from "@/modules/operator-health/adminDoctorTodayHealthBanner";
 import type { DoctorStatsState } from "@/modules/doctor-stats/service";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { doctorInlineLinkClass, doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
@@ -159,17 +165,17 @@ export function DoctorTodayDashboard({
               </DoctorEmptyState>
             ) : (
               <>
-                <ul className="m-0 list-none space-y-2 p-0">
-                  {data.onSupportClients.map((c) => (
+                <ul className={doctorDnaFlatListClass}>
+                  {data.onSupportClients.map((c, index) => (
                     <li
                       key={c.userId}
                       id={`doctor-today-on-support-${c.userId}`}
-                      className="flex items-center justify-between gap-2 text-sm"
+                      className={`${doctorDnaFlatListRowClass} justify-between gap-2${index === 0 ? " border-t-0" : ""}`}
                     >
-                      <Link href={c.href} className={`${doctorInlineLinkClass} min-w-0 font-normal`}>
+                      <Link href={c.href} className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate hover:underline`}>
                         <span className="block truncate">{onSupportClientName(c)}</span>
                       </Link>
-                      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                      <div className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}>
                         <span
                           className="inline-flex items-center gap-1"
                           title="Новые сообщения"

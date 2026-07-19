@@ -21,8 +21,15 @@ import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { doctorListItemOuterClass, doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
-import { doctorClientListRowLinkClass } from "@/app/app/doctor/clients/doctorClientCardChrome";
+import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
+import {
+  DoctorDnaFlatListSelectionStrip,
+  doctorDnaFlatListClass,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+  doctorDnaFlatListSelectedPrimaryClass,
+} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
@@ -898,12 +905,12 @@ function PatientsContent({
               : "Нет пациентов по заданным фильтрам."}
           </p>
         ) : (
-          <ul id="doctor-patients-list" className="m-0 min-h-0 flex-1 list-none space-y-1.5 overflow-y-auto p-2">
-            {filtered.map((c) => {
+          <ul id="doctor-patients-list" className={`${doctorDnaFlatListClass} min-h-0 flex-1 overflow-y-auto`}>
+            {filtered.map((c, index) => {
               const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
               const isSelected = c.userId === selectedUserId;
               return (
-                <li key={c.userId} id={`doctor-patients-item-${c.userId}`} className={doctorListItemOuterClass}>
+                <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
                   <Button
                     type="button"
                     variant="ghost"
@@ -911,13 +918,21 @@ function PatientsContent({
                     aria-pressed={isSelected}
                     onClick={() => onSelectPatient(isSelected ? null : c.userId)}
                     className={cn(
-                      doctorClientListRowLinkClass,
-                      "w-full items-center gap-2 px-2 text-left md:gap-3 md:px-3",
-                      isSelected && "bg-primary/15 hover:bg-primary/15",
+                      doctorDnaFlatListRowClass,
+                      doctorDnaFlatListClickableClass,
+                      "h-auto w-full rounded-none border-0 bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
+                      index === 0 && "border-t-0",
                     )}
                   >
+                    {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
                     <div className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-normal text-foreground">
+                      <span
+                        className={cn(
+                          "block truncate",
+                          doctorDnaFlatListPrimaryClass,
+                          isSelected && doctorDnaFlatListSelectedPrimaryClass,
+                        )}
+                      >
                         {clientPrimaryName(c)}
                       </span>
                     </div>
