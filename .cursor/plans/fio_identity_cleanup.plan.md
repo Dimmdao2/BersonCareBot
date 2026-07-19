@@ -509,13 +509,20 @@ Gate:
 
 ## Phase 9 — Production Backfill Closeout
 
+Status: deferred to the final full production cutover after the commercial, SaaS/tenant and legal/readiness launch
+gates. The current old production runtime must not receive a standalone FIO backfill.
+
 Goal:
 
-Apply only the owner-reviewed decisions to production through a separately approved data operation.
+Apply only the owner-reviewed decisions as one ordered data step of the separately approved full migration to the
+complete new production system.
 
 Actions:
 
 - Preserve the owner-reviewed artifact as authoritative input; never recompute its decisions with the parser.
+- Do not preview/apply FIO independently against the materially outdated production runtime. First complete the new
+  code/schema and the commercial, SaaS/tenant and legal/readiness gates, then rehearse the whole cutover chain on
+  TEST from a fresh copy.
 - Resolve the two TEST exceptions: one missing identity and one row changed after review and intentionally not
   overwritten.
 - Build a preview from an up-to-date production copy and emit a redacted aggregate plus local PII audit artifact.
@@ -539,7 +546,8 @@ Validation:
 
 Gate:
 
-- Production mutation remains blocked until the owner explicitly approves the current preview.
+- Production mutation remains blocked until the owner explicitly approves the full production change window and
+  the exact fresh FIO preview/manifest inside that cutover.
 
 ## Phase 10 — Legacy Fallback Audit
 

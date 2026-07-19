@@ -371,7 +371,10 @@ Gate:
 
 ### Phase 9 — Production Backfill Closeout
 
-Status: historical TEST apply evidence exists; a later fresh-dump restore replaced that TEST snapshot; production not executed.
+Status: historical TEST apply evidence exists; a later fresh-dump restore replaced that TEST snapshot; production
+not executed. Owner sequencing 2026-07-19: no standalone FIO backfill into the materially outdated production
+runtime. Phase 9 runs only as one ordered step of the final full production cutover after commercial, SaaS/tenant
+and legal/readiness launch gates.
 
 Owner-reviewed TEST result (aggregate only):
 
@@ -391,6 +394,8 @@ production mutation.
 
 Actions:
 
+- Complete the compatible new code/schema and rehearse the entire cutover chain repeatedly on TEST from a fresh
+  copy before any production preview/apply. The existing old production application is not a backfill target.
 - Resolve the missing-row and changed-row TEST exceptions without replacing the owner's decision.
 - Prepare a preview from an up-to-date production copy.
 - Require explicit owner approval of the exact preview artifact before production apply.
@@ -410,7 +415,8 @@ Validation:
 
 Gate:
 
-- Production mutation is impossible without a current preview and a separate owner approval.
+- Production mutation is impossible without an approved full production change window and separate approval of the
+  exact current FIO preview/manifest inside that cutover.
 
 ### Phase 10 — Legacy Fallback Audit
 

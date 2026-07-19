@@ -1,5 +1,17 @@
 # FIO / Identity Cleanup Log
 
+## 2026-07-19 — Owner sequencing: FIO backfill only inside final production cutover
+
+- The current production system is materially older than the new SaaS/FIO model; a standalone FIO backfill into
+  that runtime is explicitly forbidden.
+- Phase 9 is deferred until commercial, SaaS/tenant and legal/readiness launch gates are complete and the full
+  migration chain has been rehearsed repeatedly on TEST from a fresh copy.
+- At the final cutover, FIO remains a hash-bound, separately approved ordered step with fresh preview, backup,
+  durable rollback and reconciliation. This decision does not authorize production access or mutation now.
+- Phase 10/11 parser retirement remains downstream of the successful production reconciliation.
+- A parallel owner-directed agent owns the legal-compliance documentation plan; this FIO entry records sequencing
+  only and does not duplicate or modify that plan's scope.
+
 ## 2026-07-19 — C2F Patient Public Email-OTP Registration
 
 - Added a separate public patient email-registration start flow: required normalized `last_name` + `first_name`,
