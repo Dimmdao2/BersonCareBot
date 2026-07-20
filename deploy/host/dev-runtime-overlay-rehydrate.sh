@@ -11,6 +11,7 @@ REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
 RUNTIME_OVERLAY_LIB="$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh"
+SQL_STREAMER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
@@ -47,6 +48,7 @@ for guarded_file in \
   "$DEV_ENV|$REPO_ROOT/apps/webapp/.env.dev|DEV env" \
   "$DEV_ENV_PARSER|$REPO_ROOT/deploy/host/parse-dev-database-url.mjs|DEV env parser" \
   "$RUNTIME_OVERLAY_LIB|$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh|runtime overlay library" \
+  "$SQL_STREAMER|$REPO_ROOT/deploy/host/stream-canonical-sql.mjs|canonical SQL reader" \
   "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
   if [[ -L "$guarded_path" || ! -f "$guarded_path" || "$(realpath "$guarded_path")" != "$expected_path" ]]; then
@@ -100,59 +102,39 @@ run_dev_admin_psql() {
 }
 
 runtime_overlay_admin_psql() {
-  local -a psql_args=()
-  local sql_file=""
-  local expect_sql_file=0
-  local arg
+  local sql_file
+  local include_e1_role=0
+  local -a psql_args=(-d "$TARGET_DB" -X -v ON_ERROR_STOP=1)
 
-  for arg in "$@"; do
-    if [[ "$expect_sql_file" -eq 1 ]]; then
-      if [[ -z "$arg" || "$arg" == -* ]]; then
-        echo "FATAL: DEV runtime overlay -f requires one SQL file" >&2
-        return 1
-      fi
-      sql_file="$arg"
-      expect_sql_file=0
-      continue
-    fi
-
-    case "$arg" in
-      -f)
-        if [[ -n "$sql_file" || "$expect_sql_file" -eq 1 ]]; then
-          echo "FATAL: DEV runtime overlay accepts exactly one SQL file" >&2
-          return 1
-        fi
-        expect_sql_file=1
-        ;;
-      -f*|--file|--file=*)
-        echo "FATAL: DEV runtime overlay accepts only separate -f <canonical SQL file>" >&2
-        return 1
-        ;;
-      *)
-        psql_args+=("$arg")
-        ;;
-    esac
-  done
-
-  if [[ "$expect_sql_file" -eq 1 || -z "$sql_file" ]]; then
-    echo "FATAL: DEV runtime overlay requires exactly one SQL file" >&2
-    return 1
-  fi
   if [[
-    -L "$sql_file" ||
-    ! -f "$sql_file" ||
-    ! -r "$sql_file" ||
-    "$(dirname "$sql_file")" != "$REPO_ROOT/deploy/postgres" ||
-    "$sql_file" != "$REPO_ROOT/deploy/postgres/"*.sql ||
-    "$(realpath "$sql_file")" != "$sql_file"
+    "$#" -eq 7 &&
+    "$1" == "-d" && "$2" == "$TARGET_DB" &&
+    "$3" == "-X" && "$4" == "-v" && "$5" == "ON_ERROR_STOP=1" &&
+    "$6" == "-f"
   ]]; then
-    echo "FATAL: DEV runtime overlay SQL file path guard failed" >&2
+    sql_file="$7"
+  elif [[
+    "$#" -eq 9 &&
+    "$1" == "-d" && "$2" == "$TARGET_DB" &&
+    "$3" == "-X" && "$4" == "-v" && "$5" == "ON_ERROR_STOP=1" &&
+    "$6" == "-v" && "$7" == "e1_webapp_runtime_role=$TARGET_RUNTIME_ROLE" &&
+    "$8" == "-f"
+  ]]; then
+    sql_file="$9"
+    include_e1_role=1
+  else
+    echo "FATAL: DEV runtime overlay rejected unexpected psql arguments" >&2
     return 1
   fi
 
-  # The repository owner opens the guarded file. The postgres OS user receives SQL only on stdin,
-  # so it never needs traversal permission for /home/dev or the checkout.
-  run_dev_admin_psql "${psql_args[@]}" < "$sql_file"
+  if [[ "$include_e1_role" -eq 1 ]]; then
+    psql_args+=(-v "e1_webapp_runtime_role=$TARGET_RUNTIME_ROLE")
+  fi
+
+  # The repository owner atomically opens and validates the SQL file. The postgres OS user receives
+  # only that opened file on stdin and never needs traversal permission for the checkout.
+  "$NODE_BIN" "$SQL_STREAMER" "$sql_file" "$REPO_ROOT/deploy/postgres" |
+    run_dev_admin_psql "${psql_args[@]}"
 }
 
 owner_identity="$(run_dev_owner_psql -Atc "SELECT current_user || '|' || current_database();" 2>/dev/null)"
@@ -287,7 +269,7 @@ SELECT 1 / (
 SQL
 
 echo "[dev-runtime-overlay] applying canonical per-database role grants"
-runtime_overlay_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS" >/dev/null
+runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS" >/dev/null
 
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null

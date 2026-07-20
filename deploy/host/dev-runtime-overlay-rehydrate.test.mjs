@@ -1,14 +1,24 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { openCanonicalSqlFile } from "./stream-canonical-sql.mjs";
 
 const wrapperPath = fileURLToPath(new URL("./dev-runtime-overlay-rehydrate.sh", import.meta.url));
 const libraryPath = fileURLToPath(new URL("./runtime-overlay-rehydrate-lib.sh", import.meta.url));
 const refreshPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
+const sqlStreamerPath = fileURLToPath(new URL("./stream-canonical-sql.mjs", import.meta.url));
 
 const canonicalOrder = [
   "deploy/postgres/organization-member-invites-rls.sql",
@@ -106,7 +116,9 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /runtime_overlay_parse_database_identity/u);
   assert.ok(
     source.indexOf("dev_base_runtime_role_safe_before_overlay") <
-      source.indexOf('runtime_overlay_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS"'),
+      source.indexOf(
+        'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
+      ),
   );
   assert.match(source, /dev_database_owner_exact/u);
   assert.match(source, /dev_runtime_roles_safe/u);
@@ -144,19 +156,24 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
   const secondFile = join(canonicalDir, "second.sql");
   const outsideFile = join(fakeRepo, "outside.sql");
   const symlinkFile = join(canonicalDir, "link.sql");
+  const fifoFile = join(canonicalDir, "fifo.sql");
   const calls = join(fakeRepo, "calls.txt");
   const stdinCapture = join(fakeRepo, "stdin.sql");
   mkdirSync(canonicalDir, { recursive: true });
   writeFileSync(canonicalFile, "SELECT 'canonical';\n");
   writeFileSync(secondFile, "SELECT 'second';\n");
   writeFileSync(outsideFile, "SELECT 'outside';\n");
-  // Creation through the shell keeps this test compatible with the existing fs import surface.
-  const linkResult = spawnSync("ln", ["-s", canonicalFile, symlinkFile], { encoding: "utf8" });
-  assert.equal(linkResult.status, 0, linkResult.stderr);
+  symlinkSync(canonicalFile, symlinkFile);
+  const fifoResult = spawnSync("mkfifo", [fifoFile], { encoding: "utf8" });
+  assert.equal(fifoResult.status, 0, fifoResult.stderr);
 
   const harness = `
     set -Eeuo pipefail
     REPO_ROOT=${JSON.stringify(fakeRepo)}
+    TARGET_DB=bcb_webapp_dev
+    TARGET_RUNTIME_ROLE=bcb_dev_runtime_nonstaff_login
+    NODE_BIN=${JSON.stringify(process.execPath)}
+    SQL_STREAMER=${JSON.stringify(sqlStreamerPath)}
     run_dev_admin_psql() {
       printf '%s\\n' "$*" > ${JSON.stringify(calls)}
       cat > ${JSON.stringify(stdinCapture)}
@@ -167,7 +184,7 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     spawnSync(
       "bash",
       ["--noprofile", "--norc", "-c", `${harness}\nruntime_overlay_admin_psql "$@"`, "callback", ...args],
-      { encoding: "utf8" },
+      { encoding: "utf8", timeout: 2000 },
     );
 
   const accepted = runCallback(["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile]);
@@ -175,19 +192,70 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
   assert.equal(readFileSync(calls, "utf8"), "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1\n");
   assert.equal(readFileSync(stdinCapture, "utf8"), "SELECT 'canonical';\n");
 
+  const acceptedE1 = runCallback([
+    "-d",
+    "bcb_webapp_dev",
+    "-X",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-v",
+    "e1_webapp_runtime_role=bcb_dev_runtime_nonstaff_login",
+    "-f",
+    secondFile,
+  ]);
+  assert.equal(acceptedE1.status, 0, acceptedE1.stderr);
+  assert.equal(
+    readFileSync(calls, "utf8"),
+    "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v e1_webapp_runtime_role=bcb_dev_runtime_nonstaff_login\n",
+  );
+  assert.equal(readFileSync(stdinCapture, "utf8"), "SELECT 'second';\n");
+
   const rejectedCases = [
     ["-d", "bcb_webapp_dev"],
     ["-d", "bcb_webapp_dev", "-f"],
     ["-d", "bcb_webapp_dev", `-f${canonicalFile}`],
     ["-d", "bcb_webapp_dev", "--file", canonicalFile],
-    ["-d", "bcb_webapp_dev", "-f", canonicalFile, "-f", secondFile],
-    ["-d", "bcb_webapp_dev", "-f", outsideFile],
-    ["-d", "bcb_webapp_dev", "-f", symlinkFile],
+    ["--dbname=bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    ["-dbcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", "-f", canonicalFile],
+    ["-d", "other_db", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    ["-X", "-d", "bcb_webapp_dev", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile, "extra"],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile, "-f", secondFile],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", outsideFile],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", symlinkFile],
+    ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", fifoFile],
   ];
   for (const args of rejectedCases) {
     const rejected = runCallback(args);
     assert.notEqual(rejected.status, 0, `unexpectedly accepted ${args.join(" ")}`);
-    assert.match(rejected.stderr, /FATAL: DEV runtime overlay/u);
+    assert.match(rejected.stderr, /FATAL: (?:DEV runtime overlay|canonical SQL reader)/u);
+  }
+});
+
+test("canonical SQL reader anchors the opened descriptor and rejects symlinks and FIFOs", () => {
+  const fakeRepo = mkdtempSync(join(tmpdir(), "bcb-sql-reader-"));
+  const canonicalDir = join(fakeRepo, "deploy/postgres");
+  const canonicalFile = join(canonicalDir, "fixture.sql");
+  const movedFile = join(canonicalDir, "opened.sql");
+  const symlinkFile = join(canonicalDir, "link.sql");
+  const fifoFile = join(canonicalDir, "fifo.sql");
+  mkdirSync(canonicalDir, { recursive: true });
+  writeFileSync(canonicalFile, "SELECT 'opened';\n");
+  symlinkSync(canonicalFile, symlinkFile);
+  const fifoResult = spawnSync("mkfifo", [fifoFile], { encoding: "utf8" });
+  assert.equal(fifoResult.status, 0, fifoResult.stderr);
+
+  assert.throws(() => openCanonicalSqlFile(symlinkFile, canonicalDir));
+  assert.throws(() => openCanonicalSqlFile(fifoFile, canonicalDir));
+
+  const descriptor = openCanonicalSqlFile(canonicalFile, canonicalDir);
+  try {
+    renameSync(canonicalFile, movedFile);
+    writeFileSync(canonicalFile, "SELECT 'replacement';\n");
+    assert.equal(readFileSync(descriptor, "utf8"), "SELECT 'opened';\n");
+  } finally {
+    closeSync(descriptor);
   }
 });
 
