@@ -810,8 +810,10 @@ push and installed launches cannot leak or silently substitute another organizat
   concurrent switch, back/forward/deep link, DB-role negatives, typecheck/lint/build; desktop/mobile/PWA screenshots.
 - **Rollback/degradation:** resolver failure shows neutral chooser/recovery and clears stale care data; never falls
   through to previous or arbitrary organization.
-- **Completion:** [ ] all MOR states; [ ] no stale cache; [ ] Today canonical principal fixed; [ ] switch/deep link
-  proof; [ ] UX08-05 resolved behavior explicit; [ ] full audit PASS.
+- **Completion:** [ ] all MOR states; [x] no stale cache; [x] Today canonical principal fixed; [ ] switch/deep link
+  proof; [x] UX08-05 resolved behavior explicit; [x] full audit PASS. The two unchecked live seals require the
+  canonical TEST two-organization fixture or U3B's sanctioned invite→active enrollment transition; they must not be
+  manufactured through a privileged DEV-only enrollment writer.
 - **Merge dependency:** U0/U1; later integration validation cannot become a reverse prerequisite.
 
 ### U3S — specialist self-signup, owner provisioning and secure first run

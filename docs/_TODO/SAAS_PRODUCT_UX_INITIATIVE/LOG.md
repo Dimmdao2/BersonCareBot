@@ -2,6 +2,26 @@
 
 ## 2026-07-20 — U5A organization-context convergence integrated (`#796`)
 
+**DEV runtime closure and live correction.** The prepared DEV database was advanced in place through the audited
+exact-DEV `migrate-dev.sh`; migrations through `0219`, the C4D online index, mandatory privilege cleanup, runtime
+overlay and both ledger checks passed. No dump, reset, restore, TEST/PROD access or deploy occurred. The patient
+entitlement read now uses a no-argument exact-current-patient capability: active patient and organization come only
+from the signed DB principal, `app_patient` receives no direct tariff/organization table grants, and foreign,
+missing or revoked context fails closed. Independent critical audit passed `P0=0, P1=0, P2=0`.
+
+Focused live DEV then passed `/app/patient`, one-organization resolution, preference persistence and refresh without
+the former `42501`/HTTP 5xx. A final live defect was corrected by emitting same-origin relative redirects from the
+trusted opener: neutral recovery now remains on `127.0.0.1`, preserves the authenticated session and cannot consume
+an external Host/`next`. Its independent audit and browser recheck passed. Evidence:
+`.claude/screenshots/U5A-DEV-LIVE/2026-07-20T20-20-HEAD-300d99f14`.
+
+**Honest remaining live seal.** The current sanctioned DEV writer can create only an `invited` relationship; it does
+not prove portal identity or promote `org_enrollments` to `active`. A proposed privileged fixture was stopped without
+code or DB changes. Therefore two-active-organization switching and revoked-previous-selection remain for the
+existing canonical TEST walkthrough fixture, or for a repeat after U3B introduces the sanctioned invite/proof
+activation transition. The U5A resolver, isolation and recovery implementation is integrated and audited; no
+privileged DEV-only enrollment backdoor will be added to satisfy a screenshot.
+
 U5A теперь использует один server-authorized контекст организации для zero/one/many relationships. Единственная
 активная организация запоминается как повторно проверяемая подсказка; ручное переключение сразу скрывает прежние
 clinical данные и заменяет URL на безопасный Patient Today, поэтому старый object route не может вернуть прежнюю
