@@ -392,10 +392,10 @@ Evidence:
 
 ### Phase 9 — Production Backfill Closeout
 
-Status: historical TEST apply evidence exists; a later fresh-dump restore replaced that TEST snapshot; production
-not executed. Owner sequencing 2026-07-19: no standalone FIO backfill into the materially outdated production
-runtime. Phase 9 runs only as one ordered step of the final full production cutover after commercial, SaaS/tenant
-and legal/readiness launch gates.
+Status: the exact owner-reviewed TEST apply was successfully re-established on 2026-07-19 after the fresh-dump
+rehearsal; production was not executed. Owner sequencing forbids a standalone FIO backfill into the materially
+outdated production runtime. Task `#857` runs only as one ordered step of the final full production cutover after
+commercial, SaaS/tenant and legal/readiness launch gates.
 
 Owner-reviewed TEST result (aggregate only):
 
@@ -417,7 +417,8 @@ Actions:
 
 - Complete the compatible new code/schema and rehearse the entire cutover chain repeatedly on TEST from a fresh
   copy before any production preview/apply. The existing old production application is not a backfill target.
-- Resolve the missing-row and changed-row TEST exceptions without replacing the owner's decision.
+- Preserve and re-prove the exact expected-missing and preserve-current TEST exceptions without replacing or
+  recalculating the owner's decisions.
 - Prepare a preview from an up-to-date production copy.
 - Require explicit owner approval of the exact preview artifact before production apply.
 - Use a versioned/hash-bound manifest with unique IDs, explicit approval and expected-before snapshots; validate the
@@ -441,6 +442,8 @@ Gate:
 
 ### Phase 10 — Legacy Fallback Audit
 
+Status: blocked under `#858` until the final production cutover FIO step and production reconciliation pass.
+
 - Audit active users for incomplete structured fields.
 - Search all consumers that parse `display_name` and classify each fallback.
 - Confirm registration, booking, manual edit, provider priority, and production backfill gates.
@@ -448,6 +451,8 @@ Gate:
 Gate: no active identity or consumer requires parsing `display_name` to recover FIO.
 
 ### Phase 11 — Runtime Parser Retirement
+
+Status: blocked under `#858` until production reconciliation and the Phase 10 audit both pass.
 
 - Retire the dictionary-backed one-off parser after migration closeout; it is not a runtime dependency.
 - Remove the runtime `display_name -> FIO` fallback only after Phase 10 passes.
@@ -460,8 +465,10 @@ DB-backed `system_settings`, but notification work does not block structured ide
 
 ## Final Acceptance
 
-- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Residual Phases 6-11 are tracked
-  by `#855`-`#858` (TEST apply evidence remains `#849`) and cannot be closed by that acceptance.
+- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Tasks `#855` and `#856` are
+  completed and integrated at `50eba2619` and `c8492fec5`; TEST apply evidence `#849` was successfully re-established
+  on 2026-07-19. Task `#857` is deferred to the single final platform production cutover, and `#858` remains blocked
+  until production reconciliation.
 - `accepted` remains owner-only.
 - Full CI is run only when explicitly preparing push or when repo-wide changes
   justify it.

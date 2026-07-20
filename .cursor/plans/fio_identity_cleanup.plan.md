@@ -26,15 +26,15 @@ todos:
     status: completed
   - id: fio-7
     content: Audit/correct remaining manual, booking, provisioning, OAuth, Telegram, and MAX writers.
-    status: pending
+    status: completed
   - id: fio-8
     content: Move doctor and patient displays to structured FIO helpers while keeping display_name compatibility.
-    status: pending
+    status: completed
   - id: fio-9
-    content: Run current-preview and separately owner-approved production backfill with drift and rollback gates; TEST evidence is already complete.
+    content: Run current-preview and separately owner-approved FIO step only inside the final platform production cutover; TEST evidence was re-established on 2026-07-19.
     status: pending
   - id: fio-10
-    content: Audit active legacy rows and all consumers that parse display_name into FIO.
+    content: After final production reconciliation, audit active legacy rows and all consumers that parse display_name into FIO.
     status: pending
   - id: fio-11
     content: Retire runtime parser fallback only after registration, production, and legacy-audit gates pass.
@@ -62,11 +62,12 @@ The work is intentionally ordered so product behavior changes happen only after 
 - [x] Booking form collects surname and given name as required fields and prefills known phone/email.
 - [x] Merge/OAuth/messenger paths cannot overwrite stronger booking/manual FIO.
 - [x] Owner-reviewed backfill was transactionally applied and checked on TEST only.
-- [ ] Patient email registration writes required `last_name` + `first_name`, optional `patronymic`, and derives
+- [x] Patient email registration writes required `last_name` + `first_name`, optional `patronymic`, and derives
       `display_name`.
-- [ ] Specialist/clinic registration writes structured specialist FIO without mixing it with organization name.
-- [ ] Every remaining writer/provider path preserves strong structured FIO and exposes unresolved conflicts.
-- [ ] Doctor surfaces use full FIO; patient surfaces use first name.
+- [x] Specialist/clinic registration writes structured specialist FIO without mixing it with organization name.
+- [x] Every remaining writer/provider path preserves strong structured FIO against weaker provider overwrites;
+      the optional new visible same-row conflict indicator remains a Phase 10 owner decision.
+- [x] Doctor surfaces use full FIO; patient surfaces use first name.
 - [ ] Production backfill has current-copy preview, explicit owner approval, transactional apply, rollback artifact,
       post-apply audit, and UI spot-check.
 - [ ] Active consumers no longer require `display_name -> FIO` parsing; only then is the runtime parser fallback
@@ -540,8 +541,8 @@ Actions:
 - Do not preview/apply FIO independently against the materially outdated production runtime. First complete the new
   code/schema and the commercial, SaaS/tenant and legal/readiness gates, then rehearse the whole cutover chain on
   TEST from a fresh copy.
-- Resolve the two TEST exceptions: one missing identity and one row changed after review and intentionally not
-  overwritten.
+- Preserve the two exact reviewed TEST exceptions — one expected-missing identity and one preserve-current row —
+  without recalculating or replacing the owner's decisions.
 - Build a preview from an up-to-date production copy and emit a redacted aggregate plus local PII audit artifact.
 - Require explicit owner approval of that exact preview artifact before production apply.
 - Use one canonical apply entrypoint with an immutable reviewed manifest: schema/version, unique IDs, explicit
@@ -568,7 +569,8 @@ Gate:
 
 ## Phase 10 — Legacy Fallback Audit
 
-Status: pending after Phase 9.
+Status: blocked under taskdb `#858` until the Phase 9 step completes inside the final production cutover and its
+production reconciliation passes.
 
 Actions:
 
@@ -585,7 +587,7 @@ Gate:
 
 ## Phase 11 — Runtime Parser Retirement
 
-Status: blocked by Phase 10 evidence.
+Status: blocked under taskdb `#858` until production reconciliation and Phase 10 evidence both pass.
 
 Actions:
 
@@ -607,7 +609,9 @@ It must continue to use DB-backed `system_settings`, but it neither proves nor b
 
 ## Final Acceptance
 
-- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. It does not close Phases 6-11;
-  those phases use residual taskdb `#855`-`#858` (TEST evidence remains `#849`).
+- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Residual tasks `#855` and `#856`
+  are completed and integrated at `50eba2619` and `c8492fec5`; TEST evidence `#849` was successfully re-established
+  on 2026-07-19. Task `#857` is deferred to the single final platform production cutover, and `#858` remains blocked
+  until that production reconciliation succeeds.
 - `accepted` remains owner-only.
 - Full CI is run only when explicitly preparing push or when repo-wide changes justify it.
