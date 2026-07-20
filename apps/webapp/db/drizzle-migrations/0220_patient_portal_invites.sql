@@ -363,11 +363,14 @@ BEGIN
     RETURN;
   END IF;
   IF v_email = '' OR position('@' IN v_email) <= 1
-     OR v_invite.invited_email_normalized IS NULL
-     OR v_invite.invited_email_normalized <> v_email
      OR p_code_hash IS NULL OR p_code_hash = ''
      OR p_proof_expires_at IS NULL OR p_proof_expires_at <= now() THEN
     RETURN QUERY SELECT false, 'invalid_invite'::text;
+    RETURN;
+  END IF;
+  IF v_invite.invited_email_normalized IS NULL
+     OR v_invite.invited_email_normalized <> v_email THEN
+    RETURN QUERY SELECT false, 'wrong_recipient'::text;
     RETURN;
   END IF;
   IF v_invite.proof_started_at IS NOT NULL

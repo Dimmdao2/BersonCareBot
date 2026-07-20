@@ -129,6 +129,19 @@ describe('patient invite migration contract', () => {
       expect(`${startClient}\n${continuationClient}`).toContain(label);
     }
     expect(continuationClient).toContain('Email для подтверждения');
+    expect(continuationClient).toContain(
+      'Этот email не соответствует приглашению. Проверьте адрес и попробуйте ещё раз.',
+    );
+    for (const code of [
+      'expired_token',
+      'revoked_token',
+      'superseded_token',
+      'already_linked',
+      'organization_unavailable',
+    ]) {
+      expect(continuationClient).toContain(`case '${code}'`);
+    }
+    expect(migration).toContain("RETURN QUERY SELECT false, 'wrong_recipient'::text");
     expect(continuationClient).toContain('{ email, code }');
     expect(continuationClient).not.toContain('Адрес для подтверждения');
   });

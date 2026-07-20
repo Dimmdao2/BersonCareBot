@@ -238,6 +238,9 @@ async function proveBearerAndProof(db) {
   assert(replay.rows[0]?.ok === false && replay.rows[0]?.code === "exchanged_token", "bearer replay was accepted");
   const proofExpiresEpoch = Math.floor(Date.now() / 1000) + 600;
   const proofExpiresAt = new Date(proofExpiresEpoch * 1000).toISOString();
+  const wrongRecipientAuth = proofAuthorization("start", "continuation-a", "wrong@example.test", "wrong-proof-hash", proofExpiresEpoch);
+  const wrongRecipient = await db.query("SELECT * FROM app.start_patient_invite_email_proof($1,$2,$3,$4,$5,$6,$7)", ["continuation-a", "wrong@example.test", "wrong-proof-hash", proofExpiresAt, wrongRecipientAuth.nonce, wrongRecipientAuth.expiresEpoch, wrongRecipientAuth.signature]);
+  assert(wrongRecipient.rows[0]?.ok === false && wrongRecipient.rows[0]?.code === "wrong_recipient", "wrong recipient did not keep the correct recovery state");
   const startAuth = proofAuthorization("start", "continuation-a", "patient-a@example.test", "proof-hash", proofExpiresEpoch);
   const started = await db.query("SELECT * FROM app.start_patient_invite_email_proof($1,$2,$3,$4,$5,$6,$7)", ["continuation-a", "patient-a@example.test", "proof-hash", proofExpiresAt, startAuth.nonce, startAuth.expiresEpoch, startAuth.signature]);
   assert(started.rows[0]?.ok === true, "purpose proof start failed");

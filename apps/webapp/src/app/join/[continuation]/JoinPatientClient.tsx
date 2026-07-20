@@ -33,7 +33,7 @@ async function request(
 function messageFor(code: unknown): string {
   switch (code) {
     case 'wrong_recipient':
-      return 'Этот адрес не соответствует приглашению. Попросите специалиста исправить адрес и создать новую ссылку.';
+      return 'Этот email не соответствует приглашению. Проверьте адрес и попробуйте ещё раз.';
     case 'conflicting_identity':
       return 'Этот адрес уже связан с другой учётной записью. Обратитесь к специалисту для безопасного объединения.';
     case 'invalid_code':
@@ -43,6 +43,15 @@ function messageFor(code: unknown): string {
     case 'too_many_attempts':
     case 'rate_limited':
       return 'Слишком много попыток. Повторите позже.';
+    case 'expired_token':
+    case 'revoked_token':
+    case 'superseded_token':
+    case 'already_linked':
+    case 'inactive_relationship':
+    case 'organization_unavailable': {
+      const copy = terminalCopy(code);
+      return `${copy.title}. ${copy.detail}`;
+    }
     default:
       return 'Приглашение больше нельзя использовать. Попросите специалиста создать новую ссылку.';
   }
