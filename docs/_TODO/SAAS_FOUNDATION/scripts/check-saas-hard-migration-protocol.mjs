@@ -268,6 +268,49 @@ function runChecks(overrides = {}) {
     'not restore+migration proof',
   ]);
 
+  const devRestoreOrderStart = loaded.protocol.indexOf(
+    'For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:',
+  );
+  const devRestoreOrderEnd = loaded.protocol.indexOf('The handoff opens', devRestoreOrderStart);
+  if (devRestoreOrderStart < 0 || devRestoreOrderEnd <= devRestoreOrderStart) {
+    fail(`${files.protocol} missing bounded DEV restore order passage`);
+  }
+  const devRestoreOrder = loaded.protocol.slice(devRestoreOrderStart, devRestoreOrderEnd);
+  requireOrderedFragments(`${files.protocol} DEV restore locked-policy order`, devRestoreOrder, [
+    '3. per-database P0.5b grants;',
+    '4. canonical strict locked-helper base policies from',
+    '`deploy/postgres/phase4-locked-helper-rls-policies.sql`',
+    '`phase4_enforce_locked_context=1`',
+    'this DEV recovery does not run',
+    '`deploy/postgres/phase4-force-rls-cutover.sql`',
+    'does not otherwise enable FORCE RLS',
+    '5. the single shared runtime-overlay chain',
+    'canonical D3.4 bootstrap/base-login closure',
+  ]);
+
+  const devRecoveryClosureStart = loaded.protocol.indexOf(
+    'The wrapper then reapplies per-database P0.5b grants',
+  );
+  const devRecoveryClosureEnd = loaded.protocol.indexOf(
+    'Within that one shared list',
+    devRecoveryClosureStart,
+  );
+  if (devRecoveryClosureStart < 0 || devRecoveryClosureEnd <= devRecoveryClosureStart) {
+    fail(`${files.protocol} missing bounded DEV recovery closure passage`);
+  }
+  const devRecoveryClosure = loaded.protocol.slice(devRecoveryClosureStart, devRecoveryClosureEnd);
+  requireOrderedFragments(`${files.protocol} DEV recovery locked-policy closure`, devRecoveryClosure, [
+    'reapplies per-database P0.5b grants',
+    'applies the canonical strict locked-helper base policies from',
+    '`deploy/postgres/phase4-locked-helper-rls-policies.sql`',
+    '`phase4_enforce_locked_context=1`',
+    'only then runs the\nshared specialized helper/E1 closure',
+    '`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`',
+    'This DEV recovery does not run',
+    '`deploy/postgres/phase4-force-rls-cutover.sql`',
+    'does not otherwise enable FORCE RLS',
+  ]);
+
   requireOrderedFragments(`${files.protocol} allowed sequence`, loaded.protocol, [
     '### 1. Assert TEST runtime mode',
     '### 2. Obtain a fresh dump',
@@ -1053,6 +1096,18 @@ function runSelfTest() {
       protocol: read(files.protocol).replace(
         '### 7. Cleanup and post-cleanup assertions are mandatory',
         '### 7. Cleanup is optional',
+      ),
+    },
+    {
+      protocol: read(files.protocol).replace(
+        '4. canonical strict locked-helper base policies from',
+        '4. strict locked-helper base policies omitted',
+      ),
+    },
+    {
+      protocol: read(files.protocol).replace(
+        'The wrapper then reapplies per-database P0.5b grants, applies the canonical strict locked-helper base policies from',
+        'The wrapper then reapplies per-database P0.5b grants but omits the strict locked-helper base policies from',
       ),
     },
     {

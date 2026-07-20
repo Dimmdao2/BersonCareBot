@@ -594,10 +594,15 @@ For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-c
 
 1. current-branch migrations;
 2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
-3. P0.5b grants, the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
+3. per-database P0.5b grants;
+4. canonical strict locked-helper base policies from
+   `deploy/postgres/phase4-locked-helper-rls-policies.sql`, passed
+   `phase4_enforce_locked_context=1` after P0.5b and before every specialized overlay; this DEV recovery does not run
+   `deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS;
+5. the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
    explicit DEV webapp-only/validate-only-C0 mode (no TEST media runtime role and no cluster-global role rewiring);
-4. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
-5. copied TEST-only settings unlock.
+6. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
+7. copied TEST-only settings unlock.
 
 The handoff opens the canonical non-symlink `.env.dev` once through a descriptor-pinned snapshot and parses
 `DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `locked`:
@@ -627,8 +632,11 @@ login attributes. Transitive membership is checked too: no unlisted role may rea
 an allowed intermediate login. An unknown member, indirect chain or option drift is a fail-closed incident; DEV
 recovery validates it but never revokes, grants or otherwise repairs cluster-global membership.
 
-The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure, followed by the existing
-`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. DEV passes
+The wrapper then reapplies per-database P0.5b grants, applies the canonical strict locked-helper base policies from
+`deploy/postgres/phase4-locked-helper-rls-policies.sql` with `phase4_enforce_locked_context=1`, and only then runs the
+shared specialized helper/E1 closure, followed by the existing
+`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. This DEV recovery does not run
+`deploy/postgres/phase4-force-rls-cutover.sql` and does not otherwise enable FORCE RLS. DEV passes
 `d3_4_skip_media_worker=1` and `d3_4_skip_bootstrap_role_normalization=1`, so that artifact composes the reviewed
 per-database webapp bootstrap ACL without requiring, reading or mutating a TEST media login and without changing the
 cluster-global C0 role already proven exact by DEV preflight. Partial opt-in combinations fail closed. TEST passes
