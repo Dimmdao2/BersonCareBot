@@ -12,7 +12,8 @@
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Search, Ticket, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Plus, Search, Ticket, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
@@ -20,6 +21,15 @@ import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
+import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/shared/ui/doctor/primitives/dialog";
 import { TooltipProvider } from "@/shared/ui/doctor/primitives/tooltip";
 import { doctorDnaFlatListClass, doctorDnaFlatListClickableClass, doctorDnaFlatListPrimaryClass, doctorDnaFlatListRowClass } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -392,6 +402,139 @@ function PatientListSkeleton() {
   );
 }
 
+function currentLocalDateTimeValue(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function manualVisitErrorLabel(error: string | undefined): string {
+  if (error === "invalid_phone") return "Проверьте номер телефона.";
+  if (error === "invalid_email") return "Проверьте email.";
+  if (error === "invalid_fio") return "Укажите фамилию и имя.";
+  if (error === "email_conflict") return "Этот email уже связан с другой карточкой.";
+  if (error === "patient_not_available") return "Карточка недоступна в этой организации.";
+  if (error === "specialist_required") return "Для сотрудника не назначен профиль специалиста.";
+  return "Не удалось создать визит.";
+}
+
+function ManualWalkInPatientDialog() {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [patronymic, setPatronymic] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [visitedAt, setVisitedAt] = useState(currentLocalDateTimeValue);
+
+  function reset() {
+    setError(null);
+    setLastName("");
+    setFirstName("");
+    setPatronymic("");
+    setPhone("");
+    setEmail("");
+    setVisitedAt(currentLocalDateTimeValue());
+  }
+
+  async function submit() {
+    setError(null);
+    if (!lastName.trim() || !firstName.trim() || !phone.trim() || !visitedAt) {
+      setError("Укажите фамилию, имя, телефон и время визита.");
+      return;
+    }
+    setPending(true);
+    try {
+      const response = await fetch("/api/doctor/booking-engine/appointments/manual-patient-visit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "walk_in",
+          lastName,
+          firstName,
+          patronymic: patronymic.trim() || null,
+          phone,
+          email: email.trim() || null,
+          visitedAt: new Date(visitedAt).toISOString(),
+        }),
+      });
+      const result = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        client?: { id?: string };
+      };
+      if (!response.ok || !result.ok || !result.client?.id) {
+        setError(manualVisitErrorLabel(result.error));
+        return;
+      }
+      setOpen(false);
+      reset();
+      router.push(routePaths.doctorPatientCard(result.client.id));
+      router.refresh();
+    } catch {
+      setError("Не удалось создать визит.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next && !pending) reset();
+      }}
+    >
+      <DialogTrigger render={<Button type="button" size="sm" className="shrink-0 gap-1.5" />}>
+        <Plus className="size-4" aria-hidden />
+        Новый визит
+      </DialogTrigger>
+      <DialogContent className="max-h-[min(90dvh,680px)] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Новый пациент без предварительной записи</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Карточка и состоявшийся визит создадутся вместе. Доступ пациента в портал не активируется.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="manual-walk-in-last-name">Фамилия</Label>
+            <Input id="manual-walk-in-last-name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="manual-walk-in-first-name">Имя</Label>
+            <Input id="manual-walk-in-first-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+          </div>
+          <div className="grid gap-1.5 sm:col-span-2">
+            <Label htmlFor="manual-walk-in-patronymic">Отчество</Label>
+            <Input id="manual-walk-in-patronymic" value={patronymic} onChange={(event) => setPatronymic(event.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="manual-walk-in-phone">Телефон</Label>
+            <Input id="manual-walk-in-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" placeholder="+7 999 000-00-00" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="manual-walk-in-email">Email, если есть</Label>
+            <Input id="manual-walk-in-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+          </div>
+          <div className="grid gap-1.5 sm:col-span-2">
+            <Label htmlFor="manual-walk-in-visited-at">Дата и время визита</Label>
+            <Input id="manual-walk-in-visited-at" type="datetime-local" value={visitedAt} onChange={(event) => setVisitedAt(event.target.value)} />
+          </div>
+        </div>
+        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>Отмена</Button>
+          <Button type="button" disabled={pending} onClick={() => void submit()}>{pending ? "Создаём…" : "Создать визит"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main content (Suspense boundary — uses `use()`)
 // ---------------------------------------------------------------------------
@@ -491,30 +634,33 @@ function PatientsContent({
         title={patientPluralLabel}
         tabsClassName="w-full"
         tabs={
-          <div className="relative w-full min-w-0">
-            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-              <Search className="size-3.5" aria-hidden />
-            </span>
-            <Input
-              type="search"
-              placeholder={`Поиск: ${patientPluralLabelLower}`}
-              value={searchInput}
-              onChange={(event) => onSearchInput(event.target.value)}
-              className="h-8 pl-8 pr-8 text-sm"
-              aria-label={`Поиск: ${patientPluralLabelLower}`}
-            />
-            {searchInput ? (
-              <Button
-                type="button"
-                variant="ghost"
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <ManualWalkInPatientDialog />
+            <div className="relative min-w-0 flex-1">
+              <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+                <Search className="size-3.5" aria-hidden />
+              </span>
+              <Input
+                type="search"
+                placeholder={`Поиск: ${patientPluralLabelLower}`}
+                value={searchInput}
+                onChange={(event) => onSearchInput(event.target.value)}
+                className="h-8 pl-8 pr-8 text-sm"
+                aria-label={`Поиск: ${patientPluralLabelLower}`}
+              />
+              {searchInput ? (
+                <Button
+                  type="button"
+                  variant="ghost"
                   size="icon-sm"
                   onClick={onClearSearch}
                   className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
                   aria-label="Сбросить поиск"
-              >
-                <X className="size-3.5" />
-              </Button>
-            ) : null}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         }
       />

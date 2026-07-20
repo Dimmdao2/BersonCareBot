@@ -10,6 +10,7 @@ import {
   beSpecialists,
   beSpecialistServiceAvailability,
 } from "../../../db/schema/bookingEngine";
+import { clinicalVisit } from "../../../db/schema/patientClinical";
 
 const getDrizzleMock = vi.hoisted(() => vi.fn());
 const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
@@ -41,6 +42,7 @@ const input = {
   phoneNormalized: "+79990000000",
   emailRaw: null,
   emailNormalized: null,
+  kind: "scheduled" as const,
   appointment: {
     branchId: "44444444-4444-4444-8444-444444444444",
     specialistId: "55555555-5555-4555-8555-555555555555",
@@ -139,6 +141,11 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
     expect(ensureRelationshipMock).toHaveBeenCalledWith(tx, ORG_ID, PATIENT_ID);
     expect(insertOrder).toEqual(["appointment", "event", "history", "timeline"]);
     expect(result.appointment.id).toBe(APPOINTMENT_ID);
+    expect(result).toMatchObject({
+      kind: "scheduled",
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
+    });
   });
 
   it("propagates appointment failure from the same callback so the outer transaction rolls back all prior writes", async () => {
@@ -192,5 +199,91 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
       "service_not_available_for_specialist",
     );
     expect(resolveIdentityMock).not.toHaveBeenCalled();
+  });
+
+  it("creates a completed walk-in and clinical visit in the same transaction", async () => {
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn((values: Record<string, unknown>) => {
+        if (table === beAppointments) {
+          expect(values).toMatchObject({
+            organizationId: ORG_ID,
+            specialistId: input.appointment.specialistId,
+            status: "completed",
+            startAt: "2026-07-20T09:30:00.000Z",
+            durationMinutes: 1,
+          });
+          return {
+            returning: async () => [
+              {
+                ...appointmentRow(),
+                startAt: "2026-07-20T09:30:00.000Z",
+                endAt: "2026-07-20T09:31:00.000Z",
+                durationMinutes: 1,
+                status: "completed",
+                branchId: null,
+                serviceId: null,
+              },
+            ],
+          };
+        }
+        if (table === clinicalVisit) {
+          expect(values).toMatchObject({
+            organizationId: ORG_ID,
+            patientUserId: PATIENT_ID,
+            visitType: "first",
+            visitedAt: "2026-07-20T09:30:00.000Z",
+            canonicalAppointmentId: APPOINTMENT_ID,
+            createdBy: input.appointment.actorId,
+          });
+          return {
+            returning: async () => [{ id: "88888888-8888-4888-8888-888888888888" }],
+          };
+        }
+        return Promise.resolve();
+      }),
+    }));
+    const tx = { insert, select: catalogSelect({ branch: [], service: [], availability: [] }) };
+    getDrizzleMock.mockReturnValue({ transaction: vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx)) });
+
+    const result = await createPgBookingEnginePort().createManualPatientVisit({
+      organizationId: ORG_ID,
+      lastName: input.lastName,
+      firstName: input.firstName,
+      patronymic: null,
+      phoneNormalized: input.phoneNormalized,
+      emailRaw: null,
+      emailNormalized: null,
+      kind: "walk_in",
+      walkIn: {
+        specialistId: input.appointment.specialistId,
+        visitedAt: "2026-07-20T09:30:00.000Z",
+        actorId: input.appointment.actorId,
+      },
+    });
+
+    expect(result).toMatchObject({
+      kind: "walk_in",
+      clinicalVisitId: "88888888-8888-4888-8888-888888888888",
+      portalStatus: "not_activated",
+    });
+    expect(resolveIdentityMock).toHaveBeenCalledOnce();
+    expect(ensureRelationshipMock).toHaveBeenCalledOnce();
+  });
+
+  it("reports an already-active exact-org relationship as linked", async () => {
+    ensureRelationshipMock.mockResolvedValue("active");
+    const insert = vi.fn((table: unknown) => ({
+      values: vi.fn(() =>
+        table === beAppointments
+          ? { returning: async () => [appointmentRow()] }
+          : Promise.resolve(),
+      ),
+    }));
+    const tx = { insert, select: catalogSelect() };
+    getDrizzleMock.mockReturnValue({ transaction: vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx)) });
+
+    const result = await createPgBookingEnginePort().createManualPatientVisit(input);
+
+    expect(result.portalStatus).toBe("linked");
   });
 });

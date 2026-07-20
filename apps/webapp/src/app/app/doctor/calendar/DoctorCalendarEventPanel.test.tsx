@@ -162,12 +162,13 @@ describe("DoctorCalendarEventPanel patient heading", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(url).toBe("/api/doctor/booking-engine/appointments/manual-patient-visit");
     expect(JSON.parse(String(init?.body))).toMatchObject({
+      kind: "scheduled",
       lastName: "Новый",
       firstName: "Пациент",
       patronymic: null,
       phone: "+7 999 000-00-00",
       email: "patient@example.com",
-      specialistId: "33333333-3333-4333-8333-333333333333",
     });
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty("specialistId");
   });
 });

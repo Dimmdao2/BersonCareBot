@@ -84,6 +84,13 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
 
     async createManualPatientVisit(input: CreateManualPatientVisitInput) {
       assertUuid(input.organizationId, "organizationId");
+      if (input.kind === "walk_in") {
+        assertUuid(input.walkIn.specialistId, "specialistId");
+        if (Number.isNaN(new Date(input.walkIn.visitedAt).getTime())) {
+          throw new Error("invalid_visit_time");
+        }
+        return port.createManualPatientVisit(input);
+      }
       const status = input.appointment.status ?? "confirmed";
       assertAppointmentStatus(status);
       if (

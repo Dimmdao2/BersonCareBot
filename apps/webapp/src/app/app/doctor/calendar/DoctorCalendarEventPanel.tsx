@@ -408,6 +408,7 @@ function DoctorCalendarEventPanelInner({
                     body: JSON.stringify({
                       ...(isNewPatient
                           ? {
+                            kind: "scheduled",
                             lastName: createPatient.lastName,
                             firstName: createPatient.firstName,
                             patronymic: createPatient.patronymic ?? null,
@@ -421,7 +422,7 @@ function DoctorCalendarEventPanelInner({
                       startAt,
                       endAt,
                       durationMinutes: createDurationMinutes,
-                      specialistId: createSpecialistId,
+                      ...(!isNewPatient ? { specialistId: createSpecialistId } : {}),
                       branchId: createBranchId,
                       serviceId: createServiceId,
                     }),

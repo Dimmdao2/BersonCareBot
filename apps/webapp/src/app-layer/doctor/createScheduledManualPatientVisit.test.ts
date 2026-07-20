@@ -11,7 +11,10 @@ vi.mock("@/modules/platform-access/trustedPhonePolicy", () => ({
   trustedPatientPhoneWriteAnchor: trustedPatientPhoneWriteAnchorMock,
 }));
 
-import { createScheduledManualPatientVisit } from "./createScheduledManualPatientVisit";
+import {
+  createScheduledManualPatientVisit,
+  createWalkInManualPatientVisit,
+} from "./createScheduledManualPatientVisit";
 
 const createManualPatientVisit = vi.fn();
 const emailSetupAccess = { requestContactEmailSetup: vi.fn() };
@@ -38,6 +41,9 @@ describe("createScheduledManualPatientVisit", () => {
 
   it("normalizes identity input and calls only the atomic domain command", async () => {
     createManualPatientVisit.mockResolvedValue({
+      kind: "scheduled",
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
       patient: {
         userId: "44444444-4444-4444-8444-444444444444",
         displayName: "Новый пациент",
@@ -65,6 +71,7 @@ describe("createScheduledManualPatientVisit", () => {
       phoneNormalized: "+79990000000",
       emailRaw: "NEW@Example.com",
       emailNormalized: "new@example.com",
+      kind: "scheduled",
       appointment: baseInput.appointment,
     });
     expect(trustedPatientPhoneWriteAnchorMock).toHaveBeenCalledOnce();
@@ -79,5 +86,50 @@ describe("createScheduledManualPatientVisit", () => {
       ),
     ).resolves.toEqual({ ok: false, error: "invalid_phone" });
     expect(createManualPatientVisit).not.toHaveBeenCalled();
+  });
+
+  it("uses the same structured identity command for a walk-in without granting portal access", async () => {
+    createManualPatientVisit.mockResolvedValue({
+      kind: "walk_in",
+      clinicalVisitId: "55555555-5555-4555-8555-555555555555",
+      portalStatus: "not_activated",
+      patient: {
+        userId: "44444444-4444-4444-8444-444444444444",
+        displayName: "Новый пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+        phoneNormalized: "+79990000000",
+        created: true,
+      },
+      appointment: { id: "66666666-6666-4666-8666-666666666666" },
+    });
+
+    await expect(
+      createWalkInManualPatientVisit(
+        {
+          ...baseInput,
+          specialistId: baseInput.appointment.specialistId,
+          visitedAt: "2026-07-20T09:30:00.000Z",
+        },
+        { bookingEngine: { createManualPatientVisit }, emailSetupAccess },
+      ),
+    ).resolves.toMatchObject({ ok: true, kind: "walk_in", portalStatus: "not_activated" });
+
+    expect(createManualPatientVisit).toHaveBeenCalledWith({
+      organizationId: baseInput.organizationId,
+      lastName: "Новый",
+      firstName: "Пациент",
+      patronymic: null,
+      phoneNormalized: "+79990000000",
+      emailRaw: "NEW@Example.com",
+      emailNormalized: "new@example.com",
+      kind: "walk_in",
+      walkIn: {
+        specialistId: baseInput.appointment.specialistId,
+        visitedAt: "2026-07-20T09:30:00.000Z",
+        actorId: baseInput.createdByUserId,
+      },
+    });
   });
 });

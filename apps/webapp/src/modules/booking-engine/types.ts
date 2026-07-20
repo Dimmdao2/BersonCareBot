@@ -139,7 +139,7 @@ export type CreateAppointmentInput = {
   attributionJson?: Record<string, unknown>;
 };
 
-export type CreateManualPatientVisitInput = {
+type CreateManualPatientIdentityInput = {
   organizationId: string;
   lastName: string;
   firstName: string;
@@ -147,14 +147,34 @@ export type CreateManualPatientVisitInput = {
   phoneNormalized: string;
   emailRaw: string | null;
   emailNormalized: string | null;
-  appointment: Omit<
-    CreateAppointmentInput,
-    "organizationId" | "platformUserId" | "phoneNormalized"
-  >;
 };
 
+export type CreateManualPatientVisitInput = CreateManualPatientIdentityInput &
+  (
+    | {
+        kind: "scheduled";
+        appointment: Omit<
+          CreateAppointmentInput,
+          "organizationId" | "platformUserId" | "phoneNormalized"
+        >;
+      }
+    | {
+        kind: "walk_in";
+        walkIn: {
+          specialistId: string;
+          visitedAt: string;
+          actorId: string;
+        };
+      }
+  );
+
 export type CreateManualPatientVisitResult = {
+  kind: "scheduled" | "walk_in";
   appointment: BeAppointment;
+  /** Present only for a completed walk-in; scheduled appointments do not create clinical notes. */
+  clinicalVisitId: string | null;
+  /** Manual staff creation never proves patient control of a portal identity. */
+  portalStatus: "not_activated" | "linked";
   patient: {
     userId: string;
     displayName: string;

@@ -1,13 +1,16 @@
 /** @vitest-environment jsdom */
 
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getClientCategory, PatientsPageClient } from "./PatientsPageClient";
 import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 
+const routerPushMock = vi.hoisted(() => vi.fn());
+const routerRefreshMock = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: routerPushMock, refresh: routerRefreshMock }),
 }));
 
 function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
@@ -72,6 +75,7 @@ async function renderPatientsPage(clients: ClientListItem[]) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
 describe("PatientsPageClient", () => {
@@ -428,5 +432,43 @@ describe("PatientsPageClient", () => {
 
     await user.click(screen.getByRole("button", { name: "← Назад" }));
     expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
+  });
+
+  it("creates a structured walk-in without sending organization or specialist authority", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        visitKind: "walk_in",
+        portalStatus: "not_activated",
+        client: { id: "created-patient" },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await renderPatientsPage([]);
+
+    await user.click(screen.getByRole("button", { name: "Новый визит" }));
+    await user.type(screen.getByLabelText("Фамилия"), "Петров");
+    await user.type(screen.getByLabelText("Имя"), "Иван");
+    await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
+    await user.type(screen.getByLabelText("Телефон"), "+7 999 000-00-00");
+    await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
+    await user.click(screen.getByRole("button", { name: "Создать визит" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      kind: "walk_in",
+      lastName: "Петров",
+      firstName: "Иван",
+      patronymic: "Сергеевич",
+      phone: "+7 999 000-00-00",
+      email: "patient@example.com",
+    });
+    expect(body).not.toHaveProperty("organizationId");
+    expect(body).not.toHaveProperty("specialistId");
+    expect(routerPushMock).toHaveBeenCalledWith("/app/doctor/patients/created-patient");
   });
 });

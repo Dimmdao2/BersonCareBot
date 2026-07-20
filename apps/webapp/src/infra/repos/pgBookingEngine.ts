@@ -22,6 +22,7 @@ import {
   beSpecialistServiceAvailability,
   beSpecialists,
 } from "../../../db/schema/bookingEngine";
+import { clinicalVisit } from "../../../db/schema/patientClinical";
 import {
   legacyBranchServiceIdBySsaFromMappings,
   pickPreferredSsaId,
@@ -1074,8 +1075,20 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const now = new Date().toISOString();
       return db.transaction(async (rawTx) => {
         const tx = rawTx as DrizzleDb;
+        const appointmentInput =
+          input.kind === "scheduled"
+            ? input.appointment
+            : {
+                specialistId: input.walkIn.specialistId,
+                startAt: input.walkIn.visitedAt,
+                endAt: new Date(new Date(input.walkIn.visitedAt).getTime() + 60_000).toISOString(),
+                durationMinutes: 1,
+                source: "admin_manual" as const,
+                status: "completed" as const,
+                actorId: input.walkIn.actorId,
+              };
         await assertManualAppointmentCatalogSelection(tx, {
-          ...input.appointment,
+          ...appointmentInput,
           organizationId: input.organizationId,
         });
         const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
@@ -1083,7 +1096,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           input.organizationId,
           input,
         );
-        await ensureInvitedOrganizationClientRelationship(
+        const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
           tx,
           input.organizationId,
           patient.userId,
@@ -1091,7 +1104,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         const appointment = await insertAppointmentInTransaction(
           tx,
           {
-            ...input.appointment,
+            ...appointmentInput,
             organizationId: input.organizationId,
             platformUserId: patient.userId,
             phoneNormalized: patient.phoneNormalized,
@@ -1099,7 +1112,39 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           now,
           true,
         );
-        return { patient, appointment };
+        let clinicalVisitId: string | null = null;
+        if (input.kind === "walk_in") {
+          const [priorVisit] = await tx
+            .select({ id: clinicalVisit.id })
+            .from(clinicalVisit)
+            .where(
+              and(
+                eq(clinicalVisit.organizationId, input.organizationId),
+                eq(clinicalVisit.patientUserId, patient.userId),
+              ),
+            )
+            .limit(1);
+          const insertedVisit = await tx
+            .insert(clinicalVisit)
+            .values({
+              organizationId: input.organizationId,
+              patientUserId: patient.userId,
+              visitType: priorVisit ? "repeat" : "first",
+              visitedAt: input.walkIn.visitedAt,
+              canonicalAppointmentId: appointment.id,
+              createdBy: input.walkIn.actorId,
+            })
+            .returning({ id: clinicalVisit.id });
+          clinicalVisitId = insertedVisit[0]?.id ?? null;
+          if (!clinicalVisitId) throw new Error("clinical_visit_insert_failed");
+        }
+        return {
+          kind: input.kind,
+          patient,
+          appointment,
+          clinicalVisitId,
+          portalStatus: relationshipStatus === "active" ? "linked" : "not_activated",
+        };
       });
     },
 

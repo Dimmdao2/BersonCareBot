@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { createScheduledManualPatientVisit } from "@/app-layer/doctor/createScheduledManualPatientVisit";
+import {
+  createScheduledManualPatientVisit,
+  createWalkInManualPatientVisit,
+} from "@/app-layer/doctor/createScheduledManualPatientVisit";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import {
   staffBookingContactNameFromAppointment,
@@ -10,20 +13,29 @@ import {
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
-const bodySchema = z.object({
+const identitySchema = z.object({
   lastName: z.string().min(1).max(200),
   firstName: z.string().min(1).max(200),
   patronymic: z.string().max(200).nullable().optional(),
   phone: z.string().min(1).max(100),
   email: z.string().max(320).nullable().optional(),
+});
+
+const bodySchema = z.discriminatedUnion("kind", [
+  identitySchema.extend({
+    kind: z.literal("scheduled"),
   branchId: z.string().uuid().nullable().optional(),
   roomId: z.string().uuid().nullable().optional(),
-  specialistId: z.string().uuid(),
   serviceId: z.string().uuid().nullable().optional(),
   startAt: z.string().min(1),
   endAt: z.string().min(1),
   durationMinutes: z.number().int().positive(),
-});
+  }).strict(),
+  identitySchema.extend({
+    kind: z.literal("walk_in"),
+    visitedAt: z.string().datetime({ offset: true }),
+  }).strict(),
+]);
 
 function pgCode(error: unknown): { code: string; constraint: string } {
   if (typeof error !== "object" || error === null) return { code: "", constraint: "" };
@@ -43,16 +55,20 @@ export async function POST(request: Request) {
   }
 
   const { ctx } = gate;
+  if (!ctx.specialistId) {
+    return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 403 });
+  }
+  const specialistId = ctx.specialistId;
   const deps = buildAppDeps();
   try {
     const result = await withDoctorWorkspacePrincipal(
       ctx,
       "doctor.booking-engine.appointments.manual-patient-visit",
       async () => {
-        if (deps.bookingScheduling) {
+        if (parsed.data.kind === "scheduled" && deps.bookingScheduling) {
           await deps.bookingScheduling.assertSlotAvailable({
             organizationId: ctx.organizationId,
-            specialistId: parsed.data.specialistId,
+            specialistId,
             roomId: parsed.data.roomId ?? null,
             slotStart: parsed.data.startAt,
             slotEnd: parsed.data.endAt,
@@ -60,31 +76,46 @@ export async function POST(request: Request) {
           });
         }
 
-        const created = await createScheduledManualPatientVisit(
-          {
-            organizationId: ctx.organizationId,
-            createdByUserId: ctx.session.user.userId,
-            lastName: parsed.data.lastName,
-            firstName: parsed.data.firstName,
-            patronymic: parsed.data.patronymic,
-            phone: parsed.data.phone,
-            email: parsed.data.email,
-            appointment: {
-              branchId: parsed.data.branchId ?? null,
-              roomId: parsed.data.roomId ?? null,
-              specialistId: parsed.data.specialistId,
-              serviceId: parsed.data.serviceId ?? null,
-              startAt: parsed.data.startAt,
-              endAt: parsed.data.endAt,
-              durationMinutes: parsed.data.durationMinutes,
-              source: "admin_manual",
-              status: "confirmed",
-              actorId: ctx.session.user.userId,
-            },
-          },
-          { bookingEngine: ctx.service, emailSetupAccess: deps.emailSetupAccess },
-        );
+        const identity = {
+          organizationId: ctx.organizationId,
+          createdByUserId: ctx.session.user.userId,
+          lastName: parsed.data.lastName,
+          firstName: parsed.data.firstName,
+          patronymic: parsed.data.patronymic,
+          phone: parsed.data.phone,
+          email: parsed.data.email,
+        };
+        const created =
+          parsed.data.kind === "scheduled"
+            ? await createScheduledManualPatientVisit(
+                {
+                  ...identity,
+                  appointment: {
+                    branchId: parsed.data.branchId ?? null,
+                    roomId: parsed.data.roomId ?? null,
+                    specialistId,
+                    serviceId: parsed.data.serviceId ?? null,
+                    startAt: parsed.data.startAt,
+                    endAt: parsed.data.endAt,
+                    durationMinutes: parsed.data.durationMinutes,
+                    source: "admin_manual",
+                    status: "confirmed",
+                    actorId: ctx.session.user.userId,
+                  },
+                },
+                { bookingEngine: ctx.service, emailSetupAccess: deps.emailSetupAccess },
+              )
+            : await createWalkInManualPatientVisit(
+                {
+                  ...identity,
+                  specialistId,
+                  visitedAt: parsed.data.visitedAt,
+                },
+                { bookingEngine: ctx.service, emailSetupAccess: deps.emailSetupAccess },
+              );
         if (!created.ok) return created;
+
+        if (created.kind === "walk_in") return created;
 
         let bookingRow: Awaited<
           ReturnType<NonNullable<typeof deps.patientBooking>["getBookingByCanonicalAppointment"]>
@@ -136,6 +167,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       appointment: result.appointment,
+      clinicalVisitId: result.clinicalVisitId,
+      visitKind: result.kind,
+      portalStatus: result.portalStatus,
       client: {
         id: result.patient.userId,
         displayName: result.patient.displayName,

@@ -15,7 +15,7 @@ type BookingEngineManualPatientVisitService = Pick<
   "createManualPatientVisit"
 >;
 
-export type CreateScheduledManualPatientVisitInput = {
+type ManualPatientIdentityInput = {
   organizationId: string;
   createdByUserId: string;
   lastName: string;
@@ -23,19 +23,21 @@ export type CreateScheduledManualPatientVisitInput = {
   patronymic?: string | null;
   phone: string;
   email?: string | null;
+};
+
+export type CreateScheduledManualPatientVisitInput = ManualPatientIdentityInput & {
   appointment: Omit<
     CreateAppointmentInput,
     "organizationId" | "platformUserId" | "phoneNormalized"
   >;
 };
 
-export async function createScheduledManualPatientVisit(
-  input: CreateScheduledManualPatientVisitInput,
-  deps: {
-    bookingEngine: BookingEngineManualPatientVisitService;
-    emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
-  },
-) {
+export type CreateWalkInManualPatientVisitInput = ManualPatientIdentityInput & {
+  specialistId: string;
+  visitedAt: string;
+};
+
+function normalizeManualPatientIdentity(input: ManualPatientIdentityInput) {
   const phoneNormalized = normalizeRuPhoneE164(input.phone);
   if (!/^\+7\d{10}$/.test(phoneNormalized)) {
     return { ok: false as const, error: "invalid_phone" as const };
@@ -56,17 +58,18 @@ export async function createScheduledManualPatientVisit(
   if (!lastName || !firstName) {
     return { ok: false as const, error: "invalid_fio" as const };
   }
-  const result = await deps.bookingEngine.createManualPatientVisit({
-    organizationId: input.organizationId,
-    lastName,
-    firstName,
-    patronymic,
-    phoneNormalized,
-    emailRaw,
-    emailNormalized,
-    appointment: input.appointment,
-  });
+  return {
+    ok: true as const,
+    identity: { lastName, firstName, patronymic, phoneNormalized, emailRaw, emailNormalized },
+  };
+}
 
+function enqueueManualPatientContactSetup(
+  input: ManualPatientIdentityInput,
+  result: Awaited<ReturnType<BookingEngineManualPatientVisitService["createManualPatientVisit"]>>,
+  emailNormalized: string | null,
+  deps: { emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup"> },
+) {
   if (result.patient.created) {
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.DoctorStaffClientCreate);
   }
@@ -82,6 +85,47 @@ export async function createScheduledManualPatientVisit(
       { hook: "doctor.booking-engine.appointments.manual-patient-visit" },
     );
   }
+}
 
+export async function createScheduledManualPatientVisit(
+  input: CreateScheduledManualPatientVisitInput,
+  deps: {
+    bookingEngine: BookingEngineManualPatientVisitService;
+    emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
+  },
+) {
+  const normalized = normalizeManualPatientIdentity(input);
+  if (!normalized.ok) return normalized;
+  const result = await deps.bookingEngine.createManualPatientVisit({
+    organizationId: input.organizationId,
+    ...normalized.identity,
+    kind: "scheduled",
+    appointment: input.appointment,
+  });
+  enqueueManualPatientContactSetup(input, result, normalized.identity.emailNormalized, deps);
+
+  return { ok: true as const, ...result };
+}
+
+export async function createWalkInManualPatientVisit(
+  input: CreateWalkInManualPatientVisitInput,
+  deps: {
+    bookingEngine: BookingEngineManualPatientVisitService;
+    emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup">;
+  },
+) {
+  const normalized = normalizeManualPatientIdentity(input);
+  if (!normalized.ok) return normalized;
+  const result = await deps.bookingEngine.createManualPatientVisit({
+    organizationId: input.organizationId,
+    ...normalized.identity,
+    kind: "walk_in",
+    walkIn: {
+      specialistId: input.specialistId,
+      visitedAt: input.visitedAt,
+      actorId: input.createdByUserId,
+    },
+  });
+  enqueueManualPatientContactSetup(input, result, normalized.identity.emailNormalized, deps);
   return { ok: true as const, ...result };
 }
