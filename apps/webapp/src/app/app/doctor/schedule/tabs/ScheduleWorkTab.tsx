@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/shared/ui/doctor/primitives/popover";
 import {
   Select,
   SelectContent,
@@ -22,6 +28,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doc
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
+import { DoctorTimeColumn } from "@/shared/ui/doctor/DoctorTimeColumn";
 import { emitDoctorScheduleCalendarRefresh } from "../scheduleCalendarEvents";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
@@ -46,7 +53,7 @@ const DEFAULT_PANEL_END = "18:00";
 // ancestors through it. Recognize any select part (`select-content`, `select-item`, …,
 // all tagged `data-slot="select-*"` by the primitive) so opening/using that dropdown is
 // never mistaken for a "click outside" that should clear the in-progress selection.
-const SELECT_PORTAL_SELECTOR = "[data-slot^='select']";
+const INTERACTIVE_PORTAL_SELECTOR = "[data-slot^='select'],[data-slot^='popover']";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -346,6 +353,74 @@ function branchStyle(hex: string, active = false): CSSProperties {
   } as CSSProperties;
 }
 
+function branchDisplayLabel(branch: Branch): string {
+  return branch.shortTitle ?? branch.title;
+}
+
+function weekdayTemplateSummaries(
+  weekday: number,
+  workingHours: WorkingHoursRow[],
+  branches: Branch[],
+): string[] {
+  return workingHours
+    .filter((row) => row.weekday === weekday && row.isActive)
+    .map((row) => {
+      const branch = row.branchId ? branches.find((item) => item.id === row.branchId) : undefined;
+      const location = branch ? branchDisplayLabel(branch) : null;
+      const hours = formatHourRange(row.startMinute, row.endMinute);
+      return location ? `${hours} · ${location}` : hours;
+    })
+    .filter((summary, index, all) => all.indexOf(summary) === index);
+}
+
+type ScheduleTimePickerProps = {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  testId: string;
+  className?: string;
+};
+
+/** Time-only shell over the shared doctor time-column contract. */
+function ScheduleTimePicker({ id, value, onChange, ariaLabel, testId, className }: ScheduleTimePickerProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        id={id}
+        type="button"
+        aria-label={ariaLabel}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "h-8 justify-center font-normal tabular-nums",
+          className,
+        )}
+        data-testid={testId}
+      >
+        {value}
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-24 p-1.5"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <DoctorTimeColumn
+          value={value}
+          startHour={0}
+          endHour={23}
+          stepMinutes={15}
+          onChange={(nextValue) => {
+            onChange(nextValue);
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Month grid cell (E2 — narrower, bigger time, shortTitle)
 // ---------------------------------------------------------------------------
@@ -411,19 +486,20 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
 
   const day = DateTime.fromISO(dateKey).day;
 
-  // Short branch label (shortTitle ?? first word of title)
+  // Per-date overrides keep their local details. Weekday-template time/location
+  // live once in the corresponding weekday header instead of repeating here.
   const branchForRecord = effectiveBranchId
     ? branches.find((b) => b.id === effectiveBranchId)
     : undefined;
-  const branchShortLabel = branchForRecord
+  const branchShortLabel = branchForRecord && effectiveHours?.source !== "template"
     ? (branchForRecord.shortTitle ?? branchForRecord.title.split(" ")[0] ?? branchForRecord.title)
     : null;
   const displayStartMinute =
-    effectiveHours?.source === "override" || effectiveHours?.source === "template"
+    effectiveHours?.source === "override"
       ? effectiveHours.startMinute
       : record?.startMinute ?? null;
   const displayEndMinute =
-    effectiveHours?.source === "override" || effectiveHours?.source === "template"
+    effectiveHours?.source === "override"
       ? effectiveHours.endMinute
       : record?.endMinute ?? null;
 
@@ -445,14 +521,6 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       {effectiveHours?.source === "override" && effectiveHours.startMinute != null && (
         <div className={cn("mt-0.5 text-[11px] font-semibold leading-none", branchHex ? "text-[color:var(--branch-fg)]" : "text-primary")}>
           {formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
-        </div>
-      )}
-      {effectiveHours?.source === "template" && (
-        <div className={cn(
-          "mt-0.5 text-[10px] leading-none italic",
-          branchHex ? "text-[color:var(--branch-fg)]" : "text-muted-foreground",
-        )}>
-          ~{formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
         </div>
       )}
       {effectiveHours?.source === "closed" && (
@@ -493,20 +561,20 @@ function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
   return (
     <div className="flex items-center gap-1.5" data-testid={`break-row-${index}`}>
       <span className="text-xs text-muted-foreground min-w-[60px]">Перерыв {index + 1}</span>
-      <Input
-        type="time"
+      <ScheduleTimePicker
         className="h-7 w-24 text-xs"
         value={row.from}
-        onChange={(e) => onChange(index, "from", e.target.value)}
-        data-testid={`break-from-${index}`}
+        onChange={(value) => onChange(index, "from", value)}
+        ariaLabel={`Начало перерыва ${index + 1}`}
+        testId={`break-from-${index}`}
       />
       <span className="text-xs text-muted-foreground">–</span>
-      <Input
-        type="time"
+      <ScheduleTimePicker
         className="h-7 w-24 text-xs"
         value={row.to}
-        onChange={(e) => onChange(index, "to", e.target.value)}
-        data-testid={`break-to-${index}`}
+        onChange={(value) => onChange(index, "to", value)}
+        ariaLabel={`Конец перерыва ${index + 1}`}
+        testId={`break-to-${index}`}
       />
       <Button
         type="button"
@@ -541,8 +609,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [viewMonth, setViewMonth] = useState(month);
 
   const [branches, setBranches] = useState<Branch[]>([]);
-  // E3: "all" = no filter; specific id = filter sетку by branchId
-  const [gridBranchFilter, setGridBranchFilterState] = useState<string>("all");
+  // UI-1b: location filters are independent; bootstrap selects every location.
+  const [selectedBranchIds, setSelectedBranchIds] = useState<Set<string>>(new Set());
   const [specialistId, setSpecialistId] = useState("");
 
   const [dayRecords, setDayRecords] = useState<WorkingDayRecord[]>([]);
@@ -576,21 +644,41 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Deep-link sync ────────────────────────────────────────────────────────
 
-  const setGridBranchFilter = useCallback(
-    (id: string) => {
-      setGridBranchFilterState(id);
+  const resetGridSelection = useCallback(() => {
       setSelected(new Set());
       setSelectedPrimaryDate(null);
       lastClickedRef.current = null;
       setSelectionMode("dates");
       setSelectedWeekday(null);
       setActionError(null);
-      if (id !== "all") {
-        setPanelBranchId(id);
-      }
-      onDeepLinkChange("location", id !== "all" ? id : null);
+  }, []);
+
+  const syncLocationDeepLink = useCallback((ids: Set<string>) => {
+    const onlyId = ids.size === 1 ? ids.values().next().value : undefined;
+    onDeepLinkChange("location", typeof onlyId === "string" ? onlyId : null);
+    if (typeof onlyId === "string") setPanelBranchId(onlyId);
+  }, [onDeepLinkChange]);
+
+  const toggleGridBranch = useCallback(
+    (id: string) => {
+      const next = new Set(selectedBranchIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setSelectedBranchIds(next);
+      resetGridSelection();
+      syncLocationDeepLink(next);
     },
-    [onDeepLinkChange],
+    [resetGridSelection, selectedBranchIds, syncLocationDeepLink],
+  );
+
+  const selectAllGridBranches = useCallback(
+    () => {
+      const next = new Set(branches.map((branch) => branch.id));
+      setSelectedBranchIds(next);
+      resetGridSelection();
+      syncLocationDeepLink(next);
+    },
+    [branches, resetGridSelection, syncLocationDeepLink],
   );
 
   const navigateMonth = useCallback(
@@ -609,7 +697,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     [viewMonth, viewYear, onDeepLinkChange],
   );
 
-  // ── Load working days for visible month (E3 — pass branchId filter to backend) ──
+  // ── Load all working days for visible month; location selection is composed client-side. ──
 
   const loadMonth = useCallback(() => {
     if (!specialistId) return;
@@ -617,10 +705,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     const dateTo = monthEnd(viewYear, viewMonth);
     startTransition(async () => {
       const qs = new URLSearchParams({ dateFrom, dateTo, specialistId });
-      // E3: backend filter by branchId when a specific branch is selected
-      if (gridBranchFilter !== "all") {
-        qs.set("branchId", gridBranchFilter);
-      }
       try {
         const json = await apiJson<{ ok: boolean; rows: WorkingDayRecord[] }>(`${WD_BASE}?${qs.toString()}`);
         setDayRecords(json.rows ?? []);
@@ -629,7 +713,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         setLoadError(e instanceof Error ? e.message : "load_failed");
       }
     });
-  }, [specialistId, viewYear, viewMonth, gridBranchFilter]);
+  }, [specialistId, viewYear, viewMonth]);
 
   const loadTemplates = useCallback(() => {
     startTransition(async () => {
@@ -647,14 +731,13 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     startTransition(async () => {
       try {
         const qs = new URLSearchParams({ specialistId });
-        if (gridBranchFilter !== "all") qs.set("branchId", gridBranchFilter);
         const json = await apiJson<{ ok: boolean; rows: WorkingHoursRow[] }>(`${WH_BASE}?${qs.toString()}`);
         setWorkingHours(json.rows ?? []);
       } catch {
         // non-fatal
       }
     });
-  }, [specialistId, gridBranchFilter]);
+  }, [specialistId]);
 
   // ── Bootstrap (specialist + overview) ────────────────────────────────────
 
@@ -666,12 +749,12 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         setBranches(bootstrap.branches);
         if (!bootstrap.specialistId) { setLoadError("specialist_not_configured"); return; }
         setSpecialistId(bootstrap.specialistId);
-        // E3: default filter from deep-link or "all"
+        // UI-1b: a deep link selects one location; otherwise every location is enabled.
         const savedId = deepLinkParams.location ?? "";
         const resolvedBranch = bootstrap.branches.find((b) => b.id === savedId);
-        if (resolvedBranch) {
-          setGridBranchFilterState(resolvedBranch.id);
-        }
+        setSelectedBranchIds(new Set(
+          resolvedBranch ? [resolvedBranch.id] : bootstrap.branches.map((branch) => branch.id),
+        ));
         // Panel branch default: from deep-link or first active
         const panelDefault = resolvedBranch ?? bootstrap.branches[0];
         if (panelDefault) {
@@ -694,14 +777,6 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     loadWorkingHours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
-
-  // Re-load when branch filter changes
-  useEffect(() => {
-    if (!specialistId) return;
-    loadMonth();
-    loadWorkingHours();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridBranchFilter]);
 
   // ── Day selection ─────────────────────────────────────────────────────────
 
@@ -855,7 +930,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // #233: после очистки сразу сбрасываем выделение и скрываем блок настроек
   function handleClearWeekdayTemplate() {
     if (selectedWeekday === null) return;
-    const toDeactivate = workingHours.filter(
+    const toDeactivate = visibleWorkingHours.filter(
       (r) => r.weekday === selectedWeekday && r.isActive,
     );
     if (toDeactivate.length === 0) {
@@ -1023,30 +1098,46 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const dayMap = useMemo(() => new Map(dayRecords.map((r) => [r.workDate, r])), [dayRecords]);
+  const allBranchesSelected = branches.length > 0 && branches.every((branch) => selectedBranchIds.has(branch.id));
+  const visibleDayRecords = useMemo(
+    () => dayRecords.filter((record) => {
+      if (allBranchesSelected) return true;
+      return record.branchId !== null && selectedBranchIds.has(record.branchId);
+    }),
+    [allBranchesSelected, dayRecords, selectedBranchIds],
+  );
+  const visibleWorkingHours = useMemo(
+    () => workingHours.filter((row) => {
+      if (allBranchesSelected) return true;
+      return row.branchId !== null && selectedBranchIds.has(row.branchId);
+    }),
+    [allBranchesSelected, selectedBranchIds, workingHours],
+  );
+  const dayMap = useMemo(() => new Map(visibleDayRecords.map((r) => [r.workDate, r])), [visibleDayRecords]);
   const cells = buildMonthGrid(viewYear, viewMonth);
   const selectedCount = selected.size;
   const selectedDates = [...selected].sort();
   const firstSelectedDate = selectedPrimaryDate ?? selectedDates[0] ?? null;
   const panelBranchLabel = branches.find((b) => b.id === panelBranchId)?.title;
   const hasScheduleForSelection = selectionMode === "weekday" && selectedWeekday !== null
-    ? resolvePanelDefaultsForWeekday(selectedWeekday, workingHours) !== null
-    : selectedDates.some((date) => resolvePanelDefaultsForDate(date, dayMap, workingHours) !== null);
+    ? resolvePanelDefaultsForWeekday(selectedWeekday, visibleWorkingHours) !== null
+    : selectedDates.some((date) => resolvePanelDefaultsForDate(date, dayMap, visibleWorkingHours) !== null);
 
   useEffect(() => {
     if (!firstSelectedDate && selectedWeekday === null) return;
     const defaults =
       selectionMode === "weekday" && selectedWeekday !== null
-        ? resolvePanelDefaultsForWeekday(selectedWeekday, workingHours)
+        ? resolvePanelDefaultsForWeekday(selectedWeekday, visibleWorkingHours)
         : firstSelectedDate
-          ? resolvePanelDefaultsForDate(firstSelectedDate, dayMap, workingHours)
+          ? resolvePanelDefaultsForDate(firstSelectedDate, dayMap, visibleWorkingHours)
           : null;
     if (!defaults) {
       setPanelStart(DEFAULT_PANEL_START);
       setPanelEnd(DEFAULT_PANEL_END);
       setPanelBreaks([]);
-      if (gridBranchFilter !== "all") {
-        setPanelBranchId(gridBranchFilter);
+      const onlyBranchId = selectedBranchIds.size === 1 ? selectedBranchIds.values().next().value : undefined;
+      if (typeof onlyBranchId === "string") {
+        setPanelBranchId(onlyBranchId);
       }
       return;
     }
@@ -1056,11 +1147,11 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     if (defaults.branchId) {
       setPanelBranchId(defaults.branchId);
     }
-  }, [firstSelectedDate, selectedWeekday, selectionMode, dayMap, workingHours, gridBranchFilter]);
+  }, [firstSelectedDate, selectedWeekday, selectionMode, dayMap, selectedBranchIds, visibleWorkingHours]);
 
   // E3: branch label for the filter switcher
   function getBranchDisplayLabel(b: Branch): string {
-    return b.shortTitle ?? b.title;
+    return branchDisplayLabel(b);
   }
 
   function handleTopBarMouseDown(e: MouseEvent<HTMLDivElement>) {
@@ -1074,7 +1165,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   function handleSurfaceMouseDown(e: MouseEvent<HTMLElement>) {
     const target = e.target as HTMLElement;
     const interactive = target.closest(
-      `button,[role='button'],[role='combobox'],a,input,label,select,textarea,${SELECT_PORTAL_SELECTOR}`,
+      `button,[role='button'],[role='combobox'],a,input,label,select,textarea,${INTERACTIVE_PORTAL_SELECTOR}`,
     );
     if (!interactive) {
       handleClearSelection();
@@ -1091,39 +1182,42 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
       >
-        {/* E3: Branch filter switcher (Все + individual branches) */}
+        {/* UI-1b: independent location filters; «Все» restores every location. */}
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Фильтр по филиалу">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setGridBranchFilter("all")}
+              onClick={selectAllGridBranches}
               className={cn(
                 "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
-                gridBranchFilter === "all"
-                  ? "bg-foreground/90 border-foreground/80 text-background"
+                allBranchesSelected
+                  ? "border-primary/25 bg-primary/15 text-primary"
                   : "border-border text-muted-foreground hover:bg-muted/60",
               )}
+              aria-pressed={allBranchesSelected}
               data-testid="branch-filter-all"
             >
               Все
             </Button>
             {branches.map((b) => {
               const branchHex = resolveBranchHex(branches, b.id);
-              const isActive = b.id === gridBranchFilter;
+              const isActive = selectedBranchIds.has(b.id);
               return (
                 <Button
                   key={b.id}
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setGridBranchFilter(b.id)}
-                  style={branchStyle(branchHex, isActive)}
+                  onClick={() => toggleGridBranch(b.id)}
+                  style={isActive ? branchStyle(branchHex, true) : undefined}
                   className={cn(
                     "inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors",
-                    "border-[color:var(--branch-border)] text-[color:var(--branch-fg)]",
-                    isActive ? "bg-[color:var(--branch-bg)]" : "hover:bg-[color:var(--branch-hover)]",
+                    isActive
+                      ? "border-[color:var(--branch-border)] bg-[color:var(--branch-bg)] text-[color:var(--branch-fg)]"
+                      : "border-border text-muted-foreground hover:bg-muted/60",
                   )}
+                  aria-pressed={isActive}
                   data-testid={`branch-btn-${b.id}`}
                 >
                   ● {getBranchDisplayLabel(b)}
@@ -1161,7 +1255,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           // всплывает сюда). Без этого выбор дня недели/дней сбрасывался и панель редактирования
           // пропадала при простом открытии/выборе города.
           const inside = target.closest(
-            `[data-testid='month-grid'], [data-testid='hours-panel'], ${SELECT_PORTAL_SELECTOR}`,
+            `[data-testid='month-grid'], [data-testid='hours-panel'], ${INTERACTIVE_PORTAL_SELECTOR}`,
           );
           if (!inside) {
             setSelected(new Set());
@@ -1180,6 +1274,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d, colIndex) => {
                 const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
                 const isActiveWd = selectionMode === "weekday" && selectedWeekday === wd;
+                const templateSummaries = weekdayTemplateSummaries(wd, visibleWorkingHours, branches);
                 return (
                   <Button
                     key={d}
@@ -1189,15 +1284,24 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                     onClick={() => handleWeekdayHeaderClick(colIndex)}
                     className={cn(
                       // #236: border как у DayCell — видно что кликабельна
-                      "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer border",
+                      "h-auto min-h-8 flex-col gap-0.5 rounded border px-0.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer",
                       isActiveWd
                         ? "text-primary font-semibold bg-primary/10 border-primary/40"
                         : "text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/30",
                     )}
-                    aria-label={`Выбрать все ${d} месяца`}
+                    aria-label={`Выбрать все ${d} месяца${templateSummaries.length > 0 ? `, ${templateSummaries.join(", ")}` : ""}`}
                     aria-pressed={isActiveWd}
+                    data-testid={`weekday-header-${wd}`}
                   >
-                    {d}
+                    <span>{d}</span>
+                    {templateSummaries.length > 0 ? (
+                      <span
+                        className="max-w-full truncate text-[9px] font-normal leading-none text-muted-foreground"
+                        data-testid={`weekday-template-summary-${wd}`}
+                      >
+                        {templateSummaries.join("; ")}
+                      </span>
+                    ) : null}
                   </Button>
                 );
               })}
@@ -1214,7 +1318,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   branches={branches}
                   isSelected={dateKey ? selected.has(dateKey) : false}
                   onToggle={toggleDay}
-                  effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, workingHours) : undefined}
+                  effectiveHours={dateKey ? resolveEffectiveHours(dateKey, dayMap, visibleWorkingHours) : undefined}
                 />
               ))}
             </div>
@@ -1250,24 +1354,24 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="panel-start" className="text-xs">Начало</Label>
-                    <Input
+                    <ScheduleTimePicker
                       id="panel-start"
-                      type="time"
-                      className="h-8 w-26"
+                      className="w-26"
                       value={panelStart}
-                      onChange={(e) => setPanelStart(e.target.value)}
-                      data-testid="panel-start"
+                      onChange={setPanelStart}
+                      ariaLabel="Начало рабочего дня"
+                      testId="panel-start"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="panel-end" className="text-xs">Конец</Label>
-                    <Input
+                    <ScheduleTimePicker
                       id="panel-end"
-                      type="time"
-                      className="h-8 w-26"
+                      className="w-26"
                       value={panelEnd}
-                      onChange={(e) => setPanelEnd(e.target.value)}
-                      data-testid="panel-end"
+                      onChange={setPanelEnd}
+                      ariaLabel="Конец рабочего дня"
+                      testId="panel-end"
                     />
                   </div>
                 </div>
@@ -1444,24 +1548,24 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="tpl-start" className="text-xs">Начало</Label>
-                <Input
+                <ScheduleTimePicker
                   id="tpl-start"
-                  type="time"
-                  className="h-8 w-28"
+                  className="w-28"
                   value={tplStart}
-                  onChange={(e) => setTplStart(e.target.value)}
-                  data-testid="tpl-start"
+                  onChange={setTplStart}
+                  ariaLabel="Начало шаблона"
+                  testId="tpl-start"
                 />
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="tpl-end" className="text-xs">Конец</Label>
-                <Input
+                <ScheduleTimePicker
                   id="tpl-end"
-                  type="time"
-                  className="h-8 w-28"
+                  className="w-28"
                   value={tplEnd}
-                  onChange={(e) => setTplEnd(e.target.value)}
-                  data-testid="tpl-end"
+                  onChange={setTplEnd}
+                  ariaLabel="Конец шаблона"
+                  testId="tpl-end"
                 />
               </div>
             </div>
