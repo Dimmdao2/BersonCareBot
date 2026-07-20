@@ -1,5 +1,23 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — U5A organization-context convergence integrated (`#796`)
+
+U5A теперь использует один server-authorized контекст организации для zero/one/many relationships. Единственная
+активная организация запоминается как повторно проверяемая подсказка; ручное переключение сразу скрывает прежние
+clinical данные и заменяет URL на безопасный Patient Today, поэтому старый object route не может вернуть прежнюю
+организацию. Добавлен канонический экран организаций пациента и recovery для отозванного/недоступного назначения.
+
+Reminder continuation в webapp и integrator несёт exact organization конкретного occurrence. После unauthenticated
+login этот target сохраняется в `next`, затем повторно проверяется сервером; missing/invalid/foreign/revoked target
+остаётся neutral и не перезаписывает preference. Видимое MOR-04 уведомление больше не доверяет query-параметру:
+его один раз выдаёт только verified opener через short-lived exact-org HttpOnly receipt, который context API снова
+авторизует и поглощает. Обычный manual switch receipt очищает и такого уведомления не создаёт.
+
+После одного correction-pass финальный high-risk re-audit прошёл с `P0=0, P1=0, P2=0`. Targeted webapp/integrator
+tests, оба typecheck, scoped lint и diff checks зелёные; миграций, БД, сервера, deploy, full CI и real sends не было.
+Этап остаётся `doing` до сериализованной live DEV desktop/mobile/PWA проверки двух организаций, точного reminder после
+повторного входа, revoked recovery и отсутствия повторного notice. После этого U5A может закрыться и открыть U3B/U4.
+
 ## 2026-07-20 — U3S current-contract validation convergence (`#919`)
 
 U3S product/security implementation was already present and audited, but its executable closeout evidence had drifted:
