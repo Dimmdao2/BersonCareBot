@@ -2,12 +2,15 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { verifyPinForLogin } from "@/modules/auth/pinAuth";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
 
 const GENERIC_PIN_FAIL = "Неверный номер или PIN";
 
@@ -74,18 +77,38 @@ export async function POST(request: Request) {
     );
   }
 
-  let sessionUser = user;
-  const envRole = resolveRoleFromEnv({
-    phone: user.phone,
-    telegramId: user.bindings?.telegramId,
-    maxId: user.bindings?.maxId,
-  });
-  if (user.role !== envRole) {
-    await deps.userProjection.updateRole(user.userId, envRole);
-    sessionUser = { ...user, role: envRole };
+  if (isPlatformUserUuid(user.userId)) {
+    enterStaffSecuritySelfPrincipal(user.userId, "api/auth/pin/login:pin-verified-self");
+  }
+  const exactUser = await deps.userByPhone.findByUserId(user.userId);
+  if (!exactUser) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_credentials", message: GENERIC_PIN_FAIL },
+      { status: 401 },
+    );
   }
 
-  await setSessionFromUser(sessionUser);
+  let sessionUser = exactUser;
+  const envRole = resolveRoleFromEnv({
+    phone: exactUser.phone,
+    telegramId: exactUser.bindings?.telegramId,
+    maxId: exactUser.bindings?.maxId,
+  });
+  const effectiveRole = reconcileDbRoleWithEnvRole(exactUser.role, envRole);
+  if (exactUser.role !== effectiveRole) {
+    await deps.userProjection.updateRole(exactUser.userId, effectiveRole);
+    sessionUser = { ...exactUser, role: effectiveRole };
+  }
+
+  const prepared = await prepareVerifiedPrimaryLogin({
+    user: sessionUser,
+    staffSecurity: deps.staffSecurity,
+  });
+  if (prepared.factorRequired) {
+    return NextResponse.json({ ok: true, factorRequired: true });
+  }
+
+  await setSessionFromUser(sessionUser, prepared.sessionOptions);
   return NextResponse.json({
     ok: true,
     redirectTo: getRedirectPathForRole(sessionUser.role),

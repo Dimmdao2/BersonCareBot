@@ -52,6 +52,8 @@ export type PhoneMessengerAuthFlowProps = {
   nextParam?: string | null;
   /** После успешного подтверждения в профиле (без полного redirect login). */
   onProfileComplete?: () => void;
+  /** Login-only: parent opens the shared staff-factor form backed by the signed continuation. */
+  onStaffFactorRequired?: () => void;
   title?: string;
   /** Скрыть «Назад» на шаге ввода номера (bind-phone из профиля — назад только в AppShell). */
   hideBackOnPhoneStep?: boolean;
@@ -65,6 +67,7 @@ export function PhoneMessengerAuthFlow({
   supportContactHref,
   nextParam = null,
   onProfileComplete,
+  onStaffFactorRequired,
   title = "Вход по номеру",
   hideBackOnPhoneStep = false,
 }: PhoneMessengerAuthFlowProps) {
@@ -440,11 +443,23 @@ export function PhoneMessengerAuthFlow({
               const data = (await res.json().catch(() => ({}))) as {
                 ok?: boolean;
                 redirectTo?: string;
+                factorRequired?: boolean;
                 role?: "client" | "doctor" | "admin";
                 message?: string;
                 error?: string;
                 retryAfterSeconds?: number;
               };
+              if (data.ok && data.factorRequired) {
+                clearPoll();
+                if (purpose === "login" && onStaffFactorRequired) {
+                  onStaffFactorRequired();
+                  return { ok: true as const };
+                }
+                return {
+                  ok: false as const,
+                  message: "Продолжите защищённый вход с главного экрана.",
+                };
+              }
               if (data.ok) {
                 clearPoll();
                 if (purpose === "profile_bind") {

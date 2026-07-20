@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       ? "factor_verified" as const
       : "recovery_confirmation" as const;
   await setSessionFromUser(user, {
+    ...(continuation.postLoginHints ? { postLoginHints: continuation.postLoginHints } : {}),
     staffSecurity: {
       assurance,
       verifiedAt: Math.floor(Date.now() / 1000),

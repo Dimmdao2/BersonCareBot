@@ -12,6 +12,10 @@ import {
 } from "@/modules/auth/otpConstants";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getCurrentSession } from "@/modules/auth/service";
+import { readStaffLoginContinuation } from "@/modules/auth/staffLoginContinuation";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
 
 const bodySchema = z
   .object({
@@ -50,6 +54,9 @@ export async function POST(request: Request) {
           redirectTo: getRedirectPathForRole(session.user.role),
           role: session.user.role,
         });
+      }
+      if (await readStaffLoginContinuation()) {
+        return NextResponse.json({ ok: true, factorRequired: true });
       }
       return NextResponse.json({ ok: false, error: "already_consumed" }, { status: 409 });
     }
@@ -98,13 +105,21 @@ export async function POST(request: Request) {
     );
   }
 
-  await deps.auth.setSessionFromUser(result.user, {
-    postLoginHints: { phoneOtpChannel: result.deliveryChannel ?? "telegram" },
-  });
+  if (isPlatformUserUuid(result.user.userId)) {
+    enterStaffSecuritySelfPrincipal(
+      result.user.userId,
+      "api/auth/phone/messenger-bind/finish:otp-verified-self",
+    );
+  }
+  const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
+  if (!sessionUser) {
+    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+  }
+  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? "telegram" } as const;
 
   const tz = parsed.data.browserCalendarIana?.trim();
   if (tz) {
-    await deps.patientCalendarTimezone.trySetInitialIfEmpty(result.user.userId, tz);
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(sessionUser.userId, tz);
   }
 
   if (isRegistrationIntent) {
@@ -114,17 +129,28 @@ export async function POST(request: Request) {
       stage: "session_set",
       entryChannel: "browser",
       contactType: "phone",
-      contactValue: result.user.phone ?? challenge?.phone ?? null,
-      userId: result.user.userId,
+      contactValue: sessionUser.phone ?? challenge?.phone ?? null,
+      userId: sessionUser.userId,
       challengeId: resolved.challengeId,
       isNewAccount: true,
     });
   }
 
+  const prepared = await prepareVerifiedPrimaryLogin({
+    user: sessionUser,
+    staffSecurity: deps.staffSecurity,
+    postLoginHints,
+  });
+  if (prepared.factorRequired) {
+    return NextResponse.json({ ok: true, factorRequired: true });
+  }
+
+  await deps.auth.setSessionFromUser(sessionUser, prepared.sessionOptions);
+
   return NextResponse.json({
     ok: true,
     redirectTo: result.redirectTo,
-    role: result.user.role,
+    role: sessionUser.role,
   });
 }
 

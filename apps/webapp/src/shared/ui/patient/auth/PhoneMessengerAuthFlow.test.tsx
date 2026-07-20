@@ -294,6 +294,42 @@ describe("PhoneMessengerAuthFlow", () => {
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
   });
 
+  it("hands enrolled staff login to the parent factor UI without redirecting", async () => {
+    const user = userEvent.setup();
+    const onStaffFactorRequired = vi.fn();
+    const assignMock = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign: assignMock });
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: true, methods: { sms: false, telegram: true } });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        return jsonRes({ ok: true, challengeId: "ch-staff", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true, factorRequired: true });
+      }
+      throw new Error(`unexpected: ${url}`);
+    }));
+
+    render(
+      <PhoneMessengerAuthFlow
+        purpose="login"
+        onBack={() => {}}
+        onStaffFactorRequired={onStaffFactorRequired}
+      />,
+    );
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+
+    await waitFor(() => expect(onStaffFactorRequired).toHaveBeenCalledTimes(1));
+    expect(assignMock).not.toHaveBeenCalled();
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
   it("profile_bind calls onProfileComplete without redirect", async () => {
     const user = userEvent.setup();
     const onComplete = vi.fn();

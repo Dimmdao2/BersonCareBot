@@ -590,6 +590,13 @@ export function AuthFlowV2({
     setEmailLoginPassword("");
   };
 
+  const openStaffFactorMode = () => {
+    setEmailLoginPassword("");
+    setStaffFactorCode("");
+    setStaffFactorUseRecovery(false);
+    setEmailAuthMode("staff_factor");
+  };
+
   const submitEmailPasswordLogin = async (e: FormEvent) => {
     e.preventDefault();
     engageInteractive();
@@ -617,10 +624,7 @@ export function AuthFlowV2({
       }
       const { response: res, data } = loginResult;
       if (data.ok && data.factorRequired) {
-        setEmailLoginPassword("");
-        setStaffFactorCode("");
-        setStaffFactorUseRecovery(false);
-        setEmailAuthMode("staff_factor");
+        openStaffFactorMode();
         return;
       }
       if (data.ok && data.redirectTo) {
@@ -1804,6 +1808,10 @@ export function AuthFlowV2({
         <PhoneMessengerAuthFlow
           purpose="login"
           onBack={() => setStep("oauth_first")}
+          onStaffFactorRequired={() => {
+            openStaffFactorMode();
+            setStep("email_password");
+          }}
           supportContactHref={supportContactHref}
           nextParam={nextParam}
         />
@@ -2005,6 +2013,7 @@ export function AuthFlowV2({
               ok?: boolean;
               redirectTo?: string;
               role?: "client" | "doctor" | "admin";
+              factorRequired?: boolean;
               message?: string;
               error?: string;
               retryAfterSeconds?: number;
@@ -2023,6 +2032,11 @@ export function AuthFlowV2({
               return { ok: false as const, message: AUTH_NETWORK_ERROR_MESSAGE };
             }
             const { data } = confirmPhoneResult;
+            if (data.ok && data.factorRequired) {
+              openStaffFactorMode();
+              setStep("email_password");
+              return { ok: true as const };
+            }
             if (data.ok && data.redirectTo) {
               redirectOk(data.redirectTo, data.role);
               return { ok: true as const, redirectTo: data.redirectTo };

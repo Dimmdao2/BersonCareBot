@@ -10,6 +10,9 @@ import {
   formatOtpRetryAfterMessage,
   OTP_TOO_MANY_ATTEMPTS_MESSAGE,
 } from "@/modules/auth/otpConstants";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { prepareVerifiedPrimaryLogin } from "@/modules/auth/verifiedStaffPrimaryLogin";
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -81,13 +84,18 @@ export async function POST(request: Request) {
     );
   }
 
-  await deps.auth.setSessionFromUser(result.user, {
-    postLoginHints: { phoneOtpChannel: result.deliveryChannel ?? "sms" },
-  });
+  if (isPlatformUserUuid(result.user.userId)) {
+    enterStaffSecuritySelfPrincipal(result.user.userId, "api/auth/phone/confirm:otp-verified-self");
+  }
+  const sessionUser = await deps.userByPhone.findByUserId(result.user.userId);
+  if (!sessionUser) {
+    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+  }
+  const postLoginHints = { phoneOtpChannel: result.deliveryChannel ?? "sms" } as const;
 
   const tz = browserCalendarIana?.trim();
   if (tz) {
-    await deps.patientCalendarTimezone.trySetInitialIfEmpty(result.user.userId, tz);
+    await deps.patientCalendarTimezone.trySetInitialIfEmpty(sessionUser.userId, tz);
   }
 
   if (isRegistrationIntent && result.wasCreated) {
@@ -97,17 +105,36 @@ export async function POST(request: Request) {
       stage: "session_set",
       entryChannel,
       contactType: "phone",
-      contactValue: result.user.phone ?? challenge?.phone ?? null,
-      userId: result.user.userId,
+      contactValue: sessionUser.phone ?? challenge?.phone ?? null,
+      userId: sessionUser.userId,
       challengeId,
       isNewAccount: true,
     });
   }
 
+  if (challenge?.profileBindUserId) {
+    return NextResponse.json({
+      ok: true,
+      redirectTo: result.redirectTo,
+      role: sessionUser.role,
+    });
+  }
+
+  const prepared = await prepareVerifiedPrimaryLogin({
+    user: sessionUser,
+    staffSecurity: deps.staffSecurity,
+    postLoginHints,
+  });
+  if (prepared.factorRequired) {
+    return NextResponse.json({ ok: true, factorRequired: true });
+  }
+
+  await deps.auth.setSessionFromUser(sessionUser, prepared.sessionOptions);
+
   return NextResponse.json({
     ok: true,
     redirectTo: result.redirectTo,
-    role: result.user.role,
+    role: sessionUser.role,
   });
 }
 

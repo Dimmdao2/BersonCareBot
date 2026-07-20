@@ -97,4 +97,25 @@ describe("POST /api/auth/email-password/login/factor", () => {
       staffSecurity: { assurance: "recovery", verifiedAt: expect.any(Number) },
     });
   });
+
+  it("carries phone OTP post-login hints through the signed factor continuation", async () => {
+    readContinuationMock.mockResolvedValue({
+      userId: USER_ID,
+      token: "signed-continuation-token",
+      postLoginHints: { phoneOtpChannel: "telegram" },
+    });
+    completeLoginMock.mockResolvedValue({
+      ok: true,
+      recoveryMode: false,
+      recoveryConfirmed: true,
+      sessionVersion: 1,
+    });
+
+    await POST(request());
+
+    expect(setSessionFromUserMock).toHaveBeenCalledWith(user, {
+      postLoginHints: { phoneOtpChannel: "telegram" },
+      staffSecurity: { assurance: "factor_verified", verifiedAt: expect.any(Number) },
+    });
+  });
 });

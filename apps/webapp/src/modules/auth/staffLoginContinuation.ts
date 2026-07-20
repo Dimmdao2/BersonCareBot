@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { env, isProduction } from "@/config/env";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
+import type { AppSession } from "@/shared/types/session";
 
 export const STAFF_LOGIN_CONTINUATION_COOKIE = "bersoncare_staff_factor";
 
@@ -10,6 +11,7 @@ type StaffLoginContinuation = {
   userId: string;
   token: string;
   expiresAt: number;
+  postLoginHints?: AppSession["postLoginHints"];
 };
 
 function signature(payload: string): string {
@@ -52,12 +54,19 @@ export async function issueStaffLoginContinuation(input: {
   userId: string;
   token: string;
   expiresAt: string;
+  postLoginHints?: AppSession["postLoginHints"];
 }): Promise<void> {
   const expiresAt = Math.floor(Date.parse(input.expiresAt) / 1000);
   const store = await cookies();
   store.set(
     STAFF_LOGIN_CONTINUATION_COOKIE,
-    encode({ purpose: "staff_factor", userId: input.userId, token: input.token, expiresAt }),
+    encode({
+      purpose: "staff_factor",
+      userId: input.userId,
+      token: input.token,
+      expiresAt,
+      ...(input.postLoginHints ? { postLoginHints: input.postLoginHints } : {}),
+    }),
     cookieOptions(Math.max(0, expiresAt - Math.floor(Date.now() / 1000))),
   );
 }

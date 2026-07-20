@@ -300,7 +300,7 @@ import { createNotificationDeliveryService } from "@/modules/notification-delive
 import { pgNotificationDeliveryAttemptsPort } from "@/infra/repos/pgNotificationDeliveryAttempts";
 import { inMemoryNotificationDeliveryAttemptsPort } from "@/infra/repos/inMemoryNotificationDeliveryAttempts";
 import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
 import { createPatientBookingService } from "@/modules/patient-booking/service";
@@ -1356,21 +1356,22 @@ function _buildAppDeps() {
           telegramId: result.user.bindings?.telegramId,
           maxId: result.user.bindings?.maxId,
         });
+        const effectiveRole = reconcileDbRoleWithEnvRole(result.user.role, envRole);
         try {
           await markPhoneMessengerBindConsumedByChallenge(challengeId, phoneMessengerBindPort);
-          if (result.user.role !== envRole) {
-            await userProjectionPort.updateRole(result.user.userId, envRole);
+          if (result.user.role !== effectiveRole) {
+            await userProjectionPort.updateRole(result.user.userId, effectiveRole);
           }
           await consumePhoneOtpChallenge(challengeId, phoneAuthDeps);
         } catch {
           return { ok: false as const, code: "server_error" };
         }
         const user =
-          result.user.role === envRole ? result.user : { ...result.user, role: envRole };
+          result.user.role === effectiveRole ? result.user : { ...result.user, role: effectiveRole };
         return {
           ok: true as const,
           user,
-          redirectTo: getRedirectPathForRole(envRole),
+          redirectTo: getRedirectPathForRole(effectiveRole),
           deliveryChannel: result.deliveryChannel,
           wasCreated: result.wasCreated,
           registrationAttemptId: result.registrationAttemptId,

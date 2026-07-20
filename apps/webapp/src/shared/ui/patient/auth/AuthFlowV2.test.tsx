@@ -136,6 +136,38 @@ describe("AuthFlowV2 — mini-app (phone)", () => {
     expect(screen.queryByText(/Придумайте PIN/i)).not.toBeInTheDocument();
   });
 
+  it("moves direct phone OTP staff login into the shared factor form", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: true, methods: { sms: false, telegram: true } });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        return jsonRes({ ok: true, challengeId: "ch-staff", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true, factorRequired: true });
+      }
+      if (url.includes("/api/auth/email-password/login/factor")) {
+        return jsonRes({ ok: true, redirectTo: "/app/doctor" });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_MINI_APP }} />);
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+
+    expect(await screen.findByText("Введите код из приложения-аутентификатора.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Код"), "123456");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/doctor"));
+  });
+
   it("shows delivery_failed API message in toast for new user Telegram OTP start", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
@@ -385,6 +417,33 @@ describe("AuthFlowV2 — browser", () => {
     expect(statusCalls).toBeGreaterThanOrEqual(1);
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/confirm"))).toBe(true);
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/auth/phone/messenger-bind/finish"))).toBe(false);
+  });
+
+  it("moves embedded phone login into the existing staff factor form", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/auth/check-phone")) {
+        return jsonRes({ ok: true, exists: true, methods: { sms: false, telegram: true } });
+      }
+      if (url.includes("/api/auth/phone/start")) {
+        return jsonRes({ ok: true, challengeId: "ch-embedded-staff", retryAfterSeconds: 60 });
+      }
+      if (url.includes("/api/auth/phone/confirm")) {
+        return jsonRes({ ok: true, factorRequired: true });
+      }
+      return jsonRes({});
+    }));
+
+    render(<AuthFlowV2 nextParam={null} prefetchedAuthConfig={{ ...PRE_WEB_OAUTH }} />);
+    await user.click(await screen.findByRole("button", { name: "Войти по номеру телефона" }));
+    await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await user.type(await screen.findByLabelText("Код подтверждения"), "123456");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+
+    expect(await screen.findByText("Введите код из приложения-аутентификатора.")).toBeInTheDocument();
+    expect(locationAssign).not.toHaveBeenCalled();
   });
 
   it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {

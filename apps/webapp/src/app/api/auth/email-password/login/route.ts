@@ -6,8 +6,8 @@ import { normalizeEmail } from "@/modules/auth/emailAuth";
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
-import { issueStaffLoginContinuation } from "@/modules/auth/staffLoginContinuation";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { prepareVerifiedPrimaryLoginWithStatus } from "@/modules/auth/verifiedStaffPrimaryLogin";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -70,24 +70,17 @@ export async function POST(request: Request) {
       }
     }
   }
-  if (security?.enrolled) {
-    const challenge = await deps.staffSecurity.beginLogin();
-    if (challenge.required) {
-      await issueStaffLoginContinuation({
-        userId: sessionUser.userId,
-        token: challenge.token,
-        expiresAt: challenge.expiresAt,
-      });
-      return NextResponse.json({ ok: true, factorRequired: true });
-    }
+  const authenticatedUser = recoveringSpecialistSignup ? { ...sessionUser, role: "doctor" as const } : sessionUser;
+  const prepared = await prepareVerifiedPrimaryLoginWithStatus({
+    user: authenticatedUser,
+    security,
+    staffSecurity: deps.staffSecurity,
+  });
+  if (prepared.factorRequired) {
+    return NextResponse.json({ ok: true, factorRequired: true });
   }
 
-  const authenticatedUser = recoveringSpecialistSignup ? { ...sessionUser, role: "doctor" as const } : sessionUser;
-  await setSessionFromUser(authenticatedUser, {
-    ...(security && !security.enrolled
-      ? { staffSecurity: { assurance: "pending_enrollment" as const } }
-      : {}),
-  });
+  await setSessionFromUser(authenticatedUser, prepared.sessionOptions);
   return NextResponse.json({
     ok: true,
     redirectTo: security && !security.enrolled ? "/app/account?tab=security" : getRedirectPathForRole(sessionUser.role),

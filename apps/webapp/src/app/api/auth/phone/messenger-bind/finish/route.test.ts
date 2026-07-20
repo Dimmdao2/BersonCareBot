@@ -1,10 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const resolveLoginChallengeMock = vi.hoisted(() => vi.fn());
 const confirmPhoneAuthMock = vi.hoisted(() => vi.fn());
 const setSessionFromUserMock = vi.hoisted(() => vi.fn());
 const trySetInitialIfEmptyMock = vi.hoisted(() => vi.fn());
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
+const findByUserIdMock = vi.hoisted(() => vi.fn());
+const getSecurityStatusMock = vi.hoisted(() => vi.fn());
+const beginLoginMock = vi.hoisted(() => vi.fn());
+const readContinuationMock = vi.hoisted(() => vi.fn());
+const issueContinuationMock = vi.hoisted(() => vi.fn());
 
 const getPhoneChallengeMock = vi.hoisted(() => vi.fn());
 
@@ -18,6 +24,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       confirmPhoneAuth: (...args: unknown[]) => confirmPhoneAuthMock(...args),
       setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
     },
+    userByPhone: { findByUserId: (...args: unknown[]) => findByUserIdMock(...args) },
+    staffSecurity: {
+      getStatus: (...args: unknown[]) => getSecurityStatusMock(...args),
+      beginLogin: (...args: unknown[]) => beginLoginMock(...args),
+    },
     patientCalendarTimezone: {
       trySetInitialIfEmpty: (...args: unknown[]) => trySetInitialIfEmptyMock(...args),
     },
@@ -26,6 +37,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
+}));
+
+vi.mock("@/modules/auth/staffLoginContinuation", () => ({
+  readStaffLoginContinuation: (...args: unknown[]) => readContinuationMock(...args),
+  issueStaffLoginContinuation: (...args: unknown[]) => issueContinuationMock(...args),
 }));
 
 import { POST } from "./route";
@@ -38,8 +54,22 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
     trySetInitialIfEmptyMock.mockReset();
     getCurrentSessionMock.mockReset();
     getPhoneChallengeMock.mockReset();
+    findByUserIdMock.mockReset();
+    getSecurityStatusMock.mockReset();
+    beginLoginMock.mockReset();
+    readContinuationMock.mockReset();
+    issueContinuationMock.mockReset();
     getCurrentSessionMock.mockResolvedValue(null);
+    readContinuationMock.mockResolvedValue(null);
     getPhoneChallengeMock.mockResolvedValue({ isRegistrationIntent: false, phone: "+79991234567" });
+    findByUserIdMock.mockResolvedValue({
+      userId: "u-1",
+      role: "client",
+      displayName: "+79991234567",
+      phone: "+79991234567",
+      bindings: {},
+    });
+    getSecurityStatusMock.mockResolvedValue(null);
   });
 
   it("returns 400 for invalid body", async () => {
@@ -171,6 +201,7 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
     const data = (await res.json()) as { ok?: boolean; redirectTo?: string; role?: string };
     expect(data).toMatchObject({ ok: true, redirectTo: "/app/patient/home", role: "client" });
     expect(confirmPhoneAuthMock).toHaveBeenCalledWith("ch-1", "654321");
+    expect(findByUserIdMock).toHaveBeenCalledWith("u-1");
     expect(setSessionFromUserMock).toHaveBeenCalled();
     expect(trySetInitialIfEmptyMock).toHaveBeenCalledWith("u-1", "Europe/Moscow");
   });
@@ -211,5 +242,61 @@ describe("POST /api/auth/phone/messenger-bind/finish", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(confirmPhoneAuthMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires the enrolled staff factor and keeps messenger finish idempotent", async () => {
+    const userId = "22222222-2222-4222-8222-222222222222";
+    const doctor = {
+      userId,
+      role: "doctor" as const,
+      displayName: "Clinic Doctor",
+      phone: "+79991234567",
+      bindings: { telegramId: "42" },
+      securityVersion: 4,
+      securityFactorRequired: true,
+    };
+    let consumed = false;
+    resolveLoginChallengeMock.mockImplementation(async () => consumed
+      ? { ok: false, code: "already_consumed" }
+      : { ok: true, challengeId: "ch-staff", code: "654321" });
+    confirmPhoneAuthMock.mockImplementation(async () => {
+      consumed = true;
+      return {
+        ok: true,
+        user: { ...doctor, securityVersion: undefined, securityFactorRequired: undefined },
+        redirectTo: "/app/doctor",
+        deliveryChannel: "telegram",
+      };
+    });
+    findByUserIdMock.mockImplementationOnce(async () => {
+      expect(getCurrentDbPrincipal()).toMatchObject({ kind: "patient", platformUserId: userId });
+      return doctor;
+    });
+    getSecurityStatusMock.mockResolvedValue({ enrolled: true });
+    beginLoginMock.mockResolvedValue({
+      required: true,
+      token: "factor-token",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    readContinuationMock.mockResolvedValue({ userId, token: "factor-token" });
+
+    const request = () => POST(new Request("http://localhost/api/auth/phone/messenger-bind/finish", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ setupToken: "auth_staff" }),
+    }));
+    const first = await request();
+    const second = await request();
+
+    await expect(first.json()).resolves.toEqual({ ok: true, factorRequired: true });
+    await expect(second.json()).resolves.toEqual({ ok: true, factorRequired: true });
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    expect(confirmPhoneAuthMock).toHaveBeenCalledTimes(1);
+    expect(issueContinuationMock).toHaveBeenCalledWith({
+      userId,
+      token: "factor-token",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      postLoginHints: { phoneOtpChannel: "telegram" },
+    });
   });
 });
