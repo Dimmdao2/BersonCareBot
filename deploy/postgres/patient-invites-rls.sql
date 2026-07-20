@@ -12,6 +12,11 @@ SELECT (
   AND to_regclass('public.patient_merge_candidates') IS NOT NULL
   AND to_regclass('public.org_enrollments') IS NOT NULL
   AND to_regclass('public.platform_users') IS NOT NULL
+  AND to_regclass('app.context_signing_secrets') IS NOT NULL
+  AND to_regprocedure('app.current_patient_user_id()') IS NOT NULL
+  AND to_regprocedure('app_ext.hmac(text,text,text)') IS NOT NULL
+  AND has_schema_privilege('app_owner', 'app_ext', 'USAGE')
+  AND has_function_privilege('app_owner', 'app_ext.hmac(text,text,text)', 'EXECUTE')
 )::int AS patient_invites_preflight_ok \gset
 
 \if :patient_invites_preflight_ok
@@ -46,28 +51,28 @@ GRANT USAGE ON SCHEMA public TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.patient_invites TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.org_enrollments TO app_owner;
 GRANT SELECT, UPDATE ON TABLE public.platform_users TO app_owner;
-GRANT SELECT ON TABLE public.be_organizations TO app_owner;
+GRANT SELECT, UPDATE ON TABLE public.be_organizations TO app_owner;
 GRANT SELECT, INSERT ON TABLE public.patient_merge_candidates TO app_owner;
 
 ALTER FUNCTION app.exchange_patient_invite(text, text, timestamptz) OWNER TO app_owner;
 ALTER FUNCTION app.lookup_patient_invite_continuation(text) OWNER TO app_owner;
-ALTER FUNCTION app.prepare_patient_invite_email_proof(text, text) OWNER TO app_owner;
-ALTER FUNCTION app.bind_patient_invite_email_challenge(text, text, uuid) OWNER TO app_owner;
-ALTER FUNCTION app.read_patient_invite_email_proof(text) OWNER TO app_owner;
-ALTER FUNCTION app.redeem_patient_invite_email(text, uuid, text) OWNER TO app_owner;
+ALTER FUNCTION app.start_patient_invite_email_proof(text, text, text, timestamptz, text, bigint, text) OWNER TO app_owner;
+ALTER FUNCTION app.cancel_patient_invite_email_proof(text, text) OWNER TO app_owner;
+ALTER FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) OWNER TO app_owner;
+ALTER FUNCTION app.redeem_patient_invite_email(text) OWNER TO app_owner;
 
 REVOKE ALL ON FUNCTION app.exchange_patient_invite(text, text, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.lookup_patient_invite_continuation(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.prepare_patient_invite_email_proof(text, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.bind_patient_invite_email_challenge(text, text, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.read_patient_invite_email_proof(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.redeem_patient_invite_email(text, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.start_patient_invite_email_proof(text, text, text, timestamptz, text, bigint, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.cancel_patient_invite_email_proof(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.redeem_patient_invite_email(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.exchange_patient_invite(text, text, timestamptz) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.lookup_patient_invite_continuation(text) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.prepare_patient_invite_email_proof(text, text) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.bind_patient_invite_email_challenge(text, text, uuid) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.read_patient_invite_email_proof(text) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text, uuid, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.start_patient_invite_email_proof(text, text, text, timestamptz, text, bigint, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.cancel_patient_invite_email_proof(text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text) TO app_patient;
 
 COMMIT;

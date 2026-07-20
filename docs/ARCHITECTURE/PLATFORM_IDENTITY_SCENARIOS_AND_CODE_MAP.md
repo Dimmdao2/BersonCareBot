@@ -155,12 +155,19 @@ U3B использует нейтральный вход `/join/start#<bearer>`:
 continuation дополнительно связан с узкой HttpOnly cookie и разрешается на `/join/<continuation>` без patient id,
 клинических данных и названий записей/программ.
 
-Email OTP переиспользует канонические `email_challenges`, но само принятие выполняет
-`app.redeem_patient_invite_email`: под row lock повторно проверяются invite, recipient и точная тройка
+Email OTP приглашения хранит purpose-scoped hash/expiry/attempts непосредственно в `patient_invites` и не удаляет
+и не инвалидирует обычные `email_challenges` входа, регистрации или восстановления. После успешной проверки кода
+route lookup-only разрешает канонический `platform_user` по нормализованному email; только затем
+`app.redeem_patient_invite_email` принимает этот доказанный id и под row lock повторно проверяет invite, recipient и точную тройку
 `(organization_id, patient_user_id, enrollment_id)`. Успех атомарно подтверждает email, переводит только это
-`org_enrollments` из `invited` в `active` и расходует приглашение. Коллизия подтверждённого email с другим каноном
+`org_enrollments` в `active`, ставит отдельный `portal_activated_at/via` и расходует приглашение. Исторический
+`org_enrollments.status='active'` остаётся только отношением и никогда не backfill-ится как доказанный portal link.
+Коллизия подтверждённого email с другим каноном
 не делает silent merge: создаётся `patient_merge_candidates`, а принятие fail-closed. После успеха создаётся обычная
 client-сессия и exact-org preference; verified email уже входит в `webIdentityCabinet` при вычислении patient tier.
+Start/verify DB-вызовы дополнительно требуют короткоживущую purpose/action-bound HMAC-авторизацию приложения;
+прямой `app_patient` не может выбрать собственный OTP hash или обойти attempts/cooldown. Redeem не принимает target
+user id: он читает только `app.current_patient_user_id()` из уже установленного подписанного patient principal.
 
 Якоря: `modules/patient-invites/*`, `infra/repos/pgPatientInvites.ts`, `app/api/join/*`,
 `app/join/*`, `deploy/postgres/patient-invites-rls.sql`. Staff issue/revoke/status доступны только через текущий

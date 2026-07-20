@@ -74,3 +74,24 @@ export const isPublicBookingCreateRateLimited = createSlidingWindowRateLimit({
   maxPerWindow: 20,
   db: authRateLimitDb,
 });
+
+export const isPatientInviteExchangeRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "patient_invite.exchange",
+  windowMs: 60 * 1000,
+  maxPerWindow: 20,
+  db: authRateLimitDb,
+});
+
+export const isPatientInviteEmailStartRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "patient_invite.email_start",
+  windowMs: 60 * 60 * 1000,
+  maxPerWindow: 8,
+  db: authRateLimitDb,
+});
+
+export const isPatientInviteEmailConfirmRateLimitedByKey = createSlidingWindowRateLimit({
+  scope: "patient_invite.email_confirm",
+  windowMs: 10 * 60 * 1000,
+  maxPerWindow: 20,
+  db: authRateLimitDb,
+});

@@ -1,15 +1,18 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
-import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
-import { getDrizzle } from "@/app-layer/db/drizzle";
-import { patientInvites } from "../../../db/schema/patientInvites";
-import { orgEnrollments } from "../../../db/schema/bookingEngine";
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import {
+  getCurrentDbPrincipalOrganizationId,
+  getCurrentDbPrincipalPlatformUserId,
+} from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientInvites } from '../../../db/schema/patientInvites';
+import { orgEnrollments } from '../../../db/schema/bookingEngine';
 import type {
   PatientInviteFailure,
   PatientInviteLifecycleCode,
   PatientInvitePublicPreview,
   PatientInviteRecord,
   PatientInvitesPort,
-} from "@/modules/patient-invites/ports";
+} from '@/modules/patient-invites/ports';
 
 type FunctionBaseRow = {
   ok: boolean;
@@ -22,39 +25,37 @@ type PreviewFunctionRow = FunctionBaseRow & {
   invite_expires_at: Date | string | null;
 };
 
-type PrepareProofRow = FunctionBaseRow & { patient_user_id: string | null };
-type EmailProofRow = {
-  patient_user_id: string;
-  challenge_id: string;
-  email_normalized: string;
-};
 type RedeemRow = FunctionBaseRow & {
-  platform_user_id: string | null;
   organization_id: string | null;
 };
 
 function exactOrganization(organizationId: string): void {
   if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
-    throw new Error("organization_principal_mismatch");
+    throw new Error('organization_principal_mismatch');
   }
 }
 
 function lifecycleCode(value: string | null): PatientInviteLifecycleCode {
   switch (value) {
-    case "invalid_token":
-    case "invalid_continuation":
-    case "expired_token":
-    case "revoked_token":
-    case "superseded_token":
-    case "already_linked":
-    case "wrong_recipient":
-    case "conflicting_identity":
-    case "wrong_org":
-    case "organization_unavailable":
-    case "inactive_relationship":
+    case 'invalid_token':
+    case 'invalid_continuation':
+    case 'expired_token':
+    case 'revoked_token':
+    case 'superseded_token':
+    case 'exchanged_token':
+    case 'already_linked':
+    case 'wrong_recipient':
+    case 'missing_recipient':
+    case 'invalid_invite':
+    case 'unproved_identity':
+    case 'rate_limited':
+    case 'conflicting_identity':
+    case 'wrong_org':
+    case 'organization_unavailable':
+    case 'inactive_relationship':
       return value;
     default:
-      return "invalid_token";
+      return 'invalid_token';
   }
 }
 
@@ -72,7 +73,7 @@ function mapInvite(row: typeof patientInvites.$inferSelect): PatientInviteRecord
     organizationId: row.organizationId,
     patientUserId: row.patientUserId,
     enrollmentId: row.enrollmentId,
-    status: row.status as PatientInviteRecord["status"],
+    status: row.status as PatientInviteRecord['status'],
     expiresAt: iso(row.expiresAt),
     createdAt: iso(row.createdAt),
   };
@@ -94,7 +95,10 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       const db = getDrizzle();
       const now = new Date().toISOString();
       const [enrollment] = await db
-        .select({ status: orgEnrollments.status })
+        .select({
+          status: orgEnrollments.status,
+          portalActivatedAt: orgEnrollments.portalActivatedAt,
+        })
         .from(orgEnrollments)
         .where(
           and(
@@ -103,11 +107,11 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
           ),
         )
         .limit(1);
-      if (enrollment?.status === "active") {
-        return { status: "linked", inviteId: null, expiresAt: null };
+      if (enrollment?.portalActivatedAt) {
+        return { status: 'linked', inviteId: null, expiresAt: null };
       }
-      if (enrollment?.status !== "invited") {
-        return { status: "not_activated", inviteId: null, expiresAt: null };
+      if (enrollment?.status !== 'invited' && enrollment?.status !== 'active') {
+        return { status: 'not_activated', inviteId: null, expiresAt: null };
       }
       const [pending] = await db
         .select({ id: patientInvites.id, expiresAt: patientInvites.expiresAt })
@@ -116,15 +120,15 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
           and(
             eq(patientInvites.organizationId, organizationId),
             eq(patientInvites.patientUserId, patientUserId),
-            eq(patientInvites.status, "pending"),
+            eq(patientInvites.status, 'pending'),
             gt(patientInvites.expiresAt, now),
           ),
         )
         .orderBy(desc(patientInvites.createdAt))
         .limit(1);
       return pending
-        ? { status: "invited", inviteId: pending.id, expiresAt: iso(pending.expiresAt) }
-        : { status: "not_activated", inviteId: null, expiresAt: null };
+        ? { status: 'invited', inviteId: pending.id, expiresAt: iso(pending.expiresAt) }
+        : { status: 'not_activated', inviteId: null, expiresAt: null };
     },
 
     async createReplacingPending(input) {
@@ -132,7 +136,11 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
       const db = getDrizzle();
       return db.transaction(async (tx) => {
         const [enrollment] = await tx
-          .select({ id: orgEnrollments.id, status: orgEnrollments.status })
+          .select({
+            id: orgEnrollments.id,
+            status: orgEnrollments.status,
+            portalActivatedAt: orgEnrollments.portalActivatedAt,
+          })
           .from(orgEnrollments)
           .where(
             and(
@@ -140,28 +148,40 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
               eq(orgEnrollments.platformUserId, input.patientUserId),
             ),
           )
-          .for("update")
+          .for('update')
           .limit(1);
-        if (!enrollment) return failure("wrong_org");
-        if (enrollment.status === "active") return failure("already_linked");
-        if (enrollment.status !== "invited") return failure("inactive_relationship");
+        if (!enrollment) return failure('wrong_org');
+        if (enrollment.portalActivatedAt) return failure('already_linked');
+        if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+          return failure('inactive_relationship');
+        }
+
+        const [previousPending] = await tx
+          .select({ id: patientInvites.id })
+          .from(patientInvites)
+          .where(
+            and(
+              eq(patientInvites.organizationId, input.organizationId),
+              eq(patientInvites.patientUserId, input.patientUserId),
+              eq(patientInvites.status, 'pending'),
+            ),
+          )
+          .limit(1);
 
         await tx
           .update(patientInvites)
           .set({
-            status: "superseded",
-            supersededByInviteId: input.id,
-            continuationHash: null,
-            continuationExpiresAt: null,
-            proofEmailNormalized: null,
-            proofChallengeId: null,
+            status: 'superseded',
+            supersededByInviteId: null,
+            proofCodeHash: null,
+            proofExpiresAt: null,
             updatedAt: new Date().toISOString(),
           })
           .where(
             and(
               eq(patientInvites.organizationId, input.organizationId),
               eq(patientInvites.patientUserId, input.patientUserId),
-              eq(patientInvites.status, "pending"),
+              eq(patientInvites.status, 'pending'),
             ),
           );
 
@@ -178,7 +198,13 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
             createdByPlatformUserId: input.createdByPlatformUserId,
           })
           .returning();
-        if (!created) throw new Error("patient_invite_insert_failed");
+        if (!created) throw new Error('patient_invite_insert_failed');
+        if (previousPending) {
+          await tx
+            .update(patientInvites)
+            .set({ supersededByInviteId: created.id, updatedAt: new Date().toISOString() })
+            .where(eq(patientInvites.id, previousPending.id));
+        }
         return { ok: true, invite: mapInvite(created) };
       });
     },
@@ -190,13 +216,11 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         const updated = await tx
           .update(patientInvites)
           .set({
-            status: "revoked",
+            status: 'revoked',
             revokedAt: new Date().toISOString(),
             revokedByPlatformUserId,
-            continuationHash: null,
-            continuationExpiresAt: null,
-            proofEmailNormalized: null,
-            proofChallengeId: null,
+            proofCodeHash: null,
+            proofExpiresAt: null,
             updatedAt: new Date().toISOString(),
           })
           .where(
@@ -204,7 +228,7 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
               eq(patientInvites.id, inviteId),
               eq(patientInvites.organizationId, organizationId),
               eq(patientInvites.patientUserId, patientUserId),
-              eq(patientInvites.status, "pending"),
+              eq(patientInvites.status, 'pending'),
             ),
           )
           .returning({ id: patientInvites.id });
@@ -225,9 +249,9 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         `),
       );
       const row = result.rows[0];
-      if (!row?.ok) return failure(row?.code ?? "invalid_token");
+      if (!row?.ok) return failure(row?.code ?? 'invalid_token');
       const preview = mapPreview(row);
-      return preview ? { ok: true, preview } : failure("organization_unavailable");
+      return preview ? { ok: true, preview } : failure('organization_unavailable');
     },
 
     async lookupContinuation(continuationHash) {
@@ -237,71 +261,94 @@ export function createPgPatientInvitesPort(): PatientInvitesPort {
         FROM app.lookup_patient_invite_continuation(${continuationHash})
       `);
       const row = result.rows[0];
-      if (!row?.ok) return failure(row?.code ?? "invalid_continuation");
+      if (!row?.ok) return failure(row?.code ?? 'invalid_continuation');
       const preview = mapPreview(row);
-      return preview ? { ok: true, preview } : failure("invalid_continuation");
+      return preview ? { ok: true, preview } : failure('invalid_continuation');
     },
 
-    async prepareEmailProof({ continuationHash, emailNormalized }) {
+    async startEmailProof({
+      continuationHash,
+      emailNormalized,
+      codeHash,
+      proofExpiresAt,
+      authorizationNonce,
+      authorizationExpiresEpoch,
+      authorizationSignature,
+    }) {
       const db = getDrizzle();
       const result = await db.transaction((tx) =>
-        tx.execute<PrepareProofRow>(sql`
-          SELECT ok, code, patient_user_id
-          FROM app.prepare_patient_invite_email_proof(${continuationHash}, ${emailNormalized})
-        `),
-      );
-      const row = result.rows[0];
-      return row?.ok && row.patient_user_id
-        ? { ok: true, patientUserId: row.patient_user_id }
-        : failure(row?.code ?? "invalid_continuation");
-    },
-
-    async bindEmailChallenge({ continuationHash, emailNormalized, challengeId }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<{ bound: boolean }>(sql`
-          SELECT app.bind_patient_invite_email_challenge(
-            ${continuationHash}, ${emailNormalized}, ${challengeId}::uuid
-          ) AS bound
-        `),
-      );
-      return result.rows[0]?.bound === true;
-    },
-
-    async readEmailProof(continuationHash) {
-      const db = getDrizzle();
-      const result = await db.execute<EmailProofRow>(sql`
-        SELECT patient_user_id, challenge_id, email_normalized
-        FROM app.read_patient_invite_email_proof(${continuationHash})
-      `);
-      const row = result.rows[0];
-      return row
-        ? {
-            patientUserId: row.patient_user_id,
-            challengeId: row.challenge_id,
-            emailNormalized: row.email_normalized,
-          }
-        : null;
-    },
-
-    async redeemEmailProof({ continuationHash, challengeId, emailNormalized }) {
-      const db = getDrizzle();
-      const result = await db.transaction((tx) =>
-        tx.execute<RedeemRow>(sql`
-          SELECT ok, code, platform_user_id, organization_id
-          FROM app.redeem_patient_invite_email(
-            ${continuationHash}, ${challengeId}::uuid, ${emailNormalized}
+        tx.execute<FunctionBaseRow>(sql`
+          SELECT ok, code
+          FROM app.start_patient_invite_email_proof(
+            ${continuationHash}, ${emailNormalized}, ${codeHash}, ${proofExpiresAt}::timestamptz,
+            ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
           )
         `),
       );
       const row = result.rows[0];
-      return row?.ok && row.platform_user_id && row.organization_id
+      return row?.ok ? { ok: true } : failure(row?.code ?? 'invalid_continuation');
+    },
+
+    async cancelEmailProof({ continuationHash, codeHash }) {
+      const db = getDrizzle();
+      const result = await db.transaction((tx) =>
+        tx.execute<{ cancelled: boolean }>(sql`
+          SELECT app.cancel_patient_invite_email_proof(
+            ${continuationHash}, ${codeHash}
+          ) AS cancelled
+        `),
+      );
+      return result.rows[0]?.cancelled === true;
+    },
+
+    async verifyEmailProof({
+      continuationHash,
+      emailNormalized,
+      codeHash,
+      authorizationNonce,
+      authorizationExpiresEpoch,
+      authorizationSignature,
+    }) {
+      const db = getDrizzle();
+      const result = await db.transaction((tx) =>
+        tx.execute<FunctionBaseRow>(sql`
+          SELECT ok, code
+          FROM app.verify_patient_invite_email_proof(
+            ${continuationHash}, ${emailNormalized}, ${codeHash},
+            ${authorizationNonce}, ${authorizationExpiresEpoch}::bigint, ${authorizationSignature}
+          )
+        `),
+      );
+      const row = result.rows[0];
+      if (row?.ok) return { ok: true };
+      if (
+        row?.code === 'invalid_code' ||
+        row?.code === 'expired_code' ||
+        row?.code === 'too_many_attempts'
+      ) {
+        return { ok: false, code: row.code };
+      }
+      return failure(row?.code ?? 'invalid_continuation');
+    },
+
+    async redeemEmailProof({ continuationHash, authenticatedPlatformUserId }) {
+      if (getCurrentDbPrincipalPlatformUserId() !== authenticatedPlatformUserId) {
+        return failure('unproved_identity');
+      }
+      const db = getDrizzle();
+      const result = await db.transaction((tx) =>
+        tx.execute<RedeemRow>(sql`
+          SELECT ok, code, organization_id
+          FROM app.redeem_patient_invite_email(${continuationHash})
+        `),
+      );
+      const row = result.rows[0];
+      return row?.ok && row.organization_id
         ? {
             ok: true,
-            platformUserId: row.platform_user_id,
             organizationId: row.organization_id,
           }
-        : failure(row?.code ?? "invalid_continuation");
+        : failure(row?.code ?? 'invalid_continuation');
     },
   };
 }

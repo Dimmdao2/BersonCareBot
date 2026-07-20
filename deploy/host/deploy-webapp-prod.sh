@@ -56,6 +56,7 @@ require_unit_file "${WEBAPP_SERVICE}"
 require_file "${BACKUP_SCRIPT}" "Backup script (for pre-migration backup)"
 require_file "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql" "Patient media playback telemetry accessor overlay"
 require_file "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql" "Patient-visible catalog RLS overlay"
+require_file "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql" "Patient invite strict runtime overlay"
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"
@@ -96,6 +97,7 @@ psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/reference-catalog-rls.sql"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-visible-catalog-rls.sql"
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"
+psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql"
 
 # Same guardrail as deploy/host/deploy-prod.sh (shared script; fail before webapp restart).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"

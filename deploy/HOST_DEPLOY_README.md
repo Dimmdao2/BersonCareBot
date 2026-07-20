@@ -278,6 +278,11 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 
 **Post-migrate schema guardrail (production):** после успешного migrate каждый из deploy-скриптов вызывает **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же файл в обоих путях). **`deploy-prod.sh`** — после **`pnpm migrate`** (integrator + webapp Drizzle); **`deploy-webapp-prod.sh`** — после **`pnpm --dir apps/webapp run migrate`** (только webapp Drizzle, без integrator). Проверяется набор критичных колонок в `public` (список в комментарии в начале скрипта: treatment-program guardrails, media pipeline, integrator outbox, `system_settings`, `platform_users.calendar_timezone`). При отсутствии любой колонки процесс завершается с ошибкой **до** `systemctl restart` — чтобы не поднять сервисы на рассинхронизированной схеме.
 
+Оба production deploy-пути после Drizzle migration и до schema guardrail обязательно применяют
+`deploy/postgres/patient-invites-rls.sql`. Это code-only strict runtime overlay: он включает FORCE RLS, закрывает
+прямой доступ `app_patient`, назначает узкие invite-функции существующему `app_owner` и не выполняет backfill,
+restore/reset или отправку приглашений.
+
 **Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Для ручного прогона integrator + webapp на host достаточно **`pnpm migrate`**: скрипт `scripts/migrate-all.sh` автоматически подгружает `api.prod` и `webapp.prod` (если файлы существуют). Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
 
 **Booking mirror (post-deploy smoke, при изменениях rubitime-first / cancel / reschedule):** после деплоя **webapp + integrator** — ручная матрица CR-A / CN-P / RS-P / partial toast; инварианты и SQL — [`docs/BOOKING_REWORK_INITIATIVE/LOG.md`](../docs/BOOKING_REWORK_INITIATIVE/LOG.md) §2026-06-06, [`ACCEPTANCE_MIRROR_SYNC.md`](../docs/BOOKING_REWORK_INITIATIVE/ACCEPTANCE_MIRROR_SYNC.md) §Smoke-матрица.

@@ -3,6 +3,13 @@
 **Статус:** design doc, DOCS-ONLY. No schema/code changed by this pass. Written against repo state at
 `feat/doctor-ui-rebuild`, 2026-07-17.
 
+> **Implementation correction (2026-07-21, #806):** исторический `org_enrollments.status='active'` означает
+> clinical relationship, а не доказанную portal activation. Реализация вводит отдельные
+> `portal_activated_at/via` без guessed backfill. Invite OTP purpose-scoped и хранится на `patient_invites`; он не
+> использует и не инвалидирует общие `email_challenges`. После OTP route lookup-only разрешает канонический identity,
+> затем atomic redeem принимает только этот доказанный id. Эти уточнения заменяют более ранние места документа,
+> где предполагалось прямое переиспользование общей challenge-строки.
+
 **Authority order:** `docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-17.md` §2 (arms this block) →
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_RULINGS_2026-07-16.md` UX08-11 (product decision) →
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/{ENTRY_AND_INVITE_JOURNEYS.md, TARGET_IA.md, SCREEN_COMPOSITION.md,

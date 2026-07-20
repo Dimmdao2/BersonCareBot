@@ -2,21 +2,32 @@ import type {
   PatientInviteRecord,
   PatientInvitesPort,
   PatientPortalStatus,
-} from "@/modules/patient-invites/ports";
+} from '@/modules/patient-invites/ports';
 
 type StoredInvite = PatientInviteRecord & {
   tokenHash: string;
-  invitedEmailNormalized: string | null;
+  invitedEmailNormalized: string;
+  bearerExchangedAt: string | null;
   continuationHash: string | null;
   continuationExpiresAt: string | null;
   proofEmailNormalized: string | null;
-  proofChallengeId: string | null;
+  proofCodeHash: string | null;
+  proofStartedAt: string | null;
+  proofExpiresAt: string | null;
+  proofAttempts: number;
+  proofVerifiedAt: string | null;
   organizationTitle: string;
   revokedByPlatformUserId: string | null;
+  supersededByInviteId: string | null;
+};
+
+type EnrollmentState = {
+  status: 'invited' | 'active' | 'inactive';
+  portalActivatedAt: string | null;
 };
 
 const invites: StoredInvite[] = [];
-const enrollmentStatuses = new Map<string, "invited" | "active" | "inactive">();
+const enrollments = new Map<string, EnrollmentState>();
 
 function key(organizationId: string, patientUserId: string): string {
   return `${organizationId}:${patientUserId}`;
@@ -34,35 +45,69 @@ function publicRecord(invite: StoredInvite): PatientInviteRecord {
   };
 }
 
+function preview(invite: StoredInvite) {
+  const [local = '', domain = ''] = invite.invitedEmailNormalized.split('@');
+  return {
+    organizationTitle: invite.organizationTitle,
+    recipientHint: `${local[0] ?? '*'}***@${domain}`,
+    inviteExpiresAt: invite.expiresAt,
+  };
+}
+
+function lifecycleFailure(invite: StoredInvite) {
+  if (invite.status === 'accepted') return { ok: false as const, code: 'already_linked' as const };
+  if (invite.status === 'revoked') return { ok: false as const, code: 'revoked_token' as const };
+  if (invite.status === 'superseded')
+    return { ok: false as const, code: 'superseded_token' as const };
+  if (invite.status === 'expired' || Date.parse(invite.expiresAt) <= Date.now()) {
+    invite.status = 'expired';
+    return { ok: false as const, code: 'expired_token' as const };
+  }
+  return null;
+}
+
 export function resetInMemoryPatientInvitesForTests(): void {
   invites.length = 0;
-  enrollmentStatuses.clear();
+  enrollments.clear();
 }
 
 export function setInMemoryPatientInviteEnrollmentForTests(input: {
   organizationId: string;
   patientUserId: string;
-  status: "invited" | "active" | "inactive";
+  status: 'invited' | 'active' | 'inactive';
+  portalActivated?: boolean;
 }): void {
-  enrollmentStatuses.set(key(input.organizationId, input.patientUserId), input.status);
+  enrollments.set(key(input.organizationId, input.patientUserId), {
+    status: input.status,
+    portalActivatedAt: input.portalActivated ? new Date().toISOString() : null,
+  });
 }
 
 export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
-  function relationship(organizationId: string, patientUserId: string) {
-    return enrollmentStatuses.get(key(organizationId, patientUserId)) ?? "invited";
+  function relationship(organizationId: string, patientUserId: string): EnrollmentState {
+    return (
+      enrollments.get(key(organizationId, patientUserId)) ?? {
+        status: 'invited',
+        portalActivatedAt: null,
+      }
+    );
   }
 
   function portalStatus(organizationId: string, patientUserId: string): PatientPortalStatus {
     const enrollment = relationship(organizationId, patientUserId);
-    if (enrollment === "active") return "linked";
+    if (enrollment.portalActivatedAt) return 'linked';
     const pending = invites.some(
       (invite) =>
         invite.organizationId === organizationId &&
         invite.patientUserId === patientUserId &&
-        invite.status === "pending" &&
+        invite.status === 'pending' &&
         Date.parse(invite.expiresAt) > Date.now(),
     );
-    return pending ? "invited" : "not_activated";
+    return pending ? 'invited' : 'not_activated';
+  }
+
+  function byContinuation(continuationHash: string): StoredInvite | undefined {
+    return invites.find((candidate) => candidate.continuationHash === continuationHash);
   }
 
   return {
@@ -71,7 +116,7 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
         (invite) =>
           invite.organizationId === organizationId &&
           invite.patientUserId === patientUserId &&
-          invite.status === "pending" &&
+          invite.status === 'pending' &&
           Date.parse(invite.expiresAt) > Date.now(),
       );
       return {
@@ -83,37 +128,48 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
 
     async createReplacingPending(input) {
       const enrollment = relationship(input.organizationId, input.patientUserId);
-      if (enrollment === "active") return { ok: false, code: "already_linked" };
-      if (enrollment !== "invited") return { ok: false, code: "inactive_relationship" };
-      for (const invite of invites) {
-        if (
+      if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };
+      if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+        return { ok: false, code: 'inactive_relationship' };
+      }
+
+      const previous = invites.find(
+        (invite) =>
           invite.organizationId === input.organizationId &&
           invite.patientUserId === input.patientUserId &&
-          invite.status === "pending"
-        ) {
-          invite.status = "superseded";
-          invite.continuationHash = null;
-          invite.continuationExpiresAt = null;
-        }
+          invite.status === 'pending',
+      );
+      if (previous) {
+        previous.status = 'superseded';
+        previous.proofCodeHash = null;
+        previous.proofExpiresAt = null;
       }
+
       const invite: StoredInvite = {
         id: input.id,
         organizationId: input.organizationId,
         patientUserId: input.patientUserId,
         enrollmentId: `enrollment:${input.organizationId}:${input.patientUserId}`,
-        status: "pending",
+        status: 'pending',
         expiresAt: input.expiresAt,
         createdAt: new Date().toISOString(),
         tokenHash: input.tokenHash,
         invitedEmailNormalized: input.invitedEmailNormalized,
+        bearerExchangedAt: null,
         continuationHash: null,
         continuationExpiresAt: null,
         proofEmailNormalized: null,
-        proofChallengeId: null,
-        organizationTitle: "Тестовая клиника",
+        proofCodeHash: null,
+        proofStartedAt: null,
+        proofExpiresAt: null,
+        proofAttempts: 0,
+        proofVerifiedAt: null,
+        organizationTitle: 'Тестовая клиника',
         revokedByPlatformUserId: null,
+        supersededByInviteId: null,
       };
       invites.push(invite);
+      if (previous) previous.supersededByInviteId = invite.id;
       return { ok: true, invite: publicRecord(invite) };
     },
 
@@ -123,124 +179,107 @@ export function createInMemoryPatientInvitesPort(): PatientInvitesPort {
           candidate.id === inviteId &&
           candidate.organizationId === organizationId &&
           candidate.patientUserId === patientUserId &&
-          candidate.status === "pending",
+          candidate.status === 'pending',
       );
       if (!invite) return false;
-      invite.status = "revoked";
+      invite.status = 'revoked';
       invite.revokedByPlatformUserId = revokedByPlatformUserId;
-      invite.continuationHash = null;
-      invite.continuationExpiresAt = null;
+      invite.proofCodeHash = null;
+      invite.proofExpiresAt = null;
       return true;
     },
 
     async exchangeBearer({ tokenHash, continuationHash, continuationExpiresAt }) {
       const invite = invites.find((candidate) => candidate.tokenHash === tokenHash);
-      if (!invite) return { ok: false, code: "invalid_token" };
-      if (invite.status === "accepted") return { ok: false, code: "already_linked" };
-      if (invite.status === "revoked") return { ok: false, code: "revoked_token" };
-      if (invite.status === "superseded") return { ok: false, code: "superseded_token" };
-      if (invite.status === "expired" || Date.parse(invite.expiresAt) <= Date.now()) {
-        invite.status = "expired";
-        return { ok: false, code: "expired_token" };
+      if (!invite) return { ok: false, code: 'invalid_token' };
+      const lifecycle = lifecycleFailure(invite);
+      if (lifecycle) return lifecycle;
+      if (invite.bearerExchangedAt) return { ok: false, code: 'exchanged_token' };
+      const enrollment = relationship(invite.organizationId, invite.patientUserId);
+      if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };
+      if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+        return { ok: false, code: 'inactive_relationship' };
       }
+      invite.bearerExchangedAt = new Date().toISOString();
       invite.continuationHash = continuationHash;
       invite.continuationExpiresAt = continuationExpiresAt;
-      return {
-        ok: true,
-        preview: {
-          organizationTitle: invite.organizationTitle,
-          recipientHint: invite.invitedEmailNormalized
-            ? `${invite.invitedEmailNormalized[0] ?? "*"}***@${invite.invitedEmailNormalized.split("@")[1] ?? ""}`
-            : null,
-          inviteExpiresAt: invite.expiresAt,
-        },
-      };
+      return { ok: true, preview: preview(invite) };
     },
 
     async lookupContinuation(continuationHash) {
-      const invite = invites.find(
-        (candidate) =>
-          candidate.continuationHash === continuationHash &&
-          candidate.status === "pending" &&
-          candidate.continuationExpiresAt != null &&
-          Date.parse(candidate.continuationExpiresAt) > Date.now(),
-      );
-      return invite
-        ? {
-            ok: true,
-            preview: {
-              organizationTitle: invite.organizationTitle,
-              recipientHint: invite.invitedEmailNormalized
-                ? `${invite.invitedEmailNormalized[0] ?? "*"}***@${invite.invitedEmailNormalized.split("@")[1] ?? ""}`
-                : null,
-              inviteExpiresAt: invite.expiresAt,
-            },
-          }
-        : { ok: false, code: "invalid_continuation" };
+      const invite = byContinuation(continuationHash);
+      if (!invite) return { ok: false, code: 'invalid_continuation' };
+      const lifecycle = lifecycleFailure(invite);
+      if (lifecycle) return lifecycle;
+      if (!invite.continuationExpiresAt || Date.parse(invite.continuationExpiresAt) <= Date.now()) {
+        return { ok: false, code: 'invalid_continuation' };
+      }
+      return { ok: true, preview: preview(invite) };
     },
 
-    async prepareEmailProof({ continuationHash, emailNormalized }) {
-      const invite = invites.find(
-        (candidate) => candidate.continuationHash === continuationHash && candidate.status === "pending",
-      );
-      if (!invite) return { ok: false, code: "invalid_continuation" };
-      if (invite.invitedEmailNormalized && invite.invitedEmailNormalized !== emailNormalized) {
-        return { ok: false, code: "wrong_recipient" };
+    async startEmailProof({ continuationHash, emailNormalized, codeHash, proofExpiresAt }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite || lifecycleFailure(invite)) return { ok: false, code: 'invalid_continuation' };
+      if (invite.invitedEmailNormalized !== emailNormalized)
+        return { ok: false, code: 'wrong_recipient' };
+      if (invite.proofStartedAt && Date.parse(invite.proofStartedAt) > Date.now() - 30_000) {
+        return { ok: false, code: 'rate_limited' };
       }
       invite.proofEmailNormalized = emailNormalized;
-      invite.proofChallengeId = null;
-      return { ok: true, patientUserId: invite.patientUserId };
+      invite.proofCodeHash = codeHash;
+      invite.proofStartedAt = new Date().toISOString();
+      invite.proofExpiresAt = proofExpiresAt;
+      invite.proofAttempts = 0;
+      invite.proofVerifiedAt = null;
+      return { ok: true };
     },
 
-    async bindEmailChallenge({ continuationHash, emailNormalized, challengeId }) {
-      const invite = invites.find(
-        (candidate) =>
-          candidate.continuationHash === continuationHash &&
-          candidate.status === "pending" &&
-          candidate.proofEmailNormalized === emailNormalized,
-      );
-      if (!invite) return false;
-      invite.proofChallengeId = challengeId;
+    async cancelEmailProof({ continuationHash, codeHash }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite || invite.proofCodeHash !== codeHash) return false;
+      invite.proofCodeHash = null;
+      invite.proofStartedAt = null;
+      invite.proofExpiresAt = null;
       return true;
     },
 
-    async readEmailProof(continuationHash) {
-      const invite = invites.find(
-        (candidate) =>
-          candidate.continuationHash === continuationHash &&
-          candidate.status === "pending" &&
-          candidate.proofEmailNormalized != null &&
-          candidate.proofChallengeId != null,
-      );
-      return invite && invite.proofEmailNormalized && invite.proofChallengeId
-        ? {
-            patientUserId: invite.patientUserId,
-            challengeId: invite.proofChallengeId,
-            emailNormalized: invite.proofEmailNormalized,
-          }
-        : null;
+    async verifyEmailProof({ continuationHash, emailNormalized, codeHash }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite || lifecycleFailure(invite)) return { ok: false, code: 'invalid_continuation' };
+      if (invite.proofAttempts >= 5) return { ok: false, code: 'too_many_attempts' };
+      if (!invite.proofExpiresAt || Date.parse(invite.proofExpiresAt) <= Date.now()) {
+        return { ok: false, code: 'expired_code' };
+      }
+      if (invite.proofEmailNormalized !== emailNormalized || invite.proofCodeHash !== codeHash) {
+        invite.proofAttempts += 1;
+        return { ok: false, code: 'invalid_code' };
+      }
+      invite.proofVerifiedAt = new Date().toISOString();
+      invite.proofCodeHash = null;
+      invite.proofExpiresAt = null;
+      return { ok: true };
     },
 
-    async redeemEmailProof({ continuationHash, challengeId, emailNormalized }) {
-      const invite = invites.find(
-        (candidate) => candidate.continuationHash === continuationHash && candidate.status === "pending",
-      );
-      if (!invite) return { ok: false, code: "invalid_continuation" };
-      if (invite.proofChallengeId !== challengeId || invite.proofEmailNormalized !== emailNormalized) {
-        return { ok: false, code: "wrong_recipient" };
+    async redeemEmailProof({ continuationHash, authenticatedPlatformUserId }) {
+      const invite = byContinuation(continuationHash);
+      if (!invite) return { ok: false, code: 'invalid_continuation' };
+      const lifecycle = lifecycleFailure(invite);
+      if (lifecycle) return lifecycle;
+      if (!invite.proofVerifiedAt) return { ok: false, code: 'unproved_identity' };
+      if (invite.patientUserId !== authenticatedPlatformUserId) {
+        return { ok: false, code: 'conflicting_identity' };
       }
-      if (relationship(invite.organizationId, invite.patientUserId) === "active") {
-        return { ok: false, code: "already_linked" };
+      const enrollment = relationship(invite.organizationId, invite.patientUserId);
+      if (enrollment.portalActivatedAt) return { ok: false, code: 'already_linked' };
+      if (enrollment.status !== 'invited' && enrollment.status !== 'active') {
+        return { ok: false, code: 'inactive_relationship' };
       }
-      enrollmentStatuses.set(key(invite.organizationId, invite.patientUserId), "active");
-      invite.status = "accepted";
-      invite.continuationHash = null;
-      invite.continuationExpiresAt = null;
-      return {
-        ok: true,
-        platformUserId: invite.patientUserId,
-        organizationId: invite.organizationId,
-      };
+      enrollments.set(key(invite.organizationId, invite.patientUserId), {
+        status: 'active',
+        portalActivatedAt: new Date().toISOString(),
+      });
+      invite.status = 'accepted';
+      return { ok: true, organizationId: invite.organizationId };
     },
   };
 }

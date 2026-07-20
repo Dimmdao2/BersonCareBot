@@ -1,43 +1,41 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createInMemoryPatientInvitesPort,
   resetInMemoryPatientInvitesForTests,
   setInMemoryPatientInviteEnrollmentForTests,
-} from "@/infra/repos/inMemoryPatientInvites";
+} from '@/infra/repos/inMemoryPatientInvites';
 import {
   createPatientInvitesService,
   hashPatientInviteBearer,
   hashPatientInviteContinuation,
-} from "./service";
+} from './service';
 
-const organizationId = "00000000-0000-4000-8000-000000000001";
-const patientUserId = "00000000-0000-4000-8000-000000000002";
-const staffUserId = "00000000-0000-4000-8000-000000000003";
+const organizationId = '00000000-0000-4000-8000-000000000001';
+const patientUserId = '00000000-0000-4000-8000-000000000002';
+const otherUserId = '00000000-0000-4000-8000-000000000004';
+const staffUserId = '00000000-0000-4000-8000-000000000003';
 
 function bearerFrom(relativeUrl: string): string {
-  return relativeUrl.split("#")[1] ?? "";
+  return relativeUrl.split('#')[1] ?? '';
 }
 
 function buildService() {
-  const startEmailChallenge = vi.fn(async () => ({
-    ok: true as const,
-    challengeId: "challenge-1",
-    retryAfterSeconds: 30,
-  }));
-  const consumeEmailChallenge = vi.fn(async (_userId: string, _challengeId: string, code: string) =>
-    code === "123456"
-      ? ({ ok: true as const } as const)
-      : ({ ok: false as const, code: "invalid_code" as const } as const),
-  );
+  let deliveredCode = '';
+  const sendEmailCode = vi.fn(async (_email: string, code: string) => {
+    deliveredCode = code;
+    return { ok: true as const };
+  });
   const service = createPatientInvitesService({
     port: createInMemoryPatientInvitesPort(),
-    startEmailChallenge,
-    consumeEmailChallenge,
+    sendEmailCode,
   });
-  return { service, startEmailChallenge, consumeEmailChallenge };
+  return { service, sendEmailCode, deliveredCode: () => deliveredCode };
 }
 
-async function issueInvite(service: ReturnType<typeof buildService>["service"], invitedEmail = "patient@example.test") {
+async function issueInvite(
+  service: ReturnType<typeof buildService>['service'],
+  invitedEmail = 'patient@example.test',
+) {
   return service.issue({
     organizationId,
     patientUserId,
@@ -46,13 +44,23 @@ async function issueInvite(service: ReturnType<typeof buildService>["service"], 
   });
 }
 
+async function exchange(service: ReturnType<typeof buildService>['service']) {
+  const issued = await issueInvite(service);
+  expect(issued.ok).toBe(true);
+  if (!issued.ok) throw new Error('invite issue failed');
+  const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
+  expect(exchanged.ok).toBe(true);
+  if (!exchanged.ok) throw new Error('invite exchange failed');
+  return { issued, exchanged };
+}
+
 beforeEach(() => {
   resetInMemoryPatientInvitesForTests();
-  setInMemoryPatientInviteEnrollmentForTests({ organizationId, patientUserId, status: "invited" });
+  setInMemoryPatientInviteEnrollmentForTests({ organizationId, patientUserId, status: 'invited' });
 });
 
-describe("patient invite activation", () => {
-  it("stores purpose-separated hashes and exposes the bearer only in the URL fragment", async () => {
+describe('patient invite activation', () => {
+  it('stores purpose-separated hashes and exposes the bearer only in the URL fragment', async () => {
     const { service } = buildService();
     const issued = await issueInvite(service);
 
@@ -60,13 +68,21 @@ describe("patient invite activation", () => {
     if (!issued.ok) return;
     const bearer = bearerFrom(issued.relativeUrl);
     expect(issued.relativeUrl).toMatch(/^\/join\/start#[A-Za-z0-9_-]{40,}$/);
-    expect(issued.invite).not.toHaveProperty("tokenHash");
+    expect(issued.invite).not.toHaveProperty('tokenHash');
     expect(hashPatientInviteBearer(bearer)).toMatch(/^[a-f0-9]{64}$/);
     expect(hashPatientInviteBearer(bearer)).not.toBe(bearer);
     expect(hashPatientInviteBearer(bearer)).not.toBe(hashPatientInviteContinuation(bearer));
   });
 
-  it("supersedes the old bearer when a new invitation is issued", async () => {
+  it('requires an explicit recipient email', async () => {
+    const { service } = buildService();
+    await expect(issueInvite(service, '')).resolves.toEqual({
+      ok: false,
+      code: 'missing_recipient',
+    });
+  });
+
+  it('supersedes the old bearer only after the replacement exists', async () => {
     const { service } = buildService();
     const first = await issueInvite(service);
     const second = await issueInvite(service);
@@ -76,20 +92,30 @@ describe("patient invite activation", () => {
 
     await expect(service.exchangeBearer(bearerFrom(first.relativeUrl))).resolves.toEqual({
       ok: false,
-      code: "superseded_token",
+      code: 'superseded_token',
     });
     await expect(service.exchangeBearer(bearerFrom(second.relativeUrl))).resolves.toMatchObject({
       ok: true,
-      kind: "patient",
+      kind: 'patient',
     });
   });
 
-  it("revokes an exact pending invitation", async () => {
+  it('exchanges a raw bearer exactly once', async () => {
     const { service } = buildService();
     const issued = await issueInvite(service);
     expect(issued.ok).toBe(true);
     if (!issued.ok) return;
+    const bearer = bearerFrom(issued.relativeUrl);
+    await expect(service.exchangeBearer(bearer)).resolves.toMatchObject({ ok: true });
+    await expect(service.exchangeBearer(bearer)).resolves.toEqual({
+      ok: false,
+      code: 'exchanged_token',
+    });
+  });
 
+  it('keeps terminal continuation state truthful after revoke', async () => {
+    const { service } = buildService();
+    const { issued, exchanged } = await exchange(service);
     await expect(
       service.revoke({
         organizationId,
@@ -98,64 +124,79 @@ describe("patient invite activation", () => {
         revokedByPlatformUserId: staffUserId,
       }),
     ).resolves.toBe(true);
-    await expect(service.exchangeBearer(bearerFrom(issued.relativeUrl))).resolves.toEqual({
+    await expect(service.lookupContinuation(exchanged.continuation)).resolves.toEqual({
       ok: false,
-      code: "revoked_token",
+      code: 'revoked_token',
     });
   });
 
-  it("rejects an email that differs from the bound recipient", async () => {
-    const { service, startEmailChallenge } = buildService();
-    const issued = await issueInvite(service);
-    expect(issued.ok).toBe(true);
-    if (!issued.ok) return;
-    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
-    expect(exchanged.ok).toBe(true);
-    if (!exchanged.ok) return;
-
-    await expect(service.startEmailProof(exchanged.continuation, "other@example.test")).resolves.toEqual({
-      ok: false,
-      code: "wrong_recipient",
+  it('keeps a legacy active relationship unlinked until explicit invite proof', async () => {
+    setInMemoryPatientInviteEnrollmentForTests({ organizationId, patientUserId, status: 'active' });
+    const { service } = buildService();
+    await expect(service.getPortalStatus(organizationId, patientUserId)).resolves.toMatchObject({
+      status: 'not_activated',
     });
-    expect(startEmailChallenge).not.toHaveBeenCalled();
+    await expect(issueInvite(service)).resolves.toMatchObject({ ok: true });
   });
 
-  it("activates the exact invited relationship after a valid email proof", async () => {
-    const { service, startEmailChallenge, consumeEmailChallenge } = buildService();
-    const issued = await issueInvite(service);
-    expect(issued.ok).toBe(true);
-    if (!issued.ok) return;
-    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
-    expect(exchanged.ok).toBe(true);
-    if (!exchanged.ok) return;
+  it('rejects an email that differs from the bound recipient', async () => {
+    const { service, sendEmailCode } = buildService();
+    const { exchanged } = await exchange(service);
 
-    await expect(service.startEmailProof(exchanged.continuation, "PATIENT@example.test")).resolves.toEqual({
-      ok: true,
-      retryAfterSeconds: 30,
+    await expect(
+      service.startEmailProof(exchanged.continuation, 'other@example.test'),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'wrong_recipient',
     });
-    await expect(service.redeemEmailProof(exchanged.continuation, "123456")).resolves.toEqual({
+    expect(sendEmailCode).not.toHaveBeenCalled();
+  });
+
+  it('activates only after purpose-scoped OTP proof and canonical identity resolution', async () => {
+    const { service, sendEmailCode, deliveredCode } = buildService();
+    const { exchanged } = await exchange(service);
+
+    await expect(
+      service.startEmailProof(exchanged.continuation, 'PATIENT@example.test'),
+    ).resolves.toMatchObject({
       ok: true,
-      platformUserId: patientUserId,
+    });
+    expect(sendEmailCode).toHaveBeenCalledWith(
+      'patient@example.test',
+      expect.stringMatching(/^\d{6}$/),
+    );
+    await expect(
+      service.verifyEmailProof(exchanged.continuation, 'patient@example.test', deliveredCode()),
+    ).resolves.toEqual({ ok: true });
+    await expect(service.redeemEmailProof(exchanged.continuation, patientUserId)).resolves.toEqual({
+      ok: true,
       organizationId,
     });
-    await expect(service.getPortalStatus(organizationId, patientUserId)).resolves.toMatchObject({ status: "linked" });
-    expect(startEmailChallenge).toHaveBeenCalledWith(patientUserId, "patient@example.test");
-    expect(consumeEmailChallenge).toHaveBeenCalledWith(patientUserId, "challenge-1", "123456");
+    await expect(service.getPortalStatus(organizationId, patientUserId)).resolves.toMatchObject({
+      status: 'linked',
+    });
   });
 
-  it("allows exactly one success when redemption races", async () => {
-    const { service } = buildService();
-    const issued = await issueInvite(service);
-    expect(issued.ok).toBe(true);
-    if (!issued.ok) return;
-    const exchanged = await service.exchangeBearer(bearerFrom(issued.relativeUrl));
-    expect(exchanged.ok).toBe(true);
-    if (!exchanged.ok) return;
-    await service.startEmailProof(exchanged.continuation, "patient@example.test");
+  it('does not let another resolved identity redeem a valid proof', async () => {
+    const { service, deliveredCode } = buildService();
+    const { exchanged } = await exchange(service);
+    await service.startEmailProof(exchanged.continuation, 'patient@example.test');
+    await service.verifyEmailProof(exchanged.continuation, 'patient@example.test', deliveredCode());
+    await expect(service.redeemEmailProof(exchanged.continuation, otherUserId)).resolves.toEqual({
+      ok: false,
+      code: 'conflicting_identity',
+    });
+  });
+
+  it('allows exactly one success when redemption races', async () => {
+    const { service, deliveredCode } = buildService();
+    const { exchanged } = await exchange(service);
+    await service.startEmailProof(exchanged.continuation, 'patient@example.test');
+    await service.verifyEmailProof(exchanged.continuation, 'patient@example.test', deliveredCode());
 
     const results = await Promise.all([
-      service.redeemEmailProof(exchanged.continuation, "123456"),
-      service.redeemEmailProof(exchanged.continuation, "123456"),
+      service.redeemEmailProof(exchanged.continuation, patientUserId),
+      service.redeemEmailProof(exchanged.continuation, patientUserId),
     ]);
     expect(results.filter((result) => result.ok)).toHaveLength(1);
     expect(results.filter((result) => !result.ok)).toHaveLength(1);

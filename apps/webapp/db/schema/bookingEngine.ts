@@ -212,6 +212,8 @@ export const orgEnrollments = pgTable(
     organizationId: uuid("organization_id").notNull(),
     platformUserId: uuid("platform_user_id").notNull(),
     status: text().default("active").notNull(),
+    portalActivatedAt: timestamp("portal_activated_at", { withTimezone: true, mode: "string" }),
+    portalActivatedVia: text("portal_activated_via"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
@@ -231,6 +233,10 @@ export const orgEnrollments = pgTable(
     check(
       "org_enrollments_status_check",
       sql`${table.status} = ANY (ARRAY['active'::text, 'invited'::text, 'discharged'::text, 'archived'::text])`,
+    ),
+    check(
+      "org_enrollments_portal_activation_check",
+      sql`(${table.portalActivatedAt} IS NULL AND ${table.portalActivatedVia} IS NULL) OR (${table.portalActivatedAt} IS NOT NULL AND ${table.portalActivatedVia} = 'patient_invite_email_otp')`,
     ),
   ],
 );

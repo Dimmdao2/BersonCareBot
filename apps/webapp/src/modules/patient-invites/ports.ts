@@ -1,11 +1,11 @@
-export type PatientPortalStatus = "not_activated" | "invited" | "linked";
+export type PatientPortalStatus = 'not_activated' | 'invited' | 'linked';
 
 export type PatientInviteRecord = {
   id: string;
   organizationId: string;
   patientUserId: string;
   enrollmentId: string;
-  status: "pending" | "accepted" | "expired" | "revoked" | "superseded";
+  status: 'pending' | 'accepted' | 'expired' | 'revoked' | 'superseded';
   expiresAt: string;
   createdAt: string;
 };
@@ -17,17 +17,22 @@ export type PatientInvitePublicPreview = {
 };
 
 export type PatientInviteLifecycleCode =
-  | "invalid_token"
-  | "invalid_continuation"
-  | "expired_token"
-  | "revoked_token"
-  | "superseded_token"
-  | "already_linked"
-  | "wrong_recipient"
-  | "conflicting_identity"
-  | "wrong_org"
-  | "organization_unavailable"
-  | "inactive_relationship";
+  | 'invalid_token'
+  | 'invalid_continuation'
+  | 'expired_token'
+  | 'revoked_token'
+  | 'superseded_token'
+  | 'exchanged_token'
+  | 'already_linked'
+  | 'wrong_recipient'
+  | 'missing_recipient'
+  | 'invalid_invite'
+  | 'unproved_identity'
+  | 'rate_limited'
+  | 'conflicting_identity'
+  | 'wrong_org'
+  | 'organization_unavailable'
+  | 'inactive_relationship';
 
 export type PatientInviteFailure = { ok: false; code: PatientInviteLifecycleCode };
 
@@ -41,7 +46,7 @@ export type PatientInvitesPort = {
     organizationId: string;
     patientUserId: string;
     tokenHash: string;
-    invitedEmailNormalized: string | null;
+    invitedEmailNormalized: string;
     expiresAt: string;
     createdByPlatformUserId: string;
   }): Promise<{ ok: true; invite: PatientInviteRecord } | PatientInviteFailure>;
@@ -59,24 +64,30 @@ export type PatientInvitesPort = {
   lookupContinuation(
     continuationHash: string,
   ): Promise<{ ok: true; preview: PatientInvitePublicPreview } | PatientInviteFailure>;
-  prepareEmailProof(input: {
+  startEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;
-  }): Promise<{ ok: true; patientUserId: string } | PatientInviteFailure>;
-  bindEmailChallenge(input: {
+    codeHash: string;
+    proofExpiresAt: string;
+    authorizationNonce: string;
+    authorizationExpiresEpoch: number;
+    authorizationSignature: string;
+  }): Promise<{ ok: true } | PatientInviteFailure>;
+  cancelEmailProof(input: { continuationHash: string; codeHash: string }): Promise<boolean>;
+  verifyEmailProof(input: {
     continuationHash: string;
     emailNormalized: string;
-    challengeId: string;
-  }): Promise<boolean>;
-  readEmailProof(
-    continuationHash: string,
-  ): Promise<{ patientUserId: string; challengeId: string; emailNormalized: string } | null>;
+    codeHash: string;
+    authorizationNonce: string;
+    authorizationExpiresEpoch: number;
+    authorizationSignature: string;
+  }): Promise<
+    | { ok: true }
+    | PatientInviteFailure
+    | { ok: false; code: 'invalid_code' | 'expired_code' | 'too_many_attempts' }
+  >;
   redeemEmailProof(input: {
     continuationHash: string;
-    challengeId: string;
-    emailNormalized: string;
-  }): Promise<
-    | { ok: true; platformUserId: string; organizationId: string }
-    | PatientInviteFailure
-  >;
+    authenticatedPlatformUserId: string;
+  }): Promise<{ ok: true; organizationId: string } | PatientInviteFailure>;
 };

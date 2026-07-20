@@ -111,8 +111,10 @@ function runChecks(overrides = {}) {
     "organization_id = app.current_org_id()",
     "REVOKE ALL ON TABLE public.patient_invites FROM app_patient",
     "ALTER FUNCTION app.exchange_patient_invite(text, text, timestamptz) OWNER TO app_owner",
-    "ALTER FUNCTION app.redeem_patient_invite_email(text, uuid, text) OWNER TO app_owner",
-    "GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text, uuid, text) TO app_patient",
+    "ALTER FUNCTION app.start_patient_invite_email_proof(text, text, text, timestamptz, text, bigint, text) OWNER TO app_owner",
+    "ALTER FUNCTION app.verify_patient_invite_email_proof(text, text, text, text, bigint, text) OWNER TO app_owner",
+    "ALTER FUNCTION app.redeem_patient_invite_email(text) OWNER TO app_owner",
+    "GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text) TO app_patient",
   ]);
   if (loaded.invites.includes("NULLIF(current_setting('app.org', true), '') IS NULL")) {
     fail(`${files.invites} still contains the fail-open NULL-context policy branch`);
@@ -169,19 +171,26 @@ function runChecks(overrides = {}) {
     "PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS=deploy/postgres/patient-media-playback-telemetry-accessors.sql",
     'require_file "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}" "Patient media playback telemetry accessor overlay"',
     'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"',
+    "PATIENT_INVITES_RLS=deploy/postgres/patient-invites-rls.sql",
+    'require_file "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}" "Patient invite strict runtime overlay"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}"',
   ]);
   requireOrdered(files.prod, loaded.prod, [
     "pnpm --dir apps/webapp run migrate",
     'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}"',
     "webapp-post-migrate-schema-check.sh",
   ]);
   requireFragments(files.webappProd, loaded.webappProd, [
     'require_file "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql" "Patient media playback telemetry accessor overlay"',
     'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"',
+    'require_file "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql" "Patient invite strict runtime overlay"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql"',
   ]);
   requireOrdered(files.webappProd, loaded.webappProd, [
     "pnpm --dir apps/webapp run migrate",
     'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"',
+    'psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql"',
     "webapp-post-migrate-schema-check.sh",
   ]);
 
@@ -406,6 +415,8 @@ function runSelfTest() {
     { patientPlayback: `${baseline.patientPlayback}\nGRANT EXECUTE ON FUNCTION app.record_media_playback_resolution_event(uuid, uuid, text, boolean) TO app_staff;\n` },
     { prod: baseline.prod.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_MEDIA_PLAYBACK_TELEMETRY_ACCESSORS}"', "") },
     { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-media-playback-telemetry-accessors.sql"', "") },
+    { prod: baseline.prod.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/${PATIENT_INVITES_RLS}"', "") },
+    { webappProd: baseline.webappProd.replace('psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${PROJECT_ROOT}/deploy/postgres/patient-invites-rls.sql"', "") },
     { force: baseline.force.replace("v_expected_count <> 166", "v_expected_count < 1") },
     { hard: baseline.hard.replace('\nrun_strict_post_migration_closure\nlog "DONE', '\nlog "DONE') },
     { hard: baseline.hard.replace("  run_test_patient_identity_capability_gate\n", "") },

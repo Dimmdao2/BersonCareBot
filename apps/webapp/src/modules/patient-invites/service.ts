@@ -1,51 +1,84 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { env, integratorWebhookSecret } from "@/config/env";
-import { normalizeEmail, startEmailChallenge, consumeEmailChallengeCode } from "@/modules/auth/emailAuth";
-import type {
-  PatientInviteFailure,
-  PatientInviteLifecycleCode,
-  PatientInvitesPort,
-} from "./ports";
+import { createHash, createHmac, randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { env, integratorWebhookSecret } from '@/config/env';
+import { normalizeEmail } from '@/modules/auth/emailAuth';
+import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
+import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import type { PatientInviteFailure, PatientInviteLifecycleCode, PatientInvitesPort } from './ports';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CONTINUATION_TTL_MS = 10 * 60 * 1000;
+const PROOF_TTL_MS = 10 * 60 * 1000;
+const PROOF_AUTHORIZATION_TTL_MS = 60 * 1000;
 
 function invitePepper(): string {
-  return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || "test-patient-invite-pepper";
+  return integratorWebhookSecret() || env.SESSION_COOKIE_SECRET || 'test-patient-invite-pepper';
 }
 
-function hashOpaque(value: string, purpose: "bearer" | "continuation"): string {
-  return createHash("sha256")
+function hashOpaque(value: string, purpose: 'bearer' | 'continuation'): string {
+  return createHash('sha256')
     .update(`patient-invite:${purpose}:v1:${value}:${invitePepper()}`)
-    .digest("hex");
+    .digest('hex');
 }
 
 export function hashPatientInviteBearer(value: string): string {
-  return hashOpaque(value, "bearer");
+  return hashOpaque(value, 'bearer');
 }
 
 export function hashPatientInviteContinuation(value: string): string {
-  return hashOpaque(value, "continuation");
+  return hashOpaque(value, 'continuation');
 }
 
 function opaqueToken(): string {
-  return randomBytes(32).toString("base64url");
+  return randomBytes(32).toString('base64url');
+}
+
+function generateEmailCode(): string {
+  return String(randomInt(100000, 1000000));
+}
+
+function hashPatientInviteEmailCode(code: string): string {
+  return createHash('sha256')
+    .update(`patient-invite:email-code:v1:${code}:${invitePepper()}`)
+    .digest('hex');
+}
+
+function proofAuthorization(input: {
+  action: 'start' | 'verify';
+  continuationHash: string;
+  emailNormalized: string;
+  codeHash: string;
+  proofExpiresEpoch: number | null;
+}) {
+  const nonce = randomUUID();
+  const expiresEpoch = Math.floor((Date.now() + PROOF_AUTHORIZATION_TTL_MS) / 1000);
+  const canonical = [
+    'patient-invite-proof',
+    'v1',
+    input.action,
+    nonce,
+    String(expiresEpoch),
+    input.continuationHash,
+    input.emailNormalized,
+    input.codeHash,
+    input.proofExpiresEpoch == null ? '' : String(input.proofExpiresEpoch),
+  ].join('|');
+  const secret = env.DB_PRINCIPAL_SIGNING_SECRET || invitePepper();
+  return {
+    authorizationNonce: nonce,
+    authorizationExpiresEpoch: expiresEpoch,
+    authorizationSignature: createHmac('sha256', secret).update(canonical).digest('hex'),
+  };
 }
 
 function lifecycleFailure(code: PatientInviteLifecycleCode): PatientInviteFailure {
   return { ok: false, code };
 }
 
-type StartEmailChallenge = typeof startEmailChallenge;
-type ConsumeEmailChallenge = typeof consumeEmailChallengeCode;
-
 export function createPatientInvitesService(deps: {
   port: PatientInvitesPort;
-  startEmailChallenge?: StartEmailChallenge;
-  consumeEmailChallenge?: ConsumeEmailChallenge;
+  sendEmailCode?: typeof sendEmailAuthCode;
 }) {
-  const startChallenge = deps.startEmailChallenge ?? startEmailChallenge;
-  const consumeChallenge = deps.consumeEmailChallenge ?? consumeEmailChallengeCode;
+  const sendEmailCode = deps.sendEmailCode ?? sendEmailAuthCode;
 
   return {
     getPortalStatus(organizationId: string, patientUserId: string) {
@@ -58,13 +91,15 @@ export function createPatientInvitesService(deps: {
       invitedEmail: string | null;
       createdByPlatformUserId: string;
     }) {
+      const invitedEmailNormalized = input.invitedEmail ? normalizeEmail(input.invitedEmail) : '';
+      if (!invitedEmailNormalized) return lifecycleFailure('missing_recipient');
       const bearer = opaqueToken();
       const result = await deps.port.createReplacingPending({
         id: randomUUID(),
         organizationId: input.organizationId,
         patientUserId: input.patientUserId,
         tokenHash: hashPatientInviteBearer(bearer),
-        invitedEmailNormalized: input.invitedEmail ? normalizeEmail(input.invitedEmail) : null,
+        invitedEmailNormalized,
         expiresAt: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
         createdByPlatformUserId: input.createdByPlatformUserId,
       });
@@ -87,7 +122,7 @@ export function createPatientInvitesService(deps: {
     },
 
     async exchangeBearer(bearer: string) {
-      if (bearer.length < 32) return lifecycleFailure("invalid_token");
+      if (bearer.length < 32) return lifecycleFailure('invalid_token');
       const continuation = opaqueToken();
       const result = await deps.port.exchangeBearer({
         tokenHash: hashPatientInviteBearer(bearer),
@@ -97,49 +132,79 @@ export function createPatientInvitesService(deps: {
       if (!result.ok) return result;
       return {
         ok: true as const,
-        kind: "patient" as const,
+        kind: 'patient' as const,
         continuation,
         preview: result.preview,
       };
     },
 
     lookupContinuation(continuation: string) {
-      if (continuation.length < 32) return Promise.resolve(lifecycleFailure("invalid_continuation"));
+      if (continuation.length < 32)
+        return Promise.resolve(lifecycleFailure('invalid_continuation'));
       return deps.port.lookupContinuation(hashPatientInviteContinuation(continuation));
     },
 
     async startEmailProof(continuation: string, emailRaw: string) {
       const emailNormalized = normalizeEmail(emailRaw);
       if (!emailNormalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalized)) {
-        return { ok: false as const, code: "invalid_email" as const };
+        return { ok: false as const, code: 'invalid_email' as const };
       }
       const continuationHash = hashPatientInviteContinuation(continuation);
-      const prepared = await deps.port.prepareEmailProof({ continuationHash, emailNormalized });
-      if (!prepared.ok) return prepared;
-      const challenge = await startChallenge(prepared.patientUserId, emailNormalized);
-      if (!challenge.ok) return challenge;
-      const bound = await deps.port.bindEmailChallenge({
+      const code = generateEmailCode();
+      const codeHash = hashPatientInviteEmailCode(code);
+      const proofExpiresAt = new Date(Date.now() + PROOF_TTL_MS).toISOString();
+      const started = await deps.port.startEmailProof({
         continuationHash,
         emailNormalized,
-        challengeId: challenge.challengeId,
+        codeHash,
+        proofExpiresAt,
+        ...proofAuthorization({
+          action: 'start',
+          continuationHash,
+          emailNormalized,
+          codeHash,
+          proofExpiresEpoch: Math.floor(Date.parse(proofExpiresAt) / 1000),
+        }),
       });
-      if (!bound) return lifecycleFailure("invalid_continuation");
+      if (!started.ok) return started;
+      const sent = await sendEmailCode(emailNormalized, code);
+      if (!sent.ok) {
+        await deps.port.cancelEmailProof({ continuationHash, codeHash });
+        return { ok: false as const, code: 'email_send_failed' as const };
+      }
       return {
         ok: true as const,
-        retryAfterSeconds: challenge.retryAfterSeconds,
+        retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
       };
     },
 
-    async redeemEmailProof(continuation: string, code: string) {
+    verifyEmailProof(continuation: string, emailRaw: string, codeRaw: string) {
+      const emailNormalized = normalizeEmail(emailRaw);
+      const code = codeRaw.trim();
+      if (!emailNormalized || !code) {
+        return Promise.resolve({ ok: false as const, code: 'invalid_code' as const });
+      }
       const continuationHash = hashPatientInviteContinuation(continuation);
-      const proof = await deps.port.readEmailProof(continuationHash);
-      if (!proof) return lifecycleFailure("invalid_continuation");
-      const verified = await consumeChallenge(proof.patientUserId, proof.challengeId, code);
-      if (!verified.ok) return verified;
+      const codeHash = hashPatientInviteEmailCode(code);
+      return deps.port.verifyEmailProof({
+        continuationHash,
+        emailNormalized,
+        codeHash,
+        ...proofAuthorization({
+          action: 'verify',
+          continuationHash,
+          emailNormalized,
+          codeHash,
+          proofExpiresEpoch: null,
+        }),
+      });
+    },
+
+    redeemEmailProof(continuation: string, authenticatedPlatformUserId: string) {
+      const continuationHash = hashPatientInviteContinuation(continuation);
       return deps.port.redeemEmailProof({
         continuationHash,
-        challengeId: proof.challengeId,
-        emailNormalized: proof.emailNormalized,
+        authenticatedPlatformUserId,
       });
     },
   };

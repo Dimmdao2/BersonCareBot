@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
-import { z } from "zod";
-import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { readPatientInviteContinuationCookie } from "@/modules/patient-invites/continuationCookie";
-import { JoinPatientClient } from "./JoinPatientClient";
+import { notFound } from 'next/navigation';
+import { z } from 'zod';
+import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { readPatientInviteContinuationCookie } from '@/modules/patient-invites/continuationCookie';
+import { JoinPatientClient } from './JoinPatientClient';
 
 type PageProps = { params: Promise<{ continuation: string }> };
 
@@ -12,9 +12,14 @@ export default async function JoinContinuationPage({ params }: PageProps) {
   if (!z.string().min(32).max(256).safeParse(continuation).success) notFound();
   const cookieContinuation = await readPatientInviteContinuationCookie();
   if (cookieContinuation !== continuation) {
-    return <JoinPatientClient preview={null} />;
+    return <JoinPatientClient preview={null} failureCode="invalid_continuation" />;
   }
-  stampBootstrapPrincipal("join/[continuation]:page");
+  stampBootstrapPrincipal('join/[continuation]:page');
   const result = await buildAppDeps().patientInvites.lookupContinuation(continuation);
-  return <JoinPatientClient preview={result.ok ? result.preview : null} />;
+  return (
+    <JoinPatientClient
+      preview={result.ok ? result.preview : null}
+      failureCode={result.ok ? null : result.code}
+    />
+  );
 }
