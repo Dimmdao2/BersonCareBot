@@ -33,6 +33,28 @@ test("dotenv parser rejects duplicate, shell-like, foreign and PROD URLs", () =>
   }
 });
 
+test("exact DEV URL rejects every query or fragment connection override", () => {
+  const base = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
+  for (const suffix of [
+    "?host=/var/run/postgresql",
+    "?host=example.test",
+    "?port=5433",
+    "?user=postgres",
+    "?service=foreign",
+    "?servicefile=/tmp/foreign.conf",
+    "?sslmode=require",
+    "?dbname=bcb_webapp_prod",
+    "?",
+    "#fragment",
+    "#",
+  ]) {
+    assert.throws(
+      () => assertExactLocalDevDatabaseUrl(`${base}${suffix}`),
+      /database_url_query_or_fragment_forbidden/u,
+    );
+  }
+});
+
 test("CLI refuses a symlink even when its target contains a valid URL", () => {
   const dir = mkdtempSync(join(tmpdir(), "bcb-dev-env-parser-"));
   const real = join(dir, "real.env");

@@ -42,6 +42,7 @@ export function parseDatabaseUrlFromDotenv(text) {
 }
 
 export function assertExactLocalDevDatabaseUrl(value) {
+  if (value.includes("?") || value.includes("#")) fail("database_url_query_or_fragment_forbidden");
   let parsed;
   try {
     parsed = new URL(value);
@@ -66,6 +67,8 @@ function selfTest() {
     "DATABASE_URL=$(cat /opt/env/secret)\n",
     "DATABASE_URL=postgresql://dev:x@127.0.0.1:5432/bcb_webapp_prod\n",
     "DATABASE_URL=postgresql://dev:x@example.test:5432/bcb_webapp_dev\n",
+    "DATABASE_URL=postgresql://bcb_webapp_dev_user:x@127.0.0.1:5432/bcb_webapp_dev?host=example.test\n",
+    "DATABASE_URL=postgresql://bcb_webapp_dev_user:x@127.0.0.1:5432/bcb_webapp_dev#fragment\n",
     "not dotenv\n",
   ]) {
     let rejected = false;
