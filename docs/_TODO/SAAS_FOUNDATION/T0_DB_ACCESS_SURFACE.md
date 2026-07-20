@@ -51,7 +51,7 @@ Commands were run against non-test TypeScript files unless otherwise noted.
 | Webapp non-test files using DB helper APIs (explorer count) | 185 |
 | Webapp modules/app-layer/app files using DB helper APIs (explorer count) | 45 |
 | API route files total (explorer count) | 489 |
-| API route files with DB signals | 27 |
+| API route files with DB signals | 24 |
 | Server action files total (top-level `"use server"` files) | 28 |
 | Server action files with DB signals | 1 |
 | Files using `getPool(` | 74 |
@@ -84,9 +84,6 @@ These route files had `getPool`, `getDrizzle`, `runWebappPgText`, direct query, 
 - `apps/webapp/src/app/api/booking/public/create/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/[userId]/merge-candidates/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts`
-- `apps/webapp/src/app/api/doctor/clients/merge-preview/route.ts`
-- `apps/webapp/src/app/api/doctor/clients/merge-user-search/route.ts`
-- `apps/webapp/src/app/api/doctor/clients/merge/route.ts`
 - `apps/webapp/src/app/api/doctor/clients/name-match-hints/route.ts`
 - `apps/webapp/src/app/api/integrator/events/route.ts`
 - `apps/webapp/src/app/api/integrator/reminders/messenger-topic/disable/route.ts`
