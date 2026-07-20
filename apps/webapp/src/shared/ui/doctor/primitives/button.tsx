@@ -8,7 +8,9 @@ import {
 import { cn } from "@/lib/utils";
 
 type SharedButtonProps = ComponentProps<typeof SharedButton>;
-type SharedButtonVariantsProps = Parameters<typeof sharedButtonVariants>[0];
+type SharedButtonVariantsProps = NonNullable<Parameters<typeof sharedButtonVariants>[0]> & {
+  className?: string;
+};
 
 /** Doctor-only pill control. Explicit caller radii (`rounded-none`, icon circles) still win. */
 export function Button({ className, ...props }: SharedButtonProps) {
@@ -22,10 +24,12 @@ export function Button({ className, ...props }: SharedButtonProps) {
 
 /** Link/button class helper with the same doctor-only pill default. */
 export function buttonVariants(props?: SharedButtonVariantsProps): string {
-  return sharedButtonVariants({
-    ...props,
-    className: cn("rounded-[var(--doctor-control-radius,24px)]", props?.className),
-  });
+  const { className, ...variants } = props ?? {};
+  return cn(
+    sharedButtonVariants(variants),
+    "rounded-[var(--doctor-control-radius,24px)]",
+    className,
+  );
 }
 
 export type { ButtonVariants } from "@/shared/ui/primitives/button";
