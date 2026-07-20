@@ -154,6 +154,7 @@ runtime_overlay_admin_psql() {
   local sql_file
   local include_e1_role=0
   local -a psql_args=(-d "$TARGET_DB" -X -v ON_ERROR_STOP=1)
+  local -a streamer_args
 
   if [[
     "$#" -eq 7 &&
@@ -178,11 +179,19 @@ runtime_overlay_admin_psql() {
 
   if [[ "$include_e1_role" -eq 1 ]]; then
     psql_args+=(-v "e1_webapp_runtime_role=$TARGET_RUNTIME_ROLE")
+    streamer_args=(
+      "$sql_file"
+      "$REPO_ROOT/deploy/postgres"
+      --expand-relative-includes
+      "$REPO_ROOT"
+    )
+  else
+    streamer_args=("$sql_file" "$REPO_ROOT/deploy/postgres")
   fi
 
   # The repository owner atomically opens and validates the SQL file. The postgres OS user receives
   # only that opened file on stdin and never needs traversal permission for the checkout.
-  "$NODE_BIN" "$SQL_STREAMER" "$sql_file" "$REPO_ROOT/deploy/postgres" |
+  "$NODE_BIN" "$SQL_STREAMER" "${streamer_args[@]}" |
     run_dev_admin_psql "${psql_args[@]}"
 }
 

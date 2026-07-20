@@ -13,17 +13,35 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { openCanonicalSqlFile } from "./stream-canonical-sql.mjs";
+import {
+  expandCanonicalSqlFile,
+  openCanonicalSqlFile,
+} from "./stream-canonical-sql.mjs";
 
 const wrapperPath = fileURLToPath(new URL("./dev-runtime-overlay-rehydrate.sh", import.meta.url));
 const libraryPath = fileURLToPath(new URL("./runtime-overlay-rehydrate-lib.sh", import.meta.url));
 const refreshPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
 const sqlStreamerPath = fileURLToPath(new URL("./stream-canonical-sql.mjs", import.meta.url));
 const envParserPath = fileURLToPath(new URL("./parse-dev-database-url.mjs", import.meta.url));
-const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
+const repoRoot = dirname(fileURLToPath(new URL("../../package.json", import.meta.url)));
 const appOwnerHandoffPath = fileURLToPath(
   new URL("../postgres/runtime-overlay-app-owner-handoff.sql", import.meta.url),
 );
+const e1OverlayPath = fileURLToPath(
+  new URL("../postgres/e1-webapp-runtime-config.sql", import.meta.url),
+);
+const e1MigrationPaths = [
+  "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
+  "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
+  "apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql",
+  "apps/webapp/db/drizzle-migrations/0197_patient_plan_opened_capability.sql",
+  "apps/webapp/db/drizzle-migrations/0198_patient_visible_catalog_reads.sql",
+  "apps/webapp/db/drizzle-migrations/0199_current_patient_booking_rows.sql",
+  "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
+  "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
+  "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
+  "apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql",
+];
 
 const canonicalOrder = [
   "deploy/postgres/organization-member-invites-rls.sql",
@@ -473,16 +491,26 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
 
   const fakeRepo = mkdtempSync(join(tmpdir(), "bcb-dev-overlay-stdin-"));
   const canonicalDir = join(fakeRepo, "deploy/postgres");
+  const migrationDir = join(fakeRepo, "apps/webapp/db/drizzle-migrations");
   const canonicalFile = join(canonicalDir, "fixture.sql");
   const secondFile = join(canonicalDir, "second.sql");
+  const includedFile = join(migrationDir, "included.sql");
   const outsideFile = join(fakeRepo, "outside.sql");
   const symlinkFile = join(canonicalDir, "link.sql");
   const fifoFile = join(canonicalDir, "fifo.sql");
   const calls = join(fakeRepo, "calls.txt");
   const stdinCapture = join(fakeRepo, "stdin.sql");
   mkdirSync(canonicalDir, { recursive: true });
-  writeFileSync(canonicalFile, "SELECT 'canonical';\n");
-  writeFileSync(secondFile, "SELECT 'second';\n");
+  mkdirSync(migrationDir, { recursive: true });
+  writeFileSync(
+    canonicalFile,
+    "SELECT 'canonical';\n\\ir ../../apps/webapp/db/drizzle-migrations/included.sql\n",
+  );
+  writeFileSync(
+    secondFile,
+    "SELECT 'before-include';\n\\ir ../../apps/webapp/db/drizzle-migrations/included.sql\nSELECT 'after-include';\n",
+  );
+  writeFileSync(includedFile, "SELECT 'included';\n");
   writeFileSync(outsideFile, "SELECT 'outside';\n");
   symlinkSync(canonicalFile, symlinkFile);
   const fifoResult = spawnSync("mkfifo", [fifoFile], { encoding: "utf8" });
@@ -511,7 +539,10 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
   const accepted = runCallback(["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile]);
   assert.equal(accepted.status, 0, accepted.stderr);
   assert.equal(readFileSync(calls, "utf8"), "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1\n");
-  assert.equal(readFileSync(stdinCapture, "utf8"), "SELECT 'canonical';\n");
+  assert.equal(
+    readFileSync(stdinCapture, "utf8"),
+    "SELECT 'canonical';\n\\ir ../../apps/webapp/db/drizzle-migrations/included.sql\n",
+  );
 
   const acceptedE1 = runCallback([
     "-d",
@@ -529,7 +560,10 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     readFileSync(calls, "utf8"),
     "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v e1_webapp_runtime_role=bcb_dev_runtime_nonstaff_login\n",
   );
-  assert.equal(readFileSync(stdinCapture, "utf8"), "SELECT 'second';\n");
+  assert.equal(
+    readFileSync(stdinCapture, "utf8"),
+    "SELECT 'before-include';\nSELECT 'included';\nSELECT 'after-include';\n",
+  );
 
   const rejectedCases = [
     ["-d", "bcb_webapp_dev"],
@@ -578,6 +612,63 @@ test("canonical SQL reader anchors the opened descriptor and rejects symlinks an
   } finally {
     closeSync(descriptor);
   }
+});
+
+test("E1 canonical expansion pins all ten relative migrations in declared order", () => {
+  const expanded = expandCanonicalSqlFile(e1OverlayPath, dirname(e1OverlayPath), repoRoot);
+  let cursor = 0;
+  for (const relativePath of e1MigrationPaths) {
+    const migration = readFileSync(join(repoRoot, relativePath), "utf8");
+    const migrationIndex = expanded.indexOf(migration, cursor);
+    assert.ok(migrationIndex >= cursor, `missing or out-of-order E1 migration: ${relativePath}`);
+    cursor = migrationIndex + migration.length;
+  }
+  assert.doesNotMatch(expanded, /^[\t ]*\\ir\b/gmu);
+  assert.ok(expanded.indexOf("GRANT SELECT ON TABLE", cursor) >= cursor);
+});
+
+test("relative SQL expansion rejects absolute, escaping, malformed, unsafe, and cyclic includes", () => {
+  const fakeRepo = mkdtempSync(join(tmpdir(), "bcb-sql-includes-"));
+  const canonicalDir = join(fakeRepo, "deploy/postgres");
+  const includeDir = join(fakeRepo, "includes");
+  mkdirSync(canonicalDir, { recursive: true });
+  mkdirSync(includeDir, { recursive: true });
+
+  const realInclude = join(includeDir, "real.sql");
+  const symlinkInclude = join(includeDir, "link.sql");
+  const fifoInclude = join(includeDir, "pipe.sql");
+  const nonSqlInclude = join(includeDir, "not-sql.txt");
+  writeFileSync(realInclude, "SELECT 'real';\n");
+  writeFileSync(nonSqlInclude, "SELECT 'not-sql';\n");
+  symlinkSync(realInclude, symlinkInclude);
+  const fifoResult = spawnSync("mkfifo", [fifoInclude], { encoding: "utf8" });
+  assert.equal(fifoResult.status, 0, fifoResult.stderr);
+
+  const assertRejectedDirective = (name, directive, errorPattern) => {
+    const primary = join(canonicalDir, `${name}.sql`);
+    writeFileSync(primary, `${directive}\n`);
+    assert.throws(
+      () => expandCanonicalSqlFile(primary, canonicalDir, fakeRepo),
+      errorPattern,
+    );
+  };
+
+  assertRejectedDirective("absolute", "\\ir /tmp/absolute.sql", /malformed canonical SQL/u);
+  assertRejectedDirective("escape", "\\ir ../../../outside.sql", /include path rejected/u);
+  assertRejectedDirective(
+    "malformed",
+    "\\ir '../../includes/real.sql'",
+    /malformed canonical SQL/u,
+  );
+  assertRejectedDirective("non-sql", "\\ir ../../includes/not-sql.txt", /include path rejected/u);
+  assertRejectedDirective("symlink", "\\ir ../../includes/link.sql", /not a regular file/u);
+  assertRejectedDirective("fifo", "\\ir ../../includes/pipe.sql", /not a regular file/u);
+
+  const cycleA = join(includeDir, "cycle-a.sql");
+  const cycleB = join(includeDir, "cycle-b.sql");
+  writeFileSync(cycleA, "\\ir cycle-b.sql\n");
+  writeFileSync(cycleB, "\\ir cycle-a.sql\n");
+  assertRejectedDirective("cycle", "\\ir ../../includes/cycle-a.sql", /include cycle rejected/u);
 });
 
 test("TEST to DEV refresh runs rehydrate after migrations and before DEV unlock", () => {

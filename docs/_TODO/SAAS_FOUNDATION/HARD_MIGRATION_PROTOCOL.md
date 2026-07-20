@@ -597,8 +597,12 @@ exact safe attributes and no outgoing membership for `app_owner`/`app_staff`/`ap
 the canonical `pgcrypto` move to `app_ext`. It grants only `USAGE` on `app_ext` to `app_owner`, changes ownership only
 for the exact existing P2-B tables/functions (including the `app.is_staff()` prerequisite), and streams the existing
 `deploy/postgres/p2-b-protected-principal-context.sql` through the hardened canonical-file reader. That artifact owns
-the exact `app` schema handoff and protected-context creation. Postchecks prove `pgcrypto` is in `app_ext`, the exact
-P2-B schema/tables/functions belong to `app_owner`, the three protected tables have no ACL grantee other than owner,
+the exact `app` schema handoff and protected-context creation. Ordinary overlays remain byte-for-byte streams. Only
+the E1 callback opts into recursive `\ir` expansion: each include is resolved relative to its including file, opened
+as a descriptor-pinned canonical non-symlink `.sql` file inside the explicit repository root, and rejected on escape,
+malformed path, FIFO, symlink or cycle before sudo psql receives the expanded stdin. Postchecks prove `pgcrypto` is
+in `app_ext`, the exact P2-B schema/tables/functions belong to `app_owner`, the three protected tables have no ACL
+grantee other than owner,
 the eight protected functions have only exact owner/staff/patient ACL, and the stored secret matches the private
 stdin `COPY` value before the atomic transaction commits and later overlays run.
 
