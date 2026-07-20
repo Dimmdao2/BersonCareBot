@@ -467,13 +467,18 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
 
   let cellClass = "rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ";
 
-  if (isSelected) {
+  if (branchHex) {
+    // Location colour remains the base surface for every scheduled day,
+    // including weekday-template rows. Selection/today are additive rings so
+    // they do not erase the location signal.
+    cellClass += "bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ";
+    if (isSelected) cellClass += "ring-1 ring-primary/60 ";
+    else if (isToday) cellClass += "ring-1 ring-emerald-500/50 ";
+  } else if (isSelected) {
     cellClass += "bg-primary/15 border-primary/40 ring-1 ring-primary/40 ";
   } else if (isToday) {
     // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
     cellClass += "bg-emerald-500/10 border-emerald-500/30 ";
-  } else if (branchHex) {
-    cellClass += "bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ";
   } else if (effectiveHours?.source === "override") {
     // SCH-R-06: override = light blue tint
     cellClass += "bg-primary/10 border-primary/20 hover:bg-primary/15 ";

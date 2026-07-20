@@ -436,11 +436,16 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       const templateCell = screen.getByTestId("day-cell-2026-06-04");
       expect(templateCell).toHaveStyle("--branch-fg: #dc2626");
+      expect(templateCell.className).toContain("bg-[color:var(--branch-bg)]");
       expect(templateCell).not.toHaveTextContent("8–12");
       expect(templateCell).not.toHaveTextContent("Мск");
       expect(screen.getByTestId("weekday-template-summary-4")).toHaveTextContent("8–12 · Мск");
     });
     expect(screen.getByTestId("month-grid").textContent?.match(/8–12 · Мск/g)).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("day-cell-2026-06-04"));
+    expect(screen.getByTestId("day-cell-2026-06-04").className).toContain("bg-[color:var(--branch-bg)]");
+    expect(screen.getByTestId("day-cell-2026-06-04").className).toContain("ring-primary/60");
   });
 
   it("§3.15: «выходной»/isClosed label is gone — closed-shaped rows render without it", async () => {
