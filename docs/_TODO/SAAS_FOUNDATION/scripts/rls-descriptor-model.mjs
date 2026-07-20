@@ -56,6 +56,14 @@ export const preScopedDirectOrgTables = new Set([
   "public.clinic_public_directory_entries",
 ]);
 
+// Tables whose later foundation migration deliberately removes the historical
+// missing-context-open compatibility branch. Phase4 overlays must preserve that fail-closed
+// decision in both modes; otherwise the permissive policies would combine with OR semantics and
+// silently reopen the table after the later migration.
+const strictDormantOrgTables = new Set([
+  "public.clinic_public_directory_entries",
+]);
+
 function readLines(path) {
   return readFileSync(path, "utf8").trimEnd().split("\n").filter(Boolean);
 }
@@ -162,6 +170,7 @@ function scopedDescriptorForBeTable(table) {
     predicateTemplate: "org_column_matches_app_org",
     orgColumn: "organization_id",
     source: "be_direct_org",
+    ...(strictDormantOrgTables.has(table) ? { dormantMode: "strict" } : {}),
   };
 }
 

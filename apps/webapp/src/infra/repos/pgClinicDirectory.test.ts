@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { principalOrganizationIdMock, runMutationMock, runWebappPgTextMock } = vi.hoisted(() => ({
+const {
+  currentPrincipalMock,
+  principalOrganizationIdMock,
+  principalPlatformUserIdMock,
+  runMutationMock,
+  runWebappPgTextMock,
+} = vi.hoisted(() => ({
+  currentPrincipalMock: vi.fn(),
   principalOrganizationIdMock: vi.fn(),
+  principalPlatformUserIdMock: vi.fn(),
   runMutationMock: vi.fn(),
   runWebappPgTextMock: vi.fn(),
 }));
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipal: currentPrincipalMock,
   getCurrentDbPrincipalOrganizationId: principalOrganizationIdMock,
+  getCurrentDbPrincipalPlatformUserId: principalPlatformUserIdMock,
 }));
 vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: runMutationMock,
@@ -22,8 +32,11 @@ const ORG = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OTHER_ORG = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const ACTOR = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
-function selectForUpdateSequence(rows: unknown[][]) {
-  const forUpdate = vi.fn(async () => rows.shift() ?? []);
+function selectForUpdateSequence(rows: unknown[][], events: string[] = []) {
+  const forUpdate = vi.fn(async () => {
+    events.push('row-lock');
+    return rows.shift() ?? [];
+  });
   const chain = {
     from: vi.fn(),
     where: vi.fn(),
@@ -36,10 +49,30 @@ function selectForUpdateSequence(rows: unknown[][]) {
   return { select: vi.fn(() => chain), forUpdate };
 }
 
+function mutationTransactionWithLock<T extends object>(tx: T, events: string[] = []) {
+  const executor = {
+    ...tx,
+    execute: vi.fn(async () => {
+      events.push('organization-lock');
+      return undefined;
+    }),
+  };
+  runMutationMock.mockImplementation(
+    async (callback: (transaction: typeof executor) => Promise<unknown>) => callback(executor),
+  );
+  return executor;
+}
+
 describe('pgClinicDirectory public slug resolver', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    currentPrincipalMock.mockReturnValue({
+      kind: 'staff',
+      organizationId: ORG,
+      platformUserId: ACTOR,
+    });
     principalOrganizationIdMock.mockReturnValue(ORG);
+    principalPlatformUserIdMock.mockReturnValue(ACTOR);
   });
 
   it('calls only the narrow bootstrap function with the given slug', async () => {
@@ -103,29 +136,37 @@ describe('pgClinicDirectory public slug resolver', () => {
       port.renameSlug({
         organizationId: ORG,
         reservedSlug: 'new-clinic',
-        actorPlatformUserId: ACTOR,
       }),
     ).rejects.toThrow('organization_principal_mismatch');
     expect(runMutationMock).not.toHaveBeenCalled();
   });
 
+  it('fails closed before a mutation transaction without a trusted staff actor', async () => {
+    currentPrincipalMock.mockReturnValue({ kind: 'organization', organizationId: ORG });
+    principalPlatformUserIdMock.mockReturnValue(undefined);
+    const port = createPgClinicDirectoryPort();
+
+    await expect(
+      port.reserveSlug({ slug: 'clinic-a', organizationId: ORG }),
+    ).rejects.toThrow('staff_principal_required');
+    expect(runMutationMock).not.toHaveBeenCalled();
+  });
+
   it('reserves one exact-org slug through a transaction', async () => {
-    const { select } = selectForUpdateSequence([[], []]);
+    const events: string[] = [];
+    const { select } = selectForUpdateSequence([[], []], events);
     const insertValues = vi.fn(async () => undefined);
     const tx = {
       select,
       insert: vi.fn(() => ({ values: insertValues })),
     };
-    runMutationMock.mockImplementation(
-      async (callback: (executor: typeof tx) => Promise<unknown>) => callback(tx),
-    );
+    const transaction = mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
 
     await expect(
       port.reserveSlug({
         slug: 'clinic-a',
         organizationId: ORG,
-        actorPlatformUserId: ACTOR,
       }),
     ).resolves.toEqual({ ok: true, slug: 'clinic-a' });
     expect(insertValues).toHaveBeenCalledWith(
@@ -133,8 +174,11 @@ describe('pgClinicDirectory public slug resolver', () => {
         slug: 'clinic-a',
         kind: 'reservation',
         organizationId: ORG,
+        createdByPlatformUserId: ACTOR,
       }),
     );
+    expect(transaction.execute).toHaveBeenCalledOnce();
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
 
   it('claims an exact-org reservation as the single current slug', async () => {
@@ -144,25 +188,28 @@ describe('pgClinicDirectory public slug resolver', () => {
       kind: 'reservation',
       organizationId: ORG,
     };
-    const { select } = selectForUpdateSequence([[reservation], []]);
+    const events: string[] = [];
+    const { select } = selectForUpdateSequence([[reservation], []], events);
     const updateWhere = vi.fn(async () => undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
     const tx = { select, update: vi.fn(() => ({ set: updateSet })) };
-    runMutationMock.mockImplementation(
-      async (callback: (executor: typeof tx) => Promise<unknown>) => callback(tx),
-    );
+    mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
 
     await expect(
       port.claimReservedSlug({
         slug: 'clinic-a',
         organizationId: ORG,
-        actorPlatformUserId: ACTOR,
       }),
     ).resolves.toEqual({ ok: true, slug: 'clinic-a' });
     expect(updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'current', organizationId: ORG }),
+      expect.objectContaining({
+        kind: 'current',
+        organizationId: ORG,
+        createdByPlatformUserId: ACTOR,
+      }),
     );
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
 
   it('renames atomically, retains the old slug as an alias and appends audit', async () => {
@@ -178,9 +225,15 @@ describe('pgClinicDirectory public slug resolver', () => {
       kind: 'reservation',
       organizationId: ORG,
     };
-    const { select } = selectForUpdateSequence([[current], [reservation]]);
+    const events: string[] = [];
+    const { select } = selectForUpdateSequence([[current], [reservation]], events);
     const deleteWhere = vi.fn(async () => undefined);
-    const updateWhere = vi.fn(async () => undefined);
+    const updateWhere = vi
+      .fn()
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // A draft directory projection is optional. Rename still succeeds when no row is present;
+      // the DB guard validates it later if/when the projection is inserted.
+      .mockResolvedValueOnce({ rowCount: 0 });
     const updateSet = vi.fn(() => ({ where: updateWhere }));
     const insertValues = vi.fn(async () => undefined);
     const tx = {
@@ -189,23 +242,26 @@ describe('pgClinicDirectory public slug resolver', () => {
       update: vi.fn(() => ({ set: updateSet })),
       insert: vi.fn(() => ({ values: insertValues })),
     };
-    runMutationMock.mockImplementation(
-      async (callback: (executor: typeof tx) => Promise<unknown>) => callback(tx),
-    );
+    mutationTransactionWithLock(tx, events);
     const port = createPgClinicDirectoryPort();
 
     await expect(
       port.renameSlug({
         organizationId: ORG,
         reservedSlug: 'new-clinic',
-        actorPlatformUserId: ACTOR,
       }),
     ).resolves.toEqual({ ok: true, slug: 'new-clinic' });
     expect(updateSet).toHaveBeenCalledTimes(2);
+    expect(updateWhere).toHaveBeenCalledTimes(2);
     expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ slug: 'new-clinic' }));
     expect(insertValues).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ slug: 'old-clinic', kind: 'alias', organizationId: ORG }),
+      expect.objectContaining({
+        slug: 'old-clinic',
+        kind: 'alias',
+        organizationId: ORG,
+        createdByPlatformUserId: ACTOR,
+      }),
     );
     expect(insertValues).toHaveBeenNthCalledWith(
       2,
@@ -213,7 +269,9 @@ describe('pgClinicDirectory public slug resolver', () => {
         previousSlug: 'old-clinic',
         nextSlug: 'new-clinic',
         organizationId: ORG,
+        actorPlatformUserId: ACTOR,
       }),
     );
+    expect(events).toEqual(['organization-lock', 'row-lock', 'row-lock']);
   });
 });

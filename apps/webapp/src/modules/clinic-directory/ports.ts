@@ -18,6 +18,9 @@ export type ClinicDirectoryPort = {
   /** Internal foundation resolver. Public callers must still require a published projection. */
   resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
 
+  // Mutation repositories derive audit attribution from the trusted staff DB principal. The later
+  // route/application layer must additionally enforce the organization-owner role; callers cannot
+  // supply or override the audit actor through these inputs.
   reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
   renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
@@ -33,19 +36,16 @@ export type OrganizationSlugResolution = {
 export type ReserveOrganizationSlugInput = {
   slug: string;
   organizationId: string;
-  actorPlatformUserId: string;
 };
 
 export type ClaimOrganizationSlugInput = {
   slug: string;
   organizationId: string;
-  actorPlatformUserId: string;
 };
 
 export type RenameOrganizationSlugInput = {
   organizationId: string;
   reservedSlug: string;
-  actorPlatformUserId: string;
 };
 
 export type OrganizationSlugMutationResult =

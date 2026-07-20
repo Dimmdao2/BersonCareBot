@@ -45,19 +45,16 @@ describe('clinicDirectoryService', () => {
     const port = buildPort(null);
     const service = createClinicDirectoryService(port);
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    const actorPlatformUserId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
     await expect(
       service.reserveSlug({
         slug: '  My__Clinic  ',
         organizationId,
-        actorPlatformUserId,
       }),
     ).resolves.toEqual({ ok: true, slug: 'my-clinic' });
     await expect(
       service.claimReservedSlug({
         slug: 'MY clinic',
-        actorPlatformUserId,
         organizationId,
       }),
     ).resolves.toEqual({ ok: true, slug: 'my-clinic' });
@@ -65,7 +62,6 @@ describe('clinicDirectoryService', () => {
       service.renameSlug({
         organizationId,
         reservedSlug: 'MY clinic',
-        actorPlatformUserId,
       }),
     ).resolves.toEqual({ ok: true, slug: 'my-clinic' });
 
@@ -82,20 +78,17 @@ describe('clinicDirectoryService', () => {
     const port = buildPort(null);
     const service = createClinicDirectoryService(port);
     const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    const actorPlatformUserId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
     await expect(
       service.reserveSlug({
         slug: 'app',
         organizationId,
-        actorPlatformUserId,
       }),
     ).resolves.toEqual({ ok: false, code: 'reserved_slug' });
     await expect(
       service.reserveSlug({
         slug: 'клиника',
         organizationId,
-        actorPlatformUserId,
       }),
     ).resolves.toEqual({ ok: false, code: 'invalid_slug' });
     expect(port.reserveSlug).not.toHaveBeenCalled();

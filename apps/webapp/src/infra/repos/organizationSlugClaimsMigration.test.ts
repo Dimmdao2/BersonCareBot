@@ -75,6 +75,20 @@ describe('0218 organization slug foundation', () => {
     expect(schema).not.toContain('target_slug: text("target_slug")');
   });
 
+  it('allows an absent directory projection but prevents any existing row from diverging from current', () => {
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION app.guard_clinic_directory_current_slug()');
+    expect(migration).toContain('BEFORE INSERT OR UPDATE OF organization_id, slug');
+    expect(migration).toContain(
+      'clinic directory slug must match the organization current claim',
+    );
+    expect(migration).toContain('current_claim.kind = \'current\'');
+    expect(migration).toContain('current_claim.slug = NEW.slug');
+    expect(migration).not.toMatch(/BEFORE DELETE[\s\S]*clinic_public_directory_current_slug_guard/);
+    expect(migration).toContain(
+      'U6B.0218 found directory slug without an identical current claim',
+    );
+  });
+
   it('uses fail-closed exact-org RLS and removes the legacy missing-context-open directory policy', () => {
     expect(migration).toContain('organization_id = app.current_org_id()');
     expect(migration).toContain('FOR ALL TO app_staff');

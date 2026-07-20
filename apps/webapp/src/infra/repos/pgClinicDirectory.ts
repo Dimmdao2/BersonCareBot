@@ -1,5 +1,10 @@
-import { and, eq } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { and, eq, sql } from 'drizzle-orm';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+  getCurrentDbPrincipalPlatformUserId,
+} from '@bersoncare/db-principal';
+import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { runWebappPgText } from '@/infra/db/runWebappSql';
 import type { ClinicDirectoryPort } from '@/modules/clinic-directory/ports';
@@ -9,11 +14,27 @@ import {
   organizationSlugRenameEvents,
 } from '../../../db/schema';
 
-function exactOrganizationPrincipal(organizationId: string): void {
+function exactStaffOrganizationPrincipal(organizationId: string): string {
+  const principal = getCurrentDbPrincipal();
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
-  if (!principalOrganizationId) throw new Error('organization_principal_required');
+  const actorPlatformUserId = getCurrentDbPrincipalPlatformUserId();
+  if (principal?.kind !== 'staff' || !principalOrganizationId || !actorPlatformUserId) {
+    throw new Error('staff_principal_required');
+  }
   if (principalOrganizationId !== organizationId)
     throw new Error('organization_principal_mismatch');
+  return actorPlatformUserId;
+}
+
+async function lockOrganizationSlugClaims(
+  tx: Pick<DrizzleDb, 'execute'>,
+  organizationId: string,
+): Promise<void> {
+  // One deterministic organization-scoped lock is acquired before every claim row lock. This
+  // keeps reserve/claim/rename from deadlocking through opposite reservation/current lock order.
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('organization_slug_claims:' || ${organizationId}::text, 0))`,
+  );
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -56,9 +77,10 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
     },
 
     async reserveSlug(input) {
-      exactOrganizationPrincipal(input.organizationId);
+      const actorPlatformUserId = exactStaffOrganizationPrincipal(input.organizationId);
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
+          await lockOrganizationSlugClaims(tx, input.organizationId);
           const now = new Date().toISOString();
           const targetCondition = eq(organizationSlugClaims.organizationId, input.organizationId);
           const [collision] = await tx
@@ -82,7 +104,7 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             slug: input.slug,
             kind: 'reservation',
             organizationId: input.organizationId,
-            createdByPlatformUserId: input.actorPlatformUserId,
+            createdByPlatformUserId: actorPlatformUserId,
             updatedAt: now,
           };
           if (existingReservation) {
@@ -102,9 +124,10 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
     },
 
     async claimReservedSlug(input) {
-      exactOrganizationPrincipal(input.organizationId);
+      const actorPlatformUserId = exactStaffOrganizationPrincipal(input.organizationId);
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
+          await lockOrganizationSlugClaims(tx, input.organizationId);
           const [reservation] = await tx
             .select()
             .from(organizationSlugClaims)
@@ -136,7 +159,7 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             .set({
               kind: 'current',
               organizationId: input.organizationId,
-              createdByPlatformUserId: input.actorPlatformUserId,
+              createdByPlatformUserId: actorPlatformUserId,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(organizationSlugClaims.id, reservation.id));
@@ -149,9 +172,10 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
     },
 
     async renameSlug(input) {
-      exactOrganizationPrincipal(input.organizationId);
+      const actorPlatformUserId = exactStaffOrganizationPrincipal(input.organizationId);
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
+          await lockOrganizationSlugClaims(tx, input.organizationId);
           const [current] = await tx
             .select()
             .from(organizationSlugClaims)
@@ -194,12 +218,12 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
             slug: current.slug,
             kind: 'alias',
             organizationId: input.organizationId,
-            createdByPlatformUserId: input.actorPlatformUserId,
+            createdByPlatformUserId: actorPlatformUserId,
             updatedAt: now,
           });
           await tx.insert(organizationSlugRenameEvents).values({
             organizationId: input.organizationId,
-            actorPlatformUserId: input.actorPlatformUserId,
+            actorPlatformUserId,
             previousSlug: current.slug,
             nextSlug: input.reservedSlug,
           });

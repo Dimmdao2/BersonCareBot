@@ -119,6 +119,7 @@ export function renderPhase4DormantCompatPredicate(descriptor) {
   const strictPredicate = renderPhase4StrictPredicate(descriptor);
 
   if (
+    descriptor.dormantMode === "strict" ||
     descriptor.scopingKind === "bootstrap_hybrid" ||
     descriptor.scopingKind === "bootstrap_runtime_audience" ||
     descriptor.scopingKind === "bootstrap_runtime_audit"

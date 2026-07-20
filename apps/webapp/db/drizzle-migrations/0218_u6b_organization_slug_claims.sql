@@ -99,6 +99,34 @@ INSERT INTO public.organization_slug_claims (slug, kind, organization_id)
 SELECT directory.slug, 'current', directory.organization_id
 FROM public.clinic_public_directory_entries AS directory;
 
+-- The directory is an optional publication/draft projection, not the source of slug truth. It may
+-- be absent, but every row that does exist must point at the organization's current claim. This
+-- immediate trigger prevents a direct INSERT/UPDATE from diverging before a transaction commits.
+CREATE OR REPLACE FUNCTION app.guard_clinic_directory_current_slug()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $function$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.organization_slug_claims AS current_claim
+    WHERE current_claim.organization_id = NEW.organization_id
+      AND current_claim.kind = 'current'
+      AND current_claim.slug = NEW.slug
+  ) THEN
+    RAISE EXCEPTION 'clinic directory slug must match the organization current claim';
+  END IF;
+  RETURN NEW;
+END
+$function$;
+
+REVOKE ALL ON FUNCTION app.guard_clinic_directory_current_slug() FROM PUBLIC;
+CREATE TRIGGER clinic_public_directory_current_slug_guard
+  BEFORE INSERT OR UPDATE OF organization_id, slug
+  ON public.clinic_public_directory_entries
+  FOR EACH ROW EXECUTE FUNCTION app.guard_clinic_directory_current_slug();
+
 CREATE OR REPLACE FUNCTION app.guard_organization_slug_claim_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -232,6 +260,17 @@ BEGIN
   IF v_directory_count <> v_current_count THEN
     RAISE EXCEPTION 'U6B.0218 backfill mismatch: directory %, current claims %',
       v_directory_count, v_current_count;
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.clinic_public_directory_entries AS directory
+    LEFT JOIN public.organization_slug_claims AS current_claim
+      ON current_claim.organization_id = directory.organization_id
+      AND current_claim.kind = 'current'
+      AND current_claim.slug = directory.slug
+    WHERE current_claim.id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'U6B.0218 found directory slug without an identical current claim';
   END IF;
   IF EXISTS (
     SELECT 1
