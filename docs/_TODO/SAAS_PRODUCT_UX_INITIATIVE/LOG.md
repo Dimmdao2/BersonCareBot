@@ -5,7 +5,7 @@
 Владелец зафиксировал единый presentation-token delta для doctor workspace: фон промежутков `#faf9f4`, белая
 page header, радиусы page block/KPI/control `12/8/24px`, белый фон input, единый порядок KPI label сверху/value
 снизу, padding основных блоков `18px` и более крупный/лёгкий основной текст строк списков. Строки списков разделяет
-серая линия `1px`, horizontal padding равен `24px`. На «Клиентах» поиск переносится из отдельной полосы под
+серая линия `1px`, horizontal padding равен `18px` для выравнивания с header. На «Клиентах» поиск переносится из отдельной полосы под
 шапкой в правую половину самой шапки на одну линию с title. Решение записано в owner-review §16a, roadmap §7.3 и
 детальный UI plan как `UI-P`; taskdb `#925` создан без дублирования. Реализация должна идти через существующие
 doctor shared primitives вместе с обновлением style guide/rule, не затрагивая patient/public UI и data semantics.
