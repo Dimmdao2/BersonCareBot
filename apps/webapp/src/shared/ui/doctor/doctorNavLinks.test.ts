@@ -250,7 +250,7 @@ describe("doctor menu structure", () => {
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=setup");
     expect(hrefs).not.toContain("/app/doctor/appointments");
     expect(hrefs).toContain("/app/account");
-    expect(hrefs).toContain("/app/settings?tab=organization");
+    expect(hrefs).toContain("/app/settings");
   });
 
   it("exposes localStorage keys for accordion persistence", () => {
@@ -324,7 +324,7 @@ describe("getDoctorShellHomeHref", () => {
   it("keeps each launch persona in its own canonical shell", () => {
     expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/doctor/system-health");
     expect(getDoctorShellHomeHref(doctorAccess)).toBe("/app/doctor");
-    expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/settings?tab=organization");
+    expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/settings");
     expect(getDoctorShellHomeHref({ capabilities: ["account.self"] })).toBe("/app/account");
     expect(getDoctorShellHomeHref({ capabilities: [] })).toBe("/app");
   });
@@ -332,8 +332,6 @@ describe("getDoctorShellHomeHref", () => {
   it("keeps an owner with a specialist binding clinical by default but exposes management nav", () => {
     const access = { capabilities: ["organization.management", "clinical.workspace", "account.self"] as const };
     expect(getDoctorShellHomeHref(access)).toBe("/app/doctor");
-    expect(getDoctorMenuItems(access).find((item) => item.id === "settings")?.href).toBe(
-      "/app/settings?tab=organization",
-    );
+    expect(getDoctorMenuItems(access).find((item) => item.id === "settings")?.href).toBe("/app/settings");
   });
 });

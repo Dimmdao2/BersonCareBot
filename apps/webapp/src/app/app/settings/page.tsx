@@ -20,8 +20,9 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
     : fallback;
 }
 
-function parseTab(raw: string | string[] | undefined): LegacySettingsTab {
+function parseTab(raw: string | string[] | undefined): LegacySettingsTab | null {
   const value = typeof raw === "string" ? raw : raw?.[0];
+  if (value === undefined) return null;
   return value === "organization" || value === "team" || value === "billing" || value === "install"
     ? value
     : "specialist";
@@ -49,7 +50,7 @@ export default async function SettingsPage({
   const canManageOrganization = workspace.canManageOrganization || isGlobalAdmin;
   if (!canManageOrganization) redirect(routePaths.account);
 
-  if (tab === "organization") {
+  if (tab === null || tab === "organization") {
     const doctorSettings = await buildAppDeps().systemSettings.listSettingsByScope("doctor", {
       organizationId: workspace.organizationId,
     });
