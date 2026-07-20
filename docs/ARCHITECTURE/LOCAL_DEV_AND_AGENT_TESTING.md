@@ -66,6 +66,83 @@ runtime-проверок public settings и patient booking capability. Глоб
 опасные атрибуты роли или membership в owner/`app_owner` останавливают refresh до разрушения текущей DEV-БД.
 Provisioning/credential для C0 runtime-login выполняются отдельным C0/C2 ops-проходом, не этим repair wrapper.
 
+### Одноразовая подготовка C0 runtime-login в DEV
+
+Это отдельная DB-admin операция для уже существующей `bcb_webapp_dev`, а не часть deploy, миграции, refresh или
+rehydrate. Роли PostgreSQL глобальны для локального кластера и переживают замену DEV-БД из dump, поэтому обычные
+скрипты **никогда** не должны повторно создавать роли, менять их пароль или переписывать `.env.dev`.
+
+1. Из канонического checkout создать/нормализовать только две namespaced DEV-роли. SQL password-free, принимает
+   только точную БД `bcb_webapp_dev` и точного оператора `postgres`-superuser, проверяет канонические
+   `app_staff`/`app_patient` и оставляет каждому login ровно одно SET-only membership:
+
+   ```bash
+   cd /home/dev/dev-projects/BersonCareBot
+   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d bcb_webapp_dev \
+     < deploy/postgres/dev-c0-runtime-logins.sql
+   ```
+
+2. В интерактивном `psql` установить два разных высокоэнтропийных URL-safe пароля из password manager. Команда
+   `\password` не показывает ввод, не кладёт пароль в shell history/argv и передаёт PostgreSQL уже зашифрованный
+   verifier. Не заменять её `ALTER ROLE ... PASSWORD` через `-c`, pipe, heredoc или переменную shell.
+
+   ```bash
+   sudo -u postgres psql -X -v ON_ERROR_STOP=1 -d bcb_webapp_dev
+   ```
+
+   Затем выполнить внутри `psql` (каждая команда запросит пароль дважды) и выйти:
+
+   ```text
+   \password bcb_dev_runtime_staff_login
+   \password bcb_dev_runtime_nonstaff_login
+   \q
+   ```
+
+3. До изменения env проверить оба пароля отдельными loopback-подключениями. `-W` принимает пароль без echo;
+   `PGPASSFILE=/dev/null` не позволяет незаметно взять другой пароль из локального файла. Обе команды должны
+   вывести только `1`:
+
+   ```bash
+   PGPASSFILE=/dev/null PGCONNECT_TIMEOUT=10 psql -X -W -h 127.0.0.1 -p 5432 \
+     -U bcb_dev_runtime_staff_login -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc \
+     "SELECT (current_user = 'bcb_dev_runtime_staff_login' AND current_database() = 'bcb_webapp_dev')::int;"
+   PGPASSFILE=/dev/null PGCONNECT_TIMEOUT=10 psql -X -W -h 127.0.0.1 -p 5432 \
+     -U bcb_dev_runtime_nonstaff_login -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc \
+     "SELECT (current_user = 'bcb_dev_runtime_nonstaff_login' AND current_database() = 'bcb_webapp_dev')::int;"
+   ```
+
+4. Вручную открыть игнорируемый `apps/webapp/.env.dev` в редакторе, не печатая его содержимое, и сохранить точные
+   локальные URL. Пароли должны быть URL-safe; реальные значения не копировать в чат, taskdb, планы или логи:
+
+   ```dotenv
+   DATABASE_URL_STAFF=postgresql://bcb_dev_runtime_staff_login:<staff-password>@127.0.0.1:5432/bcb_webapp_dev
+   DATABASE_URL_NONSTAFF=postgresql://bcb_dev_runtime_nonstaff_login:<nonstaff-password>@127.0.0.1:5432/bcb_webapp_dev
+   ```
+
+   После сохранения проверить только тип и права файла, без `cat`/`grep`/`source`:
+
+   ```bash
+   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
+   chmod 0600 apps/webapp/.env.dev
+   test "$(stat -c '%a' apps/webapp/.env.dev)" = 600
+   ```
+
+5. Прогнать статический C2-контракт, затем read-only DEV preflight и только после PASS — существующий #920 closure.
+   Полный C2 env-preflight выполняется отдельно, когда подготовлены все три process env; не подставлять фиктивные
+   operational URL ради зелёного результата.
+
+   ```bash
+   pnpm run check:saas-c2-secrets-deployment-plumbing
+   bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight
+   bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
+   ```
+
+До записи URL безопасное восстановление — повторно запустить password-free SQL или исправить пароль через
+интерактивный `\password`. После записи URL сначала вернуть корректный пароль/URL и снова пройти preflight; не
+удалять существующие роли и не выполнять `DROP ROLE`. Если роли уже существовали с неожиданными ownership или
+транзитивными привилегиями, #920 preflight обязан остановить продолжение — это отдельное расследование, не повод
+расширять этот одноразовый bootstrap.
+
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 
 ---
