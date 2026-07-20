@@ -1,5 +1,20 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — UI-0 live DEV closure after strict-policy rehydrate (`#923`)
+
+UI-0 закрыт на существующем DEV-сервере без второго Next instance и без dump/restore/reset. После кода атомарного
+создания пациента старая DEV-политика `user_phone_history` всё ещё использовала raw-GUC и отклоняла запись в locked
+principal mode. DEV-only rehydrate wrapper теперь в каноническом порядке применяет P2-B, P0.5b, strict helper-based
+phase4 policies с `phase4_enforce_locked_context=1`, затем specialized overlays и D3.4. Он не запускает FORCE RLS,
+не касается TEST/PROD и не является частью обычного code-only deploy. Критический аудит сначала нашёл один stale
+passage в hard-migration protocol; passage и checker были исправлены одним bounded correction, финальный re-audit PASS.
+
+После audited non-destructive DEV apply новая синтетическая запись из календаря сохранилась HTTP 200, появилась в
+недельном календаре, получила exact organization-owned patient projection и каноническую ссылку карточки пациента;
+карточка открывается с той же clinic-admin ролью. Живая evidence сохранена в ignored
+`.claude/screenshots/UI0-LIVE-DEV/2026-07-20T18-52-final/`. В том же кадре подтверждена owner-коррекция меню:
+**«Настройки»** и **«Аккаунт»**, без видимого «Управление практикой».
+
 ## 2026-07-20 — owner correction: «Настройки» и «Аккаунт», без product label «Практика» (`U2`, `#918`)
 
 Владелец прямо исправил ложную атрибуцию: пара «Практика» / «Настройки практики» никогда им не утверждалась.

@@ -736,13 +736,15 @@ URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as p
 
 ### U2 — organization management and shared account shell
 
-**Implementation status (completed 2026-07-20, taskdb #918):** one guarded `/app/manage` overview now serves
-organization-management actors, while one shared `/app/account` owns personal profile, notification and install
-screens through the existing writers/components. Management-only owners never enter the clinical shell; bound owners
-have explicit management↔clinical transitions; specialists have clinical+account access without management; explicit
-platform mode remains in the platform shell. Organization/reminder settings, entitled Team and the owner billing
-placeholder remain single guarded compatibility destinations linked from management; booking setup was not moved or
-copied. Legacy settings/install/clinic entries are loop-free and `/app/ops` remains absent. One independent audit found
+**Implementation status (completed 2026-07-20, taskdb #918; owner wording corrected 2026-07-20):** one guarded
+`/app/settings` surface owns cabinet/organization settings, while one shared `/app/account` owns personal profile,
+notification and install screens through the existing writers/components. The previously implemented `/app/manage`
+overview is superseded and remains only as a compatibility redirect to `/app/settings?tab=organization`.
+Management-only owners never enter the clinical shell; bound owners navigate between **«Настройки»** and the clinical
+workspace; specialists have clinical+account access without organization settings; explicit platform mode remains in
+the platform shell. Organization/reminder settings, entitled Team and the owner billing placeholder remain single
+guarded destinations inside Settings; booking setup was not moved or copied. Legacy settings/install/clinic entries
+are loop-free and `/app/ops` remains absent. One independent audit found
 only orphaned Team/billing links; that exact delta was corrected without another audit loop. The accumulated P1 gate is
 green: focused role/route suites, full webapp/media tests, builds, audit and desktop/mobile DEV role evidence. Global
 platform configuration/catalog writes remain fail-closed until U9 supplies the sanctioned platform API/DB-principal
