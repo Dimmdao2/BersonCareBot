@@ -41,6 +41,10 @@ import {
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import {
+  normalizePatientOrganizationPreference,
+  PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
+} from "@/modules/patient-organization/preference";
 import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
 import { isDevAuthBypassEnabled } from "./devBypassPolicy";
 import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
@@ -95,7 +99,10 @@ function ensureAdminMode(session: AppSession): AppSession {
   return session.user.role === "admin" ? { ...session, adminMode: true } : session;
 }
 
-async function finalizeCurrentSession(session: AppSession): Promise<AppSession> {
+async function finalizeCurrentSession(
+  session: AppSession,
+  patientOrganizationHint?: string | null,
+): Promise<AppSession> {
   const normalized = ensureAdminMode(session);
   try {
     // Central chokepoint (see also ensureDbPrincipalContext() at the top of getCurrentSession()
@@ -104,7 +111,7 @@ async function finalizeCurrentSession(session: AppSession): Promise<AppSession> 
     // direct static call avoids one more layer of indirection around the AsyncLocalStorage
     // continuation. Do not add per-route re-stamps instead — this is the one place all
     // getCurrentSession() callers share.
-    await stampDbPrincipalFromSession(normalized, "getCurrentSession");
+    await stampDbPrincipalFromSession(normalized, "getCurrentSession", patientOrganizationHint);
   } catch {
     /* Session auth behavior stays legacy-compatible; locked DB ports fail closed if no principal was resolved. */
   }
@@ -827,6 +834,9 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // or not it goes through a guard.
   ensureDbPrincipalContext({ source: "getCurrentSession:pending" });
   const cookieStore = await cookies();
+  const patientOrganizationHint = normalizePatientOrganizationPreference(
+    cookieStore.get(PATIENT_ORGANIZATION_PREFERENCE_COOKIE)?.value,
+  );
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const decoded = raw ? decodeSessionCookie(raw) : null;
   if (!decoded?.user) {
@@ -871,12 +881,12 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const phone = session.user.phone?.trim();
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
-  if (!phone && !telegramId && !maxId) return finalizeCurrentSession(session);
+  if (!phone && !telegramId && !maxId) return finalizeCurrentSession(session, patientOrganizationHint);
 
-  if (isDevBypassSession) return finalizeCurrentSession(session);
+  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint);
 
   const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
-  if (session.user.role === envRole) return finalizeCurrentSession(session);
+  if (session.user.role === envRole) return finalizeCurrentSession(session, patientOrganizationHint);
 
   const nextUser = { ...session.user, role: envRole };
   const nextSession: AppSession = {
@@ -899,7 +909,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // Cookie update skipped intentionally: mutating cookies in Server Component render
   // is forbidden by Next.js. The role is correct in the returned session object;
   // the cookie will be rewritten on the next Server Action or login.
-  return finalizeCurrentSession(nextSession);
+  return finalizeCurrentSession(nextSession, patientOrganizationHint);
 }
 
 export async function clearSession(): Promise<void> {

@@ -1,7 +1,8 @@
 /**
  * Прохождение программы лечения (`/app/patient/treatment/[instanceId]`).
  */
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { DateTime } from "luxon";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
@@ -45,6 +46,14 @@ export default async function PatientTreatmentProgramDetailPage({ params, search
   const sp = await searchParams;
   const initialPlanTab = parsePatientPlanTab(sp.tab);
   const deps = buildAppDeps();
+  const targetContext = await deps.patientOrganization?.resolveTreatmentProgramOrganizationForPatient(
+    session.user.userId,
+    instanceId,
+  );
+  if (!targetContext?.ok) notFound();
+  if (getCurrentDbPrincipalOrganizationId() !== targetContext.organizationId) {
+    redirect(`/api/patient/organization-context/open?kind=treatment_program&instanceId=${encodeURIComponent(instanceId)}`);
+  }
   let detail: TreatmentProgramInstanceDetail;
   try {
     const rawDetail = await deps.treatmentProgramInstance.getInstanceForPatient(

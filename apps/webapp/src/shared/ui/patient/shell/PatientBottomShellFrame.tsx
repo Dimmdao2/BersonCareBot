@@ -12,6 +12,7 @@ import { PatientBottomNav } from "@/shared/ui/patient/shell/PatientBottomNav";
 import { PatientShellTopChrome } from "@/shared/ui/patient/shell/PatientShellTopChrome";
 import { PatientShellPageTitleStrip } from "@/shared/ui/patient/shell/PatientShellPageTitleStrip";
 import { PatientShellPageTitleWithHistoryBack } from "@/shared/ui/patient/PatientShellPageTitleWithHistoryBack";
+import { PatientOrganizationContextBar } from "@/shared/ui/patient/organization/PatientOrganizationContext";
 
 export type PatientBottomShellFrameProps = {
   title: string;
@@ -67,6 +68,7 @@ export function PatientBottomShellFrame({
         showBack={shouldShowPatientMobileHeaderBack(pathname, backHref)}
         mobileHeaderCenter={mobileHeaderCenter}
       />
+      <PatientOrganizationContextBar />
       {aboveTitleSlot ?
         <div className={cn("w-full min-w-0 shrink-0", "patient-shell-above-slot-pad")}>
           {aboveTitleSlot}

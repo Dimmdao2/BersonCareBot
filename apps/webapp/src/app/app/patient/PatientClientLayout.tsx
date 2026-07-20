@@ -9,11 +9,30 @@ import { PatientWebPushProvider } from "@/shared/lib/webPush/PatientWebPushConte
 import { PatientWebPushBootstrap } from "@/shared/ui/patient/webPush/PatientWebPushBootstrap";
 import { PwaAppAccessGate } from "@/shared/ui/patient/pwa/PwaAppAccessGate";
 import { PatientAnalyticsReporter } from "@/shared/ui/patient/PatientAnalyticsReporter";
+import type { PatientOrganizationSummary } from "@/modules/patient-organization/service";
+import { PatientOrganizationContextProvider } from "@/shared/ui/patient/organization/PatientOrganizationContext";
 
 const allowPatientBrowserAccess = process.env.NODE_ENV !== "production";
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
-export function PatientClientLayout({ children }: { children: ReactNode }) {
+export function PatientClientLayout({
+  children,
+  organizationContext,
+}: {
+  children: ReactNode;
+  organizationContext?: {
+    organization: PatientOrganizationSummary;
+    organizations: PatientOrganizationSummary[];
+  } | null;
+}) {
+  const content = organizationContext ?
+    <PatientOrganizationContextProvider
+      organization={organizationContext.organization}
+      organizations={organizationContext.organizations}
+    >
+      {children}
+    </PatientOrganizationContextProvider>
+  : children;
   return (
     <PatientPhonePromptChromeProvider>
       <MiniAppShareContactGate>
@@ -23,7 +42,7 @@ export function PatientClientLayout({ children }: { children: ReactNode }) {
               <PatientCalendarTimezoneBootstrap />
               <PatientWebPushBootstrap />
               <PatientAnalyticsReporter />
-              {children}
+              {content}
             </PwaAppAccessGate>
           </Suspense>
         </PatientWebPushProvider>

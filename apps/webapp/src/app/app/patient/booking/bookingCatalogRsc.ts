@@ -1,6 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type { BookingCity } from "@/modules/booking-catalog/types";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import {
   listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
@@ -11,10 +12,10 @@ import {
 type PatientOrganizationServiceLike = {
   resolveActiveOrganizationForPatient(
     platformUserId: string,
+    options?: { rememberedOrganizationId?: string | null },
   ): Promise<
     | { ok: true; organizationId: string }
-    | { ok: false; reason: "no_active_enrollment" }
-    | { ok: false; reason: "organization_selection_required"; organizationIds: string[] }
+    | { ok: false; reason: string; organizationIds?: string[] }
   >;
 };
 
@@ -37,7 +38,10 @@ async function resolvePatientOrganizationId(
   platformUserId: string | undefined,
 ): Promise<string | null> {
   if (!platformUserId || !deps.patientOrganization) return null;
-  const resolved = await deps.patientOrganization.resolveActiveOrganizationForPatient(platformUserId);
+  const rememberedOrganizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+  const resolved = await deps.patientOrganization.resolveActiveOrganizationForPatient(platformUserId, {
+    rememberedOrganizationId,
+  });
   return resolved.ok ? resolved.organizationId : null;
 }
 

@@ -16,6 +16,7 @@ SELECT 1 / 0 AS e1_webapp_runtime_role_missing;
 \ir ../../apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql
 \ir ../../apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql
+\ir ../../apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql
 
 GRANT SELECT ON TABLE
   public.app_runtime_settings,
@@ -23,6 +24,7 @@ GRANT SELECT ON TABLE
   public.platform_users,
   public.user_channel_bindings,
   public.org_enrollments,
+  public.be_organizations,
   public.be_appointments,
   public.be_specialists,
   public.be_branches,
@@ -51,6 +53,8 @@ ALTER FUNCTION app.record_current_patient_analytics_event(timestamptz,text,text,
 ALTER FUNCTION app.record_current_patient_push_open(timestamptz,text,uuid) OWNER TO app_owner;
 ALTER FUNCTION app.read_current_patient_ui_setting(text,text) OWNER TO app_owner;
 ALTER FUNCTION app.set_current_patient_calendar_timezone(text,boolean) OWNER TO app_owner;
+ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner;
+ALTER FUNCTION app.resolve_current_patient_treatment_program_organization(uuid) OWNER TO app_owner;
 GRANT USAGE ON SCHEMA app TO app_owner, app_patient;
 GRANT EXECUTE ON FUNCTION app.current_org_id(), app.current_patient_user_id()
   TO app_owner;
@@ -66,7 +70,9 @@ BEGIN
     'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
     'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure,
     'app.read_current_patient_ui_setting(text,text)'::regprocedure,
-    'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure
+    'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure,
+    'app.read_current_patient_active_organizations()'::regprocedure,
+    'app.resolve_current_patient_treatment_program_organization(uuid)'::regprocedure
   ] LOOP
     EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM PUBLIC CASCADE', v_function);
     EXECUTE format('REVOKE ALL PRIVILEGES ON FUNCTION %s FROM app_patient CASCADE', v_function);
@@ -177,6 +183,10 @@ GRANT EXECUTE ON FUNCTION app.read_current_patient_ui_setting(text,text)
   TO app_patient;
 GRANT EXECUTE ON FUNCTION app.set_current_patient_calendar_timezone(text,boolean)
   TO app_patient;
+GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations()
+  TO app_patient;
+GRANT EXECUTE ON FUNCTION app.resolve_current_patient_treatment_program_organization(uuid)
+  TO app_patient;
 GRANT SELECT ON TABLE
   public.patient_home_blocks,
   public.patient_home_block_items,
@@ -206,7 +216,9 @@ WHERE procedure.oid = ANY(ARRAY[
   'app.record_current_patient_analytics_event(timestamptz,text,text,text,text,jsonb)'::regprocedure,
   'app.record_current_patient_push_open(timestamptz,text,uuid)'::regprocedure,
   'app.read_current_patient_ui_setting(text,text)'::regprocedure,
-  'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure
+  'app.set_current_patient_calendar_timezone(text,boolean)'::regprocedure,
+  'app.read_current_patient_active_organizations()'::regprocedure,
+  'app.resolve_current_patient_treatment_program_organization(uuid)'::regprocedure
 ]);
 
 SELECT 1 / (
@@ -218,6 +230,7 @@ SELECT 1 / (
   AND NOT has_table_privilege('app_patient','public.product_analytics_user_hourly','INSERT,UPDATE')
   AND NOT has_table_privilege('app_patient','public.system_settings','SELECT')
   AND NOT has_table_privilege('app_patient','public.platform_users','UPDATE')
+  AND NOT has_table_privilege('app_patient','public.be_organizations','SELECT')
   AND has_table_privilege('app_patient','public.org_enrollments','SELECT')
   AND has_table_privilege('app_patient','public.reference_categories','SELECT')
   AND has_table_privilege('app_patient','public.reference_items','SELECT')

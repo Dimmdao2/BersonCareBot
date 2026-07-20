@@ -24,7 +24,11 @@ function psql(sql) { run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db], sql)
 
 const setup = `
 CREATE SCHEMA app;
-CREATE TABLE public.be_organizations (id uuid PRIMARY KEY);
+CREATE TABLE public.be_organizations (
+  id uuid PRIMARY KEY,
+  title text NOT NULL DEFAULT 'Organization',
+  is_active boolean NOT NULL DEFAULT true
+);
 CREATE TABLE public.platform_users (id uuid PRIMARY KEY, phone_normalized text);
 CREATE TABLE public.user_channel_bindings (
   user_id uuid NOT NULL REFERENCES public.platform_users(id),
@@ -34,7 +38,13 @@ CREATE TABLE public.user_channel_bindings (
 CREATE TABLE public.org_enrollments (
   organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
   platform_user_id uuid NOT NULL REFERENCES public.platform_users(id),
-  status text NOT NULL
+  status text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE public.treatment_program_instances (
+  id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
+  patient_user_id uuid NOT NULL REFERENCES public.platform_users(id)
 );
 CREATE TABLE public.be_specialists (
   id uuid PRIMARY KEY, organization_id uuid NOT NULL, full_name text NOT NULL
@@ -85,15 +95,15 @@ CREATE UNIQUE INDEX system_settings_global_uq ON public.system_settings(key, sco
 CREATE UNIQUE INDEX system_settings_org_uq ON public.system_settings(key, scope, organization_id) WHERE organization_id IS NOT NULL;
 CREATE TABLE public.system_settings_audit (id bigserial PRIMARY KEY);
 INSERT INTO public.be_organizations VALUES
-  ('00000000-0000-4000-8000-000000000001'),
-  ('00000000-0000-4000-8000-000000000002');
+  ('00000000-0000-4000-8000-000000000001', 'Organization A', true),
+  ('00000000-0000-4000-8000-000000000002', 'Organization B', true);
 INSERT INTO public.platform_users VALUES
   ('10000000-0000-4000-8000-000000000001', '+79990000001'),
   ('10000000-0000-4000-8000-000000000002', '+79990000002');
 INSERT INTO public.user_channel_bindings VALUES
   ('10000000-0000-4000-8000-000000000001', 'telegram', 'tg-test'),
   ('10000000-0000-4000-8000-000000000002', 'telegram', 'tg-other');
-INSERT INTO public.org_enrollments VALUES
+INSERT INTO public.org_enrollments (organization_id, platform_user_id, status) VALUES
   ('00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'active'),
   ('00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'active');
 INSERT INTO public.be_specialists VALUES
@@ -288,6 +298,51 @@ DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
 SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / (NOT app.is_current_patient_test_account())::int;
 RESET SESSION AUTHORIZATION;
+INSERT INTO public.org_enrollments VALUES
+  ('00000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', 'active', now());
+INSERT INTO public.treatment_program_instances VALUES
+  ('70000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001'),
+  ('70000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002');
+INSERT INTO app.principal_context VALUES (
+  pg_backend_pid(),
+  NULL,
+  '10000000-0000-4000-8000-000000000001',
+  floor(extract(epoch FROM clock_timestamp()))::bigint + 300
+);
+SET SESSION AUTHORIZATION app_patient;
+DO $$
+BEGIN
+  BEGIN
+    PERFORM 1 FROM public.be_organizations LIMIT 1;
+    RAISE EXCEPTION 'app_patient_direct_organization_read_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+END
+$$;
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_active_organizations()) = 2)::int;
+SELECT 1 / ((
+  SELECT organization_id
+  FROM app.read_current_patient_active_organizations()
+  WHERE organization_id = '00000000-0000-4000-8000-000000000002'
+) = '00000000-0000-4000-8000-000000000002'::uuid)::int;
+SELECT 1 / (app.resolve_current_patient_treatment_program_organization(
+  '70000000-0000-4000-8000-000000000001'
+) = '00000000-0000-4000-8000-000000000002'::uuid)::int;
+SELECT 1 / (app.resolve_current_patient_treatment_program_organization(
+  '70000000-0000-4000-8000-000000000002'
+) IS NULL)::int;
+RESET SESSION AUTHORIZATION;
+UPDATE public.org_enrollments SET status = 'archived'
+WHERE organization_id = '00000000-0000-4000-8000-000000000002'
+  AND platform_user_id = '10000000-0000-4000-8000-000000000001';
+SET SESSION AUTHORIZATION app_patient;
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_active_organizations()) = 1)::int;
+SELECT 1 / (app.resolve_current_patient_treatment_program_organization(
+  '70000000-0000-4000-8000-000000000001'
+) IS NULL)::int;
+RESET SESSION AUTHORIZATION;
+DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
 SELECT 1 / ((SELECT count(*) FROM public.app_runtime_settings WHERE key IN ('oauth_yandex_enabled','oauth_google_enabled','oauth_apple_enabled') AND value_json='{"value":true}'::jsonb)=3)::int;
 SELECT 1 / (NOT EXISTS (SELECT 1 FROM public.app_runtime_settings WHERE key LIKE '%secret%' OR value_json::text LIKE '%TOP_SECRET%'))::int;
 UPDATE public.system_settings SET value_json='{"value":""}' WHERE key='google_client_secret' AND scope='admin' AND organization_id IS NULL;
@@ -310,11 +365,14 @@ GRANT USAGE ON SCHEMA app TO app_patient, app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE public.system_settings, public.platform_users,
   public.user_channel_bindings, public.org_enrollments, public.be_appointments,
-  public.be_specialists, public.be_branches, public.be_rooms, public.be_clinic_services TO app_owner;
+  public.be_specialists, public.be_branches, public.be_rooms, public.be_clinic_services,
+  public.be_organizations, public.treatment_program_instances TO app_owner;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
 ALTER FUNCTION app.read_current_patient_appointment_history() OWNER TO app_owner;
+ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner;
+ALTER FUNCTION app.resolve_current_patient_treatment_program_organization(uuid) OWNER TO app_owner;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient WITH GRANT OPTION;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO ${arbitraryRole};
 SET SESSION AUTHORIZATION app_patient;
@@ -352,6 +410,12 @@ GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient;
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_appointment_history() FROM app_patient CASCADE;
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_appointment_history() FROM PUBLIC, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
 GRANT EXECUTE ON FUNCTION app.read_current_patient_appointment_history() TO app_patient;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_active_organizations()
+  FROM PUBLIC, app_patient, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_current_patient_treatment_program_organization(uuid)
+  FROM PUBLIC, app_patient, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
+GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.resolve_current_patient_treatment_program_organization(uuid) TO app_patient;
 `;
 
 function asMigrationOwner(sql) {
@@ -372,6 +436,7 @@ try {
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);

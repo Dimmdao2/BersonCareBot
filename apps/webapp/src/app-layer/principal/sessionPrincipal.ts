@@ -23,7 +23,11 @@ const patientOrganizationService = createPatientOrganizationService({
   port: createPgPatientOrganizationPort(),
 });
 
-export async function stampDbPrincipalFromSession(session: AppSession, source: string): Promise<void> {
+export async function stampDbPrincipalFromSession(
+  session: AppSession,
+  source: string,
+  patientOrganizationHint?: string | null,
+): Promise<void> {
   // ensureDbPrincipalContext() reuses the caller's cell if one already exists (see its doc
   // comment in packages/db-principal) — it must NOT replace it. getCurrentSession() establishes
   // that cell before its first `await cookies()`; this call keeps it alive rather than orphaning
@@ -54,6 +58,7 @@ export async function stampDbPrincipalFromSession(session: AppSession, source: s
       });
       const resolved = await patientOrganizationService.resolveActiveOrganizationForPatient(
         session.user.userId,
+        { rememberedOrganizationId: patientOrganizationHint },
       );
       if (!resolved.ok) return;
       enterWithDbPatientPrincipal({

@@ -75,13 +75,17 @@ import type { PatientHomeProgressDisplay } from "@/modules/patient-home/patientH
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
-type Props = {
-  session: AppSession | null;
+type SharedProps = {
   personalTierOk: boolean;
   canViewAuthOnlyContent: boolean;
   /** Trusted enrollment org only when its courses entitlement is on; otherwise course cards stay neutral. */
   coursesOrganizationId?: string | null;
 };
+
+type Props = SharedProps & (
+  | { session: null; organizationId?: never }
+  | { session: AppSession; organizationId: string }
+);
 
 function mapSituationChipsForGuest(chips: ResolvedSituationChip[], anonymousGuest: boolean): ResolvedSituationChip[] {
   if (!anonymousGuest) return chips;
@@ -125,7 +129,17 @@ function mapUsefulPostForGuest(post: ResolvedUsefulPostCard | null, anonymousGue
 }
 
 export async function PatientHomeToday(props: Props) {
-  return runWithWebappDbOperationFamily("patient_content_catalog", () => renderPatientHomeToday(props));
+  if (!props.session) {
+    return runWithWebappDbOperationFamily("patient_content_catalog", () => renderPatientHomeToday(props));
+  }
+  return withPatientOrganizationPrincipal(
+    {
+      organizationId: props.organizationId,
+      platformUserId: props.session.user.userId,
+      source: "app.patient.home.today",
+    },
+    () => runWithWebappDbOperationFamily("patient_content_catalog", () => renderPatientHomeToday(props)),
+  );
 }
 
 async function renderPatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent, coursesOrganizationId = null }: Props) {

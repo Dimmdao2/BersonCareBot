@@ -20,6 +20,7 @@ import {
   patientShellMaxWidthDataAttribute,
 } from "@/shared/ui/patient/pwaLayoutClasses";
 import type { SessionUser } from "@/shared/types/session";
+import { PatientOrganizationContextBar } from "@/shared/ui/patient/organization/PatientOrganizationContext";
 
 export type PatientAppShellProps = {
   title: string;
@@ -98,6 +99,7 @@ export function PatientAppShell({
           <div className="z-50 shrink-0">
             <PatientTopNav backHref={backHref} backLabel={backLabel} />
           </div>
+          <PatientOrganizationContextBar />
           {patientShellAboveTitleSlot ?
             <div className="w-full min-w-0 shrink-0">{patientShellAboveTitleSlot}</div>
           : null}

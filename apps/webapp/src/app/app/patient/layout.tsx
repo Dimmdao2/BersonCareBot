@@ -15,7 +15,6 @@ import {
   getPatientMaintenanceConfig,
   patientMaintenanceReplacesPatientShell,
   patientMaintenanceSkipsPath,
-  resolvePatientMaintenanceOrganizationId,
 } from "@/modules/system-settings/patientMaintenance";
 import {
   PatientMaintenanceScreen,
@@ -23,6 +22,17 @@ import {
   type PatientMaintenanceBooking,
 } from "./PatientMaintenanceScreen";
 import { PatientClientLayout } from "./PatientClientLayout";
+import {
+  resolvePatientOrganizationRequestContext,
+  stampPatientOrganizationRequestContext,
+} from "@/app-layer/patient-organization/requestContext";
+import { PatientOrganizationRecoveryScreen } from "@/shared/ui/patient/organization/PatientOrganizationContext";
+
+function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
+  return [routePaths.profile, routePaths.bindPhone, routePaths.notifications, routePaths.patientInstall].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+}
 
 /**
  * Пациент не попадает в разделы вне allowlist без бизнес-доступа (tier **patient** при БД, иначе — телефон в сессии).
@@ -57,10 +67,32 @@ export default async function PatientLayout({ children }: { children: ReactNode 
 
   if (session.user.role === "client") {
     const deps = buildAppDeps();
-    const patientOrganizationId = await resolvePatientMaintenanceOrganizationId(
+    const patientContext = await resolvePatientOrganizationRequestContext(
       deps.patientOrganization,
       session.user.userId,
     );
+    if (!patientContext.ok) {
+      if (patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
+        return <PatientClientLayout>{children}</PatientClientLayout>;
+      }
+      return (
+        <PatientClientLayout>
+          <PatientOrganizationRecoveryScreen
+            organizations={patientContext.reason === "organization_selection_required" ? patientContext.organizations : []}
+            invalidRememberedOrganization={
+              patientContext.reason === "organization_selection_required" &&
+              patientContext.invalidRememberedOrganization
+            }
+          />
+        </PatientClientLayout>
+      );
+    }
+    stampPatientOrganizationRequestContext({
+      organizationId: patientContext.organizationId,
+      platformUserId: session.user.userId,
+      source: "app.patient.layout",
+    });
+    const patientOrganizationId = patientContext.organizationId;
     const maintenance = await getPatientMaintenanceConfig(patientOrganizationId);
     const skipMaintenance = patientMaintenanceSkipsPath({
       pathname,
@@ -99,7 +131,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       const appDisplayTimeZone = await getAppDisplayTimeZone();
 
       return (
-        <PatientClientLayout>
+        <PatientClientLayout organizationContext={patientContext}>
           <PatientMaintenanceScreen
             user={session.user}
             message={maintenance.message}
@@ -110,6 +142,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         </PatientClientLayout>
       );
     }
+    return <PatientClientLayout organizationContext={patientContext}>{children}</PatientClientLayout>;
   }
 
   return <PatientClientLayout>{children}</PatientClientLayout>;

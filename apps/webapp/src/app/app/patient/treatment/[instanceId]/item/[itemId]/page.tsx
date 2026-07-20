@@ -2,6 +2,7 @@
  * Детальный просмотр пункта программы лечения (отдельная страница, не модалка).
  */
 import { notFound, redirect } from "next/navigation";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -61,6 +62,16 @@ export default async function PatientTreatmentProgramItemPage({ params, searchPa
   const testIdQuery = firstSearchParam(sp.testId).trim();
 
   const deps = buildAppDeps();
+  const targetContext = await deps.patientOrganization?.resolveTreatmentProgramOrganizationForPatient(
+    session.user.userId,
+    instanceId,
+  );
+  if (!targetContext?.ok) notFound();
+  if (getCurrentDbPrincipalOrganizationId() !== targetContext.organizationId) {
+    redirect(
+      `/api/patient/organization-context/open?kind=treatment_program_item&instanceId=${encodeURIComponent(instanceId)}&itemId=${encodeURIComponent(itemId)}`,
+    );
+  }
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   let detail;
   let planItemDoneRepeatCooldownMinutes = 60;

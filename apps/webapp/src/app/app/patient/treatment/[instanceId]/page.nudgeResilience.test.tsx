@@ -14,6 +14,11 @@ const notFoundMock = vi.hoisted(() =>
 
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
+  redirect: vi.fn(),
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: () => "55555555-5555-4555-8555-555555555555",
 }));
 
 vi.mock("@/shared/ui/patient/PatientAppShell", () => ({
@@ -72,6 +77,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       getRedirectNewSlugForOldSlug: vi.fn(async () => null),
     },
     doctorClients: createDoctorClientsPolicyTestMock(),
+    patientOrganization: {
+      resolveTreatmentProgramOrganizationForPatient: vi.fn(async () => ({
+        ok: true,
+        organizationId: "55555555-5555-4555-8555-555555555555",
+      })),
+    },
   }),
 }));
 

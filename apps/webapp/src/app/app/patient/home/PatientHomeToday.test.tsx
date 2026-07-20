@@ -171,6 +171,7 @@ const fixtureSession: AppSession = {
   issuedAt: 0,
   expiresAt: Number.MAX_SAFE_INTEGER,
 };
+const currentOrganizationId = "11111111-1111-4111-8111-111111111111";
 
 /** Shared fixtures for patient-tier reminder math on home (warmups section + rehab slots). */
 function reminderRulesWarmupsSectionPlusRehab(): ReminderRule[] {
@@ -381,6 +382,7 @@ describe("PatientHomeToday", () => {
     render(
       await PatientHomeToday({
         session: fixtureSession,
+        organizationId: currentOrganizationId,
         personalTierOk: true,
         canViewAuthOnlyContent: true,
         coursesOrganizationId: null,
@@ -388,7 +390,13 @@ describe("PatientHomeToday", () => {
     );
 
     expect(coursesGetCourseForDoctor).not.toHaveBeenCalled();
-    expect(patientPrincipalContexts).toEqual([]);
+    expect(patientPrincipalContexts).toEqual([
+      {
+        organizationId: currentOrganizationId,
+        platformUserId: fixtureSession.user.userId,
+        source: "app.patient.home.today",
+      },
+    ]);
   });
 
   it("uses only the trusted enrollment organization for an enabled course card", async () => {
@@ -405,15 +413,21 @@ describe("PatientHomeToday", () => {
     render(
       await PatientHomeToday({
         session: fixtureSession,
+        organizationId: currentOrganizationId,
         personalTierOk: true,
         canViewAuthOnlyContent: true,
-        coursesOrganizationId: "org-a",
+        coursesOrganizationId: currentOrganizationId,
       }),
     );
 
     expect(patientPrincipalContexts).toEqual([
       {
-        organizationId: "org-a",
+        organizationId: currentOrganizationId,
+        platformUserId: fixtureSession.user.userId,
+        source: "app.patient.home.today",
+      },
+      {
+        organizationId: currentOrganizationId,
         platformUserId: fixtureSession.user.userId,
         source: "app.patient.home.courses",
       },
@@ -456,6 +470,7 @@ describe("PatientHomeToday", () => {
   it("authorized without tier: no personal API, activation copy, no name in greeting", async () => {
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: false,
       canViewAuthOnlyContent: false,
     });
@@ -486,6 +501,7 @@ describe("PatientHomeToday", () => {
   it("patient tier: calls personal loaders and shows progress", async () => {
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -516,6 +532,7 @@ describe("PatientHomeToday", () => {
     });
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -532,6 +549,7 @@ describe("PatientHomeToday", () => {
     getDailyWarmupHeroCooldownMeta.mockResolvedValueOnce({ active: true, minutesAgo: 3, minutesRemaining: 17 });
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -560,6 +578,7 @@ describe("PatientHomeToday", () => {
     getDailyWarmupHeroCooldownMeta.mockResolvedValueOnce({ active: true, minutesAgo: 3, minutesRemaining: 17 });
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -582,6 +601,7 @@ describe("PatientHomeToday", () => {
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -608,6 +628,7 @@ describe("PatientHomeToday", () => {
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -634,6 +655,7 @@ describe("PatientHomeToday", () => {
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -659,6 +681,7 @@ describe("PatientHomeToday", () => {
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -672,6 +695,7 @@ describe("PatientHomeToday", () => {
     patientCalendarGetIanaForUser.mockResolvedValue("Asia/Yekaterinburg");
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });
@@ -764,6 +788,7 @@ describe("PatientHomeToday", () => {
 
     const tree = await PatientHomeToday({
       session: fixtureSession,
+      organizationId: currentOrganizationId,
       personalTierOk: true,
       canViewAuthOnlyContent: true,
     });

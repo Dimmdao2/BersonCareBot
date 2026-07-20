@@ -21,6 +21,7 @@ import {
   PatientHomeGreetingMobileHeader,
 } from "./home/PatientHomeGreeting";
 import { PatientHomeToday } from "./home/PatientHomeToday";
+import { resolvePatientOrganizationRequestContext } from "@/app-layer/patient-organization/requestContext";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,13 @@ export default async function PatientHomePage() {
 
   const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
   const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
-  const patientOrganization = await resolvePatientEnrollmentOrganizationId(buildAppDeps(), session.user.userId);
+  const deps = buildAppDeps();
+  const patientContext = await resolvePatientOrganizationRequestContext(
+    deps.patientOrganization,
+    session.user.userId,
+  );
+  if (!patientContext.ok) return null;
+  const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
   const coursesOrganizationId =
     patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok
       ? patientOrganization.organizationId
@@ -57,6 +64,7 @@ export default async function PatientHomePage() {
           session={session}
           personalTierOk={personalTierOk}
           canViewAuthOnlyContent={canViewAuthOnlyContent}
+          organizationId={patientContext.organizationId}
           coursesOrganizationId={coursesOrganizationId}
         />
       </Suspense>
