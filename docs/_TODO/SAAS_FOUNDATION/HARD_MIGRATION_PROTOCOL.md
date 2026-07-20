@@ -578,17 +578,20 @@ For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-c
 4. exact owner/ACL and nonstaff capability postchecks;
 5. copied TEST-only settings unlock.
 
-The handoff parses `DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from the canonical
-non-symlink `.env.dev`. Mode must be `shadow` or `locked`; the secret must be at least 32 bytes and safe for
-stdin-only psql meta-variable transport. The env is never sourced and the secret never enters argv or output. Before
-any handoff write, the wrapper proves exact database/role topology, `app` schema and migration-created
+The handoff opens the canonical non-symlink `.env.dev` once through a descriptor-pinned snapshot and parses
+`DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `shadow`
+or `locked`; the secret must be at least 32 bytes and safe for `COPY FROM STDIN`. The env is never sourced, inherited
+`xtrace` is disabled before reads, the shell never stores/expands the secret, and the actual value never becomes a
+SQL literal, psql variable, argv or output. Before any handoff write, the wrapper proves exact database/role topology,
+exact safe attributes and no outgoing membership for `app_owner`/`app_staff`/`app_patient`, `app` schema and migration-created
 `app.is_staff()` ownership by either the exact DEV migrator or `app_owner`, and absence of conflicting signatures for
 the canonical `pgcrypto` move to `app_ext`. It grants only `USAGE` on `app_ext` to `app_owner`, changes ownership only
 for the exact existing P2-B tables/functions (including the `app.is_staff()` prerequisite), and streams the existing
 `deploy/postgres/p2-b-protected-principal-context.sql` through the hardened canonical-file reader. That artifact owns
 the exact `app` schema handoff and protected-context creation. Postchecks prove `pgcrypto` is in `app_ext`, the exact
-P2-B schema/tables/functions belong to `app_owner`, and the stored secret matches the stdin value before later
-overlays run.
+P2-B schema/tables/functions belong to `app_owner`, the three protected tables have no ACL grantee other than owner,
+the eight protected functions have only exact owner/staff/patient ACL, and the stored secret matches the private
+stdin `COPY` value before the atomic transaction commits and later overlays run.
 
 The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure and fails unless the targeted
 functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public

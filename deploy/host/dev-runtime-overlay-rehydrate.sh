@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Never inherit xtrace into this secret-bearing one-time repair path.
+{ set +x; } 2>/dev/null
 set -Eeuo pipefail
 
 # Reapply the canonical post-migration runtime SQL closure to the exact local DEV DB.
@@ -76,22 +78,28 @@ if [[ -z "$CALLER_HOME" || ! -d "$CALLER_HOME" ]]; then
 fi
 SANITIZED_PATH="$NODE_TOOLCHAIN_BIN:/usr/local/bin:/usr/bin:/bin"
 
-DEV_OWNER_DATABASE_URL="$("$NODE_BIN" "$DEV_ENV_PARSER" "$DEV_ENV")" || {
-  echo "FATAL: DEV owner DATABASE_URL data parser rejected the env file" >&2
+# Open and parse one descriptor-pinned env snapshot. The helper releases the signing secret only
+# after an explicit GO over its private pipe; the shell never stores or expands that secret.
+coproc DEV_ENV_SNAPSHOT_PROCESS { "$NODE_BIN" "$DEV_ENV_PARSER" --snapshot-stream "$DEV_ENV"; }
+DEV_ENV_SNAPSHOT_PID_VALUE="$DEV_ENV_SNAPSHOT_PROCESS_PID"
+exec {DEV_SNAPSHOT_READ_FD}<&"${DEV_ENV_SNAPSHOT_PROCESS[0]}"
+exec {DEV_SNAPSHOT_WRITE_FD}>&"${DEV_ENV_SNAPSHOT_PROCESS[1]}"
+
+if ! IFS= read -r DEV_OWNER_DATABASE_URL <&"$DEV_SNAPSHOT_READ_FD" ||
+  ! IFS= read -r DEV_RUNTIME_DATABASE_URL <&"$DEV_SNAPSHOT_READ_FD" ||
+  ! IFS= read -r DEV_CONTEXT_MODE <&"$DEV_SNAPSHOT_READ_FD"; then
+  echo "FATAL: DEV runtime snapshot parser rejected the env file" >&2
   exit 1
+fi
+
+abort_dev_env_snapshot() {
+  { set +x; } 2>/dev/null
+  printf 'ABORT\n' >&"$DEV_SNAPSHOT_WRITE_FD" 2>/dev/null || true
+  exec {DEV_SNAPSHOT_WRITE_FD}>&- 2>/dev/null || true
+  exec {DEV_SNAPSHOT_READ_FD}<&- 2>/dev/null || true
+  wait "$DEV_ENV_SNAPSHOT_PID_VALUE" 2>/dev/null || true
 }
-DEV_RUNTIME_DATABASE_URL="$("$NODE_BIN" "$DEV_ENV_PARSER" --nonstaff "$DEV_ENV")" || {
-  echo "FATAL: DEV DATABASE_URL_NONSTAFF data parser rejected the env file" >&2
-  exit 1
-}
-DEV_CONTEXT_MODE="$("$NODE_BIN" "$DEV_ENV_PARSER" --context-mode "$DEV_ENV")" || {
-  echo "FATAL: DEV DB_PRINCIPAL_CONTEXT_MODE data parser rejected the env file" >&2
-  exit 1
-}
-P2_B_SIGNING_SECRET_VALUE="$("$NODE_BIN" "$DEV_ENV_PARSER" --signing-secret "$DEV_ENV")" || {
-  echo "FATAL: DEV DB_PRINCIPAL_SIGNING_SECRET data parser rejected the env file" >&2
-  exit 1
-}
+trap abort_dev_env_snapshot EXIT
 
 run_dev_owner_psql() {
   env -i \
@@ -188,16 +196,50 @@ SELECT 1 / (
 SELECT 1 / (
   EXISTS (
     SELECT 1 FROM pg_roles
-    WHERE rolname = 'app_owner' AND NOT rolcanlogin AND rolbypassrls AND NOT rolsuper
+    WHERE rolname = 'app_owner'
+      AND NOT rolcanlogin
+      AND rolinherit
+      AND rolbypassrls
+      AND NOT rolsuper
+      AND NOT rolcreatedb
+      AND NOT rolcreaterole
+      AND NOT rolreplication
+      AND rolconnlimit = -1
+      AND rolconfig IS NULL
   )
   AND EXISTS (
     SELECT 1 FROM pg_roles
-    WHERE rolname = 'app_staff' AND rolcanlogin AND NOT rolbypassrls AND NOT rolsuper
+    WHERE rolname = 'app_staff'
+      AND rolcanlogin
+      AND rolinherit
+      AND NOT rolbypassrls
+      AND NOT rolsuper
+      AND NOT rolcreatedb
+      AND NOT rolcreaterole
+      AND NOT rolreplication
+      AND rolconnlimit = -1
+      AND rolconfig IS NULL
   )
   AND EXISTS (
     SELECT 1 FROM pg_roles
-    WHERE rolname = 'app_patient' AND rolcanlogin AND NOT rolbypassrls AND NOT rolsuper
+    WHERE rolname = 'app_patient'
+      AND rolcanlogin
+      AND rolinherit
+      AND NOT rolbypassrls
+      AND NOT rolsuper
+      AND NOT rolcreatedb
+      AND NOT rolcreaterole
+      AND NOT rolreplication
+      AND rolconnlimit = -1
+      AND rolconfig IS NULL
   )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_auth_members membership
+    JOIN pg_roles member_role ON member_role.oid = membership.member
+    WHERE member_role.rolname IN ('app_owner', 'app_staff', 'app_patient')
+  )
+  AND NOT pg_has_role('app_staff', 'app_patient', 'MEMBER')
   AND NOT pg_has_role('app_patient', 'app_staff', 'MEMBER')
 )::int AS dev_runtime_roles_safe;
 
@@ -266,7 +308,8 @@ SELECT 1 / (
 SQL
 
 if [[ "$MODE" == "--preflight" ]]; then
-  P2_B_SIGNING_SECRET_VALUE=""
+  abort_dev_env_snapshot
+  trap - EXIT
   echo "[dev-runtime-overlay] PASS: separate DEV owner/runtime topology is safe"
   exit 0
 fi
@@ -339,9 +382,15 @@ SELECT 1 / (
 )::int AS dev_p2_b_pgcrypto_move_precondition;
 SQL
 
-echo "[dev-runtime-overlay] preparing exact app_owner/pgcrypto handoff"
-run_dev_admin_psql -d "$TARGET_DB" -qAt \
-  -v p2_b_owner_role="$P2_B_OWNER_ROLE" <<'SQL' >/dev/null
+stream_dev_p2_b_input() {
+  # Defence in depth for callers that deliberately invoke the function from `bash -x`.
+  { set +x; } 2>/dev/null
+  printf 'BEGIN;\n'
+  printf '\\set p2_b_owner_role %s\n' "$P2_B_OWNER_ROLE"
+  printf '\\set p2_b_staff_role %s\n' "$P2_B_STAFF_ROLE"
+  printf '\\set p2_b_patient_role %s\n' "$P2_B_PATIENT_ROLE"
+  printf '\\set p2_b_signing_secret dev-p2b-stdin-placeholder-at-least-32-characters\n'
+  cat <<'SQL'
 CREATE SCHEMA IF NOT EXISTS app_ext;
 GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role";
 
@@ -368,17 +417,34 @@ FROM unnest(ARRAY[
 JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
 \gexec
 SQL
-
-echo "[dev-runtime-overlay] reinstalling canonical P2-B protected principal context"
-{
-  printf '\\set p2_b_owner_role %s\n' "$P2_B_OWNER_ROLE"
-  printf '\\set p2_b_staff_role %s\n' "$P2_B_STAFF_ROLE"
-  printf '\\set p2_b_patient_role %s\n' "$P2_B_PATIENT_ROLE"
-  printf '\\set p2_b_signing_secret %s\n' "$P2_B_SIGNING_SECRET_VALUE"
   "$NODE_BIN" "$SQL_STREAMER" "$P2_B_CONTEXT" "$REPO_ROOT/deploy/postgres"
   cat <<'SQL'
+CREATE TEMP TABLE pg_temp.dev_p2_b_secret_input (
+  secret text NOT NULL
+) ON COMMIT DROP;
+SET LOCAL log_statement = 'none';
+SET LOCAL log_min_error_statement = 'panic';
+SET LOCAL log_parameter_max_length_on_error = 0;
+\copy pg_temp.dev_p2_b_secret_input(secret) FROM STDIN WITH (FORMAT text)
+SQL
+  cat <&"$DEV_SNAPSHOT_READ_FD"
+  printf '\\.\n'
+  cat <<'SQL'
+SELECT 1 / ((SELECT count(*) FROM pg_temp.dev_p2_b_secret_input) = 1)::int
+  AS dev_p2_b_secret_input_exact;
+
+UPDATE app.context_signing_secrets AS target
+SET secret = input.secret
+FROM pg_temp.dev_p2_b_secret_input AS input
+WHERE target.id = true;
+
 SELECT 1 / (
-  coalesce((SELECT secret = :'p2_b_signing_secret' FROM app.context_signing_secrets WHERE id = true), false)
+  coalesce((
+    SELECT target.secret = input.secret
+    FROM app.context_signing_secrets AS target
+    CROSS JOIN pg_temp.dev_p2_b_secret_input AS input
+    WHERE target.id = true
+  ), false)
   AND coalesce((SELECT n.nspname = 'app_ext' FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pgcrypto'), false)
   AND coalesce((SELECT pg_get_userbyid(nspowner) = :'p2_b_owner_role' FROM pg_namespace WHERE nspname = 'app'), false)
   AND coalesce(has_schema_privilege(:'p2_b_owner_role', 'app_ext', 'USAGE'), false)
@@ -430,10 +496,76 @@ SELECT 1 / (
     JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
     WHERE pg_get_userbyid(procedure.proowner) <> :'p2_b_owner_role'
   )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.context_signing_secrets',
+      'app.principal_context',
+      'app.context_nonce_ledger'
+    ]) AS expected(qualified_name)
+    JOIN pg_class relation ON relation.oid = to_regclass(expected.qualified_name)
+    CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege
+    WHERE privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_owner_role')
+       OR privilege.privilege_type NOT IN (
+         'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+       )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'app.current_org_id()',
+      'app.current_patient_user_id()',
+      'app.current_integrator_user_id()',
+      'app.reset_principal_context()',
+      'app.release_principal_context()',
+      'app.close_active_user_phone_history(uuid)',
+      'app.is_staff()'
+    ]) AS expected(signature)
+    JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+    CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+    WHERE privilege.privilege_type <> 'EXECUTE'
+       OR privilege.grantee = 0
+       OR privilege.grantee NOT IN (
+         (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_owner_role'),
+         (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_staff_role'),
+         (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_patient_role')
+       )
+       OR (
+         privilege.grantee <> (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_owner_role')
+         AND privilege.is_grantable
+       )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'app.current_org_id()',
+      'app.current_patient_user_id()',
+      'app.current_integrator_user_id()',
+      'app.reset_principal_context()',
+      'app.release_principal_context()',
+      'app.close_active_user_phone_history(uuid)',
+      'app.is_staff()'
+    ]) AS expected(signature)
+    WHERE NOT has_function_privilege(:'p2_b_staff_role', expected.signature, 'EXECUTE')
+       OR NOT has_function_privilege(:'p2_b_patient_role', expected.signature, 'EXECUTE')
+  )
 )::int AS dev_p2_b_owner_context_postcheck;
+COMMIT;
 SQL
-} | run_dev_admin_psql -d "$TARGET_DB" -q >/dev/null
-P2_B_SIGNING_SECRET_VALUE=""
+}
+
+echo "[dev-runtime-overlay] atomically reinstalling exact P2-B owner/context/ACL closure"
+printf 'GO\n' >&"$DEV_SNAPSHOT_WRITE_FD"
+exec {DEV_SNAPSHOT_WRITE_FD}>&-
+stream_dev_p2_b_input | run_dev_admin_psql -d "$TARGET_DB" -q >/dev/null
+exec {DEV_SNAPSHOT_READ_FD}<&-
+if ! wait "$DEV_ENV_SNAPSHOT_PID_VALUE"; then
+  echo "FATAL: DEV runtime snapshot secret transport failed" >&2
+  exit 1
+fi
+trap - EXIT
 
 run_dev_admin_psql -d "$TARGET_DB" -qAt \
   -v expected_runtime_role="$TARGET_RUNTIME_ROLE" <<'SQL' >/dev/null

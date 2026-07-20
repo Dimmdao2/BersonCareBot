@@ -112,10 +112,9 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /P2_B_OWNER_ROLE="app_owner"/u);
   assert.match(source, /P2_B_STAFF_ROLE="app_staff"/u);
   assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
-  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" "\$DEV_ENV"/u);
-  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --nonstaff "\$DEV_ENV"/u);
-  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --context-mode "\$DEV_ENV"/u);
-  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --signing-secret "\$DEV_ENV"/u);
+  assert.equal(source.split('--snapshot-stream "$DEV_ENV"').length - 1, 1);
+  assert.doesNotMatch(source, /DEV_ENV_PARSER" --(?:nonstaff|context-mode|signing-secret)/u);
+  assert.match(source, /descriptor-pinned env snapshot/u);
   assert.doesNotMatch(source, /\bsource\s+["']?\$DEV_ENV/u);
   assert.match(source, /env -i/u);
   assert.match(source, /PGPASSFILE=\/dev\/null/u);
@@ -128,6 +127,8 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   );
   assert.match(source, /dev_database_owner_exact/u);
   assert.match(source, /dev_runtime_roles_safe/u);
+  assert.match(source, /rolconnlimit = -1/u);
+  assert.match(source, /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)/u);
   assert.match(source, /dev_base_runtime_role_safe_before_overlay/u);
   assert.match(source, /dev_p2_b_exact_owner_handoff_preconditions/u);
   assert.match(source, /dev_p2_b_pgcrypto_move_precondition/u);
@@ -137,6 +138,9 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /app\.install_signed_context\(text,integer,bigint,uuid,uuid,bigint,text\)/u);
   assert.match(source, /"\$NODE_BIN" "\$SQL_STREAMER" "\$P2_B_CONTEXT"/u);
   assert.match(source, /dev_p2_b_owner_context_postcheck/u);
+  assert.match(source, /aclexplode\(COALESCE\(relation\.relacl/u);
+  assert.match(source, /aclexplode\(COALESCE\(procedure\.proacl/u);
+  assert.match(source, /privilege\.grantee = 0/u);
   assert.ok(
     source.indexOf("dev_p2_b_owner_context_postcheck") <
       source.indexOf(
@@ -144,6 +148,12 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
       ),
   );
   assert.doesNotMatch(source, /-v\s+p2_b_signing_secret=/u);
+  assert.doesNotMatch(source, /P2_B_SIGNING_SECRET_VALUE/u);
+  assert.match(source, /\\copy pg_temp\.dev_p2_b_secret_input\(secret\) FROM STDIN/u);
+  assert.match(source, /cat <&"\$DEV_SNAPSHOT_READ_FD"/u);
+  assert.match(source, /SET LOCAL log_statement = 'none'/u);
+  assert.match(source, /SET LOCAL log_min_error_statement = 'panic'/u);
+  assert.match(source, /SET LOCAL log_parameter_max_length_on_error = 0/u);
   assert.doesNotMatch(source, /REASSIGN\s+OWNED|DROP\s+OWNED|p2_b_down/iu);
   assert.match(source, /NOT rolcreatedb/u);
   assert.match(source, /NOT rolcreaterole/u);
@@ -163,6 +173,53 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /\/opt\/env\/bersoncarebot|bersoncarebot_test|bcb_webapp_prod|bersoncarebot_prod/iu,
   );
+});
+
+test("P2-B transport suppresses inherited xtrace and keeps the actual secret out of SQL literals", () => {
+  const source = readFileSync(wrapperPath, "utf8");
+  const functionStart = source.indexOf("stream_dev_p2_b_input() {");
+  const functionEnd = source.indexOf(
+    '\n}\n\necho "[dev-runtime-overlay] atomically reinstalling',
+    functionStart,
+  );
+  assert.ok(functionStart >= 0 && functionEnd > functionStart);
+  const functionSource = `${source.slice(functionStart, functionEnd)}\n}`;
+
+  const fakeRepo = mkdtempSync(join(tmpdir(), "bcb-dev-p2b-secret-"));
+  const canonicalDir = join(fakeRepo, "deploy/postgres");
+  const canonicalSql = join(canonicalDir, "p2-b-protected-principal-context.sql");
+  const secretFile = join(fakeRepo, "private-secret.txt");
+  const fixtureSecret = "fixture-secret-never-in-xtrace-or-sql-123456789";
+  mkdirSync(canonicalDir, { recursive: true });
+  writeFileSync(canonicalSql, "-- canonical fixture\n");
+  writeFileSync(secretFile, `${fixtureSecret}\n`, { mode: 0o600 });
+
+  const harness = `
+    set -Eeuo pipefail
+    P2_B_OWNER_ROLE=app_owner
+    P2_B_STAFF_ROLE=app_staff
+    P2_B_PATIENT_ROLE=app_patient
+    NODE_BIN=${JSON.stringify(process.execPath)}
+    SQL_STREAMER=${JSON.stringify(sqlStreamerPath)}
+    P2_B_CONTEXT=${JSON.stringify(canonicalSql)}
+    REPO_ROOT=${JSON.stringify(fakeRepo)}
+    DEV_SNAPSHOT_READ_FD=3
+    ${functionSource}
+    exec 3<${JSON.stringify(secretFile)}
+    stream_dev_p2_b_input
+  `;
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-x", "-c", harness], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, new RegExp(fixtureSecret, "u"));
+  assert.equal(result.stdout.split(fixtureSecret).length - 1, 1);
+  assert.doesNotMatch(source, new RegExp(fixtureSecret, "u"));
+  const secretLine = result.stdout.split("\n").findIndex((line) => line === fixtureSecret);
+  const copyLine = result.stdout
+    .split("\n")
+    .findIndex((line) => line.startsWith("\\copy pg_temp.dev_p2_b_secret_input"));
+  assert.ok(copyLine >= 0 && secretLine === copyLine + 1);
 });
 
 test("DEV env parser validates protected-context mode and keeps signing values argv-free", () => {

@@ -425,14 +425,20 @@ function runChecks(overrides = {}) {
   requireFragments(files.devRuntimeOverlay, loaded.devRuntimeOverlay, [
     'TARGET_OWNER_ROLE="bcb_webapp_dev_user"',
     'TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"',
-    '"$NODE_BIN" "$DEV_ENV_PARSER" --nonstaff "$DEV_ENV"',
+    '"$NODE_BIN" "$DEV_ENV_PARSER" --snapshot-stream "$DEV_ENV"',
+    '{ set +x; } 2>/dev/null',
+    'cat <&"$DEV_SNAPSHOT_READ_FD"',
+    '\\copy pg_temp.dev_p2_b_secret_input(secret) FROM STDIN',
     'runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"',
+    "member_role.rolname IN ('app_owner', 'app_staff', 'app_patient')",
     'dev_base_runtime_role_safe_before_overlay',
     'NOT rolcreatedb',
     'NOT rolcreaterole',
     'NOT rolreplication',
     "NOT pg_has_role(:'expected_runtime_role', 'app_owner', 'MEMBER')",
     "pg_has_role(:'expected_runtime_role', relation.relowner, 'MEMBER')",
+    "aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner)))",
+    "aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner)))",
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
   ]);
   requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
@@ -447,6 +453,8 @@ function runChecks(overrides = {}) {
     'DATABASE_URL_NONSTAFF',
     'bcb_dev_runtime_nonstaff_login',
     'assertExactLocalDevNonstaffDatabaseUrl',
+    'openCanonicalRegularFile',
+    '--snapshot-stream',
   ]);
 
   requireOrderedFragments(

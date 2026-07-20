@@ -17,34 +17,33 @@ function sameFile(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
-export function openCanonicalSqlFile(sqlPath, allowedDirectory) {
+export function openCanonicalRegularFile(filePath, expectedPath) {
   if (
-    typeof sqlPath !== "string" ||
-    typeof allowedDirectory !== "string" ||
-    !isAbsolute(sqlPath) ||
-    !isAbsolute(allowedDirectory) ||
-    extname(sqlPath) !== ".sql" ||
-    dirname(sqlPath) !== allowedDirectory ||
-    realpathSync(allowedDirectory) !== allowedDirectory
+    typeof filePath !== "string" ||
+    typeof expectedPath !== "string" ||
+    !isAbsolute(filePath) ||
+    !isAbsolute(expectedPath) ||
+    filePath !== expectedPath ||
+    realpathSync(dirname(expectedPath)) !== dirname(expectedPath)
   ) {
-    throw new Error("canonical SQL path rejected");
+    throw new Error("canonical file path rejected");
   }
 
-  const beforeOpen = lstatSync(sqlPath);
+  const beforeOpen = lstatSync(filePath);
   if (beforeOpen.isSymbolicLink() || !beforeOpen.isFile()) {
-    throw new Error("canonical SQL input is not a regular file");
+    throw new Error("canonical input is not a regular file");
   }
 
   let descriptor;
   try {
     descriptor = openSync(
-      sqlPath,
+      filePath,
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
     );
     const opened = fstatSync(descriptor);
-    const afterOpen = lstatSync(sqlPath);
-    const canonicalPath = realpathSync(sqlPath);
-    const afterCanonicalization = lstatSync(sqlPath);
+    const afterOpen = lstatSync(filePath);
+    const canonicalPath = realpathSync(filePath);
+    const afterCanonicalization = lstatSync(filePath);
     if (
       !opened.isFile() ||
       afterOpen.isSymbolicLink() ||
@@ -54,16 +53,28 @@ export function openCanonicalSqlFile(sqlPath, allowedDirectory) {
       !sameFile(beforeOpen, opened) ||
       !sameFile(opened, afterOpen) ||
       !sameFile(opened, afterCanonicalization) ||
-      canonicalPath !== sqlPath ||
-      dirname(canonicalPath) !== allowedDirectory
+      canonicalPath !== expectedPath
     ) {
-      throw new Error("canonical SQL file changed while opening");
+      throw new Error("canonical file changed while opening");
     }
     return descriptor;
   } catch (error) {
     if (descriptor !== undefined) closeSync(descriptor);
     throw error;
   }
+}
+
+export function openCanonicalSqlFile(sqlPath, allowedDirectory) {
+  if (
+    typeof sqlPath !== "string" ||
+    typeof allowedDirectory !== "string" ||
+    extname(sqlPath) !== ".sql" ||
+    dirname(sqlPath) !== allowedDirectory ||
+    realpathSync(allowedDirectory) !== allowedDirectory
+  ) {
+    throw new Error("canonical SQL path rejected");
+  }
+  return openCanonicalRegularFile(sqlPath, sqlPath);
 }
 
 export async function streamCanonicalSqlFile(sqlPath, allowedDirectory, output = process.stdout) {

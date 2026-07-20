@@ -17,6 +17,7 @@ const wrapperPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.m
 const validUrl = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
 const validNonstaffUrl =
   "postgresql://bcb_dev_runtime_nonstaff_login:runtime-secret@127.0.0.1:5432/bcb_webapp_dev";
+const validSigningSecret = "dev-signing-secret-at-least-32-bytes-123456";
 
 test("dotenv parser accepts one exact local DEV URL without evaluating shell", () => {
   assert.equal(
@@ -92,8 +93,44 @@ test("CLI refuses a symlink even when its target contains a valid URL", () => {
 
   const result = spawnSync(process.execPath, [scriptPath, link], { encoding: "utf8" });
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /unsafe_env_file/u);
-  assert.doesNotMatch(result.stderr, /secret/u);
+  assert.match(result.stderr, /canonical input is not a regular file/u);
+  assert.doesNotMatch(result.stderr, /postgresql:/u);
+});
+
+test("snapshot CLI parses one env image and releases the secret only after GO", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bcb-dev-env-snapshot-"));
+  const envPath = join(dir, "runtime.env");
+  writeFileSync(
+    envPath,
+    [
+      `DATABASE_URL=${validUrl}`,
+      `DATABASE_URL_NONSTAFF=${validNonstaffUrl}`,
+      "DB_PRINCIPAL_CONTEXT_MODE=locked",
+      `DB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}`,
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+
+  const released = spawnSync(process.execPath, [scriptPath, "--snapshot-stream", envPath], {
+    encoding: "utf8",
+    input: "GO\n",
+  });
+  assert.equal(released.status, 0, released.stderr);
+  assert.deepEqual(released.stdout.trimEnd().split("\n"), [
+    validUrl,
+    validNonstaffUrl,
+    "locked",
+    validSigningSecret,
+  ]);
+
+  const withheld = spawnSync(process.execPath, [scriptPath, "--snapshot-stream", envPath], {
+    encoding: "utf8",
+    input: "ABORT\n",
+  });
+  assert.notEqual(withheld.status, 0);
+  assert.doesNotMatch(withheld.stdout, new RegExp(validSigningSecret, "u"));
+  assert.doesNotMatch(withheld.stderr, new RegExp(validSigningSecret, "u"));
 });
 
 test("wrapper parses the fixed env as data and completes all guards before DROP", () => {

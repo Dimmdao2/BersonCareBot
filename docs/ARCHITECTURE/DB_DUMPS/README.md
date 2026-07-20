@@ -37,53 +37,27 @@ PROD и `/opt/env` не используются. DEV после этого ос
 
 ---
 
-## Пересоздание dev-базы из prod-дампа (refresh `bcb_webapp_dev`)
+## Исторический ручной PROD-dump → DEV путь — запрещён
 
-**Когда:** нужно обновить данные dev на свежий прод-снапшот, либо `bcb_webapp_dev` повреждена/дропнута.
+Старая инструкция «удалить DEV, вручную выполнить `pg_restore`, затем только `pnpm migrate`» устарела и удалена:
+она не восстанавливала per-database owners/ACL, protected P2-B context и runtime overlays. Не реконструируйте её по
+git history и не используйте обычный code deploy, build, restart, UI-задачу или standalone `pnpm migrate` как
+основание для dump/reset/refresh.
 
-**Контекст хоста:** prod и dev живут в **одной** PostgreSQL `127.0.0.1:5432` (`bcb_webapp_prod` + `bcb_webapp_dev`). Прод трогать нельзя. Почасовые прод-дампы: `/opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump` (custom format).
+Разрешённые пути теперь разделены:
 
-### Грабли (почему «просто залить дамп» ломается)
+- обычный deploy кода никогда не пересоздаёт базу;
+- уже подготовленную DEV-БД с owner/ACL drift чинит без reset
+  `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute`;
+- явный owner-authorized TEST→DEV refresh выполняется только
+  `bash deploy/host/refresh-dev-from-test.sh --execute`;
+- rehearsal свежего PROD dump выполняется только в disposable БД по
+  [`HARD_MIGRATION_PROTOCOL.md`](../../_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md), не в рабочей DEV-БД.
 
-1. **`pg_restore --clean` поверх живой dev-схемы** падает: прод-дамп не знает про новые таблицы ветки (например `be_working_days`, `be_schedule_templates` с FK на `be_*`) → не может дропнуть родителей. Правильный путь — **чистая** заливка в пустую базу, не `--clean`.
-2. **`pg_restore --single-transaction`** откатывает **весь** restore из-за одной косметической ошибки `COMMENT ON EXTENSION btree_gist` (под `--role` прикладная роль не владелец расширения). Эту опцию **не** использовать — ошибка `COMMENT` ожидаема и игнорируется (`errors ignored: 1`).
-3. **Пересоздать базу может только суперюзер** `postgres` — ни одна роль `bcb_*` не имеет `CREATEDB`.
-4. **Нельзя `REASSIGN OWNED BY bcb_webapp_prod`** — задевает shared objects, т.е. переназначит владельца самой **боевой** базы. Владельца задаём через `pg_restore --no-owner --role=bcb_webapp_dev_user`.
-5. Миграции **не** собираются с абсолютного нуля (кросс-скоуп порядок: telegram-миграция ждёт core-таблицу `identities`). Базу+леджер даёт дамп, `pnpm migrate` накатывает только дельту ветки.
-
-### Шаги
-
-Под `postgres` (root):
-
-```bash
-DUMP=$(ls -1t /opt/backups/postgres/hourly/unified_bcb_webapp_prod_*.dump | head -1); echo "Using: $DUMP"
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS bcb_webapp_dev;"
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c \
-  "CREATE DATABASE bcb_webapp_dev OWNER bcb_webapp_dev_user TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C.UTF-8' LC_CTYPE 'C.UTF-8';"
-sudo -u postgres psql -v ON_ERROR_STOP=1 -d bcb_webapp_dev -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
-# restore БЕЗ --single-transaction (ожидаемая 1 ошибка: COMMENT ON EXTENSION — игнор)
-sudo -u postgres pg_restore --no-owner --role=bcb_webapp_dev_user -d bcb_webapp_dev "$DUMP"
-sudo -u postgres psql -v ON_ERROR_STOP=1 -c \
-  "ALTER ROLE bcb_webapp_dev_user IN DATABASE bcb_webapp_dev SET search_path = public, integrator;"
-```
-
-Под `dev` (накатить дельту миграций ветки):
-
-```bash
-cd /home/dev/dev-projects/BersonCareBot
-pnpm run migrate
-```
-
-### Проверка
-
-```bash
-# владелец всех таблиц = dev-роль (ждём 0)
-sudo -u postgres psql -d bcb_webapp_dev -Atc \
-  "SELECT count(*) FROM pg_tables WHERE schemaname IN ('public','integrator') AND tableowner <> 'bcb_webapp_dev_user';"
-# таблицы ветки на месте
-set -a && source apps/webapp/.env.dev && set +a
-psql "$DATABASE_URL" -Atc \
-  "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('be_working_days','be_schedule_templates') ORDER BY 1;"
-```
+Полная обязательная последовательность любого разрешённого clean restore: restore с `--no-owner --no-acl` →
+current-branch migrations → exact P2-B owner/context handoff → P0.5b и единая shared runtime-overlay chain → exact
+role/owner/ACL/runtime postchecks → снятие environment-specific locks только после PASS. Для DEV этот порядок
+подробно и с точным моментом одноразовой role/context настройки закреплён в
+[`LOCAL_DEV_AND_AGENT_TESTING.md`](../LOCAL_DEV_AND_AGENT_TESTING.md#обязательный-разовый-p2-b-ownercontext-handoff-после---no-owner-restore).
 
 **Удалены устаревшие артефакты** (отдельные legacy dev-базы, март–апрель 2026): `integrator_bersoncarebot_dev_schema.sql`, `webapp_bcb_webapp_dev_schema.sql`.

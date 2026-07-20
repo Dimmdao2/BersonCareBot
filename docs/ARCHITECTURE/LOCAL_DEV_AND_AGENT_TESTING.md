@@ -169,20 +169,25 @@ context нужно заново связать с тем же signing secret, к
 1. restore только `bcb_webapp_dev` с `--no-owner --no-acl`;
 2. current-branch migrations под `bcb_webapp_dev_user`;
 3. `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
-   `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` проверяются без `source`
-   `.env.dev`;
+   `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
+   descriptor-pinned snapshot канонического `.env.dev` без `source`; wrapper требует exact безопасные атрибуты
+   и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`;
 4. wrapper проверяет `app`, exact existing P2-B tables/functions, migration-created `app.is_staff()` и pgcrypto
    move precondition; выдаёт `app_owner` только `USAGE` на `app_ext`, передаёт owner только для exact P2-B
    tables/functions (если они уже существуют), а schema `app` — через канонический P2-B artifact, затем
    переустанавливает `deploy/postgres/p2-b-protected-principal-context.sql`;
-5. до overlays доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B schema/tables/functions принадлежат
-   `app_owner`, а сохранённый secret равен stdin-значению; затем применяются P0.5b, единая shared runtime-overlay
-   chain и nonstaff runtime capability checks;
+5. actual signing secret передаётся отдельным stdin `COPY`-потоком внутри одной транзакции и не становится SQL
+   literal/psql variable; до commit доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B
+   schema/tables/functions принадлежат `app_owner`, три protected tables не имеют ACL-grantees кроме owner, восемь
+   protected functions имеют только exact owner/staff/patient ACL и сохранённый secret равен stdin-значению;
+   затем применяются P0.5b, единая shared runtime-overlay chain и nonstaff runtime capability checks;
 6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
 
-Signing secret парсится как данные из канонического non-symlink `.env.dev`, принимается только в ограниченной
-whitespace/backslash-free форме длиной не менее 32 bytes и передаётся `psql` только через stdin вместе с атомарно
-открытым canonical SQL. Он не должен попадать в argv, shell history, чат, логи, taskdb, документацию или commit.
+Signing secret парсится как данные из единственного атомарно открытого non-symlink `.env.dev` snapshot,
+принимается только в ограниченной whitespace/backslash-free форме длиной не менее 32 bytes и выпускается parser-ом
+только после read-only guards. Shell его не присваивает и не подставляет в SQL; actual value идёт только в данные
+`COPY FROM STDIN`. Wrapper принудительно выключает даже унаследованный `xtrace`. Secret не должен попадать в SQL
+statement/error/audit logs, argv, shell history, чат, taskdb, документацию или commit.
 
 Handoff запускается только сразу после explicit TEST→DEV refresh или как targeted repair уже существующей DEV-БД с
 актуальным migration ledger и owner/ACL drift. Это **никогда** не часть ordinary code-only deploy, build, restart,

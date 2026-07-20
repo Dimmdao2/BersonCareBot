@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-import { lstatSync, readFileSync } from "node:fs";
+import { closeSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { openCanonicalRegularFile } from "./stream-canonical-sql.mjs";
 
 function fail(code) {
   throw new Error(code);
@@ -123,6 +125,46 @@ export function assertExactLocalDevNonstaffDatabaseUrl(value) {
   return value;
 }
 
+export function parseDevRuntimeSnapshot(text) {
+  return {
+    ownerDatabaseUrl: assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(text)),
+    runtimeDatabaseUrl: assertExactLocalDevNonstaffDatabaseUrl(
+      parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL_NONSTAFF"),
+    ),
+    contextMode: parseDevPrincipalContextModeFromDotenv(text),
+    signingSecret: parseDevPrincipalSigningSecretFromDotenv(text),
+  };
+}
+
+function readCanonicalEnvSnapshot(path) {
+  const expectedPath = resolve(path);
+  const descriptor = openCanonicalRegularFile(path, expectedPath);
+  try {
+    return readFileSync(descriptor, "utf8");
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+async function waitForSecretRelease() {
+  process.stdin.setEncoding("utf8");
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += chunk;
+    if (input.length > 16) fail("invalid_snapshot_release");
+  }
+  if (input !== "GO\n") fail("invalid_snapshot_release");
+}
+
+async function streamDevRuntimeSnapshot(path) {
+  const snapshot = parseDevRuntimeSnapshot(readCanonicalEnvSnapshot(path));
+  process.stdout.write(
+    `${snapshot.ownerDatabaseUrl}\n${snapshot.runtimeDatabaseUrl}\n${snapshot.contextMode}\n`,
+  );
+  await waitForSecretRelease();
+  process.stdout.write(`${snapshot.signingSecret}\n`);
+}
+
 function selfTest() {
   const valid = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
   const validNonstaff = "postgresql://bcb_dev_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev";
@@ -209,6 +251,8 @@ if (process.argv[1]?.endsWith("parse-dev-database-url.mjs")) {
     if (process.argv.length === 3 && process.argv[2] === "--self-test") {
       selfTest();
       console.log("parse-dev-database-url self-test: OK");
+    } else if (process.argv.length === 4 && process.argv[2] === "--snapshot-stream") {
+      await streamDevRuntimeSnapshot(process.argv[3]);
     } else if (
       process.argv.length === 3 ||
       (process.argv.length === 4 &&
@@ -216,9 +260,7 @@ if (process.argv[1]?.endsWith("parse-dev-database-url.mjs")) {
     ) {
       const mode = process.argv.length === 4 ? process.argv[2] : "--owner";
       const path = process.argv[mode === "--owner" ? 2 : 3];
-      const stat = lstatSync(path);
-      if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_env_file");
-      const text = readFileSync(path, "utf8");
+      const text = readCanonicalEnvSnapshot(path);
       process.stdout.write(
         mode === "--nonstaff"
           ? assertExactLocalDevNonstaffDatabaseUrl(
