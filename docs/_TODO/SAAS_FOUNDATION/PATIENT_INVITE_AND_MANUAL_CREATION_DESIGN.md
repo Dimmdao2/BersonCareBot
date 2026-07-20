@@ -321,7 +321,8 @@ already models it (§1.6). This design's job is to **wire** it, not replace it.
 |---|---|
 | `platform_users` | Canonical global person. Created by staff with phone (+ optional name/email) at card-creation time, same as today's `createDoctorClient` (§1.2), just transactionally combined with the appointment/enrollment insert (§2.3). |
 | `org_enrollments` | **The activation-state column.** `status = 'invited'` set at card-creation time (whether or not an invite link is ever actually sent — "card exists before portal activation" per #801 applies even with no invite at all). `status = 'active'` set exactly once, only by a successful redeem (phone OTP match, email OTP claim, or #806 token redeem — §3). `discharged`/`archived` unchanged, out of scope here. |
-| `be_appointments` | Scheduled/walk-in visit, `platformUserId` set to the same canonical id created/resolved above. No schema change. |
+| `be_appointments` | Scheduled appointment only, with `platformUserId` set to the same canonical id created/resolved above. A walk-in is not a booking. |
+| `clinical_visit` | Standalone walk-in visit with exact `organization_id`, `patient_user_id`, trusted creator and `canonical_appointment_id = NULL`. |
 | `patient_merge_candidates` | The **single** duplicate-suspicion queue (§3 folds the email-collision case from `createDoctorClient` into this table instead of a hard 409). |
 | `platform_user_contacts` | Records the delivery-channel value (phone/telegram/max/…) staff used to send the invite, with `source: 'doctor'` (already a valid enum value at `apps/webapp/db/schema/platformUserContacts.ts:49-55`) — audit trail of *how* it was sent, distinct from whether it was *proven*. |
 
@@ -386,7 +387,7 @@ before dispatching to the matching lookup/redeem pair — one shared entry shell
   grants to non-staff roles" property the existing file already has (§1.6, comment at
   `organization-member-invites-rls.sql:88-89`).
 
-### 2.3 The atomic transaction #801 is missing (§1.1/§1.2 gap)
+### 2.3 The atomic transaction implemented by #801
 
 One new app-layer transaction, `createManualPatientVisit`, callable from both calendar-manual-appointment
 and walk-in entry points:
@@ -398,16 +399,21 @@ and walk-in entry points:
    `status = 'invited'`.
 3. If a scheduled date/time was given: insert `be_appointments` via the existing `createAppointment` (§1.1),
    `platformUserId` = the resolved id, `source: 'staff_manual'` or similar.
-4. If walk-in (no scheduled time): insert `be_appointments` with `status: 'completed'`/`visit_confirmed`
-   (whatever the existing walk-in visit-creation vocabulary from the `PatientTabKarta.tsx` walk-in path,
-   §1.3, already uses — confirm exact status string against that submit handler at implementation time) at
-   `startAt = now()`.
-5. All four steps in one DB transaction; a failure at step 3/4 rolls back the `org_enrollments` insert too
+4. If walk-in (no scheduled booking): insert a standalone exact-organization `clinical_visit` with the entered
+   visit time and `canonical_appointment_id = NULL`. Do not invent booking duration/end time or create a completed
+   `be_appointments` row. This is the owner-authoritative UX08-11 meaning of card + visit "без booking".
+5. All four steps run in one DB transaction; a failure at step 3/4 rolls back the `org_enrollments` insert too
    (mirrors the existing rollback pattern in `appointments/manual/route.ts:154-172` for the Rubitime-sync
    failure case — same "don't leave a half-created relationship" discipline, just extended to enrollment).
 
 This closes §1.1 exactly: "create a new patient + scheduled appointment" or "card + walk-in visit" becomes
 one call, one transaction, and — new — one committed `org_enrollments` row where today none exists.
+
+**Implementation closeout (2026-07-21).** Task `#801` landed in `feat/doctor-ui-rebuild` through `7c6537236`.
+The command is idempotent across scheduled/walk-in kinds, rejects future walk-ins, preserves exact organization and
+specialist authority, and exposes truthful `not_activated`/`linked` state without activating portal access. The
+terminal independent audit and authenticated DEV desktop/mobile/API acceptance passed. A real two-connection
+PostgreSQL race proof remains an explicit U3B milestone check, not an unproved claim of the unit harness.
 
 ---
 

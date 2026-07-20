@@ -919,7 +919,14 @@ care state. Public self-booking remains another entry and can continue safely in
   separately authorized fixture/runbook.
 - **Rollback/degradation:** email delivery recovery without consuming invite; SMS unavailable leaves email path;
   install/push unavailable leaves browser app usable; booking success remains accessible without portal session.
-- **Completion:** [ ] manual card + appointment + walk-in complete; [ ] not-activated/invited/linked states truthful;
+- **Status (2026-07-21, `#801`):** manual structured patient creation + scheduled appointment and standalone walk-in
+  are integrated through `7c6537236`. Walk-in creates an exact-org `clinical_visit` without a fabricated booking;
+  scheduled/walk-in commands are idempotent within one command namespace, future walk-ins fail closed, and replay
+  does not duplicate email/booking side effects. Independent terminal audit passed `0/0/0`; authenticated DEV
+  desktop/mobile/API acceptance passed, including one real visit on exact replay and a non-mutating redirect proof.
+  The disposable PostgreSQL two-connection race remains a named U3B milestone check. Invite/activation/PBK/PWA
+  work remains open and is not implied by this slice.
+- **Completion:** [x] manual card + appointment + walk-in complete; [ ] not-activated/invited/linked states truthful;
   [ ] identity-to-existing-card link exactly-once; [ ] PIN/SMS/PBK complete; [ ] no internal-id authority; [ ] first value
   before install; [ ] installed re-auth/context; [ ] delivery privacy; [ ] full audit PASS.
 - **Merge dependency:** U1 + U5A; deferred clinic-staff stage U3A is not a dependency.

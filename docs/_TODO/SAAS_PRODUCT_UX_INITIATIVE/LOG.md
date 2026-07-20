@@ -3450,3 +3450,39 @@ paths, only by lighter-weight unit tests that don't need it. Left untouched per 
 `apps/webapp/src/modules/organization-invites/ports.ts`, `deploy/postgres/organization-member-invites-rls.sql`,
 `apps/webapp/scripts/check-c4a-843-clinic-invite-concurrency.mjs` (new, untracked),
 `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/LOG.md`.
+
+## 2026-07-21 — U3B manual patient + walk-in closure (`#801`)
+
+**Integrated outcome.** Commits `1cbc16702`, `bc9ff30db` and `7c6537236` add one atomic staff command for a
+structured patient identity, exact-organization enrollment and either a scheduled canonical appointment or a
+standalone walk-in `clinical_visit`. Walk-in no longer fabricates a one-minute booking. Future visit time is denied
+with an explicit two-minute clock tolerance. A required command UUID converges same-kind replay, rejects changed
+scheduled payload and cross-kind reuse, and suppresses duplicate contact/booking side effects. Exact enrollment row
+locking preserves first/repeat classification; client metrics include only standalone visits and do not double-count
+visits already linked to an appointment.
+
+**Audit and checks.** The first full audit found two P1 causes and one presentation P2; the first correction closed
+future/fake-booking truth, idempotency/locking and the header layout. Full re-audit found one remaining cross-kind
+command collision, closed by the final two-file correction. Terminal re-audit passed `0 P0 / 0 P1 / 0 landing P2`.
+Worker evidence: `62/62` targeted tests, final focused `23/23`, webapp typecheck, scoped ESLint and diff checks pass.
+Full CI was not rerun; the real two-connection PostgreSQL race proof remains an explicit U3B milestone check.
+
+**Authenticated DEV acceptance.** On the existing single `127.0.0.1:5200` server, `dev:doctor` desktop
+`1480x1024` and mobile `390x844` proved full-width header search, list-toolbar action, usable dialog and no horizontal
+overflow. A safe synthetic walk-in produced one patient and one standalone primary visit, `appointment = null` and
+`portalStatus = not_activated`; exact API replay returned the same visit and the clinical read confirmed count `1`.
+A separate future command returned `400 visit_in_future` and created no client. Direct card rendering showed the
+visit. A non-mutating intercepted-success diagnostic then proved dialog close and client redirect with zero console
+or page errors; the earlier real-submit timeout was DEV first-compile latency, not a reproduced routing defect.
+PII-free ignored evidence is under `.shots/u3b-801/`. No TEST/PROD/deploy/reset/migration or external send occurred.
+
+## 2026-07-21 — UI-2 live boundary (`#197`)
+
+The already integrated Online-location implementation (`838253c72`, correction `fd298043a`) did not need another
+worker or audit. Authenticated `dev:clinic-admin` acceptance proved the dedicated switch, OFF/ON column visibility,
+default-OFF service mapping and preservation across OFF→ON. Cleanup restored the functional state to Online OFF with
+zero active mappings; the intentionally immutable lazy-provisioned inactive row remains. Public `/book/{slug}`
+acceptance is still unproven because the same DEV organization has no sanctioned published slug and known fixture
+slugs return `404`. No privileged fixture or direct DB mutation was invented; this live seal is carried to U6B slug
+readiness. Evidence: `.claude/screenshots/UI-2-197/20260720T213556Z/`. Advanced online-payment/selection flow remains
+the separate blocked `#215` scope.
