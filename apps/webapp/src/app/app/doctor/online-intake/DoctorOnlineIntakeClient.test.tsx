@@ -196,11 +196,11 @@ describe("DoctorOnlineIntakeClient — список", () => {
     expect(oldRow).not.toHaveClass("font-semibold");
   });
 
-  it("использует единый desktop split 40/60", async () => {
+  it("использует единый desktop split 45/55", async () => {
     render(<DoctorOnlineIntakeClient />);
     await screen.findByText("Список Имя");
     expect(document.querySelector("#doctor-communications-intake")?.firstElementChild).toHaveClass(
-      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+      "lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]",
     );
   });
 });
@@ -218,15 +218,17 @@ describe("DoctorOnlineIntakeClient — детальная панель", () => {
     });
   });
 
-  it("показывает «Карточка клиента» (ссылка) и «Открыть чат» (кнопка-модалка) в панели деталей", async () => {
+  it("оставляет имя в шапке единственным переходом в карточку и сохраняет «Открыть чат»", async () => {
     render(<DoctorOnlineIntakeClient />);
-    await screen.findByText("Список Имя");
+    const listName = await screen.findByText("Список Имя");
+    expect(listName.closest("a")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Список Имя/i }));
-    await waitFor(() => screen.getByRole("link", { name: "Карточка клиента" }));
-    expect(screen.getByRole("link", { name: "Карточка клиента" })).toHaveAttribute(
+    await waitFor(() => screen.getByRole("link", { name: "Список Имя" }));
+    expect(screen.getByRole("link", { name: "Список Имя" })).toHaveAttribute(
       "href",
       `/app/doctor/patients/${PATIENT_ID}`,
     );
+    expect(screen.queryByRole("link", { name: "Карточка клиента" })).not.toBeInTheDocument();
     // «Открыть чат» теперь открывает модалку с перепиской (не уводит со страницы) — это кнопка, не ссылка.
     expect(screen.getByRole("button", { name: "Открыть чат" })).toBeInTheDocument();
   });

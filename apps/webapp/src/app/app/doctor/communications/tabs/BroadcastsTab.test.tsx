@@ -90,7 +90,7 @@ describe("BroadcastsTab", () => {
       expect(screen.getByText("BroadcastAuditLog")).toBeInTheDocument();
     });
     expect(document.querySelector("#broadcasts-main-view")?.firstElementChild).toHaveClass(
-      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+      "lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]",
     );
   });
 
@@ -101,6 +101,8 @@ describe("BroadcastsTab", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /журнал рассылок/i })).toBeInTheDocument();
     });
+    expect(screen.queryByText(/После отправки сообщения ставятся в очередь/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Архив ошибок доставки/i })).toBeInTheDocument();
   });
 
   // ----- onCreateFrom / prefill wiring -----

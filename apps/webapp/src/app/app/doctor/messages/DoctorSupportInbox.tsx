@@ -415,19 +415,20 @@ export function DoctorSupportInbox({
         </DoctorEmptyState>
       ) : (
         <>
-          {/* Thread header: patient name + «открыть карточку» (#813) + close button */}
+          {/* Thread header: patient name is the single card-navigation affordance. */}
           <div className="shrink-0 flex items-center gap-2 border-b border-border px-3 py-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {selectedConvDisplayName || "—"}
-            </span>
             {selectedConv?.patientUserId ? (
               <Link
                 href={patientCardHref(selectedConv.patientUserId)}
-                className={cn(doctorInlineLinkClass, "shrink-0 text-xs")}
+                className={cn(doctorInlineLinkClass, "min-w-0 flex-1 truncate text-sm font-medium")}
               >
-                Открыть карточку
+                {selectedConvDisplayName || "—"}
               </Link>
-            ) : null}
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {selectedConvDisplayName || "—"}
+              </span>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -477,7 +478,7 @@ export function DoctorSupportInbox({
           ← К списку
         </Button>
       }
-      desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+      desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
       className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
     />
   );

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
+import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
 import { patientBodyTextClass, patientChatMetaLineClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
@@ -106,6 +107,7 @@ export function ChatView({
   );
   const scrollClasses = cn(
     "min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-4 pb-4 pt-1 md:pb-5",
+    chatThreadSurfaceClass,
     variant === "doctor" && "px-3",
   );
 

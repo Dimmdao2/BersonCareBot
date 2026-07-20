@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
 import type { TodayExerciseCommentAttentionItem } from "../loadDoctorExerciseCommentAttention";
 import type { DoctorExerciseCommentCursor } from "@/modules/program-item-discussion/types";
 import type {
@@ -1053,7 +1054,7 @@ export function DoctorCommentsTab({
         </div>
 
         {/* Thread messages */}
-        <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className={cn("flex flex-1 flex-col overflow-y-auto", chatThreadSurfaceClass)}>
           {threadLoading && (
             <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
               Загрузка…
@@ -1122,7 +1123,7 @@ export function DoctorCommentsTab({
         right={rightPane}
         mobileView={mobileView}
         mobileBackSlot={mobileBackSlot}
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         className="h-full"
       />
     </div>

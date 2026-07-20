@@ -88,16 +88,14 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
   );
 
   const rightPane = (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-      <p className="shrink-0 text-sm text-muted-foreground">
-        После отправки сообщения ставятся в очередь; счётчики в журнале обновляются по мере
-        работы воркера.{" "}
-        <Button type="button" variant="link" onClick={onArchive} className={`h-auto p-0 text-sm ${doctorInlineLinkClass}`}>
-          Архив ошибок доставки
-        </Button>
-      </p>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <section className={cn(doctorSectionCardClass, "flex min-h-0 flex-1 flex-col overflow-hidden")}>
-        <h2 className={cn(doctorSectionTitleClass, "mb-1 shrink-0")}>Журнал рассылок</h2>
+        <div className="mb-1 flex shrink-0 items-center justify-between gap-2">
+          <h2 className={doctorSectionTitleClass}>Журнал рассылок</h2>
+          <Button type="button" variant="link" onClick={onArchive} className={cn("h-auto shrink-0 p-0 text-sm", doctorInlineLinkClass)}>
+            Архив ошибок доставки
+          </Button>
+        </div>
         {loading ? (
           <p className="text-sm text-muted-foreground">Загрузка…</p>
         ) : (
@@ -126,7 +124,7 @@ function BroadcastsMainView({ onArchive }: { onArchive: () => void }) {
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         mobileBackSlot={
           <Button
             variant="ghost"

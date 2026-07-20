@@ -47,6 +47,7 @@ describe("DoctorProgramDiscussionMessagesPanel", () => {
 
     expect(screen.getByText("Приседания")).toBeInTheDocument();
     expect(screen.getByText("Текст")).toBeInTheDocument();
+    expect(screen.getByTestId("doctor-program-discussion-messages")).toHaveClass("bg-muted/20");
     await user.click(screen.getByRole("button", { name: /показать предыдущие/i }));
     expect(onLoadOlder).toHaveBeenCalledTimes(1);
   });

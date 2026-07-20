@@ -15,6 +15,7 @@ import {
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
 import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
 import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
+import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
 import { ProgramItemDiscussionMediaPicker } from "@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 import { notifyPatientSupportUnreadCountChanged } from "@/modules/messaging/hooks/useSupportUnreadPolling";
@@ -198,7 +199,7 @@ export function ProgramItemDiscussionDialog(props: {
             </Button>
           : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5">
+          <div className={cn("min-h-0 flex-1 overflow-y-auto space-y-4 pb-4 pt-1 md:pb-5", chatThreadSurfaceClass)}>
             {sortedMessages.length === 0 ?
               <p className={cn("text-center", patientMutedTextClass)}>
                 {loading ? "Загрузка..." : "Пока нет комментариев."}

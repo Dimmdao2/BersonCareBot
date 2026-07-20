@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { formatChatMessageTimeRu, formatChatRelativeDateLabelRu } from "@/modules/messaging/messageFormatting";
 import { chatMessageDeliveryStatus } from "@/modules/messaging/chatMessageDeliveryStatus";
 import { ChatBubbleOutgoingMeta } from "@/shared/ui/chat/ChatBubbleOutgoingMeta";
+import { chatThreadSurfaceClass } from "@/shared/ui/chat/chatThreadSurface";
 import { ProgramItemDiscussionMessageBody } from "@/app/app/patient/treatment/ProgramItemDiscussionMessageBody";
 
 function compareMessages(a: ProgramItemDiscussionMessage, b: ProgramItemDiscussionMessage): number {
@@ -183,7 +184,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
           {loadingOlder ? "Загрузка..." : "Показать предыдущие"}
         </Button>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pb-2" data-testid="doctor-program-discussion-messages">
+      <div className={cn("min-h-0 flex-1 overflow-y-auto space-y-4 pb-2", chatThreadSurfaceClass)} data-testid="doctor-program-discussion-messages">
         {sortedMessages.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">
             {loading ? "Загрузка..." : "Пока нет сообщений."}

@@ -180,12 +180,12 @@ function stubFetchAllMode(overridePatientsData?: CommentPatientRow[]) {
 }
 
 describe("DoctorCommentsTab — состояние A (клиент не выбран)", () => {
-  it("использует единый desktop split 40/60", async () => {
+  it("использует единый desktop split 45/55", async () => {
     vi.stubGlobal("fetch", stubFetchAllMode());
     render(<DoctorCommentsTab {...defaultProps()} />);
     await waitFor(() => {
       expect(document.querySelector("#doctor-communications-comments")?.firstElementChild).toHaveClass(
-        "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+        "lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]",
       );
       expect(screen.getAllByRole("button", { name: /Иванов Иван/i }).length).toBeGreaterThanOrEqual(1);
     });

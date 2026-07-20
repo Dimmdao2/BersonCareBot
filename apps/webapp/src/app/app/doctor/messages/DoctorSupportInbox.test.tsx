@@ -70,7 +70,7 @@ describe("DoctorSupportInbox — базовый рендер", () => {
     await screen.findByText("Пациент");
     expect(screen.getByText("Выберите чат слева")).toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass(
-      "lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+      "lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]",
     );
   });
 
@@ -225,10 +225,11 @@ describe("DoctorSupportInbox — шапка треда", () => {
     render(<DoctorSupportInbox />);
     await userEvent.click(await screen.findByText("Пациент"));
 
-    expect(screen.getByRole("link", { name: "Открыть карточку" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Пациент" })).toHaveAttribute(
       "href",
       `/app/doctor/patients/${BASE_CONV.patientUserId}`,
     );
+    expect(screen.queryByText("Открыть карточку")).not.toBeInTheDocument();
   });
 
   it("открывает панель обзора и записей для пациента", async () => {
@@ -292,7 +293,7 @@ describe("DoctorSupportInbox — deep-link ?id= (#812)", () => {
   });
 });
 
-describe("DoctorSupportInbox — «Открыть карточку» в шапке треда (#813)", () => {
+describe("DoctorSupportInbox — имя как единственный переход в карточку", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -301,15 +302,16 @@ describe("DoctorSupportInbox — «Открыть карточку» в шапк
     vi.stubGlobal("fetch", makeFetch([BASE_CONV]));
     render(<DoctorSupportInbox />);
     await userEvent.click(await screen.findByText("Пациент"));
-    const link = screen.getByRole("link", { name: "Открыть карточку" });
+    const link = screen.getByRole("link", { name: "Пациент" });
     expect(link).toHaveAttribute("href", `/app/doctor/patients/${BASE_CONV.patientUserId}`);
+    expect(screen.queryByText("Открыть карточку")).not.toBeInTheDocument();
   });
 
   it("не показывает ссылку, когда patientUserId отсутствует (например, Telegram-диалог)", async () => {
     vi.stubGlobal("fetch", makeFetch([{ ...BASE_CONV, patientUserId: null }]));
     render(<DoctorSupportInbox />);
     await userEvent.click(await screen.findByText("Пациент"));
-    expect(screen.queryByRole("link", { name: "Открыть карточку" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Пациент" })).not.toBeInTheDocument();
   });
 });
 

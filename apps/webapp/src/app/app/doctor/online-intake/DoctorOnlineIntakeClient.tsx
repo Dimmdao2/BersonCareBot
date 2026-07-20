@@ -7,7 +7,6 @@ import { formatFioForDoctor } from "@/lib/parseFullName";
 import { Button } from "@/shared/ui/doctor/primitives/button";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import {
   doctorInlineLinkClass,
   doctorMetricValueClass,
@@ -577,18 +576,16 @@ export function DoctorOnlineIntakeClient({
             >
               <div className="flex w-full min-w-0 items-baseline justify-between gap-2">
                 <div className="min-w-0 flex flex-col">
-                  <Link
-                    href={patientCardHref(item.patientUserId)}
-                    onClick={(e) => e.stopPropagation()}
+                  <span
                     className={cn(
-                      "min-w-0 truncate text-sm hover:underline",
+                      "min-w-0 truncate text-sm",
                       item.status === "new" ? "font-semibold" : "font-medium",
                     )}
                   >
                     {(item.lastName || item.firstName)
                       ? formatFioForDoctor(item.lastName, item.firstName, undefined)
                       : (item.patientName || "—")}
-                  </Link>
+                  </span>
                   {(item.lastName || item.firstName) && item.patientName && item.patientName !== formatFioForDoctor(item.lastName, item.firstName, undefined) && (
                     <span className="min-w-0 truncate text-xs text-muted-foreground">{item.patientName}</span>
                   )}
@@ -819,14 +816,6 @@ export function DoctorOnlineIntakeClient({
                     В отказ
                   </Button>
                 )}
-                {detail.status !== "closed" && (
-                  <Link
-                    href={patientCardHref(detail.patientUserId)}
-                    className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-                  >
-                    Карточка клиента
-                  </Link>
-                )}
                 <DoctorOpenChatButton
                   patientUserId={detail.patientUserId}
                   patientName={detail.patientName}
@@ -848,7 +837,7 @@ export function DoctorOnlineIntakeClient({
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
+        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         mobileBackSlot={
           <Button
             variant="ghost"
