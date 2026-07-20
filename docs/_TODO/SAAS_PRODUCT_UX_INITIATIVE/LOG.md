@@ -43,6 +43,14 @@ page header, радиусы page block/KPI/control `12/8/24px`, белый фо�
 детальный UI plan как `UI-P`; taskdb `#925` создан без дублирования. Реализация должна идти через существующие
 doctor shared primitives вместе с обновлением style guide/rule, не затрагивая patient/public UI и data semantics.
 
+**Implementation closure.** Shared doctor primitives and scoped doctor tokens now implement the complete delta,
+including the exact owner primary `#406ca7`; patient/public themes and destructive/warning semantics were not changed.
+The one permitted independent presentation audit passed with no findings: `19/19` targeted tests, scoped lint,
+typecheck and diff-check were green. After integration, the same `19/19` tests passed again and live DEV screenshots
+at `1480x1024` and `390x844` confirmed the Patients header/search composition, gap/background/radii/padding/KPI/list
+rules and mobile wrapping on the single existing `:5200` server. Evidence is stored in ignored
+`.claude/screenshots/UI-P-LIVE-DEV/2026-07-20T19-02-final/`.
+
 ## 2026-07-20 — code-only TEST checkpoint, C1 closure and UI-0 live residual
 
 TEST был обновлён только кодом до `27c19a275`; dump, restore и reset не выполнялись. Code-only wrapper получил
