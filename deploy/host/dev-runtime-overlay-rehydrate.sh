@@ -19,6 +19,7 @@ RUNTIME_OVERLAY_LIB="$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh"
 SQL_STREAMER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
+D3_4_BOOTSTRAP_GRANTS="$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF="$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
@@ -28,7 +29,8 @@ Usage:
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
 
-Reinstalls the canonical P2-B protected context, then reapplies runtime grants/helpers/E1 to exactly $TARGET_DB.
+Reinstalls the canonical P2-B protected context, then reapplies runtime grants/helpers/E1 and D3.4 to exactly $TARGET_DB.
+The exact C0 dual-pool DEV topology requires DB_PRINCIPAL_CONTEXT_MODE=locked.
 It never restores, recreates or dumps a database and never opens TEST, PROD or /opt/env.
 This is a one-time post-restore/owner-drift repair, never an ordinary code-only deploy step.
 EOF
@@ -59,6 +61,7 @@ for guarded_file in \
   "$SQL_STREAMER|$REPO_ROOT/deploy/host/stream-canonical-sql.mjs|canonical SQL reader" \
   "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants" \
   "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context" \
+  "$D3_4_BOOTSTRAP_GRANTS|$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql|D3.4 bootstrap grants" \
   "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF|$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql|runtime overlay app_owner handoff"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
   if [[ -L "$guarded_path" || ! -f "$guarded_path" || "$(realpath "$guarded_path")" != "$expected_path" ]]; then
@@ -172,6 +175,19 @@ runtime_overlay_admin_psql() {
   ]]; then
     sql_file="$9"
     include_e1_role=1
+  elif [[
+    "$#" -eq 11 &&
+    "$1" == "-d" && "$2" == "$TARGET_DB" &&
+    "$3" == "-X" && "$4" == "-v" && "$5" == "ON_ERROR_STOP=1" &&
+    "$6" == "-v" && "$7" == "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE" &&
+    "$8" == "-v" && "$9" == "d3_4_skip_media_worker=1" &&
+    "${10}" == "-f"
+  ]]; then
+    sql_file="${11}"
+    psql_args+=(
+      -v "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE"
+      -v d3_4_skip_media_worker=1
+    )
   else
     echo "FATAL: DEV runtime overlay rejected unexpected psql arguments" >&2
     return 1
@@ -209,8 +225,8 @@ if [[ "$runtime_role" != "$TARGET_RUNTIME_ROLE" ]]; then
   exit 1
 fi
 runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"
-if [[ "$DEV_CONTEXT_MODE" != "shadow" && "$DEV_CONTEXT_MODE" != "locked" ]]; then
-  echo "FATAL: DEV protected context requires shadow or locked mode" >&2
+if [[ "$DEV_CONTEXT_MODE" != "locked" ]]; then
+  echo "FATAL: DEV C0 dual-pool runtime requires locked principal-context mode" >&2
   exit 1
 fi
 
@@ -721,6 +737,13 @@ runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRAN
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
 
+echo "[dev-runtime-overlay] applying canonical D3.4 DEV bootstrap closure (media excluded)"
+runtime_overlay_admin_psql \
+  -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 \
+  -v "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE" \
+  -v d3_4_skip_media_worker=1 \
+  -f "$D3_4_BOOTSTRAP_GRANTS" >/dev/null
+
 # Exact catalog proof for the two capabilities whose migration journal can be current while restored
 # owners/ACLs are stale. Only the owner plus the named runtime role may execute each function.
 run_dev_admin_psql -d "$TARGET_DB" -qAt \
@@ -772,6 +795,31 @@ runtime_setting_rows="$(run_dev_runtime_psql -Atc \
   echo "FATAL: DEV runtime setting capability returned an invalid result" >&2
   exit 1
 }
+
+run_dev_runtime_psql -Atc "SELECT app.release_principal_context();" >/dev/null
+
+bootstrap_surface_ready="$(run_dev_runtime_psql -Atc "
+SELECT (
+  has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.get_public_config_bool(text)', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.email_password_find_login_candidate(text)', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.lookup_pending_org_invite(text)', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')
+  AND has_table_privilege(current_user, 'public.be_organization_members', 'SELECT')
+  AND has_table_privilege(current_user, 'public.platform_users', 'SELECT')
+  AND has_table_privilege(current_user, 'public.user_channel_bindings', 'SELECT')
+  AND has_table_privilege(current_user, 'public.be_external_entity_mappings', 'SELECT')
+  AND has_table_privilege(current_user, 'public.be_specialist_service_availability', 'SELECT')
+  AND has_table_privilege(current_user, 'public.be_branches', 'SELECT')
+  AND has_table_privilege(current_user, 'public.be_clinic_services', 'SELECT')
+  AND has_table_privilege(current_user, 'public.be_specialists', 'SELECT')
+  AND NOT has_function_privilege(current_user, 'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)', 'EXECUTE')
+  AND NOT has_function_privilege(current_user, 'app.reset_principal_context()', 'EXECUTE')
+)::text;")"
+if [[ "$bootstrap_surface_ready" != "true" ]]; then
+  echo "FATAL: DEV nonstaff base-login D3.4 bootstrap surface is incomplete" >&2
+  exit 1
+fi
 
 booking_rows="$(run_dev_runtime_psql -Atc \
   "BEGIN; SET LOCAL ROLE app_patient; SELECT count(*) FROM app.read_current_patient_booking_rows('upcoming', now()); ROLLBACK;")"

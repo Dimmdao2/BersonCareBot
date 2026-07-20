@@ -583,13 +583,16 @@ For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-c
 
 1. current-branch migrations;
 2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
-3. P0.5b grants and the single shared runtime-overlay chain;
-4. exact owner/ACL and nonstaff capability postchecks;
+3. P0.5b grants, the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
+   explicit DEV webapp-only mode (no TEST media runtime role);
+4. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
 5. copied TEST-only settings unlock.
 
 The handoff opens the canonical non-symlink `.env.dev` once through a descriptor-pinned snapshot and parses
-`DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `shadow`
-or `locked`; the secret must be at least 32 bytes and safe for `COPY FROM STDIN`. The env is never sourced, inherited
+`DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from that same snapshot. Mode must be `locked`:
+the exact C0 dual pools are `NOINHERIT`, while shadow does not `SET ROLE` before installing signed context and the
+base logins intentionally cannot execute the install helper directly. The secret must be at least 32 bytes and safe
+for `COPY FROM STDIN`. The env is never sourced, inherited
 `xtrace` is disabled before reads, the shell never stores/expands the secret, and the actual value never becomes a
 SQL literal, psql variable, argv or output. Before any handoff write, the wrapper proves exact database/role topology,
 exact safe attributes and no outgoing membership for `app_owner`/`app_staff`/`app_patient`, `app` schema and migration-created
@@ -613,9 +616,13 @@ login attributes. Transitive membership is checked too: no unlisted role may rea
 an allowed intermediate login. An unknown member, indirect chain or option drift is a fail-closed incident; DEV
 recovery validates it but never revokes, grants or otherwise repairs cluster-global membership.
 
-The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure and fails unless the targeted
-functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public
-runtime accessor, and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An
+The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure, followed by the existing
+`deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. DEV passes
+`d3_4_skip_media_worker=1`, so that artifact composes the reviewed webapp bootstrap grants without requiring,
+reading or mutating a TEST media login; TEST keeps its existing default media composition unchanged. The wrapper
+fails unless the targeted functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can
+actually release protected context, has the required bootstrap surface, can read through the public runtime accessor,
+and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An
 already prepared DEV database with only owner/ACL drift must use this command directly; recreating it from a dump is
 unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
 forbidden recovery paths.

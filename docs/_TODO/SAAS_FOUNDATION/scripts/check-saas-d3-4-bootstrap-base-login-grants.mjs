@@ -173,6 +173,9 @@ function runChecks(overrides = {}) {
     "D3.4 bootstrap/base-login direct read grant closure",
     "d3_4_bootstrap_base_role",
     "d3_4_media_worker_runtime_role",
+    "d3_4_skip_media_worker",
+    "d3_4_skip_media_worker_is_boolean",
+    "d3_4_skip_media_worker_role_must_be_absent",
     "d3_4_bootstrap_grants_down",
     "d3_4_bootstrap_base_role_exists",
     "d3_4_webapp_runtime_accessors_exist",
@@ -246,6 +249,11 @@ function runChecks(overrides = {}) {
     "REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;",
     "GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;",
     "Do not add clinical/media/content/full-settings tables here",
+  ]);
+  requireFragments(`${files.grantSql} DEV webapp-only composition`, loaded.grantSql, [
+    "\\set d3_4_skip_media_worker 0",
+    "\\if :d3_4_skip_media_worker",
+    "d3_4_media_worker_runtime_role must be absent when d3_4_skip_media_worker=1",
   ]);
   requireOccurrenceCount(
     files.grantSql,
@@ -651,6 +659,8 @@ function runChecks(overrides = {}) {
     "before",
     "service restart or product smoke",
     "not final D3.4 PASS until the owner-authorized locked TEST",
+    "d3_4_skip_media_worker=1",
+    "without requiring,\nreading or mutating a TEST media login",
     "smoke reruns",
     "deploy/postgres/organization-member-invites-rls.sql",
     "deploy/postgres/store-p0-entitlements-rls.sql",

@@ -9,7 +9,9 @@
 --
 -- Required psql variable:
 --   - d3_4_bootstrap_base_role
---   - d3_4_media_worker_runtime_role
+--   - d3_4_media_worker_runtime_role (TEST/default composition only)
+-- Optional psql variable:
+--   - d3_4_skip_media_worker=1 (DEV webapp-only composition; no media role is read or mutated)
 --
 -- Rollback:
 --   Re-run with -v d3_4_bootstrap_grants_down=1.
@@ -23,11 +25,13 @@
 SELECT 1 / 0 AS d3_4_bootstrap_base_role_missing;
 \endif
 
-\if :{?d3_4_media_worker_runtime_role}
+\if :{?d3_4_skip_media_worker}
 \else
-\echo 'FATAL: missing required psql variable d3_4_media_worker_runtime_role.'
-SELECT 1 / 0 AS d3_4_media_worker_runtime_role_missing;
+\set d3_4_skip_media_worker 0
 \endif
+
+SELECT 1 / (:'d3_4_skip_media_worker' IN ('0', '1'))::int
+  AS d3_4_skip_media_worker_is_boolean;
 
 SELECT 1 / (
   length(:'d3_4_bootstrap_base_role') > 0
@@ -45,6 +49,18 @@ SELECT 1 / (
   AND to_regprocedure('app.read_webapp_server_runtime_setting(text,text)') IS NOT NULL
   AND to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL
 )::int AS d3_4_webapp_runtime_accessors_exist;
+
+\if :d3_4_skip_media_worker
+\if :{?d3_4_media_worker_runtime_role}
+\echo 'FATAL: d3_4_media_worker_runtime_role must be absent when d3_4_skip_media_worker=1.'
+SELECT 1 / 0 AS d3_4_skip_media_worker_role_must_be_absent;
+\endif
+\else
+\if :{?d3_4_media_worker_runtime_role}
+\else
+\echo 'FATAL: missing required psql variable d3_4_media_worker_runtime_role.'
+SELECT 1 / 0 AS d3_4_media_worker_runtime_role_missing;
+\endif
 
 SELECT 1 / (
   length(:'d3_4_media_worker_runtime_role') > 0
@@ -101,6 +117,7 @@ SELECT 1 / (
     )
   )
 )::int AS d3_4_media_worker_runtime_role_has_exact_supported_capability;
+\endif
 
 -- P2-B owns the protected principal-context helper bundle. The TEST wrapper may
 -- intentionally skip P2-B in legacy-guc mode, so D3.4 accepts either the complete
@@ -141,14 +158,26 @@ SELECT (
 \if :{?d3_4_bootstrap_grants_down}
 \if :d3_4_has_p2_b_context_bundle
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_media_worker_runtime_role";
+\endif
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :"d3_4_media_worker_runtime_role";
+\endif
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :"d3_4_media_worker_runtime_role";
+\endif
 REVOKE EXECUTE ON FUNCTION app.current_integrator_user_id() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_media_worker_runtime_role";
+\endif
 \endif
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.get_public_config_bool(text) FROM :"d3_4_bootstrap_base_role";
@@ -196,10 +225,16 @@ REVOKE SELECT ON TABLE public.be_specialists FROM :"d3_4_bootstrap_base_role";
 
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.user_phone_history FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE SELECT ON TABLE public.app_runtime_settings FROM :"d3_4_media_worker_runtime_role";
+\endif
 
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_media_worker_runtime_role";
+\endif
 REVOKE USAGE ON SCHEMA public FROM :"d3_4_bootstrap_base_role";
 \echo 'D3.4 bootstrap/base-login grants DOWN complete.'
 \quit
@@ -278,31 +313,49 @@ REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, 
 GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :"d3_4_bootstrap_base_role";
 
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";
+\endif
 REVOKE EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.staff_user_has_password_credentials(uuid) TO app_staff;
 
 \if :d3_4_has_p2_b_context_bundle
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";
+\endif
 -- Phase4 grants these policy-evaluation helpers to app_worker. Grant them directly to the exact
 -- media runtime too: pg_has_role(..., 'member') can make the worker policy branch true even for a
 -- NOINHERIT member, while inherited function privileges would still be unavailable. D3.4 must not
 -- grant install/reset/signing or unrelated current-integrator helpers.
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"d3_4_media_worker_runtime_role";
+\endif
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :"d3_4_media_worker_runtime_role";
+\endif
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO :"d3_4_bootstrap_base_role";
 GRANT EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) TO :"d3_4_bootstrap_base_role";
+\if :d3_4_skip_media_worker
+\else
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_media_worker_runtime_role";
+\endif
 \endif
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_bootstrap_base_role";
 
 -- Generic server-audience runtime config only. RLS in 0188 exposes global server rows to
 -- app_worker members and hides authenticated-client rows; restricted system_settings stays denied.
+\if :d3_4_skip_media_worker
+\else
 GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";
+\endif
 
 -- Narrow SECURITY DEFINER pre-auth surface. These functions own their validation and expose only
 -- the bootstrap operations used by email auth, invite acceptance, and specialist signup. Direct

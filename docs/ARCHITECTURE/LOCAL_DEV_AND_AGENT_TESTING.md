@@ -169,7 +169,7 @@ context нужно заново связать с тем же signing secret, к
 1. restore только `bcb_webapp_dev` с `--no-owner --no-acl`;
 2. current-branch migrations под `bcb_webapp_dev_user`;
 3. `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
-   `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
+   `DB_PRINCIPAL_CONTEXT_MODE=locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
    descriptor-pinned snapshot канонического `.env.dev` без `source`; wrapper требует exact безопасные атрибуты
    и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`; входящих membership у `app_owner`
    быть не может вообще, а входящие `app_staff`/`app_patient` сверяются с полным allowlist текущей общей
@@ -185,16 +185,24 @@ context нужно заново связать с тем же signing secret, к
    literal/psql variable; до commit доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B
    schema/tables/functions принадлежат `app_owner`, три protected tables не имеют ACL-grantees кроме owner, восемь
    protected functions имеют только exact owner/staff/patient ACL и сохранённый secret равен stdin-значению;
-   затем применяются P0.5b и единая shared runtime-overlay chain. Перед первым protected overlay эта цепочка
+   затем применяются P0.5b и единая shared runtime-overlay chain. После неё wrapper обязательно применяет
+   канонический `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` к exact DEV nonstaff base login с
+   явным webapp-only режимом `d3_4_skip_media_worker=1`: TEST media login не требуется, не читается и не меняется.
+   Перед первым protected overlay shared-цепочка
    обязательно запускает `deploy/postgres/runtime-overlay-app-owner-handoff.sql`: он передаёт `app_owner` только
    три exact уже существующие функции — Web Push public-key accessor и два public-booking resolver — и только если
    их исходный owner равен owner текущей БД или уже `app_owner`. Это обязательный повторяемый per-restore handoff:
    `pg_restore --no-owner` делает эти функции объектами owner роли БД, а последующий `CREATE OR REPLACE` под
    `SET ROLE app_owner` иначе завершится ошибкой. Отсутствующая exact функция допустима: следующий соответствующий
    overlay создаёт её и явно закрепляет owner `app_owner`. Цепочку останавливает только существующая exact функция с
-   неизвестным owner; schema-wide owner rewrite не выполняется. После overlays запускаются nonstaff runtime
-   capability checks;
+   неизвестным owner; schema-wide owner rewrite не выполняется. После D3.4 запускаются actual base-login
+   `release_principal_context`, bootstrap-surface и nonstaff runtime capability checks;
 6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
+
+Сочетание C0 `NOINHERIT` dual pools с `shadow` не поддерживается: shadow не выполняет `SET ROLE` перед
+`install_signed_context`, а base logins намеренно не имеют прямого `EXECUTE` на install helper. Поэтому этот
+DEV closure fail-closed принимает только `locked`; `shadow` нужно заменить на `locked` в `.env.dev` отдельной
+операторской правкой до preflight, а живой dev-сервер после успешного closure контролируемо перезапустить.
 
 Signing secret парсится как данные из единственного атомарно открытого non-symlink `.env.dev` snapshot,
 принимается только в ограниченной whitespace/backslash-free форме длиной не менее 32 bytes и выпускается parser-ом

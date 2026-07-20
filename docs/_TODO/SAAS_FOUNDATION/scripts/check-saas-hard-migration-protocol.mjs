@@ -245,6 +245,10 @@ function runChecks(overrides = {}) {
     'Do not claim a TEST deploy passed unless the wrapper has actually run',
     'pnpm run check:saas-hard-migration-protocol',
     'DEV/disposable dormant wrapper',
+    '`d3_4_skip_media_worker=1`',
+    'without requiring,\nreading or mutating a TEST media login',
+    'Mode must be `locked`:',
+    'shadow does not `SET ROLE` before installing signed context',
     'run-saas-disposable-dormant-rehearsal.mjs',
     'bcb_saas_dormant_rehearsal_',
     'does not touch TEST services',
@@ -443,6 +447,10 @@ function runChecks(overrides = {}) {
     "aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner)))",
     "aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner)))",
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
+    'd3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE',
+    'd3_4_skip_media_worker=1',
+    'SELECT app.release_principal_context();',
+    'DEV C0 dual-pool runtime requires locked principal-context mode',
   ]);
   requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
     'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight',

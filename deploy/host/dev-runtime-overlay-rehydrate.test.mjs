@@ -30,6 +30,9 @@ const appOwnerHandoffPath = fileURLToPath(
 const e1OverlayPath = fileURLToPath(
   new URL("../postgres/e1-webapp-runtime-config.sql", import.meta.url),
 );
+const d34BootstrapPath = fileURLToPath(
+  new URL("../postgres/d3-4-bootstrap-base-login-read-grants.sql", import.meta.url),
+);
 const e1MigrationPaths = [
   "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
   "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
@@ -240,6 +243,38 @@ test("shared closure executes the canonical list and forwards the E1 runtime rol
   assert.match(readFileSync(calls, "utf8"), /-v e1_webapp_runtime_role=bcb_dev_runtime_nonstaff_login/u);
 });
 
+test("D3.4 exposes an explicit DEV webapp-only composition without weakening TEST defaults", () => {
+  const source = readFileSync(d34BootstrapPath, "utf8");
+  assert.match(source, /\\set d3_4_skip_media_worker 0/u);
+  assert.match(source, /d3_4_skip_media_worker_is_boolean/u);
+  assert.match(source, /d3_4_skip_media_worker_role_must_be_absent/u);
+  assert.match(
+    source,
+    /\\if :d3_4_skip_media_worker\n\\if :\{\?d3_4_media_worker_runtime_role\}/u,
+  );
+  assert.match(
+    source,
+    /\\else\n\\if :\{\?d3_4_media_worker_runtime_role\}[\s\S]*d3_4_media_worker_runtime_role_has_exact_supported_capability;\n\\endif/u,
+  );
+  for (const statement of [
+    'GRANT USAGE ON SCHEMA app TO :"d3_4_media_worker_runtime_role";',
+    'GRANT EXECUTE ON FUNCTION app.release_principal_context() TO :"d3_4_media_worker_runtime_role";',
+    'GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";',
+    'REVOKE USAGE ON SCHEMA app FROM :"d3_4_media_worker_runtime_role";',
+    'REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM :"d3_4_media_worker_runtime_role";',
+    'REVOKE SELECT ON TABLE public.app_runtime_settings FROM :"d3_4_media_worker_runtime_role";',
+  ]) {
+    const escapedStatement = statement.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    assert.match(
+      source,
+      new RegExp(
+        `\\\\if :d3_4_skip_media_worker\\n\\\\else\\n${escapedStatement}\\n\\\\endif`,
+        "u",
+      ),
+    );
+  }
+});
+
 test("shared topology guard rejects owner equals runtime and accepts separate C0 runtime", () => {
   const rejected = spawnSync(
     "bash",
@@ -275,6 +310,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /P2_B_OWNER_ROLE="app_owner"/u);
   assert.match(source, /P2_B_STAFF_ROLE="app_staff"/u);
   assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
+  assert.match(source, /d3-4-bootstrap-base-login-read-grants\.sql/u);
   assert.match(source, /runtime-overlay-app-owner-handoff\.sql/u);
   assert.equal(source.split('--snapshot-stream "$DEV_ENV"').length - 1, 1);
   assert.match(source, /DEV_SNAPSHOT_COPROC_READ_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[0\]\}"/u);
@@ -364,7 +400,23 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_protected_context_bundle_complete/u);
   assert.match(source, /dev_runtime_patient_role_boundary/u);
   assert.match(source, /runtime_overlay_apply_post_migration_chain "\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u);
+  assert.match(source, /d3_4_bootstrap_base_role=\$TARGET_RUNTIME_ROLE/u);
+  assert.match(source, /d3_4_skip_media_worker=1/u);
+  assert.doesNotMatch(source, /d3_4_media_worker_runtime_role=/u);
+  assert.match(source, /DEV C0 dual-pool runtime requires locked principal-context mode/u);
+  assert.doesNotMatch(source, /requires shadow or locked mode/u);
   assert.match(source, /dev_runtime_overlay_exact_owner_acl/u);
+  assert.match(source, /SELECT app\.release_principal_context\(\);/u);
+  assert.match(source, /DEV nonstaff base-login D3\.4 bootstrap surface is incomplete/u);
+  const sharedOverlayIndex = source.indexOf(
+    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
+  );
+  const d34Index = source.indexOf("d3_4_skip_media_worker=1", sharedOverlayIndex);
+  const releaseProofIndex = source.indexOf(
+    'run_dev_runtime_psql -Atc "SELECT app.release_principal_context();"',
+    d34Index,
+  );
+  assert.ok(sharedOverlayIndex >= 0 && d34Index > sharedOverlayIndex && releaseProofIndex > d34Index);
   assert.match(source, /app\.read_public_runtime_setting\('oauth_google_enabled','admin'\)/u);
   assert.match(source, /SET LOCAL ROLE app_patient/u);
   assert.match(source, /app\.read_current_patient_booking_rows\('upcoming', now\(\)\)/u);
@@ -565,6 +617,29 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     "SELECT 'before-include';\nSELECT 'included';\nSELECT 'after-include';\n",
   );
 
+  const acceptedD34 = runCallback([
+    "-d",
+    "bcb_webapp_dev",
+    "-X",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-v",
+    "d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login",
+    "-v",
+    "d3_4_skip_media_worker=1",
+    "-f",
+    canonicalFile,
+  ]);
+  assert.equal(acceptedD34.status, 0, acceptedD34.stderr);
+  assert.equal(
+    readFileSync(calls, "utf8"),
+    "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login -v d3_4_skip_media_worker=1\n",
+  );
+  assert.equal(
+    readFileSync(stdinCapture, "utf8"),
+    "SELECT 'canonical';\n\\ir ../../apps/webapp/db/drizzle-migrations/included.sql\n",
+  );
+
   const rejectedCases = [
     ["-d", "bcb_webapp_dev"],
     ["-d", "bcb_webapp_dev", "-f"],
@@ -574,6 +649,19 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     ["-dbcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
     ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", "-f", canonicalFile],
     ["-d", "other_db", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    [
+      "-d",
+      "bcb_webapp_dev",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-v",
+      "d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login",
+      "-v",
+      "d3_4_skip_media_worker=0",
+      "-f",
+      canonicalFile,
+    ],
     ["-X", "-d", "bcb_webapp_dev", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
     ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile, "extra"],
     ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile, "-f", secondFile],
