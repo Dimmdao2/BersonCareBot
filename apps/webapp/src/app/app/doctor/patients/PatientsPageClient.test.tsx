@@ -28,8 +28,8 @@ function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
     activeAppointmentsCount: overrides.activeAppointmentsCount ?? 0,
     activeTreatmentProgram: overrides.activeTreatmentProgram ?? false,
     activeTreatmentProgramInstanceId: overrides.activeTreatmentProgramInstanceId ?? null,
-    cancellationCount30d: overrides.cancellationCount30d ?? 0,
-    rescheduleCount30d: overrides.rescheduleCount30d ?? 0,
+    cancellationsCount: overrides.cancellationsCount ?? 0,
+    reschedulesCount: overrides.reschedulesCount ?? 0,
     noShowCount: overrides.noShowCount ?? 0,
     visitedThisCalendarMonth: overrides.visitedThisCalendarMonth ?? false,
     hasConversation: overrides.hasConversation ?? false,
@@ -37,6 +37,8 @@ function client(overrides: Partial<ClientListItem> = {}): ClientListItem {
     unreadExerciseCommentsCount: overrides.unreadExerciseCommentsCount ?? 0,
     isOnSupport: overrides.isOnSupport ?? false,
     hasMemberships: overrides.hasMemberships ?? false,
+    hasActiveMemberships: overrides.hasActiveMemberships ?? overrides.hasMemberships ?? false,
+    hasExpiredMemberships: overrides.hasExpiredMemberships ?? false,
   };
 }
 
@@ -46,10 +48,12 @@ const metrics: DoctorDashboardPatientMetrics = {
   visitedThisCalendarMonthCount: 0,
   withProgramCount: 0,
   membershipsCount: 0,
+  expiredMembershipsCount: 0,
   subscriberCount: 0,
   newCount: 0,
   formerCount: 0,
   cancellationsCount: 0,
+  reschedulesCount: 0,
 };
 
 async function renderPatientsPage(clients: ClientListItem[]) {
@@ -195,6 +199,52 @@ describe("PatientsPageClient", () => {
     await user.click(screen.getByRole("button", { name: /Без будущих/i }));
     expect(screen.getByText("Только прошлый визит")).toBeInTheDocument();
     expect(screen.queryByText("Прошлый и будущий")).not.toBeInTheDocument();
+  });
+
+  it("separates active and expired memberships and filters lifetime cancellations and reschedules", async () => {
+    const user = userEvent.setup();
+    await renderPatientsPage([
+      client({
+        userId: "active-membership",
+        displayName: "Действующий абонемент",
+        hasMemberships: true,
+        hasActiveMemberships: true,
+      }),
+      client({
+        userId: "awaiting-membership",
+        displayName: "Ожидает оплаты",
+        hasMemberships: true,
+        hasActiveMemberships: false,
+      }),
+      client({
+        userId: "expired-membership",
+        displayName: "Истёкший абонемент",
+        hasExpiredMemberships: true,
+      }),
+      client({ userId: "cancelled", displayName: "Старые отмены", cancellationsCount: 2 }),
+      client({ userId: "rescheduled", displayName: "Старые переносы", reschedulesCount: 3 }),
+    ]);
+
+    const activeMemberships = screen.getByRole("button", { name: /С абонементами/i });
+    await user.click(activeMemberships);
+    expect(screen.getByText("Действующий абонемент")).toBeInTheDocument();
+    expect(screen.queryByText("Ожидает оплаты")).not.toBeInTheDocument();
+    expect(screen.queryByText("Истёкший абонемент")).not.toBeInTheDocument();
+
+    await user.click(activeMemberships);
+    await user.click(screen.getByRole("button", { name: /Истёкшие абонементы/i }));
+    expect(screen.getByText("Истёкший абонемент")).toBeInTheDocument();
+    expect(screen.queryByText("Действующий абонемент")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Истёкшие абонементы/i }));
+    await user.click(screen.getByRole("button", { name: /С отменами/i }));
+    expect(screen.getByText("Старые отмены")).toBeInTheDocument();
+    expect(screen.queryByText("Старые переносы")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /С отменами/i }));
+    await user.click(screen.getByRole("button", { name: /С переносами/i }));
+    expect(screen.getByText("Старые переносы")).toBeInTheDocument();
+    expect(screen.queryByText("Старые отмены")).not.toBeInTheDocument();
   });
 
   it("filters channel buttons client-side without reloading the list", async () => {

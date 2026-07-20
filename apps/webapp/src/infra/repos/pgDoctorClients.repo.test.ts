@@ -106,16 +106,16 @@ describe("pgDoctorClients repo", () => {
             user_id: "u1",
             history_count: 1,
             active_count: 1,
-            cancellation_count_30d: 0,
-            reschedule_count_30d: 0,
+            cancellations_count: 0,
+            reschedules_count: 0,
             visited_month_count: 0,
           },
           {
             user_id: "u2",
             history_count: 0,
             active_count: 0,
-            cancellation_count_30d: 0,
-            reschedule_count_30d: 0,
+            cancellations_count: 0,
+            reschedules_count: 0,
             visited_month_count: 0,
           },
         ],
@@ -150,16 +150,16 @@ describe("pgDoctorClients repo", () => {
             user_id: "u1",
             history_count: 0,
             active_count: 0,
-            cancellation_count_30d: 1,
-            reschedule_count_30d: 0,
+            cancellations_count: 1,
+            reschedules_count: 0,
             visited_month_count: 0,
           },
           {
             user_id: "u2",
             history_count: 1,
             active_count: 0,
-            cancellation_count_30d: 0,
-            reschedule_count_30d: 0,
+            cancellations_count: 0,
+            reschedules_count: 0,
             visited_month_count: 0,
           },
         ],
@@ -196,8 +196,8 @@ describe("pgDoctorClients repo", () => {
           history_count: 2,
           last_appointment_at: "2026-07-02T09:00:00.000Z",
           active_count: 1,
-          cancellation_count_30d: 0,
-          reschedule_count_30d: 0,
+          cancellations_count: 0,
+          reschedules_count: 0,
           visited_month_count: 1,
         }],
       })
@@ -218,6 +218,57 @@ describe("pgDoctorClients repo", () => {
     expect(appointmentAggSql).toContain("bea.start_at <= NOW()");
     expect(appointmentAggSql).toContain("bea.organization_id = $2::uuid");
     expect(list[0]?.lastAppointmentAt).toBe("2026-07-02T09:00:00.000Z");
+  });
+
+  it("maps lifetime cancellation/reschedule counts and separates purchased, active, and expired memberships", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [{ id: "u1", display_name: "Client", phone_normalized: null, created_at: "2026-01-01" }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          user_id: "u1",
+          history_count: 1,
+          last_appointment_at: "2026-01-02T09:00:00.000Z",
+          active_count: 0,
+          cancellations_count: 2,
+          reschedules_count: 3,
+          visited_month_count: 0,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          user_id: "u1",
+          purchased_memberships_count: 1,
+          active_memberships_count: 0,
+          expired_memberships_count: 1,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgDoctorClientsPort();
+    const list = await port.listClients({ organizationId: "org-1" });
+
+    expect(list[0]).toMatchObject({
+      cancellationsCount: 2,
+      reschedulesCount: 3,
+      hasMemberships: true,
+      hasActiveMemberships: false,
+      hasExpiredMemberships: true,
+    });
+    const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    expect(appointmentAggSql).not.toContain("INTERVAL '30 days'");
+    expect(appointmentAggSql).toContain("AS cancellations_count");
+    expect(appointmentAggSql).toContain("AS reschedules_count");
+    const membershipSql = String(runWebappPgTextMock.mock.calls[5]?.[0] ?? "");
+    expect(membershipSql).toContain("pp.status = 'active'");
+    expect(membershipSql).toContain("pp.status = 'expired'");
+    expect(membershipSql).toContain("pp.status IN ('active', 'awaiting_payment')");
   });
 
   it("listPatientAppointments reads patient rows from canonical appointments", async () => {
@@ -392,26 +443,58 @@ describe("pgDoctorClients repo", () => {
     const port = createPgDoctorClientsPort();
     const metrics = await port.getDashboardPatientMetrics();
 
-    // The five scalar COUNT(*) queries resolve to 3; the aggregate query gets the
-    // same mocked row (no past/future/cancel fields) → one «subscriber» bucket.
+    // Scalar COUNT queries resolve to 3. The membership projection expects named
+    // active/expired fields, so the generic mock maps both to zero.
     expect(metrics).toEqual({
       totalClients: 3,
       onSupportCount: 3,
       visitedThisCalendarMonthCount: 3,
       withProgramCount: 3,
-      membershipsCount: 3,
+      membershipsCount: 0,
+      expiredMembershipsCount: 0,
       newCount: 0,
       formerCount: 0,
       subscriberCount: 1,
       cancellationsCount: 0,
+      reschedulesCount: 0,
     });
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(6);
     const visitedSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
+    const membershipsSql = String(runWebappPgTextMock.mock.calls[4]?.[0] ?? "");
     const aggregateSql = String(runWebappPgTextMock.mock.calls[5]?.[0] ?? "");
     expect(visitedSql).toContain("INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id");
     expect(aggregateSql).toContain("LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id");
+    expect(aggregateSql).toContain("LEFT JOIN be_appointment_reschedules r");
+    expect(aggregateSql).not.toContain("INTERVAL '30 days'");
+    expect(membershipsSql).toContain("pp.status = 'active'");
+    expect(membershipsSql).toContain("pp.status = 'expired'");
     expect(visitedSql).not.toContain("appointment_records");
     expect(aggregateSql).not.toContain("appointment_records");
+  });
+
+  it("getDashboardPatientMetrics reports active and expired memberships and lifetime event segments", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [{ c: "5" }] })
+      .mockResolvedValueOnce({ rows: [{ c: "0" }] })
+      .mockResolvedValueOnce({ rows: [{ c: "0" }] })
+      .mockResolvedValueOnce({ rows: [{ c: "0" }] })
+      .mockResolvedValueOnce({ rows: [{ active_count: "2", expired_count: "3" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "u1", past_count: 1, future_count: 0, cancellations_count: 1, reschedules_count: 0 },
+          { id: "u2", past_count: 1, future_count: 1, cancellations_count: 0, reschedules_count: 2 },
+        ],
+      });
+
+    const metrics = await createPgDoctorClientsPort().getDashboardPatientMetrics({ organizationId: "org-1" });
+
+    expect(metrics).toMatchObject({
+      totalClients: 5,
+      membershipsCount: 2,
+      expiredMembershipsCount: 3,
+      cancellationsCount: 1,
+      reschedulesCount: 1,
+    });
   });
 
   it("getPatientCardHeader reads appointment stats from canonical appointments", async () => {

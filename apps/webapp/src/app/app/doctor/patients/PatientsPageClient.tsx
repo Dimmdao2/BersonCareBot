@@ -78,7 +78,19 @@ type LegacyFiltersState = {
 // Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
 
-type SegmentKey = "all" | "appointments" | "on_support" | "with_program" | "without_appointments" | "visits" | "former" | "cancellations" | "memberships" | "visited_month";
+type SegmentKey =
+  | "all"
+  | "appointments"
+  | "on_support"
+  | "with_program"
+  | "without_appointments"
+  | "visits"
+  | "former"
+  | "cancellations"
+  | "reschedules"
+  | "memberships"
+  | "expired_memberships"
+  | "visited_month";
 
 type SegmentDef = {
   key: SegmentKey;
@@ -129,14 +141,26 @@ const SEGMENTS: SegmentDef[] = [
   {
     key: "cancellations",
     title: "С отменами",
-    tooltip: "Есть отмены за 30 дней.",
+    tooltip: "Есть хотя бы одна отмена за всё время.",
     urlValue: "cancellations",
+  },
+  {
+    key: "reschedules",
+    title: "С переносами",
+    tooltip: "Есть хотя бы один перенос за всё время.",
+    urlValue: "reschedules",
   },
   {
     key: "memberships",
     title: "С абонементами",
-    tooltip: "Есть действующий или ожидающий оплаты абонемент.",
+    tooltip: "Есть действующий абонемент.",
     urlValue: "memberships",
+  },
+  {
+    key: "expired_memberships",
+    title: "Истёкшие абонементы",
+    tooltip: "Есть истёкший абонемент.",
+    urlValue: "expired_memberships",
   },
   {
     key: "visited_month",
@@ -206,9 +230,13 @@ function clientSegmentPredicate(item: ClientListItem, key: SegmentKey): boolean 
     case "former":
       return item.lastAppointmentAt != null && (item.activeAppointmentsCount ?? 0) === 0;
     case "cancellations":
-      return item.cancellationCount30d > 0;
+      return item.cancellationsCount > 0;
+    case "reschedules":
+      return item.reschedulesCount > 0;
     case "memberships":
-      return item.hasMemberships === true;
+      return item.hasActiveMemberships === true;
+    case "expired_memberships":
+      return item.hasExpiredMemberships === true;
     case "visited_month":
       return item.visitedThisCalendarMonth === true;
     default:
@@ -420,11 +448,11 @@ function PatientsContent({
   filtered = applySegmentFilters(filtered, activeSegments);
   filtered = applyChannelFilter(filtered, activeChannel);
   // Legacy filters (AND-logic)
-  if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
+  if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationsCount > 0);
   if (legacyFilters.visitedMonth) filtered = filtered.filter((c) => c.visitedThisCalendarMonth === true);
   if (legacyFilters.withoutAppointments) filtered = filtered.filter((c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0);
-  if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
-  if (legacyFilters.reschedules) filtered = filtered.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
+  if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasActiveMemberships === true);
+  if (legacyFilters.reschedules) filtered = filtered.filter((c) => c.reschedulesCount > 0);
 
   // PAT-09/10: client-side text search across all name fields
   if (searchQuery.trim()) {

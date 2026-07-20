@@ -57,6 +57,18 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.hasActiveTreatmentProgram === true) {
       list = list.filter((item) => item.activeTreatmentProgram);
     }
+    if (filters.hasMemberships === true) {
+      list = list.filter((item) => item.hasActiveMemberships === true);
+    }
+    if (filters.hasExpiredMemberships === true) {
+      list = list.filter((item) => item.hasExpiredMemberships === true);
+    }
+    if (filters.hasCancellations === true) {
+      list = list.filter((item) => item.cancellationsCount > 0);
+    }
+    if (filters.hasReschedules === true) {
+      list = list.filter((item) => item.reschedulesCount > 0);
+    }
     if (filters.onlyWithAppointmentRecords === true) {
       list = list.filter((item) => item.hasAppointmentHistory === true);
     }
@@ -84,10 +96,12 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       visitedThisCalendarMonthCount: 0,
       withProgramCount: 0,
       membershipsCount: 0,
+      expiredMembershipsCount: 0,
       subscriberCount: 0,
       newCount: 0,
       formerCount: 0,
       cancellationsCount: 0,
+      reschedulesCount: 0,
     };
   },
 

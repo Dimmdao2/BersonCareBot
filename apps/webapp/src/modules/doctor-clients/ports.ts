@@ -39,8 +39,10 @@ export type DoctorClientsFilters = {
   archivedOnly?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
   supportStatus?: "on" | "programWithoutSupport";
-  /** Есть активный абонемент (`be_patient_packages.status IN ('active','awaiting_payment')`). */
+  /** Есть действующий абонемент (`be_patient_packages.status = 'active'`). */
   hasMemberships?: boolean;
+  /** Есть истёкший абонемент (`be_patient_packages.status = 'expired'`). */
+  hasExpiredMemberships?: boolean;
   /**
    * Сегмент «Новые»: есть будущая запись, но ещё не было прошедшего посещения.
    * TODO: уточнить определение — сейчас: activeAppointmentsCount > 0 && !hasAppointmentHistory
@@ -56,8 +58,10 @@ export type DoctorClientsFilters = {
    * TODO: уточнить определение — сейчас: !hasAppointmentHistory && activeAppointmentsCount === 0
    */
   isSubscriberOnly?: boolean;
-  /** Клиенты с хотя бы одной отменой за 30 дней. */
+  /** Клиенты с хотя бы одной отменой за всё время. */
   hasCancellations?: boolean;
+  /** Клиенты с хотя бы одним переносом за всё время. */
+  hasReschedules?: boolean;
 };
 
 /** Строка клиента в списке. */
@@ -83,8 +87,10 @@ export type ClientListItem = {
   activeTreatmentProgram: boolean;
   /** Выбранный активный экземпляр (при нескольких — самый свежий по `updated_at`). Для ссылок врача на экран программы. */
   activeTreatmentProgramInstanceId: string | null;
-  cancellationCount30d: number;
-  rescheduleCount30d?: number;
+  /** Количество отмен за всё время по каноническим статусам отмены. */
+  cancellationsCount: number;
+  /** Количество переносов за всё время по `be_appointment_reschedules`. */
+  reschedulesCount: number;
   /** Lifetime no-show counter from be_patient_booking_profiles.no_show_count. */
   noShowCount?: number;
   visitedThisCalendarMonth?: boolean;
@@ -92,8 +98,12 @@ export type ClientListItem = {
   unreadMessagesCount?: number;
   unreadExerciseCommentsCount?: number;
   isOnSupport?: boolean;
-  /** Есть активный/ожидающий оплаты абонемент пациента. */
+  /** Есть приобретённый абонемент: active либо awaiting_payment (client evidence / информационный индикатор). */
   hasMemberships?: boolean;
+  /** Есть действующий абонемент (`status = 'active'`). */
+  hasActiveMemberships?: boolean;
+  /** Есть истёкший абонемент (`status = 'expired'`). */
+  hasExpiredMemberships?: boolean;
 };
 
 /** Базовая идентичность клиента (для профиля и агрегации). */
@@ -192,16 +202,20 @@ export type DoctorDashboardPatientMetrics = {
   visitedThisCalendarMonthCount: number;
   /** Клиенты с хотя бы одной активной программой лечения (`treatment_program_instances.status = 'active'`). */
   withProgramCount: number;
-  /** Клиенты с активным/ожидающим оплаты абонементом (`be_patient_packages.status IN ('active','awaiting_payment')`). */
+  /** Клиенты с действующим абонементом (`be_patient_packages.status = 'active'`). */
   membershipsCount: number;
+  /** Клиенты с истёкшим абонементом (`be_patient_packages.status = 'expired'`). */
+  expiredMembershipsCount: number;
   /** «Подписчики»: role=client, нет ни одной неотменённой записи. */
   subscriberCount: number;
   /** «Новые»: есть будущая запись, но ещё не было прошедшего посещения. */
   newCount: number;
   /** «Бывшие»: было прошедшее посещение, но нет будущей активной записи. */
   formerCount: number;
-  /** Клиенты с хотя бы одной отменой за 30 дней. */
+  /** Клиенты с хотя бы одной отменой за всё время. */
   cancellationsCount: number;
+  /** Клиенты с хотя бы одним переносом за всё время. */
+  reschedulesCount: number;
 };
 
 /** Строка в списке записей пациента (Записи таб). */

@@ -14,7 +14,8 @@ const c = (partial: Partial<ClientListItem> & Pick<ClientListItem, "userId">): C
   nextAppointmentLabel: null,
   activeTreatmentProgram: false,
   activeTreatmentProgramInstanceId: null,
-  cancellationCount30d: 0,
+  cancellationsCount: 0,
+  reschedulesCount: 0,
   ...partial,
 });
 

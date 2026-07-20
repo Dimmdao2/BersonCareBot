@@ -3,7 +3,7 @@
  *
  * Query params:
  *   q          — строка поиска (имя, фамилия, телефон, email, telegram, MAX)
- *   segment    — on_support | with_program | visited_month | memberships | new | former | subscriber | cancellations
+ *   segment    — on_support | with_program | visited_month | memberships | expired_memberships | new | former | subscriber | cancellations | reschedules
  *   channel    — telegram | max | email | phone
  *   archived   — "true" для архивных пациентов
  *
@@ -34,10 +34,12 @@ export async function GET(request: Request) {
     hasActiveTreatmentProgram: segment === "with_program" ? true : undefined,
     visitedThisCalendarMonth: segment === "visited_month" ? true : undefined,
     hasMemberships: segment === "memberships" ? true : undefined,
+    hasExpiredMemberships: segment === "expired_memberships" ? true : undefined,
     isNew: segment === "new" ? true : undefined,
     isFormer: segment === "former" ? true : undefined,
     isSubscriberOnly: segment === "subscriber" || segment === "without_appointments" ? true : undefined,
     hasCancellations: segment === "cancellations" ? true : undefined,
+    hasReschedules: segment === "reschedules" ? true : undefined,
     hasUpcomingAppointment: segment === "appointments" ? true : undefined,
     // Channel
     hasTelegram: channel === "telegram" ? true : undefined,

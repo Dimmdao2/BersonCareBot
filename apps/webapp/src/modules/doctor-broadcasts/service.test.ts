@@ -45,7 +45,8 @@ describe("doctor-broadcasts service", () => {
     nextAppointmentLabel: null,
     activeTreatmentProgram: false,
     activeTreatmentProgramInstanceId: null,
-    cancellationCount30d: 0,
+    cancellationsCount: 0,
+    reschedulesCount: 0,
   });
 
   function makeResolve(effectiveClients: ClientListItem[]) {

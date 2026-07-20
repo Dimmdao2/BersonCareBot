@@ -14,7 +14,8 @@ const STUB: ClientListItem[] = [
     nextAppointmentLabel: null,
     activeTreatmentProgram: true,
     activeTreatmentProgramInstanceId: "prog-1",
-    cancellationCount30d: 0,
+    cancellationsCount: 0,
+    reschedulesCount: 0,
   },
   {
     userId: "22222222-2222-4222-8222-222222222222",
@@ -24,7 +25,8 @@ const STUB: ClientListItem[] = [
     nextAppointmentLabel: null,
     activeTreatmentProgram: true,
     activeTreatmentProgramInstanceId: "prog-2",
-    cancellationCount30d: 0,
+    cancellationsCount: 0,
+    reschedulesCount: 0,
   },
   {
     userId: "33333333-3333-4333-8333-333333333333",
@@ -34,7 +36,8 @@ const STUB: ClientListItem[] = [
     nextAppointmentLabel: null,
     activeTreatmentProgram: false,
     activeTreatmentProgramInstanceId: null,
-    cancellationCount30d: 0,
+    cancellationsCount: 0,
+    reschedulesCount: 0,
   },
 ];
 

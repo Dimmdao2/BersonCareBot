@@ -171,7 +171,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
       nextAppointmentLabel: "Есть запись",
       activeTreatmentProgram: true,
       activeTreatmentProgramInstanceId: "inst-1",
-      cancellationCount30d: 0,
+      cancellationsCount: 0,
+      reschedulesCount: 0,
     });
     expect(item.href).toBe("/app/doctor/patients/uuid-1");
     expect(item.displayName).toBe("Иван");
@@ -190,7 +191,8 @@ describe("loadDoctorTodayDashboard helpers", () => {
       nextAppointmentLabel: null,
       activeTreatmentProgram: false,
       activeTreatmentProgramInstanceId: null,
-      cancellationCount30d: 0,
+      cancellationsCount: 0,
+      reschedulesCount: 0,
     });
     expect(item.href).toBe("/app/doctor/patients/uuid-2");
   });
@@ -215,7 +217,19 @@ describe("loadDoctorTodayDashboard audience", () => {
       doctorClients: {
         getDashboardPatientMetrics: async (aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual({ ...audience, organizationId: deps.organizationId });
-          return { onSupportCount: 0, totalClients: 0, visitedThisCalendarMonthCount: 0, withProgramCount: 0, membershipsCount: 0, subscriberCount: 0, newCount: 0, formerCount: 0, cancellationsCount: 0 };
+          return {
+            onSupportCount: 0,
+            totalClients: 0,
+            visitedThisCalendarMonthCount: 0,
+            withProgramCount: 0,
+            membershipsCount: 0,
+            expiredMembershipsCount: 0,
+            subscriberCount: 0,
+            newCount: 0,
+            formerCount: 0,
+            cancellationsCount: 0,
+            reschedulesCount: 0,
+          };
         },
         listClients: async (_filters: unknown, aud?: { excludedUserIds?: string[] }) => {
           expect(aud).toEqual({ ...audience, organizationId: deps.organizationId });
@@ -264,10 +278,12 @@ describe("loadDoctorTodayDashboard audience", () => {
           visitedThisCalendarMonthCount: 0,
           withProgramCount: 0,
           membershipsCount: 0,
+          expiredMembershipsCount: 0,
           subscriberCount: 0,
           newCount: 0,
           formerCount: 0,
           cancellationsCount: 0,
+          reschedulesCount: 0,
           };
         },
         listClients: async (filters: unknown) => {
@@ -334,10 +350,12 @@ describe("loadDoctorTodayDashboard proactive", () => {
           visitedThisCalendarMonthCount: 0,
           withProgramCount: 0,
           membershipsCount: 0,
+          expiredMembershipsCount: 0,
           subscriberCount: 0,
           newCount: 0,
           formerCount: 0,
           cancellationsCount: 0,
+          reschedulesCount: 0,
         }),
         listClients: async () => [],
       },

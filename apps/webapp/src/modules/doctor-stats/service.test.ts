@@ -28,10 +28,12 @@ describe("doctor-stats service", () => {
       visitedThisCalendarMonthCount: 4,
       withProgramCount: 0,
       membershipsCount: 0,
+      expiredMembershipsCount: 0,
       subscriberCount: 0,
       newCount: 0,
       formerCount: 0,
       cancellationsCount: 0,
+      reschedulesCount: 0,
     }),
     getDashboardAppointmentMetrics: async () => ({
       futureActiveCount: 7,
@@ -84,10 +86,12 @@ describe("doctor-stats service", () => {
         visitedThisCalendarMonthCount: 0,
         withProgramCount: 0,
         membershipsCount: 0,
+        expiredMembershipsCount: 0,
         subscriberCount: 0,
         newCount: 0,
         formerCount: 0,
         cancellationsCount: 0,
+        reschedulesCount: 0,
       }),
       getDashboardAppointmentMetrics: async () => ({
         futureActiveCount: 0,
@@ -118,10 +122,12 @@ describe("doctor-stats service", () => {
       visitedThisCalendarMonthCount: 0,
       withProgramCount: 0,
       membershipsCount: 0,
+      expiredMembershipsCount: 0,
       subscriberCount: 0,
       newCount: 0,
       formerCount: 0,
       cancellationsCount: 0,
+      reschedulesCount: 0,
     }));
     const getDashboardAppointmentMetrics = vi.fn(async () => ({
       futureActiveCount: 0,
