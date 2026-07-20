@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
   getOrganization: vi.fn(),
   listSettingsByScope: vi.fn(),
+  getTariffForOrg: vi.fn(),
+  listOverrides: vi.fn(),
   redirect: vi.fn((href: string) => {
     throw new Error(`redirect:${href}`);
   }),
@@ -22,6 +24,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     bookingEngine: { organization: { getOrganization: mocks.getOrganization } },
     systemSettings: { listSettingsByScope: mocks.listSettingsByScope },
+    orgEntitlements: {
+      getTariffForOrg: mocks.getTariffForOrg,
+      listOverrides: mocks.listOverrides,
+    },
   }),
 }));
 vi.mock("@/shared/ui/doctor/shell/DoctorWorkspaceShell", () => ({
@@ -60,6 +66,8 @@ describe("DoctorSectionLayout", () => {
     });
     mocks.getCurrentSession.mockResolvedValue(doctorSession);
     mocks.listSettingsByScope.mockResolvedValue([]);
+    mocks.getTariffForOrg.mockResolvedValue({ mechanics: { courses: true }, includedSeats: null });
+    mocks.listOverrides.mockResolvedValue([]);
   });
 
   it("routes a management-only owner to the management shell", async () => {

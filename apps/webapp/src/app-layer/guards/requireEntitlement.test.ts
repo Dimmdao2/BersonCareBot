@@ -27,7 +27,7 @@ beforeEach(() => {
 describe("requireEntitlement", () => {
   it("uses the supplied trusted context and has no auth side effect", async () => {
     getTariffForOrgMock.mockResolvedValueOnce(null);
-    listOverridesMock.mockResolvedValueOnce([]);
+    listOverridesMock.mockResolvedValueOnce([{ mechanic: "courses", enabled: true }]);
 
     const gate = await requireEntitlement(workspaceCtx, "courses");
 
