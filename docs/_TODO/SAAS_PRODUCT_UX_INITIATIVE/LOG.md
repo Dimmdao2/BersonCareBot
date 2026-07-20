@@ -1,5 +1,39 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — parallel launch checkpoint: C4C `#26` + U3S `#919`
+
+**Base and environment.** Both high-risk stages launch from `feat/doctor-ui-rebuild` at `55c8e2999`; U0/U1/U2 are
+integrated, U1/U2 evidence is sealed, and origin matches the feature branch. The last owner-visible TEST checkpoint
+recorded by the roadmap remains `4a889093d`; neither stage is authorized to deploy, refresh/reset a database, use a
+production dump, touch PROD, or send through a real external channel. The only preserved unrelated worktree file is
+the owner's untracked `SESSION_HANDOFF_2026-07-17.md`.
+
+**C4C / `#26`.** Authority is roadmap C4 and owner-review §§P1/P4/11–13/15. The parked checkpoint `93f881a96` is
+useful but cannot be merged mechanically after U1/U2: the worker must semantically rebase it, preserve the trusted
+workspace/capability and shared management/account shell, and finish the one owner-mapped commerce bypass class.
+Acceptance is courses default-OFF, exact-organization OFF/ON/list/direct/count/picker/update behavior, inert course
+products when unavailable, active-enrollment + exact-org + current-entitlement checks before purchase/fulfilment,
+and org-safe product authoring. Synthetic proof uses owner org A with courses ON, org B OFF, a patient with and
+without active enrollment, and foreign course/product IDs. No course redesign, store expansion, RLS, TEST/PROD or
+real payment. The isolated C4C branch owns course/product/nav/entitlement paths and migration `0214`; U3S may touch
+the shared DI composition only in its own worktree, with final semantic integration owned by the lead. Targeted
+matrix, journal/checker, typecheck/lint and DEV two-org evidence precede one independent high-risk audit; one full CI
+runs only at the final C4C integration gate. More than two correction rounds or any finding without roadmap authority
+stops as an owner question.
+
+**U3S / `#919`.** Authority is roadmap U3S and `ENTRY_AND_INVITE_JOURNEYS.md` J1. Scope is one coherent identity/
+tenant stage: server-trusted signup retry/receipt, denial of UUID replay, exactly-one organization + owner membership,
+authorized idempotent specialist binding, truthful clinical destination, recoverable first-run checklist, and real
+staff factor/recovery/session-revocation mechanics under a reviewed security contract. Synthetic proof covers fresh,
+duplicate, expired/resend, replay/concurrent-confirm, partial retry, owner before/after binding, patient-persona
+collision and two-organization negatives on desktop `1440×900` and mobile `390×844`. DEV delivery stays mocked;
+TEST handoff `#917` occurs only after a separately authorized code-only deploy and live proof. U3A staff invites,
+U3B patient activation, U6A public landing, PR-02 legal consent and production FIO are excluded. U3S owns signup,
+provisioning, staff-auth/session/security, first-run and their persistence/UI paths. It does not edit C4C course/
+product/nav files; any unavoidable DI or migration-journal overlap stays isolated until lead integration. Targeted
+state-graph/typecheck/lint/build and live DEV evidence precede one full independent identity/security audit and, if
+needed, one integrated correction + full re-audit; no intermediate full CI.
+
 ## 2026-07-19 — owner addendum integrated: C4/C5, S4 `#888` and FIO `#855`
 
 Documentation-only provenance checkpoint on base `feat/doctor-ui-rebuild` at `d34f17def`. The owner addendum was
