@@ -85,6 +85,7 @@ const overlayManagedAppStaffTables = [
   "public.saas_org_entitlement_overrides",
   "public.saas_tariffs",
   "public.specialist_signup_intents",
+  "public.staff_security_profiles",
   "public.app_runtime_settings",
 ];
 
@@ -406,6 +407,7 @@ function runChecks(overrides = {}) {
     }
   }
   requireFragments(files.p05bGrantSql, loaded.p05bGrantSql, [
+    'REVOKE ALL PRIVILEGES ON TABLE "public"."staff_security_profiles" FROM app_patient;',
     'REVOKE ALL PRIVILEGES ON TABLE "public"."user_password_credentials" FROM app_patient;',
     'REVOKE ALL PRIVILEGES ON TABLE "public"."user_oauth_bindings" FROM app_patient;',
     "'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient'",
@@ -414,7 +416,17 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_staff;",
   ]);
+  requireFragments(files.publicBootstrapSql, loaded.publicBootstrapSql, [
+    "REVOKE ALL PRIVILEGES ON TABLE public.staff_security_profiles FROM app_patient, app_staff;",
+    "REVOKE ALL PRIVILEGES (%s) ON TABLE public.staff_security_profiles FROM app_patient, app_staff",
+    "WHERE attrelid = 'public.staff_security_profiles'::regclass",
+    "specialist_signup_staff_security_runtime_acl_closed",
+    "NOT has_table_privilege(",
+    "AND NOT has_any_column_privilege(",
+    "FATAL: staff_security_profiles must remain table-invisible to app_patient and app_staff.",
+  ]);
   forbidRegex(files.p05bGrantSql, loaded.p05bGrantSql, [
+    /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."staff_security_profiles"\s+TO\s+app_(?:staff|patient)/i,
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_password_credentials"\s+TO\s+app_patient/i,
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_oauth_bindings"\s+TO\s+app_patient/i,
   ]);

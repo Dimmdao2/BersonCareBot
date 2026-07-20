@@ -20,11 +20,12 @@ Repeatable ops SQL: [`../../../deploy/postgres/p0-5-role-split.sql`](../../../de
 
 The SQL is generated from the SaaS tier descriptor model by
 [`scripts/p0-5-role-split-sql.mjs`](scripts/p0-5-role-split-sql.mjs) and is checked by
-[`scripts/check-p0-5-role-split.mjs`](scripts/check-p0-5-role-split.mjs). The generated grant target is
-exactly the current `SCOPED` + `BOOTSTRAP` table set:
+[`scripts/check-p0-5-role-split.mjs`](scripts/check-p0-5-role-split.mjs). The generated generic-role grant
+target is the current `SCOPED` + `BOOTSTRAP` set minus three dedicated-boundary tables
+(`app_runtime_settings`, `app_runtime_settings_audit`, `staff_security_profiles`):
 
-- `157` `SCOPED` tables;
-- `26` `BOOTSTRAP` tables;
+- `160` `SCOPED` tables;
+- `27` `BOOTSTRAP` tables;
 - `0` `INFRA`, `LEGACY`, or `TELEMETRY` tables.
 
 The SQL is parameterized with operator-chosen role names:
@@ -60,12 +61,16 @@ Because owner/migrator roles use `BYPASSRLS`, the SQL must be run by a superuser
 
 - `CONNECT` on the current database;
 - `USAGE` on schemas that contain `SCOPED` or `BOOTSTRAP` tables (`public`, `integrator`);
-- `SELECT, INSERT, UPDATE, DELETE` on every `SCOPED` and `BOOTSTRAP` table from the descriptor model;
+- `SELECT, INSERT, UPDATE, DELETE` on the generic-role `SCOPED` and `BOOTSTRAP` set from the descriptor model;
 - `USAGE, SELECT` on sequences owned by those granted tables.
 
 It does not grant the app role `SUPERUSER`, `CREATEROLE`, `BYPASSRLS`, schema `CREATE`, owner/migrator
 membership, or any permission that bypasses RLS. It does not grant `INFRA`, `LEGACY`, or `TELEMETRY`
 tables in this B5 artifact.
+
+The three excluded tables keep their dedicated contracts: audience-aware roles for runtime settings and
+self-scoped `SECURITY DEFINER` functions with no direct runtime-role table/column grants for the staff-security
+vault.
 
 The owner role receives schema `USAGE, CREATE` on schemas represented by the grant set. The migrator role
 is granted membership in the owner role for deploy-only DDL/backfill execution.

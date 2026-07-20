@@ -490,6 +490,20 @@ GRANT UPDATE ("platform_user_id", "is_enabled_for_messages", "is_enabled_for_not
 
 -- Safety REVOKEs for sensitive BOOTSTRAP tables deliberately excluded from the app_patient surface.
 -- These make the UP path idempotently repair stale over-grants from earlier rehearsals.
+-- U3S: staff MFA secrets, recovery hashes and login challenges stay table-invisible to app_patient; runtime access is only through self-scoped SECURITY DEFINER functions.
+REVOKE ALL PRIVILEGES ON TABLE "public"."staff_security_profiles" FROM app_patient;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum),
+  'public',
+  'staff_security_profiles'
+)
+FROM pg_attribute
+WHERE attrelid = 'public.staff_security_profiles'::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\gexec
+
 -- D3.5: password hashes stay table-invisible to app_patient; patient code uses app.current_patient_has_password_credentials() for boolean presence only.
 REVOKE ALL PRIVILEGES ON TABLE "public"."user_password_credentials" FROM app_patient;
 SELECT format(

@@ -67,6 +67,7 @@ const migrationOnlyTables = new Set([
 // - organization-member-invites-rls.sql grants reviewed staff DML;
 // - store-p0-entitlements-rls.sql grants reviewed staff DML for both dormant entitlement tables;
 // - specialist signup uses narrow SECURITY DEFINER bootstrap/provisioning functions, not direct staff DML.
+//   The staff MFA/recovery vault follows the same function-only boundary.
 // - reference catalog baseline/receipt metadata is immutable runtime infrastructure managed only by
 //   the receipt-backed seed helper; staff edits the per-organization category/item copies instead.
 // - SaaS isolation diagnostics are true-global tables behind their own SECURITY DEFINER writer/operator overlay;
@@ -77,6 +78,7 @@ const overlayManagedAppStaffTables = new Set([
   "public.saas_org_entitlement_overrides",
   "public.saas_tariffs",
   "public.specialist_signup_intents",
+  "public.staff_security_profiles",
   "public.reference_catalog_baselines",
   "public.reference_catalog_snapshot_receipts",
   "public.saas_isolation_coverage_runs",
@@ -182,6 +184,11 @@ const appPatientBootstrapTables = [
 ];
 
 const appPatientSensitiveBootstrapRevokes = [
+  {
+    qualifiedName: "public.staff_security_profiles",
+    reason:
+      "U3S: staff MFA secrets, recovery hashes and login challenges stay table-invisible to app_patient; runtime access is only through self-scoped SECURITY DEFINER functions.",
+  },
   {
     qualifiedName: "public.user_password_credentials",
     reason:

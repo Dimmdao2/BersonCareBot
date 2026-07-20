@@ -186,6 +186,43 @@ SELECT quote_ident(:'specialist_signup_email_challenges_owner') AS specialist_si
 SELECT quote_ident(:'specialist_signup_intents_owner') AS specialist_signup_intents_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_staff_security_owner') AS specialist_signup_staff_security_owner_ident \gset
 
+-- This table is an account-security vault, not a runtime table surface. All callers use the
+-- self-scoped SECURITY DEFINER functions below; reapplying the overlay also repairs stale broad
+-- grants from an earlier rehearsal or default-privilege drift.
+REVOKE ALL PRIVILEGES ON TABLE public.staff_security_profiles FROM app_patient, app_staff;
+SELECT format(
+  'REVOKE ALL PRIVILEGES (%s) ON TABLE public.staff_security_profiles FROM app_patient, app_staff',
+  string_agg(quote_ident(attname), ', ' ORDER BY attnum)
+)
+FROM pg_attribute
+WHERE attrelid = 'public.staff_security_profiles'::regclass
+  AND attnum > 0
+  AND NOT attisdropped
+\gexec
+
+SELECT (
+  NOT has_table_privilege(
+    'app_patient', 'public.staff_security_profiles',
+    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+  )
+  AND NOT has_any_column_privilege(
+    'app_patient', 'public.staff_security_profiles', 'SELECT,INSERT,UPDATE,REFERENCES'
+  )
+  AND NOT has_table_privilege(
+    'app_staff', 'public.staff_security_profiles',
+    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+  )
+  AND NOT has_any_column_privilege(
+    'app_staff', 'public.staff_security_profiles', 'SELECT,INSERT,UPDATE,REFERENCES'
+  )
+)::int AS specialist_signup_staff_security_runtime_acl_closed \gset
+
+\if :specialist_signup_staff_security_runtime_acl_closed
+\else
+\echo 'FATAL: staff_security_profiles must remain table-invisible to app_patient and app_staff.'
+SELECT 1 / 0 AS specialist_signup_staff_security_runtime_acl_abort;
+\endif
+
 -- Staff-security SECURITY DEFINER functions call sibling helpers inside schema app. Their
 -- derived table owner needs only schema name resolution; caller/runtime grants stay unchanged.
 GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;

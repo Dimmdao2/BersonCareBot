@@ -4,11 +4,13 @@ import { buildRlsDescriptors } from "./rls-descriptor-model.mjs";
 
 const grantTiers = new Set(["SCOPED", "BOOTSTRAP"]);
 
-// This runtime store has role-specific grants (patient/staff/worker/integrator accessor) and an
-// audience-aware policy. Granting it to the generic legacy app role would bypass that split.
+// These tables have dedicated privilege boundaries. Runtime settings use audience-specific roles;
+// the staff-security vault is reachable only through self-scoped SECURITY DEFINER functions.
+// Granting any of them to the generic legacy app role would bypass the reviewed split.
 export const p05DedicatedRoleTables = new Set([
   "public.app_runtime_settings",
   "public.app_runtime_settings_audit",
+  "public.staff_security_profiles",
 ]);
 
 function sqlString(value) {

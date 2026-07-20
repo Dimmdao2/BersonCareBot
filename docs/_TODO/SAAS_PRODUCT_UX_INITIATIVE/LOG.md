@@ -1,5 +1,19 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — P1/UI milestone CI and security-inventory closure
+
+The accumulated milestone is green through lint, typecheck, HLS synchronization, integrator/webapp/media tests and
+both builds. The final audit was resumed from its failed phase instead of rerunning the full pipeline. Three stale
+test expectations and two stale structural guards were aligned with already-approved behavior: current Drizzle
+organization predicates, specialist-assignment booking semantics, the protected current-patient organization helper,
+and D3.4's four-accessor/two-public-resolver topology. No production behavior was weakened to satisfy a checker.
+
+The one genuine audit failure was closed in Foundation: the U3S staff MFA/recovery vault now has an exact BOOTSTRAP
+inventory entry while remaining excluded from both generic-role grant generators. Its canonical overlay revokes
+effective table and column privileges from both runtime roles and permits only self-scoped functions. Independent
+critical audit passed with no findings. No DB reset/restore/migration or TEST/PROD action was performed. The next
+checkpoint is a code-only TEST deploy and live proof of public clinic booking plus organization signup/workspace.
+
 ## 2026-07-20 — DEV restore closure live-proven (`#920`, `#921`; supersedes the earlier same-day claim)
 
 The earlier entry below recorded green rehydrate scripts before authenticated runtime evidence and was therefore

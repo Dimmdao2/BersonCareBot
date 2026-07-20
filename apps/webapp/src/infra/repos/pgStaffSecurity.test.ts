@@ -55,6 +55,19 @@ describe("staff security database boundary", () => {
       "GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;",
     );
     expect(overlay).toContain(
+      "REVOKE ALL PRIVILEGES ON TABLE public.staff_security_profiles FROM app_patient, app_staff;",
+    );
+    expect(overlay).toContain(
+      "REVOKE ALL PRIVILEGES (%s) ON TABLE public.staff_security_profiles FROM app_patient, app_staff",
+    );
+    expect(overlay).toContain("WHERE attrelid = 'public.staff_security_profiles'::regclass");
+    expect(overlay).toContain("specialist_signup_staff_security_runtime_acl_closed");
+    expect(overlay).toContain("NOT has_table_privilege(");
+    expect(overlay).toContain("AND NOT has_any_column_privilege(");
+    expect(overlay).not.toMatch(
+      /GRANT [^;]* ON TABLE public\.staff_security_profiles TO app_(?:patient|staff)/u,
+    );
+    expect(overlay).toContain(
       "specialist_signup_staff_security_owner_schema_usage_ok",
     );
     expect(overlay).toContain(

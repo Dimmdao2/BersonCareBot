@@ -58,12 +58,11 @@ BOOTSTRAP, INFRA, LEGACY, and TELEMETRY, **excluding 4 pure migration-bookkeepin
 (`drizzle.__drizzle_migrations`, `integrator.schema_migrations`, `public.schema_migrations`,
 `public.webapp_schema_migrations` — touched only by the migrator role, never by a running process).
 
-The generator also excludes four post-P0.5b tables so D3.5 regeneration does not silently broaden the reviewed
-full-DML batch: `organization_member_invites` is granted by `organization-member-invites-rls.sql`;
-`saas_org_entitlement_overrides` and `saas_tariffs` are granted by `store-p0-entitlements-rls.sql`; and
-`specialist_signup_intents` is accessed through the narrow SECURITY DEFINER functions installed by the specialist
-signup/provisioning overlays. Those dedicated artifacts remain the grant owners for these tables. Moving any of them
-into P0.5b requires a separate runtime-surface review rather than incidental regeneration.
+The generator also excludes post-snapshot tables whose dedicated overlays own their privilege contracts, so D3.5
+regeneration cannot silently broaden the reviewed full-DML batch. These include organization invites; entitlement
+tables; specialist signup and the function-only staff-security vault; immutable reference-catalog receipts;
+SaaS-isolation diagnostics; and audience-aware runtime settings/audit. Moving any of them into P0.5b requires a
+separate runtime-surface review rather than incidental regeneration.
 
 The UP path also explicitly revokes stale `app_patient` table/column privileges on
 `user_password_credentials` and `user_oauth_bindings`. Rehearsals therefore converge to the reviewed narrow
@@ -75,7 +74,7 @@ patient-wall RLS but NOT enough for the webapp/integrator/worker/scheduler/media
 also reads/writes INFRA queues and outboxes every request (`projection_outbox`,
 `integrator_push_outbox`, `outgoing_delivery_queue`, `delivery_attempt_logs`, `idempotency_keys`, …),
 LEGACY Rubitime-era tables (still read by legacy sync paths), and TELEMETRY rollups. `app_staff` gets
-`SELECT, INSERT, UPDATE, DELETE` uniformly on all 219 — it is the one role every non-patient session
+`SELECT, INSERT, UPDATE, DELETE` uniformly on all 220 — it is the one role every non-patient session
 (doctor/admin/system/worker) authenticates as, so it needs the same DML breadth the current single
 shared app connection already has, just narrowed away from owner/migrator DDL privileges.
 
@@ -327,6 +326,11 @@ staff-only, the base config table's patient-need is unconfirmed), `integrator.id
 plumbing; the patient's own integrator-side data is already reachable via the granted `integrator.*`
 SCOPED tables above, keyed by `app.integrator_user_id`) are also excluded — see the generator's
 comments for the identical reasoning per table.
+
+`staff_security_profiles` is also excluded from both direct runtime-role surfaces. It contains staff MFA
+secret ciphertext, recovery-code hashes and login-challenge state. The specialist-signup bootstrap overlay
+revokes direct `app_staff`/`app_patient` table privileges and exposes only self-scoped `SECURITY DEFINER`
+functions; the generated P0.5b grant script additionally repairs any stale `app_patient` table grant.
 
 ## Flagged for extra review (owner/B4-fanout triage)
 
