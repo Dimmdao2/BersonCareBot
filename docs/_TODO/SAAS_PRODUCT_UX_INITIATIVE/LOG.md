@@ -3660,3 +3660,24 @@ The cumulative scope is exactly these four documents, the normative DAG is byte-
 The reviewed record-policy prerequisite is complete. U5B application/schema/API/UI work remains closed only on the
 two outstanding U5A live seals: switching between two active organizations and recovery after the previously selected
 organization is revoked. No CI, server, DB, TEST/PROD, deploy or external delivery action occurred in U5B-0.
+
+## 2026-07-21 — `#806` independent critical audit FAIL and correction scope
+
+The first invite implementation commit `a6da2559f` failed the full security/tenant/data audit with
+`0 P0 / 8 P1 / 1 P2`. The owner-mapped correction is one coherent pass over the invite slice: distinguish legacy
+relationship-active rows from proven portal activation; repair reissue ordering under the immediate self-FK; consume
+the raw bearer only once; narrow the DB boundary to a verified proof receipt before atomic redeem; add the canonical
+trusted-IP/continuation rate limit without letting invite challenges invalidate unrelated auth challenges; re-check
+organization activity inside the locked redeem; and wire the already reviewed RLS overlay into both ordinary
+production migration-closure scripts. Terminal join states must keep their truthful expired/revoked/superseded/
+already-linked recovery copy, and an email-only screen must not label a phone hint as an email address.
+
+The production-script change is code-only migration safety: no production connection, migration, deploy or script
+execution is authorized. After correction, a guarded disposable PostgreSQL scratch harness must prove forward and
+rollback syntax, role/ACL/RLS matrix, reissue, single-use exchange, cross-organization denial and two-connection redeem
+convergence before any working database or live UI action. Full CI remains a U3B/U4 milestone gate.
+
+The audit also confirmed a separate unresolved owner-required capability: creating the patient/card relationship with
+neither phone nor email. The current `#801` manual command and routes still require phone and were protected by this
+slice's launch manifest. They are not silently widened in the correction. Task `#806` remains open after the invite
+commit and receives a separately manifested no-contact substage with its own ownership/deduplication acceptance.
