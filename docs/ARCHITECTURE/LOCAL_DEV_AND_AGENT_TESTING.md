@@ -54,11 +54,16 @@ TEST при этом только читается через `pg_dump`, TEST-с
 bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
 ```
 
-Она принимает только локальный exact `bcb_webapp_dev` URL из канонического `.env.dev`, не читает `/opt/env`, TEST
-или PROD, не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, затем
+Она принимает только два локальных exact `bcb_webapp_dev` URL из канонического `.env.dev`: owner/migrator
+`DATABASE_URL` под `bcb_webapp_dev_user` и отдельный `DATABASE_URL_NONSTAFF` под каноническим C0-login
+`app_runtime_nonstaff_login`. Owner и runtime не могут совпадать. Команда не читает `/opt/env`, TEST или PROD,
+не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, затем
 переиспользует тот же упорядоченный runtime-overlay closure, что TEST wrapper, и завершается только после фактических
 runtime-проверок public settings и patient booking capability. Глобальные роли в DEV не создаются и не перенастраиваются:
 они общие для PostgreSQL-кластера, поэтому отсутствие/небезопасное состояние роли является fail-closed ошибкой.
+До TEST→DEV dump/reset refresh отдельно запускает `--preflight`; отсутствие `DATABASE_URL_NONSTAFF`, alias с owner,
+опасные атрибуты роли или membership в owner/`app_owner` останавливают refresh до разрушения текущей DEV-БД.
+Provisioning/credential для C0 runtime-login выполняются отдельным C0/C2 ops-проходом, не этим repair wrapper.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 

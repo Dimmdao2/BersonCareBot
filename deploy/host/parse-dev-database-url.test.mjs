@@ -7,17 +7,39 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
   assertExactLocalDevDatabaseUrl,
+  assertExactLocalDevNonstaffDatabaseUrl,
   parseDatabaseUrlFromDotenv,
+  parseDatabaseUrlKeyFromDotenv,
 } from "./parse-dev-database-url.mjs";
 
 const scriptPath = fileURLToPath(new URL("./parse-dev-database-url.mjs", import.meta.url));
 const wrapperPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
 const validUrl = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
+const validNonstaffUrl =
+  "postgresql://app_runtime_nonstaff_login:runtime-secret@127.0.0.1:5432/bcb_webapp_dev";
 
 test("dotenv parser accepts one exact local DEV URL without evaluating shell", () => {
   assert.equal(
     assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(`A=1\nDATABASE_URL=${validUrl}\n`)),
     validUrl,
+  );
+});
+
+test("dotenv parser requires a distinct exact local DEV nonstaff runtime URL", () => {
+  const text = `DATABASE_URL=${validUrl}\nDATABASE_URL_NONSTAFF=${validNonstaffUrl}\n`;
+  assert.equal(
+    assertExactLocalDevNonstaffDatabaseUrl(
+      parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL_NONSTAFF"),
+    ),
+    validNonstaffUrl,
+  );
+  assert.throws(() =>
+    assertExactLocalDevNonstaffDatabaseUrl(
+      parseDatabaseUrlKeyFromDotenv(
+        `DATABASE_URL_NONSTAFF=${validUrl}\n`,
+        "DATABASE_URL_NONSTAFF",
+      ),
+    ),
   );
 });
 
@@ -74,6 +96,8 @@ test("wrapper parses the fixed env as data and completes all guards before DROP"
   assert.match(source, /-L "\$DEV_ENV"/u);
   assert.match(source, /realpath "\$DEV_ENV"/u);
   assert.match(source, /DEV_DATABASE_URL="\$\(node "\$DEV_ENV_PARSER" "\$DEV_ENV"\)"/u);
+  assert.match(source, /"\$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight/u);
+  assert.ok(source.indexOf('"$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight') < source.indexOf("actual_source="));
   assert.ok(source.indexOf("actual_source=") < source.indexOf("DROP DATABASE"));
   assert.ok(source.indexOf("actual_target_before=") < source.indexOf("DROP DATABASE"));
   assert.doesNotMatch(source, /\/opt\/env\/bersoncarebot/u);

@@ -40,6 +40,18 @@ runtime_overlay_parse_database_identity() {
   printf '%s\n' "$role_name"
 }
 
+runtime_overlay_assert_separate_roles() {
+  local label="$1"
+  local owner_role="$2"
+  local runtime_role="$3"
+  runtime_overlay_validate_pg_identifier "$label owner role" "$owner_role" || return 1
+  runtime_overlay_validate_pg_identifier "$label runtime role" "$runtime_role" || return 1
+  if [[ "$owner_role" == "$runtime_role" ]]; then
+    echo "FATAL: $label runtime role must be distinct from the owner/migrator role" >&2
+    return 1
+  fi
+}
+
 runtime_overlay_assert_canonical_file() {
   local path="$1"
   local expected="$2"

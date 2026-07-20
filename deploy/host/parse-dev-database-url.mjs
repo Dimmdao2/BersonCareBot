@@ -6,14 +6,17 @@ function fail(code) {
   throw new Error(code);
 }
 
-export function parseDatabaseUrlFromDotenv(text) {
+export function parseDatabaseUrlKeyFromDotenv(text, requestedKey) {
+  if (requestedKey !== "DATABASE_URL" && requestedKey !== "DATABASE_URL_NONSTAFF") {
+    fail("unsupported_database_url_key");
+  }
   let databaseUrl;
   for (const rawLine of text.replace(/^\uFEFF/, "").split(/\r?\n/u)) {
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) continue;
     const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(line);
     if (!match) fail("invalid_dotenv_line");
-    if (match[1] !== "DATABASE_URL") continue;
+    if (match[1] !== requestedKey) continue;
     if (databaseUrl !== undefined) fail("duplicate_database_url");
 
     const encoded = match[2].trim();
@@ -41,6 +44,10 @@ export function parseDatabaseUrlFromDotenv(text) {
   return databaseUrl;
 }
 
+export function parseDatabaseUrlFromDotenv(text) {
+  return parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL");
+}
+
 export function assertExactLocalDevDatabaseUrl(value) {
   if (value.includes("?") || value.includes("#")) fail("database_url_query_or_fragment_forbidden");
   let parsed;
@@ -57,10 +64,34 @@ export function assertExactLocalDevDatabaseUrl(value) {
   return value;
 }
 
+export function assertExactLocalDevNonstaffDatabaseUrl(value) {
+  if (value.includes("?") || value.includes("#")) fail("database_url_query_or_fragment_forbidden");
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("invalid_database_url");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") fail("invalid_database_protocol");
+  if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") fail("non_local_database_host");
+  if (parsed.port && parsed.port !== "5432") fail("invalid_database_port");
+  if (parsed.pathname !== "/bcb_webapp_dev") fail("invalid_database_name");
+  if (decodeURIComponent(parsed.username) !== "app_runtime_nonstaff_login") fail("invalid_database_user");
+  return value;
+}
+
 function selfTest() {
   const valid = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
+  const validNonstaff = "postgresql://app_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev";
   if (assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(`A=1\nDATABASE_URL='${valid}'\n`)) !== valid) {
     fail("self_test_valid_failed");
+  }
+  if (
+    assertExactLocalDevNonstaffDatabaseUrl(
+      parseDatabaseUrlKeyFromDotenv(`DATABASE_URL_NONSTAFF='${validNonstaff}'\n`, "DATABASE_URL_NONSTAFF"),
+    ) !== validNonstaff
+  ) {
+    fail("self_test_valid_nonstaff_failed");
   }
   for (const sample of [
     "DATABASE_URL=x\nDATABASE_URL=y\n",
@@ -86,11 +117,19 @@ if (process.argv[1]?.endsWith("parse-dev-database-url.mjs")) {
     if (process.argv.length === 3 && process.argv[2] === "--self-test") {
       selfTest();
       console.log("parse-dev-database-url self-test: OK");
-    } else if (process.argv.length === 3) {
-      const path = process.argv[2];
+    } else if (process.argv.length === 3 || (process.argv.length === 4 && process.argv[2] === "--nonstaff")) {
+      const nonstaff = process.argv.length === 4;
+      const path = process.argv[nonstaff ? 3 : 2];
       const stat = lstatSync(path);
       if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_env_file");
-      process.stdout.write(assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(readFileSync(path, "utf8"))));
+      const text = readFileSync(path, "utf8");
+      process.stdout.write(
+        nonstaff
+          ? assertExactLocalDevNonstaffDatabaseUrl(
+              parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL_NONSTAFF"),
+            )
+          : assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(text)),
+      );
     } else {
       fail("invalid_arguments");
     }

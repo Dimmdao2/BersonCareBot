@@ -8,6 +8,9 @@ const files = {
   deployTestFullReset: 'deploy/host/deploy-test-full-reset.sh',
   deployTestSaas: 'deploy/host/deploy-test-saas.sh',
   runtimeOverlayLib: 'deploy/host/runtime-overlay-rehydrate-lib.sh',
+  devRuntimeOverlay: 'deploy/host/dev-runtime-overlay-rehydrate.sh',
+  refreshDevFromTest: 'deploy/host/refresh-dev-from-test.sh',
+  devDatabaseUrlParser: 'deploy/host/parse-dev-database-url.mjs',
   deployTestCodeOnly: 'deploy/host/deploy-test.sh',
   fixtureSeeder: 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts',
   fixturePacket: 'deploy/host/saas-test-fixture-packet.mjs',
@@ -417,6 +420,33 @@ function runChecks(overrides = {}) {
     'deploy/postgres/public-booking-bootstrap-resolver.sql',
     'deploy/postgres/public-clinic-slug-bootstrap-resolver.sql',
     'deploy/postgres/e1-webapp-runtime-config.sql',
+  ]);
+
+  requireFragments(files.devRuntimeOverlay, loaded.devRuntimeOverlay, [
+    'TARGET_OWNER_ROLE="bcb_webapp_dev_user"',
+    'TARGET_RUNTIME_ROLE="app_runtime_nonstaff_login"',
+    '"$NODE_BIN" "$DEV_ENV_PARSER" --nonstaff "$DEV_ENV"',
+    'runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"',
+    'dev_base_runtime_role_safe_before_overlay',
+    'NOT rolcreatedb',
+    'NOT rolcreaterole',
+    'NOT rolreplication',
+    "NOT pg_has_role(:'expected_runtime_role', 'app_owner', 'MEMBER')",
+    "pg_has_role(:'expected_runtime_role', relation.relowner, 'MEMBER')",
+    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
+  ]);
+  requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
+    'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight',
+    'actual_source=',
+    'pg_dump -Fc',
+    'DROP DATABASE IF EXISTS "$TARGET_DB" WITH (FORCE)',
+    'exec pnpm run migrate',
+    'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute',
+  ]);
+  requireFragments(files.devDatabaseUrlParser, loaded.devDatabaseUrlParser, [
+    'DATABASE_URL_NONSTAFF',
+    'app_runtime_nonstaff_login',
+    'assertExactLocalDevNonstaffDatabaseUrl',
   ]);
 
   requireOrderedFragments(

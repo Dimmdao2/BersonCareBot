@@ -93,6 +93,9 @@ if [[ "$SOURCE_DATABASE_URL" != "postgresql:///$SOURCE_DB?host=/var/run/postgres
   exit 1
 fi
 
+echo "[refresh-dev] validating separate DEV owner/runtime topology before reset"
+bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight
+
 actual_source="$({ "${POSTGRES[@]}" psql -X -v ON_ERROR_STOP=1 "$SOURCE_DATABASE_URL" -Atc 'SELECT current_database();'; } 2>/dev/null)"
 if [[ "$actual_source" != "$SOURCE_DB" ]]; then
   echo "FATAL: source database guard failed" >&2

@@ -559,12 +559,17 @@ loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execu
 TEST settings locks. Both TEST and DEV call the single ordered implementation in
 `deploy/host/runtime-overlay-rehydrate-lib.sh`; a second list of overlay SQL is forbidden.
 
-The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local
-`bcb_webapp_dev` / `bcb_webapp_dev_user` URL parsed as data from the canonical `.env.dev`, sanitizes PostgreSQL
-environment input, never reads `/opt/env`, and never opens TEST or PROD. Because `app_owner`, `app_staff`, and
-`app_patient` are cluster-global, DEV only validates their canonical safe state; it does not create or rewire them.
+The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local owner/migrator
+`DATABASE_URL` (`bcb_webapp_dev` / `bcb_webapp_dev_user`) and a distinct exact local C0 base-runtime
+`DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `app_runtime_nonstaff_login`), both parsed as data from the canonical
+`.env.dev`. It sanitizes PostgreSQL environment input, never reads `/opt/env`, and never opens TEST or PROD. The
+refresh wrapper calls its read-only `--preflight` before dump/reset. That preflight rejects owner/runtime aliasing,
+`SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, owner/`app_owner` membership, any
+unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.
+Because `app_owner`, `app_staff`, `app_patient`, and the C0 login are cluster-global, DEV only validates their
+canonical safe state; it does not create, rotate, or rewire them. C0/C2 ops provisioning must happen separately.
 It reapplies per-database P0.5b grants and the shared helper/E1 closure, then fails unless the targeted functions have
-exact `app_owner` ownership, closed ACLs, the DEV base login can read through the public runtime accessor, and an
+exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public runtime accessor, and an
 actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An already prepared DEV database
 with only owner/ACL drift must use this command directly; recreating it from a dump is unnecessary.
 
