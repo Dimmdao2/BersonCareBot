@@ -111,19 +111,32 @@ rehydrate. Роли PostgreSQL глобальны для локального к
      "SELECT (current_user = 'bcb_dev_runtime_nonstaff_login' AND current_database() = 'bcb_webapp_dev')::int;"
    ```
 
-4. Вручную открыть игнорируемый `apps/webapp/.env.dev` в редакторе, не печатая его содержимое, и сохранить точные
-   локальные URL. Пароли должны быть URL-safe; реальные значения не копировать в чат, taskdb, планы или логи:
+4. До открытия игнорируемого `apps/webapp/.env.dev` подтвердить, что это обычный файл, а не symlink, установить
+   `0600` и проверить фактический mode, не печатая содержимое:
+
+   ```bash
+   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
+   chmod 0600 apps/webapp/.env.dev
+   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
+   test "$(stat -c '%a' apps/webapp/.env.dev)" = 600
+   ```
+
+   Только после PASS открыть файл вручную в редакторе и сохранить точные локальные URL. Редактор должен сохранять
+   файл без replacement, теряющего `0600`. Пароли должны быть URL-safe; реальные значения не копировать в чат,
+   taskdb, планы или логи:
 
    ```dotenv
    DATABASE_URL_STAFF=postgresql://bcb_dev_runtime_staff_login:<staff-password>@127.0.0.1:5432/bcb_webapp_dev
    DATABASE_URL_NONSTAFF=postgresql://bcb_dev_runtime_nonstaff_login:<nonstaff-password>@127.0.0.1:5432/bcb_webapp_dev
    ```
 
-   После сохранения проверить только тип и права файла, без `cat`/`grep`/`source`:
+   Сразу после сохранения, до любого следующего шага, повторить проверку и при необходимости восстановить `0600`.
+   Не использовать `cat`/`grep`/`source`:
 
    ```bash
    test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
    chmod 0600 apps/webapp/.env.dev
+   test -f apps/webapp/.env.dev && test ! -L apps/webapp/.env.dev
    test "$(stat -c '%a' apps/webapp/.env.dev)" = 600
    ```
 
