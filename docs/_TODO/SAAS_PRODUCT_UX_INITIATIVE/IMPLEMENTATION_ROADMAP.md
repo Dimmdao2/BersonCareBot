@@ -413,7 +413,8 @@ card; запрещено строить временный resolver, второ�
   или решений.
 - **UI-0:** bounded DEV reproduction/state trace трёх наблюдений, не доказанный P0 и не доказанная единая причина.
   TEST journal/DB/remote host требуют отдельного разрешения. Существующая service relevance `location OR
-  specialist assignment` сохраняется до доказанного write/read defect; manual patient/walk-in остаётся U3B/`#801`.
+  specialist assignment` сохраняется до доказанного write/read defect. Service-render/service-location trace не
+  launchable до dedup и mapping на exact existing task; U3B/`#801` покрывает только manual patient/walk-in.
 - **Presentation cluster:** UI-6a Сегодня, UI-1a Расписание и UI-4a Клиенты имеют непересекающиеся exact writable
   manifests в execution artifact и могут идти параллельно (≤3). Каждый: worker + один независимый audit; live DEV
   evidence на единственном `:5200` сериализуется. UI-3 отдельно делится на cosmetics, broadcast IA и
@@ -421,8 +422,9 @@ card; запрещено строить временный resolver, второ�
 - **High-risk dependencies:** UI-5 является U5B и ждёт U5A + record-class policy; UI-8 вложен в C4D/C5 и не создаёт
   parallel polarity/seed/keys; UI-9 ждёт C4D exact-org isolation + ответ G1; UI-2 ждёт ответ G5; UI-9 media scope и
   любые identity/schema/tenant/data изменения проходят полный risk-sized цикл.
-- **Owner gates:** G1 (`#564`) открыт; G2 voice/STT deferred; G3 default org-only; G4 split 45/55 — вопрос с safe
-  default 40/60; G5 online appointment — вопрос, MVP лишь рекомендация; SCH-G5 остаётся owner-waiting `#848`.
+- **Owner gates:** G1 (`#564`) открыт; G2 voice/STT — вопрос с рекомендацией отложить; G3 per-specialist axis —
+  вопрос с safe default org-only; G4 split 45/55 — вопрос с safe default 40/60; G5 online appointment — вопрос,
+  MVP лишь рекомендация; SCH-G5 остаётся owner-waiting `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
 - **Task mapping:** C1 `#850/#851/#852`; online `#215`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; superseded Doctor DNA `#885`. Новые duplicate cards не

@@ -849,7 +849,7 @@ client/subscriber category по умолчанию и не требует это
 
 | Область | Точное решение |
 |---|---|
-| Запись клиента | На DEV отдельно воспроизвести выбор услуги, service/location visibility и создание записи из календаря; ФИО в детали записи должно вести в существующую карточку. Наблюдения не доказывают общий P0 или единую первопричину. Ручной пациент/walk-in остаётся в U3B/`#801`. |
+| Запись клиента | На DEV отдельно воспроизвести выбор услуги, service/location visibility и создание записи из календаря; ФИО в детали записи должно вести в существующую карточку. Наблюдения не доказывают общий P0 или единую первопричину. Service-render/service-location trace не запускается до dedup и mapping на exact existing task; U3B/`#801` покрывает только manual patient/walk-in. |
 | Расписание | В недельном шаблоне использовать существующие цвета локаций; «Сохранить» заменить на «Установить»; переиспользовать общий picker времени; сделать линии сетки спокойнее. В отдельном behavior slice location filters независимы: inactive серые, клик toggles только свою локацию, «Все» включает все. |
 | Разминки `#191` | Default для новых назначений: `12:00` и `15:00` в рабочие дни. Существующих клиентов не изменять. |
 | Коммуникации | Косметику, broadcast IA и composer/backend разделить по риску. Одинаковый chat background нужен в doctor/patient chat, modal и comments; имя остаётся единственной card navigation в шапке. В broadcasts убрать лишнюю фразу и раскрывать выбранную строку без перекрытий с summary/delivery/error data; в intake left list не дублировать name link из detail. Voice/STT не прятать в общий composer. |
@@ -858,7 +858,7 @@ client/subscriber category по умолчанию и не требует это
 | Сегодня | KPI и календарную шапку сделать компактнее, убрать дубли дня/даты/количества, ссылку назвать «Открыть календарь». Новые configurable signals не включать в косметический slice. |
 | Patient Today | Пустой mood chart скрывать до первой emoji/check-in отметки; это отдельная точечная presentation-задача. |
 | Scheduled messages | Целевой UX: schedule button рядом с Send, date/time picker, действие «Запланировать» и pending clock state у отправителя. Queue/retry/cancel/org-scope — отдельный backend contract до реализации. |
-| Механики | Текущий default — настройки на организацию. Per-specialist axis сейчас не добавлять. UI механик строится только как projection единого C4D/C5 entitlement/commercial contract. |
+| Механики | UI механик строится только как projection единого C4D/C5 entitlement/commercial contract; решение о per-specialist axis остаётся G3. |
 | Doctor DNA | Полная миграция темы/токенов отменена владельцем 2026-07-20. Допустимы только точечные UI-исправления в соответствующих экранных stages. |
 | TEST | Ни этот addendum, ни execution artifact не разрешают TEST deploy/log/DB. Любой TEST deploy остаётся отдельным owner-authorized code-only действием. |
 
@@ -873,21 +873,23 @@ client/subscriber category по умолчанию и не требует это
 | Индивидуальные упражнения | `#565` — design evidence и рекомендуемая основа (personal scope, editor creation, owned media, immutable assigned video), но не owner approval реализации `#564`; field names и draft semantics остаются design choices. |
 | Online/settings defaults | Новые keys, polarity flip и seed владельческой организации не утверждены; нельзя создавать их параллельно C4D/C5. |
 | Today signals | Переключатель «на сопровождении»/«недавние с визитами», «самые активные» и configurable screen — рекомендация для отдельной product/behavior задачи. |
+| G2 voice/STT | Рекомендация и safe default — отложить и не начинать до ответа владельца. |
+| G3 mechanics scope | Safe default — сохранить текущий org-only и не добавлять per-specialist axis до ответа владельца. |
 
 ### Отложено
 
-- Voice messages и STT/Whisper (G2/UI-7b).
-- Per-specialist mechanics toggles; текущая реализация остаётся org-only (G3).
 - Расширяемые/configurable Today signals и сложный экспорт/перестройка карточки до соответствующих foundation gates.
 
 ### Вопросы владельцу
 
 1. **G1:** запускать ли `#564` после C4D exact-org library isolation? До ответа `#564` blocked; `#565` не является
    разрешением.
-2. **G4:** менять ли уже принятое соотношение коммуникаций 40/60 на 45/55? Safe default — 40/60.
-3. **G5:** какой точный объём онлайн-приёма нужен сейчас: bounded MVP или полный `#215`? До ответа schema/backend не
+2. **G2:** делать ли voice/STT сейчас или отложить? Рекомендация и safe default — отложить, не начинать.
+3. **G3:** добавлять ли per-specialist mechanics axis сейчас? Safe default — сохранить org-only, новую ось не добавлять.
+4. **G4:** менять ли уже принятое соотношение коммуникаций 40/60 на 45/55? Safe default — 40/60.
+5. **G5:** какой точный объём онлайн-приёма нужен сейчас: bounded MVP или полный `#215`? До ответа schema/backend не
    начинать; MVP — только рекомендация.
-4. **SCH-G5 / `#848`:** при отсутствии недельного графика показывать пусто или сохранять fallback на weekday-window?
+6. **SCH-G5 / `#848`:** при отсутствии недельного графика показывать пусто или сохранять fallback на weekday-window?
    До ответа действующее поведение не менять.
 
 ## 17. Статус

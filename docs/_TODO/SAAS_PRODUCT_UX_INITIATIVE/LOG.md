@@ -6,11 +6,13 @@
 the existing authority chain. New owner material is now classified in owner review §16a as an exact ruling,
 recommendation, deferred item or owner question. The artifact no longer declares UI-0 a proven P0/root cause,
 does not authorize TEST log/DB/deploy, keeps the canonical service-assignment OR until evidence proves a defect,
-and maps the calendar/manual-patient symptom to existing U3B/`#801` without forking it.
+and records service-render/service-location trace as not launchable until exact task dedup/mapping. U3B/`#801`
+covers only manual patient/walk-in and is not authority for that trace.
 
 **DAG and gates.** UI-3 cosmetics/broadcast IA/composer-backend and UI-4 presentation/backend metrics are separated;
 UI-5 is U5B after U5A + record-class policy; UI-8 is subordinate to C4D/C5 without parallel polarity/seed; UI-9
-waits C4D exact-org isolation and G1. G2 is deferred, G3 keeps org-only default, G4 keeps 40/60 while owner-waiting,
+waits C4D exact-org isolation and G1. G2 and G3 are owner questions with safe defaults to defer voice/STT and
+preserve org-only, while G4 keeps 40/60 while owner-waiting,
 G5 remains owner-waiting with MVP only a recommendation, and SCH-G5 remains `#848`. `#191` records new-only
 working-day defaults `12:00` and `15:00`, leaving existing clients untouched.
 

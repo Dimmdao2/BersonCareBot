@@ -19,8 +19,8 @@
 | Gate | Зафиксированное состояние | Safe default / зависимость |
 |---|---|---|
 | G1 — индивидуальные упражнения | **owner question:** начинать ли `#564`; `#565` — дизайн, а не разрешение реализации | не начинать; сначала C4D exact-org library isolation |
-| G2 — voice/STT | **deferred** | не строить сейчас; UI-7b остаётся отдельным поздним этапом |
-| G3 — тумблеры механик | **owner ruling:** текущий default только на организацию | не добавлять per-specialist axis |
+| G2 — voice/STT | **owner question:** делать сейчас или отложить | рекомендация и safe default: отложить, не начинать |
+| G3 — тумблеры механик | **owner question:** добавлять ли per-specialist axis сейчас | safe default: сохранить текущий org-only, новую ось не добавлять |
 | G4 — split коммуникаций | **owner question:** менять ли принятое 40/60 на 45/55 | сохранять 40/60 |
 | G5 — онлайн-приём | **owner question:** точный MVP и граница относительно полной `#215` | не начинать schema/backend; рекомендация MVP не является решением |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
@@ -46,6 +46,10 @@ relevance `location assignment OR specialist assignment` сохраняется,
 дефект; нельзя заменять её более узким AND по предположению. Ручной пациент, appointment и walk-in остаются в
 существующей `#801`/U3B — здесь не создаётся второй механизм. Кликабельное ФИО в существующей детали записи —
 отдельный низкорисковый presentation slice после подтверждения текущего route contract.
+
+Service-render/service-location DEV trace не имеет точного task mapping и **не запускается**, пока оркестратор не
+завершит dedup и не привяжет его к точной существующей карточке. `#801` покрывает только manual patient/walk-in и не
+является authority для этого trace.
 
 **Risk:** trace — read-only/targeted; найденный identity/booking fix получает отдельный high-risk scope по доказанной
 причине, а не автоматически весь UI-0.
@@ -124,15 +128,15 @@ deep-link compatibility до принятого U5B routing contract.
 - **UI-7a scheduled messages:** только после отдельного backend contract для queue, retry, cancellation, org scope
   и delivery; owner outcome — schedule button рядом с Send, date/time picker, «Запланировать» и pending clock state
   у sender; не прячется внутри presentation UI-3 и не копирует broadcast storage без contract review.
-- **UI-7b voice/STT:** deferred по G2.
+- **UI-7b voice/STT:** owner-waiting по G2; рекомендация и safe default — отложить и не начинать.
 
 ### UI-8 — capability/commercial projection
 
 UI-8 вложен в C4D/C5. Он использует единый entitlement registry, точную organization ownership и commercial
-defaults; не создаёт параллельную polarity system, seed или второй набор feature keys. Org-only — текущий default;
-per-specialist axis deferred. Owner outcome — администратор может собирать тариф/включать доступные организации
-механики через единый commercial contour; точные registry keys/default polarity и migration определяет C4D/C5, а
-не этот UI plan. Значения `#191` не являются разрешением запускать UI-8 раньше C4D/C5.
+defaults; не создаёт параллельную polarity system, seed или второй набор feature keys. До ответа G3 safe default —
+сохранить org-only и не добавлять per-specialist axis. Owner outcome — администратор может собирать тариф/включать
+доступные организации механики через единый commercial contour; точные registry keys/default polarity и migration
+определяет C4D/C5, а не этот UI plan. Значения `#191` не являются разрешением запускать UI-8 раньше C4D/C5.
 
 ### UI-9 — индивидуальные упражнения
 
@@ -150,7 +154,8 @@ draft semantics не являются owner rulings. Media access/presign и ten
 
 | Scope | Existing authority/task | Действие |
 |---|---|---|
-| UI-0 patient/appointment/walk-in | U3B / `#801` | trace и переиспользование; не форкать карточку |
+| UI-0 service-render/service-location DEV trace | точной карточки нет | не launchable до dedup и mapping на exact existing task |
+| Manual patient/walk-in | U3B / `#801` | переиспользовать; не считать authority для UI-0 trace |
 | UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
 | SCH-G5 | `#848` | owner-waiting, без реализации |
 | UI-2 online appointment | `#215` | owner-waiting до ответа G5 |
