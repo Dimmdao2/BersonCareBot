@@ -29,8 +29,13 @@ const querySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-function noStoreRedirect(path: string, requestUrl: string): NextResponse {
-  const response = NextResponse.redirect(new URL(path, requestUrl));
+function noStoreRedirect(path: string): NextResponse {
+  // Keep Location relative: request.url may contain an internal upstream host,
+  // while the session cookie belongs to the browser's current origin.
+  const response = new NextResponse(null, {
+    status: 307,
+    headers: { Location: path },
+  });
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
@@ -44,16 +49,16 @@ function addQuery(path: string, params: Record<string, string>): string {
 export async function GET(request: Request) {
   const session = await getCurrentSession();
   if (!session || !canAccessPatient(session.user.role) || (await patientClientBusinessGate(session)) !== "allow") {
-    return noStoreRedirect(routePaths.root, request.url);
+    return noStoreRedirect(routePaths.root);
   }
   const url = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!parsed.success) {
-    return noStoreRedirect(routePaths.patientOrganizations, request.url);
+    return noStoreRedirect(routePaths.patientOrganizations);
   }
 
   const service = buildAppDeps().patientOrganization;
-  if (!service) return noStoreRedirect(routePaths.patientOrganizations, request.url);
+  if (!service) return noStoreRedirect(routePaths.patientOrganizations);
   const resolved =
     parsed.data.kind === "organization_go"
       ? await service.resolveActiveOrganizationForPatient(session.user.userId, {
@@ -61,7 +66,7 @@ export async function GET(request: Request) {
         })
       : await service.resolveTreatmentProgramOrganizationForPatient(session.user.userId, parsed.data.instanceId);
   if (!resolved.ok) {
-    return noStoreRedirect(`${routePaths.patientOrganizations}?reason=organization_unavailable`, request.url);
+    return noStoreRedirect(`${routePaths.patientOrganizations}?reason=organization_unavailable`);
   }
 
   const rememberedOrganizationId = await getRememberedPatientOrganizationId();
@@ -80,7 +85,7 @@ export async function GET(request: Request) {
         ? routePaths.patientTreatmentProgramItem(parsed.data.instanceId, parsed.data.itemId)
         : routePaths.patientTreatmentProgram(parsed.data.instanceId);
   }
-  const response = noStoreRedirect(targetPath, request.url);
+  const response = noStoreRedirect(targetPath);
   response.cookies.set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, resolved.organizationId, {
     httpOnly: true,
     sameSite: "lax",

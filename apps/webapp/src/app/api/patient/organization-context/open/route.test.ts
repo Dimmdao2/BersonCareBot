@@ -47,7 +47,8 @@ describe("patient organization trusted object opener", () => {
       ),
     );
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(`http://localhost/app/patient/treatment/${INSTANCE_ID}`);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("location")).toBe(`/app/patient/treatment/${INSTANCE_ID}`);
     expect(response.cookies.get("bc_patient_organization")?.value).toBe(ORG_B);
     expect(resolveTargetMock).toHaveBeenCalledWith(PATIENT_ID, INSTANCE_ID);
   });
@@ -63,7 +64,7 @@ describe("patient organization trusted object opener", () => {
       ),
     );
     expect(response.headers.get("location")).toBe(
-      "http://localhost/app/patient/organizations?reason=organization_unavailable",
+      "/app/patient/organizations?reason=organization_unavailable",
     );
     expect(response.cookies.get("bc_patient_organization")).toBeUndefined();
   });
@@ -77,7 +78,7 @@ describe("patient organization trusted object opener", () => {
       ),
     );
     expect(response.headers.get("location")).toBe(
-      `http://localhost/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_B}`,
+      `/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_B}`,
     );
     expect(response.cookies.get("bc_patient_organization")?.value).toBe(ORG_B);
     expect(response.cookies.get("bc_patient_organization_change_receipt")?.value).toBe(ORG_B);
@@ -109,8 +110,36 @@ describe("patient organization trusted object opener", () => {
       ),
     );
     expect(response.headers.get("location")).toBe(
-      "http://localhost/app/patient/organizations?reason=organization_unavailable",
+      "/app/patient/organizations?reason=organization_unavailable",
     );
     expect(response.cookies.get("bc_patient_organization")).toBeUndefined();
+  });
+
+  it("keeps neutral recovery relative to the browser origin and ignores an external next", async () => {
+    resolveOrganizationMock.mockResolvedValue({
+      ok: false,
+      reason: "organization_target_not_authorized",
+    });
+    const response = await GET(
+      new Request(
+        `https://attacker.example/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=daily-warmup&next=${encodeURIComponent("https://evil.example/steal")}`,
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "/app/patient/organizations?reason=organization_unavailable",
+    );
+    expect(response.headers.get("location")).not.toContain("attacker.example");
+    expect(response.headers.get("location")).not.toContain("evil.example");
+  });
+
+  it("keeps the unauthenticated entry relative without changing login continuation policy", async () => {
+    getCurrentSessionMock.mockResolvedValue(null);
+    const response = await GET(
+      new Request(
+        `https://attacker.example/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=daily-warmup`,
+      ),
+    );
+    expect(response.headers.get("location")).toBe("/app");
+    expect(resolveOrganizationMock).not.toHaveBeenCalled();
   });
 });
