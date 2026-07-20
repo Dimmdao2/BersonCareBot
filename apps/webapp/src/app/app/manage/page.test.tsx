@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 
 const loadManagementWorkspaceMock = vi.hoisted(() => vi.fn());
 
@@ -69,5 +70,11 @@ describe("ManagementPage", () => {
     const html = renderToStaticMarkup(await ManagementPage());
 
     expect(html).toContain('href="/app/settings?tab=team"');
+  });
+
+  it("uses the server-safe button variant module", () => {
+    const source = readFileSync(new URL("./page.tsx", import.meta.url), "utf8");
+    expect(source).toContain('from "@/shared/ui/doctor/primitives/button-variants"');
+    expect(source).not.toContain('from "@/shared/ui/doctor/primitives/button"');
   });
 });

@@ -7,7 +7,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from "@/shared/ui/doctor/DoctorSection";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { loadManagementWorkspace } from "./loadManagementWorkspace";
 
