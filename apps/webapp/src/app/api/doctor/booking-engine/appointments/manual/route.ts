@@ -68,11 +68,12 @@ export async function POST(request: Request) {
     }
     let appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", async () => {
       if (parsed.data.platformUserId) {
-        const isActiveClient = await deps.patientOrganization?.hasActiveEnrollment(
+        const isSchedulableClient =
+          await deps.patientOrganization?.hasSchedulableClientRelationship(
           parsed.data.platformUserId,
           ctx.organizationId,
         );
-        if (!isActiveClient) throw new Error("patient_not_available");
+        if (!isSchedulableClient) throw new Error("patient_not_available");
       }
       return ctx.service.createAppointment({
         organizationId: ctx.organizationId,

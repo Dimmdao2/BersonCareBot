@@ -43,7 +43,7 @@ describe("pgDoctorClients repo", () => {
     expect(sql).toContain("platform_users");
   });
 
-  it("listClients can scope base patients to selected organization enrollment", async () => {
+  it("listClients includes invited and active cards from only the selected organization", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
     const port = createPgDoctorClientsPort();
     const list = await port.listClients({ organizationId: "org-1" });
@@ -52,7 +52,7 @@ describe("pgDoctorClients repo", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("org_enrollments");
     expect(sql).toContain("oe.organization_id = $1::uuid");
-    expect(sql).toContain("oe.status = 'active'");
+    expect(sql).toContain("oe.status IN ('invited', 'active')");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual(["org-1"]);
   });
 

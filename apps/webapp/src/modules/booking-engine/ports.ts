@@ -10,6 +10,8 @@ import type {
   BeSpecialist,
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
+  CreateManualPatientVisitInput,
+  CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
 } from "./types";
 
@@ -153,6 +155,10 @@ export type BookingEnginePort = {
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
+  /** Staff new-patient identity, invited relationship and scheduled visit in one transaction. */
+  createManualPatientVisit(
+    input: CreateManualPatientVisitInput,
+  ): Promise<CreateManualPatientVisitResult>;
   /** Inserts every appointment in a consecutive chain in one transaction. */
   createAppointmentChain(inputs: CreateAppointmentInput[]): Promise<BeAppointment[]>;
   transitionAppointmentStatus(input: TransitionAppointmentStatusInput): Promise<BeAppointment>;

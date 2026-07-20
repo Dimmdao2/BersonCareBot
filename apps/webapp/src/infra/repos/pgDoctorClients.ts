@@ -156,7 +156,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           FROM org_enrollments oe
           WHERE oe.platform_user_id = pu.id
             AND oe.organization_id = $${listBaseParams.length}::uuid
-            AND oe.status = 'active'
+            AND oe.status IN ('invited', 'active')
         )`;
       }
       // Apply userIds restriction when caller provides a specific set (e.g. conversations route).
@@ -1019,7 +1019,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              FROM org_enrollments oe
              WHERE oe.platform_user_id = pu.id
                AND oe.organization_id = $2::uuid
-               AND oe.status = 'active'
+               AND oe.status IN ('invited', 'active')
            )`,
         [canonicalId, organizationId],
       );

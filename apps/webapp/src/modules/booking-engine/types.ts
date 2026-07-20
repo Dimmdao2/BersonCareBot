@@ -139,6 +139,28 @@ export type CreateAppointmentInput = {
   attributionJson?: Record<string, unknown>;
 };
 
+export type CreateManualPatientVisitInput = {
+  organizationId: string;
+  displayName: string;
+  phoneNormalized: string;
+  emailRaw: string | null;
+  emailNormalized: string | null;
+  appointment: Omit<
+    CreateAppointmentInput,
+    "organizationId" | "platformUserId" | "phoneNormalized"
+  >;
+};
+
+export type CreateManualPatientVisitResult = {
+  appointment: BeAppointment;
+  patient: {
+    userId: string;
+    displayName: string;
+    phoneNormalized: string;
+    created: boolean;
+  };
+};
+
 export type TransitionAppointmentStatusInput = {
   appointmentId: string;
   toStatus: AppointmentStatus;

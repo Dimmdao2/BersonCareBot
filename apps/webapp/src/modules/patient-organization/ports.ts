@@ -31,6 +31,11 @@ export type CreateManualOrganizationClientResult =
 export type PatientOrganizationPort = {
   listActiveEnrollmentsByPlatformUser(platformUserId: string): Promise<PatientOrganizationEnrollment[]>;
   hasActiveEnrollment(platformUserId: string, organizationId: string): Promise<boolean>;
+  /** Staff scheduling may use an invited card; patient portal access still requires active. */
+  hasSchedulableClientRelationship(
+    platformUserId: string,
+    organizationId: string,
+  ): Promise<boolean>;
   /**
    * Staff-only manual client registration. The canonical identity and exact-organization enrollment
    * commit together so a global platform user is never left behind without its intended relationship.

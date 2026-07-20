@@ -7,7 +7,12 @@ import type {
   RubitimeBridgePort,
   ServiceAvailabilityPort,
 } from "./ports";
-import type { AppointmentStatus, CreateAppointmentInput, TransitionAppointmentStatusInput } from "./types";
+import type {
+  AppointmentStatus,
+  CreateAppointmentInput,
+  CreateManualPatientVisitInput,
+  TransitionAppointmentStatusInput,
+} from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,6 +80,22 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
         throw new Error("Время окончания должно быть позже начала");
       }
       return port.createAppointment({ ...input, status });
+    },
+
+    async createManualPatientVisit(input: CreateManualPatientVisitInput) {
+      assertUuid(input.organizationId, "organizationId");
+      const status = input.appointment.status ?? "confirmed";
+      assertAppointmentStatus(status);
+      if (
+        new Date(input.appointment.endAt).getTime() <=
+        new Date(input.appointment.startAt).getTime()
+      ) {
+        throw new Error("Время окончания должно быть позже начала");
+      }
+      return port.createManualPatientVisit({
+        ...input,
+        appointment: { ...input.appointment, status },
+      });
     },
 
     async createAppointmentChain(inputs: CreateAppointmentInput[]) {

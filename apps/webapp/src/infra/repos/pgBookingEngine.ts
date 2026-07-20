@@ -1,7 +1,10 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
+import { resolveOrCreateDoctorClientByPhoneInTransaction } from "@/infra/repos/pgDoctorClientCreate";
+import { ensureInvitedOrganizationClientRelationship } from "@/infra/repos/pgPatientOrganizationEnrollment";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
   beAppointmentEvents,
@@ -35,6 +38,7 @@ import type {
   BeSpecialist,
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
+  CreateManualPatientVisitInput,
   TransitionAppointmentStatusInput,
 } from "@/modules/booking-engine/types";
 
@@ -126,6 +130,67 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     phoneNormalized: row.phoneNormalized ?? null,
     attributionJson: (row.attributionJson ?? {}) as Record<string, unknown>,
   };
+}
+
+async function insertAppointmentInTransaction(
+  tx: DrizzleDb,
+  input: CreateAppointmentInput,
+  now: string,
+): Promise<BeAppointment> {
+  const status = input.status ?? "created";
+  const inserted = await tx
+    .insert(beAppointments)
+    .values({
+      organizationId: input.organizationId,
+      branchId: input.branchId ?? null,
+      roomId: input.roomId ?? null,
+      specialistId: input.specialistId ?? null,
+      serviceId: input.serviceId ?? null,
+      platformUserId: input.platformUserId ?? null,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      durationMinutes: input.durationMinutes,
+      chainId: input.chainId ?? null,
+      chainPosition: input.chainPosition ?? null,
+      source: input.source,
+      status,
+      originalStartAt: input.startAt,
+      rescheduleCount: 0,
+      phoneNormalized: input.phoneNormalized ?? null,
+      attributionJson: input.attributionJson ?? {},
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+  const appointment = mapAppointment(inserted[0]!);
+  await tx.insert(beAppointmentEvents).values({
+    organizationId: appointment.organizationId,
+    appointmentId: appointment.id,
+    eventType: "created",
+    actorId: input.actorId ?? null,
+    payload: { status },
+  });
+  await tx.insert(beAppointmentHistoryEvents).values({
+    organizationId: appointment.organizationId,
+    appointmentId: appointment.id,
+    eventType: "created",
+    actorId: input.actorId ?? null,
+    payload: { status },
+    occurredAt: now,
+  });
+  if (appointment.platformUserId) {
+    await tx.insert(bePatientTimelineEvents).values({
+      organizationId: appointment.organizationId,
+      platformUserId: appointment.platformUserId,
+      domain: "appointment",
+      eventType: "appointment_created",
+      linkedObjectType: "appointment",
+      linkedObjectId: appointment.id,
+      payload: { status },
+      occurredAt: now,
+    });
+  }
+  return appointment;
 }
 
 export function createPgBookingEnginePort(): BookingEngineCorePort {
@@ -898,62 +963,41 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
     async createAppointment(input: CreateAppointmentInput) {
       const db = getDrizzle();
-      const status = input.status ?? "created";
       const now = new Date().toISOString();
-      return db.transaction(async (tx) => {
-        const inserted = await tx
-          .insert(beAppointments)
-          .values({
+      return db.transaction((tx) =>
+        insertAppointmentInTransaction(tx as DrizzleDb, input, now),
+      );
+    },
+
+    async createManualPatientVisit(input: CreateManualPatientVisitInput) {
+      if (getCurrentDbPrincipalOrganizationId() !== input.organizationId) {
+        throw new Error("organization_principal_mismatch");
+      }
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction(async (rawTx) => {
+        const tx = rawTx as DrizzleDb;
+        const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
+          tx,
+          input.organizationId,
+          input,
+        );
+        await ensureInvitedOrganizationClientRelationship(
+          tx,
+          input.organizationId,
+          patient.userId,
+        );
+        const appointment = await insertAppointmentInTransaction(
+          tx,
+          {
+            ...input.appointment,
             organizationId: input.organizationId,
-            branchId: input.branchId ?? null,
-            roomId: input.roomId ?? null,
-            specialistId: input.specialistId ?? null,
-            serviceId: input.serviceId ?? null,
-            platformUserId: input.platformUserId ?? null,
-            startAt: input.startAt,
-            endAt: input.endAt,
-            durationMinutes: input.durationMinutes,
-            chainId: input.chainId ?? null,
-            chainPosition: input.chainPosition ?? null,
-            source: input.source,
-            status,
-            originalStartAt: input.startAt,
-            rescheduleCount: 0,
-            phoneNormalized: input.phoneNormalized ?? null,
-            attributionJson: input.attributionJson ?? {},
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning();
-        const appt = mapAppointment(inserted[0]!);
-        await tx.insert(beAppointmentEvents).values({
-          organizationId: appt.organizationId,
-          appointmentId: appt.id,
-          eventType: "created",
-          actorId: input.actorId ?? null,
-          payload: { status },
-        });
-        await tx.insert(beAppointmentHistoryEvents).values({
-          organizationId: appt.organizationId,
-          appointmentId: appt.id,
-          eventType: "created",
-          actorId: input.actorId ?? null,
-          payload: { status },
-          occurredAt: now,
-        });
-        if (appt.platformUserId) {
-          await tx.insert(bePatientTimelineEvents).values({
-            organizationId: appt.organizationId,
-            platformUserId: appt.platformUserId,
-            domain: "appointment",
-            eventType: "appointment_created",
-            linkedObjectType: "appointment",
-            linkedObjectId: appt.id,
-            payload: { status },
-            occurredAt: now,
-          });
-        }
-        return appt;
+            platformUserId: patient.userId,
+            phoneNormalized: patient.phoneNormalized,
+          },
+          now,
+        );
+        return { patient, appointment };
       });
     },
 

@@ -24,7 +24,7 @@ const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
-const hasActiveEnrollmentMock = vi.hoisted(() => vi.fn());
+const hasSchedulableClientRelationshipMock = vi.hoisted(() => vi.fn());
 const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
@@ -63,7 +63,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     memberships: null,
     patientBooking: null,
     patientOrganization: {
-      hasActiveEnrollment: hasActiveEnrollmentMock,
+      hasSchedulableClientRelationship: hasSchedulableClientRelationshipMock,
     },
   }),
 }));
@@ -75,7 +75,7 @@ describe("POST manual appointment", () => {
     vi.clearAllMocks();
     principalState.inside = false;
     bridgeEnabledState.value = true;
-    hasActiveEnrollmentMock.mockResolvedValue(true);
+    hasSchedulableClientRelationshipMock.mockResolvedValue(true);
   });
 
   it("creates the canonical appointment for a newly created patient despite legacy bridge enablement", async () => {
@@ -131,7 +131,7 @@ describe("POST manual appointment", () => {
     expect(createAppointmentMock).toHaveBeenCalledWith(
       expect.objectContaining({ platformUserId: "44444444-4444-4444-8444-444444444444" }),
     );
-    expect(hasActiveEnrollmentMock).toHaveBeenCalledWith(
+    expect(hasSchedulableClientRelationshipMock).toHaveBeenCalledWith(
       "44444444-4444-4444-8444-444444444444",
       "org-1",
     );
@@ -152,7 +152,7 @@ describe("POST manual appointment", () => {
         },
       },
     });
-    hasActiveEnrollmentMock.mockImplementation(async () => {
+    hasSchedulableClientRelationshipMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
       return false;
     });

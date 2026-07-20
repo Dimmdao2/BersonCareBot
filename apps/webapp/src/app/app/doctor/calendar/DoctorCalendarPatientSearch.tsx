@@ -10,18 +10,22 @@ import { doctorInteractiveSurfaceButtonClass } from "@/shared/ui/doctor/doctorVi
 import { formatDoctorFio } from "@/shared/lib/fio";
 
 export type CalendarPatientOption = {
-  id: string;
+  id: string | null;
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
   patronymic?: string | null;
   phone: string | null;
+  email?: string | null;
+  isNew?: boolean;
 };
 
 type Props = {
   value: CalendarPatientOption | null;
   onChange: (value: CalendarPatientOption | null) => void;
   disabled?: boolean;
+  /** Calendar new-patient booking commits the card together with the appointment. */
+  deferNewPatientCreation?: boolean;
 };
 
 function formatPatientLabel(option: CalendarPatientOption): string {
@@ -37,7 +41,12 @@ function queryLooksLikePhone(query: string): boolean {
   return digits.length >= 3 && digits.length >= query.replace(/\s/g, "").length * 0.5;
 }
 
-export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props) {
+export function DoctorCalendarPatientSearch({
+  value,
+  onChange,
+  disabled,
+  deferNewPatientCreation = false,
+}: Props) {
   const inputId = useId();
   const listboxId = `${inputId}-listbox`;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -127,16 +136,30 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
     setOpen(false);
   };
 
-  const createPatient = async () => {
+  const submitNewPatient = async () => {
     const phone = newPhone.trim();
     if (!phone) {
       setCreateError("Укажите телефон");
       return;
     }
-    setCreating(true);
     setCreateError(null);
+    if (deferNewPatientCreation) {
+      pick({
+        id: null,
+        displayName: newName.trim() || phone,
+        phone,
+        email: newEmail.trim() || null,
+        isNew: true,
+      });
+      setNewName("");
+      setNewPhone("");
+      setNewEmail("");
+      return;
+    }
+
+    setCreating(true);
     try {
-      const res = await fetch("/api/doctor/clients", {
+      const response = await fetch("/api/doctor/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,12 +168,12 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
           email: newEmail.trim() || null,
         }),
       });
-      const data = (await res.json()) as {
+      const data = (await response.json()) as {
         ok?: boolean;
         error?: string;
         client?: CalendarPatientOption;
       };
-      if (!res.ok || !data.ok || !data.client) {
+      if (!response.ok || !data.ok || !data.client) {
         setCreateError(
           data.error === "invalid_phone" ? "Неверный телефон"
           : data.error === "invalid_email" ? "Неверный email"
@@ -249,7 +272,7 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
           ) : null}
           {results.map((item, idx) => (
             <Button
-              key={item.id}
+              key={item.id ?? `${item.displayName}:${item.phone ?? ""}`}
               type="button"
               variant="ghost"
               role="option"
@@ -289,14 +312,14 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
             placeholder="Имя"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            disabled={creating}
+            disabled={disabled || creating}
             aria-label="Имя пациента"
           />
           <Input
             placeholder="Телефон"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
-            disabled={creating}
+            disabled={disabled || creating}
             aria-label="Телефон пациента"
           />
           <Input
@@ -304,19 +327,28 @@ export function DoctorCalendarPatientSearch({ value, onChange, disabled }: Props
             placeholder="Email"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
-            disabled={creating}
+            disabled={disabled || creating}
             aria-label="Email пациента"
           />
           {createError ? <p className="text-xs text-destructive">{createError}</p> : null}
           <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={creating} onClick={() => void createPatient()}>
-              {creating ? "Создание…" : "Создать и выбрать"}
+            <Button
+              type="button"
+              size="sm"
+              disabled={disabled || creating}
+              onClick={() => void submitNewPatient()}
+            >
+              {creating
+                ? "Создание…"
+                : deferNewPatientCreation
+                  ? "Выбрать нового"
+                  : "Создать и выбрать"}
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={creating}
+              disabled={disabled || creating}
               onClick={() => {
                 setCreateOpen(false);
                 setCreateError(null);

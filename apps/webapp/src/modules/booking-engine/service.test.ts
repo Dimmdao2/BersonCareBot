@@ -59,6 +59,15 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     createAppointmentChain: vi.fn().mockResolvedValue([appointment]),
     getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
     createAppointment: vi.fn().mockResolvedValue(appointment),
+    createManualPatientVisit: vi.fn().mockResolvedValue({
+      appointment,
+      patient: {
+        userId: "22222222-2222-4222-8222-222222222222",
+        displayName: "Пациент",
+        phoneNormalized: "+79990000000",
+        created: true,
+      },
+    }),
     transitionAppointmentStatus: vi
       .fn()
       .mockImplementation(async (input) => ({ ...appointment, status: input.toStatus })),

@@ -1,0 +1,79 @@
+/** @vitest-environment jsdom */
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { DoctorCalendarPatientSearch } from "./DoctorCalendarPatientSearch";
+
+describe("DoctorCalendarPatientSearch new-patient draft", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps new identity data local until the calendar submits the atomic visit", () => {
+    const onChange = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <DoctorCalendarPatientSearch
+        value={null}
+        onChange={onChange}
+        deferNewPatientCreation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Новый пациент" }));
+    fireEvent.change(screen.getByLabelText("Имя пациента"), {
+      target: { value: "Иванов Иван" },
+    });
+    fireEvent.change(screen.getByLabelText("Телефон пациента"), {
+      target: { value: "+7 999 000-00-00" },
+    });
+    fireEvent.change(screen.getByLabelText("Email пациента"), {
+      target: { value: "patient@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Выбрать нового" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      id: null,
+      displayName: "Иванов Иван",
+      phone: "+7 999 000-00-00",
+      email: "patient@example.com",
+      isNew: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves immediate standalone client creation for non-calendar consumers", async () => {
+    const onChange = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        client: {
+          id: "11111111-1111-4111-8111-111111111111",
+          displayName: "Иванов Иван",
+          phone: "+79990000000",
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<DoctorCalendarPatientSearch value={null} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Новый пациент" }));
+    fireEvent.change(screen.getByLabelText("Имя пациента"), {
+      target: { value: "Иванов Иван" },
+    });
+    fireEvent.change(screen.getByLabelText("Телефон пациента"), {
+      target: { value: "+79990000000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Создать и выбрать" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/doctor/clients");
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
+      ),
+    );
+  });
+});

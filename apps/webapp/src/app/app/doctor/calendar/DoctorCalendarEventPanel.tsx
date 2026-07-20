@@ -328,20 +328,34 @@ function DoctorCalendarEventPanelInner({
                 new Date(createStart).getTime() + createDurationMinutes * 60_000,
               ).toISOString();
               startTransition(async () => {
-                const res = await fetch(`${apiBase}/appointments/manual`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    startAt,
-                    endAt,
-                    durationMinutes: createDurationMinutes,
-                    specialistId: createSpecialistId,
-                    branchId: createBranchId,
-                    serviceId: createServiceId,
-                    platformUserId: createPatient?.id ?? null,
-                    phoneNormalized: createPatient?.phone?.trim() || null,
-                  }),
-                });
+                const isNewPatient = createPatient?.isNew === true;
+                const res = await fetch(
+                  isNewPatient
+                    ? `${apiBase}/appointments/manual-patient-visit`
+                    : `${apiBase}/appointments/manual`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      ...(isNewPatient
+                        ? {
+                            displayName: createPatient.displayName,
+                            phone: createPatient.phone,
+                            email: createPatient.email ?? null,
+                          }
+                        : {
+                            platformUserId: createPatient?.id ?? null,
+                            phoneNormalized: createPatient?.phone?.trim() || null,
+                          }),
+                      startAt,
+                      endAt,
+                      durationMinutes: createDurationMinutes,
+                      specialistId: createSpecialistId,
+                      branchId: createBranchId,
+                      serviceId: createServiceId,
+                    }),
+                  },
+                );
                 const json = (await res.json()) as {
                   ok?: boolean;
                   error?: string;
@@ -712,6 +726,7 @@ function CreateForm(props: CreateFormProps) {
         value={props.createPatient}
         onChange={props.onPatientChange}
         disabled={props.pending}
+        deferNewPatientCreation
       />
       <Label>Начало</Label>
       {/* R17: готовый react-day-picker вместо нативного datetime-local */}

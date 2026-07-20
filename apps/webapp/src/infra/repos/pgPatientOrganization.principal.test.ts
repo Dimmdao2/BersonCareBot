@@ -46,12 +46,28 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
     expect(limit).toHaveBeenCalledWith(1);
   });
 
-  it("creates a canonical client and active exact-org enrollment in one transaction", async () => {
+  it("allows invited cards for staff scheduling but still denies a foreign organization", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    const limit = vi.fn().mockResolvedValue([{ organizationId: ORG_A }]);
+    getDrizzleMock.mockReturnValue({
+      select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
+    });
+
+    await expect(
+      createPgPatientOrganizationPort().hasSchedulableClientRelationship(PATIENT_ID, ORG_A),
+    ).resolves.toBe(true);
+    await expect(
+      createPgPatientOrganizationPort().hasSchedulableClientRelationship(PATIENT_ID, ORG_B),
+    ).resolves.toBe(false);
+    expect(limit).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates a canonical client and invited exact-org enrollment in one transaction", async () => {
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
     const selectResults = [
       [],
       [],
-      [{ id: "enrollment-1" }],
+      [{ status: "invited" }],
     ];
     const select = vi.fn(() => ({
       from: () => ({
@@ -80,7 +96,7 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
         }),
       };
     });
-    const tx = { select, insert, update: vi.fn() };
+    const tx = { select, insert };
     const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
     getDrizzleMock.mockReturnValue({ transaction });
 
@@ -111,7 +127,7 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
       expect.objectContaining({
         platformUserId: PATIENT_ID,
         organizationId: ORG_A,
-        status: "active",
+        status: "invited",
       }),
     ]);
   });
