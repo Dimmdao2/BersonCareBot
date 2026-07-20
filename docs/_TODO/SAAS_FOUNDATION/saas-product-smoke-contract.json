@@ -128,7 +128,7 @@
       "actor": "clinic_admin",
       "category": "admin_settings",
       "method": "GET",
-      "path": "/app/settings",
+      "path": "/app/settings?tab=organization",
       "expectStatus": 200,
       "minBodyBytes": 800,
       "knownFailureHint": "G1"
