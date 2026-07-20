@@ -12,6 +12,7 @@ const files = {
   productAnalyticsMigration: "apps/webapp/db/drizzle-migrations/0200_current_patient_product_analytics.sql",
   authRoleMigration: "apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql",
   patientUiMigration: "apps/webapp/db/drizzle-migrations/0202_current_patient_ui_capabilities.sql",
+  patientEntitlementsMigration: "apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql",
   overlay: "deploy/postgres/e1-webapp-runtime-config.sql",
   telemetryOverlay: "deploy/postgres/saas-isolation-telemetry.sql",
   runtime: "apps/webapp/src/modules/system-settings/runtimeConfig.ts",
@@ -34,6 +35,8 @@ const files = {
   pgTreatmentProgramInstance: "apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts",
   pgProductAnalytics: "apps/webapp/src/infra/repos/pgProductAnalytics.ts",
   pgPatientCalendarTimezone: "apps/webapp/src/infra/repos/pgPatientCalendarTimezone.ts",
+  pgOrgEntitlements: "apps/webapp/src/infra/repos/pgOrgEntitlements.ts",
+  patientPage: "apps/webapp/src/app/app/patient/page.tsx",
   patientHome: "apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx",
   patientDiaryPage: "apps/webapp/src/app/app/patient/diary/page.tsx",
   patientDiaryMain: "apps/webapp/src/app/app/patient/diary/PatientDiaryAuthenticatedMain.tsx",
@@ -206,6 +209,24 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.system_settings TO app_patient",
     "GRANT UPDATE ON TABLE public.platform_users TO app_patient",
   ]);
+  requireText(files.patientEntitlementsMigration, loaded.patientEntitlementsMigration, [
+    "0219_current_patient_organization_entitlements",
+    "app.read_current_patient_organization_entitlements()",
+    "SECURITY DEFINER", "SET search_path = pg_catalog",
+    "v_organization_id uuid := app.current_org_id()",
+    "v_patient_user_id uuid := app.current_patient_user_id()",
+    "saas_tariffs_current_patient_capability_read",
+    "saas_org_entitlement_overrides_current_patient_capability_read",
+    "FOR SELECT",
+    "enrollment.organization_id = v_organization_id",
+    "enrollment.platform_user_id = v_patient_user_id",
+    "enrollment.status = 'active'",
+    "organization.is_active = true",
+    "REVOKE ALL ON FUNCTION app.read_current_patient_organization_entitlements() FROM PUBLIC",
+  ]);
+  forbidText(files.patientEntitlementsMigration, loaded.patientEntitlementsMigration, [
+    "p_organization_id", "p_patient_user_id", "TO app_patient",
+  ]);
   requireText(files.pgPatientBookings, loaded.pgPatientBookings, [
     "app.read_current_patient_booking_rows('upcoming'", "app.read_current_patient_booking_rows('history'",
   ]);
@@ -243,7 +264,7 @@ function runChecks(overrides = {}) {
     "0195_e1_patient_maintenance_history.sql", "0197_patient_plan_opened_capability.sql",
     "0198_patient_visible_catalog_reads.sql", "0199_current_patient_booking_rows.sql",
     "0200_current_patient_product_analytics.sql", "0201_e1_webapp_auth_role_runtime_config.sql",
-    "0202_current_patient_ui_capabilities.sql",
+    "0202_current_patient_ui_capabilities.sql", "0219_current_patient_organization_entitlements.sql",
     "e1_webapp_runtime_role",
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text)",
     "GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)",
@@ -261,6 +282,7 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner",
     "ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner",
     "ALTER FUNCTION app.read_current_patient_appointment_history() OWNER TO app_owner",
+    "ALTER FUNCTION app.read_current_patient_organization_entitlements() OWNER TO app_owner",
     "public.be_appointments", "public.be_specialists", "public.be_branches",
     "public.be_rooms", "public.be_clinic_services", "TO app_owner",
     "REVOKE ALL PRIVILEGES ON FUNCTION app.is_current_patient_test_account()\n  FROM app_patient CASCADE",
@@ -276,12 +298,15 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.set_current_patient_calendar_timezone(text,boolean) OWNER TO app_owner",
     "GRANT EXECUTE ON FUNCTION app.read_current_patient_ui_setting(text,text)\n  TO app_patient",
     "GRANT EXECUTE ON FUNCTION app.set_current_patient_calendar_timezone(text,boolean)\n  TO app_patient",
+    "GRANT EXECUTE ON FUNCTION app.read_current_patient_organization_entitlements()\n  TO app_patient",
     "public.content_pages",
     "public.reference_categories",
     "public.reference_items",
     "public.org_enrollments",
     "NOT has_table_privilege('app_patient','public.system_settings','SELECT')",
     "NOT has_table_privilege('app_patient','public.platform_users','UPDATE')",
+    "NOT has_table_privilege('app_patient','public.saas_tariffs','SELECT')",
+    "NOT has_table_privilege('app_patient','public.saas_org_entitlement_overrides','SELECT')",
     "has_table_privilege('app_patient','public.org_enrollments','SELECT')",
     "has_table_privilege('app_patient','public.reference_categories','SELECT')",
     "has_table_privilege('app_patient','public.reference_items','SELECT')",
@@ -304,6 +329,7 @@ function runChecks(overrides = {}) {
     "app.record_current_patient_push_open(timestamptz,text,uuid)",
     "GRANT USAGE ON SCHEMA app TO app_owner, app_patient",
     "REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient",
+    "REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides FROM app_patient",
   ]);
   forbidText(files.overlay, loaded.overlay, [
     "NOT has_table_privilege(:'e1_webapp_runtime_role', 'public.app_runtime_settings', 'SELECT')",
@@ -316,6 +342,8 @@ function runChecks(overrides = {}) {
     "GRANT SELECT ON TABLE public.be_branches TO app_patient",
     "GRANT SELECT ON TABLE public.be_rooms TO app_patient",
     "GRANT SELECT ON TABLE public.be_clinic_services TO app_patient",
+    "GRANT SELECT ON TABLE public.saas_tariffs TO app_patient",
+    "GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_patient",
   ]);
   requireText(files.telemetryOverlay, loaded.telemetryOverlay, [
     "saas_isolation_events_source_operation_check",
@@ -345,6 +373,10 @@ function runChecks(overrides = {}) {
     "60000000-0000-4000-8000-000000000002",
     "appointment_id IN (",
     "0201_e1_webapp_auth_role_runtime_config.sql",
+    "0219_current_patient_organization_entitlements.sql",
+    "app.read_current_patient_organization_entitlements()",
+    "saas_org_entitlement_overrides",
+    "saas_tariffs",
     "app.read_webapp_server_runtime_setting('admin_phones','admin')",
     "app.read_webapp_server_runtime_setting('doctor_phones','admin')",
     "app.read_webapp_server_runtime_setting('test_account_identifiers','admin')",
@@ -425,6 +457,21 @@ function runChecks(overrides = {}) {
     "app.set_current_patient_calendar_timezone($1, false)",
     "app.set_current_patient_calendar_timezone($1, true)",
   ]);
+  requireText(files.pgOrgEntitlements, loaded.pgOrgEntitlements, [
+    'principal?.kind !== "patient"',
+    "principal.organizationId !== organizationId",
+    "patient_entitlement_organization_mismatch",
+    'runWithWebappDbOperationFamily("patient_ui_config"',
+    "SELECT * FROM app.read_current_patient_organization_entitlements()",
+    "patient_entitlement_context_denied",
+  ]);
+  requireText(files.patientPage, loaded.patientPage, [
+    "stampPatientOrganizationRequestContext",
+    'source: "app.patient.page"',
+    "organizationId: patientContext.organizationId",
+    'requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")',
+  ]);
+  forbidText(files.patientPage, loaded.patientPage, ["resolvePatientEnrollmentOrganizationId"]);
   requireText(files.patientHome, loaded.patientHome, [
     'runWithWebappDbOperationFamily("patient_content_catalog"',
   ]);
@@ -507,6 +554,7 @@ function runChecks(overrides = {}) {
     '"idx": 195', '"tag": "0195_e1_patient_maintenance_history"',
     '"idx": 201', '"tag": "0201_e1_webapp_auth_role_runtime_config"',
     '"idx": 202', '"tag": "0202_current_patient_ui_capabilities"',
+    '"idx": 219', '"tag": "0219_current_patient_organization_entitlements"',
   ]);
   requireText(files.visibleCatalogMigration, loaded.visibleCatalogMigration, [
     "to_regprocedure('app.current_org_id()') IS NULL",

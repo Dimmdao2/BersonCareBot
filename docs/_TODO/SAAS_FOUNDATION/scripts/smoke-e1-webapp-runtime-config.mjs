@@ -24,10 +24,22 @@ function psql(sql) { run(["psql", "-X", "-v", "ON_ERROR_STOP=1", "-d", db], sql)
 
 const setup = `
 CREATE SCHEMA app;
+CREATE TABLE public.saas_tariffs (
+  id uuid PRIMARY KEY,
+  mechanics jsonb NOT NULL DEFAULT '{}'::jsonb,
+  included_seats integer
+);
 CREATE TABLE public.be_organizations (
   id uuid PRIMARY KEY,
   title text NOT NULL DEFAULT 'Organization',
-  is_active boolean NOT NULL DEFAULT true
+  is_active boolean NOT NULL DEFAULT true,
+  tariff_id uuid
+);
+CREATE TABLE public.saas_org_entitlement_overrides (
+  organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
+  mechanic text NOT NULL,
+  enabled boolean NOT NULL,
+  seat_limit_override integer
 );
 CREATE TABLE public.platform_users (id uuid PRIMARY KEY, phone_normalized text);
 CREATE TABLE public.user_channel_bindings (
@@ -94,9 +106,15 @@ CREATE TABLE public.system_settings (
 CREATE UNIQUE INDEX system_settings_global_uq ON public.system_settings(key, scope) WHERE organization_id IS NULL;
 CREATE UNIQUE INDEX system_settings_org_uq ON public.system_settings(key, scope, organization_id) WHERE organization_id IS NOT NULL;
 CREATE TABLE public.system_settings_audit (id bigserial PRIMARY KEY);
+INSERT INTO public.saas_tariffs VALUES
+  ('80000000-0000-4000-8000-000000000001', '{"courses":false,"clinic_team":true}', 3),
+  ('80000000-0000-4000-8000-000000000002', '{"courses":true,"clinic_team":false}', 1);
 INSERT INTO public.be_organizations VALUES
-  ('00000000-0000-4000-8000-000000000001', 'Organization A', true),
-  ('00000000-0000-4000-8000-000000000002', 'Organization B', true);
+  ('00000000-0000-4000-8000-000000000001', 'Organization A', true, '80000000-0000-4000-8000-000000000001'),
+  ('00000000-0000-4000-8000-000000000002', 'Organization B', true, '80000000-0000-4000-8000-000000000002');
+INSERT INTO public.saas_org_entitlement_overrides VALUES
+  ('00000000-0000-4000-8000-000000000001', 'courses', true, NULL),
+  ('00000000-0000-4000-8000-000000000002', 'courses', false, NULL);
 INSERT INTO public.platform_users VALUES
   ('10000000-0000-4000-8000-000000000001', '+79990000001'),
   ('10000000-0000-4000-8000-000000000002', '+79990000002');
@@ -251,6 +269,11 @@ SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / app.is_current_patient_test_account()::int;
 SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_appointment_history()) = 1)::int;
 SELECT 1 / ((SELECT subtitle FROM app.read_current_patient_appointment_history()) = 'Service A · Branch A')::int;
+SELECT 1 / ((SELECT tariff_mechanics->>'clinic_team'
+  FROM app.read_current_patient_organization_entitlements() LIMIT 1) = 'true')::int;
+SELECT 1 / ((SELECT override_enabled
+  FROM app.read_current_patient_organization_entitlements()
+  WHERE override_mechanic = 'courses') IS TRUE)::int;
 SELECT 1 / (NOT EXISTS (
   SELECT 1 FROM app.read_current_patient_appointment_history()
   WHERE appointment_id IN (
@@ -264,6 +287,7 @@ UPDATE app.principal_context SET org_id = '00000000-0000-4000-8000-000000000002'
 SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / (NOT app.is_current_patient_test_account())::int;
 SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_appointment_history()) = 0)::int;
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_organization_entitlements()) = 0)::int;
 RESET SESSION AUTHORIZATION;
 UPDATE app.principal_context SET org_id = '00000000-0000-4000-8000-000000000001';
 UPDATE public.org_enrollments SET status = 'archived'
@@ -271,6 +295,7 @@ WHERE organization_id = '00000000-0000-4000-8000-000000000001'
   AND platform_user_id = '10000000-0000-4000-8000-000000000001';
 SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_organization_entitlements()) = 0)::int;
 RESET SESSION AUTHORIZATION;
 UPDATE public.org_enrollments SET status = 'active'
 WHERE organization_id = '00000000-0000-4000-8000-000000000001'
@@ -280,6 +305,7 @@ UPDATE app.principal_context SET
   patient_user_id = '10000000-0000-4000-8000-000000000002';
 SET SESSION AUTHORIZATION app_patient;
 SELECT 1 / (NOT app.is_current_patient_test_account())::int;
+SELECT 1 / ((SELECT count(*) FROM app.read_current_patient_organization_entitlements()) = 0)::int;
 RESET SESSION AUTHORIZATION;
 DELETE FROM app.principal_context WHERE backend_pid = pg_backend_pid();
 INSERT INTO app.principal_context VALUES (
@@ -366,19 +392,26 @@ GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE public.system_settings, public.platform_users,
   public.user_channel_bindings, public.org_enrollments, public.be_appointments,
   public.be_specialists, public.be_branches, public.be_rooms, public.be_clinic_services,
-  public.be_organizations, public.treatment_program_instances TO app_owner;
+  public.be_organizations, public.saas_tariffs, public.saas_org_entitlement_overrides,
+  public.treatment_program_instances TO app_owner;
+ALTER TABLE public.saas_tariffs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saas_tariffs FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.saas_org_entitlement_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saas_org_entitlement_overrides FORCE ROW LEVEL SECURITY;
 ALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.read_webapp_server_runtime_setting(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.is_current_patient_test_account() OWNER TO app_owner;
 ALTER FUNCTION app.read_current_patient_appointment_history() OWNER TO app_owner;
 ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner;
 ALTER FUNCTION app.resolve_current_patient_treatment_program_organization(uuid) OWNER TO app_owner;
+ALTER FUNCTION app.read_current_patient_organization_entitlements() OWNER TO app_owner;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO app_patient WITH GRANT OPTION;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO ${arbitraryRole};
 SET SESSION AUTHORIZATION app_patient;
 GRANT EXECUTE ON FUNCTION app.is_current_patient_test_account() TO PUBLIC;
 RESET SESSION AUTHORIZATION;
 REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient;
+REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides FROM app_patient;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings FROM ${publicRole};
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC, app_patient, app_staff;
@@ -414,8 +447,11 @@ REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_active_organizations(
   FROM PUBLIC, app_patient, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
 REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_current_patient_treatment_program_organization(uuid)
   FROM PUBLIC, app_patient, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.read_current_patient_organization_entitlements()
+  FROM PUBLIC, app_patient, app_staff, ${publicRole}, ${arbitraryRole} CASCADE;
 GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.resolve_current_patient_treatment_program_organization(uuid) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.read_current_patient_organization_entitlements() TO app_patient;
 `;
 
 function asMigrationOwner(sql) {
@@ -437,6 +473,7 @@ try {
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0195_e1_patient_maintenance_history.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql", "utf8")));
+  psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql", "utf8")));
   psql(asMigrationOwner(readFileSync("apps/webapp/db/drizzle-migrations/0201_e1_webapp_auth_role_runtime_config.sql", "utf8")));
   psql(`ALTER ROLE ${migrationOwner} NOBYPASSRLS;`);
   psql(runtimeAcl);

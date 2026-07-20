@@ -6,7 +6,6 @@
 import { DateTime } from "luxon";
 import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
-import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -21,7 +20,10 @@ import {
   PatientHomeGreetingMobileHeader,
 } from "./home/PatientHomeGreeting";
 import { PatientHomeToday } from "./home/PatientHomeToday";
-import { resolvePatientOrganizationRequestContext } from "@/app-layer/patient-organization/requestContext";
+import {
+  resolvePatientOrganizationRequestContext,
+  stampPatientOrganizationRequestContext,
+} from "@/app-layer/patient-organization/requestContext";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +38,14 @@ export default async function PatientHomePage() {
     session.user.userId,
   );
   if (!patientContext.ok) return null;
-  const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
+  stampPatientOrganizationRequestContext({
+    organizationId: patientContext.organizationId,
+    platformUserId: session.user.userId,
+    source: "app.patient.page",
+  });
   const coursesOrganizationId =
-    patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok
-      ? patientOrganization.organizationId
+    (await requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")).ok
+      ? patientContext.organizationId
       : null;
   const appTz = await getAppDisplayTimeZone();
   const personalizedName =

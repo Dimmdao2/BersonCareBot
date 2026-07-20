@@ -37,8 +37,13 @@ describe("U5A patient organization context wiring", () => {
   });
 
   it("runs Today and reminder go-targets under the selected patient organization principal", () => {
+    const page = source("src/app/app/patient/page.tsx");
     const today = source("src/app/app/patient/home/PatientHomeToday.tsx");
     const go = source("src/app/app/patient/go/[kind]/page.tsx");
+    expect(page).toContain("stampPatientOrganizationRequestContext");
+    expect(page).toContain('source: "app.patient.page"');
+    expect(page).toContain("organizationId: patientContext.organizationId");
+    expect(page).not.toContain("resolvePatientEnrollmentOrganizationId");
     expect(today).toContain("withPatientOrganizationPrincipal");
     expect(today).toContain('source: "app.patient.home.today"');
     expect(go).toContain("resolvePatientOrganizationRequestContext");
@@ -101,9 +106,22 @@ describe("U5A patient organization context wiring", () => {
 
   it("keeps locked patient organization reads behind exact capability ACLs", () => {
     const overlay = source("../../deploy/postgres/e1-webapp-runtime-config.sql");
+    const entitlementCapability = source("db/drizzle-migrations/0219_current_patient_organization_entitlements.sql");
+    const entitlementRepository = source("src/infra/repos/pgOrgEntitlements.ts");
     expect(overlay).toContain("ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner");
     expect(overlay).toContain("GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations()");
     expect(overlay).toContain("app.resolve_current_patient_treatment_program_organization(uuid)");
     expect(overlay).toContain("NOT has_table_privilege('app_patient','public.be_organizations','SELECT')");
+    expect(overlay).toContain("app.read_current_patient_organization_entitlements()");
+    expect(overlay).toContain("NOT has_table_privilege('app_patient','public.saas_tariffs','SELECT')");
+    expect(overlay).toContain("NOT has_table_privilege('app_patient','public.saas_org_entitlement_overrides','SELECT')");
+    expect(entitlementCapability).toContain("v_organization_id uuid := app.current_org_id()");
+    expect(entitlementCapability).toContain("v_patient_user_id uuid := app.current_patient_user_id()");
+    expect(entitlementCapability).toContain("enrollment.organization_id = v_organization_id");
+    expect(entitlementCapability).toContain("enrollment.platform_user_id = v_patient_user_id");
+    expect(entitlementCapability).toContain("enrollment.status = 'active'");
+    expect(entitlementRepository).toContain("patient_entitlement_organization_mismatch");
+    expect(entitlementRepository).toContain("patient_entitlement_context_denied");
+    expect(entitlementRepository).toContain("SELECT * FROM app.read_current_patient_organization_entitlements()");
   });
 });
