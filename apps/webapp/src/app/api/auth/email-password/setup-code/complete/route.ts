@@ -11,6 +11,8 @@ import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { hashPin } from "@/modules/auth/pinHash";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -59,6 +61,9 @@ export async function POST(request: Request) {
   const passwordHash = await hashPin(parsed.data.password);
   await deps.userPasswordCredentials.upsertPasswordHash(state.userId, passwordHash);
 
+  if (isPlatformUserUuid(state.userId)) {
+    enterStaffSecuritySelfPrincipal(state.userId, "api/auth/email-password/setup-code/complete:email-verified-self");
+  }
   let sessionUser = await deps.userByPhone.findByUserId(state.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });

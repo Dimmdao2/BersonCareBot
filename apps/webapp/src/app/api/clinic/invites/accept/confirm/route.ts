@@ -6,6 +6,8 @@ import { confirmPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { normalizeEmail } from "@/modules/auth/emailAuth";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   token: z.string().trim().min(16),
@@ -70,6 +72,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: accepted.code }, { status: acceptErrorStatus(accepted.code) });
   }
 
+  if (isPlatformUserUuid(accepted.platformUserId)) {
+    enterStaffSecuritySelfPrincipal(accepted.platformUserId, "api/clinic/invites/accept/confirm:invite-verified-self");
+  }
   const user = await deps.userByPhone.findByUserId(accepted.platformUserId);
   if (!user) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });

@@ -5,6 +5,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   token: z.string().min(1).max(512),
@@ -36,6 +38,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
 
+  if (isPlatformUserUuid(result.userId)) {
+    enterStaffSecuritySelfPrincipal(result.userId, "api/auth/email-setup/complete:email-verified-self");
+  }
   let sessionUser = await deps.userByPhone.findByUserId(result.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });

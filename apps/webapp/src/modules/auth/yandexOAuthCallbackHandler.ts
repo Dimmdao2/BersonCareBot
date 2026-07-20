@@ -22,6 +22,8 @@ import {
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const LOG_BASE = {
   authMethod: "oauth_yandex" as const,
@@ -143,6 +145,9 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
 
   let sessionUser;
   try {
+    if (isPlatformUserUuid(resolved.userId)) {
+      enterStaffSecuritySelfPrincipal(resolved.userId, "auth/oauth-yandex:provider-verified-self");
+    }
     sessionUser = await pgUserByPhonePort.findByUserId(resolved.userId);
   } catch {
     await logOAuthFailure(attemptId, "db_error", "session_set", resolved.userId);

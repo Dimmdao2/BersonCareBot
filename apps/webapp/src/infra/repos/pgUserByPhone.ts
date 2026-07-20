@@ -1,5 +1,8 @@
 import type { Pool, PoolClient } from "pg";
-import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import {
+  getCurrentDbPrincipalPlatformUserId,
+  runWithDbOrganizationPrincipal,
+} from "@bersoncare/db-principal";
 /**
  * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
@@ -46,14 +49,11 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
   return r.rows[0] ? parseIdentityRow(puMergeRowSchema, r.rows[0], "pu_merge_row") : null;
 }
 
-async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser> {
+async function loadSessionIdentityUser(pool: Pool, userId: string): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
-            COALESCE(sss.session_version, 0) AS security_version,
-            COALESCE(sss.factor_required, false) AS security_factor_required
+    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized
      FROM platform_users pu
-     LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
      WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -78,8 +78,6 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
     ...(patronymic ? { patronymic } : {}),
     phone: u.phone_normalized ?? undefined,
     bindings,
-    securityVersion: u.security_version,
-    securityFactorRequired: u.security_factor_required,
   };
 }
 
@@ -110,6 +108,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const pool = getPool();
     const canonicalId = await resolveCanonicalUserId(pool, userId);
     if (!canonicalId) return null;
+    if (getCurrentDbPrincipalPlatformUserId() !== canonicalId) {
+      throw new Error("session_user_identity_self_principal_mismatch");
+    }
     const userRow = await runIdentityPoolPgText(
       `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
               COALESCE(sss.session_version, 0) AS security_version,
@@ -147,7 +148,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const pool = getPool();
     const canonicalId = await findCanonicalUserIdByPhone(pool, normalizedPhone);
     if (!canonicalId) return null;
-    return loadSessionUser(pool, canonicalId);
+    // Phone lookup is not authentication proof. Do not read identity-self staff-security
+    // state here; only the exact-id post-verification path may attach it to a session user.
+    return loadSessionIdentityUser(pool, canonicalId);
   },
 
   async createOrBind(
@@ -338,6 +341,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();
 
-    return { user: await loadSessionUser(pool, bound.userId), wasCreated: bound.wasCreated };
+    return { user: await loadSessionIdentityUser(pool, bound.userId), wasCreated: bound.wasCreated };
   },
 };

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 
 const verifyLoginMock = vi.fn();
 const findByUserIdMock = vi.fn();
@@ -57,7 +58,13 @@ describe("POST /api/auth/email-password/login", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     verifyLoginMock.mockResolvedValue({ userId: user.userId, emailVerified: true });
-    findByUserIdMock.mockResolvedValue(user);
+    findByUserIdMock.mockImplementation(async (userId: string) => {
+      expect(getCurrentDbPrincipal()).toMatchObject({
+        kind: "patient",
+        platformUserId: userId,
+      });
+      return user;
+    });
     getLatestSpecialistSignupIntentForUserMock.mockResolvedValue(null);
     ensureProfileMock.mockResolvedValue({ enrolled: false, replacementRequired: false });
   });

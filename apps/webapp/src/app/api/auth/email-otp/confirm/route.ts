@@ -6,6 +6,8 @@ import { confirmPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { formatOtpRetryAfterMessage, OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -54,6 +56,9 @@ export async function POST(request: Request) {
   }
 
   // Load full session user — we have userId but need role/bindings/displayName.
+  if (isPlatformUserUuid(result.userId)) {
+    enterStaffSecuritySelfPrincipal(result.userId, "api/auth/email-otp/confirm:otp-verified-self");
+  }
   const user = await deps.userByPhone.findByUserId(result.userId);
   if (!user) {
     return NextResponse.json(

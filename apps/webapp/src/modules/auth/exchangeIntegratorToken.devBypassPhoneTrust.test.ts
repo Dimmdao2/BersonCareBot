@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { SessionUser } from "@/shared/types/session";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
+import {
+  enterWithDbBootstrapPrincipal,
+  getCurrentDbPrincipal,
+} from "@bersoncare/db-principal";
 
 const cookieSet = vi.fn();
 
@@ -51,6 +55,7 @@ import { exchangeIntegratorToken } from "./service";
 
 describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   beforeEach(() => {
+    enterWithDbBootstrapPrincipal({ source: "exchange-dev-bypass-test-reset" });
     cookieSet.mockClear();
     applyDevBypassMock.mockClear();
     ensureStaffWorkspaceMock.mockClear();
@@ -59,7 +64,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
   it("writes phone + patient_phone_trust_at for dev:client (patient tier)", async () => {
     findByUserIdMock.mockResolvedValue({
-      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       role: "client",
       displayName: "Demo Client",
       phone: "+79990000001",
@@ -68,7 +73,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
-        userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         role: "client" as const,
         displayName: "Demo Client",
         phone: undefined,
@@ -84,26 +89,39 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
     expect(result).not.toBeNull();
     expect(applyDevBypassMock).toHaveBeenCalledWith(
-      "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       "client",
       "+79990000001",
     );
-    expect(findByUserIdMock).toHaveBeenCalledWith("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee");
+    expect(findByUserIdMock).toHaveBeenCalledWith("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000001");
   });
 
   it("writes phone only for dev:admin (no patient_phone_trust_at)", async () => {
-    findByUserIdMock.mockResolvedValue({
-      userId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
-      role: "admin",
-      displayName: "Demo Admin",
-      phone: "+79990000003",
-      bindings: { telegramId: "333333333" },
-    } satisfies SessionUser);
+    const adminUserId = "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    applyDevBypassMock.mockImplementationOnce(async () => {
+      expect(getCurrentDbPrincipal()).toMatchObject({
+        kind: "patient",
+        platformUserId: adminUserId,
+      });
+    });
+    findByUserIdMock.mockImplementationOnce(async () => {
+      expect(getCurrentDbPrincipal()).toMatchObject({
+        kind: "patient",
+        platformUserId: adminUserId,
+      });
+      return {
+        userId: "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "admin",
+        displayName: "Demo Admin",
+        phone: "+79990000003",
+        bindings: { telegramId: "333333333" },
+      } satisfies SessionUser;
+    });
 
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
-        userId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        userId: "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         role: "admin" as const,
         displayName: "Demo Admin",
         phone: undefined,
@@ -119,14 +137,14 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     const result = await exchangeIntegratorToken("dev:admin", identityResolutionPort);
     expect(result).not.toBeNull();
     expect(applyDevBypassMock).toHaveBeenCalledWith(
-      "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       "admin",
       "+79990000003",
     );
-    expect(findByUserIdMock).toHaveBeenCalledWith("bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee");
+    expect(findByUserIdMock).toHaveBeenCalledWith("bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000003");
     expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
-      platformUserId: "bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      platformUserId: "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       displayName: "Demo Admin",
       kind: "global_admin",
     });
@@ -134,7 +152,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
   it("forces preset role for dev:admin even when identity row is client", async () => {
     findByUserIdMock.mockResolvedValue({
-      userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      userId: "cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       role: "client",
       displayName: "Demo Admin",
       phone: "+79990000003",
@@ -143,7 +161,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
     const findOrCreateByChannelBinding = vi.fn(async () => ({
       user: {
-        userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
+        userId: "cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         role: "client" as const,
         displayName: "Demo Admin",
         phone: undefined,
@@ -165,7 +183,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
   it("provisions an owner workspace for dev:clinic-admin while keeping the doctor platform role", async () => {
     findByUserIdMock.mockResolvedValue({
-      userId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      userId: "dddddddd-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       role: "doctor",
       displayName: "Demo Clinic Owner",
       phone: "+79990000004",
@@ -176,7 +194,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       findByChannelBinding: vi.fn(async () => null),
       findOrCreateByChannelBinding: vi.fn(async () => ({
         user: {
-          userId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+          userId: "dddddddd-bbbb-4ccc-8ddd-eeeeeeeeeeee",
           role: "doctor" as const,
           displayName: "Demo Clinic Owner",
           bindings: { telegramId: "999999999999004" },
@@ -190,7 +208,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     expect(result?.session.user.role).toBe("doctor");
     expect(result?.session.adminMode).toBeUndefined();
     expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
-      platformUserId: "dddddddd-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      platformUserId: "dddddddd-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       displayName: "Demo Clinic Owner",
       kind: "clinic_admin",
     });
@@ -198,7 +216,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
 
   it("provisions a specialist workspace for dev:doctor without admin semantics", async () => {
     findByUserIdMock.mockResolvedValue({
-      userId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      userId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       role: "doctor",
       displayName: "Demo Doctor",
       phone: "+79990000002",
@@ -209,7 +227,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       findByChannelBinding: vi.fn(async () => null),
       findOrCreateByChannelBinding: vi.fn(async () => ({
         user: {
-          userId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+          userId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
           role: "doctor" as const,
           displayName: "Demo Doctor",
           bindings: { telegramId: "222222222" },
@@ -223,7 +241,7 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     expect(result?.session.user.role).toBe("doctor");
     expect(result?.session.adminMode).toBeUndefined();
     expect(ensureStaffWorkspaceMock).toHaveBeenCalledWith({
-      platformUserId: "eeeeeeee-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      platformUserId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       displayName: "Demo Doctor",
       kind: "doctor",
     });

@@ -11,6 +11,8 @@ import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -84,6 +86,9 @@ export async function POST(request: Request) {
     );
   }
 
+  if (isPlatformUserUuid(userId)) {
+    enterStaffSecuritySelfPrincipal(userId, "api/auth/email-password/register/confirm:email-verified-self");
+  }
   let sessionUser = await deps.userByPhone.findByUserId(userId);
   if (!sessionUser) {
     await recordAuthRegistrationFailure({

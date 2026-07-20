@@ -6,6 +6,8 @@ import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { hashLoginTokenPlain } from "@/modules/auth/messengerLoginToken";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 const bodySchema = z.object({
   token: z.string().min(1),
@@ -56,15 +58,17 @@ export async function POST(request: Request) {
     });
   }
 
-  const user = await deps.userByPhone.findByUserId(row.userId);
-  if (!user) {
-    return NextResponse.json(
-      { ok: false, error: "user_missing", message: "Пользователь не найден" },
-      { status: 500 }
-    );
-  }
-
   if (row.status === "confirmed") {
+    if (isPlatformUserUuid(row.userId)) {
+      enterStaffSecuritySelfPrincipal(row.userId, "api/auth/messenger/poll:confirmed-token-self");
+    }
+    const user = await deps.userByPhone.findByUserId(row.userId);
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, error: "user_missing", message: "Пользователь не найден" },
+        { status: 500 }
+      );
+    }
     const envRole = resolveRoleFromEnv({
       phone: user.phone,
       telegramId: user.bindings?.telegramId,

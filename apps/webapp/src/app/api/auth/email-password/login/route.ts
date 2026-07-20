@@ -33,11 +33,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "email_not_verified" }, { status: 409 });
   }
 
+  enterStaffSecuritySelfPrincipal(pwd.userId, "api/auth/email-password/login:primary-verified");
   let sessionUser = await deps.userByPhone.findByUserId(pwd.userId);
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
   }
-  enterStaffSecuritySelfPrincipal(sessionUser.userId, "api/auth/email-password/login:primary-verified");
 
   const envRole = resolveRoleFromEnv({
     phone: sessionUser.phone,

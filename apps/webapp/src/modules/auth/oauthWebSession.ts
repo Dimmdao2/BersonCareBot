@@ -4,6 +4,8 @@ import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { resolveRoleAsync } from "@/modules/auth/envRole";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 
 export function oauthWebLoginErrorRedirect(reason: string): string {
   return `/app?oauth=error&reason=${encodeURIComponent(reason)}`;
@@ -20,6 +22,9 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   const appBase = await getAppBaseUrl();
   let sessionUser;
   try {
+    if (isPlatformUserUuid(opts.userId)) {
+      enterStaffSecuritySelfPrincipal(opts.userId, "auth/oauth-web:provider-verified-self");
+    }
     sessionUser = await pgUserByPhonePort.findByUserId(opts.userId);
   } catch {
     return { ok: false, reason: "db_error" };

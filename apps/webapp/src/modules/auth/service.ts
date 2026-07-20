@@ -406,6 +406,8 @@ async function applyDevBypassPlatformUserPhoneInDb(
   if (!isValidPhoneE164(phone)) return user;
   if (!isPlatformUserUuid(user.userId)) return user;
 
+  enterStaffSecuritySelfPrincipal(user.userId, "auth/exchange:dev-bypass-verified-self");
+
   const { applyDevBypassPlatformUserPhoneInDb } = await import(
     "@/modules/auth/devBypassPlatformUserPhonePort"
   );
@@ -457,6 +459,7 @@ export async function exchangeIntegratorToken(
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
       if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
+        enterStaffSecuritySelfPrincipal(subTrim, "auth/exchange:signed-platform-self");
         const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
         const fromDb = await pgUserByPhonePort.findByUserId(subTrim);
         if (!fromDb) {
