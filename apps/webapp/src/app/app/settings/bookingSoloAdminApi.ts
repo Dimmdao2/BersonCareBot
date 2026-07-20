@@ -56,6 +56,14 @@ export async function fetchSoloOverview(): Promise<SoloOverview | null> {
   }
 }
 
+export async function setOnlineLocationEnabled(isActive: boolean): Promise<void> {
+  await apiJson(`${BASE}/online-location`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isActive }),
+  });
+}
+
 export function rublesToMinor(rubles: number): number {
   return Math.round(rubles * 100);
 }

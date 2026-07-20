@@ -139,6 +139,22 @@ describe("ConfirmStepClient", () => {
     expect(screen.getByText(/Стоимость:.*3\s*000/i)).toBeInTheDocument();
   });
 
+  it("labels the reserved Online location as online instead of an in-person city", () => {
+    render(
+      <ConfirmStepClient
+        type="in_person"
+        cityCode="online"
+        cityTitle="Онлайн"
+        branchId="550e8400-e29b-41d4-a716-446655440009"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
+        serviceTitle="Консультация"
+        {...baseProps}
+      />,
+    );
+    expect(screen.getByText("Онлайн · Консультация")).toBeInTheDocument();
+    expect(screen.queryByText(/Очный приём.*Онлайн/)).not.toBeInTheDocument();
+  });
+
   it("disables submit when required surname or given name is empty", async () => {
     const user = userEvent.setup();
     render(

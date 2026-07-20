@@ -6,9 +6,11 @@ import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import {
   listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
+  resolveBookableOnlineLocationForOrganization,
   resolveActiveBranchForCity,
   titleForBookingCityCode,
   type InPersonServiceListItem,
+  type OnlineBookingLocationOption,
 } from "@/modules/patient-booking/inPersonServicesCatalog";
 
 type PatientOrganizationServiceLike = {
@@ -22,8 +24,8 @@ type PatientOrganizationServiceLike = {
 };
 
 export type LoadCitiesResult =
-  | { ok: true; cities: BookingCity[] }
-  | { ok: false; error: "catalog_unavailable"; cities: [] };
+  | { ok: true; cities: BookingCity[]; onlineLocation: OnlineBookingLocationOption | null }
+  | { ok: false; error: "catalog_unavailable"; cities: []; onlineLocation: null };
 
 export type LoadInPersonServicesResult =
   | {
@@ -186,17 +188,25 @@ export async function loadBookingCitiesForPatientRsc(platformUserId: string): Pr
   const deps = buildAppDeps();
   const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
   if (!organizationId) {
-    return { ok: false, error: "catalog_unavailable", cities: [] };
+    return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
   }
   try {
-    const cities = await withExplicitOrganizationPrincipal(
+    const catalog = await withExplicitOrganizationPrincipal(
       { organizationId, source: "app/patient/booking:load-cities" },
-      () => listInPersonCitiesForOrganization(deps, organizationId),
+      async () => {
+        const [cities, onlineLocation] = await Promise.all([
+          listInPersonCitiesForOrganization(deps, organizationId),
+          resolveBookableOnlineLocationForOrganization(deps, organizationId),
+        ]);
+        return { cities, onlineLocation };
+      },
     );
-    if (!cities) return { ok: false, error: "catalog_unavailable", cities: [] };
-    return { ok: true, cities };
+    if (!catalog.cities) {
+      return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
+    }
+    return { ok: true, cities: catalog.cities, onlineLocation: catalog.onlineLocation };
   } catch {
-    return { ok: false, error: "catalog_unavailable", cities: [] };
+    return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
   }
 }
 

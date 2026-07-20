@@ -65,6 +65,7 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
 
   const citiesCatalog = await loadBookingCitiesForPatientRsc(session.user.userId);
   const catalogCities = citiesCatalog.ok ? citiesCatalog.cities : [];
+  const onlineLocation = citiesCatalog.ok ? citiesCatalog.onlineLocation : null;
   const catalogCitiesError = citiesCatalog.ok ? null : "Не удалось загрузить каталог городов. Попробуйте ещё раз.";
 
   return (
@@ -94,7 +95,11 @@ export default async function BookingNewFormatPage({ searchParams }: PageProps) 
         )}
         <PatientBookingPaymentHistorySection />
         <PatientMembershipsSection />
-        <FormatStepClient cities={catalogCities} catalogError={catalogCitiesError} />
+        <FormatStepClient
+          cities={catalogCities}
+          onlineLocation={onlineLocation}
+          catalogError={catalogCitiesError}
+        />
         <div className="mt-10 mb-10 flex justify-center">
           <Link
             href={routePaths.patientMessages}

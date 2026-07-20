@@ -32,7 +32,7 @@ describe("FormatStepClient", () => {
   });
 
   it("«Москва» links to service step with city params", () => {
-    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    render(<FormatStepClient cities={[city()]} onlineLocation={null} catalogError={null} />);
     const link = screen.getByRole("link", { name: "Москва" });
     expect(link).toHaveAttribute(
       "href",
@@ -41,22 +41,38 @@ describe("FormatStepClient", () => {
   });
 
   it("«Реабилитация онлайн» ведёт на форму онлайн-intake (реабилитация)", () => {
-    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    render(<FormatStepClient cities={[city()]} onlineLocation={null} catalogError={null} />);
     const link = screen.getByRole("link", { name: /Реабилитация онлайн/i });
     expect(link).toHaveAttribute("href", routePaths.intakeLfk);
   });
 
   it("«Нутрициология онлайн» ведёт на форму онлайн-intake (нутрициология)", () => {
-    render(<FormatStepClient cities={[city()]} catalogError={null} />);
+    render(<FormatStepClient cities={[city()]} onlineLocation={null} catalogError={null} />);
     const link = screen.getByRole("link", { name: /Нутрициология онлайн/i });
     expect(link).toHaveAttribute("href", routePaths.intakeNutrition);
   });
 
   it("shows catalog error and retry refreshes router", async () => {
     const user = userEvent.setup();
-    render(<FormatStepClient cities={[]} catalogError="Ошибка каталога" />);
+    render(<FormatStepClient cities={[]} onlineLocation={null} catalogError="Ошибка каталога" />);
     expect(screen.getByText("Ошибка каталога")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Повторить/i }));
     expect(refresh).toHaveBeenCalled();
+  });
+
+  it("adds the configured Online service entry without replacing rehab/nutrition intake", () => {
+    render(
+      <FormatStepClient
+        cities={[]}
+        onlineLocation={{ id: "online-a", cityCode: "online", title: "Онлайн" }}
+        catalogError={null}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Онлайн-приём" })).toHaveAttribute(
+      "href",
+      `${routePaths.bookingNewService}?cityCode=online&cityTitle=${encodeURIComponent("Онлайн")}`,
+    );
+    expect(screen.getByRole("link", { name: "Реабилитация онлайн" })).toHaveAttribute("href", routePaths.intakeLfk);
+    expect(screen.getByRole("link", { name: "Нутрициология онлайн" })).toHaveAttribute("href", routePaths.intakeNutrition);
   });
 });

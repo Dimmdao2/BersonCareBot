@@ -94,6 +94,64 @@ describe("public /book/{slug} chokepoint", () => {
       );
       expect(listBranchesMock).toHaveBeenCalledWith(ORGANIZATION_A);
     });
+
+    it("shows Online only when the slug-resolved organization has an active assigned service", async () => {
+      const onlineBranchId = "33333333-3333-4333-8333-333333333339";
+      const serviceId = "44444444-4444-4444-8444-444444444449";
+      const specialistId = "55555555-5555-4555-8555-555555555559";
+      listBranchesMock.mockResolvedValue([
+        {
+          id: onlineBranchId,
+          organizationId: ORGANIZATION_A,
+          cityCode: "online",
+          title: "Онлайн",
+          shortTitle: "Онлайн",
+          isActive: true,
+          sortOrder: 0,
+        },
+      ]);
+      getBranchMock.mockResolvedValue({
+        id: onlineBranchId,
+        organizationId: ORGANIZATION_A,
+        cityCode: "online",
+        title: "Онлайн",
+        isActive: true,
+      });
+      listServicesMock.mockResolvedValue([
+        {
+          id: serviceId,
+          organizationId: ORGANIZATION_A,
+          title: "Онлайн-консультация",
+          description: null,
+          durationMinutes: 60,
+          priceMinor: 100000,
+          isActive: true,
+          publicWidgetVisible: true,
+          adminManualOnly: false,
+        },
+      ]);
+      listSpecialistsMock.mockResolvedValue([
+        { id: specialistId, organizationId: ORGANIZATION_A, isActive: true },
+      ]);
+      listSpecialistServiceAvailabilityMock.mockResolvedValue([
+        {
+          id: "ssa-online",
+          organizationId: ORGANIZATION_A,
+          specialistId,
+          serviceId,
+          branchId: onlineBranchId,
+          isActive: true,
+        },
+      ]);
+
+      await expect(loadPublicOrganizationCitiesRsc(ORGANIZATION_A)).resolves.toEqual({
+        ok: true,
+        cities: [],
+        onlineLocation: { id: onlineBranchId, cityCode: "online", title: "Онлайн" },
+      });
+      expect(listServicesMock).toHaveBeenCalledWith(ORGANIZATION_A);
+      expect(listServicesMock).not.toHaveBeenCalledWith(ORGANIZATION_B);
+    });
   });
 
   describe("loadPublicOrganizationServicesForCityRsc — tenant isolation", () => {

@@ -1,5 +1,9 @@
 import type { OrganizationCatalogPort, ServiceAvailabilityPort } from "@/modules/booking-engine/ports";
 import type { BookingCity } from "@/modules/booking-catalog/types";
+import {
+  findBuiltInOnlineLocation,
+  isBuiltInOnlineLocation,
+} from "@/modules/booking-engine/onlineLocation";
 
 export type InPersonServicesCatalogDeps = {
   bookingEngine: {
@@ -19,8 +23,15 @@ export type InPersonServiceListItem = {
   priceMinor: number;
 };
 
+export type OnlineBookingLocationOption = {
+  id: string;
+  cityCode: string;
+  title: string;
+};
+
 export function titleForBookingCityCode(cityCode: string): string {
   const normalized = cityCode.trim().toLowerCase();
+  if (normalized === "online") return "Онлайн";
   if (normalized === "moscow") return "Москва";
   if (normalized === "spb") return "Санкт-Петербург";
   return cityCode;
@@ -34,7 +45,7 @@ export async function listInPersonCitiesForOrganization(
   const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
   const firstByCity = new Map<string, { id: string; cityCode: string; sortOrder: number }>();
   for (const branch of branches) {
-    if (!branch.isActive) continue;
+    if (!branch.isActive || isBuiltInOnlineLocation(branch)) continue;
     const code = branch.cityCode.trim().toLowerCase();
     if (!code) continue;
     const current = firstByCity.get(code);
@@ -53,6 +64,23 @@ export async function listInPersonCitiesForOrganization(
       createdAt: "",
       updatedAt: "",
     }));
+}
+
+/**
+ * Returns the built-in Online choice only when this exact organization has the location enabled
+ * and at least one public service assigned to an active specialist at that location.
+ */
+export async function resolveBookableOnlineLocationForOrganization(
+  deps: InPersonServicesCatalogDeps,
+  organizationId: string,
+): Promise<OnlineBookingLocationOption | null> {
+  if (!deps.bookingEngine) return null;
+  const branches = await deps.bookingEngine.catalog.listBranches(organizationId);
+  const branch = findBuiltInOnlineLocation(branches, organizationId);
+  if (!branch?.isActive) return null;
+  const catalog = await listInPersonServicesForBranch(deps, organizationId, branch.id);
+  if (!catalog || catalog.services.length === 0) return null;
+  return { id: branch.id, cityCode: branch.cityCode, title: branch.title };
 }
 
 export async function resolveActiveBranchForCity(

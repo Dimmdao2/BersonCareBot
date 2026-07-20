@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
+import { isReservedOnlineLocationIdentity } from "@/modules/booking-engine/onlineLocation";
 
 const PostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (isReservedOnlineLocationIdentity(parsed.data)) {
+    return NextResponse.json({ ok: false, error: "online_location_reserved" }, { status: 409 });
+  }
   const branch = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.upsert", () =>
     gate.ctx.service.catalog.upsertBranch({
       organizationId: gate.ctx.organizationId,

@@ -26,11 +26,17 @@ export default async function PublicBookOrganizationPage({ params }: Props) {
 
   const citiesResult = await loadPublicOrganizationCitiesRsc(resolved.organizationId);
   const cities = citiesResult.ok ? citiesResult.cities : [];
+  const onlineLocation = citiesResult.ok ? citiesResult.onlineLocation : null;
   const catalogError = citiesResult.ok ? null : "Каталог недоступен.";
 
   return (
     <PublicBookingShell title="Запись" step={1} totalSteps={4} backHref={null}>
-      <PublicFormatStepClient cities={cities} catalogError={catalogError} orgSlug={slug} />
+      <PublicFormatStepClient
+        cities={cities}
+        onlineLocation={onlineLocation}
+        catalogError={catalogError}
+        orgSlug={slug}
+      />
     </PublicBookingShell>
   );
 }

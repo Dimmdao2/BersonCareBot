@@ -86,6 +86,18 @@ describe("/api/admin/booking-engine/branches", () => {
     expect(upsertBranchMock).toHaveBeenCalledWith(expect.objectContaining({ shortTitle: null }));
   });
 
+  it("rejects attempts to create the reserved Online identity through generic branch CRUD", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/admin/booking-engine/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Онлайн", cityCode: "online" }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(upsertBranchMock).not.toHaveBeenCalled();
+  });
+
   it("denies booking entitlement after composed auth without upserting a branch", async () => {
     const { NextResponse } = await import("next/server");
     requireEntitlementMock.mockResolvedValueOnce({

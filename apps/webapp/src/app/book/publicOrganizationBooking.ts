@@ -5,13 +5,15 @@ import type { BookingCity } from "@/modules/booking-catalog/types";
 import {
   listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
+  resolveBookableOnlineLocationForOrganization,
   resolveActiveBranchForCity,
   type InPersonServiceListItem,
+  type OnlineBookingLocationOption,
 } from "@/modules/patient-booking/inPersonServicesCatalog";
 
 export type LoadCitiesResult =
-  | { ok: true; cities: BookingCity[] }
-  | { ok: false; error: "catalog_unavailable"; cities: [] };
+  | { ok: true; cities: BookingCity[]; onlineLocation: OnlineBookingLocationOption | null }
+  | { ok: false; error: "catalog_unavailable"; cities: []; onlineLocation: null };
 
 export type LoadInPersonServicesResult =
   | {
@@ -45,14 +47,22 @@ export async function resolvePublicOrganizationBySlugRsc(slugRaw: string): Promi
 export async function loadPublicOrganizationCitiesRsc(organizationId: string): Promise<LoadCitiesResult> {
   const deps = buildAppDeps();
   try {
-    const cities = await withExplicitOrganizationPrincipal(
+    const catalog = await withExplicitOrganizationPrincipal(
       { organizationId, source: "app/book/[slug]:load-cities" },
-      () => listInPersonCitiesForOrganization(deps, organizationId),
+      async () => {
+        const [cities, onlineLocation] = await Promise.all([
+          listInPersonCitiesForOrganization(deps, organizationId),
+          resolveBookableOnlineLocationForOrganization(deps, organizationId),
+        ]);
+        return { cities, onlineLocation };
+      },
     );
-    if (!cities) return { ok: false, error: "catalog_unavailable", cities: [] };
-    return { ok: true, cities };
+    if (!catalog.cities) {
+      return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
+    }
+    return { ok: true, cities: catalog.cities, onlineLocation: catalog.onlineLocation };
   } catch {
-    return { ok: false, error: "catalog_unavailable", cities: [] };
+    return { ok: false, error: "catalog_unavailable", cities: [], onlineLocation: null };
   }
 }
 

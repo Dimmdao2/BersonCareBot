@@ -43,6 +43,13 @@ Admin keys (`system_settings`, scope `admin`):
 
 **Публичный канал (этап 3):** UI `/book` (очный + онлайн; legacy `/book/new` работает как deeplink), embed `/book/embed.js`; read-API `GET /api/booking/public/catalog/*`, `slots`, `form-fields`; `POST /api/booking/public/create` — без сессии, rate-limit (`booking.public_create`), UTM → `be_appointments.attribution_json`, `bookingChannel: public_widget`; пользователь через `resolveOrCreateUserByPhone` (`TrustedPatientPhoneSource.PublicBookingByPhone`); кандидаты мерджа — `patient_merge_candidates` + admin `/api/admin/booking-engine/merge-candidates`, UI `/app/doctor/admin/booking`, `/app/doctor/booking-merge`.
 
+Встроенная локация **«Онлайн»** использует тот же canonical service → specialist → slot путь, что и
+очная локация (`type=in_person` остаётся техническим параметром текущего движка). Она показывается
+только в контексте точной организации, когда локация активна и к ней назначена публичная услуга
+активного специалиста. Generic `/book` не выбирает организацию автоматически; старый online-category
+API остаётся fail-closed. Существующие authenticated intake-ссылки реабилитации и нутрициологии не
+заменяются этим механизмом.
+
 ## Перенос и отмена (этап 4)
 
 Записи с **`canonical_appointment_id`**:

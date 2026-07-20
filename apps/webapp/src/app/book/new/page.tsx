@@ -78,7 +78,7 @@ export default async function PublicBookNewPage({ searchParams }: Props) {
 
   return (
     <PublicBookingShell title="Запись" step={1} totalSteps={4} backHref={null}>
-      <PublicFormatStepClient cities={cities} catalogError={catalogError} />
+      <PublicFormatStepClient cities={cities} onlineLocation={null} catalogError={catalogError} />
     </PublicBookingShell>
   );
 }

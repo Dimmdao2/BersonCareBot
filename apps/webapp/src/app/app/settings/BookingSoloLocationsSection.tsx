@@ -11,9 +11,11 @@ import {
   apiJson,
   ensureDefaultSpecialist,
   fetchSoloOverview,
+  setOnlineLocationEnabled,
   slugCityCode,
   type SoloOverview,
 } from "@/app/app/settings/bookingSoloAdminApi";
+import { isBuiltInOnlineLocation } from "@/modules/booking-engine/onlineLocation";
 
 const BASE = "/api/admin/booking-engine";
 const DEFAULT_BRANCH_COLOR = "#2563eb";
@@ -81,6 +83,9 @@ export function BookingSoloLocationsSection() {
     );
   }
 
+  const onlineLocation = branches.find(isBuiltInOnlineLocation) ?? null;
+  const physicalBranches = branches.filter((branch) => !isBuiltInOnlineLocation(branch));
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -89,6 +94,16 @@ export function BookingSoloLocationsSection() {
       <CardContent className="space-y-4">
         {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
         {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 p-3">
+          <Label htmlFor="booking-online-location">Онлайн</Label>
+          <Switch
+            id="booking-online-location"
+            checked={onlineLocation?.isActive ?? false}
+            disabled={pending}
+            onCheckedChange={(checked) => run(() => setOnlineLocationEnabled(checked))}
+          />
+        </div>
 
         <div className="space-y-2 rounded-md border border-border/60 p-3">
           <Label>Новая локация</Label>
@@ -186,7 +201,7 @@ export function BookingSoloLocationsSection() {
               </tr>
             </thead>
             <tbody>
-              {[...branches]
+              {[...physicalBranches]
                 .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"))
                 .map((b) => (
                 <tr key={b.id} className="border-b border-border/60 last:border-0">
@@ -330,7 +345,7 @@ export function BookingSoloLocationsSection() {
               ))}
             </tbody>
           </table>
-          {branches.length === 0 ? (
+          {physicalBranches.length === 0 ? (
             <p className="px-3 py-4 text-sm text-muted-foreground">Локаций пока нет.</p>
           ) : null}
         </div>

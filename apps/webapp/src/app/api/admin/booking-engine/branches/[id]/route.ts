@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { requireClinicManagementBookingEngine } from "../../_requireAdminBookingEngine";
+import {
+  isBuiltInOnlineLocation,
+  isReservedOnlineLocationIdentity,
+} from "@/modules/booking-engine/onlineLocation";
 
 const PatchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -23,9 +27,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (!existing || existing.organizationId !== gate.ctx.organizationId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
+  if (isBuiltInOnlineLocation(existing)) {
+    return NextResponse.json({ ok: false, error: "online_location_reserved" }, { status: 409 });
+  }
   const body = await request.json().catch(() => null);
   const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (
+    isReservedOnlineLocationIdentity({
+      title: parsed.data.title ?? existing.title,
+      cityCode: parsed.data.cityCode ?? existing.cityCode,
+    })
+  ) {
+    return NextResponse.json({ ok: false, error: "online_location_reserved" }, { status: 409 });
+  }
   const branch = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.update", () =>
     gate.ctx.service.catalog.upsertBranch({
       organizationId: existing.organizationId,
@@ -50,6 +65,9 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ id: str
   const existing = await gate.ctx.service.catalog.getBranch(id);
   if (!existing || existing.organizationId !== gate.ctx.organizationId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (isBuiltInOnlineLocation(existing)) {
+    return NextResponse.json({ ok: false, error: "online_location_reserved" }, { status: 409 });
   }
   const ok = await withDoctorWorkspacePrincipal(gate.ctx, "admin.booking-engine.branches.deactivate", () =>
     gate.ctx.service.catalog.deactivateBranch(id),

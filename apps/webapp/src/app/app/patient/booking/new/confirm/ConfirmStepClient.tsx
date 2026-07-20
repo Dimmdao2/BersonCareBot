@@ -23,6 +23,7 @@ import {
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
 import { formatDoctorFio, type StructuredFio } from "@/shared/lib/fio";
+import { isBuiltInOnlineLocationCityCode } from "@/modules/booking-engine/onlineLocation";
 import toast from "react-hot-toast";
 import { showBookingPartialOutcomeToast } from "@/shared/booking/bookingPartialOutcomeToast";
 import { cn } from "@/lib/utils";
@@ -273,9 +274,12 @@ export function ConfirmStepClient({
     [slotStart, slotEnd],
   );
 
+  const isOnlineLocation = type === "in_person" && isBuiltInOnlineLocationCityCode(cityCode);
   const formatLabel =
     type === "in_person"
-      ? `Очный приём · ${cityTitle ?? ""} · ${serviceTitle ?? ""}`
+      ? isOnlineLocation
+        ? `Онлайн · ${serviceTitle ?? ""}`
+        : `Очный приём · ${cityTitle ?? ""} · ${serviceTitle ?? ""}`
       : category === "rehab_lfk"
         ? "Онлайн — Реабилитация (ЛФК)"
         : category === "nutrition"
@@ -384,7 +388,7 @@ export function ConfirmStepClient({
               });
               const loc =
                 booking.branchTitleSnapshot ??
-                (type === "online" ? "Онлайн" : cityTitle ?? "");
+                (type === "online" || isOnlineLocation ? "Онлайн" : cityTitle ?? "");
               if (loc) doneQ.set("locationLabel", loc);
               if (cityCode) doneQ.set("cityCode", cityCode);
               router.push(`${doneRedirectPath}?${doneQ.toString()}`);

@@ -103,9 +103,68 @@ describe("patient booking catalog RSC principal boundary", () => {
       ok: false,
       error: "catalog_unavailable",
       cities: [],
+      onlineLocation: null,
     });
     expect(withExplicitOrganizationPrincipalMock).not.toHaveBeenCalled();
     expect(listBranchesMock).not.toHaveBeenCalled();
+  });
+
+  it("projects Online only from the authenticated patient's exact organization and active assignment", async () => {
+    const onlineBranchId = "33333333-3333-4333-8333-333333333339";
+    const serviceId = "44444444-4444-4444-8444-444444444449";
+    const specialistId = "55555555-5555-4555-8555-555555555559";
+    listBranchesMock.mockResolvedValue([
+      {
+        id: onlineBranchId,
+        organizationId: ORGANIZATION_ID,
+        cityCode: "online",
+        title: "Онлайн",
+        shortTitle: "Онлайн",
+        isActive: true,
+        sortOrder: 0,
+      },
+    ]);
+    getBranchMock.mockResolvedValue({
+      id: onlineBranchId,
+      organizationId: ORGANIZATION_ID,
+      cityCode: "online",
+      title: "Онлайн",
+      isActive: true,
+    });
+    listServicesMock.mockResolvedValue([
+      {
+        id: serviceId,
+        organizationId: ORGANIZATION_ID,
+        title: "Онлайн-консультация",
+        description: null,
+        durationMinutes: 60,
+        priceMinor: 100000,
+        isActive: true,
+        publicWidgetVisible: true,
+        adminManualOnly: false,
+      },
+    ]);
+    listSpecialistsMock.mockResolvedValue([
+      { id: specialistId, organizationId: ORGANIZATION_ID, isActive: true },
+    ]);
+    listSpecialistServiceAvailabilityMock.mockResolvedValue([
+      {
+        id: "ssa-online",
+        organizationId: ORGANIZATION_ID,
+        specialistId,
+        serviceId,
+        branchId: onlineBranchId,
+        isActive: true,
+      },
+    ]);
+
+    await expect(loadBookingCitiesForPatientRsc(PATIENT_ID)).resolves.toEqual({
+      ok: true,
+      cities: [],
+      onlineLocation: { id: onlineBranchId, cityCode: "online", title: "Онлайн" },
+    });
+    expect(listBranchesMock).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(listServicesMock).toHaveBeenCalledWith(ORGANIZATION_ID);
   });
 
   it("keeps the service catalog read inside the resolved organization principal", async () => {

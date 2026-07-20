@@ -6,6 +6,7 @@ import { Building2, Dna, Dumbbell } from "lucide-react";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCity } from "@/modules/booking-catalog/types";
+import type { OnlineBookingLocationOption } from "@/modules/patient-booking/inPersonServicesCatalog";
 import { patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
 import { cn } from "@/lib/utils";
 import {
@@ -22,11 +23,12 @@ function sortCitiesForDisplay(cities: BookingCity[]): BookingCity[] {
 
 export type FormatStepClientProps = {
   cities: BookingCity[];
+  onlineLocation: OnlineBookingLocationOption | null;
   /** Ошибка загрузки каталога на сервере; `null` если данные пришли успешно (включая пустой список). */
   catalogError: string | null;
 };
 
-export function FormatStepClient({ cities, catalogError }: FormatStepClientProps) {
+export function FormatStepClient({ cities, onlineLocation, catalogError }: FormatStepClientProps) {
   const router = useRouter();
   const sortedCities = sortCitiesForDisplay(cities);
 
@@ -61,6 +63,16 @@ export function FormatStepClient({ cities, catalogError }: FormatStepClientProps
 
       <div className="flex flex-col gap-2">
         <p className={cn(patientMutedTextClass, "text-xs font-medium uppercase tracking-wide")}>Онлайн</p>
+        {onlineLocation ? (
+          <Link
+            href={`${routePaths.bookingNewService}?cityCode=${encodeURIComponent(onlineLocation.cityCode)}&cityTitle=${encodeURIComponent(onlineLocation.title)}`}
+            prefetch={false}
+            className={bookingChoiceRowClass}
+          >
+            <Building2 className={bookingChoiceRowIconClass} aria-hidden />
+            Онлайн-приём
+          </Link>
+        ) : null}
         <Link href={routePaths.intakeLfk} prefetch={false} className={cn(bookingChoiceRowClass, "text-left")}>
           <Dumbbell className={bookingChoiceRowIconClass} aria-hidden />
           Реабилитация онлайн
