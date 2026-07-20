@@ -1,5 +1,20 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — C4D ownership correction: platform writes wait for U9 (`#724`)
+
+C4D keeps the explicit `organization | platform` ownership tags, exact child-owner checks, platform-row read
+composition and the `exercise_catalog` entitlement default-OFF gate. It does not pre-empt U9's sanctioned platform
+principal: the premature global-admin page, navigation entry, mutation port/service/repository and broad
+`SECURITY DEFINER`/`app_staff` function surface were removed. Until U9 defines the platform governance/write path,
+platform catalog writes therefore remain fail-closed; no clinic content is promoted or copied automatically.
+
+The downgrade path now preserves only already-assigned platform exercise media under the current organization,
+including the valid organization-owned-template → platform-exercise case, while requiring the template membership
+row and treatment-program instance to match the exact organization. The observed assignment snapshot path now
+writes and updates `patient_lfk_assignments`, `lfk_complexes` and `lfk_complex_exercises` with the trusted current
+`organization_id`, and fails closed if an existing assignment cannot be updated inside that organization. No DB,
+TEST, PROD, deploy or store-commerce action is part of this correction.
+
 ## 2026-07-20 — code-only TEST checkpoint, C1 closure and UI-0 live residual
 
 TEST был обновлён только кодом до `27c19a275`; dump, restore и reset не выполнялись. Code-only wrapper получил

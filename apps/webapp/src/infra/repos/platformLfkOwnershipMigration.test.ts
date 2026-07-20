@@ -17,12 +17,13 @@ describe("0217 platform LFK ownership", () => {
     expect(migration).not.toContain("SET owner_kind = 'platform'");
   });
 
-  it("seals operator writes to platform rows and audits every mutation", () => {
-    expect(migration).toContain("SECURITY DEFINER");
-    expect(migration).toContain("platform_lfk_owner_mismatch");
-    expect(migration).toContain("platform_lfk_template_exercise_mismatch");
-    expect(migration).toContain("INSERT INTO public.admin_audit_log");
-    expect(migration).toContain("REVOKE ALL ON FUNCTION app.c4d_platform_lfk_save_exercise");
+  it("keeps platform writes fail-closed until the sanctioned U9 principal exists", () => {
+    expect(migration).not.toContain("SECURITY DEFINER");
+    expect(migration).not.toContain("c4d_platform_lfk_snapshot");
+    expect(migration).not.toContain("c4d_platform_lfk_save_");
+    expect(migration).not.toContain("c4d_platform_lfk_archive_");
+    expect(migration).not.toContain("GRANT EXECUTE");
+    expect(migration).toContain("FOR SELECT USING (owner_kind = 'platform'");
   });
 
   it("does not introduce store packages, grants, purchases or clinic copies", () => {

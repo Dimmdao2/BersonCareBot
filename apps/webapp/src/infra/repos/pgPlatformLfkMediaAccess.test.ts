@@ -32,6 +32,13 @@ describe("pgCanReadPlatformLfkMedia", () => {
     expect(sql).toContain("treatment_program_instances");
     expect(sql).toContain("instance.organization_id = $3::uuid");
     expect(sql).toContain("mf.owner_kind = 'platform'");
+    expect(sql).toContain("JOIN lfk_complex_templates template");
+    expect(sql).toContain("template.owner_kind = 'organization'");
+    expect(sql).toContain("template.organization_id = $3::uuid");
+    expect(sql).toContain("te.owner_kind = 'organization'");
+    expect(sql).toContain("te.organization_id = $3::uuid");
+    expect(sql).toContain("template.owner_kind = 'platform'");
+    expect(sql).toContain("template.organization_id IS NULL");
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
       mediaId,
       false,

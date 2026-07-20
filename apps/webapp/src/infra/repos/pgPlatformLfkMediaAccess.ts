@@ -42,10 +42,24 @@ export async function pgCanReadPlatformLfkMedia(
                      AND EXISTS (
                        SELECT 1
                          FROM lfk_complex_template_exercises te
+                         JOIN lfk_complex_templates template
+                           ON template.id = te.template_id
                         WHERE te.template_id = item.item_ref_id
                           AND te.exercise_id = e.id
-                          AND te.owner_kind = 'platform'
-                          AND te.organization_id IS NULL
+                          AND (
+                            (
+                              template.owner_kind = 'platform'
+                              AND template.organization_id IS NULL
+                              AND te.owner_kind = 'platform'
+                              AND te.organization_id IS NULL
+                            )
+                            OR (
+                              template.owner_kind = 'organization'
+                              AND template.organization_id = $3::uuid
+                              AND te.owner_kind = 'organization'
+                              AND te.organization_id = $3::uuid
+                            )
+                          )
                      )
                    )
                  )

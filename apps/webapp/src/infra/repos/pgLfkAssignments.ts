@@ -80,35 +80,43 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
         const existR = await pgTextTx<{ id: string; complex_id: string | null }>(
           tx,
           `SELECT id, complex_id FROM patient_lfk_assignments
-           WHERE patient_user_id = $1 AND template_id = $2 AND is_active = true`,
-          [params.patientUserId, params.templateId],
+           WHERE organization_id = $1::uuid
+             AND patient_user_id = $2
+             AND template_id = $3
+             AND is_active = true`,
+          [organizationId, params.patientUserId, params.templateId],
         );
         const existing = existR.rows[0];
 
         if (existing?.complex_id) {
           await pgTextTx(
             tx,
-            `UPDATE lfk_complexes SET is_active = false, updated_at = now() WHERE id = $1`,
-            [existing.complex_id],
+            `UPDATE lfk_complexes
+                SET is_active = false, updated_at = now()
+              WHERE id = $1 AND organization_id = $2::uuid`,
+            [existing.complex_id, organizationId],
           );
         }
 
         const complexR = await pgTextTx<{ id: string }>(
           tx,
-          `INSERT INTO lfk_complexes (user_id, platform_user_id, title, origin, is_active, updated_at)
-           VALUES ($1::text, $1::uuid, $2, 'assigned_by_specialist', true, now())
+          `INSERT INTO lfk_complexes
+             (organization_id, user_id, platform_user_id, title, origin, is_active, updated_at)
+           VALUES ($1::uuid, $2::text, $2::uuid, $3, 'assigned_by_specialist', true, now())
            RETURNING id`,
-          [params.patientUserId, tpl.title],
+          [organizationId, params.patientUserId, tpl.title],
         );
-        const complexId = complexR.rows[0]!.id as string;
+        const complexId = complexR.rows[0]?.id;
+        if (!complexId) throw new Error("lfk_complex_owner_mismatch");
 
         for (const row of exR.rows) {
           await pgTextTx(
             tx,
             `INSERT INTO lfk_complex_exercises
-             (complex_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment, local_comment)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)`,
+             (organization_id, complex_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment, local_comment)
+             VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, NULL)`,
             [
+              organizationId,
               complexId,
               row.exercise_id,
               row.sort_order,
@@ -127,21 +135,25 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
             tx,
             `UPDATE patient_lfk_assignments
              SET complex_id = $1, assigned_by = $2, assigned_at = now(), is_active = true
-             WHERE id = $3
+             WHERE id = $3 AND organization_id = $4::uuid
              RETURNING id`,
-            [complexId, params.assignedBy, existing.id],
+            [complexId, params.assignedBy, existing.id, organizationId],
           );
-          assignmentId = up.rows[0]!.id as string;
+          const updatedAssignmentId = up.rows[0]?.id;
+          if (!updatedAssignmentId) throw new Error("lfk_assignment_owner_mismatch");
+          assignmentId = updatedAssignmentId;
         } else {
           const ins = await pgTextTx<{ id: string }>(
             tx,
             `INSERT INTO patient_lfk_assignments
-             (patient_user_id, template_id, complex_id, assigned_by, is_active)
-             VALUES ($1, $2, $3, $4, true)
+             (organization_id, patient_user_id, template_id, complex_id, assigned_by, is_active)
+             VALUES ($1::uuid, $2, $3, $4, $5, true)
              RETURNING id`,
-            [params.patientUserId, params.templateId, complexId, params.assignedBy],
+            [organizationId, params.patientUserId, params.templateId, complexId, params.assignedBy],
           );
-          assignmentId = ins.rows[0]!.id as string;
+          const insertedAssignmentId = ins.rows[0]?.id;
+          if (!insertedAssignmentId) throw new Error("lfk_assignment_owner_mismatch");
+          assignmentId = insertedAssignmentId;
         }
 
         return { assignmentId, complexId };
