@@ -4,7 +4,11 @@
 > [`IMPLEMENTATION_ROADMAP.md`](../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md), не второй roadmap и не
 > источник статусов. Продуктовая authority — датированное дополнение в
 > [`OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md). Taskdb хранит только
-> состояние и ссылки. До интеграции оркестратор повторно сверяет HEAD, taskdb и занятые file scopes.
+> состояние и ссылки. До запуска оркестратор повторно сверяет HEAD, taskdb и занятые file scopes.
+>
+> **Provenance:** исходный owner-dump подготовлен в ветке `plan/doctor-ui-rework-2026-07-20`, итоговый planning
+> commit `f48f35a56`. Этот канонический вариант сохранён поверх актуального roadmap/LOG и repo safeguards, а не
+> влит wholesale со старой базы ветки.
 
 ## 0. Режим исполнения
 
@@ -18,11 +22,11 @@
 
 | Gate | Зафиксированное состояние | Safe default / зависимость |
 |---|---|---|
-| G1 — индивидуальные упражнения | **owner question:** начинать ли `#564`; `#565` — дизайн, а не разрешение реализации | не начинать; сначала C4D exact-org library isolation |
-| G2 — voice/STT | **owner question:** делать сейчас или отложить | рекомендация и safe default: отложить, не начинать |
-| G3 — тумблеры механик | **owner question:** добавлять ли per-specialist axis сейчас | safe default: сохранить текущий org-only, новую ось не добавлять |
-| G4 — split коммуникаций | **owner question:** менять ли принятое 40/60 на 45/55 | сохранять 40/60 |
-| G5 — онлайн-приём | **owner question:** точный MVP и граница относительно полной `#215` | не начинать schema/backend; рекомендация MVP не является решением |
+| G1 — индивидуальные упражнения | **решено: ДА**, `#564` разблокирована | сначала C4D exact-org library isolation; это hard dependency, не owner gate |
+| G2 — voice/STT | **решено: post-production**, taskdb `#922` | сейчас не трогать |
+| G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
+| G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
+| G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -30,45 +34,51 @@
 
 ## 2. Stage map и границы
 
-### UI-0 — ограниченная DEV-репродукция записи
+### UI-0 — P0: воронка записи клиента
 
-**Не доказано:** P0, единая первопричина, ошибка canonical service OR или связь всех симптомов с `#801`.
+Это первый исполнимый UI-этап. На DEV воспроизвести, трассировать и исправить четыре подтверждённых симптома:
 
-Сначала на DEV воспроизвести и трассировать три независимых состояния:
+1. SSR/render failure после выбора услуги;
+2. неверную видимость услуги относительно выбранной локации;
+3. создание записи из календаря без появления клиента в organization-owned client projection;
+4. ФИО в существующей детали записи не ведёт в существующую карточку клиента.
 
-1. выбор услуги и последующий render/SSR;
-2. видимость услуги при комбинации location-service и specialist-service assignment;
-3. создание записи из календаря и появление пациента в organization-owned client projection.
+Приоритет P0 относится к пользовательской воронке и этим симптомам. **Не доказаны** единая первопричина, дефект
+canonical service `OR` или связь всех симптомов с `#801`; worker сначала трассирует текущие write/read paths и
+исправляет только доказанную причину каждого симптома.
 
 Проверка ограничена request/state trace, существующими тестами и безопасными DEV fixtures. TEST journal, TEST DB и
 любой remote TEST-host доступ не входят в scope без отдельного разрешения. Текущая логика canonical service
 relevance `location assignment OR specialist assignment` сохраняется, пока trace не докажет конкретный write/read
 дефект; нельзя заменять её более узким AND по предположению. Ручной пациент, appointment и walk-in остаются в
-существующей `#801`/U3B — здесь не создаётся второй механизм. Кликабельное ФИО в существующей детали записи —
-отдельный низкорисковый presentation slice после подтверждения текущего route contract.
+существующей `#801`/U3B — здесь не создаётся второй механизм. Кликабельное ФИО использует подтверждённый текущий
+route contract и остаётся низкорисковым presentation-пунктом внутри цельного UI-0 acceptance.
 
-Service-render/service-location DEV trace не имеет точного task mapping и **не запускается**, пока оркестратор не
-завершит dedup и не привяжет его к точной существующей карточке. `#801` покрывает только manual patient/walk-in и не
-является authority для этого trace.
+До перевода UI-0 в `doing` оркестратор выполняет taskdb dedup и привязывает service-render/service-location часть к
+точной существующей карточке либо создаёт одну цельную UI-0 карту через taskdb port. Это короткий launch-preflight,
+а не основание откладывать owner-declared P0. `#801` покрывает только manual patient/walk-in.
 
 **Risk:** trace — read-only/targeted; найденный identity/booking fix получает отдельный high-risk scope по доказанной
 причине, а не автоматически весь UI-0.
 
 ### UI-1 — расписание
 
-- **UI-1a presentation:** цвета существующих location tokens в недельном шаблоне, текст «Установить», подключение
-  существующего `DoctorDateTimePicker`, более спокойные grid lines. Launch manifest — §4.
+- **UI-1a presentation:** все template-days получают цвета существующих location tokens; time + city выводятся
+  один раз в weekday header, а не в каждой date-cell; текст «Установить», подключение существующего
+  `DoctorDateTimePicker`, более спокойные grid lines. Launch manifest — §4.
 - **UI-1b behavior:** independent multi-select location filters: inactive серые, каждый location toggles независимо,
   «Все» включает все; отдельный focused behavior scope после trace текущего state contract.
 - **SCH-G5:** не входит ни в UI-1a, ни в UI-1b; остаётся owner-waiting `#848`.
-- **UI-2 online appointment:** отдельный backend/schema этап после ответа G5; системная online-location,
-  delivery-mode услуги и public booking не строятся как косметика.
+- **UI-2 online appointment:** bounded этап на существующей модели: встроенная включаемая локация «Онлайн» гейтит
+  уже существующие online-галочки услуг. Не вводить новую схему, delivery-mode или второй booking engine; сначала
+  подтвердить, какие follow-on фильтры/public projections уже работают, и дошить только доказанные gaps.
 
 ### UI-3 — коммуникации
 
 Разделить три непересекающихся по риску этапа:
 
-1. **UI-3a cosmetics:** подтверждённые тексты, фон/градиент и мелкая presentation-плотность без смены split;
+1. **UI-3a cosmetics:** подтверждённые тексты, фон/градиент, мелкая presentation-плотность и split 45/55 с
+   fallback 50/50 через существующий layout primitive;
 2. **UI-3b broadcast IA:** журнал, выбор/раскрытие и error-details с отдельным interaction acceptance;
 3. **UI-3c composer/backend:** shared composer, scheduled messages и delivery state; high-risk там, где появляется
    durable queue/dispatcher.
@@ -76,7 +86,8 @@ Service-render/service-location DEV trace не имеет точного task ma
 **Owner-ruling content to preserve in the bounded subscopes:** одинаковый chat background в doctor/patient chat,
 modal и comments; имя в шапке как единственная card navigation; убрать лишнюю верхнюю фразу broadcasts; выбранная
 рассылка раскрывается без перекрытий с summary/delivery/error data; в левом списке заявок не дублировать ссылку на
-имя, если она есть в detail. Принятый 40/60 остаётся до ответа G4. Существующую принятую chat-card navigation нельзя
+имя, если она есть в detail. 45/55 явно заменяет прежние 40/60; fallback — 50/50. Существующую принятую
+chat-card navigation нельзя
 молча заменить новой: route и доступность должны сохраниться. Shared composer — рекомендация по reuse, а не
 разрешение переписать четыре consumers. Voice/STT — deferred UI-7b, не часть общего composer refactor.
 
@@ -128,20 +139,21 @@ deep-link compatibility до принятого U5B routing contract.
 - **UI-7a scheduled messages:** только после отдельного backend contract для queue, retry, cancellation, org scope
   и delivery; owner outcome — schedule button рядом с Send, date/time picker, «Запланировать» и pending clock state
   у sender; не прячется внутри presentation UI-3 и не копирует broadcast storage без contract review.
-- **UI-7b voice/STT:** owner-waiting по G2; рекомендация и safe default — отложить и не начинать.
+- **UI-7b voice/STT:** решением G2 отложено до post-production, taskdb `#922`; в текущий заход не входит.
 
 ### UI-8 — capability/commercial projection
 
-UI-8 вложен в C4D/C5. Он использует единый entitlement registry, точную organization ownership и commercial
-defaults; не создаёт параллельную polarity system, seed или второй набор feature keys. До ответа G3 safe default —
-сохранить org-only и не добавлять per-specialist axis. Owner outcome — администратор может собирать тариф/включать
+UI-8 вложен в C4D/C5. Он использует уже интегрированный и принятый S4 engine `#888`: единый entitlement registry,
+точную organization ownership и commercial defaults; не создаёт параллельную polarity system, seed или второй
+набор feature keys. Решение G3 закрепляет только organization/clinic axis; per-specialist axis отсутствует. Owner
+outcome — администратор может собирать тариф/включать
 доступные организации механики через единый commercial contour; точные registry keys/default polarity и migration
 определяет C4D/C5, а не этот UI plan. Значения `#191` не являются разрешением запускать UI-8 раньше C4D/C5.
 
 ### UI-9 — индивидуальные упражнения
 
-UI-9 зависит от C4D exact-org library isolation и ответа G1. `#565` — design evidence; `#564` остаётся blocked до
-прямого «запускать». Design recommendation: personal-scoped exercise создаётся из program editor, doctor media
+UI-9 одобрена владельцем и зависит от C4D exact-org library isolation. `#565` — design evidence для разблокированной
+`#564`, а не отдельный owner gate. Personal-scoped exercise создаётся из program editor, doctor media
 upload использует organization/patient-owned folder contract, а назначенное видео immutable; точные field names и
 draft semantics не являются owner rulings. Media access/presign и tenant ownership проверяются high-risk циклом.
 
@@ -150,27 +162,45 @@ draft semantics не являются owner rulings. Media access/presign и ten
 Пустой mood chart на patient «Сегодня» скрывается до первой emoji/check-in отметки. Это точечная presentation-задача,
 не расширяет Doctor UI stage и получает отдельный exact file manifest перед запуском.
 
+### Обязательный порядок исполнения
+
+1. **UI-0** — P0 booking funnel целиком.
+2. **UI-1 / UI-3 / UI-4 / UI-6 presentation cluster** — непересекающиеся file scopes параллельно, но не более
+   трёх workers одновременно. Интегрированные и уже прошедшие принятый slice/audit пункты UI-4a/UI-6a не
+   перезапускаются: worker получает только новый owner delta и фактический residual после code/live census.
+3. **UI-5** — после U5A и record-class visibility/export readiness.
+4. Остальные UI-2/UI-7/UI-8/UI-9 — только по их dependencies; UI-7b `#922` остаётся post-production.
+
+Targeted checks presentation workers могут идти независимо; lint/build/full CI и live DEV на единственном `:5200`
+сериализуются. Полный CI запускается на milestone, а не после каждого slice.
+
 ## 3. Exact task mapping — без дублей
 
 | Scope | Existing authority/task | Действие |
 |---|---|---|
-| UI-0 service-render/service-location DEV trace | точной карточки нет | не launchable до dedup и mapping на exact existing task |
+| UI-0 booking funnel | точной цельной карточки пока нет; manual patient/walk-in — `#801` | первым шагом выполнить dedup; привязать к точной существующей карте либо создать одну UI-0 карту, не форкая `#801` |
 | Manual patient/walk-in | U3B / `#801` | переиспользовать; не считать authority для UI-0 trace |
 | UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
 | SCH-G5 | `#848` | owner-waiting, без реализации |
-| UI-2 online appointment | `#215` | owner-waiting до ответа G5 |
+| UI-2 built-in Online location | базовый online-location scope отделить от расширенного `#215` | G5 закрыт; переиспользовать существующую модель и не объявлять закрытым расширенный flow `#215` |
 | UI-3 communications | C1 / `#852` | split на subscopes в meta/note, не новые дубли |
-| UI-4/UI-6 presentation | C1 / `#850` | launch manifests ниже; backend residual отдельно в той же карте до triage |
+| UI-4/UI-6 presentation | C1 / `#850` | принятые/integrated slices не повторять; новый owner delta и backend residual фиксировать отдельно в note/meta той же карты после census |
 | UI-5 organization patient card | U5B roadmap stage | task создаётся/расширяется только при readiness, не заранее |
-| UI-8 mechanics/reminders | C4D/C5 + `#191` | не форкать entitlement/commercial систему |
-| UI-9 individual exercises | `#564`, design `#565` | blocked до G1 и C4D |
+| UI-8 mechanics/reminders | C4D/C5 + `#191`, foundation `#888` accepted | только organization/clinic axis; не форкать entitlement/commercial систему |
+| UI-9 individual exercises | `#564`, design `#565` | owner-approved; запуск после C4D exact-org isolation |
 | Full Doctor DNA migration | `#885` | owner-cancelled/superseded; сохранить blocked historical record без stale question |
 
-## 4. Immediate parallel presentation launch manifests
+## 4. Parallel presentation manifests
 
-Эти три scope готовы к выдаче workers, но **этот docs-only pass их не запускает**. Файлы не пересекаются.
+File scopes ниже не пересекаются. **Этот docs-only pass workers не запускает.** UI-4a и UI-6a уже были
+интегрированы и прошли собственный независимый presentation audit; они являются baseline, а не заданием на повтор.
+Перед новым worker оркестратор сверяет фактический diff/live acceptance и выдаёт только остаток последнего owner
+delta. UI-1 и UI-3 могут выполняться параллельно с этим residual при лимите ≤3.
 
 ### UI-6a — Сегодня
+
+**Current fact:** базовый compact-presentation slice уже интегрирован и проверен; не перезапускать без нового
+непокрытого owner delta.
 
 **Writable manifest:**
 
@@ -195,10 +225,14 @@ draft semantics не являются owner rulings. Media access/presign и ten
 - `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.test.tsx`
 
 **Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/schedule?tab=work` и `?tab=calendar`, `dev:admin`;
-`1440×900` и `390×844`. Existing branch colors видны в weekly template/day label, действие называется
-«Установить», используется существующий shared time picker, grid lines спокойнее. Фильтр state и SCH-G5 не менять.
+`1440×900` и `390×844`. Все template-days залиты existing location color; time + city показаны один раз в weekday
+header, а не повторены в каждой date-cell; действие называется «Установить», используется существующий shared time
+picker, grid lines спокойнее. Фильтр state и SCH-G5 не менять в presentation slice.
 
 ### UI-4a — Клиенты presentation
+
+**Current fact:** базовый 50/50/presentation slice уже интегрирован и прошёл независимый audit; не запускать его
+заново. Остаточный новый owner delta определяется по current code/live evidence и taskdb `#850`.
 
 **Writable manifest:**
 
@@ -214,7 +248,37 @@ state и короткие delayed tooltips; терминология берёт�
 `:5200`), затем один независимый audit по точным acceptance. TEST deploy и full CI не входят; full CI идёт только на
 следующей milestone-вехе.
 
-## 5. Handoff и completion
+### UI-3 presentation/interaction delta — Коммуникации
+
+**Current fact:** baseline taskdb `#852` завершён для прежнего 40/60 acceptance. Новый owner delta явно заменяет
+только соответствующие presentation/interaction пункты; старый stage целиком не повторять.
+
+**Initial file census (уточнить code-search перед launch):**
+
+- `apps/webapp/src/app/app/doctor/communications/tabs/*`
+- `apps/webapp/src/modules/messaging/components/ChatView.tsx`
+- doctor/patient comment renderers, найденные через current callsites `ChatView`/discussion panels
+- `apps/webapp/src/app/app/doctor/communications/broadcasts/*`
+- `apps/webapp/src/app/app/doctor/communications/DoctorOnlineIntakeClient.tsx`
+
+**Acceptance:** split 45/55 на desktop во всех применимых вкладках через существующий split primitive, fallback
+50/50; mobile master/detail не регрессирует. Одинаковый фон применён к doctor/patient chat, modal и comments. Имя в
+шапке — единственная доступная навигация в карточку с сохранённым route contract. Broadcast selection раскрывается
+без overlap с summary/delivery/error details; лишняя верхняя фраза отсутствует; intake left list не дублирует name
+link detail. Shared composer/backend/scheduled-message работу не смешивать с этим presentation/interaction scope.
+
+## 5. Реестр переиспользования — не строить второй механизм
+
+- `DoctorDateTimePicker` и существующие time-picker contracts → UI-1.
+- Existing location-color resolver/tokens → все template days и weekday header UI-1.
+- Existing independent multi-select pattern → UI-1b, после trace текущего state contract.
+- `CatalogSplitLayout`/действующий doctor split primitive → UI-3/UI-4/UI-5; новый layout primitive не создавать.
+- `ChatView` и текущие discussion renderers → UI-3 background и поздний UI-7 message status.
+- Existing Overview/Visits blocks и `MembershipPanel` → перенос в UI-5, не переписывание.
+- Accepted S4 `MECHANIC_REGISTRY`/resolver/chokepoint `#888` → UI-8.
+- Design `#565`, current program editor/media abstractions и approved ownership path → UI-9.
+
+## 6. Handoff и completion
 
 - Этот документ детализирует исполнение; status, completion и DAG остаются только в roadmap/taskdb/LOG.
 - Worker handoff: commit, exact files, acceptance lines, commands/results, DEV URLs/viewports, residual risks.

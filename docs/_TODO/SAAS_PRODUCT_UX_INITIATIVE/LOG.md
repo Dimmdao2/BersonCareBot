@@ -2,25 +2,29 @@
 
 ## 2026-07-20 — Doctor UI plan authority convergence (docs-only)
 
-**Result.** Claude planning commit `ef501ed41` was retained as a detailed execution artifact but corrected against
-the existing authority chain. New owner material is now classified in owner review §16a as an exact ruling,
-recommendation, deferred item or owner question. The artifact no longer declares UI-0 a proven P0/root cause,
-does not authorize TEST log/DB/deploy, keeps the canonical service-assignment OR until evidence proves a defect,
-and records service-render/service-location trace as not launchable until exact task dedup/mapping. U3B/`#801`
-covers only manual patient/walk-in and is not authority for that trace.
+**Result and provenance.** Claude planning material `ef501ed41` plus later owner-resolution series through final
+planning commit `f48f35a56` was reconciled into the current authority chain without wholesale merging the stale
+planning-branch base. `OWNER_REVIEW_2026-07-18.md` §16a remains product authority;
+`DOCTOR_UI_REWORK_2026-07-20/PLAN.md` is its execution artifact, not a second roadmap. Repo safeguards remain:
+no TEST journal/DB/deploy authority, no new online schema by assumption, and no canonical service-assignment
+`OR→AND` change until DEV trace proves the actual write/read defect.
 
-**DAG and gates.** UI-3 cosmetics/broadcast IA/composer-backend and UI-4 presentation/backend metrics are separated;
-UI-5 is U5B after U5A + record-class policy; UI-8 is subordinate to C4D/C5 without parallel polarity/seed; UI-9
-waits C4D exact-org isolation and G1. G2 and G3 are owner questions with safe defaults to defer voice/STT and
-preserve org-only, while G4 keeps 40/60 while owner-waiting,
-G5 remains owner-waiting with MVP only a recommendation, and SCH-G5 remains `#848`. `#191` records new-only
-working-day defaults `12:00` and `15:00`, leaving existing clients untouched.
+**Owner decisions and DAG.** G1–G5 are closed: individual exercises `#564` are approved after C4D exact-org
+isolation; voice/STT is post-production `#922`; feature toggles are organization/clinic-only; Communications uses
+45/55 with 50/50 fallback; online already exists and UI-2 adds only a built-in toggleable «Онлайн» location that
+gates existing service checkboxes. UI-8 must reuse accepted S4 engine `#888`, never fork registry/resolver/polarity.
+SCH-G5 remains the separate open `#848`. Schedule owner delta requires location color on every template day and
+time+city once in the weekday header.
 
-**Execution mapping.** Existing cards remain authoritative: C1 `#850/#851/#852`, online `#215`, manual
-patient/walk-in `#801`, mechanics/reminders C4D/C5 + `#191`, individual exercises `#564` with design `#565`, and
-cancelled Doctor DNA `#885`. No duplicate task was created. Exact disjoint manifests and DEV acceptance for
-UI-6a/UI-1a/UI-4a were recorded for later worker launch; no code worker, TEST/PROD action, DB action, deploy or full
-CI was started in this convergence pass.
+**Execution order and current baseline.** UI-0 is the first owner-declared P0 stage for four booking-funnel symptoms
+(SSR after service selection, service/location filtering, client from calendar, clickable FIO), without asserting a
+shared root cause. After it, UI-1/UI-3/UI-4/UI-6 run on disjoint file scopes in parallel at ≤3; already integrated
+and audited UI-4a/UI-6a baseline slices are not rerun, only current owner deltas/residuals are scheduled. UI-5 then
+follows its U5A/record-policy dependencies; UI-2/UI-7/UI-8/UI-9 follow their own gates. Existing cards remain
+authoritative: C1 `#850/#851/#852`, manual patient/walk-in `#801`, extended online flow `#215`, mechanics/reminders
+C4D/C5 + `#191`, `#564/#565`, `#888`, `#922`, and cancelled Doctor DNA `#885`. UI-0 still needs one exact taskdb
+mapping/dedup action before `doing`; no duplicate task, code worker, TEST/PROD action, DB action, deploy or CI was
+started in this docs-only convergence pass.
 
 ## 2026-07-20 — U5A patient organization context launch (`#796`)
 

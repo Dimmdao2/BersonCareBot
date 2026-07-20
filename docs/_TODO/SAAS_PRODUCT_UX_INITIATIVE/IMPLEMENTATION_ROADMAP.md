@@ -411,23 +411,29 @@ card; запрещено строить временный resolver, второ�
   `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §16a. Детальный
   `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md` — исполнимый artifact этого roadmap, не второй источник статуса
   или решений.
-- **UI-0:** bounded DEV reproduction/state trace трёх наблюдений, не доказанный P0 и не доказанная единая причина.
-  TEST journal/DB/remote host требуют отдельного разрешения. Существующая service relevance `location OR
-  specialist assignment` сохраняется до доказанного write/read defect. Service-render/service-location trace не
-  launchable до dedup и mapping на exact existing task; U3B/`#801` покрывает только manual patient/walk-in.
-- **Presentation cluster:** UI-6a Сегодня, UI-1a Расписание и UI-4a Клиенты имеют непересекающиеся exact writable
-  manifests в execution artifact и могут идти параллельно (≤3). Каждый: worker + один независимый audit; live DEV
-  evidence на единственном `:5200` сериализуется. UI-3 отдельно делится на cosmetics, broadcast IA и
-  composer/backend; UI-4 presentation не смешивается с backend metrics.
-- **High-risk dependencies:** UI-5 является U5B и ждёт U5A + record-class policy; UI-8 вложен в C4D/C5 и не создаёт
-  parallel polarity/seed/keys; UI-9 ждёт C4D exact-org isolation + ответ G1; UI-2 ждёт ответ G5; UI-9 media scope и
-  любые identity/schema/tenant/data изменения проходят полный risk-sized цикл.
-- **Owner gates:** G1 (`#564`) открыт; G2 voice/STT — вопрос с рекомендацией отложить; G3 per-specialist axis —
-  вопрос с safe default org-only; G4 split 45/55 — вопрос с safe default 40/60; G5 online appointment — вопрос,
-  MVP лишь рекомендация; SCH-G5 остаётся owner-waiting `#848`.
+- **UI-0 — первый P0-этап:** DEV reproduction/trace/fix четырёх подтверждённых симптомов booking funnel: SSR после
+  выбора услуги, service/location filtering, клиент из календаря и кликабельное ФИО. Это не утверждение единой
+  первопричины или дефекта canonical `location OR specialist assignment`: текущий write/read contract меняется
+  только по доказанной причине. TEST journal/DB/remote host требуют отдельного разрешения. До `doing` выполнить
+  taskdb dedup/mapping; U3B/`#801` покрывает только manual patient/walk-in и не форкается.
+- **Presentation cluster после UI-0:** UI-1 Расписание, UI-3 Коммуникации, UI-4 Клиенты и UI-6 Сегодня имеют
+  непересекающиеся file scopes и идут параллельно (≤3). Уже интегрированные и прошедшие независимый audit baseline
+  slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.
+  Каждый presentation scope: worker + один audit; live DEV evidence на единственном `:5200` сериализуется. UI-3
+  делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
+- **Order after presentation:** UI-5 является U5B и стартует после U5A + record-class policy; затем остальные
+  dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
+  parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` owner-approved, но ждёт C4D
+  exact-org isolation. UI-2 — bounded built-in toggleable «Онлайн» location на существующей модели, гейтящая
+  существующие service checkboxes; новую schema/booking engine не вводить. UI-9 media scope и любые
+  identity/schema/tenant/data изменения проходят полный risk-sized цикл.
+- **Owner decisions G1–G5 closed:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3
+  toggles — organization/clinic only; G4 communications — 45/55 с fallback 50/50; G5 online уже существует,
+  требуется только встроенная toggleable location. Независимый SCH-G5 остаётся owner-waiting `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
 - **Task mapping:** C1 `#850/#851/#852`; online `#215`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
-  `#191`; individual exercises `#564` + design `#565`; superseded Doctor DNA `#885`. Новые duplicate cards не
+  `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
+  Doctor DNA `#885`. Новые duplicate cards не
   создавать; subscopes фиксировать в note/meta существующей карты при фактическом запуске.
 - **Gate:** TEST deploy не подразумевается и требует отдельного прямого разрешения владельца; при разрешении — только
   code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
