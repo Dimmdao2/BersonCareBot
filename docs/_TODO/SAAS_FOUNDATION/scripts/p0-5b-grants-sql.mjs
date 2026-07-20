@@ -75,6 +75,7 @@ const migrationOnlyTables = new Set([
 // - app_runtime_settings uses dedicated audience-aware patient/staff/worker/integrator grants and policies.
 const overlayManagedAppStaffTables = new Set([
   "public.organization_member_invites",
+  "public.patient_invites",
   "public.saas_org_entitlement_overrides",
   "public.saas_tariffs",
   "public.specialist_signup_intents",

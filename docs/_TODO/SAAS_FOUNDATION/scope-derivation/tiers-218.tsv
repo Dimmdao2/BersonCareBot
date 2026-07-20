@@ -186,6 +186,7 @@ SCOPED|public.patient_diary_day_snapshots
 SCOPED|public.patient_files
 SCOPED|public.patient_home_block_items
 SCOPED|public.patient_home_blocks
+SCOPED|public.patient_invites
 SCOPED|public.patient_lfk_assignments
 SCOPED|public.patient_merge_candidates
 SCOPED|public.patient_payment

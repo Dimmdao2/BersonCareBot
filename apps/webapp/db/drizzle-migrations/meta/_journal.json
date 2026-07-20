@@ -1541,6 +1541,13 @@
       "when": 1793539200014,
       "tag": "0219_current_patient_organization_entitlements",
       "breakpoints": true
+    },
+    {
+      "idx": 220,
+      "version": "7",
+      "when": 1793539200015,
+      "tag": "0220_patient_portal_invites",
+      "breakpoints": true
     }
   ]
 }

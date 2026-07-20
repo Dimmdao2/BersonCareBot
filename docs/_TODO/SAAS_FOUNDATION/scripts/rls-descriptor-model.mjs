@@ -54,6 +54,7 @@ const bootstrapRuntimeAuditTables = new Set([
 // public.be_* prefix and therefore do not belong in the P0.4 materialization batches.
 export const preScopedDirectOrgTables = new Set([
   "public.clinic_public_directory_entries",
+  "public.patient_invites",
 ]);
 
 // Tables whose later foundation migration deliberately removes the historical

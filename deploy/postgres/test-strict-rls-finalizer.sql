@@ -55,6 +55,7 @@ SELECT 1 / 0 AS phase4_owner_role_missing;
 -- replace a few same-named policies with product/process-specific strict variants and therefore
 -- must always run AFTER the renderer and BEFORE FORCE/assertion.
 \ir organization-member-invites-rls.sql
+\ir patient-invites-rls.sql
 \ir patient-course-assignment-wall.sql
 \ir phase4-app-worker-narrow-rls.sql
 \ir patient-media-playback-telemetry-accessors.sql

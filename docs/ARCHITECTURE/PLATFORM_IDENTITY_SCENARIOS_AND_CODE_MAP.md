@@ -148,6 +148,25 @@
 | `platform_user_merge`                       | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` — перенос/объединение `patient_phone_trust_at` при merge (auto + manual ветки `UPDATE platform_users AS pu`).                                             |
 | `admin_manual_profile_patch`                | `apps/webapp/src/infra/repos/pgUserProjection.ts` — `patchAdminClientProfile` при успешном `PATCH /api/admin/users/:userId/profile` (ФИО, email, телефон; нормализация `+7` и конфликт по `phone_normalized`). |
 
+### Patient invite → существующая карточка организации
+
+U3B использует нейтральный вход `/join/start#<bearer>`: fragment не уходит серверу и сразу обменивается через
+`POST /api/join/exchange` на отдельный короткоживущий continuation. Сервер хранит только purpose-separated hashes;
+continuation дополнительно связан с узкой HttpOnly cookie и разрешается на `/join/<continuation>` без patient id,
+клинических данных и названий записей/программ.
+
+Email OTP переиспользует канонические `email_challenges`, но само принятие выполняет
+`app.redeem_patient_invite_email`: под row lock повторно проверяются invite, recipient и точная тройка
+`(organization_id, patient_user_id, enrollment_id)`. Успех атомарно подтверждает email, переводит только это
+`org_enrollments` из `invited` в `active` и расходует приглашение. Коллизия подтверждённого email с другим каноном
+не делает silent merge: создаётся `patient_merge_candidates`, а принятие fail-closed. После успеха создаётся обычная
+client-сессия и exact-org preference; verified email уже входит в `webIdentityCabinet` при вычислении patient tier.
+
+Якоря: `modules/patient-invites/*`, `infra/repos/pgPatientInvites.ts`, `app/api/join/*`,
+`app/join/*`, `deploy/postgres/patient-invites-rls.sql`. Staff issue/revoke/status доступны только через текущий
+doctor workspace principal и точную организацию. `app_patient` не имеет прямого доступа к таблице приглашений —
+только EXECUTE узких SECURITY DEFINER функций после runtime-overlay.
+
 **Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`. **Patient business gate (C.02):** `patientClientBusinessGate` в `apps/webapp/src/modules/platform-access/patientClientBusinessGate.ts` — единый критерий для `requirePatientAccessWithPhone`, `requirePatientApiBusinessAccess` и layout patient-зоны при БД; при ошибке резолва канона в БД для `client` — **fail-safe** `need_activation` (не `allow` по snapshot).
 
 **Route & API policy (фаза D):** `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts` — whitelist навигации без tier **patient** (в т.ч. кабинет, визард `/app/patient/booking/*`, дневник, покупки, уведомления, публичные sections/content и onboarding-страницы), `patientPageMinAccessTier`, `patientApiPathIsPatientBusinessSurface`, `patientSessionSnapshotHasPhone` (только UI-snapshot), `patientServerActionPageAllowsOnboardingOnly` (список для профиля; **runtime** — `patientOnboardingServerActionSurfaceOk` в `onboardingServerActionSurface.ts`, вызов из `profile/actions.ts`; закрытие **D-SA-1**). Re-export: `apps/webapp/src/modules/platform-access/index.ts`. Shim: `apps/webapp/src/app-layer/guards/patientPhonePolicy.ts`.

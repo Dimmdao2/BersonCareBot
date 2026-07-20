@@ -51,6 +51,7 @@ const e1MigrationPaths = [
 
 const canonicalOrder = [
   "deploy/postgres/organization-member-invites-rls.sql",
+  "deploy/postgres/patient-invites-rls.sql",
   "deploy/postgres/store-p0-entitlements-rls.sql",
   "deploy/postgres/patient-course-assignment-wall.sql",
   "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",

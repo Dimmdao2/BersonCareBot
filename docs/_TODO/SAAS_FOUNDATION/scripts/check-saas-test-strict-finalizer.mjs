@@ -8,6 +8,7 @@ const files = {
   c0Smoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-c0-locked-topology.mjs",
   force: "deploy/postgres/phase4-force-rls-cutover.sql",
   invites: "deploy/postgres/organization-member-invites-rls.sql",
+  patientInvites: "deploy/postgres/patient-invites-rls.sql",
   courses: "deploy/postgres/patient-course-assignment-wall.sql",
   appWorker: "deploy/postgres/phase4-app-worker-narrow-rls.sql",
   patientPlayback: "deploy/postgres/patient-media-playback-telemetry-accessors.sql",
@@ -73,6 +74,7 @@ function runChecks(overrides = {}) {
     "\\set phase4_enforce_locked_context 1",
     "\\ir phase4-locked-helper-rls-policies.sql",
     "\\ir organization-member-invites-rls.sql",
+    "\\ir patient-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
     "\\ir patient-media-playback-telemetry-accessors.sql",
@@ -86,6 +88,7 @@ function runChecks(overrides = {}) {
     "current_database() = 'bersoncarebot_test'",
     "\\ir phase4-locked-helper-rls-policies.sql",
     "\\ir organization-member-invites-rls.sql",
+    "\\ir patient-invites-rls.sql",
     "\\ir patient-course-assignment-wall.sql",
     "\\ir phase4-app-worker-narrow-rls.sql",
     "\\ir patient-media-playback-telemetry-accessors.sql",
@@ -101,6 +104,15 @@ function runChecks(overrides = {}) {
     "ALTER FUNCTION app.lookup_pending_org_invite(text) OWNER TO app_owner",
     "ALTER FUNCTION app.accept_org_invite(text, uuid, text) OWNER TO app_owner",
     "GRANT SELECT, UPDATE ON TABLE public.organization_member_invites TO app_owner",
+  ]);
+  requireFragments(files.patientInvites, loaded.patientInvites, [
+    "ALTER TABLE public.patient_invites FORCE ROW LEVEL SECURITY",
+    "app.is_staff()",
+    "organization_id = app.current_org_id()",
+    "REVOKE ALL ON TABLE public.patient_invites FROM app_patient",
+    "ALTER FUNCTION app.exchange_patient_invite(text, text, timestamptz) OWNER TO app_owner",
+    "ALTER FUNCTION app.redeem_patient_invite_email(text, uuid, text) OWNER TO app_owner",
+    "GRANT EXECUTE ON FUNCTION app.redeem_patient_invite_email(text, uuid, text) TO app_patient",
   ]);
   if (loaded.invites.includes("NULLIF(current_setting('app.org', true), '') IS NULL")) {
     fail(`${files.invites} still contains the fail-open NULL-context policy branch`);

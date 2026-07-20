@@ -59,6 +59,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     comorbidities,
     paymentsSummary,
     rawContactRows,
+    portalState,
   ] = await Promise.all([
     deps.doctorClients.getPatientCardHeader(patientUserId),
     deps.doctorClients.getPatientPhysical(patientUserId),
@@ -90,6 +91,9 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     withDoctorWorkspacePrincipal(workspace, () => deps.patientComorbidities.listActive(patientUserId)),
     withDoctorWorkspacePrincipal(workspace, () => deps.patientPayments.listPaymentsWithSummary(patientUserId)),
     deps.platformUserContacts.listForPlatformUser(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
+    ),
   ]);
 
   // Unpack payments summary — listPaymentsWithSummary returns { payments, totalPaidMinor }.
@@ -216,6 +220,7 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
           initialPackages={initialPackagesForTabs}
           initialPaymentsSummary={initialPaymentsSummary}
           initialSupportEffectivePolicy={initialSupportEffectivePolicy}
+          initialPortalState={portalState}
           isAdmin={session.user.role === "admin"}
         />
       </section>

@@ -24,6 +24,7 @@ export * from "./userEmailSetupTokens";
 export * from "./specialistSignupIntents";
 export * from "./staffSecurityProfiles";
 export * from "./organizationMemberInvites";
+export * from "./patientInvites";
 export * from "./broadcastAuditRecipients";
 export * from "./productAnalytics";
 export * from "./bookingEngine";

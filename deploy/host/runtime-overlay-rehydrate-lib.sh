@@ -86,6 +86,7 @@ runtime_overlay_apply_post_migration_chain() {
 
   local -a always_overlays=(
     deploy/postgres/organization-member-invites-rls.sql
+    deploy/postgres/patient-invites-rls.sql
     deploy/postgres/store-p0-entitlements-rls.sql
     deploy/postgres/patient-course-assignment-wall.sql
     deploy/postgres/specialist-signup-public-bootstrap-rls.sql

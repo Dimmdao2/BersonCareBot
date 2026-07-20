@@ -39,6 +39,8 @@ import { PatientTabComms } from "./tabs/PatientTabComms";
 import { PatientTabFinances, type FinancesInitialData } from "./tabs/PatientTabFinances";
 import type { ApiPackage, PaymentItem, AppointmentPrefill } from "./tabs/PatientTabRecords";
 import type { PatientProgramInteractionPolicy } from "@/modules/doctor-clients/supportPolicy";
+import type { PatientPortalStatus } from "@/modules/patient-invites/ports";
+import { PatientPortalInviteControls } from "./PatientPortalInviteControls";
 
 type Props = {
   cardHeader: PatientCardHeader | null;
@@ -73,6 +75,11 @@ type Props = {
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
   /** SSR-provided effective support policy for the Обзор tab (DoctorClientSupportPanel). */
   initialSupportEffectivePolicy?: PatientProgramInteractionPolicy | null;
+  initialPortalState?: {
+    status: PatientPortalStatus;
+    inviteId: string | null;
+    expiresAt: string | null;
+  };
   /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
   isAdmin?: boolean;
 };
@@ -144,7 +151,7 @@ function phoneHref(phone: string): string {
   return `tel:${normalized || phone}`;
 }
 
-export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, isAdmin = false }: Props) {
+export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, visitDate, initialPhysicalData, embeddedProgramContent, initialClinicalState, initialVisits, initialNotes, initialTasks, initialSignals, initialProgramActivity, initialAppointments, initialProgramInstances, initialFiles, initialAnamnesis, initialComorbidities, initialFinancesData, initialSupplementaryContacts, initialPackages, initialPaymentsSummary, initialSupportEffectivePolicy, initialPortalState = { status: "not_activated", inviteId: null, expiresAt: null }, isAdmin = false }: Props) {
   const header = cardHeader;
   const resolvedInitialTab: TabId =
     initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "overview";
@@ -690,6 +697,10 @@ export function PatientCardClient({ cardHeader, initialTab, createVisitFrom, vis
                 </Button>
               </span>
             </div>
+            <PatientPortalInviteControls
+              patientUserId={identity.userId}
+              initialState={initialPortalState}
+            />
           </div>
 
           {/* RIGHT: mini-summary stats */}
