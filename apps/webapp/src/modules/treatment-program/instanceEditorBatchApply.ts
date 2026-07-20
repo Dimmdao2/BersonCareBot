@@ -302,6 +302,11 @@ async function validateInstanceEditorBatchDraft(
         resolveBatchId(create.stageId, previewIdMap, "Этап"),
         previewIdMap,
       );
+    } else if (create.kind === "individual_exercise") {
+      const stageId = resolveBatchId(create.stageId, previewIdMap, "Этап");
+      assertPersistedStageInDetail(detail, stageId, previewIdMap);
+      resolveBatchId(create.groupId, previewIdMap, "Группа");
+      if (create.loadSettings) mergeLoadSettings(null, create.loadSettings);
     } else if (create.kind === "test_set_expand") {
       const stageId = resolveBatchId(create.stageId, previewIdMap, "Этап");
       assertPersistedStageInDetail(detail, stageId, previewIdMap);
@@ -389,6 +394,11 @@ async function validateInstanceEditorBatchDraft(
     if (patch.loadSettings) {
       validateLoadSettingsPatch(item, patch.loadSettings);
     }
+    if (patch.personalTitle !== undefined) {
+      if (item.itemType !== "exercise" || item.snapshot.exerciseScope !== "personal") {
+        throw new Error("Название можно менять только у личного упражнения");
+      }
+    }
   }
 }
 
@@ -404,6 +414,7 @@ export async function applyInstanceEditorBatch(
   deps: ApplyInstanceEditorBatchDeps,
   input: {
     instanceId: string;
+    actorId?: string | null;
     draft: InstanceEditorBatchDraft;
   },
 ): Promise<{ detail: TreatmentProgramInstanceDetail; diff: ProgramChangedDiff }> {
@@ -557,6 +568,30 @@ export async function applyInstanceEditorBatch(
         const row = await instances.patchInstanceStageItem(input.instanceId, result.item.id, freeformPatch);
         if (!row) throw new Error("Элемент не найден");
       }
+      diff.itemsAdded += 1;
+    } else if (create.kind === "individual_exercise") {
+      const stageId = resolveBatchId(create.stageId, idMap, "Элемент");
+      const groupId = resolveBatchId(create.groupId, idMap, "Группа");
+      const settings = create.loadSettings ? mergeLoadSettings(null, create.loadSettings) : null;
+      const result = await instances.createIndividualExerciseAndStageItem({
+        instanceId: input.instanceId,
+        stageId,
+        groupId,
+        title: create.title.trim(),
+        description: create.description?.trim() || null,
+        regionRefIds: create.regionRefIds,
+        loadType: create.loadType?.trim() || null,
+        difficulty1_10: create.difficulty1_10 ?? null,
+        contraindications: create.contraindications?.trim() || null,
+        tags: create.tags ?? null,
+        mediaId: create.mediaId ?? null,
+        saveToCatalog: create.saveToCatalog,
+        createdBy: input.actorId ?? null,
+        settings,
+        localComment: create.localComment?.trim() || null,
+      });
+      if (!result) throw new Error("Не удалось создать личное упражнение");
+      idMap.set(create.clientId, result.item.id);
       diff.itemsAdded += 1;
     } else if (create.kind === "test_set_expand") {
       const stageId = resolveBatchId(create.stageId, idMap, "Элемент");
@@ -812,6 +847,15 @@ export async function applyInstanceEditorBatch(
   for (const [itemIdRaw, patch] of Object.entries(input.draft.itemPatches)) {
     if (isInstanceEditorBatchClientId(itemIdRaw)) continue;
     const itemId = resolveBatchId(itemIdRaw, idMap, "Элемент");
+    if (patch.personalTitle !== undefined) {
+      const row = await instances.updatePersonalExerciseTitle(
+        input.instanceId,
+        itemId,
+        patch.personalTitle,
+      );
+      if (!row) throw new Error("Название можно менять только у личного упражнения");
+      diff.itemsMetadataUpdated += 1;
+    }
     if (patch.localComment !== undefined) {
       const row = await instances.updateStageItemLocalComment(
         input.instanceId,

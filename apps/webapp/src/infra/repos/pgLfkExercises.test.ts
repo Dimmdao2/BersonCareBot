@@ -21,6 +21,7 @@ function exerciseDbRow(overrides: Partial<{ id: string; title: string }> = {}) {
   return {
     id: exerciseId,
     owner_kind: "organization",
+    catalog_scope: "catalog",
     title: "Присед",
     description: null,
     region_ref_id: null,
@@ -59,6 +60,7 @@ describe("createPgLfkExercisesPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("load_type");
     expect(sql).toContain("is_archived = false");
+    expect(sql).toContain("e.catalog_scope = 'catalog'");
     expect(sql).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
   });
 
@@ -90,6 +92,7 @@ describe("createPgLfkExercisesPort", () => {
     await port.getById(exerciseId, { includePlatformBase: true });
     expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([exerciseId, false]);
     expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([exerciseId, true]);
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain("e.catalog_scope = 'catalog'");
   });
 
   it("list applies NFC-normalized ILIKE search for titles", async () => {
@@ -180,6 +183,8 @@ describe("createPgLfkExercisesPort", () => {
       .map((c) => String(c[0]))
       .join("\n");
     expect(txSql).toContain("INSERT INTO lfk_exercises");
+    expect(txSql).toContain("catalog_scope");
+    expect(ex.catalogScope).toBe("catalog");
   });
 
   it("update returns null when exercise not found", async () => {
@@ -216,6 +221,7 @@ describe("createPgLfkExercisesPort", () => {
     expect(out.get(exerciseId)).toBe("Присед");
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(sql).toContain("catalog_scope = 'catalog'");
     const params = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(Array.isArray(params)).toBe(true);
     expect(Array.isArray(params?.[0])).toBe(true);

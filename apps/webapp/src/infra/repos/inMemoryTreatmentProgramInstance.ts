@@ -615,6 +615,84 @@ export function createInMemoryTreatmentProgramPersistence(seed?: {
       return { item: itemRow, recommendationId: recId };
     },
 
+    async createIndividualExerciseAndStageItem(input) {
+      const st = stages.get(input.stageId);
+      const inst = instances.get(input.instanceId);
+      const group = instGroups.get(input.groupId);
+      if (
+        !st ||
+        !inst ||
+        st.instanceId !== input.instanceId ||
+        st.sortOrder === 0 ||
+        !group ||
+        group.stageId !== input.stageId
+      ) {
+        return null;
+      }
+      const title = input.title.trim();
+      if (!title) throw new Error("Укажите название упражнения");
+      const exerciseId = crypto.randomUUID();
+      const snapshot: Record<string, unknown> = {
+        itemType: "exercise",
+        id: exerciseId,
+        title,
+        description: input.description,
+        contraindications: input.contraindications,
+        difficulty: input.difficulty1_10,
+        loadType: input.loadType,
+        exerciseScope: input.saveToCatalog ? "catalog" : "personal",
+        ...(input.mediaId
+          ? { media: [{ url: `/api/media/${input.mediaId}`, type: "video", sortOrder: 0 }] }
+          : {}),
+      };
+      const sortOrder =
+        Math.max(-1, ...[...items.values()].filter((it) => it.stageId === input.stageId).map((it) => it.sortOrder)) + 1;
+      const item: ItemRow = {
+        id: crypto.randomUUID(),
+        stageId: input.stageId,
+        itemType: "exercise",
+        itemRefId: exerciseId,
+        sortOrder,
+        comment: null,
+        localComment: input.localComment,
+        settings: input.settings,
+        snapshot,
+        completedAt: null,
+        isActionable: null,
+        status: "active",
+        groupId: input.groupId,
+        createdAt: isoNow(),
+        lastViewedAt: null,
+      };
+      items.set(item.id, item);
+      touchInstance(input.instanceId);
+      return { item: { ...item }, exerciseId };
+    },
+
+    async updatePersonalExerciseTitle(instanceId: string, itemId: string, titleRaw: string) {
+      const item = items.get(itemId);
+      const stage = item ? stages.get(item.stageId) : null;
+      const title = titleRaw.trim();
+      if (!title) throw new Error("Укажите название упражнения");
+      if (
+        !item ||
+        !stage ||
+        stage.instanceId !== instanceId ||
+        item.itemType !== "exercise" ||
+        item.snapshot.exerciseScope !== "personal"
+      ) {
+        return null;
+      }
+      const shared = [...items.values()].some(
+        (candidate) => candidate.id !== item.id && candidate.itemType === "exercise" && candidate.itemRefId === item.itemRefId,
+      );
+      if (shared) throw new Error("Личное упражнение уже используется в другой программе");
+      const next = { ...item, snapshot: { ...item.snapshot, title } };
+      items.set(item.id, next);
+      touchInstance(instanceId);
+      return { ...next };
+    },
+
     async expandTestSetIntoInstanceStageItems(
       input: ExpandTestSetIntoInstanceStageItemsPortInput,
     ): Promise<ExpandTestSetIntoInstanceStageItemsResult | null> {

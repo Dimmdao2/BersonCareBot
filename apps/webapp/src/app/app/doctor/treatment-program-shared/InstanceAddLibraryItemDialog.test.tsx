@@ -62,6 +62,14 @@ vi.mock("@/shared/ui/doctor/ReferenceSelect", () => ({
   ),
 }));
 
+vi.mock("@/shared/ui/doctor/ReferenceMultiSelect", () => ({
+  ReferenceMultiSelect: (props: { onChange?: (ids: string[]) => void }) => (
+    <button type="button" onClick={() => props.onChange?.(["55555555-5555-4555-8555-555555555555"])}>
+      Добавить регион
+    </button>
+  ),
+}));
+
 const emptyLibrary: TreatmentProgramLibraryPickers = {
   exercises: [],
   lfkComplexes: [],
@@ -232,6 +240,42 @@ describe("InstanceAddLibraryItemDialog", () => {
       }),
     );
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("создаёт индивидуальное упражнение inline и сохраняет в каталог только по явному выбору", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <InstanceAddLibraryItemDialog
+        open
+        onOpenChange={onOpenChange}
+        spec={{ stageId: STAGE_ID, context: "custom_group", customGroupId: GROUP_ID }}
+        library={emptyLibrary}
+        editLocked={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: /создать новое/i }));
+    expect(screen.getByRole("checkbox")).not.toBeChecked();
+    await user.type(screen.getByLabelText(/^Название$/i), "Упражнение для пациента");
+    await user.type(screen.getByLabelText(/^Описание$/i), "Делать медленно");
+    await user.click(screen.getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /^Добавить упражнение$/i }));
+
+    await waitFor(() => {
+      expect(addItemCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "individual_exercise",
+          stageId: STAGE_ID,
+          groupId: GROUP_ID,
+          title: "Упражнение для пациента",
+          description: "Делать медленно",
+          mediaId: null,
+          saveToCatalog: true,
+        }),
+      );
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("упражнения: фильтры регион и тип нагрузки сужают список", async () => {

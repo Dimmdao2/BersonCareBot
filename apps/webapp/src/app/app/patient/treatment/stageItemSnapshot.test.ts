@@ -97,6 +97,23 @@ describe("parseCatalogMediaRows (Q-C9 obzor thumbs)", () => {
     expect(item.previewStatus).toBe("ready");
   });
 
+  it("uses a patient-program personal exercise video through the existing media route", () => {
+    const rows = parseCatalogMediaRows([
+      {
+        mediaUrl: "/api/media/13131313-1313-4313-8313-131313131313",
+        mediaType: "video",
+        sortOrder: 0,
+      },
+    ]);
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        mediaUrl: "/api/media/13131313-1313-4313-8313-131313131313",
+        mediaType: "video",
+      }),
+    ]);
+  });
+
   it("video is preferred over image when selecting primary media (mirrors PatientTabOverview logic)", () => {
     const media = parseCatalogMediaRows([
       { mediaUrl: "https://cdn.example.com/img.jpg", mediaType: "image", sortOrder: 0 },

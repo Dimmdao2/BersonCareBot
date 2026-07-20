@@ -47,6 +47,7 @@ function requireOrganizationPrincipal(): void {
 type ExerciseDbRow = {
   id: string;
   owner_kind: string;
+  catalog_scope: string;
   title: string;
   description: string | null;
   region_ref_id: string | null;
@@ -103,7 +104,7 @@ export async function pgListExerciseUsageForMediaIds(
         e.id::text AS exercise_id,
         e.title
      FROM lfk_exercise_media m
-     INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false
+     INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false AND e.catalog_scope = 'catalog'
      WHERE m.media_url = ANY($1::text[])
        AND m.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
        AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
@@ -132,6 +133,7 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
   return {
     id: String(row.id),
     ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
+    catalogScope: row.catalog_scope === "personal" ? "personal" : "catalog",
     title: row.title,
     description: row.description,
     regionRefId,
@@ -468,6 +470,7 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
           ) q) AS active_patient_lfk_refs
      FROM lfk_exercises owned
      WHERE owned.id = $1::uuid
+       AND owned.catalog_scope = 'catalog'
        AND owned.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
     [exerciseId],
   );
@@ -520,6 +523,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
       requireOrganizationPrincipal();
       const conds: string[] = [
+        "e.catalog_scope = 'catalog'",
         filter.includePlatformBase
           ? "((e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))"
           : "e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
@@ -569,7 +573,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       }
 
       const sql = `
-        SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                COALESCE((
                  SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -648,6 +652,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         `SELECT id::text AS id, title
            FROM lfk_exercises
           WHERE id = ANY($1::uuid[])
+            AND catalog_scope = 'catalog'
             AND (
               (owner_kind = 'organization' AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
               OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
@@ -663,7 +668,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
       requireOrganizationPrincipal();
       const r = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -674,6 +679,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
          WHERE e.id = $1
+           AND e.catalog_scope = 'catalog'
            AND (
              (e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
              OR ($2::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
@@ -693,10 +699,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         const ins = await txPgText<ExerciseDbRow>(
           tx,
           `INSERT INTO lfk_exercises (
-             owner_kind, organization_id, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
+             owner_kind, organization_id, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, now())
-           RETURNING id, owner_kind, title, description, region_ref_id, load_type, difficulty_1_10,
+           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, 'catalog', $1, $2, $3, $4, $5, $6, $7, $8, now())
+           RETURNING id, owner_kind, catalog_scope, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
           [
             input.title,
@@ -738,6 +744,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           tx,
           `SELECT id FROM lfk_exercises
             WHERE id = $1
+              AND catalog_scope = 'catalog'
               AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
           [id],
         );
@@ -772,6 +779,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           tx,
           `UPDATE lfk_exercises SET ${sets.join(", ")}
             WHERE id = $${n}
+              AND catalog_scope = 'catalog'
               AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
           vals,
         );
@@ -805,7 +813,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
       const media = await loadAllMediaForExercise(id);
       const rowR = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -816,6 +824,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
          WHERE e.id = $1
+           AND e.catalog_scope = 'catalog'
            AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
         [id],
       );
@@ -828,6 +837,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         runWebappPgText(
           `UPDATE lfk_exercises SET is_archived = true, updated_at = now()
             WHERE id = $1
+              AND catalog_scope = 'catalog'
               AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
               AND is_archived = false`,
           [id],
@@ -843,6 +853,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         runWebappPgText(
           `UPDATE lfk_exercises SET is_archived = false, updated_at = now()
             WHERE id = $1
+              AND catalog_scope = 'catalog'
               AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
               AND is_archived = true`,
           [id],

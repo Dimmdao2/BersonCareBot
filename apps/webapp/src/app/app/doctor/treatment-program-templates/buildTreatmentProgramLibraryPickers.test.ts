@@ -9,6 +9,7 @@ function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
     id: "ex-1",
     ownerKind: "organization",
+    catalogScope: "catalog",
     title: "Упр",
     description: null,
     regionRefId: "reg-1",

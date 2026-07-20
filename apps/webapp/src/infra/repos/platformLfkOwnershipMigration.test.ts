@@ -6,6 +6,10 @@ const migration = readFileSync(
   resolve(process.cwd(), "db/drizzle-migrations/0217_platform_lfk_ownership.sql"),
   "utf8",
 );
+const personalExerciseMigration = readFileSync(
+  resolve(process.cwd(), "db/drizzle-migrations/0221_lfk_personal_exercises.sql"),
+  "utf8",
+);
 
 describe("0217 platform LFK ownership", () => {
   it("uses an explicit tagged union and never treats NULL alone as platform ownership", () => {
@@ -46,5 +50,19 @@ describe("0217 platform LFK ownership", () => {
     expect(migration).not.toContain("exercise_packages");
     expect(migration).not.toContain("content_access_grants");
     expect(migration).not.toContain("purchase");
+  });
+});
+
+describe("0221 personal LFK exercises", () => {
+  it("keeps existing exercises catalog-visible and constrains personal scope", () => {
+    expect(personalExerciseMigration).toContain("DEFAULT 'catalog' NOT NULL");
+    expect(personalExerciseMigration).toContain("CHECK (\"catalog_scope\" IN ('catalog', 'personal'))");
+  });
+
+  it("indexes the owner and catalog-scope list path in the same migration", () => {
+    expect(personalExerciseMigration).toContain("idx_lfk_exercises_catalog_scope_owner");
+    expect(personalExerciseMigration).toContain(
+      '("owner_kind", "organization_id", "catalog_scope", "is_archived", "updated_at" DESC)',
+    );
   });
 });

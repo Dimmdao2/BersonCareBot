@@ -38,6 +38,7 @@ const itemPatchSchema = z
   .object({
     localComment: z.union([z.string(), z.null()]).optional(),
     loadSettings: loadSettingsPatchSchema.optional(),
+    personalTitle: z.string().min(1).max(2000).optional(),
   })
   .strict();
 
@@ -109,6 +110,26 @@ const freeformCreateSchema = z
   })
   .strict();
 
+const individualExerciseCreateSchema = z
+  .object({
+    kind: z.literal("individual_exercise"),
+    clientId: instanceEditorBatchIdSchema,
+    stageId: instanceEditorBatchIdSchema,
+    groupId: instanceEditorBatchIdSchema,
+    title: z.string().min(1).max(2000),
+    description: z.string().max(100_000).nullable().optional(),
+    regionRefIds: z.array(z.string().uuid()).max(20).default([]),
+    loadType: z.string().max(160).nullable().optional(),
+    difficulty1_10: z.number().int().min(1).max(10).nullable().optional(),
+    contraindications: z.string().max(100_000).nullable().optional(),
+    tags: z.array(z.string().min(1).max(160)).max(50).nullable().optional(),
+    mediaId: z.string().uuid().nullable().optional(),
+    saveToCatalog: z.boolean().default(false),
+    localComment: z.string().nullable().optional(),
+    loadSettings: loadSettingsPatchSchema.optional(),
+  })
+  .strict();
+
 const expandLineSchema = z
   .object({
     clientId: instanceEditorBatchIdSchema,
@@ -143,6 +164,7 @@ const lfkComplexExpandSchema = z
 const itemCreateSchema = z.discriminatedUnion("kind", [
   libraryItemCreateSchema,
   freeformCreateSchema,
+  individualExerciseCreateSchema,
   testSetExpandSchema,
   lfkComplexExpandSchema,
 ]);

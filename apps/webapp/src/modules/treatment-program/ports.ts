@@ -231,6 +231,35 @@ export type TreatmentProgramInstancePort = {
     createdBy: string | null;
   }): Promise<{ item: TreatmentProgramInstanceStageItemRow; recommendationId: string } | null>;
 
+  /**
+   * UI-9: atomically creates an organization-owned exercise and assigns it to this instance.
+   * `saveToCatalog=false` keeps it discoverable only through the patient program.
+   */
+  createIndividualExerciseAndStageItem(input: {
+    instanceId: string;
+    stageId: string;
+    groupId: string;
+    title: string;
+    description: string | null;
+    regionRefIds: string[];
+    loadType: string | null;
+    difficulty1_10: number | null;
+    contraindications: string | null;
+    tags: string[] | null;
+    mediaId: string | null;
+    saveToCatalog: boolean;
+    createdBy: string | null;
+    settings: Record<string, unknown> | null;
+    localComment: string | null;
+  }): Promise<{ item: TreatmentProgramInstanceStageItemRow; exerciseId: string } | null>;
+
+  /** Only the assigned personal exercise title/snapshot may change; attached media is immutable. */
+  updatePersonalExerciseTitle(
+    instanceId: string,
+    itemId: string,
+    title: string,
+  ): Promise<TreatmentProgramInstanceStageItemRow | null>;
+
   /** Развёртывание набора в строки `clinical_test` (снимок на каждую строку). */
   expandTestSetIntoInstanceStageItems(
     input: ExpandTestSetIntoInstanceStageItemsPortInput,

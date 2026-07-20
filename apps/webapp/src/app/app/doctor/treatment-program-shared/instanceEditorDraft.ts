@@ -40,6 +40,7 @@ export type InstanceEditorGroupPatch = {
 export type InstanceEditorItemPatch = {
   localComment?: string | null;
   loadSettings?: InstanceEditorItemLoadSettingsPatch;
+  personalTitle?: string;
 };
 
 export type InstanceEditorStageCreate = {
@@ -86,6 +87,25 @@ export type InstanceEditorItemCreateFreeformRecommendation = {
   status?: TreatmentProgramInstanceStageItemStatus;
 };
 
+export type InstanceEditorItemCreateIndividualExercise = {
+  kind: "individual_exercise";
+  clientId: string;
+  stageId: string;
+  groupId: string;
+  title: string;
+  description?: string | null;
+  regionRefIds: string[];
+  loadType?: string | null;
+  difficulty1_10?: number | null;
+  contraindications?: string | null;
+  tags?: string[] | null;
+  mediaId?: string | null;
+  saveToCatalog: boolean;
+  snapshot: Record<string, unknown>;
+  localComment?: string | null;
+  loadSettings?: InstanceEditorItemLoadSettingsPatch;
+};
+
 export type InstanceEditorItemCreateTestSetExpand = {
   kind: "test_set_expand";
   stageId: string;
@@ -114,6 +134,7 @@ export type InstanceEditorItemCreateLfkComplexExpand = {
 export type InstanceEditorItemCreate =
   | InstanceEditorItemCreateLibraryItem
   | InstanceEditorItemCreateFreeformRecommendation
+  | InstanceEditorItemCreateIndividualExercise
   | InstanceEditorItemCreateTestSetExpand
   | InstanceEditorItemCreateLfkComplexExpand;
 
@@ -124,6 +145,10 @@ export type InstanceEditorItemCreateInput =
     })
   | (Omit<InstanceEditorItemCreateFreeformRecommendation, "clientId" | "kind"> & {
       kind: "freeform_recommendation";
+      clientId?: string;
+    })
+  | (Omit<InstanceEditorItemCreateIndividualExercise, "clientId" | "kind"> & {
+      kind: "individual_exercise";
       clientId?: string;
     })
   | {
@@ -161,6 +186,7 @@ export function itemCreateClientIds(create: InstanceEditorItemCreate): string[] 
   switch (create.kind) {
     case "library_item":
     case "freeform_recommendation":
+    case "individual_exercise":
       return [create.clientId];
     case "test_set_expand":
     case "lfk_complex_expand":
@@ -202,6 +228,13 @@ export function prepareInstanceEditorItemCreate(input: InstanceEditorItemCreateI
       snapshot: input.snapshot,
     };
   }
+  if (input.kind === "individual_exercise") {
+    return {
+      ...input,
+      kind: "individual_exercise",
+      clientId: input.clientId ?? createInstanceEditorDraftClientId(),
+    };
+  }
   return {
     kind: "library_item",
     clientId: input.clientId ?? createInstanceEditorDraftClientId(),
@@ -221,7 +254,7 @@ export function applyItemPatchToItemCreates(
   itemId: string,
   patch: InstanceEditorItemPatch,
 ): InstanceEditorItemCreate[] {
-  if (patch.localComment === undefined && patch.loadSettings === undefined) {
+  if (patch.localComment === undefined && patch.loadSettings === undefined && patch.personalTitle === undefined) {
     return creates;
   }
   return creates.map((create): InstanceEditorItemCreate => {
@@ -236,6 +269,15 @@ export function applyItemPatchToItemCreates(
       return {
         ...create,
         ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+      };
+    }
+    if (create.kind === "individual_exercise" && create.clientId === itemId) {
+      const personalTitle = patch.personalTitle?.trim();
+      return {
+        ...create,
+        ...(patch.localComment !== undefined ? { localComment: patch.localComment } : {}),
+        ...(patch.loadSettings !== undefined ? { loadSettings: patch.loadSettings } : {}),
+        ...(personalTitle ? { title: personalTitle, snapshot: { ...create.snapshot, title: personalTitle } } : {}),
       };
     }
     if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
@@ -294,6 +336,12 @@ export function applyItemStructuralPatchToItemCreates(
         ...(patch.status !== undefined ? { status: patch.status } : {}),
       };
     }
+    if (create.kind === "individual_exercise" && create.clientId === itemId) {
+      return {
+        ...create,
+        ...(patch.groupId !== undefined && patch.groupId ? { groupId: patch.groupId } : {}),
+      };
+    }
     if (create.kind === "test_set_expand" || create.kind === "lfk_complex_expand") {
       const lineIdx = create.items.findIndex((line) => line.clientId === itemId);
       if (lineIdx === -1) return create;
@@ -315,7 +363,7 @@ export function removeItemFromInstanceEditorItemCreates(
   itemId: string,
 ): InstanceEditorItemCreate[] {
   return creates.flatMap((create): InstanceEditorItemCreate[] => {
-    if (create.kind === "library_item" || create.kind === "freeform_recommendation") {
+    if (create.kind === "library_item" || create.kind === "freeform_recommendation" || create.kind === "individual_exercise") {
       return create.clientId === itemId ? [] : [create];
     }
     const nextItems = create.items.filter((item) => item.clientId !== itemId);
@@ -537,6 +585,10 @@ function itemPatchDiffers(
     const baseLoad = readInstanceItemLoadSettingsPatch(item);
     if (!loadSettingsEqual(patch.loadSettings, baseLoad)) return true;
   }
+  if (patch.personalTitle !== undefined) {
+    const currentTitle = typeof item.snapshot.title === "string" ? item.snapshot.title : "";
+    if (patch.personalTitle.trim() !== currentTitle.trim()) return true;
+  }
   return false;
 }
 
@@ -666,6 +718,20 @@ function materializeItemCreatesForStage(
             localComment: create.localComment,
             isActionable: create.isActionable,
             status: create.status,
+          }),
+        );
+        break;
+      case "individual_exercise":
+        rows.push(
+          buildDraftItemRowFromParts({
+            clientId: create.clientId,
+            stageId: create.stageId,
+            itemType: "exercise",
+            itemRefId: create.clientId,
+            groupId: create.groupId,
+            snapshot: create.snapshot,
+            localComment: create.localComment,
+            loadSettings: create.loadSettings,
           }),
         );
         break;
@@ -811,6 +877,9 @@ function mergeItemRow(
       ...next,
       settings: mergeItemSettings(next.settings, patch.loadSettings),
     };
+  }
+  if (patch?.personalTitle !== undefined) {
+    next = { ...next, snapshot: { ...next.snapshot, title: patch.personalTitle } };
   }
   return {
     ...next,

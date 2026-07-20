@@ -1578,6 +1578,7 @@ export function createTreatmentProgramInstanceService(deps: {
       };
       const { detail, diff } = await applyInstanceEditorBatch(batchDeps, {
         instanceId: input.instanceId,
+        actorId: input.actorId,
         draft: input.draft,
       });
 

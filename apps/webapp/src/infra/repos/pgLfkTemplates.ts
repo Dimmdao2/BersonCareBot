@@ -462,6 +462,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           FROM lfk_complex_template_exercises te
           JOIN lfk_exercises e
             ON e.id = te.exercise_id
+           AND e.catalog_scope = 'catalog'
            AND (
              (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
              OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
@@ -539,6 +540,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         FROM lfk_complex_template_exercises te
         JOIN lfk_exercises e
           ON e.id = te.exercise_id
+         AND e.catalog_scope = 'catalog'
          AND (
            (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
            OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
@@ -604,6 +606,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
          FROM lfk_complex_template_exercises te
          JOIN lfk_exercises e
            ON e.id = te.exercise_id
+          AND e.catalog_scope = 'catalog'
           AND (
             (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
             OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
@@ -682,7 +685,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
              (owner_kind, organization_id, template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
              SELECT 'organization', NULLIF(current_setting('app.org', true), '')::uuid, t.id, e.id, $3, $4, $5, $6, $7, $8
                FROM lfk_complex_templates t
-               JOIN lfk_exercises e ON e.id = $2
+               JOIN lfk_exercises e ON e.id = $2 AND e.catalog_scope = 'catalog'
               WHERE t.id = $1
                 AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
                 AND (

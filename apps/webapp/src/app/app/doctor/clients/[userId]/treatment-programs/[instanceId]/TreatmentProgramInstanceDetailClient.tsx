@@ -428,6 +428,31 @@ function DoctorInstanceStageItemLoadForm(props: {
   );
 }
 
+function DoctorPersonalExerciseTitleForm(props: {
+  item: InstanceStageItemT;
+  editLocked: boolean;
+}) {
+  const { item, editLocked } = props;
+  const { patchItem } = useInstanceEditorDraft();
+  const title = snapshotTitle(item.snapshot, item.itemType);
+  if (item.itemType !== "exercise" || item.snapshot.exerciseScope !== "personal") return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={`personal-title-${item.id}`}>Название личного упражнения</Label>
+      <Input
+        id={`personal-title-${item.id}`}
+        defaultValue={title}
+        disabled={editLocked}
+        onBlur={(event) => {
+          const next = event.currentTarget.value.trim();
+          if (next && next !== title) patchItem(item.id, { personalTitle: next });
+        }}
+      />
+      <p className="text-xs text-muted-foreground">Видео закреплено за назначением и не заменяется.</p>
+    </div>
+  );
+}
+
 function DoctorProgramInstanceItemCard(props: {
   stage: InstanceStageT;
   item: InstanceStageItemT;
@@ -513,6 +538,7 @@ function DoctorProgramInstanceItemCard(props: {
               testResults={testResults}
               hideGroupSelect={recPhase0}
             />
+            <DoctorPersonalExerciseTitleForm item={item} editLocked={editLocked} />
             {item.itemType === "exercise" ? (
               <DoctorInstanceStageItemLoadForm item={item} editLocked={editLocked} />
             ) : null}

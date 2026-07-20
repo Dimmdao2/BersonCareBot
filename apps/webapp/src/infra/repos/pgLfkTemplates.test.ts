@@ -103,6 +103,7 @@ describe("createPgLfkTemplatesPort", () => {
     expect(thumbSql).toContain("te_ranked");
     expect(thumbSql).toContain("lfk_complex_template_exercises");
     expect(thumbSql).toContain("lfk_exercise_media");
+    expect(thumbSql).toContain("e.catalog_scope = 'catalog'");
   });
 
   it("list uses full exercise join query when includeExerciseDetails is true", async () => {
@@ -127,6 +128,7 @@ describe("createPgLfkTemplatesPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
     expect(sql).toContain("exercise_title");
     expect(sql).not.toContain("te_ranked");
+    expect(sql).toContain("e.catalog_scope = 'catalog'");
   });
 
   it("getTemplateUsageSummary runs usage aggregate query", async () => {
@@ -254,6 +256,7 @@ describe("createPgLfkTemplatesPort", () => {
     expect(txSql[0]).toContain("DELETE FROM lfk_complex_template_exercises");
     expect(txSql.filter((s) => s.includes("INSERT INTO lfk_complex_template_exercises"))).toHaveLength(2);
     expect(txSql.join("\n")).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    expect(txSql.join("\n")).toContain("e.catalog_scope = 'catalog'");
     expect(txSql.at(-1)).toContain("UPDATE lfk_complex_templates SET updated_at");
     const insertParams = runWebappPgTextMock.mock.calls
       .filter((c) => String(c[0]).includes("INSERT INTO lfk_complex_template_exercises"))

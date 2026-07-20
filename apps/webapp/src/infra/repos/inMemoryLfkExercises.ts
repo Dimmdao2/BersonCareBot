@@ -34,6 +34,7 @@ function exerciseListArchiveScope(f: ExerciseFilter): RecommendationListFilterSc
 }
 
 function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
+  if (ex.catalogScope !== "catalog") return false;
   if (ex.ownerKind === "platform" && f.includePlatformBase !== true) return false;
   const scope = exerciseListArchiveScope(f);
   if (scope === "active" && ex.isArchived) return false;
@@ -70,7 +71,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const out = new Map<string, string>();
     for (const id of ids) {
       const ex = exercises.get(id.trim());
-      if (ex && (ex.ownerKind === "organization" || options.includePlatformBase === true)) {
+      if (ex?.catalogScope === "catalog" && (ex.ownerKind === "organization" || options.includePlatformBase === true)) {
         out.set(ex.id, ex.title);
       }
     }
@@ -79,7 +80,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
     const exercise = exercises.get(id);
-    if (!exercise || (exercise.ownerKind === "platform" && options.includePlatformBase !== true)) return null;
+    if (!exercise || exercise.catalogScope !== "catalog" || (exercise.ownerKind === "platform" && options.includePlatformBase !== true)) return null;
     return exercise;
   },
 
@@ -98,6 +99,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const ex: Exercise = {
       id,
       ownerKind: "organization",
+      catalogScope: "catalog",
       title: input.title,
       description: input.description ?? null,
       regionRefId: regionRefIds[0] ?? null,
@@ -118,7 +120,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization") return null;
+    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog") return null;
     const now = new Date().toISOString();
     let media = cur.media;
     if (input.media !== undefined && input.media !== null) {
@@ -157,14 +159,14 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async archive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization" || cur.isArchived) return false;
+    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog" || cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
   },
 
   async unarchive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || cur.ownerKind !== "organization" || !cur.isArchived) return false;
+    if (!cur || cur.ownerKind !== "organization" || cur.catalogScope !== "catalog" || !cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
     return true;
   },

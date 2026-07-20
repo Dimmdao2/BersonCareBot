@@ -15,7 +15,13 @@ import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/shared/ui/doctor/primitives/textarea";
+import { Checkbox } from "@/shared/ui/doctor/primitives/checkbox";
 import { Card, CardContent } from "@/shared/ui/doctor/primitives/card";
+import { DoctorDifficulty1to10Slider } from "@/shared/ui/doctor/DoctorDifficulty1to10Slider";
+import { ReferenceMultiSelect } from "@/shared/ui/doctor/ReferenceMultiSelect";
+import { ReferenceSelect } from "@/shared/ui/doctor/ReferenceSelect";
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from "@/modules/lfk-exercises/exerciseLoadTypeReference";
+import { putWithProgress } from "@/shared/ui/doctor/media/uploadWithProgress";
 import type { TreatmentProgramLibraryPickType } from "@/modules/treatment-program/types";
 import type { TreatmentProgramInstanceStageItemView } from "@/modules/treatment-program/types";
 import {
@@ -177,6 +183,20 @@ export function InstanceAddLibraryItemDialog(props: {
   const [phaseZeroSource, setPhaseZeroSource] = useState<"catalog" | "freeform">("catalog");
   const [freeformTitle, setFreeformTitle] = useState("");
   const [freeformBody, setFreeformBody] = useState("");
+  const [customSource, setCustomSource] = useState<"catalog" | "new">("catalog");
+  const [individualTitle, setIndividualTitle] = useState("");
+  const [individualDescription, setIndividualDescription] = useState("");
+  const [individualRegionRefIds, setIndividualRegionRefIds] = useState<string[]>([]);
+  const [individualLoadType, setIndividualLoadType] = useState<string | null>(null);
+  const [individualDifficulty, setIndividualDifficulty] = useState(5);
+  const [individualContraindications, setIndividualContraindications] = useState("");
+  const [individualTags, setIndividualTags] = useState("");
+  const [individualVideo, setIndividualVideo] = useState<File | null>(null);
+  const [individualSaveToCatalog, setIndividualSaveToCatalog] = useState(false);
+  const [individualReps, setIndividualReps] = useState("");
+  const [individualSets, setIndividualSets] = useState("");
+  const [individualMaxPain, setIndividualMaxPain] = useState("");
+  const [individualBusy, setIndividualBusy] = useState(false);
 
   const resetDialogForm = useCallback(() => {
     setItemSearch("");
@@ -188,6 +208,20 @@ export function InstanceAddLibraryItemDialog(props: {
     setPhaseZeroSource("catalog");
     setFreeformTitle("");
     setFreeformBody("");
+    setCustomSource("catalog");
+    setIndividualTitle("");
+    setIndividualDescription("");
+    setIndividualRegionRefIds([]);
+    setIndividualLoadType(null);
+    setIndividualDifficulty(5);
+    setIndividualContraindications("");
+    setIndividualTags("");
+    setIndividualVideo(null);
+    setIndividualSaveToCatalog(false);
+    setIndividualReps("");
+    setIndividualSets("");
+    setIndividualMaxPain("");
+    setIndividualBusy(false);
   }, []);
 
   const handleOpenChange = useCallback(
@@ -366,7 +400,102 @@ export function InstanceAddLibraryItemDialog(props: {
     handleOpenChange(false);
   }
 
+  function optionalInteger(value: string, min: number, max: number, label: string): number | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      throw new Error(`${label}: целое число от ${min} до ${max}`);
+    }
+    return parsed;
+  }
+
+  async function uploadIndividualVideo(file: File): Promise<string> {
+    const presign = await fetch(
+      `/api/doctor/treatment-program-instances/${encodeURIComponent(displayDetail.id)}/media-presign`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, mimeType: file.type, size: file.size }),
+      },
+    );
+    const presignData = (await presign.json().catch(() => null)) as
+      | { ok?: boolean; mediaId?: string; uploadUrl?: string; error?: string }
+      | null;
+    if (!presign.ok || !presignData?.ok || !presignData.mediaId || !presignData.uploadUrl) {
+      throw new Error(presignData?.error ?? "Не удалось подготовить загрузку видео");
+    }
+    await putWithProgress({
+      url: presignData.uploadUrl,
+      body: file,
+      contentType: file.type,
+    });
+    const confirm = await fetch("/api/media/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mediaId: presignData.mediaId }),
+    });
+    const confirmData = (await confirm.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+    if (!confirm.ok || !confirmData?.ok) {
+      throw new Error(confirmData?.error ?? "Не удалось подтвердить загрузку видео");
+    }
+    return presignData.mediaId;
+  }
+
+  async function submitIndividualExercise() {
+    if (!spec || spec.context !== "custom_group" || !spec.customGroupId || editLocked) return;
+    const title = individualTitle.trim();
+    if (!title) {
+      setError("Укажите название упражнения");
+      return;
+    }
+    setIndividualBusy(true);
+    setError(null);
+    try {
+      const reps = optionalInteger(individualReps, 1, 999, "Повторы");
+      const sets = optionalInteger(individualSets, 1, 99, "Подходы");
+      const maxPain = optionalInteger(individualMaxPain, 0, 10, "Макс. боль");
+      const mediaId = individualVideo ? await uploadIndividualVideo(individualVideo) : null;
+      const tags = individualTags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      addItemCreate({
+        kind: "individual_exercise",
+        stageId: spec.stageId,
+        groupId: spec.customGroupId,
+        title,
+        description: individualDescription.trim() || null,
+        regionRefIds: individualRegionRefIds,
+        loadType: individualLoadType,
+        difficulty1_10: individualDifficulty,
+        contraindications: individualContraindications.trim() || null,
+        tags: tags.length > 0 ? tags : null,
+        mediaId,
+        saveToCatalog: individualSaveToCatalog,
+        loadSettings: { reps, sets, maxPain },
+        snapshot: {
+          itemType: "exercise",
+          id: "draft",
+          title,
+          description: individualDescription.trim() || null,
+          contraindications: individualContraindications.trim() || null,
+          difficulty: individualDifficulty,
+          loadType: individualLoadType,
+          exerciseScope: individualSaveToCatalog ? "catalog" : "personal",
+          ...(mediaId ? { media: [{ url: `/api/media/${mediaId}`, type: "video", sortOrder: 0 }] } : {}),
+        },
+      });
+      handleOpenChange(false);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Не удалось создать упражнение");
+    } finally {
+      setIndividualBusy(false);
+    }
+  }
+
   const showCustomKindToggle = spec?.context === "custom_group";
+  const showIndividualExerciseForm = showCustomKindToggle && customKind === "exercise" && customSource === "new";
   const isPhaseZero = spec?.context === "phase_zero_recommendations";
   const targetLabel =
     spec?.context === "custom_group"
@@ -468,6 +597,120 @@ export function InstanceAddLibraryItemDialog(props: {
               Добавить
             </Button>
           </div>
+        ) : showIndividualExerciseForm ? (
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
+            <Button type="button" variant="outline" className="self-start" onClick={() => setCustomSource("catalog")}>
+              Вернуться в каталог
+            </Button>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="tp-individual-title">Название</Label>
+                <Input
+                  id="tp-individual-title"
+                  value={individualTitle}
+                  onChange={(event) => setIndividualTitle(event.target.value)}
+                  disabled={editLocked || individualBusy}
+                  placeholder="Например, разгибание колена сидя"
+                />
+              </div>
+              <DoctorDifficulty1to10Slider
+                id="tp-individual-difficulty"
+                value={individualDifficulty}
+                onChange={setIndividualDifficulty}
+                label="Сложность:"
+              />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tp-individual-load">Тип нагрузки</Label>
+                <ReferenceSelect
+                  id="tp-individual-load"
+                  categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
+                  valueMatch="code"
+                  submitField="code"
+                  value={individualLoadType}
+                  onChange={setIndividualLoadType}
+                  placeholder="Выберите тип нагрузки"
+                  clearOptionLabel="Без типа нагрузки"
+                  showAllOnFocus
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <span className="text-sm font-medium">Регион</span>
+                <ReferenceMultiSelect
+                  categoryCode="body_region"
+                  value={individualRegionRefIds}
+                  onChange={setIndividualRegionRefIds}
+                  placeholder="Добавить регион…"
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="tp-individual-description">Описание</Label>
+                <Textarea
+                  id="tp-individual-description"
+                  value={individualDescription}
+                  onChange={(event) => setIndividualDescription(event.target.value)}
+                  disabled={editLocked || individualBusy}
+                  className="min-h-24"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tp-individual-tags">Теги через запятую</Label>
+                <Input
+                  id="tp-individual-tags"
+                  value={individualTags}
+                  onChange={(event) => setIndividualTags(event.target.value)}
+                  disabled={editLocked || individualBusy}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tp-individual-video">Видео</Label>
+                <Input
+                  id="tp-individual-video"
+                  type="file"
+                  accept="video/*"
+                  disabled={editLocked || individualBusy}
+                  onChange={(event) => setIndividualVideo(event.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  После сохранения программы видео нельзя заменить.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Label htmlFor="tp-individual-contra">Противопоказания</Label>
+                <Textarea
+                  id="tp-individual-contra"
+                  value={individualContraindications}
+                  onChange={(event) => setIndividualContraindications(event.target.value)}
+                  disabled={editLocked || individualBusy}
+                  className="min-h-20"
+                />
+              </div>
+              <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="tp-individual-reps">Повторы</Label>
+                  <Input id="tp-individual-reps" inputMode="numeric" value={individualReps} onChange={(event) => setIndividualReps(event.target.value)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="tp-individual-sets">Подходы</Label>
+                  <Input id="tp-individual-sets" inputMode="numeric" value={individualSets} onChange={(event) => setIndividualSets(event.target.value)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="tp-individual-pain">Макс. боль</Label>
+                  <Input id="tp-individual-pain" inputMode="numeric" value={individualMaxPain} onChange={(event) => setIndividualMaxPain(event.target.value)} />
+                </div>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={individualSaveToCatalog}
+                onCheckedChange={(checked) => setIndividualSaveToCatalog(checked === true)}
+                disabled={editLocked || individualBusy}
+              />
+              Сохранить также в каталог организации
+            </label>
+            <Button type="button" disabled={editLocked || individualBusy} onClick={() => void submitIndividualExercise()}>
+              {individualBusy ? "Загрузка и добавление…" : "Добавить упражнение"}
+            </Button>
+          </div>
         ) : (
           <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
           {showCustomKindToggle ? (
@@ -519,6 +762,47 @@ export function InstanceAddLibraryItemDialog(props: {
                   Комплекс ЛФК
                 </Button>
               </div>
+            </div>
+          ) : null}
+          {showCustomKindToggle && customKind === "exercise" ? (
+            <div
+              className="grid h-9 grid-cols-2 overflow-hidden rounded-md border border-input p-px"
+              role="radiogroup"
+              aria-label="Источник упражнения"
+            >
+              <Button
+                type="button"
+                role="radio"
+                aria-checked={customSource === "catalog"}
+                variant="ghost"
+                className={cn(
+                  "text-xs font-medium transition-colors",
+                  customSource === "catalog"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-transparent text-foreground hover:bg-muted/60",
+                )}
+                onClick={() => setCustomSource("catalog")}
+              >
+                Каталог
+              </Button>
+              <Button
+                type="button"
+                role="radio"
+                aria-checked={customSource === "new"}
+                variant="ghost"
+                className={cn(
+                  "text-xs font-medium transition-colors",
+                  customSource === "new"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-transparent text-foreground hover:bg-muted/60",
+                )}
+                onClick={() => {
+                  setCustomSource("new");
+                  setError(null);
+                }}
+              >
+                Создать новое
+              </Button>
             </div>
           ) : null}
           {spec?.context === "stage_system_tests" ? (

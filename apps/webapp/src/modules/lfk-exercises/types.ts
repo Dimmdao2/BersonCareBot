@@ -8,6 +8,7 @@ export type ExerciseLoadType = string;
 
 export type ExerciseMediaType = "image" | "video" | "gif";
 export type ExerciseOwnerKind = "organization" | "platform";
+export type ExerciseCatalogScope = "catalog" | "personal";
 
 export type ExerciseMedia = {
   id: string;
@@ -25,6 +26,7 @@ export type ExerciseMedia = {
 export type Exercise = {
   id: string;
   ownerKind: ExerciseOwnerKind;
+  catalogScope: ExerciseCatalogScope;
   title: string;
   description: string | null;
   /** Первый регион (legacy колонка `region_ref_id`, dual-write с M2M). */

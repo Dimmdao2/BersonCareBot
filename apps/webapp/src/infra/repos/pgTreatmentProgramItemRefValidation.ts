@@ -40,6 +40,7 @@ export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgra
             where: and(
               eq(lfkExercises.id, itemRefId),
               eq(lfkExercises.isArchived, false),
+              eq(lfkExercises.catalogScope, "catalog"),
               or(
                 and(
                   eq(lfkExercises.ownerKind, "organization"),

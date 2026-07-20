@@ -59,6 +59,7 @@ function makeExercise(over: Partial<Exercise>): Exercise {
   return {
     id: "ex-1",
     ownerKind: "organization",
+    catalogScope: "catalog",
     title: "Title",
     description: null,
     regionRefId: null,

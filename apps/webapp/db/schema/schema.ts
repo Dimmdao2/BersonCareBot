@@ -938,6 +938,7 @@ export const lfkExercises = pgTable("lfk_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
+	catalogScope: text("catalog_scope").default('catalog').notNull(),
 	title: text().notNull(),
 	description: text(),
 	regionRefId: uuid("region_ref_id"),
@@ -951,6 +952,7 @@ export const lfkExercises = pgTable("lfk_exercises", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("idx_lfk_exercises_archived").using("btree", table.isArchived.asc().nullsLast().op("bool_ops")),
+	index("idx_lfk_exercises_catalog_scope_owner").using("btree", table.ownerKind.asc().nullsLast().op("text_ops"), table.organizationId.asc().nullsLast().op("uuid_ops"), table.catalogScope.asc().nullsLast().op("text_ops"), table.isArchived.asc().nullsLast().op("bool_ops"), table.updatedAt.desc().nullsFirst().op("timestamptz_ops")),
 	index("idx_lfk_exercises_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
 	index("idx_lfk_exercises_region").using("btree", table.regionRefId.asc().nullsLast().op("uuid_ops")).where(sql`(NOT is_archived)`),
 	foreignKey({
@@ -964,6 +966,7 @@ export const lfkExercises = pgTable("lfk_exercises", {
 			name: "lfk_exercises_region_ref_id_fkey"
 		}),
 	check("lfk_exercises_difficulty_1_10_check", sql`(difficulty_1_10 IS NULL) OR ((difficulty_1_10 >= 1) AND (difficulty_1_10 <= 10))`),
+	check("lfk_exercises_catalog_scope_check", sql`catalog_scope = ANY (ARRAY['catalog'::text, 'personal'::text])`),
 	check("lfk_exercises_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 

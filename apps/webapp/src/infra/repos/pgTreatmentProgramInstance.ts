@@ -53,7 +53,15 @@ import {
 import { withDefaultSystemGroupsIfNeededForTreeStage } from "@/modules/treatment-program/instance-tree-system-groups";
 import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
 import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
-import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
+import {
+  lfkComplexTemplateExercises,
+  lfkComplexTemplates,
+  lfkExerciseMedia,
+  lfkExerciseRegions,
+  lfkExercises,
+  mediaFiles,
+  mediaFolders,
+} from "../../../db/schema/schema";
 import { TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 
@@ -864,6 +872,213 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
 
         await touchInstanceUpdatedAt(tx, input.instanceId);
         return { item: mapItem(irow), recommendationId: rec.id };
+      });
+    },
+
+    async createIndividualExerciseAndStageItem(input) {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const organizationId = currentWriteOrganizationId();
+        if (!organizationId) throw new Error("organization_context_required");
+
+        const [instance] = await tx
+          .select({ id: instTable.id, patientUserId: instTable.patientUserId })
+          .from(instTable)
+          .where(and(eq(instTable.id, input.instanceId), eq(instTable.organizationId, organizationId)))
+          .limit(1);
+        if (!instance) return null;
+
+        const [stage] = await tx
+          .select()
+          .from(stageTable)
+          .where(
+            and(
+              eq(stageTable.id, input.stageId),
+              eq(stageTable.instanceId, input.instanceId),
+              eq(stageTable.organizationId, organizationId),
+            ),
+          )
+          .limit(1);
+        if (!stage || stage.sortOrder === 0) return null;
+
+        const [group] = await tx
+          .select({ id: instGroupTable.id })
+          .from(instGroupTable)
+          .where(
+            and(
+              eq(instGroupTable.id, input.groupId),
+              eq(instGroupTable.stageId, input.stageId),
+              eq(instGroupTable.organizationId, organizationId),
+            ),
+          )
+          .limit(1);
+        if (!group) return null;
+
+        if (input.difficulty1_10 != null && (input.difficulty1_10 < 1 || input.difficulty1_10 > 10)) {
+          throw new Error("Сложность: целое число от 1 до 10");
+        }
+
+        if (input.mediaId) {
+          const [media] = await tx
+            .select({ id: mediaFiles.id })
+            .from(mediaFiles)
+            .innerJoin(mediaFolders, eq(mediaFolders.id, mediaFiles.folderId))
+            .where(
+              and(
+                eq(mediaFiles.id, input.mediaId),
+                eq(mediaFiles.ownerKind, "organization"),
+                eq(mediaFiles.organizationId, organizationId),
+                eq(mediaFiles.status, "ready"),
+                sql`${mediaFiles.mimeType} LIKE 'video/%'`,
+                eq(mediaFolders.organizationId, organizationId),
+                eq(mediaFolders.kind, "client_patient"),
+                eq(mediaFolders.patientUserId, instance.patientUserId),
+              ),
+            )
+            .limit(1);
+          if (!media) throw new Error("Видео не найдено или недоступно для этого пациента");
+        }
+
+        const title = input.title.trim();
+        if (!title) throw new Error("Укажите название упражнения");
+        const [exercise] = await tx
+          .insert(lfkExercises)
+          .values({
+            ownerKind: "organization",
+            organizationId,
+            catalogScope: input.saveToCatalog ? "catalog" : "personal",
+            title,
+            description: input.description,
+            regionRefId: input.regionRefIds[0] ?? null,
+            loadType: input.loadType,
+            difficulty110: input.difficulty1_10,
+            contraindications: input.contraindications,
+            tags: input.tags,
+            createdBy: input.createdBy,
+          })
+          .returning();
+        if (!exercise) throw new Error("insert individual exercise failed");
+
+        if (input.regionRefIds.length > 0) {
+          await tx.insert(lfkExerciseRegions).values(
+            [...new Set(input.regionRefIds)].map((regionRefId) => ({
+              ownerKind: "organization",
+              organizationId,
+              exerciseId: exercise.id,
+              regionRefId,
+            })),
+          );
+        }
+        if (input.mediaId) {
+          await tx.insert(lfkExerciseMedia).values({
+            ownerKind: "organization",
+            organizationId,
+            exerciseId: exercise.id,
+            mediaUrl: `/api/media/${input.mediaId}`,
+            mediaType: "video",
+            sortOrder: 0,
+          });
+        }
+
+        const snapshot: Record<string, unknown> = {
+          itemType: "exercise",
+          id: exercise.id,
+          title: exercise.title,
+          description: exercise.description ?? null,
+          contraindications: exercise.contraindications ?? null,
+          difficulty: exercise.difficulty110 ?? null,
+          loadType: exercise.loadType ?? null,
+          exerciseScope: exercise.catalogScope,
+          ...(input.mediaId
+            ? { media: [{ url: `/api/media/${input.mediaId}`, type: "video", sortOrder: 0 }] }
+            : {}),
+        };
+        const [{ max: itemMax }] = await tx
+          .select({ max: sql<number>`coalesce(max(${itemTable.sortOrder}), -1)` })
+          .from(itemTable)
+          .where(eq(itemTable.stageId, input.stageId));
+        const [item] = await tx
+          .insert(itemTable)
+          .values({
+            organizationId,
+            stageId: input.stageId,
+            itemType: "exercise",
+            itemRefId: exercise.id,
+            sortOrder: itemMax + 1,
+            comment: null,
+            localComment: input.localComment,
+            settings: input.settings,
+            snapshot,
+            completedAt: null,
+            isActionable: null,
+            status: "active",
+            groupId: input.groupId,
+            lastViewedAt: null,
+          })
+          .returning();
+        if (!item) throw new Error("insert individual exercise item failed");
+        await touchInstanceUpdatedAt(tx, input.instanceId);
+        return { item: mapItem(item), exerciseId: exercise.id };
+      });
+    },
+
+    async updatePersonalExerciseTitle(instanceId: string, itemId: string, titleRaw: string) {
+      return runDrizzleMutationTransaction(async (tx) => {
+        const organizationId = currentWriteOrganizationId();
+        if (!organizationId) throw new Error("organization_context_required");
+        const title = titleRaw.trim();
+        if (!title) throw new Error("Укажите название упражнения");
+
+        const [owned] = await tx
+          .select({ item: itemTable, exercise: lfkExercises })
+          .from(itemTable)
+          .innerJoin(stageTable, eq(stageTable.id, itemTable.stageId))
+          .innerJoin(lfkExercises, eq(lfkExercises.id, itemTable.itemRefId))
+          .where(
+            and(
+              eq(itemTable.id, itemId),
+              eq(itemTable.itemType, "exercise"),
+              eq(itemTable.organizationId, organizationId),
+              eq(stageTable.instanceId, instanceId),
+              eq(stageTable.organizationId, organizationId),
+              eq(lfkExercises.ownerKind, "organization"),
+              eq(lfkExercises.organizationId, organizationId),
+              eq(lfkExercises.catalogScope, "personal"),
+            ),
+          )
+          .limit(1);
+        if (!owned) return null;
+
+        const otherRefs = await tx
+          .select({ id: itemTable.id })
+          .from(itemTable)
+          .where(
+            and(
+              eq(itemTable.itemType, "exercise"),
+              eq(itemTable.itemRefId, owned.exercise.id),
+              ne(itemTable.id, itemId),
+            ),
+          )
+          .limit(1);
+        if (otherRefs.length > 0) throw new Error("Личное упражнение уже используется в другой программе");
+
+        await tx
+          .update(lfkExercises)
+          .set({ title, updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(lfkExercises.id, owned.exercise.id),
+              eq(lfkExercises.organizationId, organizationId),
+              eq(lfkExercises.catalogScope, "personal"),
+            ),
+          );
+        const [item] = await tx
+          .update(itemTable)
+          .set({ snapshot: { ...owned.item.snapshot, title } })
+          .where(and(eq(itemTable.id, itemId), eq(itemTable.organizationId, organizationId)))
+          .returning();
+        if (!item) return null;
+        await touchInstanceUpdatedAt(tx, instanceId);
+        return mapItem(item);
       });
     },
 

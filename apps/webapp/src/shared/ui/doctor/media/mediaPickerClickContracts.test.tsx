@@ -92,6 +92,7 @@ describe("Exercise catalog tile (selection zone)", () => {
     const exercise: Exercise = {
       id: "ex-1",
       ownerKind: "organization",
+      catalogScope: "catalog",
       title: "Squat",
       description: null,
       regionRefId: null,

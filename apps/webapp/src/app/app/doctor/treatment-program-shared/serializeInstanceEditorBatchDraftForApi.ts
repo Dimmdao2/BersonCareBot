@@ -16,6 +16,10 @@ export function serializeInstanceEditorBatchDraftForApi(draft: InstanceEditorDra
         const { snapshot: _snapshot, ...rest } = create;
         return rest;
       }
+      case "individual_exercise": {
+        const { snapshot: _snapshot, ...rest } = create;
+        return rest;
+      }
       case "test_set_expand":
       case "lfk_complex_expand":
         return {

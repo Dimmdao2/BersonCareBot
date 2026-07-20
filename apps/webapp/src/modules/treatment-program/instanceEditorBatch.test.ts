@@ -7,7 +7,7 @@ import {
   createInMemoryTreatmentProgramItemSnapshotPort,
 } from "@/app-layer/testing/treatmentProgramInstanceInMemory";
 import type { TreatmentProgramItemRefValidationPort } from "./ports";
-import type { InstanceEditorBatchDraft } from "./instanceEditorBatchSchema";
+import { instanceEditorBatchDraftSchema, type InstanceEditorBatchDraft } from "./instanceEditorBatchSchema";
 
 const refA = "11111111-1111-4111-8111-111111111111";
 const doctor = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
@@ -557,6 +557,111 @@ describe("doctorApplyInstanceEditorBatch", () => {
     expect(created).toBeDefined();
     expect(created?.isActionable).toBe(true);
     expect(created?.snapshot).toMatchObject({ title: "Общая рекомендация" });
+  });
+
+  it("creates a patient-program-only exercise with video snapshot and keeps title/prescription editable", async () => {
+    const tpl = await tplSvc.createTemplate({ title: "П", status: "published" }, null);
+    const s1 = await tplSvc.createStage(tpl.id, { title: "Э1" });
+    const grp = await tplSvc.createTemplateStageGroup(s1.id, { title: "ЛФК" });
+    const inst = await instSvc.assignTemplateToPatient({
+      templateId: tpl.id,
+      patientUserId: "12121212-1212-4212-8212-121212121212",
+      assignedBy: doctor,
+    });
+    const stage = inst.stages.find((row) => row.sortOrder === 1)!;
+    const group = stage.groups.find((row) => row.title === grp.title)!;
+    const mediaId = "13131313-1313-4313-8313-131313131313";
+
+    const createdDetail = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemCreates: [
+          {
+            kind: "individual_exercise",
+            clientId: "draft:14141414-1414-4414-8414-141414141414",
+            stageId: stage.id,
+            groupId: group.id,
+            title: "Личное упражнение",
+            description: "Техника",
+            regionRefIds: [],
+            difficulty1_10: 4,
+            mediaId,
+            saveToCatalog: false,
+            loadSettings: { reps: 8, sets: 2, maxPain: 3 },
+          },
+        ],
+      },
+    });
+    const created = createdDetail.stages
+      .flatMap((row) => row.items)
+      .find((row) => row.snapshot.exerciseScope === "personal")!;
+    expect(created.snapshot).toMatchObject({
+      title: "Личное упражнение",
+      exerciseScope: "personal",
+      media: [{ url: `/api/media/${mediaId}`, type: "video" }],
+    });
+    expect(created.settings).toMatchObject({ reps: 8, sets: 2, maxPain: 3 });
+
+    const updated = await instSvc.doctorApplyInstanceEditorBatch({
+      instanceId: inst.id,
+      actorId: doctor,
+      draft: {
+        ...emptyBatchDraft(),
+        itemPatches: {
+          [created.id]: {
+            personalTitle: "Новое личное название",
+            loadSettings: { reps: 10, sets: 3, maxPain: 2 },
+          },
+        },
+      },
+    });
+    const changed = updated.stages.flatMap((row) => row.items).find((row) => row.id === created.id)!;
+    expect(changed.snapshot.title).toBe("Новое личное название");
+    expect(changed.snapshot.media).toEqual(created.snapshot.media);
+    expect(changed.settings).toMatchObject({ reps: 10, sets: 3, maxPain: 2 });
+  });
+
+  it("makes save-to-catalog explicit and rejects any post-assignment media patch", () => {
+    const base = emptyBatchDraft();
+    const validCreate = {
+      kind: "individual_exercise" as const,
+      clientId: "draft:15151515-1515-4515-8515-151515151515",
+      stageId: "16161616-1616-4616-8616-161616161616",
+      groupId: "17171717-1717-4717-8717-171717171717",
+      title: "В каталог",
+      regionRefIds: [],
+      saveToCatalog: true,
+    };
+    const accepted = instanceEditorBatchDraftSchema.safeParse({
+      ...base,
+      itemCreates: [validCreate],
+    });
+    expect(accepted.success).toBe(true);
+    if (accepted.success) {
+      expect(accepted.data.itemCreates[0]).toMatchObject({ saveToCatalog: true });
+    }
+
+    const defaultPersonal = instanceEditorBatchDraftSchema.safeParse({
+      ...base,
+      itemCreates: [{ ...validCreate, saveToCatalog: undefined }],
+    });
+    expect(defaultPersonal.success).toBe(true);
+    if (defaultPersonal.success) {
+      expect(defaultPersonal.data.itemCreates[0]).toMatchObject({ saveToCatalog: false });
+    }
+
+    const parsed = instanceEditorBatchDraftSchema.safeParse({
+      ...base,
+      itemCreates: [validCreate],
+      itemPatches: {
+        "18181818-1818-4818-8818-181818181818": {
+          mediaId: "19191919-1919-4919-8919-191919191919",
+        },
+      },
+    });
+    expect(parsed.success).toBe(false);
   });
 
   it("ignores legacy itemPatches keyed by draft client id", async () => {

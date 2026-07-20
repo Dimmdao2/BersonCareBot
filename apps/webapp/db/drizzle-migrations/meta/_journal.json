@@ -1548,6 +1548,13 @@
       "when": 1793539200015,
       "tag": "0220_patient_portal_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
+      "when": 1793539200016,
+      "tag": "0221_lfk_personal_exercises",
+      "breakpoints": true
     }
   ]
 }
