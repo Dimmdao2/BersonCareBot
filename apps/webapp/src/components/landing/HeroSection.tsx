@@ -1,150 +1,96 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { Check } from "lucide-react";
-import { landingContainer } from "@/components/landing/landingTypography";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { ArrowRight, CalendarDays, Check, ClipboardList, MessageCircle } from "lucide-react";
+import {
+  landingContainer,
+  landingCtaPrimary,
+  landingCtaSecondary,
+  landingH1,
+  landingLead,
+} from "@/components/landing/landingTypography";
 import { cn } from "@/lib/utils";
 
-const heroSlides = [
-  {
-    label: "Разминки",
-    title: "Снять напряжение в шее и спине",
-    text: "Быстрые разминки для шеи, плеч и спины.",
-    imageSrc: "/images/landing/hero-slide-warmup.png",
-    imageAlt: "Экран разминки дня в приложении BersonCare",
-  },
-  {
-    label: "Тренировки",
-    title: "Упражнения под ваши задачи",
-    text: "Шея, поясница, осанка и персональные программы.",
-    imageSrc: "/images/landing/hero-slide-exercises.png",
-    imageAlt: "Экран упражнений и программы этапа в приложении BersonCare",
-  },
-  {
-    label: "Самочувствие",
-    title: "Прогресс",
-    text: "Дневник самочувствия и напоминания о разминках.",
-    imageSrc: "/images/landing/hero-slide-statistics.png",
-    imageAlt: "Экран статистики самочувствия и разминок в приложении BersonCare",
-  },
-] as const;
-
-const HERO_ROTATE_MS = 15_000;
-const HERO_SLIDE_MS = 650;
-
-const trustPoints = [
-  "Без App Store и Google Play",
-  "Бесплатно, без подписок и рекламы",
-  "Открывается с экрана телефона в один клик",
-] as const;
-
-const heroTitleClass =
-  "max-w-3xl text-[1.375rem] font-semibold leading-[1.18] tracking-[-0.025em] text-[#13234A] sm:text-[1.625rem] lg:text-[1.875rem]";
-
-const phoneImageClass =
-  "relative h-auto w-[168px] rounded-[22px] border border-white/20 bg-white sm:w-[240px] sm:rounded-[26px] md:w-[320px] lg:w-[340px] lg:rounded-[28px]";
+const proofPoints = ["Записи и расписание", "Карточки клиентов", "Сопровождение между приёмами"] as const;
 
 export function HeroSection() {
-  const [activeSlide, setActiveSlide] = useState(0);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
-    }, HERO_ROTATE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const slide = heroSlides[activeSlide];
-
   return (
-    <section className="relative overflow-x-hidden bg-white pt-6 pb-10 sm:pt-8 sm:pb-12 lg:pt-10 lg:pb-20">
-      <div className={cn("relative", landingContainer)}>
-        <h1 className={heroTitleClass}>
-          Разминки и тренировки для дома и работы
-        </h1>
-        <p className="mt-3 max-w-2xl text-base font-medium leading-7 text-[#17264A] sm:text-[1.0625rem] sm:leading-7">
-          Безопасные и эффективные занятия от реабилитолога
-        </p>
+    <section className="overflow-hidden bg-white py-12 sm:py-16 lg:py-24">
+      <div className={cn(landingContainer, "grid items-center gap-10 lg:grid-cols-[1.04fr_0.96fr] lg:gap-16")}>
+        <div>
+          <p className="inline-flex rounded-full bg-[#EAF1F8] px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-[#406CA7] sm:text-sm">
+            Платформа для частной практики
+          </p>
+          <h1 className={cn(landingH1, "mt-5 max-w-3xl")}>Кабинет специалиста для сопровождения пациентов</h1>
+          <p className={cn(landingLead, "mt-5 max-w-2xl")}>
+            Расписание, карточки клиентов, программы реабилитации и связь — в одном рабочем пространстве.
+          </p>
 
-        <div
-          className="relative my-6 overflow-hidden rounded-[24px] bg-gradient-to-br from-[#203F8F] via-[#2F55B7] to-[#6E8FF2] pl-4 pr-0 py-5 sm:my-8 sm:rounded-[28px] sm:pl-6 sm:pr-0 sm:py-6 lg:pl-8 lg:pr-0 lg:py-7"
-          aria-roledescription="carousel"
-          aria-label="Возможности приложения"
-        >
-          <div
-            key={slide.imageSrc}
-            className="flex w-full items-start gap-3 pb-9 motion-reduce:animate-none sm:gap-5 sm:pb-10 md:gap-8 lg:pb-11 landing-hero-slide-in"
-            style={{ animationDuration: `${HERO_SLIDE_MS}ms` }}
-          >
-            <div className="min-w-0 flex-1 pt-0.5 sm:pt-1">
-              <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-white/80 sm:text-xs">
-                {slide.label}
-              </span>
-              <p className="mt-5 text-[1.0625rem] font-semibold leading-snug tracking-[-0.01em] text-white sm:mt-6 sm:text-[1.25rem] lg:text-[1.5rem]">
-                {slide.title}
-              </p>
-              <p className="mt-2 text-[0.875rem] font-medium leading-6 text-white/78 sm:text-base sm:leading-7">
-                {slide.text}
-              </p>
-            </div>
-
-            <div className="shrink-0 -mt-5 -mb-[56px] overflow-hidden rounded-[22px] sm:-mt-6 sm:-mb-16 sm:rounded-[26px] lg:-mt-7 lg:-mb-[72px] lg:rounded-[28px]">
-              <Image
-                src={slide.imageSrc}
-                alt={slide.imageAlt}
-                width={512}
-                height={1024}
-                priority
-                sizes="(max-width: 640px) 168px, (max-width: 1024px) 240px, 340px"
-                className={phoneImageClass}
-              />
-            </div>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link href="/app?intent=specialist" className={landingCtaPrimary}>
+              Создать кабинет
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <Link href="/app" className={landingCtaSecondary}>
+              Войти
+            </Link>
           </div>
+          <Link href="/app" className="mt-4 inline-flex text-sm font-medium text-[#526276] underline decoration-[#AFC0D4] underline-offset-4 transition hover:text-[#406CA7]">
+            У меня есть приглашение
+          </Link>
 
-          <div
-            className="absolute inset-x-0 bottom-3 z-10 flex items-center justify-center gap-1.5 sm:bottom-4 sm:gap-2"
-            aria-label="Слайды описания"
-          >
-            {heroSlides.map((s, index) => {
-              const selected = index === activeSlide;
-              return (
-                <Button
-                  key={s.imageSrc}
-                  type="button"
-                  aria-label={`Показать слайд ${index + 1}`}
-                  aria-current={selected}
-                  onClick={() => setActiveSlide(index)}
-                  variant="ghost"
-                  className={cn(
-                    "h-1.5 rounded-full p-0 transition",
-                    selected
-                      ? "w-5 bg-white hover:bg-white"
-                      : "w-1.5 bg-white/35 hover:bg-white/55",
-                  )}
-                />
-              );
-            })}
-          </div>
+          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
+            {proofPoints.map((item) => (
+              <li key={item} className="flex items-center gap-2 text-sm font-medium text-[#475569]">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#E8F4ED] text-[#26734D]">
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+                </span>
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <ul className="flex flex-col gap-2.5">
-          {trustPoints.map((text) => (
-            <li
-              key={text}
-              className="flex items-start gap-2.5 text-[0.9375rem] font-medium leading-6 text-[#23385F] sm:text-base"
-            >
-              <span
-                className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ECFDF3] text-[#17A56B]"
-                aria-hidden
-              >
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-              </span>
-              <span className="min-w-0">{text}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="relative mx-auto w-full max-w-xl" aria-label="Пример рабочего кабинета">
+          <div className="absolute -inset-8 rounded-full bg-[#DCE8F5]/70 blur-3xl" aria-hidden />
+          <div className="relative overflow-hidden rounded-[28px] border border-[#CAD7E5] bg-[#FAF9F4] p-4 shadow-[0_28px_70px_rgba(41,72,108,0.16)] sm:p-5">
+            <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-3">
+              <div>
+                <p className="text-xs font-medium text-[#758399]">Сегодня</p>
+                <p className="mt-0.5 font-semibold text-[#17264A]">Рабочий день</p>
+              </div>
+              <span className="rounded-full bg-[#EAF1F8] px-3 py-1.5 text-xs font-semibold text-[#406CA7]">3 приёма</span>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-2xl bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[#17264A]">
+                  <CalendarDays className="h-4 w-4 text-[#406CA7]" aria-hidden />
+                  Ближайшие записи
+                </div>
+                <div className="mt-4 space-y-3">
+                  {["Анна С.", "Игорь М.", "Мария К."].map((name, index) => (
+                    <div key={name} className="flex items-center justify-between border-b border-[#E8EDF3] pb-3 last:border-0 last:pb-0">
+                      <span className="text-sm font-medium text-[#334155]">{name}</span>
+                      <span className="text-xs text-[#758399]">{10 + index * 2}:00</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <div className="rounded-2xl bg-[#406CA7] p-4 text-white">
+                  <ClipboardList className="h-5 w-5" aria-hidden />
+                  <p className="mt-3 text-2xl font-semibold">8</p>
+                  <p className="mt-1 text-xs text-white/75">активных программ</p>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <MessageCircle className="h-5 w-5 text-[#406CA7]" aria-hidden />
+                  <p className="mt-3 text-2xl font-semibold text-[#17264A]">2</p>
+                  <p className="mt-1 text-xs text-[#758399]">новых сообщения</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

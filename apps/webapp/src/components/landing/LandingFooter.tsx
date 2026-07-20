@@ -27,7 +27,7 @@ export function LandingFooter() {
               />
               <p className="text-base font-semibold text-[#17264A]">BersonCare</p>
             </div>
-            <p className={cn(landingBody, "mt-3 max-w-sm")}>Удобное приложение для заботы о здоровье.</p>
+            <p className={cn(landingBody, "mt-3 max-w-sm")}>Платформа для работы специалиста и сопровождения пациентов.</p>
           </div>
 
           <div className={cn("flex flex-col gap-3", landingBodySecondary)}>
@@ -51,6 +51,9 @@ export function LandingFooter() {
               className={cn(linkClass, "w-fit")}
             >
               Условия использования
+            </Link>
+            <Link href="/app/contact-support" className={cn(linkClass, "w-fit")}>
+              Связь с поддержкой
             </Link>
           </div>
         </div>

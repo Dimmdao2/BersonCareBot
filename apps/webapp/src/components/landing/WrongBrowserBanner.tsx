@@ -11,14 +11,12 @@ const REQUIRED_BROWSER: Record<LandingInstallPlatform, string> = {
   android: "Chrome",
 };
 
-const SITE_URL = "bersoncare.ru";
-const SITE_HREF = "https://bersoncare.ru";
-
-export function WrongBrowserBanner({ platform }: { platform: LandingInstallPlatform }) {
+export function WrongBrowserBanner({ platform, appBaseUrl }: { platform: LandingInstallPlatform; appBaseUrl: string }) {
   const [copied, setCopied] = useState(false);
+  const siteLabel = new URL(appBaseUrl).host;
 
   function handleCopy() {
-    void navigator.clipboard.writeText(SITE_HREF).then(() => {
+    void navigator.clipboard.writeText(appBaseUrl).then(() => {
       setCopied(true);
       toast("Ссылка скопирована");
       setTimeout(() => setCopied(false), 2000);
@@ -49,7 +47,7 @@ export function WrongBrowserBanner({ platform }: { platform: LandingInstallPlatf
           size="xs"
           className="inline-flex items-center gap-1 border-[#FECACA] bg-white/70 font-mono text-[0.8125rem] font-medium text-[#991B1B] hover:bg-white focus-visible:ring-[#DC2626]/40"
         >
-          {SITE_URL}
+          {siteLabel}
           {copied ? (
             <Check className="h-3.5 w-3.5 shrink-0 text-[#16A34A]" aria-hidden />
           ) : (

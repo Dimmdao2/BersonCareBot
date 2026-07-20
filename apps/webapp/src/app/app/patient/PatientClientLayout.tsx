@@ -7,12 +7,9 @@ import { MiniAppShareContactGate } from "@/shared/ui/patient/MiniAppShareContact
 import { PatientCalendarTimezoneBootstrap } from "./PatientCalendarTimezoneBootstrap";
 import { PatientWebPushProvider } from "@/shared/lib/webPush/PatientWebPushContext";
 import { PatientWebPushBootstrap } from "@/shared/ui/patient/webPush/PatientWebPushBootstrap";
-import { PwaAppAccessGate } from "@/shared/ui/patient/pwa/PwaAppAccessGate";
 import { PatientAnalyticsReporter } from "@/shared/ui/patient/PatientAnalyticsReporter";
 import type { PatientOrganizationSummary } from "@/modules/patient-organization/service";
 import { PatientOrganizationContextProvider } from "@/shared/ui/patient/organization/PatientOrganizationContext";
-
-const allowPatientBrowserAccess = process.env.NODE_ENV !== "production";
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
 export function PatientClientLayout({
@@ -41,12 +38,10 @@ export function PatientClientLayout({
       <MiniAppShareContactGate>
         <PatientWebPushProvider>
           <Suspense fallback={null}>
-            <PwaAppAccessGate allowBrowserAccess={allowPatientBrowserAccess}>
-              <PatientCalendarTimezoneBootstrap />
-              <PatientWebPushBootstrap />
-              <PatientAnalyticsReporter />
-              {content}
-            </PwaAppAccessGate>
+            <PatientCalendarTimezoneBootstrap />
+            <PatientWebPushBootstrap />
+            <PatientAnalyticsReporter />
+            {content}
           </Suspense>
         </PatientWebPushProvider>
       </MiniAppShareContactGate>

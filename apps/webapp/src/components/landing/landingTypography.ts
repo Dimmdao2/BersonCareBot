@@ -42,18 +42,18 @@ export const landingInstallCard = cn(
 );
 
 export const landingCtaPrimary = cn(
-  "inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-2xl",
-  "bg-[#2F55B7] px-6 text-base font-semibold text-white shadow-[0_8px_22px_rgba(47,85,183,0.32)]",
-  "transition hover:bg-[#2448A5] hover:shadow-[0_10px_28px_rgba(47,85,183,0.42)]",
-  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2F55B7]/30",
+  "inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-full",
+  "bg-[#406CA7] px-6 text-base font-semibold text-white shadow-[0_8px_22px_rgba(64,108,167,0.26)]",
+  "transition hover:bg-[#315A8D] hover:shadow-[0_10px_28px_rgba(64,108,167,0.34)]",
+  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#406CA7]/30",
   "sm:min-h-[3.5rem] sm:w-auto sm:px-7",
 );
 
 export const landingCtaSecondary = cn(
-  "inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-2xl",
+  "inline-flex min-h-[3.25rem] w-full items-center justify-center gap-2 rounded-full",
   "border border-[#D5DEF1] bg-white px-6 text-base font-semibold text-[#17264A]",
-  "transition hover:border-[#2F55B7]/45 hover:bg-[#F4F7FF]",
-  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2F55B7]/20",
+  "transition hover:border-[#406CA7]/45 hover:bg-[#F4F7FF]",
+  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#406CA7]/20",
   "sm:min-h-[3.5rem] sm:w-auto sm:px-7",
 );
 

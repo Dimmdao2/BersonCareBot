@@ -13,16 +13,18 @@ export function PlatformInstallCard({
   successNote,
   wrongBrowser = false,
   platform = "ios",
+  appBaseUrl,
 }: {
   intro?: string;
   steps: readonly InstallStep[];
   successNote: string;
   wrongBrowser?: boolean;
   platform?: LandingInstallPlatform;
+  appBaseUrl: string;
 }) {
   return (
     <article className={landingInstallCard}>
-      {wrongBrowser && <WrongBrowserBanner platform={platform} />}
+      {wrongBrowser && <WrongBrowserBanner platform={platform} appBaseUrl={appBaseUrl} />}
 
       <ol className={`space-y-4 sm:space-y-5 ${wrongBrowser ? "mt-5 sm:mt-6" : ""}`}>
         {steps.map((step, index) => (

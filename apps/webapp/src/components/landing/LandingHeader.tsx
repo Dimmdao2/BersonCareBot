@@ -9,18 +9,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Установить", href: "#install" },
-  { label: "Функционал", href: "#features" },
-  { label: "Об авторе", href: "#specialist" },
-  { label: "Контакты", href: "#contacts" },
+  { label: "Продукт", href: "#product" },
+  { label: "Как работает", href: "#workflow" },
+  { label: "Возможности", href: "#features" },
+  { label: "Тарифы", href: "#pricing" },
 ] as const;
 
 const SCROLL_COMPACT_THRESHOLD_PX = 12;
-
-const barHeightClass = {
-  default: "h-14 sm:h-16 lg:h-20",
-  compact: "h-[3.25rem] sm:h-14 lg:h-16",
-} as const;
 
 export function LandingHeader() {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,9 +37,7 @@ export function LandingHeader() {
       if (e.key === "Escape") setIsOpen(false);
     }
     function onOutsideClick(e: MouseEvent) {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) setIsOpen(false);
     }
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onOutsideClick);
@@ -54,84 +47,85 @@ export function LandingHeader() {
     };
   }, [isOpen]);
 
-  const heightClass = isCompact ? barHeightClass.compact : barHeightClass.default;
+  const heightClass = isCompact ? "h-14 lg:h-16" : "h-16 lg:h-20";
 
   return (
     <>
-      <div
-        aria-hidden
-        className={cn("shrink-0 transition-[height] duration-300 ease-out motion-reduce:transition-none", heightClass)}
-      />
+      <div aria-hidden className={cn("shrink-0 transition-[height] duration-300", heightClass)} />
       <header
         ref={headerRef}
         className={cn(
-          "fixed inset-x-0 top-0 z-30 border-b border-[#DDE3F0] bg-white transition-[box-shadow] duration-300 ease-out motion-reduce:transition-none",
+          "fixed inset-x-0 top-0 z-30 border-b border-[#DDE5EF] bg-white/95 backdrop-blur transition-shadow",
           isCompact && "shadow-sm",
         )}
       >
-        <div
-          className={cn(
-            landingContainer,
-            "flex items-center justify-between transition-[height] duration-300 ease-out motion-reduce:transition-none",
-            heightClass,
-          )}
-        >
-          <Link
-            href="/"
-            className={cn(
-              "flex items-center gap-2 font-semibold tracking-tight text-[#17264A] transition-[font-size] duration-300 ease-out motion-reduce:transition-none",
-              isCompact ? "text-[0.9375rem] sm:text-[1.0625rem] lg:text-lg" : "text-base sm:text-lg lg:text-xl",
-            )}
-          >
-            <Image
-              src="/apple-touch-icon.png"
-              alt=""
-              width={36}
-              height={36}
-              className={cn(
-                "rounded-xl transition-[width,height] duration-300 ease-out motion-reduce:transition-none",
-                isCompact ? "h-8 w-8 sm:h-[2.125rem] sm:w-[2.125rem]" : "h-8 w-8 sm:h-9 sm:w-9",
-              )}
-              priority
-            />
-            BersonCare
+        <div className={cn(landingContainer, "flex items-center gap-3 transition-[height] duration-300", heightClass)}>
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-[#17264A]">
+            <Image src="/apple-touch-icon.png" alt="" width={36} height={36} className="h-8 w-8 rounded-xl sm:h-9 sm:w-9" priority />
+            <span className="hidden text-lg sm:inline">BersonCare</span>
           </Link>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
-            aria-expanded={isOpen}
-            aria-controls="landing-nav"
-            onClick={() => setIsOpen((v) => !v)}
-            className="h-9 w-9 shrink-0 rounded-xl text-[#17264A] hover:bg-[#F4F7FF] focus-visible:ring-[#2F55B7]/40"
-          >
-            {isOpen ? <X className="h-5 w-5" strokeWidth={2} /> : <Menu className="h-5 w-5" strokeWidth={2} />}
-          </Button>
+          <nav aria-label="Основная навигация" className="ml-auto hidden items-center gap-6 lg:flex">
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className="text-sm font-medium text-[#526276] transition hover:text-[#406CA7]">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2 lg:ml-4">
+            <Link href="/app" className="hidden rounded-full px-4 py-2 text-sm font-semibold text-[#406CA7] transition hover:bg-[#F3F6FA] lg:inline-flex">
+              Войти
+            </Link>
+            <Link
+              href="/app?intent=specialist"
+              className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#406CA7] px-4 text-sm font-semibold text-white transition hover:bg-[#315A8D] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#406CA7]/25 sm:px-5"
+            >
+              <span className="sm:hidden">Создать</span>
+              <span className="hidden sm:inline">Создать кабинет</span>
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={isOpen ? "Закрыть меню" : "Открыть меню"}
+              aria-expanded={isOpen}
+              aria-controls="landing-nav"
+              onClick={() => setIsOpen((value) => !value)}
+              className="h-10 w-10 shrink-0 rounded-full text-[#17264A] hover:bg-[#F3F6FA] focus-visible:ring-[#406CA7]/30 lg:hidden"
+            >
+              {isOpen ? <X className="h-5 w-5" aria-hidden /> : <Menu className="h-5 w-5" aria-hidden />}
+            </Button>
+          </div>
         </div>
 
-        {isOpen && (
-          <nav
-            id="landing-nav"
-            aria-label="Навигация по странице"
-            className="border-b border-[#DDE3F0] bg-white shadow-md"
-          >
-            <ul className={cn(landingContainer, "flex flex-col py-1")}>
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={() => setIsOpen(false)}
-                    className="flex w-full py-3.5 text-base font-medium text-[#17264A] transition hover:text-[#2F55B7]"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+        {isOpen ? (
+          <nav id="landing-nav" aria-label="Меню" className="border-t border-[#E4EAF1] bg-white shadow-lg lg:hidden">
+            <div className={cn(landingContainer, "py-3")}>
+              <ul className="flex flex-col">
+                {navItems.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} onClick={() => setIsOpen(false)} className="flex w-full py-3 text-base font-medium text-[#17264A]">
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 border-t border-[#E4EAF1] pt-3">
+                <Link href="/app" onClick={() => setIsOpen(false)} className="flex py-3 text-base font-semibold text-[#406CA7]">
+                  У меня есть приглашение / Войти
+                </Link>
+                <Link
+                  href="/app/contact-support?from=clinic-demo"
+                  onClick={() => setIsOpen(false)}
+                  className="flex py-3 text-base font-medium text-[#526276]"
+                >
+                  Запросить демо для клиники
+                </Link>
+              </div>
+            </div>
           </nav>
-        )}
+        ) : null}
       </header>
     </>
   );

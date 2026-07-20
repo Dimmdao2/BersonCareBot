@@ -1,43 +1,37 @@
-import { Smartphone, ShieldCheck, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { landingContainer } from "@/components/landing/landingTypography";
-
-const trustChips = [
-  { icon: ShieldCheck, label: "Для восстановления" },
-  { icon: Sparkles, label: "Для ежедневной заботы" },
-  { icon: Smartphone, label: "Всегда под рукой" },
-] as const;
 
 export function FinalCta() {
   return (
-    <section className="overflow-x-hidden bg-white py-12 sm:py-14 lg:py-20">
+    <section className="bg-white py-14 sm:py-16 lg:py-24">
       <div className={landingContainer}>
-        <div className="min-w-0 rounded-[24px] bg-[#2F55B7] px-6 py-8 sm:rounded-[28px] sm:px-10 sm:py-12 lg:px-14 lg:py-14">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-[1.625rem] font-semibold tracking-[-0.02em] text-white sm:text-[2rem] lg:text-[2.25rem]">
-              Забота о теле без лишней сложности
+        <div className="rounded-[28px] bg-[#406CA7] px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.02em] text-white sm:text-[2.25rem]">
+              Начните с кабинета специалиста
             </h2>
-            <p className="mx-auto mt-3 flex max-w-xl flex-col gap-2 text-[1.0625rem] font-normal leading-7 text-white/80 sm:mt-4 sm:text-lg">
-              <span>
-                BersonCare задумывался как приложение для сопровождения клиентов в реабилитации
-                и на пути к оздоровлению.
-              </span>
-              <span>
-                Со временем он вырос в простой и полезный продукт для всех, кто хочет двигаться
-                регулярно, безопасно и с понятной опорой.
-              </span>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
+              Настройте расписание, добавьте первого клиента и соберите работу между приёмами в одном месте.
             </p>
-
-            <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-7 sm:gap-x-6">
-              {trustChips.map(({ icon: Icon, label }) => (
-                <li
-                  key={label}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-white/90 sm:text-[0.9375rem]"
-                >
-                  <Icon className="h-4 w-4" aria-hidden />
-                  {label}
-                </li>
-              ))}
-            </ul>
+            <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/app?intent=specialist"
+                className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-white px-7 text-base font-semibold text-[#315A8D] transition hover:bg-[#F4F7FA] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/35 sm:w-auto"
+              >
+                Создать кабинет
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+              <Link
+                href="/app/contact-support?from=clinic-demo"
+                className="inline-flex min-h-14 w-full items-center justify-center rounded-full border border-white/35 px-7 text-base font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 sm:w-auto"
+              >
+                Демо для клиники
+              </Link>
+            </div>
+            <Link href="/app" className="mt-5 inline-flex text-sm font-medium text-white/80 underline underline-offset-4 transition hover:text-white">
+              У меня есть приглашение / Войти
+            </Link>
           </div>
         </div>
       </div>

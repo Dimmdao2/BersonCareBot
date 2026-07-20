@@ -15,6 +15,13 @@ function browserPrefetchOauthDisabled(): PrefetchedPublicAuthConfig {
   };
 }
 
+function browserPrefetchSpecialistSignupEnabled(): PrefetchedPublicAuthConfig {
+  return {
+    ...browserPrefetchOauthDisabled(),
+    specialistSignupEnabled: true,
+  };
+}
+
 function neverResolvingAbortableFetch(_input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   return new Promise((_resolve, reject) => {
     const signal = init?.signal;
@@ -177,6 +184,65 @@ describe("AuthBootstrap", () => {
     });
 
     expect(document.getElementById("auth-flow-v2-email-password")).toBeTruthy();
+  });
+
+  it("intent=specialist открывает только specialist-signup представление", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("intent=specialist"));
+    window.history.pushState({}, "", "/app?intent=specialist");
+
+    render(
+      <AuthBootstrap
+        entryClassification="browser_interactive"
+        initialPublicAuthConfig={browserPrefetchSpecialistSignupEnabled()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-specialist-email")).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("intent=specialist без разрешённого signup безопасно остаётся на обычном входе", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("intent=specialist"));
+    window.history.pushState({}, "", "/app?intent=specialist");
+
+    render(
+      <AuthBootstrap
+        entryClassification="browser_interactive"
+        initialPublicAuthConfig={browserPrefetchOauthDisabled()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-email-otp-input")).toBeTruthy();
+    expect(document.getElementById("auth-specialist-email")).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("неизвестный intent не меняет обычный вход", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("intent=patient"));
+    window.history.pushState({}, "", "/app?intent=patient");
+
+    render(
+      <AuthBootstrap
+        entryClassification="browser_interactive"
+        initialPublicAuthConfig={browserPrefetchSpecialistSignupEnabled()}
+      />,
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(document.getElementById("auth-email-otp-input")).toBeTruthy();
+    expect(document.getElementById("auth-specialist-email")).toBeNull();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it("в обычном браузере с загруженным MAX bridge не зависает в miniapp-ожидании", async () => {

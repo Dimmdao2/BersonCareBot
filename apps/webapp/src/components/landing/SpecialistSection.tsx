@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const linkClass =
-  "inline-flex items-center gap-1.5 text-base font-semibold text-[#2F55B7] transition hover:text-[#2448A5]";
+  "inline-flex items-center gap-1.5 text-base font-semibold text-[#406CA7] transition hover:text-[#315A8D]";
 
 export function SpecialistSection() {
   return (
@@ -27,11 +27,11 @@ export function SpecialistSection() {
             />
           </div>
           <div className="pr-36 sm:pr-48 md:pr-60 lg:pr-68">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#EEF4FF] px-3 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#2F55B7]">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#EAF1F8] px-3 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-[#406CA7]">
               Об авторе
             </span>
             <h3 className={cn(landingH3, "mt-2")}>Дмитрий Берсон</h3>
-            <p className="mt-1 text-[0.9375rem] font-medium leading-6 text-[#2F55B7]">
+            <p className="mt-1 text-[0.9375rem] font-medium leading-6 text-[#406CA7]">
               Реабилитолог, кинезиолог, остеопат
             </p>
             <p className={cn(landingBodySecondary, "mt-2.5")}>

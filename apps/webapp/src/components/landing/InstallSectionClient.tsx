@@ -20,7 +20,7 @@ const tabs: ReadonlyArray<{ value: LandingInstallPlatform; label: string }> = [
   { value: "android", label: "Android" },
 ] as const;
 
-export function InstallSectionClient() {
+export function InstallSectionClient({ appBaseUrl }: { appBaseUrl: string }) {
   const [installState, setInstallState] = useState<{
     active: LandingInstallPlatform;
     wrongBrowser: boolean;
@@ -52,11 +52,11 @@ export function InstallSectionClient() {
     <>
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#2F55B7] sm:text-[0.8125rem]">
-          Установка за 30 секунд
+          По желанию
         </p>
-        <h2 className={cn(landingH2, "mt-2")}>Как установить приложение</h2>
+        <h2 className={cn(landingH2, "mt-2")}>Приложение можно установить, но это не обязательно</h2>
         <p className={cn(landingBodySecondary, "mx-auto mt-3 max-w-md")}>
-          Выберите ваш телефон и повторите шаги — приложение появится на экране как обычная иконка.
+          Кабинет работает в обычном браузере. Установка добавляет иконку на экран телефона и нужна для push-уведомлений.
         </p>
       </div>
 
@@ -96,6 +96,7 @@ export function InstallSectionClient() {
           successNote={INSTALL_SUCCESS_NOTE}
           wrongBrowser={installState.wrongBrowser}
           platform={installState.active}
+          appBaseUrl={appBaseUrl}
         />
       </div>
     </>
