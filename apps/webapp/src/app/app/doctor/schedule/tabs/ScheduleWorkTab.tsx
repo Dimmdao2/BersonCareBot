@@ -1102,14 +1102,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const visibleDayRecords = useMemo(
     () => dayRecords.filter((record) => {
       if (allBranchesSelected) return true;
-      return record.branchId !== null && selectedBranchIds.has(record.branchId);
+      return record.branchId === null || selectedBranchIds.has(record.branchId);
     }),
     [allBranchesSelected, dayRecords, selectedBranchIds],
   );
   const visibleWorkingHours = useMemo(
     () => workingHours.filter((row) => {
       if (allBranchesSelected) return true;
-      return row.branchId !== null && selectedBranchIds.has(row.branchId);
+      return row.branchId === null || selectedBranchIds.has(row.branchId);
     }),
     [allBranchesSelected, selectedBranchIds, workingHours],
   );

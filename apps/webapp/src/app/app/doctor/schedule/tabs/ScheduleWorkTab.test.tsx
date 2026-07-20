@@ -44,12 +44,31 @@ type MockBranch = {
   sortOrder: number;
 };
 
+type WorkingDayFixture = {
+  id: string;
+  workDate: string;
+  startMinute: number | null;
+  endMinute: number | null;
+  breaks: Array<{ startMinute: number; endMinute: number }>;
+  isClosed: boolean;
+  branchId: string | null;
+};
+
+type WorkingHourFixture = {
+  id: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+  isActive: boolean;
+  branchId: string | null;
+};
+
 const BRANCHES: MockBranch[] = [
   { id: "branch-spb", title: "Санкт-Петербург", shortTitle: "СПб", color: "#2563eb", isActive: true, cityCode: "spb", address: null, timezone: "Europe/Moscow", sortOrder: 0 },
   { id: "branch-msk", title: "Москва", shortTitle: "Мск", color: "#dc2626", isActive: true, cityCode: "msk", address: null, timezone: "Europe/Moscow", sortOrder: 1 },
 ];
 
-const WORKING_DAY_ROWS = [
+const WORKING_DAY_ROWS: WorkingDayFixture[] = [
   {
     id: "wd-1",
     workDate: "2026-06-02",
@@ -70,7 +89,7 @@ const WORKING_DAY_ROWS = [
   },
 ];
 
-const WORKING_HOUR_ROWS = [
+const WORKING_HOUR_ROWS: WorkingHourFixture[] = [
   {
     id: "wh-1",
     weekday: 4,
@@ -114,7 +133,13 @@ async function chooseTime(testId: string, value: string) {
 
 async function renderWorkTab(
   deepLinkParams: Record<string, string> = {},
-  { workingDayRows = WORKING_DAY_ROWS }: { workingDayRows?: typeof WORKING_DAY_ROWS } = {},
+  {
+    workingDayRows = WORKING_DAY_ROWS,
+    workingHourRows = WORKING_HOUR_ROWS,
+  }: {
+    workingDayRows?: WorkingDayFixture[];
+    workingHourRows?: WorkingHourFixture[];
+  } = {},
 ) {
   const { fetchDoctorScheduleBootstrap } = await import("../doctorScheduleApi");
   (fetchDoctorScheduleBootstrap as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -125,7 +150,7 @@ async function renderWorkTab(
 
   const { apiJson } = await import("@/app/app/settings/bookingSoloAdminApi");
   (apiJson as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
-    if (url.includes("working-hours")) return { ok: true, rows: WORKING_HOUR_ROWS };
+    if (url.includes("working-hours")) return { ok: true, rows: workingHourRows };
     if (url.includes("working-days")) return { ok: true, rows: workingDayRows };
     if (url.includes("working-schedule-templates")) return { ok: true, rows: TEMPLATES };
     return { ok: true };
@@ -455,6 +480,58 @@ describe("ScheduleWorkTab", () => {
       expect(screen.getByTestId("branch-btn-branch-spb")).toHaveAttribute("aria-pressed", "true");
       expect(screen.getByTestId("branch-btn-branch-msk")).toHaveAttribute("aria-pressed", "true");
       expect(screen.getByTestId("day-cell-2026-06-02")).toHaveStyle("--branch-fg: #2563eb");
+    });
+  });
+
+  it.each([
+    {
+      source: "per-date",
+      workingDayRows: [{
+        id: "wd-global",
+        workDate: "2026-06-02",
+        startMinute: 420,
+        endMinute: 660,
+        breaks: [],
+        isClosed: false,
+        branchId: null,
+      }],
+      workingHourRows: [],
+      expectedTestId: "day-cell-2026-06-02",
+      expectedText: "7–11",
+    },
+    {
+      source: "weekday-template",
+      workingDayRows: [],
+      workingHourRows: [{
+        id: "wh-global",
+        weekday: 4,
+        startMinute: 480,
+        endMinute: 720,
+        isActive: true,
+        branchId: null,
+      }],
+      expectedTestId: "weekday-template-summary-4",
+      expectedText: "8–12",
+    },
+  ])("keeps a global $source row visible for a partial location selection", async ({
+    workingDayRows,
+    workingHourRows,
+    expectedTestId,
+    expectedText,
+  }) => {
+    await renderWorkTab(
+      { month: "2026-06" },
+      { workingDayRows, workingHourRows },
+    );
+    await waitFor(() => expect(screen.getByTestId("branch-filter-all")).toHaveAttribute("aria-pressed", "true"));
+
+    fireEvent.click(screen.getByTestId("branch-btn-branch-spb"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("branch-filter-all")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByTestId("branch-btn-branch-spb")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByTestId("branch-btn-branch-msk")).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByTestId(expectedTestId)).toHaveTextContent(expectedText);
     });
   });
 
