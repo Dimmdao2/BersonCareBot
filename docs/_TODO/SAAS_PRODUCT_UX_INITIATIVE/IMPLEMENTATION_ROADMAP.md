@@ -382,7 +382,8 @@ card; запрещено строить временный resolver, второ�
      dashboard-колонки; default показывает всех людей текущей
      organization; слева остаются поиск и сортировка по недавним canonical interactions, а не фильтры;
      Клиенты/Подписчики classifier остаётся dormant/reversible без UI-сегмента и не применяется к default list;
-     одна строка structured ФИО; отдельная строка count + reversible `Недавние`/`По фамилии`; 40/60 desktop,
+     одна строка structured ФИО; отдельная строка count + reversible `Недавние`/`По фамилии`; Клиенты используют
+     50/50 desktop,
      Exercises-style mobile master/detail; right-side factual filters и недублирующиеся non-interactive row indicators.
      Повторная живая TEST-приёмка временно отключает показ правого appointment KPI row на «Сегодня» без удаления
      реализации, поднимает календарь, требует hover/focus-подсказки всех видимых KPI и уточняет клиентские KPI:
@@ -390,7 +391,8 @@ card; запрещено строить временный resolver, второ�
      заменяет неоднозначное `Бывшие`; active filter использует общий primary selected-state.
   2. `Расписание` — §§3-4: desktop default week, услуги, специалисты календаря, short name в create-location и
      отсутствие Rubitime tab; перенос всей booking settings IA отменён и сюда не входит.
-  3. `Коммуникации` — §§5-8 и live TEST correction 20:48: shared 40/60 desktop split во всех четырёх вкладках и
+  3. `Коммуникации` — §§5-8 и live TEST correction 20:48: shared 45/55 desktop split во всех четырёх вкладках
+     (разрешённый fallback 50/50) и
      Exercises-style mobile master/detail; comments empty/selected layouts и toggle filters; intake без default
      фильтра, clearable single-select, newest-first и жирные new rows; broadcasts collapsed/expanded layout с
      собственной высотой строки. Уже принятую ссылку «Открыть карточку» не переделывать.
@@ -404,6 +406,10 @@ card; запрещено строить временный resolver, второ�
   code-only deploy; новый full reset требует отдельного решения владельца.
 - **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
   состояния из owner-review; независимый UI audit.
+- **Status (2026-07-20):** [x] `#850`, [x] `#851`, [x] `#852` закрыты на code-only TEST SHA `27c19a275` без
+  reset/dump. Locked smoke прошёл `22/22`; desktop/mobile evidence подтвердил одну строку ФИО, поднятый календарь
+  и скрытый deferred KPI на «Сегодня», клиентские sorting/KPI/tooltips, default week и отсутствие Rubitime, а также
+  45/55 Communications и не перекрывающийся broadcast journal. Owner acceptance остаётся отдельным слоем taskdb.
 
 #### UI-0…UI-9 — Doctor UI Rework execution cluster (owner addendum 2026-07-20)
 

@@ -1,5 +1,29 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — code-only TEST checkpoint, C1 closure and UI-0 live residual
+
+TEST был обновлён только кодом до `27c19a275`; dump, restore и reset не выполнялись. Code-only wrapper получил
+узкое временное членство runtime DB role в protected `app_owner` только на остановленном migration window, затем
+отозвал его вместе с временными migrator/BYPASS правами и доказал отсутствие residue. Drizzle прошёл текущий
+journal, пять TEST units активны, health/nginx gates зелёные, locked product smoke прошёл `22/22`, а отдельный
+global-admin clinical-write negative вернул ожидаемый `403`. Diagnostic E1 warning остался TEST-soft наблюдением;
+FORCE wall и closure checks прошли hard.
+
+Живая desktop/mobile приёмка закрыла C1 `#850/#851/#852`: на «Сегодня» одна строка ФИО, deferred appointment KPI
+скрыт и календарь поднят; «Клиенты» показывают всех людей по умолчанию, одну строку ФИО, 50/50 desktop, сортировку,
+фактические KPI с единым selected-state и `4/4` live hover tooltips; «Расписание» открывает неделю и не показывает
+Rubitime; Chats/Broadcasts используют актуальные 45/55, empty prompt корректен, журнал не перекрывает редактор.
+Скриншоты находятся только в runtime `.claude/screenshots/OWNER-TEST-CHECKPOINT/` и не коммитятся.
+
+Тот же проход доказал вход в specialist/clinic registration и первые два шага public booking, но нашёл точный
+остаток UI-0 `#923`: после допустимой clinic-wide услуги slots API отвечал `branch_service_mapping_missing`.
+Причина — no-specialist flow произвольно подставлял первого активного специалиста вместо поиска active SSA по
+точным `organization + branch + service`. Исправление `dda02bafa` убрало эту single-doctor assumption; explicit
+`branchServiceId` сохранил конкретного специалиста. Targeted `3` файла / `11` тестов и webapp typecheck прошли,
+независимый high-risk audit дал PASS. Повторный live TEST slots check остаётся обязательным после следующего
+отдельно разрешённого code-only deploy; U3S `#919` всё ещё ждёт реального создания новой организации, входа и
+первого workspace.
+
 ## 2026-07-20 — P1/UI milestone CI and security-inventory closure
 
 The accumulated milestone is green through lint, typecheck, HLS synchronization, integrator/webapp/media tests and
