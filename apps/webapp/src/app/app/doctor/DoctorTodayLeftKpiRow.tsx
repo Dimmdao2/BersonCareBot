@@ -134,7 +134,7 @@ export function DoctorTodayLeftKpiRow({
       <DoctorMetricList
         id="doctor-today-left-kpi"
         aria-label="Входящий поток"
-        className="grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 [&>*]:flex [&>*]:h-[5.5rem] [&>*]:flex-col"
+        className="grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4"
       >
         {/* Сообщения → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -142,8 +142,6 @@ export function DoctorTodayLeftKpiRow({
           title="Сообщения"
           value={unreadTotal}
           tooltip="Непрочитанные сообщения от клиентов."
-          className="flex h-[5.5rem] flex-col"
-          valueClassName="mt-auto pt-1"
           tone={unreadTotal > 0 ? "warning" : "neutral"}
           onClick={unreadTotal > 0 ? () => setKpiModal("messages") : undefined}
         />
@@ -153,8 +151,6 @@ export function DoctorTodayLeftKpiRow({
           title="Комментарии"
           value={displayTotal}
           tooltip="Новые комментарии клиентов к упражнениям."
-          className="flex h-[5.5rem] flex-col"
-          valueClassName="mt-auto pt-1"
           tone={displayTotal > 0 ? "warning" : "neutral"}
           onClick={displayTotal > 0 ? () => setKpiModal("comments") : undefined}
         />
@@ -164,8 +160,6 @@ export function DoctorTodayLeftKpiRow({
           title="Заявки"
           value={intakeCount}
           tooltip="Новые заявки на консультацию."
-          className="flex h-[5.5rem] flex-col"
-          valueClassName="mt-auto pt-1"
           tone={intakeCount > 0 ? "warning" : "neutral"}
           onClick={intakeCount > 0 ? () => setKpiModal("intake") : undefined}
         />
@@ -175,8 +169,6 @@ export function DoctorTodayLeftKpiRow({
           title="Тесты"
           value={pendingTestsTotal}
           tooltip="Тесты по программам, ожидающие проверки."
-          className="flex h-[5.5rem] flex-col"
-          valueClassName="mt-auto pt-1"
           tone={pendingTestsTotal > 0 ? "warning" : "neutral"}
           onClick={pendingTestsTotal > 0 ? () => setKpiModal("tests") : undefined}
         />

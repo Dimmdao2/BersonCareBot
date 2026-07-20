@@ -8,7 +8,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import luxonPlugin from "@fullcalendar/luxon3";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorSectionSubtitleClass, doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
+import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
@@ -223,18 +223,15 @@ export function DoctorTodayMiniCalendar({
   return (
     <DoctorSection id="doctor-today-mini-calendar">
       <div className="flex items-center justify-between gap-2">
-        <DoctorSectionTitle>Расписание на сегодня</DoctorSectionTitle>
-        <span className={doctorSectionSubtitleClass}>{todayDateLabel}</span>
+        <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
+        <Link href="/app/doctor/schedule?tab=calendar" className={doctorInlineLinkClass}>
+          Открыть календарь
+        </Link>
       </div>
 
-      {/* R1: empty-state hint + link to schedule; the FC day stays visible regardless */}
+      {/* R1: empty-state hint; the FC day and header action stay visible regardless. */}
       {appointments.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Записей на сегодня нет —{" "}
-          <Link href="/app/doctor/schedule?tab=calendar" className={doctorInlineLinkClass}>
-            открыть расписание
-          </Link>
-        </p>
+        <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
       ) : null}
 
       {/* sr-only список записей — для скринридеров и тестов (FC не рендерит события в jsdom) */}

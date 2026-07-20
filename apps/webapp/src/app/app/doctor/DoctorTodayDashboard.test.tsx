@@ -149,7 +149,11 @@ describe("DoctorTodayDashboard", () => {
     expect(screen.getByRole("heading", { name: "Сигналы пациентов" })).toBeInTheDocument();
     // R19: блок «Следующая запись» убран со страницы «Сегодня».
     expect(screen.queryByRole("heading", { name: "Следующая запись" })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть календарь" })).toHaveAttribute(
+      "href",
+      "/app/doctor/schedule?tab=calendar",
+    );
+    expect(screen.queryByRole("heading", { name: "Расписание на сегодня" })).not.toBeInTheDocument();
     // Старые секции должны отсутствовать
     expect(screen.queryByRole("heading", { name: "Требует внимания" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Рабочие задачи на сегодня" })).not.toBeInTheDocument();
@@ -185,7 +189,7 @@ describe("DoctorTodayDashboard", () => {
 
     const rightPane = document.getElementById("doctor-today-right-pane");
     expect(rightPane?.firstElementChild).toContainElement(
-      screen.getByRole("heading", { name: "Расписание на сегодня" }),
+      screen.getByRole("link", { name: "Открыть календарь" }),
     );
   });
 
@@ -452,7 +456,7 @@ describe("DoctorTodayDashboard", () => {
     };
     render(<DoctorTodayDashboard {...defaultProps()} data={data} />);
     // Мини-календарь должен показать запись
-    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть календарь" })).toBeInTheDocument();
     expect(screen.getByText("Клиент Тест")).toBeInTheDocument();
   });
 
@@ -474,10 +478,10 @@ describe("DoctorTodayDashboard", () => {
     );
   });
 
-  // §1.1 / R19 — «Расписание на сегодня» присутствует; блок «Следующая запись» убран.
+  // §1.1 / R19 — мини-календарь присутствует; блок «Следующая запись» убран.
   it("R19: mini-calendar present, appointment card removed", () => {
     render(<DoctorTodayDashboard {...defaultProps()} />);
-    expect(screen.getByRole("heading", { name: "Расписание на сегодня" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть календарь" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /Следующая запись|Сейчас на приёме/ }),
     ).not.toBeInTheDocument();

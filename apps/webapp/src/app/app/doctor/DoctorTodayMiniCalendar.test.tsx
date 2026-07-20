@@ -113,7 +113,7 @@ function makeCanonicalAppt(id: string, patientName = 'Пациент'): Calendar
 
 describe('DoctorTodayMiniCalendar', () => {
   describe('section structure', () => {
-    it('shows heading and date label', () => {
+    it('shows the date and calendar action in one compact header', () => {
       render(
         <DoctorTodayMiniCalendar
           appointments={[]}
@@ -122,8 +122,12 @@ describe('DoctorTodayMiniCalendar', () => {
           displayIana={DEFAULT_IANA}
         />,
       );
-      expect(screen.getByRole('heading', { name: 'Расписание на сегодня' })).toBeInTheDocument();
-      expect(screen.getByText('пн, 9 июня')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'пн, 9 июня' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Расписание на сегодня' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Открыть календарь' })).toHaveAttribute(
+        'href',
+        '/app/doctor/schedule?tab=calendar',
+      );
     });
 
     it('renders FullCalendar component', () => {
@@ -151,7 +155,7 @@ describe('DoctorTodayMiniCalendar', () => {
       );
       // R1: подсказка «нет записей»
       expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'открыть расписание' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Открыть календарь' })).toHaveAttribute(
         'href',
         '/app/doctor/schedule?tab=calendar',
       );
@@ -308,7 +312,7 @@ describe('DoctorTodayMiniCalendar', () => {
         />,
       );
       expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Расписание на сегодня' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'ср, 11 июня' })).toBeInTheDocument();
     });
 
     it('renders calendar without crash when workingBounds is null', () => {

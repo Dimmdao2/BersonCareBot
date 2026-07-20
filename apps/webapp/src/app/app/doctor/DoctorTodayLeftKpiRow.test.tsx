@@ -38,6 +38,18 @@ describe("DoctorTodayLeftKpiRow", () => {
     expect(screen.queryByRole("button", { name: /Комментарии/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Заявки/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Тесты/i })).not.toBeInTheDocument();
+    expect(document.getElementById("doctor-today-left-kpi")?.className).not.toContain("h-[5.5rem]");
+
+    for (const id of [
+      "doctor-today-left-kpi-messages",
+      "doctor-today-left-kpi-comments",
+      "doctor-today-left-kpi-intake",
+      "doctor-today-left-kpi-tests",
+    ]) {
+      const card = document.getElementById(id);
+      expect(card).not.toHaveClass("h-[5.5rem]");
+      expect(card?.querySelector("div")).not.toHaveClass("mt-auto");
+    }
   });
 
   it("clicking Сообщения opens messages KpiPreviewModal", async () => {
