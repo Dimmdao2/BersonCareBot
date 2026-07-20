@@ -231,6 +231,28 @@ describe("ConfirmStepClient", () => {
     });
   });
 
+  it("keeps the public organization slug in the create selection", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConfirmStepClient
+        type="in_person"
+        cityCode="online"
+        cityTitle="Онлайн"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
+        orgSlug="clinic-a"
+        serviceTitle="Консультация"
+        {...baseProps}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Подтвердить запись/i }));
+    await waitFor(() => expect(createBooking).toHaveBeenCalledTimes(1));
+    expect(createBooking).toHaveBeenCalledWith(
+      expect.objectContaining({ selection: expect.objectContaining({ orgSlug: "clinic-a" }) }),
+    );
+  });
+
   it("uses custom done redirect path for public create success", async () => {
     const user = userEvent.setup();
     render(

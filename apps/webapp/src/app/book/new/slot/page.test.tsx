@@ -24,8 +24,10 @@ describe("PublicBookSlotPage backHref", () => {
     });
 
     const backHref = (element as { props: { backHref: string } }).props.backHref;
+    const child = (element as { props: { children: { props: { orgSlug?: string } } } }).props.children;
     expect(backHref).toContain("/book/service?");
     expect(backHref).toContain(`orgSlug=${encodeURIComponent("saas-test-clinic-a")}`);
+    expect(child.props.orgSlug).toBe("saas-test-clinic-a");
   });
 
   it("omits orgSlug from the back link on the generic /book entry", async () => {

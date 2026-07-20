@@ -64,6 +64,7 @@ export default async function PublicBookSlotPage({ searchParams }: Props) {
         branchId={branchId}
         serviceId={serviceId}
         branchServiceId={branchServiceId}
+        orgSlug={orgSlug}
         cityCode={cityCode}
         cityTitle={cityTitle}
         serviceTitle={serviceTitle}

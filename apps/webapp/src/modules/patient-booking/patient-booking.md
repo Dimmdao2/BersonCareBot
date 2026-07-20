@@ -50,6 +50,12 @@ Admin keys (`system_settings`, scope `admin`):
 API остаётся fail-closed. Существующие authenticated intake-ссылки реабилитации и нутрициологии не
 заменяются этим механизмом.
 
+В публичном per-clinic wizard `orgSlug` сохраняется от услуги до slots/confirm/create. Серверные
+`/api/booking/public/slots` и `/api/booking/public/create` заново разрешают организацию по slug и
+сверяют её с организацией canonical branch/service; отсутствие slug, неизвестный slug и несовпадение
+дают одинаковый нейтральный fail-closed ответ. Поэтому идентификаторы другой клиники нельзя подставить
+в уже открытый `/book/{slug}` wizard.
+
 ## Перенос и отмена (этап 4)
 
 Записи с **`canonical_appointment_id`**:

@@ -23,12 +23,14 @@ function buildInPersonSlotBackQuery(raw: Record<string, string | string[] | unde
   const serviceId = first(raw.serviceId);
   const branchServiceId = first(raw.branchServiceId);
   const serviceTitle = first(raw.serviceTitle);
+  const orgSlug = first(raw.orgSlug);
   if (cityCode) q.set("cityCode", cityCode);
   if (cityTitle != null) q.set("cityTitle", cityTitle);
   if (branchId) q.set("branchId", branchId);
   if (serviceId) q.set("serviceId", serviceId);
   if (branchServiceId) q.set("branchServiceId", branchServiceId);
   if (serviceTitle != null) q.set("serviceTitle", serviceTitle);
+  if (orgSlug) q.set("orgSlug", orgSlug);
   const durationMinutes = first(raw.durationMinutes);
   if (durationMinutes) q.set("durationMinutes", durationMinutes);
   return q.toString();
@@ -74,6 +76,7 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
           branchId={branchId}
           serviceId={serviceId}
           branchServiceId={branchServiceId}
+          orgSlug={first(raw.orgSlug)?.trim()}
           serviceTitle={first(raw.serviceTitle)}
           slotStart={slot}
           slotEnd={slotEnd}

@@ -23,6 +23,7 @@ type InPersonProps = {
   appDisplayTimeZone: string;
   branchId?: string;
   serviceId?: string;
+  orgSlug?: string;
   /** Legacy reschedule from existing booking */
   branchServiceId?: string;
 };
@@ -74,6 +75,7 @@ function buildConfirmQuery(
     q.set("serviceTitle", props.serviceTitle);
     q.set("durationMinutes", String(props.durationMinutes));
     q.set("priceMinor", String(props.priceMinor ?? 0));
+    if (props.orgSlug) q.set("orgSlug", props.orgSlug);
   } else {
     q.set("category", props.category);
   }
@@ -101,6 +103,7 @@ export function SlotStepClient(props: Props) {
         branchId: props.branchId,
         serviceId: props.serviceId,
         serviceTitle: props.serviceTitle,
+        ...(props.orgSlug ? { orgSlug: props.orgSlug } : {}),
       };
     }
     return {
@@ -111,6 +114,7 @@ export function SlotStepClient(props: Props) {
       serviceId: "",
       serviceTitle: props.serviceTitle,
       branchServiceId: props.branchServiceId ?? "",
+      ...(props.orgSlug ? { orgSlug: props.orgSlug } : {}),
     };
   }, [props]);
 

@@ -17,16 +17,20 @@ const slotB = { startAt: "2026-05-05T10:00:00.000Z", endAt: "2026-05-05T11:00:00
 
 let availableDatesMock: string[] = ["2026-04-10"];
 let slotsByDateMock: Record<string, typeof slotA[]> = { "2026-04-10": [slotA] };
+let selectionSeenBySlotsHook: unknown;
 
 vi.mock("../../../cabinet/useBookingSlots", () => ({
-  useBookingSlots: () => ({
+  useBookingSlots: (selection: unknown) => {
+    selectionSeenBySlotsHook = selection;
+    return ({
     loading: false,
     error: null,
     data: [],
     availableDates: availableDatesMock,
     slotsForDate: (d: string | null) => (d ? (slotsByDateMock[d] ?? []) : []),
     reload: vi.fn(),
-  }),
+    });
+  },
 }));
 
 describe("SlotStepClient", () => {
@@ -36,6 +40,7 @@ describe("SlotStepClient", () => {
     push.mockClear();
     availableDatesMock = ["2026-04-10"];
     slotsByDateMock = { "2026-04-10": [slotA] };
+    selectionSeenBySlotsHook = undefined;
   });
 
   afterEach(() => {
@@ -91,6 +96,28 @@ describe("SlotStepClient", () => {
     expect(url).toContain("cityCode=msk");
     expect(url).toContain("branchId=");
     expect(url).toContain("serviceId=");
+  });
+
+  it("keeps the public organization slug in slots and confirmation continuity", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <SlotStepClient
+        type="in_person"
+        branchId="550e8400-e29b-41d4-a716-446655440001"
+        serviceId="550e8400-e29b-41d4-a716-446655440002"
+        orgSlug="clinic-a"
+        cityCode="online"
+        cityTitle="Онлайн"
+        serviceTitle="Консультация"
+        durationMinutes={60}
+        appDisplayTimeZone="Europe/Moscow"
+      />,
+    );
+
+    expect(selectionSeenBySlotsHook).toMatchObject({ orgSlug: "clinic-a" });
+    await user.click(screen.getByRole("button", { name: /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/ }));
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    expect(String(push.mock.calls[0]?.[0])).toContain("orgSlug=clinic-a");
   });
 
   it("renders a monthly day grid with today marker, disabled past dates and next-month navigation by slots", async () => {

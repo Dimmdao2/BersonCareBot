@@ -16,6 +16,7 @@ import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
   resolveInPersonCityCode,
+  resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function POST(request: Request) {
@@ -52,10 +53,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
     }
 
-    const ctx = await resolveInPersonBookingContext(deps, body);
+    const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, body);
     const result = await withExplicitOrganizationPrincipal(
-      { organizationId: ctx.organizationId, source: "api/booking/public/create:POST" },
+      { organizationId: publicContext.organizationId, source: "api/booking/public/create:POST" },
       async () => {
+        const ctx = await resolveInPersonBookingContext(deps, publicContext.keys);
+        if (ctx.organizationId !== publicContext.organizationId) {
+          throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+        }
         const user = await resolveOrCreateUserByPhone(body.contactPhone, body.contactName);
         if (!user.ok) {
           throw new Error(user.error);
@@ -86,7 +91,7 @@ export async function POST(request: Request) {
     if (result.booking.canonicalAppointmentId && deps.bookingEngine) {
       await recordPublicBookingMergeCandidates({
         pool: getPool(),
-        organizationId: ctx.organizationId,
+        organizationId: publicContext.organizationId,
         anchorUserId: result.userId,
         contactName: body.contactName,
         triggerAppointmentId: result.booking.canonicalAppointmentId,

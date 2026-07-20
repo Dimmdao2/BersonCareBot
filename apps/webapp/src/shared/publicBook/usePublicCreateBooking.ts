@@ -51,6 +51,7 @@ export function usePublicCreateBooking() {
               return {
                 type: "in_person" as const,
                 ...inPerson,
+                orgSlug: input.selection.orgSlug,
                 cityCode: input.selection.cityCode,
                 slotStart: input.slot.startAt,
                 slotEnd: input.slot.endAt,

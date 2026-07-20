@@ -12,6 +12,8 @@ export type BookingSelection =
       branchId: string;
       serviceId: string;
       serviceTitle: string;
+      /** Public `/book/{slug}` tenant binding; absent in the authenticated cabinet. */
+      orgSlug?: string;
       /** Legacy reschedule / cabinet paths */
       branchServiceId?: string;
     };

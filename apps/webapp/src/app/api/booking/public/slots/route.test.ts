@@ -8,6 +8,7 @@ const {
   getServiceMock,
   listSpecialistsMock,
   getSlotsMock,
+  resolveOrganizationIdBySlugMock,
 } = vi.hoisted(() => ({
   resolvePublicBookingOrganizationMock: vi.fn(),
   resolveLegacyBranchServiceIdMock: vi.fn(),
@@ -15,11 +16,13 @@ const {
   getServiceMock: vi.fn(),
   listSpecialistsMock: vi.fn(),
   getSlotsMock: vi.fn(),
+  resolveOrganizationIdBySlugMock: vi.fn(),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     patientBooking: { getSlots: getSlotsMock },
+    clinicDirectory: { resolveOrganizationIdBySlug: resolveOrganizationIdBySlugMock },
     bookingEngine: {
       catalog: { getBranch: getBranchMock, listSpecialists: listSpecialistsMock },
       services: { getService: getServiceMock },
@@ -35,6 +38,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 const ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const OTHER_ORG_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
 const BRANCH_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const SERVICE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 let organizationSeenByTenantRead: string | undefined;
@@ -44,6 +48,7 @@ describe("GET /api/booking/public/slots locked tenant bootstrap", () => {
     vi.clearAllMocks();
     organizationSeenByTenantRead = undefined;
     resolvePublicBookingOrganizationMock.mockResolvedValue(ORG_ID);
+    resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
     getBranchMock.mockImplementation(async () => {
       organizationSeenByTenantRead = getCurrentDbPrincipalOrganizationId();
       return { id: BRANCH_ID, organizationId: ORG_ID };
@@ -57,7 +62,7 @@ describe("GET /api/booking/public/slots locked tenant bootstrap", () => {
   it("derives org first, then performs tenant reads under that explicit org", async () => {
     const response = await GET(
       new Request(
-        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}`,
+        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}&orgSlug=clinic-a`,
       ),
     );
 
@@ -82,7 +87,7 @@ describe("GET /api/booking/public/slots locked tenant bootstrap", () => {
     resolvePublicBookingOrganizationMock.mockResolvedValue(null);
     const response = await GET(
       new Request(
-        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}`,
+        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}&orgSlug=clinic-a`,
       ),
     );
 
@@ -90,6 +95,36 @@ describe("GET /api/booking/public/slots locked tenant bootstrap", () => {
     expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
     expect(getBranchMock).not.toHaveBeenCalled();
     expect(getServiceMock).not.toHaveBeenCalled();
+    expect(getSlotsMock).not.toHaveBeenCalled();
+  });
+
+  it("denies clinic-A URLs carrying valid clinic-B booking ids before tenant reads", async () => {
+    resolveOrganizationIdBySlugMock.mockResolvedValue(ORG_ID);
+    resolvePublicBookingOrganizationMock.mockResolvedValue(OTHER_ORG_ID);
+
+    const response = await GET(
+      new Request(
+        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}&orgSlug=clinic-a`,
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(getBranchMock).not.toHaveBeenCalled();
+    expect(getServiceMock).not.toHaveBeenCalled();
+    expect(getSlotsMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps generic /book requests without an organization slug fail-closed", async () => {
+    const response = await GET(
+      new Request(
+        `http://localhost/api/booking/public/slots?type=in_person&branchId=${BRANCH_ID}&serviceId=${SERVICE_ID}`,
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: "ambiguous_booking_tenant" });
+    expect(resolvePublicBookingOrganizationMock).not.toHaveBeenCalled();
     expect(getSlotsMock).not.toHaveBeenCalled();
   });
 });

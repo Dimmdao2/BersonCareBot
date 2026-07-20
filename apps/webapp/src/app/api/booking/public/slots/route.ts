@@ -7,7 +7,7 @@ import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrg
 import {
   InPersonBookingResolveError,
   resolveInPersonBookingContext,
-  resolvePublicInPersonBookingOrganization,
+  resolveSlugBoundPublicInPersonBookingOrganization,
 } from "@/modules/patient-booking/inPersonBookingResolve";
 import { inPersonSlotsQuerySchema } from "@/modules/patient-booking/inPersonApiSchemas";
 
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse({
     type: url.searchParams.get("type") ?? undefined,
     category: url.searchParams.get("category") ?? undefined,
+    orgSlug: url.searchParams.get("orgSlug") ?? undefined,
     branchServiceId: url.searchParams.get("branchServiceId") ?? undefined,
     branchId: url.searchParams.get("branchId") ?? undefined,
     serviceId: url.searchParams.get("serviceId") ?? undefined,
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     if (parsed.data.type === "online") {
       return NextResponse.json({ ok: false, error: "ambiguous_booking_tenant" }, { status: 400 });
     }
-    const publicContext = await resolvePublicInPersonBookingOrganization(deps, parsed.data);
+    const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, parsed.data);
     const slots = await withExplicitOrganizationPrincipal(
       { organizationId: publicContext.organizationId, source: "api/booking/public/slots:GET" },
       async () => {

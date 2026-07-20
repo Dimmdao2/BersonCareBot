@@ -26,6 +26,7 @@ function buildQuery(selection: BookingSelection, date?: string, slotCount?: numb
     } else if (selection.branchServiceId) {
       params.set("branchServiceId", selection.branchServiceId);
     }
+    if (selection.orgSlug) params.set("orgSlug", selection.orgSlug);
   }
   if (date) params.set("date", date);
   if (slotCount != null && slotCount > 1) params.set("slotCount", String(slotCount));

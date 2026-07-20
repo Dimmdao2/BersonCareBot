@@ -25,6 +25,7 @@ export const publicBookingCreateBodySchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("in_person"),
+    orgSlug: z.string().trim().min(1).max(120).optional(),
     branchServiceId: z.string().uuid().optional(),
     branchId: z.string().uuid().optional(),
     serviceId: z.string().uuid().optional(),

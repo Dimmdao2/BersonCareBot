@@ -14,6 +14,7 @@ export const inPersonKeysRefine = <T extends { branchServiceId?: string; branchI
 export const inPersonSlotsQuerySchema = z
   .object({
     type: z.literal("in_person"),
+    orgSlug: z.string().trim().min(1).max(120).optional(),
     ...inPersonKeysFields,
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     slotCount: z.coerce.number().int().min(1).max(8).optional(),

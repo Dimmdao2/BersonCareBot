@@ -79,6 +79,7 @@ type Props = ConfirmStepOptions & {
   branchId?: string;
   serviceId?: string;
   branchServiceId?: string;
+  orgSlug?: string;
   serviceTitle?: string;
   category?: string;
   slotStart: string;
@@ -98,6 +99,7 @@ export function ConfirmStepClient({
   branchId,
   serviceId,
   branchServiceId,
+  orgSlug,
   serviceTitle,
   category,
   slotStart,
@@ -244,6 +246,7 @@ export function ConfirmStepClient({
         branchId,
         serviceId,
         serviceTitle,
+        ...(orgSlug ? { orgSlug } : {}),
       };
     }
     if (
@@ -261,13 +264,14 @@ export function ConfirmStepClient({
         serviceId: "",
         serviceTitle,
         branchServiceId,
+        ...(orgSlug ? { orgSlug } : {}),
       };
     }
     if (type === "online" && category) {
       return { type: "online", category: category as BookingCategory };
     }
     return null;
-  }, [type, cityCode, cityTitle, branchId, serviceId, branchServiceId, serviceTitle, category]);
+  }, [type, cityCode, cityTitle, branchId, serviceId, branchServiceId, serviceTitle, category, orgSlug]);
 
   const slot: BookingSlot = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd }),

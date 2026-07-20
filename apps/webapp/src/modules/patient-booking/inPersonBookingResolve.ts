@@ -3,6 +3,7 @@ import type {
   ServiceAvailabilityPort,
 } from "@/modules/booking-engine/ports";
 import type { BookingSchedulingService } from "@/modules/booking-scheduling/ports";
+import type { ClinicDirectoryService } from "@/modules/clinic-directory/service";
 import { logger } from "@/app-layer/logging/logger";
 
 export type InPersonBookingResolveDeps = {
@@ -63,6 +64,34 @@ export async function resolvePublicInPersonBookingOrganization(
     throw new InPersonBookingResolveError("ambiguous_booking_tenant");
   }
   return { organizationId, keys };
+}
+
+/**
+ * Binds public booking ids to the organization selected by the canonical `/book/{slug}` entry.
+ * Missing, unknown and mismatched slugs deliberately share one neutral fail-closed error.
+ */
+export async function resolveSlugBoundPublicInPersonBookingOrganization(
+  deps: InPersonBookingResolveDeps & { clinicDirectory: ClinicDirectoryService | null },
+  input: {
+    orgSlug?: string | null;
+    branchServiceId?: string | null;
+    branchId?: string | null;
+    serviceId?: string | null;
+  },
+): Promise<{ organizationId: string; keys: PublicInPersonBookingKeys }> {
+  const orgSlug = input.orgSlug?.trim();
+  if (!orgSlug || !deps.clinicDirectory) {
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+  }
+  const slugOrganizationId = await deps.clinicDirectory.resolveOrganizationIdBySlug(orgSlug);
+  if (!slugOrganizationId) {
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+  }
+  const publicContext = await resolvePublicInPersonBookingOrganization(deps, input);
+  if (publicContext.organizationId !== slugOrganizationId) {
+    throw new InPersonBookingResolveError("ambiguous_booking_tenant");
+  }
+  return publicContext;
 }
 
 export async function resolveInPersonBookingContext(
