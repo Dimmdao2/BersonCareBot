@@ -3588,3 +3588,18 @@ specialist registration, secondary entry opens ordinary login, privacy/terms/sup
 overflow/console/network error. A `dev:client` in an ordinary browser stays in `/app/patient`, and rendered metadata
 uses current `app_base_url`. Signup-disabled fallback is a mocked test state, never a DB mutation. Configured pricing,
 acquisition analytics, public status, ICS host cleanup and all U6B surfaces remain explicitly deferred.
+
+## 2026-07-21 — `#806` migration-security scope checkpoint
+
+The first implementation diff proved a narrow repository-rule exception to the launch manifest's protected deploy
+families. Migration `0220` introduces a tenant-scoped table and pre-session `SECURITY DEFINER` functions. The canonical
+runtime roles are discovered and rehydrated after migrations; leaving the new objects only in the Drizzle migration
+would make ordinary non-reset migration windows either unusable or dependent on stale owner/ACL/policy state.
+
+The permitted exception is limited to one `patient-invites-rls.sql` overlay, its inclusion/order in the existing
+strict finalizer and non-destructive runtime-overlay rehydrate chain, the file-packaging reference in
+`deploy-test-saas.sh`, the SCOPED/direct-org/custom-overlay foundation registries, and static checkers that prevent a
+generic policy or direct `app_patient` table grants. This is mandatory security/migration closure, not a new product
+feature. No script may be executed, no DB may be migrated/restored/reset, and no TEST/PROD/deploy action is authorized.
+The overlay must FORCE exact-org RLS, deny direct patient table access, hand narrow functions to existing `app_owner`,
+and remain compatible with the ordinary code-deploy versus explicit migration/reset separation already documented.
