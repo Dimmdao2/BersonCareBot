@@ -12,6 +12,7 @@ import type {
   LfkTemplateUsageRef,
   LfkTemplateUsageSnapshot,
   Template,
+  TemplateAccessOptions,
   TemplateExercise,
   TemplateExerciseInput,
   TemplateFilter,
@@ -39,6 +40,7 @@ function sqlTpStageItemUsesLfkComplexTemplate(alias: string): string {
 function mapTemplateRow(
   row: {
     id: string;
+    owner_kind: string;
     title: string;
     description: string | null;
     status: string;
@@ -51,6 +53,7 @@ function mapTemplateRow(
 ): Template {
   return {
     id: String(row.id),
+    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
     title: row.title,
     description: row.description,
     status: row.status as TemplateStatus,
@@ -357,6 +360,7 @@ function mapTeRow(
 
 type TemplateHeaderDbRow = {
   id: string;
+  owner_kind: string;
   title: string;
   description: string | null;
   status: string;
@@ -395,7 +399,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     async list(filter: TemplateFilter): Promise<Template[]> {
       requireOrganizationPrincipal();
       const conds: string[] = [
-        "t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
+        filter.includePlatformBase
+          ? "((t.owner_kind = 'organization' AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid) OR (t.owner_kind = 'platform' AND t.organization_id IS NULL))"
+          : "t.owner_kind = 'organization' AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
       ];
       const params: unknown[] = [];
       let i = 1;
@@ -412,13 +418,12 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         params.push(`%${filter.search.trim()}%`);
       }
       const sql = `
-        SELECT t.id, t.title, t.description, t.status, t.created_by, t.created_at, t.updated_at,
+        SELECT t.id, t.owner_kind, t.title, t.description, t.status, t.created_by, t.created_at, t.updated_at,
                COALESCE(c.cnt, 0)::int AS exercise_count
         FROM lfk_complex_templates t
         LEFT JOIN (
           SELECT template_id, COUNT(*)::int AS cnt
           FROM lfk_complex_template_exercises
-          WHERE organization_id = NULLIF(current_setting('app.org', true), '')::uuid
           GROUP BY template_id
         ) c ON c.template_id = t.id
         WHERE ${conds.join(" AND ")}
@@ -428,6 +433,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         mapTemplateRow(
           {
             id: row.id,
+            owner_kind: row.owner_kind,
             title: row.title,
             description: row.description,
             status: row.status,
@@ -449,11 +455,18 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         WITH te_ranked AS (
           SELECT te.template_id,
                  te.exercise_id,
+                 e.owner_kind AS exercise_owner_kind,
+                 e.organization_id AS exercise_organization_id,
                  te.sort_order,
                  ROW_NUMBER() OVER (PARTITION BY te.template_id ORDER BY te.sort_order ASC, te.id ASC) AS rn
           FROM lfk_complex_template_exercises te
+          JOIN lfk_exercises e
+            ON e.id = te.exercise_id
+           AND (
+             (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+             OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+           )
           WHERE te.template_id = ANY($1::uuid[])
-            AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
         )
         SELECT tr.template_id,
                em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
@@ -464,7 +477,8 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
           FROM lfk_exercise_media em
           WHERE em.exercise_id = tr.exercise_id
-            AND em.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+            AND em.owner_kind = tr.exercise_owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM tr.exercise_organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) em ON true
@@ -472,7 +486,8 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
           ''
         )::uuid
-          AND mf.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+          AND mf.owner_kind = tr.exercise_owner_kind
+          AND mf.organization_id IS NOT DISTINCT FROM tr.exercise_organization_id
         WHERE tr.rn <= 6
         ORDER BY tr.template_id, tr.sort_order`;
         const tr = await runWebappPgText(thumbSql, [ids]);
@@ -524,12 +539,16 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         FROM lfk_complex_template_exercises te
         JOIN lfk_exercises e
           ON e.id = te.exercise_id
-         AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+         AND (
+           (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+           OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+         )
         LEFT JOIN LATERAL (
           SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
           FROM lfk_exercise_media em
           WHERE em.exercise_id = te.exercise_id
-            AND em.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+            AND em.owner_kind = e.owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM e.organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) em ON true
@@ -537,9 +556,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
           ''
         )::uuid
-          AND mf.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+          AND mf.owner_kind = e.owner_kind
+          AND mf.organization_id IS NOT DISTINCT FROM e.organization_id
         WHERE te.template_id = ANY($1::uuid[])
-          AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
         ORDER BY te.template_id, te.sort_order ASC, te.id ASC`;
       const er = await runWebappPgText(exercisesSql, [ids]);
       const byTemplate = new Map<string, TemplateExercise[]>();
@@ -566,14 +585,17 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       });
     },
 
-    async getById(id: string): Promise<Template | null> {
+    async getById(id: string, options: TemplateAccessOptions = {}): Promise<Template | null> {
       requireOrganizationPrincipal();
       const tr = await runWebappPgText<TemplateHeaderDbRow>(
-        `SELECT id, title, description, status, created_by, created_at, updated_at
+        `SELECT id, owner_kind, title, description, status, created_by, created_at, updated_at
          FROM lfk_complex_templates
          WHERE id = $1
-           AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
-        [id]
+           AND (
+             (owner_kind = 'organization' AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+             OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+           )`,
+        [id, options.includePlatformBase === true]
       );
       if (!tr.rows[0]) return null;
       const er = await runWebappPgText<TemplateExerciseDbRow>(
@@ -582,11 +604,15 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
          FROM lfk_complex_template_exercises te
          JOIN lfk_exercises e
            ON e.id = te.exercise_id
-          AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+          AND (
+            (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+            OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+          )
          WHERE te.template_id = $1
-           AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND te.owner_kind = $2
+           AND te.organization_id IS NOT DISTINCT FROM $3::uuid
          ORDER BY te.sort_order ASC, te.id ASC`,
-        [id]
+        [id, tr.rows[0].owner_kind, tr.rows[0].owner_kind === "platform" ? null : getCurrentDbPrincipalOrganizationId()]
       );
       const exercises = er.rows.map(mapTeRow);
       return mapTemplateRow(tr.rows[0], exercises);
@@ -597,9 +623,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       const r = await runWebappTransaction((tx) =>
         txPgText<TemplateHeaderDbRow>(
           tx,
-          `INSERT INTO lfk_complex_templates (organization_id, title, description, created_by, updated_at)
-           VALUES (NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, now())
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          `INSERT INTO lfk_complex_templates (owner_kind, organization_id, title, description, created_by, updated_at)
+           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, now())
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           [input.title, input.description ?? null, createdBy],
         ),
       );
@@ -626,7 +652,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           `UPDATE lfk_complex_templates SET ${sets.join(", ")}
            WHERE id = $${n}
              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           vals,
         ),
       );
@@ -634,7 +660,11 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       return this.getById(id);
     },
 
-    async updateExercises(templateId: string, exercises: TemplateExerciseInput[]): Promise<void> {
+    async updateExercises(
+      templateId: string,
+      exercises: TemplateExerciseInput[],
+      options: TemplateAccessOptions = {},
+    ): Promise<void> {
       requireOrganizationPrincipal();
       await runWebappTransaction(async (tx) => {
         await txPgText(
@@ -649,13 +679,16 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           const inserted = await txPgText(
             tx,
             `INSERT INTO lfk_complex_template_exercises
-             (organization_id, template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
-             SELECT NULLIF(current_setting('app.org', true), '')::uuid, t.id, e.id, $3, $4, $5, $6, $7, $8
+             (owner_kind, organization_id, template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
+             SELECT 'organization', NULLIF(current_setting('app.org', true), '')::uuid, t.id, e.id, $3, $4, $5, $6, $7, $8
                FROM lfk_complex_templates t
                JOIN lfk_exercises e ON e.id = $2
               WHERE t.id = $1
                 AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
-                AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+                AND (
+                  (e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+                  OR ($9::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+                )`,
             [
               templateId,
               e.exerciseId,
@@ -665,6 +698,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
               e.side ?? null,
               e.maxPain0_10 ?? null,
               e.comment ?? null,
+              options.includePlatformBase === true,
             ],
           );
           if ((inserted.rowCount ?? 0) !== 1) {
@@ -690,7 +724,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           `UPDATE lfk_complex_templates SET status = $2, updated_at = now()
            WHERE id = $1
              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           [id, status],
         ),
       );

@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
@@ -22,8 +23,10 @@ type PageProps = {
 };
 
 export default async function TreatmentProgramTemplatesPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const deps = buildAppDeps();
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
 
   const sp = (await searchParams) ?? {};
   const listPubArch = parseDoctorCatalogPubArchQuery(sp);
@@ -32,8 +35,8 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const [items, exercises, lfkTemplates, testSets, clinicalTests, recommendations, contentPagesAll, bodyRegionItems] =
     await Promise.all([
       deps.treatmentProgram.listTemplates(tplListFilter),
-      deps.lfkExercises.listExercises({ includeArchived: false }),
-      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true }),
+      deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
+      deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true, includePlatformBase }),
       deps.testSets.listTestSets({ archiveScope: "active", publicationScope: "published" }),
       deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
       deps.recommendations.listRecommendations({ includeArchived: false }),

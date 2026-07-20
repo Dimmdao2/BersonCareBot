@@ -32,13 +32,17 @@ export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
 /**
- * C4A/C4C — scoped fail-closed exceptions to the compatibility default-true resolver (see
- * `resolveOrgEntitlements` in `service.ts`). `clinic_team` and `courses` require an explicit
- * tariff or organization override. `courses` is the current owner-only legacy surface: treating
- * a missing entitlement as enabled would expose it to a newly provisioned organization.
+ * C4A/C4C/C4D — scoped fail-closed exceptions to the compatibility default-true resolver (see
+ * `resolveOrgEntitlements` in `service.ts`). `clinic_team`, `courses`, and the platform part of
+ * `exercise_catalog` require an explicit tariff or organization override. OFF exercise catalog
+ * still leaves the organization's own exercises and templates available; it only excludes the
+ * platform base library.
  */
 export const MECHANIC_DEFAULT_ENABLED: Record<OrgMechanic, boolean> = Object.fromEntries(
-  MECHANICS.map((mechanic) => [mechanic, mechanic !== "clinic_team" && mechanic !== "courses"]),
+  MECHANICS.map((mechanic) => [
+    mechanic,
+    mechanic !== "clinic_team" && mechanic !== "courses" && mechanic !== "exercise_catalog",
+  ]),
 ) as Record<OrgMechanic, boolean>;
 
 /**

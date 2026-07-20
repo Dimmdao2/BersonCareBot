@@ -4,6 +4,11 @@ import {
   type WebappSqlTransactionExecutor,
 } from "@/infra/db/runWebappSql";
 import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+
+const lfkAssignmentEntitlements = createPgOrgEntitlementsPort();
 
 async function pgTextTx<T>(
   tx: WebappSqlTransactionExecutor,
@@ -20,11 +25,30 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
       patientUserId: string;
       assignedBy: string | null;
     }) {
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new Error("Шаблон не найден или не опубликован");
+      const includePlatformBase = await isMechanicEnabled(
+        lfkAssignmentEntitlements,
+        organizationId,
+        "exercise_catalog",
+      );
       return runWebappTransaction(async (tx) => {
-        const tplR = await pgTextTx<{ id: string; title: string; status: string }>(
+        const tplR = await pgTextTx<{
+          id: string;
+          title: string;
+          status: string;
+          owner_kind: string;
+          organization_id: string | null;
+        }>(
           tx,
-          `SELECT id, title, status FROM lfk_complex_templates WHERE id = $1`,
-          [params.templateId],
+          `SELECT id, title, status, owner_kind, organization_id
+             FROM lfk_complex_templates
+            WHERE id = $1
+              AND (
+                (owner_kind = 'organization' AND organization_id = $2::uuid)
+                OR ($3::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+              )`,
+          [params.templateId, organizationId, includePlatformBase],
         );
         const tpl = tplR.rows[0];
         if (!tpl || tpl.status !== "published") {
@@ -44,8 +68,10 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
           `SELECT exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment
            FROM lfk_complex_template_exercises
            WHERE template_id = $1
+             AND owner_kind = $2
+             AND organization_id IS NOT DISTINCT FROM $3::uuid
            ORDER BY sort_order ASC, id ASC`,
-          [params.templateId],
+          [params.templateId, tpl.owner_kind, tpl.organization_id],
         );
         if (exR.rows.length === 0) {
           throw new Error("В шаблоне нет упражнений");

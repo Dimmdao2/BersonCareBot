@@ -20,6 +20,9 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaPreviewS3KeyForRedirect: mocks.getMediaPreviewS3KeyForRedirect,
   getMediaAccessRow: mocks.getMediaAccessRow,
 }));
+vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+  resolvePlatformLfkMediaAccess: vi.fn(async () => false),
+}));
 
 vi.mock("@/modules/roles/service", () => ({
   canAccessDoctor: () => false,

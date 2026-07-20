@@ -75,7 +75,10 @@ export function buildTreatmentProgramLibraryPickers(params: {
     exercises: exercises.map((e) => ({
       id: e.id,
       title: e.title,
-      subtitle: e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
+      subtitle: [
+        e.ownerKind === "platform" ? "Базовая библиотека" : null,
+        e.loadType ? (LOAD_SUBTITLE[e.loadType] ?? null) : null,
+      ].filter((part): part is string => Boolean(part)).join(" · ") || null,
       thumbUrl: exerciseThumbUrl(e.media[0]),
       regionCodes: mapExerciseRegionCodes(e.regionRefIds, bodyRegionIdToCode),
       loadType: e.loadType,
@@ -89,8 +92,10 @@ export function buildTreatmentProgramLibraryPickers(params: {
       return {
         id: t.id,
         title: t.title,
-        subtitle:
+        subtitle: [
+          t.ownerKind === "platform" ? "Базовая библиотека" : null,
           typeof t.exerciseCount === "number" ? `${t.exerciseCount} упражнений в комплексе` : null,
+        ].filter((part): part is string => Boolean(part)).join(" · ") || null,
         thumbUrl: lfkTemplateThumb(t),
         description: desc ? desc : null,
         ...filterMeta,

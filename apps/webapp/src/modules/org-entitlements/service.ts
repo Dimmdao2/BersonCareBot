@@ -10,8 +10,10 @@ import type { OrgEntitlementsPort } from "./ports";
 /**
  * Store P0 — entitlement foundation. Resolves, for EACH canonical mechanic, the precedence
  * override > tariff > `MECHANIC_DEFAULT_ENABLED[mechanic]`. Default-true remains intentional for
- * compatibility mechanics. `clinic_team` (C4A) and the current owner-only `courses` surface
- * (C4C) are scoped exceptions: both default OFF without a tariff or override. See
+ * compatibility mechanics. `clinic_team` (C4A), the current owner-only `courses` surface
+ * (C4C), and access to the C4D platform exercise base are scoped exceptions: all default OFF
+ * without a tariff or override. An OFF `exercise_catalog` never hides the clinic's own library.
+ * See
  * STORE_P0_ENTITLEMENTS_PLAN.md and OWNER_REVIEW_2026-07-18.md §§13, 15.
  */
 export async function resolveOrgEntitlements(

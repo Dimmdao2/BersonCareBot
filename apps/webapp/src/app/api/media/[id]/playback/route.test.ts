@@ -44,6 +44,9 @@ vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForPlayback: (...a: unknown[]) => getRowMock(...a),
   getMediaAccessRow: (...a: unknown[]) => getAccessRowMock(...a),
 }));
+vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+  resolvePlatformLfkMediaAccess: vi.fn(async () => false),
+}));
 
 vi.mock("@/app-layer/media/s3Client", () => ({
   presignGetUrl: (...a: unknown[]) => presignMock(...a),
@@ -206,7 +209,10 @@ describe("GET /api/media/[id]/playback", () => {
     expect(b.delivery).toBe("file");
     expect(b.hls).toBeNull();
     expect(presignMock).not.toHaveBeenCalled();
-    expect(getRowMock).toHaveBeenCalledWith(mid, { allowLocalSaasTestFixture: true });
+    expect(getRowMock).toHaveBeenCalledWith(mid, {
+      allowLocalSaasTestFixture: true,
+      allowPlatformBase: false,
+    });
   });
 
   it("video HLS not ready → delivery mp4, hls null", async () => {

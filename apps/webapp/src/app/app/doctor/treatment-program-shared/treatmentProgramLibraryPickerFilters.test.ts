@@ -89,6 +89,7 @@ describe("treatmentProgramLibraryPickerFilters", () => {
   it("lfk complex meta matches any constituent exercise load/region", () => {
     const template: Template = {
       id: "tpl-1",
+      ownerKind: "organization",
       title: "C",
       description: null,
       status: "published",

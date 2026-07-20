@@ -15,6 +15,7 @@ import {
 import type { LfkTemplateUsageSnapshot, TemplateExerciseInput } from "@/modules/lfk-templates/types";
 import { EMPTY_LFK_TEMPLATE_USAGE_SNAPSHOT } from "@/modules/lfk-templates/types";
 import { sanitizeLfkTemplatesListPreserveQuery } from "./lfkTemplatesListPreserveQuery";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 
 const BASE = "/app/doctor/lfk-templates";
 
@@ -132,7 +133,9 @@ export async function createLfkTemplateDraftFromEditor(payload: {
           withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.create", fn),
       },
     );
+    const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
     await deps.lfkTemplates.updateExercises(created.id, payload.exercises, {
+      includePlatformBase,
       runTemplateWrite: (fn) =>
         withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
     });
@@ -153,6 +156,7 @@ export async function persistLfkTemplateDraft(payload: {
   try {
     const workspace = await requireDoctorWorkspaceContext();
     const deps = buildAppDeps();
+    const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
     const cur = await deps.lfkTemplates.getTemplate(payload.templateId);
     if (!cur) return { ok: false, error: "Шаблон не найден" };
     if (cur.status === "archived") {
@@ -170,6 +174,7 @@ export async function persistLfkTemplateDraft(payload: {
       },
     );
     await deps.lfkTemplates.updateExercises(payload.templateId, payload.exercises, {
+      includePlatformBase,
       runTemplateWrite: (fn) =>
         withDoctorWorkspacePrincipal(workspace, "doctor.lfk-templates.update-exercises", fn),
     });

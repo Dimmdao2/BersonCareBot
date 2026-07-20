@@ -7,6 +7,7 @@ import { mergeCatalogBodyRegionIds } from "@/shared/lib/mergeCatalogBodyRegionId
 export type ExerciseLoadType = string;
 
 export type ExerciseMediaType = "image" | "video" | "gif";
+export type ExerciseOwnerKind = "organization" | "platform";
 
 export type ExerciseMedia = {
   id: string;
@@ -23,6 +24,7 @@ export type ExerciseMedia = {
 
 export type Exercise = {
   id: string;
+  ownerKind: ExerciseOwnerKind;
   title: string;
   description: string | null;
   /** Первый регион (legacy колонка `region_ref_id`, dual-write с M2M). */
@@ -50,6 +52,13 @@ export type ExerciseFilter = {
   /** Активные / все / только архив. Имеет приоритет над устаревшим `includeArchived`. */
   archiveListScope?: RecommendationListFilterScope;
   search?: string | null;
+  /** Trusted server-side entitlement decision; never derive from a request query/body. */
+  includePlatformBase?: boolean;
+};
+
+export type ExerciseAccessOptions = {
+  /** Trusted server-side entitlement decision; defaults to own organization only. */
+  includePlatformBase?: boolean;
 };
 
 export const mergeExerciseRegionRefIds = mergeCatalogBodyRegionIds;

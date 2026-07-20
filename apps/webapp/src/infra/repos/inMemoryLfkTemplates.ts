@@ -3,6 +3,7 @@ import type {
   CreateTemplateInput,
   LfkTemplateUsageSnapshot,
   Template,
+  TemplateAccessOptions,
   TemplateExercise,
   TemplateExerciseInput,
   TemplateFilter,
@@ -24,6 +25,7 @@ export function resetInMemoryLfkTemplatesStore(): void {
 }
 
 function matchesFilter(t: Template, f: TemplateFilter): boolean {
+  if (t.ownerKind === "platform" && f.includePlatformBase !== true) return false;
   if (f.status && t.status !== f.status) return false;
   if (f.search?.trim()) {
     if (!t.title.toLowerCase().includes(f.search.trim().toLowerCase())) return false;
@@ -60,8 +62,9 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   },
 
-  async getById(id: string): Promise<Template | null> {
+  async getById(id: string, options: TemplateAccessOptions = {}): Promise<Template | null> {
     const t = templates.get(id);
+    if (t?.ownerKind === "platform" && options.includePlatformBase !== true) return null;
     return t ? { ...t, exercises: [...t.exercises].sort((a, b) => a.sortOrder - b.sortOrder) } : null;
   },
 
@@ -70,6 +73,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
     const now = new Date().toISOString();
     const t: Template = {
       id,
+      ownerKind: "organization",
       title: input.title,
       description: input.description ?? null,
       status: "draft",
@@ -84,7 +88,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async update(id: string, input: UpdateTemplateInput): Promise<Template | null> {
     const cur = templates.get(id);
-    if (!cur) return null;
+    if (!cur || cur.ownerKind !== "organization") return null;
     const now = new Date().toISOString();
     const next: Template = {
       ...cur,
@@ -98,7 +102,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async updateExercises(templateId: string, exercises: TemplateExerciseInput[]): Promise<void> {
     const cur = templates.get(templateId);
-    if (!cur) return;
+    if (!cur || cur.ownerKind !== "organization") return;
     const now = new Date().toISOString();
     const rows: TemplateExercise[] = exercises.map((e, idx) => ({
       id: crypto.randomUUID(),
@@ -116,7 +120,7 @@ export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
 
   async setStatus(id: string, status: TemplateStatus): Promise<Template | null> {
     const cur = templates.get(id);
-    if (!cur) return null;
+    if (!cur || cur.ownerKind !== "organization") return null;
     const now = new Date().toISOString();
     templates.set(id, { ...cur, status, updatedAt: now });
     return this.getById(id);

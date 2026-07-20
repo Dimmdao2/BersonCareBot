@@ -1520,6 +1520,13 @@
       "when": 1793539200011,
       "tag": "0216_current_patient_organization_context",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1793539200012,
+      "tag": "0217_platform_lfk_ownership",
+      "breakpoints": true
     }
   ]
 }

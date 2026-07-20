@@ -4,6 +4,7 @@ import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type {
   CreateExerciseInput,
   Exercise,
+  ExerciseAccessOptions,
   ExerciseFilter,
   ExerciseMedia,
   ExerciseUsageSnapshot,
@@ -33,6 +34,7 @@ function exerciseListArchiveScope(f: ExerciseFilter): RecommendationListFilterSc
 }
 
 function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
+  if (ex.ownerKind === "platform" && f.includePlatformBase !== true) return false;
   const scope = exerciseListArchiveScope(f);
   if (scope === "active" && ex.isArchived) return false;
   if (scope === "archived" && !ex.isArchived) return false;
@@ -61,17 +63,24 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   },
 
-  async listTitlesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+  async listTitlesByIds(
+    ids: readonly string[],
+    options: ExerciseAccessOptions = {},
+  ): Promise<Map<string, string>> {
     const out = new Map<string, string>();
     for (const id of ids) {
       const ex = exercises.get(id.trim());
-      if (ex) out.set(ex.id, ex.title);
+      if (ex && (ex.ownerKind === "organization" || options.includePlatformBase === true)) {
+        out.set(ex.id, ex.title);
+      }
     }
     return out;
   },
 
-  async getById(id: string): Promise<Exercise | null> {
-    return exercises.get(id) ?? null;
+  async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
+    const exercise = exercises.get(id);
+    if (!exercise || (exercise.ownerKind === "platform" && options.includePlatformBase !== true)) return null;
+    return exercise;
   },
 
   async create(input: CreateExerciseInput, createdBy: string | null): Promise<Exercise> {
@@ -88,6 +97,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
     const regionRefIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
     const ex: Exercise = {
       id,
+      ownerKind: "organization",
       title: input.title,
       description: input.description ?? null,
       regionRefId: regionRefIds[0] ?? null,
@@ -108,7 +118,7 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
     const cur = exercises.get(id);
-    if (!cur) return null;
+    if (!cur || cur.ownerKind !== "organization") return null;
     const now = new Date().toISOString();
     let media = cur.media;
     if (input.media !== undefined && input.media !== null) {
@@ -147,14 +157,14 @@ export const inMemoryLfkExercisesPort: LfkExercisesPort = {
 
   async archive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || cur.isArchived) return false;
+    if (!cur || cur.ownerKind !== "organization" || cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: true, updatedAt: new Date().toISOString() });
     return true;
   },
 
   async unarchive(id: string): Promise<boolean> {
     const cur = exercises.get(id);
-    if (!cur || !cur.isArchived) return false;
+    if (!cur || cur.ownerKind !== "organization" || !cur.isArchived) return false;
     exercises.set(id, { ...cur, isArchived: false, updatedAt: new Date().toISOString() });
     return true;
   },

@@ -1,6 +1,8 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import { clinicalTests } from "../../../db/schema/clinicalTests";
 import { recommendations } from "../../../db/schema/recommendations";
 import {
@@ -21,6 +23,7 @@ function notFound(type: TreatmentProgramLibraryPickType): Error {
 
 /** Валидация полиморфной ссылки `item_ref_id` по типу — без FK в БД. */
 export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgramItemRefValidationPort {
+  const orgEntitlements = createPgOrgEntitlementsPort();
   return {
     async assertItemRefExists(type: TreatmentProgramLibraryPickType, itemRefId: string, organizationId?: string): Promise<void> {
       const db = getDrizzle();
@@ -28,15 +31,49 @@ export function createPgTreatmentProgramItemRefValidationPort(): TreatmentProgra
       if (!scopedOrganizationId) throw notFound(type);
       switch (type) {
         case "exercise": {
+          const includePlatformBase = await isMechanicEnabled(
+            orgEntitlements,
+            scopedOrganizationId,
+            "exercise_catalog",
+          );
           const row = await db.query.lfkExercises.findFirst({
-            where: and(eq(lfkExercises.id, itemRefId), eq(lfkExercises.organizationId, scopedOrganizationId), eq(lfkExercises.isArchived, false)),
+            where: and(
+              eq(lfkExercises.id, itemRefId),
+              eq(lfkExercises.isArchived, false),
+              or(
+                and(
+                  eq(lfkExercises.ownerKind, "organization"),
+                  eq(lfkExercises.organizationId, scopedOrganizationId),
+                ),
+                includePlatformBase
+                  ? and(eq(lfkExercises.ownerKind, "platform"), isNull(lfkExercises.organizationId))
+                  : undefined,
+              ),
+            ),
           });
           if (!row) throw notFound(type);
           return;
         }
         case "lfk_complex": {
+          const includePlatformBase = await isMechanicEnabled(
+            orgEntitlements,
+            scopedOrganizationId,
+            "exercise_catalog",
+          );
           const row = await db.query.lfkComplexTemplates.findFirst({
-            where: and(eq(lfkComplexTemplates.id, itemRefId), eq(lfkComplexTemplates.organizationId, scopedOrganizationId), ne(lfkComplexTemplates.status, "archived")),
+            where: and(
+              eq(lfkComplexTemplates.id, itemRefId),
+              ne(lfkComplexTemplates.status, "archived"),
+              or(
+                and(
+                  eq(lfkComplexTemplates.ownerKind, "organization"),
+                  eq(lfkComplexTemplates.organizationId, scopedOrganizationId),
+                ),
+                includePlatformBase
+                  ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+                  : undefined,
+              ),
+            ),
           });
           if (!row) throw notFound(type);
           return;

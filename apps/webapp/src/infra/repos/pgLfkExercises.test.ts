@@ -20,6 +20,7 @@ const exerciseId = "550e8400-e29b-41d4-a716-446655440000";
 function exerciseDbRow(overrides: Partial<{ id: string; title: string }> = {}) {
   return {
     id: exerciseId,
+    owner_kind: "organization",
     title: "Присед",
     description: null,
     region_ref_id: null,
@@ -67,6 +68,28 @@ describe("createPgLfkExercisesPort", () => {
     await port.list({ archiveListScope: "archived" });
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("is_archived = true");
+  });
+
+  it("keeps platform base hidden by default and includes it only from a trusted option", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.list({});
+    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(offSql).not.toContain("e.owner_kind = 'platform'");
+
+    await port.list({ includePlatformBase: true });
+    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(onSql).toContain("e.owner_kind = 'platform'");
+    expect(onSql).toContain("e.organization_id IS NULL");
+  });
+
+  it("direct lookup binds entitlement OFF/ON instead of trusting a target id", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.getById(exerciseId);
+    await port.getById(exerciseId, { includePlatformBase: true });
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([exerciseId, false]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([exerciseId, true]);
   });
 
   it("list applies NFC-normalized ILIKE search for titles", async () => {

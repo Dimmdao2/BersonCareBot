@@ -13,6 +13,7 @@ import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
   Exercise,
+  ExerciseAccessOptions,
   ExerciseFilter,
   ExerciseLoadType,
   ExerciseMedia,
@@ -25,6 +26,7 @@ import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT, mergeExerci
 
 type MediaDbRow = {
   id: string;
+  owner_kind: string;
   exercise_id: string;
   media_url: string;
   media_type: string;
@@ -44,6 +46,7 @@ function requireOrganizationPrincipal(): void {
 
 type ExerciseDbRow = {
   id: string;
+  owner_kind: string;
   title: string;
   description: string | null;
   region_ref_id: string | null;
@@ -128,6 +131,7 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
   const regionRefId = regionRefIds[0] ?? null;
   return {
     id: String(row.id),
+    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
     title: row.title,
     description: row.description,
     regionRefId,
@@ -168,17 +172,20 @@ async function replaceLfkExerciseRegions(
     const t = rid.trim();
     if (!t) continue;
     await runWebappPgText(
-      `INSERT INTO lfk_exercise_regions (organization_id, exercise_id, region_ref_id)
-       VALUES (NULLIF(current_setting('app.org', true), '')::uuid, $1, $2::uuid)`,
+      `INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
+       VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2::uuid)`,
       [exerciseId, t],
       tx,
     );
   }
 }
 
-async function loadAllMediaForExercise(exerciseId: string): Promise<ExerciseMedia[]> {
+async function loadAllMediaForExercise(
+  exerciseId: string,
+  options: ExerciseAccessOptions = {},
+): Promise<ExerciseMedia[]> {
   const r = await runWebappPgText<MediaDbRow>(
-    `SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
+    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
             mf.id AS media_file_id,
             mf.preview_sm_key, mf.preview_md_key, mf.preview_status
      FROM lfk_exercise_media em
@@ -187,11 +194,15 @@ async function loadAllMediaForExercise(exerciseId: string): Promise<ExerciseMedi
        substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
        ''
      )::uuid
-       AND mf.organization_id = em.organization_id
+       AND mf.owner_kind = em.owner_kind
+       AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
      WHERE em.exercise_id = $1
-       AND em.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+       AND (
+         (em.owner_kind = 'organization' AND em.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+         OR ($2::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
+       )
      ORDER BY em.sort_order ASC, em.created_at ASC`,
-    [exerciseId],
+    [exerciseId, options.includePlatformBase === true],
   );
   return r.rows.map(mapMediaRow);
 }
@@ -509,7 +520,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
       requireOrganizationPrincipal();
       const conds: string[] = [
-        "e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
+        filter.includePlatformBase
+          ? "((e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))"
+          : "e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
       ];
       const params: unknown[] = [];
       let i = 1;
@@ -525,7 +538,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           `(EXISTS (
              SELECT 1 FROM lfk_exercise_regions r0
               WHERE r0.exercise_id = e.id
-                AND r0.organization_id = e.organization_id
+                AND r0.owner_kind = e.owner_kind
+                AND r0.organization_id IS NOT DISTINCT FROM e.organization_id
                 AND r0.region_ref_id = $${i}
            ) OR e.region_ref_id = $${i})`,
         );
@@ -555,13 +569,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       }
 
       const sql = `
-        SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                COALESCE((
                  SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
                  FROM lfk_exercise_regions x
                  WHERE x.exercise_id = e.id
-                   AND x.organization_id = e.organization_id
+                   AND x.owner_kind = e.owner_kind
+                   AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                ), ARRAY[]::uuid[]) AS region_m2m_ids,
                pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
                pm.created_at AS pm_created,
@@ -580,9 +595,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
             ''
           )::uuid
-            AND mf.organization_id = em.organization_id
+            AND mf.owner_kind = em.owner_kind
+            AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
           WHERE em.exercise_id = e.id
-            AND em.organization_id = e.organization_id
+            AND em.owner_kind = e.owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM e.organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
@@ -602,6 +619,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           media.push(
             mapMediaRow({
               id: row.pm_id,
+              owner_kind: row.owner_kind,
               exercise_id: row.id,
               media_url: row.pm_url,
               media_type: row.pm_type,
@@ -618,7 +636,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       });
     },
 
-    async listTitlesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    async listTitlesByIds(
+      ids: readonly string[],
+      options: ExerciseAccessOptions = {},
+    ): Promise<Map<string, string>> {
       requireOrganizationPrincipal();
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
@@ -627,8 +648,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         `SELECT id::text AS id, title
            FROM lfk_exercises
           WHERE id = ANY($1::uuid[])
-            AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
-        [unique],
+            AND (
+              (owner_kind = 'organization' AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+              OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+            )`,
+        [unique, options.includePlatformBase === true],
       );
       for (const row of r.rows ?? []) {
         out.set(row.id, row.title);
@@ -636,24 +660,28 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       return out;
     },
 
-    async getById(id: string): Promise<Exercise | null> {
+    async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
       requireOrganizationPrincipal();
       const r = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
                   FROM lfk_exercise_regions x
                   WHERE x.exercise_id = e.id
-                    AND x.organization_id = e.organization_id
+                    AND x.owner_kind = e.owner_kind
+                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
          WHERE e.id = $1
-           AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
-        [id],
+           AND (
+             (e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+             OR ($2::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+           )`,
+        [id, options.includePlatformBase === true],
       );
       if (!r.rows[0]) return null;
-      const media = await loadAllMediaForExercise(id);
+      const media = await loadAllMediaForExercise(id, options);
       return mapExerciseRow(r.rows[0], media);
     },
 
@@ -665,10 +693,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         const ins = await txPgText<ExerciseDbRow>(
           tx,
           `INSERT INTO lfk_exercises (
-             organization_id, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
+             owner_kind, organization_id, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES (NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, now())
-           RETURNING id, title, description, region_ref_id, load_type, difficulty_1_10,
+           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, now())
+           RETURNING id, owner_kind, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
           [
             input.title,
@@ -689,8 +717,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           for (const m of input.media) {
             await txPgText(
               tx,
-              `INSERT INTO lfk_exercise_media (organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES (NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
+              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
               [newExId, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
@@ -764,8 +792,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           for (const m of input.media) {
             await txPgText(
               tx,
-              `INSERT INTO lfk_exercise_media (organization_id, exercise_id, media_url, media_type, sort_order)
-               VALUES (NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
+              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
               [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
@@ -777,13 +805,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
       const media = await loadAllMediaForExercise(id);
       const rowR = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
                   FROM lfk_exercise_regions x
                   WHERE x.exercise_id = e.id
-                    AND x.organization_id = e.organization_id
+                    AND x.owner_kind = e.owner_kind
+                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
          WHERE e.id = $1

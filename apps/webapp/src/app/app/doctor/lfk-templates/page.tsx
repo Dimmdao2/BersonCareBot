@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import {
@@ -31,7 +32,8 @@ type PageProps = {
 };
 
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const sp = (await searchParams) ?? {};
 
   const q = typeof sp.q === "string" ? sp.q : "";
@@ -41,12 +43,14 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const listPubArch: DoctorCatalogPubArchQuery = parseDoctorCatalogPubArchQuery(sp);
 
   const deps = buildAppDeps();
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
   const [rawList, exercises, bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       includeExerciseDetails: true,
+      includePlatformBase,
       ...lfkTemplateFilterFromPubArch(listPubArch),
     }),
-    deps.lfkExercises.listExercises({ includeArchived: false }),
+    deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
     deps.references.listActiveItemsByCategoryCode("body_region"),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
   ]);

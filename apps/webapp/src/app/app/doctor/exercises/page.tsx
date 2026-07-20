@@ -1,4 +1,5 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
@@ -26,12 +27,17 @@ type PageProps = {
 };
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionParsed = parseDoctorCatalogRegionQueryParam(sp.region);
 
   const deps = buildAppDeps();
+  const includePlatformBase = await assertMechanicEnabled(
+    workspace.organizationId,
+    "exercise_catalog",
+  );
   const [bodyRegionItems, loadTypeRefItems] = await Promise.all([
     deps.references.listActiveItemsByCategoryCode("body_region"),
     deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
@@ -50,16 +56,17 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
 
   const listPromise = deps.lfkExercises.listExercises({
     archiveListScope: listStatus,
+    includePlatformBase,
     regionRefId: resolveBodyRegionRefIdFromCatalogCode(bodyRegionItems, regionParsed.regionCode),
   });
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   const doctorExerciseSelectionPromise: Promise<DoctorExerciseSelection> = selectedExerciseId
     ? deps.lfkExercises
-        .getExercise(selectedExerciseId)
+        .getExercise(selectedExerciseId, { includePlatformBase })
         .then(async (ex) => {
           if (!ex) return { exercise: null, usage: null };
-          const usage = await deps.lfkExercises.getExerciseUsage(ex.id);
+          const usage = ex.ownerKind === "organization" ? await deps.lfkExercises.getExerciseUsage(ex.id) : null;
           return { exercise: ex, usage };
         })
         .catch(() => ({ exercise: null, usage: null }))

@@ -52,6 +52,10 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
     requireDoctorWorkspaceContextMock(...args),
 }));
 
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({
+  assertMechanicEnabled: vi.fn(async () => true),
+}));
+
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
@@ -160,7 +164,7 @@ describe("doctor lfk template actions principal boundaries", () => {
     expect(updateExercisesMock).toHaveBeenCalledWith(
       "tpl-1",
       [{ exerciseId: "ex-1", sortOrder: 0 }],
-      { runTemplateWrite: expect.any(Function) },
+      { includePlatformBase: true, runTemplateWrite: expect.any(Function) },
     );
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenNthCalledWith(
       1,

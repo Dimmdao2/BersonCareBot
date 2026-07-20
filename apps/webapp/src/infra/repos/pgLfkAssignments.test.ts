@@ -2,10 +2,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
+const getCurrentDbPrincipalOrganizationIdMock = vi.hoisted(() => vi.fn());
+const isMechanicEnabledMock = vi.hoisted(() => vi.fn());
+
+const ORGANIZATION_ID = "00000000-0000-4000-8000-000000000010";
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
   runWebappTransaction: runWebappTransactionMock,
+}));
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
+}));
+
+vi.mock("@/infra/repos/pgOrgEntitlements", () => ({
+  createPgOrgEntitlementsPort: vi.fn(() => ({ marker: "entitlements" })),
+}));
+
+vi.mock("@/modules/org-entitlements/service", () => ({
+  isMechanicEnabled: isMechanicEnabledMock,
 }));
 
 import { createPgLfkAssignmentsPort } from "./pgLfkAssignments";
@@ -14,12 +30,24 @@ describe("createPgLfkAssignmentsPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runWebappTransactionMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReset();
+    isMechanicEnabledMock.mockReset();
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORGANIZATION_ID);
+    isMechanicEnabledMock.mockResolvedValue(false);
     runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
   });
 
   it("throws when template is not published", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
-      rows: [{ id: "t1", title: "X", status: "draft" }],
+      rows: [
+        {
+          id: "t1",
+          title: "X",
+          status: "draft",
+          owner_kind: "organization",
+          organization_id: ORGANIZATION_ID,
+        },
+      ],
     });
 
     const port = createPgLfkAssignmentsPort();
@@ -35,6 +63,86 @@ describe("createPgLfkAssignmentsPort", () => {
     expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps platform templates unavailable while the catalog entitlement is off", async () => {
+    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+
+    const port = createPgLfkAssignmentsPort();
+    await expect(
+      port.assignPublishedTemplateToPatient({
+        templateId: "platform-template",
+        patientUserId: "00000000-0000-4000-8000-000000000001",
+        assignedBy: null,
+      }),
+    ).rejects.toThrow(/не опубликован/);
+
+    expect(isMechanicEnabledMock).toHaveBeenCalledWith(
+      { marker: "entitlements" },
+      ORGANIZATION_ID,
+      "exercise_catalog",
+    );
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "platform-template",
+      ORGANIZATION_ID,
+      false,
+    ]);
+  });
+
+  it("allows an enabled platform template to be instantiated as a patient-owned snapshot", async () => {
+    isMechanicEnabledMock.mockResolvedValueOnce(true);
+    runWebappPgTextMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "platform-template",
+            title: "Базовый шаблон",
+            status: "published",
+            owner_kind: "platform",
+            organization_id: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            exercise_id: "platform-exercise",
+            sort_order: 0,
+            reps: null,
+            sets: null,
+            side: null,
+            max_pain_0_10: null,
+            comment: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "patient-complex" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "patient-assignment" }] });
+
+    const port = createPgLfkAssignmentsPort();
+    await expect(
+      port.assignPublishedTemplateToPatient({
+        templateId: "platform-template",
+        patientUserId: "00000000-0000-4000-8000-000000000001",
+        assignedBy: null,
+      }),
+    ).resolves.toEqual({
+      assignmentId: "patient-assignment",
+      complexId: "patient-complex",
+    });
+
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "platform-template",
+      ORGANIZATION_ID,
+      true,
+    ]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+      "platform-template",
+      "platform",
+      null,
+    ]);
+  });
+
   it("creates new complex and assignment for first assign", async () => {
     const exRow = {
       exercise_id: "e1",
@@ -47,7 +155,15 @@ describe("createPgLfkAssignmentsPort", () => {
     };
     runWebappPgTextMock
       .mockResolvedValueOnce({
-        rows: [{ id: "t1", title: "Шаблон", status: "published" }],
+        rows: [
+          {
+            id: "t1",
+            title: "Шаблон",
+            status: "published",
+            owner_kind: "organization",
+            organization_id: ORGANIZATION_ID,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [exRow] })
       .mockResolvedValueOnce({ rows: [] })
@@ -81,7 +197,15 @@ describe("createPgLfkAssignmentsPort", () => {
     };
     runWebappPgTextMock
       .mockResolvedValueOnce({
-        rows: [{ id: "t1", title: "Шаблон", status: "published" }],
+        rows: [
+          {
+            id: "t1",
+            title: "Шаблон",
+            status: "published",
+            owner_kind: "organization",
+            organization_id: ORGANIZATION_ID,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [exRow] })
       .mockResolvedValueOnce({ rows: [{ id: "asg-old", complex_id: "cold" }] })
@@ -106,7 +230,15 @@ describe("createPgLfkAssignmentsPort", () => {
   it("aborts assign when template has no exercises", async () => {
     runWebappPgTextMock
       .mockResolvedValueOnce({
-        rows: [{ id: "t1", title: "Шаблон", status: "published" }],
+        rows: [
+          {
+            id: "t1",
+            title: "Шаблон",
+            status: "published",
+            owner_kind: "organization",
+            organization_id: ORGANIZATION_ID,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [] });
 

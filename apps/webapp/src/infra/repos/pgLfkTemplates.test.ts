@@ -20,6 +20,7 @@ const templateId = "00000000-0000-4000-8000-000000000001";
 function templateHeaderRow(overrides: Partial<{ id: string; title: string; status: string }> = {}) {
   return {
     id: templateId,
+    owner_kind: "organization",
     title: "T",
     description: null,
     status: "draft",
@@ -55,6 +56,28 @@ describe("createPgLfkTemplatesPort", () => {
     expect(sql).toContain("exercise_count");
     expect(sql).toContain("lfk_complex_template_exercises");
     expect(sql).toContain("t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+  });
+
+  it("keeps platform templates hidden OFF and exposes tagged platform rows ON", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    await port.list({});
+    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(offSql).not.toContain("t.owner_kind = 'platform'");
+
+    await port.list({ includePlatformBase: true });
+    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(onSql).toContain("t.owner_kind = 'platform'");
+    expect(onSql).toContain("t.organization_id IS NULL");
+  });
+
+  it("direct template lookup binds trusted OFF/ON access", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    await port.getById(templateId);
+    await port.getById(templateId, { includePlatformBase: true });
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([templateId, false]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([templateId, true]);
   });
 
   it("list runs lightweight thumbnail query by default when templates exist", async () => {
