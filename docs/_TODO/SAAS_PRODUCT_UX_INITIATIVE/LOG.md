@@ -3486,3 +3486,48 @@ acceptance is still unproven because the same DEV organization has no sanctioned
 slugs return `404`. No privileged fixture or direct DB mutation was invented; this live seal is carried to U6B slug
 readiness. Evidence: `.claude/screenshots/UI-2-197/20260720T213556Z/`. Advanced online-payment/selection flow remains
 the separate blocked `#215` scope.
+
+## 2026-07-21 — U3B patient invite launch manifest (`#806`)
+
+**Base and environment boundary.** Integration and `origin/feat/doctor-ui-rebuild` are both `b588262ae`; the isolated
+worker branch contains the same docs closeout as `c1734f0f8` and has no implementation edits at launch. The local
+remote-tracking `origin/test` ref is `a130741b0`; this is not asserted to be the deployed TEST SHA and no TEST action
+is part of this stage. DEV remains the existing single `127.0.0.1:5200` server and working database; implementation
+does not apply migrations or send messages. PROD, deploy, dump/reset/refresh and real external delivery are forbidden.
+
+**Owner/checklist authority.** Scope is task `#806`, owner ruling UX08-11, U3B `PIN-01…09`/`ERR-*`, the shared
+`ORG-PUB-03` join surface and `PATIENT_INVITE_AND_MANUAL_CREATION_DESIGN.md`. Staff-created card/relationship and
+scheduled or standalone walk-in visit from closed `#801` precede portal activation; delivery is neither identity
+proof nor access. This slice implements durable exact-org issue/revoke/supersede, a hashed short-lived single-use
+exchange, pre-auth public-summary-only lookup, email-first verified proof and atomic exactly-once link to the existing
+patient/enrollment. SMS/PBK/PWA/install/push, real provider activation and staff membership semantics are excluded.
+
+**Prerequisites and ownership.** U1 guard/capability `#916`, U3S staff auth/security `#919`, U5A organization resolver
+code and #801 manual relationship/visit are integrated. The remaining U5A two-org/revoked live seals become
+post-#806 integration acceptance, not a reason to invent a privileged fixture now. Canonical patient identity is
+global; invite, enrollment and every care object are exact-organization. The trusted invite supplies organization;
+neither URL/client payload nor internal `userId` may grant authority.
+
+**Allowed/protected scope.** Allowed implementation families are a single patient-invite module/ports/DI and exact
+repository, the existing Drizzle schema plus one additive journaled migration/rollback proof if required, narrow
+doctor issue/revoke/status APIs and patient-card UI, shared `/join/[exchange]` lookup/proof/redeem dispatch, and tests
+beside those paths. Existing organization-invite, email proof/setup, notification-delivery and U5A context code are
+reuse authorities; modification requires a demonstrated contract gap, not copying. Protected: #801 manual visit
+command and Clients-page layout, U6B public slug/profile/booking/widget routes, staff membership invites, SMS/PBK/PWA,
+C4/C5 entitlements/commerce, TEST/PROD/deploy scripts and unrelated migrations. The concurrent U6B lane is read-only
+until this no-overlap census is reconfirmed.
+
+**Synthetic acceptance and validation.** Roles: `dev:doctor` issuer, `dev:client` verified recipient, independent
+organization/clinic-admin negatives; data must be synthetic and PII-free. Email delivery is mocked/disabled and no
+real channel credential is used. Required evidence: issue/revoke/supersede and plaintext-token non-persistence;
+pre-auth no-clinical/no-internal-ID response and no-referrer/log leakage; wrong recipient/org, expiry, replay,
+already-linked and conflicting identity fail closed; exact one enrollment/card/visit graph after concurrent redeem;
+truthful not-activated/invited/linked UI; migration/rollback disposable proof if schema changes; targeted tests,
+typecheck, scoped lint/diff-check and one independent high-risk audit. Full CI and real two-connection integration
+proof are accumulated at the U3B milestone unless the new persistence transaction itself requires an earlier
+disposable proof.
+
+**Stop gates.** Stop and return an owner question only if the owner canon cannot choose between materially different
+identity outcomes. Stop implementation (without broadening grants or adding fallback senders) on ambiguous identity,
+missing exact-org ownership, inability to keep pre-auth data non-clinical, or a migration/role requirement outside the
+documented app owner/Drizzle path. No audit recommendation becomes product scope automatically.
