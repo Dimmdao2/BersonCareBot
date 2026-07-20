@@ -29,9 +29,14 @@ import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import { cn } from "@/lib/utils";
 import { AuthFlowV2, type AuthFlowStep, type PrefetchedPublicAuthConfig } from "@/shared/ui/patient/auth/AuthFlowV2";
-import { AUTH_LOGIN_ACCENT_TEXT_CLASS, AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS } from "@/shared/ui/patient/auth/loginChrome";
+import {
+  AUTH_LOGIN_ACCENT_TEXT_CLASS,
+  AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS,
+  AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS,
+} from "@/shared/ui/patient/auth/loginChrome";
 import { MaxBridgeScript } from "@/shared/ui/patient/MaxBridgeScript";
 import { patientInlineLinkClass, patientMutedTextClass } from "@/shared/ui/patient/patientVisual";
+import { SupportContactLink } from "@/shared/ui/patient/SupportContactLink";
 import { persistMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
 import {
   getMaxWebAppInitDataForAuth,
@@ -140,6 +145,7 @@ export function AuthBootstrap({
     searchParams.get("intent") === "specialist" || searchParams.get("devView") === "registration"
       ? "registration"
       : undefined;
+  const specialistSignupRequested = searchParams.get("intent") === "specialist";
   const debug = searchParams.get("debug") === "1";
   const [effectiveEntryClassification, setEffectiveEntryClassification] =
     useState<UnauthenticatedAppEntryClassification>(entryClassification);
@@ -1001,6 +1007,33 @@ export function AuthBootstrap({
   const loadMaxBridge = token == null && maxBridgeActive;
 
   if (showPhoneFlow) {
+    if (specialistSignupRequested && prefetchedAuth?.specialistSignupEnabled !== true) {
+      return (
+        <>
+          <MaxBridgeScript active={loadMaxBridge} />
+          <section aria-labelledby="specialist-signup-unavailable-title" className="flex flex-col gap-4 text-left">
+            <div>
+              <h1 id="specialist-signup-unavailable-title" className="text-lg font-semibold text-foreground">
+                Регистрация кабинета сейчас недоступна
+              </h1>
+              <p className={cn(patientMutedTextClass, "mt-2")}>
+                Оставьте запрос — мы свяжемся с вами и покажем текущие возможности BersonCare.
+              </p>
+            </div>
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+              {supportContactHref ? (
+                <SupportContactLink href={supportContactHref} className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS}>
+                  Запросить демо
+                </SupportContactLink>
+              ) : null}
+              <a href="/app" className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}>
+                Войти
+              </a>
+            </div>
+          </section>
+        </>
+      );
+    }
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />

@@ -205,7 +205,7 @@ describe("AuthBootstrap", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it("intent=specialist без разрешённого signup безопасно остаётся на обычном входе", async () => {
+  it("intent=specialist без доступной регистрации показывает нейтральное recovery-состояние", async () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("intent=specialist"));
     window.history.pushState({}, "", "/app?intent=specialist");
 
@@ -213,6 +213,7 @@ describe("AuthBootstrap", () => {
       <AuthBootstrap
         entryClassification="browser_interactive"
         initialPublicAuthConfig={browserPrefetchOauthDisabled()}
+        supportContactHref="/app/contact-support"
       />,
     );
 
@@ -220,7 +221,11 @@ describe("AuthBootstrap", () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(document.getElementById("auth-email-otp-input")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Регистрация кабинета сейчас недоступна" })).toBeInTheDocument();
+    expect(screen.getByText(/оставьте запрос/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/app/contact-support");
+    expect(screen.getByRole("link", { name: "Войти" })).toHaveAttribute("href", "/app");
+    expect(document.getElementById("auth-email-otp-input")).toBeNull();
     expect(document.getElementById("auth-specialist-email")).toBeNull();
     expect(mockReplace).not.toHaveBeenCalled();
   });
