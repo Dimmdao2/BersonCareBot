@@ -6,6 +6,8 @@ const getSpecialistSignupIntentByChallengeIdMock = vi.fn();
 const findUserIdByEmailChallengeIdMock = vi.fn();
 const findByUserIdMock = vi.fn();
 const setSessionFromUserMock = vi.fn();
+const getCurrentSessionMock = vi.fn();
+const ensureProfileMock = vi.fn();
 const getSpecialistSignupEnabledMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -20,6 +22,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     userByPhone: {
       findByUserId: findByUserIdMock,
     },
+    staffSecurity: {
+      ensureProfile: ensureProfileMock,
+    },
   }),
 }));
 
@@ -29,6 +34,7 @@ vi.mock("@/modules/auth/emailAuth", () => ({
 
 vi.mock("@/modules/auth/service", () => ({
   setSessionFromUser: (...args: unknown[]) => setSessionFromUserMock(...args),
+  getCurrentSession: () => getCurrentSessionMock(),
 }));
 
 vi.mock("@/modules/auth/specialistSignupRollout", () => ({
@@ -45,6 +51,9 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     findUserIdByEmailChallengeIdMock.mockReset();
     findByUserIdMock.mockReset();
     setSessionFromUserMock.mockReset();
+    getCurrentSessionMock.mockReset();
+    ensureProfileMock.mockReset();
+    ensureProfileMock.mockResolvedValue({ enrolled: false });
     getSpecialistSignupEnabledMock.mockReset();
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
   });
@@ -78,7 +87,7 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       specialistId: null,
       membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
-    findByUserIdMock.mockResolvedValueOnce({
+    findByUserIdMock.mockResolvedValue({
       userId: "11111111-1111-4111-8111-111111111111",
       role: "client",
       displayName: "Doctor Owner",
@@ -106,10 +115,11 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
         userId: "11111111-1111-4111-8111-111111111111",
         role: "doctor",
       }),
+      { staffSecurity: { assurance: "pending_enrollment" } },
     );
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
-      redirectTo: "/app/doctor",
+      redirectTo: "/app/account?tab=security",
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       specialistId: null,
     });
@@ -135,6 +145,28 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     expect(setSessionFromUserMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed after email verification when protected staff setup is temporarily unavailable", async () => {
+    findUserIdByEmailChallengeIdMock.mockResolvedValueOnce("11111111-1111-4111-8111-111111111111");
+    confirmEmailChallengeMock.mockResolvedValueOnce({ ok: true });
+    ensureProfileMock.mockRejectedValueOnce(new Error("database_unavailable"));
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/confirm", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          challengeId: "22222222-2222-4222-8222-222222222222",
+          code: "123456",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(503);
+    expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
+    expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    await expect(res.json()).resolves.toMatchObject({ ok: false, error: "security_setup_pending" });
+  });
+
   it("can retry provisioning after a successful email confirm consumed the challenge row", async () => {
     findUserIdByEmailChallengeIdMock.mockResolvedValueOnce(null);
     getSpecialistSignupIntentByChallengeIdMock.mockResolvedValueOnce({
@@ -149,12 +181,16 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       provisionedSpecialistId: null,
       provisionedMembershipId: null,
     });
+    getCurrentSessionMock.mockResolvedValueOnce({
+      user: { userId: "11111111-1111-4111-8111-111111111111", role: "doctor" },
+      staffSecurity: { assurance: "pending_enrollment" },
+    });
     provisionSpecialistOwnerMock.mockResolvedValueOnce({
       organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       specialistId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     });
-    findByUserIdMock.mockResolvedValueOnce({
+    findByUserIdMock.mockResolvedValue({
       userId: "11111111-1111-4111-8111-111111111111",
       role: "doctor",
       displayName: "Doctor Owner",
@@ -193,6 +229,10 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
       provisionedOrganizationId: null,
       provisionedSpecialistId: null,
       provisionedMembershipId: null,
+    });
+    getCurrentSessionMock.mockResolvedValueOnce({
+      user: { userId: "11111111-1111-4111-8111-111111111111", role: "doctor" },
+      staffSecurity: { assurance: "pending_enrollment" },
     });
     provisionSpecialistOwnerMock.mockRejectedValueOnce(new Error("specialist_signup_user_not_verified"));
 

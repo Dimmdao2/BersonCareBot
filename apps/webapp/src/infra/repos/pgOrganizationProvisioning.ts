@@ -5,6 +5,7 @@ import type {
   SpecialistSignupIntent,
 } from "@/modules/organization-provisioning/ports";
 import { beOrganizationMembers, beSpecialists } from "../../../db/schema/bookingEngine";
+import { adminAuditLog } from "../../../db/schema/schema";
 
 type SpecialistSignupIntentDbRow = {
   id: string;
@@ -99,6 +100,32 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       });
     },
 
+    async getLatestSpecialistSignupIntentForUser(userId) {
+      return runWebappTransaction(async (tx) => {
+        const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
+          `SELECT id::text, user_id::text, challenge_id::text, email_normalized,
+                  organization_title, specialist_full_name, status,
+                  provisioned_organization_id::text, provisioned_specialist_id::text,
+                  provisioned_membership_id::text
+           FROM app.get_latest_specialist_signup_intent_for_user($1::uuid)`,
+          [userId],
+          tx,
+        );
+        return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
+      });
+    },
+
+    async replacePendingSpecialistSignupChallenge({ userId, challengeId }) {
+      return runWebappTransaction(async (tx) => {
+        const result = await runWebappPgText<{ replaced: boolean }>(
+          "SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::uuid) AS replaced",
+          [userId, challengeId],
+          tx,
+        );
+        return result.rows[0]?.replaced === true;
+      });
+    },
+
     async provisionSpecialistOwner({ userId, challengeId }) {
       return runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<{
@@ -126,18 +153,21 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       });
     },
 
-    async ensureOwnBookableSpecialist({ organizationId, membershipId, fullName }) {
+    async ensureOwnBookableSpecialist({ organizationId, membershipId, platformUserId, fullName }) {
       return runWebappTransaction(async (tx) => {
         const membershipRows = await tx
           .select({
             id: beOrganizationMembers.id,
             specialistId: beOrganizationMembers.specialistId,
+            platformUserId: beOrganizationMembers.platformUserId,
+            role: beOrganizationMembers.role,
           })
           .from(beOrganizationMembers)
           .where(
             and(
               eq(beOrganizationMembers.id, membershipId),
               eq(beOrganizationMembers.organizationId, organizationId),
+              eq(beOrganizationMembers.status, "active"),
             ),
           )
           .limit(1)
@@ -145,6 +175,12 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
         const membership = membershipRows[0];
         if (!membership) {
           throw new Error("organization_membership_not_found");
+        }
+        if (membership.platformUserId !== platformUserId) {
+          throw new Error("organization_membership_actor_mismatch");
+        }
+        if (membership.role !== "owner" && membership.role !== "doctor") {
+          throw new Error("organization_membership_not_bookable");
         }
         if (membership.specialistId) {
           return { specialistId: membership.specialistId, created: false };
@@ -183,6 +219,15 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
         if ((update.rowCount ?? 0) < 1) {
           throw new Error("specialist_membership_backfill_conflict");
         }
+
+        await tx.insert(adminAuditLog).values({
+          organizationId,
+          actorId: platformUserId,
+          action: "specialist_self_binding_created",
+          targetId: specialistId,
+          details: { membershipId },
+          status: "ok",
+        });
 
         return { specialistId, created: true };
       });

@@ -60,6 +60,8 @@ export const platformUserSessionRowSchema = z.object({
   patronymic: z.string().nullable().optional(),
   role: z.string(),
   phone_normalized: z.string().nullable(),
+  security_version: z.coerce.number().int().nonnegative().optional().default(0),
+  security_factor_required: z.coerce.boolean().optional().default(false),
 });
 
 export const platformUserProfileRowSchema = z.object({

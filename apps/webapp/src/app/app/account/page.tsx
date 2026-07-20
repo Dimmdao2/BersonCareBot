@@ -13,6 +13,7 @@ import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
 import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
 import { AccountTabs, type AccountTab } from "./AccountTabs";
 import { loadStaffAccountPageContext } from "./accountContext";
+import { StaffSecuritySection } from "./StaffSecuritySection";
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)
@@ -22,7 +23,7 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
 
 function parseTab(raw: string | string[] | undefined): AccountTab {
   const value = typeof raw === "string" ? raw : raw?.[0];
-  return value === "notifications" || value === "install" ? value : "profile";
+  return value === "security" || value === "notifications" || value === "install" ? value : "profile";
 }
 
 export default async function AccountPage({
@@ -45,6 +46,27 @@ export default async function AccountPage({
         </DoctorSectionHeader>
         <StaffPwaInstallSection />
       </DoctorSection>
+    );
+  } else if (tab === "security") {
+    const [storedStatus, timezone] = await Promise.all([
+      deps.staffSecurity.getStatus(session.user.userId),
+      getDoctorAccountTimezone(session.user.userId),
+    ]);
+    const status = storedStatus ?? {
+      enrolled: false,
+      recoveryConfirmed: false,
+      replacementRequired: false,
+      lockedUntil: null,
+      sessionVersion: 0,
+    };
+    content = (
+      <StaffSecuritySection
+        initialStatus={status}
+        hasProfileName={Boolean(session.user.displayName.trim())}
+        hasTimezone={Boolean(timezone)}
+        hasOrganization={workspaceContext !== null}
+        hasSpecialistBinding={workspaceContext?.specialistId != null}
+      />
     );
   } else if (tab === "notifications") {
     const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());

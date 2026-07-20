@@ -190,6 +190,14 @@ async function resolveDoctorWorkspaceAccessContext(
   | { ok: true; ctx: DoctorWorkspaceAccessContext }
   | { ok: false; reason: "doctor_workspace_membership_required" | "forbidden" }
 > {
+  if (
+    session.staffSecurity?.assurance === "pending_enrollment" ||
+    session.staffSecurity?.assurance === "recovery" ||
+    (session.user.securityFactorRequired === true &&
+      session.staffSecurity?.assurance !== "factor_verified")
+  ) {
+    return { ok: false, reason: "forbidden" };
+  }
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });

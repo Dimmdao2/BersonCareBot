@@ -50,7 +50,32 @@ export async function POST(request: Request) {
   });
 
   if (!reg.ok) {
-    return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+    const resend = await deps.userPasswordCredentials.tryResendRegistrationChallenge({
+      emailNormalized: emailNorm,
+      plainPassword: parsed.data.password,
+    });
+    if (!resend.ok) {
+      return NextResponse.json({ ok: false, error: "duplicate_email" }, { status: 409 });
+    }
+    const challenge = await startEmailChallenge(resend.userId, emailNorm);
+    if (!challenge.ok) {
+      return NextResponse.json(
+        { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },
+        { status: challenge.code === "rate_limited" ? 429 : 400 },
+      );
+    }
+    const replaced = await deps.organizationProvisioning.replacePendingSpecialistSignupChallenge({
+      userId: resend.userId,
+      challengeId: challenge.challengeId,
+    });
+    if (!replaced) {
+      return NextResponse.json({ ok: false, error: "signup_recovery_required" }, { status: 409 });
+    }
+    return NextResponse.json({
+      ok: true,
+      challengeId: challenge.challengeId,
+      retryAfterSeconds: challenge.retryAfterSeconds,
+    });
   }
 
   const challenge = await startEmailChallenge(reg.userId, emailNorm);

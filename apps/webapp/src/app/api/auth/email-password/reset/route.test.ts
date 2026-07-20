@@ -2,12 +2,18 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const findVerified = vi.fn();
 const updatePasswordHash = vi.fn();
+const getSecurityStatus = vi.fn();
+const revokeSessions = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
       findVerifiedUserIdWithPassword: findVerified,
       updatePasswordHash,
+    },
+    staffSecurity: {
+      getStatus: getSecurityStatus,
+      revokeSessions,
     },
   }),
 }));
@@ -36,6 +42,34 @@ describe("POST /api/auth/email-password/reset", () => {
     updatePasswordHash.mockReset();
     consumeById.mockReset();
     consumeLatest.mockReset();
+    getSecurityStatus.mockReset();
+    revokeSessions.mockReset();
+    getSecurityStatus.mockResolvedValue(null);
+  });
+
+  it("revokes every existing staff session before changing a protected account password", async () => {
+    const uid = "550e8400-e29b-41d4-a716-446655440000";
+    findVerified.mockResolvedValueOnce(uid);
+    consumeLatest.mockResolvedValueOnce({ ok: true });
+    getSecurityStatus.mockResolvedValueOnce({ enrolled: true, sessionVersion: 4 });
+    revokeSessions.mockResolvedValueOnce(5);
+    updatePasswordHash.mockResolvedValueOnce(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/email-password/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "owner@example.com",
+          code: "123456",
+          newPassword: "newsecret12",
+        }),
+      }),
+    );
+
+    expect(revokeSessions).toHaveBeenCalledWith(uid);
+    expect(revokeSessions.mock.invocationCallOrder[0]).toBeLessThan(updatePasswordHash.mock.invocationCallOrder[0]!);
+    expect(res.status).toBe(200);
   });
 
   it("verified user can reset without challengeId (forgot anti-enumeration path)", async () => {

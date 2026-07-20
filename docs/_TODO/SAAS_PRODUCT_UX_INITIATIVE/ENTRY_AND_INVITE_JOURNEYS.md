@@ -146,22 +146,26 @@ user; terminal token сам по себе не выбирает workspace.
 - Password is set before confirmation; session is issued only for the verified canonical staff identity.
 - Organization context comes from the server-side signup intent created with the challenge, not from a later query,
   Host or client-supplied organization id.
-- 2FA is not currently implemented. Owner first-run requires a reviewed security contract for factor enrollment,
-  verification, recovery and session handling. Exact factor/grace/step-up values are security implementation policy,
-  not another UX08 owner gate; high-risk owner actions remain fail-closed until that policy is approved.
+- U3S now has an implementation candidate for the conservative security contract, pending its independent audit:
+  a new self-signup owner must enroll TOTP, verify it and explicitly acknowledge saved one-time recovery codes;
+  there is no grace period, and every new password session requires the factor. A recovery-code login is restricted
+  to factor replacement, increments the session generation and cannot reach clinical/high-risk owner actions.
+  Existing staff accounts are not silently enrolled merely by viewing Account security. Exact future factor choices
+  remain security architecture rather than another UX08 product gate.
 
 ### Records and transaction boundary
 
-Current code creates a pending password identity, email challenge and specialist-signup intent; after confirm it
-provisions organization + owner membership and creates a doctor session. It deliberately leaves
+The U3S implementation candidate creates a pending password identity, email challenge and one signup intent; after
+confirm it provisions organization + owner membership and creates a restricted first-run doctor session. It leaves
 `membership.specialist_id` and `provisioned_specialist_id` `NULL`: clinical specialist binding is deferred until a
-real staff principal exists. Target adds the binding through an authorized, idempotent continuation before claiming
-that the owner is a clinical actor; first useful clinical Today is unavailable until then.
+verified staff principal exists. The binding continuation resolves organization, membership and actor only from the
+server session, checks owner + completed factor/recovery, is idempotent under the membership row lock and records an
+owner audit event. First useful clinical Today remains unavailable until that binding succeeds.
 
-Current confirm retry has an additional security gap: when the email challenge row is gone, the route can resolve a
-persistent signup intent only by `challengeId`, skip code verification and issue a new doctor session after
-idempotent provisioning. Target retry requires an authenticated/idempotency receipt or an already-established
-session; a UUID challenge identifier must not become a post-verification session bearer.
+The former confirm-retry gap is closed in the U3S candidate: after the email challenge is consumed, `challengeId`
+alone cannot reissue a session. Retry requires the already-established restricted session for the same canonical
+doctor, while the separate retry endpoint resolves only that user's server-side intent. Partial provisioning can
+therefore resume without turning a UUID into a bearer credential or accepting a client-supplied organization.
 
 The first organization shape is `solo/one active specialist` as composition, not an immutable account type. Inviting
 staff later grows the same organization.
@@ -199,11 +203,25 @@ staff later grows the same organization.
 - **Decision:** one acquisition question «solo / clinic» versus separate signup CTAs. **Safe default:** one account
   form, optional practice-shape question for onboarding composition; no separate tenant models.
 - **Decision:** 2FA factor, mandatory roles, grace and step-up frequency. Full setup/recovery/session-revocation
-  mechanics themselves are already required. **Safe default:** fail closed before high-risk owner actions; do not
-  claim 2FA complete until a factor and recovery path are verified.
-- **Current gap:** current registration collects only the core four fields and redirects directly to doctor home;
-  no explicit first-run checklist, practice-shape branch or 2FA exists; specialist binding is deferred and current
-  `challengeId` retry can reissue a session without another code check.
+  mechanics themselves are already required. **U3S conservative implementation default, pending audit:** mandatory
+  TOTP + acknowledged one-time recovery codes for new self-signup owners, no grace, factor on each new password
+  session, five-attempt cooldown, replacement-only recovery session and server-side session generation revocation.
+  Loss of both factor and all recovery codes remains fail-closed and routes to support; it does not weaken 2FA into
+  an email-only bypass.
+- **Current residual:** practice-shape composition remains the one-flow safe default rather than a separate account
+  type. The U3S code/security candidate must still pass independent audit and live DEV desktop/mobile acceptance;
+  this document does not mark the roadmap completion boxes.
+
+### U3S persistence and rollback contract
+
+- Migration `0215_staff_security_profiles.sql` adds one global identity-security row per canonical user, the
+  one-intent-per-user uniqueness guard and atomic narrow accessors. Runtime repositories do not receive or use broad
+  table DML; the canonical specialist bootstrap overlay reasserts exact function owners and grants after DB-role
+  hardening.
+- Roll forward is idempotent. A code rollback disables public signup first and preserves enrolled factor/recovery
+  rows; it must not delete security state from active accounts. The overlay's explicit DOWN is used only together
+  with a compatible application rollback. Existing provisioned organizations are never recreated or backfilled by
+  guessing; specialist binding is created only by the verified owner continuation.
 
 ## 6. J2 — Clinic owner invites staff by email
 

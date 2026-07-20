@@ -7,6 +7,8 @@ function createPort(): OrganizationProvisioningPort {
     createSpecialistSignupIntent: vi.fn(async () => undefined),
     getPendingSpecialistSignupIntent: vi.fn(async () => null),
     getSpecialistSignupIntentByChallengeId: vi.fn(async () => null),
+    getLatestSpecialistSignupIntentForUser: vi.fn(async () => null),
+    replacePendingSpecialistSignupChallenge: vi.fn(async () => false),
     provisionSpecialistOwner: vi.fn(async () => ({
       organizationId: "org-1",
       specialistId: null,
@@ -27,6 +29,7 @@ describe("ensureOwnBookableSpecialist", () => {
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
         membershipId: "membership-1",
+        platformUserId: "user-1",
         membershipRole: "owner",
         specialistId: "specialist-existing",
         displayName: "Doctor Owner",
@@ -42,6 +45,7 @@ describe("ensureOwnBookableSpecialist", () => {
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
         membershipId: "membership-1",
+        platformUserId: "user-1",
         membershipRole: "admin",
         specialistId: null,
         displayName: "Clinic Admin",
@@ -57,6 +61,7 @@ describe("ensureOwnBookableSpecialist", () => {
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
         membershipId: "membership-1",
+        platformUserId: "user-1",
         membershipRole: "doctor",
         specialistId: null,
         displayName: "Invited Doctor",
@@ -68,6 +73,7 @@ describe("ensureOwnBookableSpecialist", () => {
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
         membershipId: "membership-1",
+        platformUserId: "user-1",
         membershipRole: "doctor",
         specialistId: "specialist-1",
         displayName: "Invited Doctor",
@@ -83,6 +89,7 @@ describe("ensureOwnBookableSpecialist", () => {
       ensureOwnBookableSpecialist(port, {
         organizationId: "org-1",
         membershipId: "membership-1",
+        platformUserId: "user-1",
         membershipRole: "owner",
         specialistId: null,
         displayName: " Doctor  Owner ",
@@ -91,6 +98,7 @@ describe("ensureOwnBookableSpecialist", () => {
     expect(port.ensureOwnBookableSpecialist).toHaveBeenCalledWith({
       organizationId: "org-1",
       membershipId: "membership-1",
+      platformUserId: "user-1",
       fullName: "Doctor  Owner",
     });
   });

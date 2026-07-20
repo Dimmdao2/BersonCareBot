@@ -7,6 +7,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 
 const SAFE_NEXT_PREFIX = "/app/patient";
 const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
+const SAFE_STAFF_FIRST_RUN_FALLBACK = "/app/account?tab=security";
 
 /** Путь для редиректа по роли (doctor и admin ведут в один workspace). */
 export function getRedirectPathForRole(role: UserRole): string {
@@ -23,7 +24,7 @@ export function isSafeNext(next: string | null): next is string {
 
 /**
  * Целевой путь после входа:
- * - doctor/admin: всегда workspace по роли (игнорируем next/fallback),
+ * - doctor/admin: workspace по роли, кроме точного server-issued first-run security fallback,
  * - client: безопасный next, затем безопасный fallback из API, затем путь по роли.
  */
 export function getPostAuthRedirectTarget(
@@ -31,7 +32,11 @@ export function getPostAuthRedirectTarget(
   nextParam: string | null,
   fallbackRedirectTo?: string | null,
 ): string {
-  if (role !== "client") return getRedirectPathForRole(role);
+  if (role !== "client") {
+    return fallbackRedirectTo === SAFE_STAFF_FIRST_RUN_FALLBACK
+      ? SAFE_STAFF_FIRST_RUN_FALLBACK
+      : getRedirectPathForRole(role);
+  }
   if (isSafeNext(nextParam)) return nextParam;
   const fallback = fallbackRedirectTo ?? null;
   if (isSafeNext(fallback)) return fallback;

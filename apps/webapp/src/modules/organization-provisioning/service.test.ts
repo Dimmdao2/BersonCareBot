@@ -18,6 +18,8 @@ function createPort(): OrganizationProvisioningPort {
       provisionedMembershipId: null,
     })),
     getSpecialistSignupIntentByChallengeId: vi.fn(async () => null),
+    getLatestSpecialistSignupIntentForUser: vi.fn(async () => null),
+    replacePendingSpecialistSignupChallenge: vi.fn(async () => false),
     provisionSpecialistOwner: vi.fn(async () => ({
       organizationId: "org-1",
       specialistId: null,

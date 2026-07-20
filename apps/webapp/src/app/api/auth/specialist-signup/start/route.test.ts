@@ -5,15 +5,19 @@ const deleteUnverifiedEmailPasswordRegistrationMock = vi.fn();
 const createSpecialistSignupIntentMock = vi.fn();
 const startEmailChallengeMock = vi.fn();
 const getSpecialistSignupEnabledMock = vi.fn();
+const tryResendRegistrationChallengeMock = vi.fn();
+const replacePendingSpecialistSignupChallengeMock = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     userPasswordCredentials: {
       registerPendingSpecialistVerification: registerPendingSpecialistVerificationMock,
       deleteUnverifiedEmailPasswordRegistration: deleteUnverifiedEmailPasswordRegistrationMock,
+      tryResendRegistrationChallenge: tryResendRegistrationChallengeMock,
     },
     organizationProvisioning: {
       createSpecialistSignupIntent: createSpecialistSignupIntentMock,
+      replacePendingSpecialistSignupChallenge: replacePendingSpecialistSignupChallengeMock,
     },
   }),
 }));
@@ -43,6 +47,9 @@ describe("POST /api/auth/specialist-signup/start", () => {
     createSpecialistSignupIntentMock.mockReset();
     startEmailChallengeMock.mockReset();
     getSpecialistSignupEnabledMock.mockReset();
+    tryResendRegistrationChallengeMock.mockReset();
+    replacePendingSpecialistSignupChallengeMock.mockReset();
+    tryResendRegistrationChallengeMock.mockResolvedValue({ ok: false, reason: "duplicate_email" });
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
   });
 
@@ -160,6 +167,38 @@ describe("POST /api/auth/specialist-signup/start", () => {
 
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "duplicate_email" });
+  });
+
+  it("rotates the challenge for the same pending specialist instead of creating a second intent", async () => {
+    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: false, reason: "duplicate_email" });
+    tryResendRegistrationChallengeMock.mockResolvedValueOnce({ ok: true, userId: "user-1" });
+    startEmailChallengeMock.mockResolvedValueOnce({
+      ok: true,
+      challengeId: "33333333-3333-4333-8333-333333333333",
+      retryAfterSeconds: 60,
+    });
+    replacePendingSpecialistSignupChallengeMock.mockResolvedValueOnce(true);
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/specialist-signup/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: "doctor@example.com",
+          password: "password12",
+          lastName: "Doctor",
+          firstName: "Owner",
+          organizationTitle: "Clinic One",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(replacePendingSpecialistSignupChallengeMock).toHaveBeenCalledWith({
+      userId: "user-1",
+      challengeId: "33333333-3333-4333-8333-333333333333",
+    });
+    expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();
   });
 
   it.each([

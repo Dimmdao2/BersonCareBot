@@ -6,6 +6,7 @@ const DEFAULT_BOOKABLE_MEMBERSHIP_ROLES: readonly OrganizationMembershipRole[] =
 export type EnsureOwnBookableSpecialistContext = {
   organizationId: string;
   membershipId: string;
+  platformUserId: string;
   membershipRole: OrganizationMembershipRole;
   specialistId: string | null;
   displayName: string;
@@ -31,6 +32,7 @@ export async function ensureOwnBookableSpecialist(
   const result = await provisioningPort.ensureOwnBookableSpecialist({
     organizationId: ctx.organizationId,
     membershipId: ctx.membershipId,
+    platformUserId: ctx.platformUserId,
     fullName,
   });
   return result.specialistId;

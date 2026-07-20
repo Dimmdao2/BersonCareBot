@@ -114,6 +114,21 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(gate.response.status).toBe(401);
   });
 
+  it("keeps a new specialist signup in account setup until the protected factor is complete", async () => {
+    const pending = {
+      ...session("doctor"),
+      staffSecurity: { assurance: "pending_enrollment" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(pending);
+
+    const gate = await requireDoctorWorkspaceApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
   it("returns resolved organization membership context", async () => {
     const doctor = session("doctor");
     getCurrentSessionMock.mockResolvedValueOnce(doctor);

@@ -17,7 +17,10 @@ Status: implemented and validated.
 Scope:
 - Added backend-only specialist signup start/confirm API.
 - Added `specialist_signup_intents` as BOOTSTRAP pre-org provisioning state.
-- Provisioning creates `be_organizations`, `be_specialists`, and owner `be_organization_members`; no `org_enrollments` owner row.
+- Historical M1 initially created `be_organizations`, `be_specialists`, and owner `be_organization_members`.
+  That sentence is superseded by the current U0/U3S contract: provisioning creates exactly one organization and
+  owner membership, deliberately leaves `membership.specialist_id` empty, and an authenticated first-run owner
+  binds the specialist separately after completing account security. There is still no owner `org_enrollments` row.
 - Password login keeps DB-stored staff role when env allowlists do not promote it; `app.is_staff()` remains role-derived.
 - No UI/auth boundary rewrite from #670 in this slice.
 

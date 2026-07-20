@@ -52,6 +52,10 @@ export async function POST(request: Request) {
 
   const passwordHash = await hashPin(parsed.data.newPassword);
   try {
+    const security = await deps.staffSecurity.getStatus(userId);
+    // Revoke first: if the credential write fails, existing staff sessions still
+    // fail closed and the user can request a fresh reset challenge.
+    if (security) await deps.staffSecurity.revokeSessions(userId);
     await deps.userPasswordCredentials.updatePasswordHash(userId, passwordHash);
   } catch {
     return NextResponse.json({ ok: false, error: "reset_failed" }, { status: 500 });

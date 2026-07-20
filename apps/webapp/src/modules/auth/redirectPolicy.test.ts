@@ -56,6 +56,10 @@ describe("redirectPolicy", () => {
       );
       expect(getPostAuthRedirectTarget("doctor", null)).toBe("/app/doctor");
       expect(getPostAuthRedirectTarget("admin", "/app/patient/bind-phone")).toBe("/app/doctor");
+      expect(getPostAuthRedirectTarget("doctor", null, "/app/account?tab=security")).toBe(
+        "/app/account?tab=security",
+      );
+      expect(getPostAuthRedirectTarget("doctor", null, "/app/account?tab=profile")).toBe("/app/doctor");
     });
   });
 });

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, foreignKey, index, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { check, foreignKey, index, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { platformUsers } from "./schema";
 import { beOrganizations, beOrganizationMembers, beSpecialists } from "./bookingEngine";
 
@@ -24,6 +24,7 @@ export const specialistSignupIntents = pgTable(
   },
   (table) => [
     unique("specialist_signup_intents_challenge_id_key").on(table.challengeId),
+    uniqueIndex("uq_specialist_signup_intents_user_id").on(table.userId),
     index("idx_specialist_signup_intents_user_pending").using(
       "btree",
       table.userId.asc().nullsLast().op("uuid_ops"),

@@ -38,6 +38,7 @@ export default defineConfig({
     "./db/schema/notificationDeliveryAttempts.ts",
     "./db/schema/userEmailSetupTokens.ts",
     "./db/schema/specialistSignupIntents.ts",
+    "./db/schema/staffSecurityProfiles.ts",
     "./db/schema/productAnalytics.ts",
     "./db/schema/bookingEngine.ts",
     "./db/schema/clinicDirectory.ts",

@@ -3,9 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
-import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
-import { setSessionFromUser } from "@/modules/auth/service";
+import { getCurrentSession, setSessionFromUser } from "@/modules/auth/service";
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -27,17 +26,26 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   let userId = await deps.userPasswordCredentials.findUserIdByEmailChallengeId(parsed.data.challengeId);
-  let shouldVerifyCode = true;
+  let establishedSession = false;
   if (!userId) {
     const intent = await deps.organizationProvisioning.getSpecialistSignupIntentByChallengeId(parsed.data.challengeId);
     if (!intent) {
       return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
     }
+    const session = await getCurrentSession();
+    if (
+      !session ||
+      session.user.userId !== intent.userId ||
+      session.user.role !== "doctor" ||
+      session.staffSecurity?.assurance !== "pending_enrollment"
+    ) {
+      return NextResponse.json({ ok: false, error: "verification_required" }, { status: 401 });
+    }
     userId = intent.userId;
-    shouldVerifyCode = false;
+    establishedSession = true;
   }
 
-  if (shouldVerifyCode) {
+  if (!establishedSession) {
     const verifiedUserId = userId;
     if (!verifiedUserId) {
       return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
@@ -52,6 +60,41 @@ export async function POST(request: Request) {
             headers: { "Retry-After": String(result.retryAfterSeconds) },
           }),
         },
+      );
+    }
+
+    try {
+      await deps.staffSecurity.ensureProfile(verifiedUserId);
+    } catch {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "security_setup_pending",
+          message: "Почта подтверждена. Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.",
+        },
+        { status: 503 },
+      );
+    }
+    const verifiedSessionUser = await deps.userByPhone.findByUserId(verifiedUserId);
+    if (!verifiedSessionUser) {
+      return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    }
+    await setSessionFromUser({ ...verifiedSessionUser, role: "doctor" }, {
+      staffSecurity: { assurance: "pending_enrollment" },
+    });
+  }
+
+  if (establishedSession) {
+    try {
+      await deps.staffSecurity.ensureProfile(userId);
+    } catch {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "security_setup_pending",
+          message: "Не удалось подготовить защищённый вход. Повторите попытку позже.",
+        },
+        { status: 503 },
       );
     }
   }
@@ -74,7 +117,10 @@ export async function POST(request: Request) {
     if (message === "specialist_signup_user_not_verified") {
       return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
     }
-    throw error;
+    return NextResponse.json(
+      { ok: false, error: "provisioning_pending", redirectTo: "/app/account?tab=security" },
+      { status: 503 },
+    );
   }
 
   const sessionLookupUserId = userId;
@@ -86,11 +132,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 
-  await setSessionFromUser({ ...sessionUser, role: "doctor" });
+  await setSessionFromUser({ ...sessionUser, role: "doctor" }, {
+    staffSecurity: { assurance: "pending_enrollment" },
+  });
 
   return NextResponse.json({
     ok: true,
-    redirectTo: getRedirectPathForRole("doctor"),
+    redirectTo: "/app/account?tab=security",
     organizationId: provisioned.organizationId,
     specialistId: provisioned.specialistId ?? null,
     membershipId: provisioned.membershipId,

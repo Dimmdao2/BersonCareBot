@@ -131,6 +131,9 @@ async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUs
     if (!fresh) return null;
     return fresh;
   } catch {
+    // Staff security and revocation are fail-closed: a transient identity-state
+    // lookup failure must not turn a protected staff cookie into an accepted one.
+    if (user.role === "doctor" || user.role === "admin") return null;
     return user;
   }
 }
@@ -834,6 +837,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
 
   const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);
   if (resolvedUser === null) return null;
+  if ((decoded.user.securityVersion ?? 0) !== (resolvedUser.securityVersion ?? 0)) return null;
 
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
@@ -855,6 +859,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       postLoginHints: session.postLoginHints,
       adminMode: session.adminMode,
       reauth: session.reauth,
+      staffSecurity: session.staffSecurity,
     };
   }
 
@@ -874,6 +879,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     postLoginHints: session.postLoginHints,
     adminMode: session.adminMode,
     reauth: session.reauth,
+    staffSecurity: session.staffSecurity,
   };
 
   if (env.DATABASE_URL) {
@@ -927,10 +933,14 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
  */
 export async function setSessionFromUser(
   user: SessionUser,
-  opts?: { postLoginHints?: AppSession["postLoginHints"] }
+  opts?: { postLoginHints?: AppSession["postLoginHints"]; staffSecurity?: AppSession["staffSecurity"] }
 ): Promise<void> {
   const session = buildSession(user);
-  const full: AppSession = opts?.postLoginHints ? { ...session, postLoginHints: opts.postLoginHints } : session;
+  const full: AppSession = {
+    ...session,
+    ...(opts?.postLoginHints ? { postLoginHints: opts.postLoginHints } : {}),
+    ...(opts?.staffSecurity ? { staffSecurity: opts.staffSecurity } : {}),
+  };
   const cookieStore = await cookies();
   persistNewAuthSession(cookieStore, full);
 }

@@ -22,6 +22,29 @@ DB-role negatives, typecheck/scoped lint/build and serialized live DEV evidence 
 audit; no full CI runs before the next accumulated milestone. More than two correction rounds or a finding without
 owner/roadmap authority stops as an owner question.
 
+## 2026-07-20 — U3S `#919` worker candidate ready for independent audit
+
+The isolated U3S branch now contains one coherent implementation candidate, not a completion claim. Specialist
+signup resends rotate the existing pending intent; consumed challenge UUIDs cannot reissue a session; partial
+provisioning resumes only from the verified user's restricted session. Provisioning remains organization + owner
+membership exactly once, while the clinical specialist is created later by an owner-only, server-scoped,
+idempotent binding action with an audit event. Before binding, the account has management/account destinations only.
+
+New self-signup owners receive a mandatory TOTP first run with encrypted factor secret, acknowledged one-time
+recovery codes, five-attempt cooldown, recovery-only replacement mode and server-side session generations. Password
+reset and the account action revoke protected staff sessions; staff session refresh fails closed when security state
+cannot be loaded. Factor replacement keeps the active secret and remaining recovery codes intact until the new
+factor is verified. Legacy staff is not silently opted in by opening the security tab, and a patient-email collision
+still fails closed rather than overwriting that persona. The first-run screen reports profile, timezone,
+organization, security, binding and later booking/invite readiness without claiming unfinished steps complete.
+
+Persistence is migration `0215` (reserved after parallel C4C `0214`) plus narrow SECURITY DEFINER accessors; the
+canonical specialist bootstrap overlay reasserts exact owners/grants and has paired DOWN behavior. No DEV/TEST/PROD
+DB, deploy, dump, external delivery or full CI was used in the worker pass. Worker validation so far: webapp
+typecheck PASS, scoped source lint PASS, consolidated targeted validation `14` files / `107` tests PASS, Drizzle
+journal sync and diff checks PASS. Independent high-risk audit, authorized migration postcondition and live DEV
+evidence remain required. Roadmap completion boxes deliberately remain unticked until those gates pass.
+
 ## 2026-07-20 — C4C terminal closure (`#26`)
 
 **Result.** The parked course capability slice was semantically rebased onto integrated U1/U2 base `9874ddd98`.

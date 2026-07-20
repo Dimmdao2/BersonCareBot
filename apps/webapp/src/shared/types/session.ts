@@ -23,6 +23,10 @@ export type SessionUser = {
   patronymic?: string;
   phone?: string;
   bindings: ChannelBindings;
+  /** Server-side revocation generation for staff security. Missing legacy profiles resolve to zero. */
+  securityVersion?: number;
+  /** A verified staff factor exists in DB; workspace access requires a factor-verified session. */
+  securityFactorRequired?: boolean;
 };
 
 export type AppSession = {
@@ -40,6 +44,11 @@ export type AppSession = {
   /** Подсказки UI сразу после входа (не для авторизации). */
   postLoginHints?: {
     phoneOtpChannel?: "sms" | "telegram" | "max" | "email";
+  };
+  /** Authentication assurance for staff-only security gates; never inferred from role or membership. */
+  staffSecurity?: {
+    assurance: "pending_enrollment" | "factor_verified" | "recovery";
+    verifiedAt?: number;
   };
   /**
    * Повторное подтверждение для чувствительных действий (TTL на сервере).

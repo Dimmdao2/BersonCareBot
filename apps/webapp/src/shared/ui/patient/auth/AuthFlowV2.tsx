@@ -228,9 +228,11 @@ export function AuthFlowV2({
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
   const [emailLoginEmail, setEmailLoginEmail] = useState("");
   const [emailLoginPassword, setEmailLoginPassword] = useState("");
+  const [staffFactorCode, setStaffFactorCode] = useState("");
+  const [staffFactorUseRecovery, setStaffFactorUseRecovery] = useState(false);
   const [emailRegPassword, setEmailRegPassword] = useState("");
   const [emailAuthMode, setEmailAuthMode] =
-    useState<"login" | "patient_registration" | "verify" | "specialist_signup" | "password_login">("login");
+    useState<"login" | "patient_registration" | "verify" | "specialist_signup" | "password_login" | "staff_factor">("login");
   const [emailVerifyPurpose, setEmailVerifyPurpose] =
     useState<"registration" | "patient_registration" | "setup" | "email_otp" | "specialist_signup">("registration");
   const [emailRegChallengeId, setEmailRegChallengeId] = useState<string | null>(null);
@@ -602,6 +604,7 @@ export function AuthFlowV2({
       const loginResult = await fetchJsonSafe<{
         ok?: boolean;
         redirectTo?: string;
+        factorRequired?: boolean;
         error?: string;
       }>("/api/auth/email-password/login", {
         method: "POST",
@@ -613,6 +616,13 @@ export function AuthFlowV2({
         return;
       }
       const { response: res, data } = loginResult;
+      if (data.ok && data.factorRequired) {
+        setEmailLoginPassword("");
+        setStaffFactorCode("");
+        setStaffFactorUseRecovery(false);
+        setEmailAuthMode("staff_factor");
+        return;
+      }
       if (data.ok && data.redirectTo) {
         setEmailLoginPassword("");
         redirectOk(data.redirectTo);
@@ -627,6 +637,40 @@ export function AuthFlowV2({
         return;
       }
       toast.error("Не удалось войти.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitStaffFactor = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = staffFactorCode.trim();
+    if (!value) return toast.error("Введите код");
+    setLoading(true);
+    try {
+      const result = await fetchJsonSafe<{ ok?: boolean; redirectTo?: string; error?: string }>(
+        "/api/auth/email-password/login/factor",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(staffFactorUseRecovery ? { recoveryCode: value } : { code: value }),
+        },
+      );
+      if (!result.ok) return toast.error(AUTH_NETWORK_ERROR_MESSAGE);
+      if (result.data.ok && result.data.redirectTo) {
+        setStaffFactorCode("");
+        redirectOk(result.data.redirectTo, "doctor");
+        return;
+      }
+      toast.error(
+        result.data.error === "factor_locked"
+          ? "Слишком много попыток. Повторите позже."
+          : result.data.error === "login_challenge_expired"
+            ? "Время подтверждения истекло. Войдите заново."
+            : result.data.error === "factor_replacement_required"
+              ? "Завершите восстановление с помощью резервного кода."
+            : "Неверный код.",
+      );
     } finally {
       setLoading(false);
     }
@@ -1177,6 +1221,52 @@ export function AuthFlowV2({
               </form>
             ) : null}
 
+            {emailAuthMode === "staff_factor" ? (
+              <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitStaffFactor(e)}>
+                <p className={authStepMutedParagraphClass}>
+                  {staffFactorUseRecovery
+                    ? "Введите один из сохранённых резервных кодов."
+                    : "Введите код из приложения-аутентификатора."}
+                </p>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="auth-staff-factor-code" className={authFormFieldLabelClass}>Код</label>
+                  <Input
+                    id="auth-staff-factor-code"
+                    type="text"
+                    inputMode={staffFactorUseRecovery ? "text" : "numeric"}
+                    autoComplete="one-time-code"
+                    value={staffFactorCode}
+                    onChange={(e) => setStaffFactorCode(e.target.value)}
+                    disabled={loading}
+                    className={authEmailInputClass}
+                  />
+                </div>
+                <Button type="submit" variant="outline" className={AUTH_LOGIN_FORM_PRIMARY_BUTTON_CLASS} disabled={loading}>
+                  Продолжить
+                </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={authLinkButtonClass}
+                  disabled={loading}
+                  onClick={() => {
+                    setStaffFactorUseRecovery((current) => !current);
+                    setStaffFactorCode("");
+                  }}
+                >
+                  {staffFactorUseRecovery ? "Использовать приложение" : "Использовать резервный код"}
+                </Button>
+                {supportContactHref ? (
+                  <SupportContactLink
+                    href={withContactSupportReturn(supportContactHref, "staff-factor") ?? supportContactHref}
+                    className={authLinkButtonClass}
+                  >
+                    Нет доступа к приложению и резервным кодам
+                  </SupportContactLink>
+                ) : null}
+              </form>
+            ) : null}
+
             {emailAuthMode === "specialist_signup" ? (
               <form className="mt-3 flex w-full flex-col gap-3" onSubmit={(e) => void submitSpecialistSignupStart(e)}>
                 <p className={authStepMutedParagraphClass}>Создадим кабинет специалиста и отправим код на почту.</p>
@@ -1328,6 +1418,17 @@ export function AuthFlowV2({
                   if (data.ok && data.redirectTo) {
                     redirectOk(data.redirectTo, "doctor");
                     return { ok: true as const, redirectTo: data.redirectTo };
+                  }
+                  if (data.error === "provisioning_pending" && data.redirectTo) {
+                    redirectOk(data.redirectTo, "doctor");
+                    return { ok: true as const, redirectTo: data.redirectTo };
+                  }
+                  if (data.error === "security_setup_pending") {
+                    setEmailRegChallengeId(null);
+                    setEmailVerifyPurpose("registration");
+                    setEmailAuthMode("login");
+                    toast.error(data.message ?? "Войдите с паролем ещё раз, чтобы продолжить защищённую настройку.");
+                    return { ok: false as const, message: data.message ?? "Повторите вход." };
                   }
                   if (res.status === 429 || data.error === "too_many_attempts") {
                     return {

@@ -6,6 +6,7 @@ import { normalizeEmail } from "@/modules/auth/emailAuth";
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
+import { issueStaffLoginContinuation } from "@/modules/auth/staffLoginContinuation";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -47,9 +48,46 @@ export async function POST(request: Request) {
     sessionUser = { ...sessionUser, role: effectiveRole };
   }
 
-  await setSessionFromUser(sessionUser);
+  let security = await deps.staffSecurity.getStatus(sessionUser.userId);
+  let recoveringSpecialistSignup = false;
+  if (!security) {
+    const signupIntent = await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser(sessionUser.userId);
+    if (signupIntent) {
+      recoveringSpecialistSignup = true;
+      try {
+        security = await deps.staffSecurity.ensureProfile(sessionUser.userId);
+      } catch {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "security_setup_pending",
+            message: "Не удалось подготовить защищённый вход. Повторите попытку позже.",
+          },
+          { status: 503 },
+        );
+      }
+    }
+  }
+  if (security?.enrolled) {
+    const challenge = await deps.staffSecurity.beginLogin(sessionUser.userId);
+    if (challenge.required) {
+      await issueStaffLoginContinuation({
+        userId: sessionUser.userId,
+        token: challenge.token,
+        expiresAt: challenge.expiresAt,
+      });
+      return NextResponse.json({ ok: true, factorRequired: true });
+    }
+  }
+
+  const authenticatedUser = recoveringSpecialistSignup ? { ...sessionUser, role: "doctor" as const } : sessionUser;
+  await setSessionFromUser(authenticatedUser, {
+    ...(security && !security.enrolled
+      ? { staffSecurity: { assurance: "pending_enrollment" as const } }
+      : {}),
+  });
   return NextResponse.json({
     ok: true,
-    redirectTo: getRedirectPathForRole(sessionUser.role),
+    redirectTo: security && !security.enrolled ? "/app/account?tab=security" : getRedirectPathForRole(sessionUser.role),
   });
 }

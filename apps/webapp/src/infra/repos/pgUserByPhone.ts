@@ -49,7 +49,12 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
 async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser> {
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
   const userRow = await runIdentityPoolPgText(
-    "SELECT id, display_name, first_name, last_name, patronymic, role, phone_normalized FROM platform_users WHERE id = $1",
+    `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+            COALESCE(sss.session_version, 0) AS security_version,
+            COALESCE(sss.factor_required, false) AS security_factor_required
+     FROM platform_users pu
+     LEFT JOIN LATERAL app.get_staff_security_session_state(pu.id) sss ON true
+     WHERE pu.id = $1`,
     [canonicalId],
   );
   if (userRow.rows.length === 0) {
@@ -73,6 +78,8 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
     ...(patronymic ? { patronymic } : {}),
     phone: u.phone_normalized ?? undefined,
     bindings,
+    securityVersion: u.security_version,
+    securityFactorRequired: u.security_factor_required,
   };
 }
 
@@ -104,7 +111,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const canonicalId = await resolveCanonicalUserId(pool, userId);
     if (!canonicalId) return null;
     const userRow = await runIdentityPoolPgText(
-      "SELECT id, display_name, first_name, last_name, patronymic, role, phone_normalized FROM platform_users WHERE id = $1",
+      `SELECT pu.id, pu.display_name, pu.first_name, pu.last_name, pu.patronymic, pu.role, pu.phone_normalized,
+              COALESCE(sss.session_version, 0) AS security_version,
+              COALESCE(sss.factor_required, false) AS security_factor_required
+       FROM platform_users pu
+       LEFT JOIN LATERAL app.get_staff_security_session_state(pu.id) sss ON true
+       WHERE pu.id = $1`,
       [canonicalId],
     );
     if (userRow.rows.length === 0) return null;
@@ -126,6 +138,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
       ...(patronymic ? { patronymic } : {}),
       phone: u.phone_normalized ?? undefined,
       bindings,
+      securityVersion: u.security_version,
+      securityFactorRequired: u.security_factor_required,
     };
   },
 

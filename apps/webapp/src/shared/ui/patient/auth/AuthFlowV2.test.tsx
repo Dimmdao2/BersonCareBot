@@ -630,6 +630,53 @@ describe("AuthFlowV2 — browser", () => {
     expect(screen.getByRole("button", { name: "Создать кабинет" })).toBeInTheDocument();
   });
 
+  it("completes the staff password login through a one-time recovery factor", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/email-password/login/factor")) {
+          expect(JSON.parse(String(init?.body))).toEqual({ recoveryCode: "ABCD-EFGH-IJKL-MNOP" });
+          return jsonRes({ ok: true, recoveryMode: true, redirectTo: "/app/account?tab=security" });
+        }
+        if (url.includes("/api/auth/email-password/login")) {
+          return jsonRes({ ok: true, factorRequired: true });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        supportContactHref="/app/contact-support"
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: null,
+          maxBotOpenUrl: null,
+          specialistSignupEnabled: true,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Войти по паролю" }));
+    await user.type(screen.getByLabelText("Email"), "owner@example.com");
+    await user.type(screen.getByLabelText("Пароль"), "password12");
+    await user.click(screen.getByRole("button", { name: "Войти" }));
+
+    expect(await screen.findByText("Введите код из приложения-аутентификатора.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Нет доступа к приложению и резервным кодам" })).toHaveAttribute(
+      "href",
+      "/app/contact-support?from=staff-factor",
+    );
+    await user.click(screen.getByRole("button", { name: "Использовать резервный код" }));
+    await user.type(screen.getByLabelText("Код"), "ABCD-EFGH-IJKL-MNOP");
+    await user.click(screen.getByRole("button", { name: "Продолжить" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/account?tab=security"));
+  });
+
   it("specialist signup starts verification and confirms into doctor redirect", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

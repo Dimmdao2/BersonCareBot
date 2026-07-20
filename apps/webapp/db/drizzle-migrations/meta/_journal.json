@@ -1506,6 +1506,13 @@
       "when": 1793539200009,
       "tag": "0214_courses_owner_org_entitlement",
       "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1793539200010,
+      "tag": "0215_staff_security_profiles",
+      "breakpoints": true
     }
   ]
 }

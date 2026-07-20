@@ -37,6 +37,14 @@ export function createOrganizationProvisioningService(deps: {
       return deps.provisioningPort.getSpecialistSignupIntentByChallengeId(challengeId);
     },
 
+    async getLatestSpecialistSignupIntentForUser(userId: string) {
+      return deps.provisioningPort.getLatestSpecialistSignupIntentForUser(userId);
+    },
+
+    async replacePendingSpecialistSignupChallenge(input: { userId: string; challengeId: string }) {
+      return deps.provisioningPort.replacePendingSpecialistSignupChallenge(input);
+    },
+
     async provisionSpecialistOwner(input: {
       userId: string;
       challengeId: string;

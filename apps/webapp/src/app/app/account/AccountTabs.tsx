@@ -9,10 +9,11 @@ import {
   doctorDnaFlatListSelectedPrimaryClass,
 } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 
-export type AccountTab = "profile" | "notifications" | "install";
+export type AccountTab = "profile" | "security" | "notifications" | "install";
 
 const ACCOUNT_TABS: ReadonlyArray<{ id: AccountTab; label: string }> = [
   { id: "profile", label: "Профиль" },
+  { id: "security", label: "Безопасность" },
   { id: "notifications", label: "Уведомления" },
   { id: "install", label: "Установить приложение" },
 ];
