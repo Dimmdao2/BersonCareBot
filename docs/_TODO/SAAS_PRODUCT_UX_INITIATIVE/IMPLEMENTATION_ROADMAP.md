@@ -669,6 +669,18 @@ URLs/APIs cannot use navigation hiding, filters, entitlement or `adminMode` as p
 
 ### U2 — organization management and shared account shell
 
+**Implementation status (completed 2026-07-20, taskdb #918):** one guarded `/app/manage` overview now serves
+organization-management actors, while one shared `/app/account` owns personal profile, notification and install
+screens through the existing writers/components. Management-only owners never enter the clinical shell; bound owners
+have explicit management↔clinical transitions; specialists have clinical+account access without management; explicit
+platform mode remains in the platform shell. Organization/reminder settings, entitled Team and the owner billing
+placeholder remain single guarded compatibility destinations linked from management; booking setup was not moved or
+copied. Legacy settings/install/clinic entries are loop-free and `/app/ops` remains absent. One independent audit found
+only orphaned Team/billing links; that exact delta was corrected without another audit loop. The accumulated P1 gate is
+green: focused role/route suites, full webapp/media tests, builds, audit and desktop/mobile DEV role evidence. Global
+platform configuration/catalog writes remain fail-closed until U9 supplies the sanctioned platform API/DB-principal
+contract; U2 does not borrow an organization or bootstrap principal.
+
 **Outcome:** owner/admin manages one organization without entering global-admin chrome; specialist works in a
 solo-first clinical shell; personal account screens are shared once. Future assistant OPS surfaces remain absent.
 
@@ -699,8 +711,8 @@ solo-first clinical shell; personal account screens are shared once. Future assi
   full CI at P1 exit.
 - **Rollback/degradation:** old guarded route may remain entry; new shell failure returns to safe account/management
   destination, never doctor or platform fallback.
-- **Completion:** [ ] one MGMT shell; [ ] one ACC area; [ ] OPS implementation absent; [ ] no duplicate solo/clinic tree;
-  [ ] legacy entries equivalent; [ ] responsive/accessibility evidence; [ ] full audit PASS.
+- **Completion:** [x] one MGMT shell; [x] one ACC area; [x] OPS implementation absent; [x] no duplicate solo/clinic tree;
+  [x] legacy entries equivalent; [x] responsive/accessibility evidence; [x] full audit evidence closed.
 - **Merge dependency:** U1; assistant/clinic-only areas are explicitly excluded from launch acceptance.
 
 ### U5A — patient organization resolver and global account context

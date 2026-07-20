@@ -2859,6 +2859,38 @@ task-related paths (repo-wide `git diff --check` errors on pre-existing unrelate
 `git status` before this session started; not part of this task's diff). No full root CI, DB, DEV/TEST/PROD, deploy,
 server start or taskdb write.
 
+## 2026-07-20 — U2 management/account shell terminal closure (`#918`)
+
+**Result.** Added one capability-driven management landing and one shared personal account area. A management-only
+owner lands on `/app/manage` and receives no clinical links; a bound owner can move explicitly between management and
+clinical work; a specialist can use `/app/account` but cannot open management; explicit platform mode remains in the
+platform shell. Personal email, timezone, notification and PWA-install components/writers are reused, not copied.
+The existing organization/reminder writer, entitled Team surface and owner-only billing placeholder remain single
+guarded compatibility destinations. Booking setup, U3S security/registration, U3A team behavior, C4C courses, C5
+billing behavior, SMS/support ownership and OPS/assistant surfaces were not implemented here.
+
+**Audit and correction.** The one-pass independent U2 audit passed the role, direct-route, shell, legacy and OPS
+matrix and found one plan-mapped navigation delta: entitled Team and the owner billing placeholder were safe but not
+discoverable from management. The management overview now exposes those destinations under their existing entitlement
+and owner guards. Live rendering then caught a server/client module-boundary error in link styling; the page now imports
+the server-safe button-variant module and an executable source assertion prevents recurrence. No serial audit loop was
+opened.
+
+**Milestone verification.** Focused integration tests passed `74/74`, with `3/3` navigation-correction and `4/4`
+server-render regression checks. The single full-CI attempt reached `test:webapp` after green lint/typecheck/HLS and
+integrator (`1271/1271`) but its linked worktree dependencies resolved stale packages from the feature worktree. After
+an isolated frozen offline install, execution resumed from the failed step only: webapp `8134` passed (`51` skipped),
+media-worker `60/60`, root build, webapp build and audit all passed. Stale U1 fixtures were updated to exact organization
+guards; no runtime authorization was weakened. DEV role/direct-route checks passed for clinic owner, specialist and
+platform admin. Desktop `1480×1024` and mobile `390×844` management/account screenshots passed after an additive DEV
+migration; no reset, dump, TEST/PROD or deploy action occurred.
+
+**Deferred boundary.** There is no sanctioned platform DB principal yet. Per U0/U9 ownership, global platform settings
+and legacy global catalog mutation remain fail-closed until U9 defines the platform API/principal and audit contract;
+U2 neither borrows a clinic membership nor uses bootstrap as operator authority. The in-memory support-communication
+test double still cannot seed a positive organization-owned conversation, so current tests prove legacy NULL-org rows
+are excluded while the PostgreSQL port supplies the positive exact-org contract.
+
 ## 2026-07-20 — U1 terminal closure (`#916`)
 
 **Result.** U1 is complete. The initial implementation and consolidated corrections established one conservative
