@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, foreignKey, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { beOrganizations } from "./bookingEngine";
+import { platformUsers } from "./schema";
 
 /**
  * Minimal seed of the S6 `clinic_public_directory_entries` public-catalog projection
@@ -41,5 +42,112 @@ export const clinicPublicDirectoryEntries = pgTable(
     }).onDelete("cascade"),
     check("clinic_public_directory_entries_slug_lower_check", sql`${table.slug} = lower(${table.slug})`),
     check("clinic_public_directory_entries_slug_not_blank_check", sql`length(btrim(${table.slug})) > 0`),
+  ],
+);
+
+export const ORGANIZATION_SLUG_CLAIM_KINDS = ['reservation', 'current', 'alias'] as const;
+export type OrganizationSlugClaimKind = (typeof ORGANIZATION_SLUG_CLAIM_KINDS)[number];
+
+/**
+ * Server-owned platform namespace for organization slugs.
+ *
+ * `slug` is lookup/presentation data only. Every durable claim keeps the immutable
+ * `organization_id` target. Alias rows deliberately contain no target-slug column: resolution
+ * always joins the organization's single current row, so redirect chains are impossible by shape.
+ */
+export const organizationSlugClaims = pgTable(
+  'organization_slug_claims',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    slug: text().notNull(),
+    kind: text().notNull(),
+    organizationId: uuid('organization_id').notNull(),
+    createdByPlatformUserId: uuid('created_by_platform_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_organization_slug_claims_slug').using(
+      'btree',
+      table.slug.asc().nullsLast().op('text_ops'),
+    ),
+    uniqueIndex('uq_organization_slug_claims_current_org')
+      .using('btree', table.organizationId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`${table.kind} = 'current'`),
+    uniqueIndex('uq_organization_slug_claims_reservation_org')
+      .using('btree', table.organizationId.asc().nullsLast().op('uuid_ops'))
+      .where(sql`${table.kind} = 'reservation' AND ${table.organizationId} IS NOT NULL`),
+    index('idx_organization_slug_claims_org_kind').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+      table.kind.asc().nullsLast().op('text_ops'),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'organization_slug_claims_organization_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.createdByPlatformUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'organization_slug_claims_created_by_fkey',
+    }),
+    check(
+      'organization_slug_claims_slug_format_check',
+      sql`${table.slug} ~ '^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$' AND ${table.slug} NOT LIKE '%--%'`,
+    ),
+    check(
+      'organization_slug_claims_slug_reserved_check',
+      sql`${table.slug} <> ALL (ARRAY[
+        'account', 'admin', 'api', 'app', 'auth', 'book', 'booking', 'doctor', 'favicon',
+        'health', 'help', 'join', 'legal', 'login', 'manage', 'manifest', 'patient', 'privacy',
+        'register', 'robots', 'settings', 'sign-in', 'signup', 'sitemap', 'status', 'support',
+        'terms', 'widget', '_next'
+      ]::text[])`,
+    ),
+    check(
+      'organization_slug_claims_kind_check',
+      sql`${table.kind} = ANY (ARRAY['reservation'::text, 'current'::text, 'alias'::text])`,
+    ),
+  ],
+);
+
+/** Append-only proof of every owner-directed slug rename. */
+export const organizationSlugRenameEvents = pgTable(
+  'organization_slug_rename_events',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    organizationId: uuid('organization_id').notNull(),
+    actorPlatformUserId: uuid('actor_platform_user_id'),
+    previousSlug: text('previous_slug').notNull(),
+    nextSlug: text('next_slug').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_organization_slug_rename_events_org_created').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
+    ),
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'organization_slug_rename_events_organization_id_fkey',
+    }),
+    foreignKey({
+      columns: [table.actorPlatformUserId],
+      foreignColumns: [platformUsers.id],
+      name: 'organization_slug_rename_events_actor_fkey',
+    }),
+    check(
+      'organization_slug_rename_events_slug_change_check',
+      sql`${table.previousSlug} <> ${table.nextSlug}`,
+    ),
   ],
 );

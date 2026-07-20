@@ -1,0 +1,99 @@
+const ORGANIZATION_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/;
+
+/** Top-level application/system routes that can never become organization addresses. */
+export const RESERVED_ORGANIZATION_SLUGS = new Set([
+  'account',
+  'admin',
+  'api',
+  'app',
+  'auth',
+  'book',
+  'booking',
+  'doctor',
+  'favicon',
+  'health',
+  'help',
+  'join',
+  'legal',
+  'login',
+  'manage',
+  'manifest',
+  'patient',
+  'privacy',
+  'register',
+  'robots',
+  'settings',
+  'sign-in',
+  'signup',
+  'sitemap',
+  'status',
+  'support',
+  'terms',
+  'widget',
+  '_next',
+]);
+
+const CYRILLIC_TRANSLITERATION: Readonly<Record<string, string>> = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ё: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'i',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'h',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'sch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
+};
+
+export type OrganizationSlugValidation =
+  | { ok: true; slug: string }
+  | { ok: false; code: 'invalid_slug' | 'reserved_slug' };
+
+/**
+ * Normalizes an owner-confirmed ASCII candidate. It intentionally does not transliterate or
+ * silently discard non-ASCII characters: title-derived transliteration is a suggestion only.
+ */
+export function validateOrganizationSlugCandidate(raw: string): OrganizationSlugValidation {
+  const lowered = raw.normalize('NFKC').trim().toLowerCase();
+  if (/[^a-z0-9 _-]/.test(lowered)) return { ok: false, code: 'invalid_slug' };
+  const slug = lowered.replace(/[ _-]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!ORGANIZATION_SLUG_PATTERN.test(slug)) return { ok: false, code: 'invalid_slug' };
+  if (RESERVED_ORGANIZATION_SLUGS.has(slug)) return { ok: false, code: 'reserved_slug' };
+  return { ok: true, slug };
+}
+
+/** Produces a UI suggestion only; persistence still requires explicit candidate validation. */
+export function suggestOrganizationSlug(title: string): string | null {
+  const transliterated = [...title.normalize('NFKC').toLowerCase()]
+    .map((char) => CYRILLIC_TRANSLITERATION[char] ?? char)
+    .join('')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-');
+  const validation = validateOrganizationSlugCandidate(transliterated);
+  return validation.ok ? validation.slug : null;
+}

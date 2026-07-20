@@ -81,6 +81,7 @@ function psqlProveGrantDenied(database, roleIdent) {
     SET SESSION AUTHORIZATION ${roleIdent};
     GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;
     GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;
+    GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;
     GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;
     RESET SESSION AUTHORIZATION;
     SELECT 1 / (NOT EXISTS (
@@ -92,6 +93,7 @@ function psqlProveGrantDenied(database, roleIdent) {
       WHERE procedure.oid IN (
         'app.read_public_runtime_setting(text,text)'::regprocedure,
         'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+        'app.resolve_public_organization_slug(text)'::regprocedure,
         'app.resolve_public_organization_by_slug(text)'::regprocedure
       )
         AND privilege.grantee = 0
@@ -147,6 +149,7 @@ const functionSignatures = [...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([
     "app.read_public_runtime_setting(text, text)",
     "app.read_webapp_server_runtime_setting(text, text)",
     "app.resolve_public_booking_organization(uuid, uuid, uuid)",
+    "app.resolve_public_organization_slug(text)",
     "app.resolve_public_organization_by_slug(text)",
   ].includes(signature))
   .filter((signature, index, all) => all.indexOf(signature) === index);
@@ -205,6 +208,17 @@ const setupSql = [
         ELSE NULL::uuid
       END
     $$;`,
+  `CREATE FUNCTION app.resolve_public_organization_slug(text)
+    RETURNS TABLE (organization_id uuid, requested_slug text, requested_kind text, canonical_slug text)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+    AS $$
+      SELECT
+        '53000000-0000-4000-8000-000000000001'::uuid,
+        'saas-test-clinic-a'::text,
+        'alias'::text,
+        'saas-test-clinic-current'::text
+      WHERE lower(btrim($1)) = 'saas-test-clinic-a'
+    $$;`,
   `CREATE FUNCTION app.resolve_public_organization_by_slug(text)
     RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
@@ -226,11 +240,14 @@ const setupSql = [
   "REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO ${bootstrapIdent} WITH GRANT OPTION;`,
+  `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `SET SESSION AUTHORIZATION ${bootstrapIdent};`,
   "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
   "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
+  "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;",
   "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;",
   "RESET SESSION AUTHORIZATION;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
@@ -376,6 +393,9 @@ SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_weba
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE'))::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_organization_slug(text)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_public_organization_slug(text)', 'EXECUTE')::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_public_organization_slug(text)', 'EXECUTE'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE'))::int;
@@ -384,6 +404,14 @@ SELECT 1 / (NOT EXISTS (
   FROM pg_proc procedure
   CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
   WHERE procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    AND privilege.grantee = 0
+    AND privilege.privilege_type = 'EXECUTE'
+))::int;
+SELECT 1 / (NOT EXISTS (
+  SELECT 1
+  FROM pg_proc procedure
+  CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+  WHERE procedure.oid = 'app.resolve_public_organization_slug(text)'::regprocedure
     AND privilege.grantee = 0
     AND privilege.privilege_type = 'EXECUTE'
 ))::int;
@@ -403,6 +431,7 @@ SELECT 1 / (NOT EXISTS (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
     'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+    'app.resolve_public_organization_slug(text)'::regprocedure,
     'app.resolve_public_organization_by_slug(text)'::regprocedure
   )
     AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = ${quoteLiteral(bootstrapRole)})
@@ -417,6 +446,10 @@ SELECT 1 / (
     NULL::uuid,
     '53000000-0000-4000-8000-0000000056a1'::uuid
   ) = '53000000-0000-4000-8000-000000000001'::uuid
+)::int;
+SELECT 1 / (
+  (SELECT canonical_slug FROM app.resolve_public_organization_slug(' SaaS-Test-Clinic-A '))
+  = 'saas-test-clinic-current'::text
 )::int;
 SELECT 1 / (
   app.resolve_public_organization_by_slug(' SaaS-Test-Clinic-A ')

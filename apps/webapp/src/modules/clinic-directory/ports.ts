@@ -14,4 +14,50 @@ export type ClinicDirectoryPort = {
    * uniform — callers must not distinguish these cases in the response).
    */
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
+
+  /** Internal foundation resolver. Public callers must still require a published projection. */
+  resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
+
+  reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
+  claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
+  renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
 };
+
+export type OrganizationSlugResolution = {
+  organizationId: string;
+  requestedSlug: string;
+  canonicalSlug: string;
+  disposition: 'current' | 'redirect';
+};
+
+export type ReserveOrganizationSlugInput = {
+  slug: string;
+  organizationId: string;
+  actorPlatformUserId: string;
+};
+
+export type ClaimOrganizationSlugInput = {
+  slug: string;
+  organizationId: string;
+  actorPlatformUserId: string;
+};
+
+export type RenameOrganizationSlugInput = {
+  organizationId: string;
+  reservedSlug: string;
+  actorPlatformUserId: string;
+};
+
+export type OrganizationSlugMutationResult =
+  | { ok: true; slug: string }
+  | {
+      ok: false;
+      code:
+        | 'slug_unavailable'
+        | 'reservation_not_found'
+        | 'reservation_owner_mismatch'
+        | 'current_slug_not_found'
+        | 'current_slug_already_exists'
+        | 'invalid_slug'
+        | 'reserved_slug';
+    };

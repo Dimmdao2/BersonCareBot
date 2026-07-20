@@ -47,16 +47,24 @@ function runChecks(overrides = {}) {
   requireFragments(paths.sql, files.sql, [
     "SECURITY DEFINER",
     "SET search_path = pg_catalog",
+    "CREATE OR REPLACE FUNCTION app.resolve_public_organization_slug(p_slug text)",
+    "ALTER FUNCTION app.resolve_public_organization_slug(text) OWNER TO app_owner",
+    "REVOKE ALL ON FUNCTION app.resolve_public_organization_slug(text) FROM PUBLIC",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO app_patient",
     "ALTER FUNCTION app.resolve_public_organization_by_slug(text) OWNER TO app_owner",
     "REVOKE ALL ON FUNCTION app.resolve_public_organization_by_slug(text) FROM PUBLIC",
     "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO app_patient",
     "NOT has_table_privilege('app_patient', 'public.clinic_public_directory_entries', 'SELECT')",
     "NOT has_table_privilege('app_patient', 'public.be_organizations', 'SELECT')",
-    "d.is_published = true",
-    "o.is_active = true",
-    "v_normalized := lower(btrim(p_slug))",
+    "directory.is_published = true",
+    "organization.is_active = true",
+    "requested.slug = lower(btrim(p_slug))",
+    "requested.kind IN ('current', 'alias')",
+    "current_claim.kind = 'current'",
+    "NOT has_table_privilege('app_patient', 'public.organization_slug_claims', 'SELECT')",
   ]);
   forbidFragments(paths.sql, files.sql, [
+    "GRANT SELECT ON TABLE public.organization_slug_claims TO app_patient",
     "GRANT SELECT ON TABLE public.clinic_public_directory_entries TO app_patient",
     "GRANT SELECT ON TABLE public.be_organizations TO app_patient",
   ]);
@@ -64,6 +72,8 @@ function runChecks(overrides = {}) {
   requireFragments(paths.repo, files.repo, [
     "async resolveOrganizationIdBySlug(slug)",
     "SELECT app.resolve_public_organization_by_slug(",
+    "async resolveCanonicalSlug(slug)",
+    "SELECT * FROM app.resolve_public_organization_slug(",
   ]);
 
   requireFragments(paths.rsc, files.rsc, [
@@ -101,10 +111,15 @@ function runChecks(overrides = {}) {
   ]);
 
   requireFragments(`${paths.d34} locked base-login closure`, files.d34, [
+    "to_regprocedure('app.resolve_public_organization_slug(text)') IS NOT NULL",
     "to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL",
+    "REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) FROM :\"d3_4_bootstrap_base_role\";",
     "REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :\"d3_4_bootstrap_base_role\";",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_slug(text)",
     "REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_by_slug(text)",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO :\"d3_4_bootstrap_base_role\";",
     "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+    "'app.resolve_public_organization_slug(text)'::regprocedure",
     "'app.resolve_public_organization_by_slug(text)'::regprocedure",
     "'app.resolve_public_organization_by_slug(text)',\n    'EXECUTE'",
   ]);
@@ -123,7 +138,16 @@ function selfTest() {
       ),
     },
     {
+      sql: files.sql.replace(
+        "REVOKE ALL ON FUNCTION app.resolve_public_organization_slug(text) FROM PUBLIC",
+        "",
+      ),
+    },
+    {
       sql: `${files.sql}\nGRANT SELECT ON TABLE public.be_organizations TO app_patient;`,
+    },
+    {
+      sql: `${files.sql}\nGRANT SELECT ON TABLE public.organization_slug_claims TO app_patient;`,
     },
     {
       repo: files.repo.replace(
@@ -150,6 +174,12 @@ function selfTest() {
       deploy: files.deploy.replace(
         '  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
         "  # missing shared runtime overlay invocation",
+      ),
+    },
+    {
+      d34: files.d34.replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing locked base-login canonical slug resolver grant",
       ),
     },
     {
