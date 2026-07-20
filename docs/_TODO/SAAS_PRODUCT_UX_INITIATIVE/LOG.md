@@ -56,6 +56,22 @@ published logo/avatar, название, информацию/контакты, 
 slug повторно связывается с exact organization server-side. Existing `#805/#817` не дублируются, U6B собран в
 taskdb `#926`; directory всех организаций остаётся deferred.
 
+### U6B-0 dormant slug foundation — integrated, public surfaces still gated
+
+В `feat/doctor-ui-rebuild` интегрирован только независимый data/security-фундамент U6B: единое глобальное
+пространство slug, durable `reservation/current/alias`, сохранение старого адреса как прямого alias, append-only
+audit переименований и узкий published+active resolver. Slug остаётся lookup/presentation key и не становится
+источником tenant authority. Миграция не публикует организации и не добавляет `/<slug>`, booking/widget UI или
+signup-экран.
+
+Два correction-pass закрыли реальные findings: phase4 overlay больше не может вернуть missing-context-open policy;
+directory slug не может разойтись с canonical current claim; автор операции берётся из trusted staff principal;
+одновременные reserve/claim/rename не создают same-org или cross-org deadlock. Финальный критический re-audit:
+`P0=0, P1=0, P2=0`; targeted `27/27`, typecheck, scoped lint, RLS/resolver/D3.4/journal checkers и disposable scratch
+smoke прошли. Рабочие DEV/TEST базы, deploy и full CI не затрагивались. Миграция `0218` лишь стоит после
+интегрированной `0217` и будет применена только каноническим отдельно разрешённым migration flow. Публичная страница,
+новый booking route и widgets остаются зависимы от завершения `U5A/U3S → U3B → U4` и не запускаются раньше.
+
 ## 2026-07-20 — owner Doctor UI chrome correction (`UI-P`, `#925`)
 
 Владелец зафиксировал единый presentation-token delta для doctor workspace: фон промежутков `#faf9f4`, белая
