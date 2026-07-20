@@ -413,9 +413,11 @@ card; запрещено строить временный resolver, второ�
   или решений.
 - **UI-0 — первый P0-этап:** DEV reproduction/trace/fix четырёх подтверждённых симптомов booking funnel: SSR после
   выбора услуги, service/location filtering, клиент из календаря и кликабельное ФИО. Это не утверждение единой
-  первопричины или дефекта canonical `location OR specialist assignment`: текущий write/read contract меняется
-  только по доказанной причине. TEST journal/DB/remote host требуют отдельного разрешения. До `doing` выполнить
-  taskdb dedup/mapping; U3B/`#801` покрывает только manual patient/walk-in и не форкается.
+  первопричины. Owner ruling 2026-07-20 задаёт booking projection: выбран специалист — только его включённые услуги;
+  clinic-wide запись без специалиста — только услуги, назначенные хотя бы одному специалисту этой организации;
+  solo — только услуги текущего специалиста; location-only assignment недостаточен. TEST journal/DB/remote host
+  требуют отдельного разрешения. До `doing` выполнить taskdb dedup/mapping; U3B/`#801` покрывает только manual
+  patient/walk-in и не форкается.
 - **Presentation cluster после UI-0:** UI-1 Расписание, UI-3 Коммуникации, UI-4 Клиенты и UI-6 Сегодня имеют
   непересекающиеся file scopes и идут параллельно (≤3). Уже интегрированные и прошедшие независимый audit baseline
   slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.

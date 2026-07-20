@@ -1,5 +1,13 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — UI-0 service visibility owner ruling
+
+Владелец закрыл единственный неоднозначный booking gate. При выбранном специалисте пациент видит только услуги,
+включённые у этого специалиста. При записи в клинику без выбранного специалиста видны только услуги, назначенные
+хотя бы одному специалисту той же организации. В solo-режиме видны только услуги текущего специалиста. Привязка
+услуги только к месту приёма не делает её доступной для записи. Это решение заменяет временный safe default
+`location assignment OR specialist assignment`; UI-0 `#923` разблокирован и продолжен одним цельным correction-pass.
+
 ## 2026-07-20 — Doctor UI plan authority convergence (docs-only)
 
 **Result and provenance.** Claude planning material `ef501ed41` plus later owner-resolution series through final
