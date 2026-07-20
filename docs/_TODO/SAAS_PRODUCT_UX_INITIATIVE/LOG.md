@@ -1,5 +1,25 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — U3S current-contract validation convergence (`#919`)
+
+U3S product/security implementation was already present and audited, but its executable closeout evidence had drifted:
+the old phase3 smoke still created a specialist during organization provisioning, while the accepted contract creates
+exactly one organization + owner membership first and performs the clinical specialist binding only after the secure
+first-run gate. The obsolete TEST-writing `demo-register-clinic2` helper was removed; it is not a registration path.
+
+The replacement proof always starts a private PostgreSQL cluster under `/tmp`, applies the canonical principal,
+provisioning and security artifacts, calls `app.provision_specialist_owner(uuid)` and the production
+`pgOrganizationProvisioning` binding port, then removes the cluster. It proves sequential/concurrent convergence,
+one organization and owner, no specialist before binding, denial of a foreign challenge and second organization,
+exact-org/actor binding, idempotency and one audit event. Direct Account security component tests cover the truthful
+first-run, recovery and binding states; organization settings remain **«Настройки»**, personal security/profile remains
+**«Аккаунт»**, and the rejected label «Практика» is absent.
+
+Independent high-risk audit passed with `P0=0, P1=0, P2=0`; the full disposable smoke, targeted U3S tests,
+typecheck, scoped lint and diff checks passed. No working DEV/TEST/PROD DB, server, deploy, real send or full CI was
+touched. U3S remains `doing`, not terminal: the desktop/mobile live registration → security/recovery → authorized
+binding → first clinical workspace journey must still be accepted, after which `#917` owns the TEST/Neo handoff.
+
 ## 2026-07-20 — C4D ownership correction: platform writes wait for U9 (`#724`)
 
 C4D keeps the explicit `organization | platform` ownership tags, exact child-owner checks, platform-row read
