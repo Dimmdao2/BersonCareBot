@@ -88,17 +88,17 @@
 #app-shell-doctor.theme-bersoncare-doctor-dna,
 #app-shell-doctor[data-theme="bersoncare-doctor-dna"] {
   color-scheme: light;
-  background: var(--bc-canvas);
+  background: var(--doctor-page-gap-background, #faf9f4);
   color: var(--bc-ink);
   font-family: var(--bc-font-sans);
 
-  --background: var(--bc-canvas);
+  --background: var(--doctor-page-gap-background, #faf9f4);
   --foreground: var(--bc-ink);
   --card: var(--bc-surface);
   --card-foreground: var(--bc-ink);
   --popover: var(--bc-surface);
   --popover-foreground: var(--bc-ink);
-  --primary: var(--bc-accent-500);
+  --primary: #406ca7;
   --primary-foreground: #ffffff;
   --secondary: var(--bc-rail);
   --secondary-foreground: var(--bc-ink);
@@ -110,8 +110,8 @@
   --destructive-foreground: #ffffff;
   --border: var(--bc-line);
   --input: var(--bc-line);
-  --ring: var(--bc-accent-500);
-  --chart-1: var(--bc-accent-500);
+  --ring: var(--primary);
+  --chart-1: var(--primary);
   --chart-2: var(--bc-accent-200);
   --chart-3: var(--bc-warn);
   --chart-4: var(--bc-ok);

@@ -44,6 +44,7 @@ describe("doctor presentation chrome", () => {
     );
 
     expect(screen.getByRole("button", { name: "Сохранить" })).toHaveClass(
+      "bg-primary",
       "rounded-[var(--doctor-control-radius,24px)]",
     );
     expect(screen.getByRole("textbox", { name: "Название" })).toHaveClass(
