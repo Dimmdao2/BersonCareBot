@@ -46,9 +46,9 @@ TEST при этом только читается через `pg_dump`, TEST-с
 `DATABASE_URL` для `bcb_webapp_dev` и удаляет только две TEST-only пары trigger/function в `public` и `integrator`.
 Значения TEST-настроек она не меняет; после разблокировки DEV их можно менять штатным API/admin UI.
 
-Если после уже выполненного refresh журнал миграций актуален, но runtime-функции/ACL разошлись (например, после
-`pg_restore --no-acl` или повторного `CREATE OR REPLACE FUNCTION`), DEV пересоздавать не нужно. Используйте отдельную
-идемпотентную closure-команду:
+Если после уже выполненного refresh журнал миграций актуален, но P2-B owner/context или runtime-функции/ACL
+разошлись (например, после `pg_restore --no-owner --no-acl` или повторного `CREATE OR REPLACE FUNCTION`), DEV
+пересоздавать не нужно. Используйте отдельную идемпотентную closure-команду:
 
 ```bash
 bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
@@ -58,9 +58,10 @@ bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
 `DATABASE_URL` под `bcb_webapp_dev_user` и отдельный `DATABASE_URL_NONSTAFF` под каноническим C0-login
 `bcb_dev_runtime_nonstaff_login`. Это DEV-only identity: она не может совпадать с TEST runtime на общем PostgreSQL-
 кластере. Owner и runtime не могут совпадать. Команда не читает `/opt/env`, TEST или PROD,
-не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, затем
-переиспользует тот же упорядоченный runtime-overlay closure, что TEST wrapper, и завершается только после фактических
-runtime-проверок public settings и patient booking capability. Глобальные роли в DEV не создаются и не перенастраиваются:
+не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, переустанавливает
+канонический P2-B protected context и только затем переиспользует тот же упорядоченный runtime-overlay closure, что
+TEST wrapper. Она завершается только после точных owner/ACL-проверок и фактических runtime-проверок public settings
+и patient booking capability. Глобальные роли в DEV не создаются и не перенастраиваются:
 они общие для PostgreSQL-кластера, поэтому отсутствие/небезопасное состояние роли является fail-closed ошибкой.
 До TEST→DEV dump/reset refresh отдельно запускает `--preflight`; отсутствие `DATABASE_URL_NONSTAFF`, alias с owner,
 опасные атрибуты роли или membership в owner/`app_owner` останавливают refresh до разрушения текущей DEV-БД.
@@ -155,6 +156,39 @@ rehydrate. Роли PostgreSQL глобальны для локального к
 удалять существующие роли и не выполнять `DROP ROLE`. Если роли уже существовали с неожиданными ownership или
 транзитивными привилегиями, #920 preflight обязан остановить продолжение — это отдельное расследование, не повод
 расширять этот одноразовый bootstrap.
+
+### Обязательный разовый P2-B owner/context handoff после `--no-owner` restore
+
+Это **per-database** шаг, не cluster-global подготовка C0-login выше. Dump может сохранить актуальный migration
+ledger, но потерять owner/ACL-состояние конкретной базы: migration-created объекты `app` становятся объектами
+`bcb_webapp_dev_user`, после `--no-acl` отсутствуют grants глобальным `app_staff`/`app_patient`, а protected principal
+context нужно заново связать с тем же signing secret, который использует DEV runtime.
+
+После каждого явно разрешённого `refresh-dev-from-test.sh --execute` порядок фиксирован:
+
+1. restore только `bcb_webapp_dev` с `--no-owner --no-acl`;
+2. current-branch migrations под `bcb_webapp_dev_user`;
+3. `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
+   `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` проверяются без `source`
+   `.env.dev`;
+4. wrapper проверяет `app`, exact existing P2-B tables/functions, migration-created `app.is_staff()` и pgcrypto
+   move precondition; выдаёт `app_owner` только `USAGE` на `app_ext`, передаёт owner только для exact P2-B
+   tables/functions (если они уже существуют), а schema `app` — через канонический P2-B artifact, затем
+   переустанавливает `deploy/postgres/p2-b-protected-principal-context.sql`;
+5. до overlays доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B schema/tables/functions принадлежат
+   `app_owner`, а сохранённый secret равен stdin-значению; затем применяются P0.5b, единая shared runtime-overlay
+   chain и nonstaff runtime capability checks;
+6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
+
+Signing secret парсится как данные из канонического non-symlink `.env.dev`, принимается только в ограниченной
+whitespace/backslash-free форме длиной не менее 32 bytes и передаётся `psql` только через stdin вместе с атомарно
+открытым canonical SQL. Он не должен попадать в argv, shell history, чат, логи, taskdb, документацию или commit.
+
+Handoff запускается только сразу после explicit TEST→DEV refresh или как targeted repair уже существующей DEV-БД с
+актуальным migration ledger и owner/ACL drift. Это **никогда** не часть ordinary code-only deploy, build, restart,
+`pnpm migrate` или UI-правки. Не повторяйте destructive refresh ради repair. Запрещены `REASSIGN OWNED`,
+`DROP OWNED`, P2-B down mode, broad ownership rewrites и hand-written replacement SQL. При FAIL исправляется
+repo-wrapper/canonical artifact, после чего closure повторяется на той же DEV-БД.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 

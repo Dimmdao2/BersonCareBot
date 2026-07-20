@@ -48,6 +48,49 @@ export function parseDatabaseUrlFromDotenv(text) {
   return parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL");
 }
 
+function parseExactScalarFromDotenv(text, requestedKey) {
+  let value;
+  for (const rawLine of text.replace(/^\uFEFF/, "").split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/u.exec(line);
+    if (!match) fail("invalid_dotenv_line");
+    if (match[1] !== requestedKey) continue;
+    if (value !== undefined) fail(`duplicate_${requestedKey.toLowerCase()}`);
+
+    const encoded = match[2].trim();
+    if (!encoded) fail(`missing_${requestedKey.toLowerCase()}`);
+    const quote = encoded[0];
+    if (quote === "\"" || quote === "'") {
+      if (encoded.length < 2 || encoded.at(-1) !== quote) fail("invalid_scalar_quoting");
+      value = encoded.slice(1, -1);
+    } else {
+      if (/\s|["']/u.test(encoded)) fail("invalid_scalar_value");
+      value = encoded;
+    }
+  }
+  if (value === undefined) fail(`missing_${requestedKey.toLowerCase()}`);
+  return value;
+}
+
+export function parseDevPrincipalContextModeFromDotenv(text) {
+  const value = parseExactScalarFromDotenv(text, "DB_PRINCIPAL_CONTEXT_MODE");
+  if (value !== "shadow" && value !== "locked") fail("invalid_db_principal_context_mode");
+  return value;
+}
+
+export function parseDevPrincipalSigningSecretFromDotenv(text) {
+  const value = parseExactScalarFromDotenv(text, "DB_PRINCIPAL_SIGNING_SECRET");
+  if (
+    Buffer.byteLength(value, "utf8") < 32 ||
+    Buffer.byteLength(value, "utf8") > 4096 ||
+    !/^[A-Za-z0-9._~+/=-]+$/u.test(value)
+  ) {
+    fail("unsafe_db_principal_signing_secret");
+  }
+  return value;
+}
+
 export function assertExactLocalDevDatabaseUrl(value) {
   if (value.includes("?") || value.includes("#")) fail("database_url_query_or_fragment_forbidden");
   let parsed;
@@ -83,6 +126,7 @@ export function assertExactLocalDevNonstaffDatabaseUrl(value) {
 function selfTest() {
   const valid = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
   const validNonstaff = "postgresql://bcb_dev_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev";
+  const validSigningSecret = "dev-signing-secret-at-least-32-bytes-123456";
   if (assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(`A=1\nDATABASE_URL='${valid}'\n`)) !== valid) {
     fail("self_test_valid_failed");
   }
@@ -92,6 +136,16 @@ function selfTest() {
     ) !== validNonstaff
   ) {
     fail("self_test_valid_nonstaff_failed");
+  }
+  if (parseDevPrincipalContextModeFromDotenv("DB_PRINCIPAL_CONTEXT_MODE=shadow\n") !== "shadow") {
+    fail("self_test_valid_context_mode_failed");
+  }
+  if (
+    parseDevPrincipalSigningSecretFromDotenv(
+      `DB_PRINCIPAL_SIGNING_SECRET='${validSigningSecret}'\n`,
+    ) !== validSigningSecret
+  ) {
+    fail("self_test_valid_signing_secret_failed");
   }
   for (const forbiddenNonstaff of [
     valid,
@@ -123,6 +177,31 @@ function selfTest() {
     }
     if (!rejected) fail("self_test_expected_rejection");
   }
+  for (const sample of [
+    "DB_PRINCIPAL_CONTEXT_MODE=legacy-guc\n",
+    "DB_PRINCIPAL_CONTEXT_MODE=shadow\nDB_PRINCIPAL_CONTEXT_MODE=locked\n",
+  ]) {
+    let rejected = false;
+    try {
+      parseDevPrincipalContextModeFromDotenv(sample);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) fail("self_test_expected_context_mode_rejection");
+  }
+  for (const sample of [
+    "DB_PRINCIPAL_SIGNING_SECRET=short\n",
+    `DB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}\\suffix\n`,
+    `DB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}\nDB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}\n`,
+  ]) {
+    let rejected = false;
+    try {
+      parseDevPrincipalSigningSecretFromDotenv(sample);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) fail("self_test_expected_signing_secret_rejection");
+  }
 }
 
 if (process.argv[1]?.endsWith("parse-dev-database-url.mjs")) {
@@ -130,18 +209,26 @@ if (process.argv[1]?.endsWith("parse-dev-database-url.mjs")) {
     if (process.argv.length === 3 && process.argv[2] === "--self-test") {
       selfTest();
       console.log("parse-dev-database-url self-test: OK");
-    } else if (process.argv.length === 3 || (process.argv.length === 4 && process.argv[2] === "--nonstaff")) {
-      const nonstaff = process.argv.length === 4;
-      const path = process.argv[nonstaff ? 3 : 2];
+    } else if (
+      process.argv.length === 3 ||
+      (process.argv.length === 4 &&
+        ["--nonstaff", "--context-mode", "--signing-secret"].includes(process.argv[2]))
+    ) {
+      const mode = process.argv.length === 4 ? process.argv[2] : "--owner";
+      const path = process.argv[mode === "--owner" ? 2 : 3];
       const stat = lstatSync(path);
       if (!stat.isFile() || stat.isSymbolicLink()) fail("unsafe_env_file");
       const text = readFileSync(path, "utf8");
       process.stdout.write(
-        nonstaff
+        mode === "--nonstaff"
           ? assertExactLocalDevNonstaffDatabaseUrl(
               parseDatabaseUrlKeyFromDotenv(text, "DATABASE_URL_NONSTAFF"),
             )
-          : assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(text)),
+          : mode === "--context-mode"
+            ? parseDevPrincipalContextModeFromDotenv(text)
+            : mode === "--signing-secret"
+              ? parseDevPrincipalSigningSecretFromDotenv(text)
+              : assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(text)),
       );
     } else {
       fail("invalid_arguments");

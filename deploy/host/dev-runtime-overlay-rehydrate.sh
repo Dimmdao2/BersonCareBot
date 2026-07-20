@@ -7,12 +7,16 @@ set -Eeuo pipefail
 TARGET_DB="bcb_webapp_dev"
 TARGET_OWNER_ROLE="bcb_webapp_dev_user"
 TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"
+P2_B_OWNER_ROLE="app_owner"
+P2_B_STAFF_ROLE="app_staff"
+P2_B_PATIENT_ROLE="app_patient"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
 RUNTIME_OVERLAY_LIB="$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh"
 SQL_STREAMER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
+P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
 usage() {
@@ -21,8 +25,9 @@ Usage:
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
 
-Reapplies the canonical runtime grants/helpers/E1 overlay closure to exactly $TARGET_DB.
+Reinstalls the canonical P2-B protected context, then reapplies runtime grants/helpers/E1 to exactly $TARGET_DB.
 It never restores, recreates or dumps a database and never opens TEST, PROD or /opt/env.
+This is a one-time post-restore/owner-drift repair, never an ordinary code-only deploy step.
 EOF
 }
 
@@ -49,7 +54,8 @@ for guarded_file in \
   "$DEV_ENV_PARSER|$REPO_ROOT/deploy/host/parse-dev-database-url.mjs|DEV env parser" \
   "$RUNTIME_OVERLAY_LIB|$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh|runtime overlay library" \
   "$SQL_STREAMER|$REPO_ROOT/deploy/host/stream-canonical-sql.mjs|canonical SQL reader" \
-  "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants"; do
+  "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants" \
+  "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
   if [[ -L "$guarded_path" || ! -f "$guarded_path" || "$(realpath "$guarded_path")" != "$expected_path" ]]; then
     echo "FATAL: $guarded_label path guard failed" >&2
@@ -76,6 +82,14 @@ DEV_OWNER_DATABASE_URL="$("$NODE_BIN" "$DEV_ENV_PARSER" "$DEV_ENV")" || {
 }
 DEV_RUNTIME_DATABASE_URL="$("$NODE_BIN" "$DEV_ENV_PARSER" --nonstaff "$DEV_ENV")" || {
   echo "FATAL: DEV DATABASE_URL_NONSTAFF data parser rejected the env file" >&2
+  exit 1
+}
+DEV_CONTEXT_MODE="$("$NODE_BIN" "$DEV_ENV_PARSER" --context-mode "$DEV_ENV")" || {
+  echo "FATAL: DEV DB_PRINCIPAL_CONTEXT_MODE data parser rejected the env file" >&2
+  exit 1
+}
+P2_B_SIGNING_SECRET_VALUE="$("$NODE_BIN" "$DEV_ENV_PARSER" --signing-secret "$DEV_ENV")" || {
+  echo "FATAL: DEV DB_PRINCIPAL_SIGNING_SECRET data parser rejected the env file" >&2
   exit 1
 }
 
@@ -151,6 +165,10 @@ if [[ "$runtime_role" != "$TARGET_RUNTIME_ROLE" ]]; then
   exit 1
 fi
 runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"
+if [[ "$DEV_CONTEXT_MODE" != "shadow" && "$DEV_CONTEXT_MODE" != "locked" ]]; then
+  echo "FATAL: DEV protected context requires shadow or locked mode" >&2
+  exit 1
+fi
 
 admin_database="$(run_dev_admin_psql -d "$TARGET_DB" -Atc 'SELECT current_database();' 2>/dev/null)"
 if [[ "$admin_database" != "$TARGET_DB" ]]; then
@@ -248,9 +266,174 @@ SELECT 1 / (
 SQL
 
 if [[ "$MODE" == "--preflight" ]]; then
+  P2_B_SIGNING_SECRET_VALUE=""
   echo "[dev-runtime-overlay] PASS: separate DEV owner/runtime topology is safe"
   exit 0
 fi
+
+# The restored database may have a current migration ledger while --no-owner/--no-acl has left the
+# per-database protected-context owners and ACLs stale. Fail before the narrow handoff if the exact
+# migration-created prerequisites or the pgcrypto move precondition are not present.
+run_dev_admin_psql -d "$TARGET_DB" -qAt \
+  -v expected_owner_role="$TARGET_OWNER_ROLE" \
+  -v p2_b_owner_role="$P2_B_OWNER_ROLE" <<'SQL' >/dev/null
+SELECT 1 / (
+  EXISTS (
+    SELECT 1
+    FROM pg_namespace namespace
+    WHERE namespace.nspname = 'app'
+      AND pg_get_userbyid(namespace.nspowner) IN (:'expected_owner_role', :'p2_b_owner_role')
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM pg_proc procedure
+    JOIN pg_namespace namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'app'
+      AND procedure.proname = 'is_staff'
+      AND procedure.pronargs = 0
+      AND pg_get_userbyid(procedure.proowner) IN (:'expected_owner_role', :'p2_b_owner_role')
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.context_signing_secrets',
+      'app.principal_context',
+      'app.context_nonce_ledger'
+    ]) AS expected(qualified_name)
+    JOIN pg_class relation ON relation.oid = to_regclass(expected.qualified_name)
+    WHERE pg_get_userbyid(relation.relowner) NOT IN (:'expected_owner_role', :'p2_b_owner_role')
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'app.current_org_id()',
+      'app.current_patient_user_id()',
+      'app.current_integrator_user_id()',
+      'app.reset_principal_context()',
+      'app.release_principal_context()',
+      'app.close_active_user_phone_history(uuid)',
+      'app.is_staff()'
+    ]) AS expected(signature)
+    JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+    WHERE pg_get_userbyid(procedure.proowner) NOT IN (:'expected_owner_role', :'p2_b_owner_role')
+  )
+)::int AS dev_p2_b_exact_owner_handoff_preconditions;
+
+SELECT 1 / (
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_extension extension
+    JOIN pg_namespace source_namespace ON source_namespace.oid = extension.extnamespace
+    JOIN pg_depend dependency ON dependency.refobjid = extension.oid
+    JOIN pg_proc source_proc ON source_proc.oid = dependency.objid
+    JOIN pg_namespace target_namespace ON target_namespace.nspname = 'app_ext'
+    JOIN pg_proc target_proc ON target_proc.pronamespace = target_namespace.oid
+      AND target_proc.proname = source_proc.proname
+      AND target_proc.proargtypes = source_proc.proargtypes
+    WHERE extension.extname = 'pgcrypto'
+      AND source_namespace.nspname <> 'app_ext'
+      AND dependency.classid = 'pg_proc'::regclass
+      AND dependency.deptype = 'e'
+  )
+)::int AS dev_p2_b_pgcrypto_move_precondition;
+SQL
+
+echo "[dev-runtime-overlay] preparing exact app_owner/pgcrypto handoff"
+run_dev_admin_psql -d "$TARGET_DB" -qAt \
+  -v p2_b_owner_role="$P2_B_OWNER_ROLE" <<'SQL' >/dev/null
+CREATE SCHEMA IF NOT EXISTS app_ext;
+GRANT USAGE ON SCHEMA app_ext TO :"p2_b_owner_role";
+
+SELECT format('ALTER TABLE %s OWNER TO %I', relation.oid::regclass, :'p2_b_owner_role')
+FROM unnest(ARRAY[
+  'app.context_signing_secrets',
+  'app.principal_context',
+  'app.context_nonce_ledger'
+]) AS expected(qualified_name)
+JOIN pg_class relation ON relation.oid = to_regclass(expected.qualified_name)
+\gexec
+
+SELECT format('ALTER FUNCTION %s OWNER TO %I', procedure.oid::regprocedure, :'p2_b_owner_role')
+FROM unnest(ARRAY[
+  'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+  'app.current_org_id()',
+  'app.current_patient_user_id()',
+  'app.current_integrator_user_id()',
+  'app.reset_principal_context()',
+  'app.release_principal_context()',
+  'app.close_active_user_phone_history(uuid)',
+  'app.is_staff()'
+]) AS expected(signature)
+JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+\gexec
+SQL
+
+echo "[dev-runtime-overlay] reinstalling canonical P2-B protected principal context"
+{
+  printf '\\set p2_b_owner_role %s\n' "$P2_B_OWNER_ROLE"
+  printf '\\set p2_b_staff_role %s\n' "$P2_B_STAFF_ROLE"
+  printf '\\set p2_b_patient_role %s\n' "$P2_B_PATIENT_ROLE"
+  printf '\\set p2_b_signing_secret %s\n' "$P2_B_SIGNING_SECRET_VALUE"
+  "$NODE_BIN" "$SQL_STREAMER" "$P2_B_CONTEXT" "$REPO_ROOT/deploy/postgres"
+  cat <<'SQL'
+SELECT 1 / (
+  coalesce((SELECT secret = :'p2_b_signing_secret' FROM app.context_signing_secrets WHERE id = true), false)
+  AND coalesce((SELECT n.nspname = 'app_ext' FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pgcrypto'), false)
+  AND coalesce((SELECT pg_get_userbyid(nspowner) = :'p2_b_owner_role' FROM pg_namespace WHERE nspname = 'app'), false)
+  AND coalesce(has_schema_privilege(:'p2_b_owner_role', 'app_ext', 'USAGE'), false)
+  AND 3 = (
+    SELECT count(*)
+    FROM unnest(ARRAY[
+      'app.context_signing_secrets',
+      'app.principal_context',
+      'app.context_nonce_ledger'
+    ]) AS expected(qualified_name)
+    JOIN pg_class relation ON relation.oid = to_regclass(expected.qualified_name)
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.context_signing_secrets',
+      'app.principal_context',
+      'app.context_nonce_ledger'
+    ]) AS expected(qualified_name)
+    JOIN pg_class relation ON relation.oid = to_regclass(expected.qualified_name)
+    WHERE pg_get_userbyid(relation.relowner) <> :'p2_b_owner_role'
+  )
+  AND 8 = (
+    SELECT count(*)
+    FROM unnest(ARRAY[
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'app.current_org_id()',
+      'app.current_patient_user_id()',
+      'app.current_integrator_user_id()',
+      'app.reset_principal_context()',
+      'app.release_principal_context()',
+      'app.close_active_user_phone_history(uuid)',
+      'app.is_staff()'
+    ]) AS expected(signature)
+    JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+      'app.current_org_id()',
+      'app.current_patient_user_id()',
+      'app.current_integrator_user_id()',
+      'app.reset_principal_context()',
+      'app.release_principal_context()',
+      'app.close_active_user_phone_history(uuid)',
+      'app.is_staff()'
+    ]) AS expected(signature)
+    JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+    WHERE pg_get_userbyid(procedure.proowner) <> :'p2_b_owner_role'
+  )
+)::int AS dev_p2_b_owner_context_postcheck;
+SQL
+} | run_dev_admin_psql -d "$TARGET_DB" -q >/dev/null
+P2_B_SIGNING_SECRET_VALUE=""
 
 run_dev_admin_psql -d "$TARGET_DB" -qAt \
   -v expected_runtime_role="$TARGET_RUNTIME_ROLE" <<'SQL' >/dev/null

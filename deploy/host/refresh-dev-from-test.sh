@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Explicit destructive TEST-to-DEV refresh. This is never an ordinary code-only deploy path.
 # Recreate the disposable local DEV database from the current TEST database.
 # This intentionally never reads PROD or /opt/env. TEST services and TEST DB remain read-only.
 
@@ -182,7 +183,7 @@ echo "[refresh-dev] applying current branch migrations"
     '
 )
 
-echo "[refresh-dev] rehydrating canonical runtime grants/helpers after migrations"
+echo "[refresh-dev] reinstalling P2-B owner/context and runtime overlays after migrations"
 bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute
 
 echo "[refresh-dev] removing copied TEST-only settings locks from DEV"

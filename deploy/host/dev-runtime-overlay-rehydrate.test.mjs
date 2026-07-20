@@ -19,6 +19,7 @@ const wrapperPath = fileURLToPath(new URL("./dev-runtime-overlay-rehydrate.sh", 
 const libraryPath = fileURLToPath(new URL("./runtime-overlay-rehydrate-lib.sh", import.meta.url));
 const refreshPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
 const sqlStreamerPath = fileURLToPath(new URL("./stream-canonical-sql.mjs", import.meta.url));
+const envParserPath = fileURLToPath(new URL("./parse-dev-database-url.mjs", import.meta.url));
 
 const canonicalOrder = [
   "deploy/postgres/organization-member-invites-rls.sql",
@@ -108,8 +109,13 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /TARGET_DB="bcb_webapp_dev"/u);
   assert.match(source, /TARGET_OWNER_ROLE="bcb_webapp_dev_user"/u);
   assert.match(source, /TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"/u);
+  assert.match(source, /P2_B_OWNER_ROLE="app_owner"/u);
+  assert.match(source, /P2_B_STAFF_ROLE="app_staff"/u);
+  assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
   assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" "\$DEV_ENV"/u);
   assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --nonstaff "\$DEV_ENV"/u);
+  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --context-mode "\$DEV_ENV"/u);
+  assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --signing-secret "\$DEV_ENV"/u);
   assert.doesNotMatch(source, /\bsource\s+["']?\$DEV_ENV/u);
   assert.match(source, /env -i/u);
   assert.match(source, /PGPASSFILE=\/dev\/null/u);
@@ -123,6 +129,22 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_database_owner_exact/u);
   assert.match(source, /dev_runtime_roles_safe/u);
   assert.match(source, /dev_base_runtime_role_safe_before_overlay/u);
+  assert.match(source, /dev_p2_b_exact_owner_handoff_preconditions/u);
+  assert.match(source, /dev_p2_b_pgcrypto_move_precondition/u);
+  assert.match(source, /ALTER TABLE %s OWNER TO %I/u);
+  assert.match(source, /ALTER FUNCTION %s OWNER TO %I/u);
+  assert.match(source, /app\.context_signing_secrets/u);
+  assert.match(source, /app\.install_signed_context\(text,integer,bigint,uuid,uuid,bigint,text\)/u);
+  assert.match(source, /"\$NODE_BIN" "\$SQL_STREAMER" "\$P2_B_CONTEXT"/u);
+  assert.match(source, /dev_p2_b_owner_context_postcheck/u);
+  assert.ok(
+    source.indexOf("dev_p2_b_owner_context_postcheck") <
+      source.indexOf(
+        'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
+      ),
+  );
+  assert.doesNotMatch(source, /-v\s+p2_b_signing_secret=/u);
+  assert.doesNotMatch(source, /REASSIGN\s+OWNED|DROP\s+OWNED|p2_b_down/iu);
   assert.match(source, /NOT rolcreatedb/u);
   assert.match(source, /NOT rolcreaterole/u);
   assert.match(source, /NOT rolreplication/u);
@@ -141,6 +163,17 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /\/opt\/env\/bersoncarebot|bersoncarebot_test|bcb_webapp_prod|bersoncarebot_prod/iu,
   );
+});
+
+test("DEV env parser validates protected-context mode and keeps signing values argv-free", () => {
+  const selfTest = spawnSync(process.execPath, [envParserPath, "--self-test"], { encoding: "utf8" });
+  assert.equal(selfTest.status, 0, selfTest.stderr);
+  assert.match(selfTest.stdout, /self-test: OK/u);
+
+  const source = readFileSync(envParserPath, "utf8");
+  assert.match(source, /value !== "shadow" && value !== "locked"/u);
+  assert.match(source, /Buffer\.byteLength\(value, "utf8"\) < 32/u);
+  assert.match(source, /\^\[A-Za-z0-9\._~\+\/=-\]\+\$/u);
 });
 
 test("DEV admin callback streams one canonical SQL file and rejects unsafe file arguments", () => {
@@ -275,6 +308,8 @@ test("TEST to DEV refresh runs rehydrate after migrations and before DEV unlock"
   assert.ok(unlockIndex > rehydrateIndex);
   assert.ok(passIndex > unlockIndex);
   assert.match(source, /DEV runtime overlay rehydrate path guard failed/u);
+  assert.match(source, /never an ordinary code-only deploy path/u);
+  assert.match(source, /reinstalling P2-B owner\/context and runtime overlays after migrations/u);
 });
 
 test("wrapper defaults to usage and performs no operation without the exact execute flag", () => {

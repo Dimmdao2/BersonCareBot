@@ -569,10 +569,38 @@ refresh wrapper calls its read-only `--preflight` before dump/reset. That prefli
 unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.
 Because `app_owner`, `app_staff`, `app_patient`, and the C0 login are cluster-global, DEV only validates their
 canonical safe state; it does not create, rotate, or rewire them. C0/C2 ops provisioning must happen separately.
-It reapplies per-database P0.5b grants and the shared helper/E1 closure, then fails unless the targeted functions have
-exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public runtime accessor, and an
-actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An already prepared DEV database
-with only owner/ACL drift must use this command directly; recreating it from a dump is unnecessary.
+
+For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-closed order is:
+
+1. current-branch migrations;
+2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
+3. P0.5b grants and the single shared runtime-overlay chain;
+4. exact owner/ACL and nonstaff capability postchecks;
+5. copied TEST-only settings unlock.
+
+The handoff parses `DB_PRINCIPAL_CONTEXT_MODE` and `DB_PRINCIPAL_SIGNING_SECRET` as data from the canonical
+non-symlink `.env.dev`. Mode must be `shadow` or `locked`; the secret must be at least 32 bytes and safe for
+stdin-only psql meta-variable transport. The env is never sourced and the secret never enters argv or output. Before
+any handoff write, the wrapper proves exact database/role topology, `app` schema and migration-created
+`app.is_staff()` ownership by either the exact DEV migrator or `app_owner`, and absence of conflicting signatures for
+the canonical `pgcrypto` move to `app_ext`. It grants only `USAGE` on `app_ext` to `app_owner`, changes ownership only
+for the exact existing P2-B tables/functions (including the `app.is_staff()` prerequisite), and streams the existing
+`deploy/postgres/p2-b-protected-principal-context.sql` through the hardened canonical-file reader. That artifact owns
+the exact `app` schema handoff and protected-context creation. Postchecks prove `pgcrypto` is in `app_ext`, the exact
+P2-B schema/tables/functions belong to `app_owner`, and the stored secret matches the stdin value before later
+overlays run.
+
+The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure and fails unless the targeted
+functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public
+runtime accessor, and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An
+already prepared DEV database with only owner/ACL drift must use this command directly; recreating it from a dump is
+unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
+forbidden recovery paths.
+
+This sequence is wired only into explicit destructive `refresh-dev-from-test.sh --execute`. Ordinary code-only
+deploys, builds, restarts, UI work and standalone `pnpm migrate` must never invoke refresh, dump/restore, P2-B
+rehydrate or unlock automatically. A failed post-restore handoff is repaired on the same DEV database by fixing the
+repo wrapper/artifact and rerunning rehydrate; it is not a reason for another destructive refresh.
 
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 
