@@ -3,6 +3,11 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { createScheduledManualPatientVisit } from "@/app-layer/doctor/createScheduledManualPatientVisit";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import {
+  staffBookingContactNameFromAppointment,
+  staffBookingServiceTitleFromAppointment,
+} from "@/app-layer/booking/staffBookingIntegratorEvent";
+import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
@@ -79,6 +84,39 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+    }
+    const bookingRow = deps.patientBooking
+      ? await deps.patientBooking.getBookingByCanonicalAppointment(result.appointment.id)
+      : null;
+    try {
+      await createBookingSyncPort().emitBookingEvent({
+        eventType: "booking.created",
+        idempotencyKey: `staff.booking.created:${result.appointment.id}:${result.appointment.startAt}`,
+        payload: {
+          organizationId: result.appointment.organizationId,
+          bookingId: bookingRow?.id ?? result.appointment.id,
+          userId: bookingRow?.userId ?? result.patient.userId,
+          rubitimeId: bookingRow?.rubitimeId ?? null,
+          bookingType: bookingRow?.bookingType ?? "in_person",
+          city: bookingRow?.city ?? undefined,
+          category: bookingRow?.category ?? "general",
+          slotStart: result.appointment.startAt,
+          slotEnd: result.appointment.endAt,
+          contactName:
+            bookingRow?.contactName ?? staffBookingContactNameFromAppointment(result.appointment),
+          contactPhone: bookingRow?.contactPhone ?? result.patient.phoneNormalized,
+          contactEmail: bookingRow?.contactEmail ?? undefined,
+          branchServiceId: bookingRow?.branchServiceId ?? null,
+          cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+          serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
+            result.appointment,
+            bookingRow,
+          ),
+          canonicalAppointmentId: result.appointment.id,
+        },
+      });
+    } catch {
+      // Same contract as the existing manual route: lifecycle delivery is best-effort.
     }
     return NextResponse.json({
       ok: true,

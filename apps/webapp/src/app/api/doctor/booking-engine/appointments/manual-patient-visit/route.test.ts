@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const createManualPatientVisitMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
+const emitBookingEventMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
@@ -23,6 +24,9 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
       principalState.inside = false;
     }
   }),
+}));
+vi.mock("@/modules/integrator/bookingM2mApi", () => ({
+  createBookingSyncPort: () => ({ emitBookingEvent: emitBookingEventMock }),
 }));
 
 import { POST } from "./route";
@@ -75,6 +79,12 @@ describe("POST manual patient visit", () => {
         appointment: {
           id: "77777777-7777-4777-8777-777777777777",
           organizationId: input.organizationId,
+          startAt: input.appointment.startAt,
+          endAt: input.appointment.endAt,
+          platformUserId: "66666666-6666-4666-8666-666666666666",
+          phoneNormalized: input.phoneNormalized,
+          serviceId: input.appointment.serviceId,
+          attributionJson: {},
         },
       };
     });
@@ -92,6 +102,7 @@ describe("POST manual patient visit", () => {
       }),
     );
     expect(principalState.inside).toBe(false);
+    expect(emitBookingEventMock).toHaveBeenCalledOnce();
   });
 
   it("does not open the transaction for an invalid body", async () => {
