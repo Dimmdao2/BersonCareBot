@@ -23,9 +23,14 @@ the DI composition root as the explicit lazy resolver-injection boundary; a pre-
 assertion was routed through the canonical action adapter, leaving the checker green. No full CI was repeated, and
 no DB, DEV server, TEST/PROD, deploy, production payment or external send was touched.
 
-**Remaining gate.** This is ready for one independent high-risk audit, not terminal completion. After that gate,
-the integrated branch still needs the prescribed live two-organization OFF/ON acceptance and authorized migration
-postcondition. Course redesign, template removal, store expansion and C4D remain outside this slice.
+**Independent audit.** The single full-stage audit `c4c_independent_audit` inspected audit HEAD `0e14c0a32` against
+the owner/roadmap checklist and passed with no P0/P1/P2 findings. Its own safe rerun covered `6` files / `42` tests;
+S4 coverage (`35` mappings), checker self-test, journal sync and diff check also passed. It made no changes and added
+no requirements.
+
+**Remaining gate.** This is still not terminal completion. The integrated branch needs the prescribed live
+two-organization OFF/ON acceptance and authorized migration postcondition. Course redesign, template removal, store
+expansion and C4D remain outside this slice.
 
 ## 2026-07-20 — parallel launch checkpoint: C4C `#26` + U3S `#919`
 

@@ -498,8 +498,9 @@ card; запрещено строить временный resolver, второ�
   current entitlement are rechecked, and an active patient enrollment is required without creating an identity on a
   denied public attempt. The expanded focused matrix is green (`20` files / `192` tests), as are S4 coverage,
   checker self-test, Drizzle journal sync, webapp typecheck, scoped lint and diff checks; no DB/TEST/PROD/deploy action
-  was taken. **C4C is still non-terminal:** one independent high-risk audit and the prescribed live two-organization
-  OFF/ON acceptance (including migration apply and postcondition in an authorized environment) remain required.
+  was taken. The single independent high-risk audit at `0e14c0a32` passed with no P0/P1/P2 findings. **C4C is still
+  non-terminal:** the prescribed live two-organization OFF/ON acceptance (including migration apply and postcondition
+  in an authorized environment) remains required.
   C4D remains a separate pending substage. C5C seat
   commerce is not part of the completed C4A scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два
