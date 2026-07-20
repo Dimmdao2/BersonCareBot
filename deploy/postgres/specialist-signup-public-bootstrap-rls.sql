@@ -54,6 +54,7 @@ REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_oauth_bindings_owner_ident;
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_staff_security_owner_ident;
 \endif
+REVOKE USAGE ON SCHEMA app FROM :specialist_signup_staff_security_owner_ident;
 SELECT (to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL)::int AS specialist_signup_has_self_helper \gset
 \if :specialist_signup_has_self_helper
 REVOKE EXECUTE ON FUNCTION app.require_staff_security_self_user_id() FROM :specialist_signup_intents_owner_ident;
@@ -184,6 +185,22 @@ SELECT quote_ident(:'specialist_signup_oauth_bindings_owner') AS specialist_sign
 SELECT quote_ident(:'specialist_signup_email_challenges_owner') AS specialist_signup_email_challenges_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_intents_owner') AS specialist_signup_intents_owner_ident \gset
 SELECT quote_ident(:'specialist_signup_staff_security_owner') AS specialist_signup_staff_security_owner_ident \gset
+
+-- Staff-security SECURITY DEFINER functions call sibling helpers inside schema app. Their
+-- derived table owner needs only schema name resolution; caller/runtime grants stay unchanged.
+GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;
+
+SELECT has_schema_privilege(
+  :'specialist_signup_staff_security_owner',
+  'app',
+  'USAGE'
+)::int AS specialist_signup_staff_security_owner_schema_usage_ok \gset
+
+\if :specialist_signup_staff_security_owner_schema_usage_ok
+\else
+\echo 'FATAL: derived staff-security owner lacks effective USAGE on schema app.'
+SELECT 1 / 0 AS specialist_signup_staff_security_owner_schema_usage_abort;
+\endif
 
 CREATE OR REPLACE FUNCTION app.get_public_config_bool(p_key text)
 RETURNS boolean

@@ -51,6 +51,20 @@ describe("staff security database boundary", () => {
     expect(overlay).toContain(
       "GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions() TO app_patient",
     );
+    expect(overlay).toContain(
+      "GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;",
+    );
+    expect(overlay).toContain(
+      "specialist_signup_staff_security_owner_schema_usage_ok",
+    );
+    expect(overlay).toContain(
+      "has_schema_privilege(\n  :'specialist_signup_staff_security_owner',\n  'app',\n  'USAGE'",
+    );
+    expect(overlay).toContain(
+      "REVOKE USAGE ON SCHEMA app FROM :specialist_signup_staff_security_owner_ident;",
+    );
+    expect(overlay).not.toContain("GRANT USAGE ON SCHEMA app TO app_patient");
+    expect(overlay).not.toContain("GRANT USAGE ON SCHEMA app TO app_staff");
     expect(migration).toContain("CREATE OR REPLACE FUNCTION app.require_staff_security_self_user_id()");
     expect(migration).toContain("app.current_patient_user_id()");
     expect(migration).not.toMatch(/FUNCTION app\.(?:ensure|get|save|complete|confirm|begin|consume|record|revoke)_staff_[^(]+\([^)]*uuid/u);

@@ -265,7 +265,10 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   helpers such as `app.get_public_config_bool(text)` and `app.current_patient_has_password_credentials()` without
   granting `app_patient` broad access to `system_settings`, password hashes, or OAuth binding rows. All
   public/pre-auth SECURITY DEFINER functions use table/app owners, `search_path=pg_catalog`, explicit object names,
-  PUBLIC revocation, and reviewed caller grants;
+  PUBLIC revocation, and reviewed caller grants. Staff-security functions invoke sibling protected helpers by
+  schema-qualified name, so this overlay grants effective `USAGE` on schema `app` only to the derived
+  `staff_security_profiles` owner and fails its own postcheck otherwise; it does not add schema, function, table or
+  role-membership grants to runtime/base logins;
 - require migrations `0182_reference_catalog_snapshots`, `0183_reference_catalog_snapshot_receipts`, and
   `0184_reference_catalog_org_insert_hook` before
   the specialist-owner provisioning and reference-catalog RLS overlays. Provisioning calls

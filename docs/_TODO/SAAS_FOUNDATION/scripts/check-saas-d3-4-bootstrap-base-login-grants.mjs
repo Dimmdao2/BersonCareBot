@@ -463,10 +463,16 @@ function runChecks(overrides = {}) {
     "DROP FUNCTION IF EXISTS app.staff_user_has_web_oauth_binding(uuid);",
     "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_password_credentials_owner_ident;",
     "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_oauth_bindings_owner_ident;",
+    "GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;",
+    "has_schema_privilege(\n  :'specialist_signup_staff_security_owner',\n  'app',\n  'USAGE'",
+    "specialist_signup_staff_security_owner_schema_usage_ok",
+    "REVOKE USAGE ON SCHEMA app FROM :specialist_signup_staff_security_owner_ident;",
   ]);
   forbidFragments(files.publicBootstrapSql, loaded.publicBootstrapSql, [
     "SET search_path = public, pg_catalog",
     "SET search_path = public, app, pg_catalog",
+    "GRANT USAGE ON SCHEMA app TO app_patient",
+    "GRANT USAGE ON SCHEMA app TO app_staff",
   ]);
   forbidFragments(files.organizationMemberInvitesSql, loaded.organizationMemberInvitesSql, [
     "SET search_path = public, pg_catalog",
@@ -881,6 +887,12 @@ if (process.argv.includes("--self-test")) {
       publicBootstrapSql: read(files.publicBootstrapSql).replace(
         "REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_password_credentials_owner_ident;",
         "-- leaked owner helper grant in DOWN self-test",
+      ),
+    },
+    {
+      publicBootstrapSql: read(files.publicBootstrapSql).replace(
+        "GRANT USAGE ON SCHEMA app TO :specialist_signup_staff_security_owner_ident;",
+        "-- missing derived owner schema usage in self-test",
       ),
     },
     {
