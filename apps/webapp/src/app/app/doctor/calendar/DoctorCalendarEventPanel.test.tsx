@@ -132,11 +132,29 @@ describe("DoctorCalendarEventPanel patient heading", () => {
               id: "22222222-2222-4222-8222-222222222222",
               label: "Услуга",
               durationMinutes: 60,
+              availability: [
+                {
+                  specialistId: "33333333-3333-4333-8333-333333333333",
+                  branchId: "11111111-1111-4111-8111-111111111111",
+                },
+              ],
+            },
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              label: "Услуга другого специалиста",
+              durationMinutes: 30,
+              availability: [
+                {
+                  specialistId: "55555555-5555-4555-8555-555555555555",
+                  branchId: "11111111-1111-4111-8111-111111111111",
+                },
+              ],
             },
           ],
         }}
       />,
     );
+    expect(screen.queryByText("Услуга другого специалиста")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Выбрать черновик нового пациента" }));
     fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
 

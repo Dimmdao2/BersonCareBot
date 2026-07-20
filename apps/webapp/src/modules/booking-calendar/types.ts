@@ -33,7 +33,10 @@ export type CalendarFilterOption = {
   color?: string | null;
 };
 
-export type CalendarServiceFilterOption = CalendarFilterOption & { durationMinutes: number };
+export type CalendarServiceFilterOption = CalendarFilterOption & {
+  durationMinutes: number;
+  availability: { specialistId: string; branchId: string }[];
+};
 
 export type CalendarFilterMeta = {
   specialists: CalendarFilterOption[];

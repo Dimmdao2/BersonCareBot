@@ -11,8 +11,10 @@ function dbWithSelectResults(results: ReadonlyArray<ReadonlyArray<unknown>>) {
   const queue = [...results];
   return {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => {
+      from: vi.fn(() => {
+        const chain = {
+          innerJoin: vi.fn(() => chain),
+          where: vi.fn(() => {
           const rows = [...(queue.shift() ?? [])];
           const query = {
             limit: vi.fn(async () => rows),
@@ -22,8 +24,10 @@ function dbWithSelectResults(results: ReadonlyArray<ReadonlyArray<unknown>>) {
             ) => Promise.resolve(rows).then(onfulfilled, onrejected),
           };
           return query;
-        }),
-      })),
+          }),
+        };
+        return chain;
+      }),
     })),
   };
 }
@@ -57,7 +61,13 @@ describe("pgBookingScheduling canonical-native availability compatibility", () =
 
   it("keeps a mapped legacy branch-service id as the compatibility projection", async () => {
     getDrizzleMock.mockReturnValue(
-      dbWithSelectResults([[{ organizationId: orgId, canonicalId: ssaId }], [ssa], [branch], [service]]),
+      dbWithSelectResults([
+        [{ organizationId: orgId, canonicalId: ssaId }],
+        [ssa],
+        [{ id: specialistId }],
+        [branch],
+        [service],
+      ]),
     );
 
     await expect(createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId)).resolves.toEqual(
@@ -73,7 +83,14 @@ describe("pgBookingScheduling canonical-native availability compatibility", () =
 
   it("accepts an active canonical SSA id without inventing a Rubitime mapping", async () => {
     getDrizzleMock.mockReturnValue(
-      dbWithSelectResults([[], [{ organizationId: orgId, id: ssaId }], [ssa], [branch], [service]]),
+      dbWithSelectResults([
+        [],
+        [{ organizationId: orgId, id: ssaId }],
+        [ssa],
+        [{ id: specialistId }],
+        [branch],
+        [service],
+      ]),
     );
 
     await expect(createPgBookingSchedulingPort().resolveCanonicalFromBranchService(ssaId)).resolves.toEqual(
@@ -95,5 +112,32 @@ describe("pgBookingScheduling canonical-native availability compatibility", () =
     await expect(
       createPgBookingSchedulingPort().resolveLegacyBranchServiceId({ organizationId: orgId, branchId, serviceId }),
     ).resolves.toBe(ssaId);
+  });
+
+  it("rejects a mapped legacy id when its SSA is inactive", async () => {
+    getDrizzleMock.mockReturnValue(
+      dbWithSelectResults([
+        [{ organizationId: orgId, canonicalId: ssaId }],
+        [],
+      ]),
+    );
+
+    await expect(
+      createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects a mapped legacy id when its specialist is not active in the same organization", async () => {
+    getDrizzleMock.mockReturnValue(
+      dbWithSelectResults([
+        [{ organizationId: orgId, canonicalId: ssaId }],
+        [ssa],
+        [],
+      ]),
+    );
+
+    await expect(
+      createPgBookingSchedulingPort().resolveCanonicalFromBranchService(legacyId),
+    ).resolves.toBeNull();
   });
 });

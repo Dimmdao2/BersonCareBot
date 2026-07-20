@@ -56,7 +56,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
   return {
     async listFilterMeta(organizationId): Promise<CalendarFilterMeta> {
       const db = getDrizzle();
-      const [specialists, branches, rooms, services] = await Promise.all([
+      const [specialists, branches, rooms, services, serviceAvailability] = await Promise.all([
         db
           .select({ id: beSpecialists.id, label: beSpecialists.fullName })
           .from(beSpecialists)
@@ -81,7 +81,41 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           .from(beClinicServices)
           .where(and(eq(beClinicServices.organizationId, organizationId), eq(beClinicServices.isActive, true)))
           .orderBy(asc(beClinicServices.sortOrder), asc(beClinicServices.title)),
+        db
+          .select({
+            serviceId: beSpecialistServiceAvailability.serviceId,
+            specialistId: beSpecialistServiceAvailability.specialistId,
+            branchId: beSpecialistServiceAvailability.branchId,
+          })
+          .from(beSpecialistServiceAvailability)
+          .innerJoin(
+            beSpecialists,
+            and(
+              eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
+              eq(beSpecialists.organizationId, organizationId),
+              eq(beSpecialists.isActive, true),
+            ),
+          )
+          .where(
+            and(
+              eq(beSpecialistServiceAvailability.organizationId, organizationId),
+              eq(beSpecialistServiceAvailability.isActive, true),
+            ),
+          ),
       ]);
+      const availabilityByService = new Map<
+        string,
+        Map<string, { specialistId: string; branchId: string }>
+      >();
+      for (const row of serviceAvailability) {
+        if (!row.branchId) continue;
+        const byRelationship = availabilityByService.get(row.serviceId) ?? new Map();
+        byRelationship.set(`${row.specialistId}:${row.branchId}`, {
+          specialistId: row.specialistId,
+          branchId: row.branchId,
+        });
+        availabilityByService.set(row.serviceId, byRelationship);
+      }
       return {
         specialists: specialists.map((r) => ({ id: r.id, label: r.label })),
         branches: branches.map((r) => ({
@@ -95,6 +129,7 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
           id: r.id,
           label: r.label,
           durationMinutes: r.durationMinutes,
+          availability: Array.from(availabilityByService.get(r.id)?.values() ?? []),
         })),
       };
     },

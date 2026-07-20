@@ -42,7 +42,12 @@ describe('booking-calendar service', () => {
       specialists: [{ id: 's1', label: 'Доктор' }],
       branches: [{ id: 'b1', label: 'Филиал' }],
       rooms: [],
-      services: [{ id: 'svc1', label: 'Приём', durationMinutes: 60 }],
+      services: [{
+        id: 'svc1',
+        label: 'Приём',
+        durationMinutes: 60,
+        availability: [{ specialistId: 'sp1', branchId: 'br1' }],
+      }],
     })),
     resolveSchedulingForSlots: vi.fn(async () => null),
   };

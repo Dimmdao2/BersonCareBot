@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   listInPersonServicesForBranch,
   resolveActiveBranchForCity,
+  type InPersonServicesCatalogDeps,
 } from "./inPersonServicesCatalog";
 
 describe("inPersonServicesCatalog", () => {
@@ -12,20 +13,42 @@ describe("inPersonServicesCatalog", () => {
 
   const deps = {
     bookingEngine: {
-      organization: { getDefaultOrganizationId: vi.fn().mockResolvedValue(organizationId) },
       catalog: {
         listBranches: vi.fn().mockResolvedValue([
-          { id: branchId, title: "Клиника", cityCode: "msk", isActive: true, sortOrder: 0, organizationId },
+          {
+            id: branchId,
+            organizationId,
+            title: "Клиника",
+            shortTitle: null,
+            color: null,
+            cityCode: "msk",
+            address: null,
+            timezone: "Europe/Moscow",
+            isActive: true,
+            sortOrder: 0,
+          },
         ]),
         getBranch: vi.fn().mockResolvedValue({
           id: branchId,
-          title: "Клиника",
-          cityCode: "msk",
-          isActive: true,
           organizationId,
+          title: "Клиника",
+          shortTitle: null,
+          color: null,
+          cityCode: "msk",
+          address: null,
+          timezone: "Europe/Moscow",
+          isActive: true,
+          sortOrder: 0,
         }),
         listSpecialists: vi.fn().mockResolvedValue([
-          { id: specialistId, organizationId, isActive: true },
+          {
+            id: specialistId,
+            organizationId,
+            fullName: "Специалист",
+            description: null,
+            isActive: true,
+            sortOrder: 0,
+          },
         ]),
       },
       services: {
@@ -36,14 +59,16 @@ describe("inPersonServicesCatalog", () => {
             title: "Приём",
             description: null,
             durationMinutes: 60,
+            bufferAfterMinutes: 0,
             priceMinor: 1000,
             isActive: true,
+            prepaymentApplicable: false,
+            usableInPackages: false,
+            onlinePaymentApplicable: false,
             publicWidgetVisible: true,
             adminManualOnly: false,
+            sortOrder: 0,
           },
-        ]),
-        listServiceLocationAvailability: vi.fn().mockResolvedValue([
-          { branchId, serviceId, isActive: true },
         ]),
         listSpecialistServiceAvailability: vi.fn().mockResolvedValue([
           {
@@ -52,12 +77,17 @@ describe("inPersonServicesCatalog", () => {
             specialistId,
             branchId,
             serviceId,
+            roomId: null,
+            cityCode: null,
+            durationMinutesOverride: null,
+            priceMinorOverride: null,
             isActive: true,
+            sortOrder: 0,
           },
         ]),
       },
     },
-  } as never;
+  } satisfies InPersonServicesCatalogDeps;
 
   it("resolveActiveBranchForCity returns branch by cityCode", async () => {
     await expect(resolveActiveBranchForCity(deps, organizationId, "msk")).resolves.toEqual({
@@ -89,7 +119,7 @@ describe("inPersonServicesCatalog", () => {
           listSpecialistServiceAvailability: vi.fn().mockResolvedValue([]),
         },
       },
-    } as never;
+    } satisfies InPersonServicesCatalogDeps;
 
     const result = await listInPersonServicesForBranch(
       locationOnlyDeps,
@@ -108,12 +138,26 @@ describe("inPersonServicesCatalog", () => {
         catalog: {
           ...deps.bookingEngine.catalog,
           listSpecialists: vi.fn().mockResolvedValue([
-            { id: specialistId, organizationId, isActive: true },
-            { id: anotherSpecialistId, organizationId, isActive: true },
+            {
+              id: specialistId,
+              organizationId,
+              fullName: "Специалист",
+              description: null,
+              isActive: true,
+              sortOrder: 0,
+            },
+            {
+              id: anotherSpecialistId,
+              organizationId,
+              fullName: "Другой специалист",
+              description: null,
+              isActive: true,
+              sortOrder: 1,
+            },
           ]),
         },
       },
-    } as never;
+    } satisfies InPersonServicesCatalogDeps;
 
     await expect(
       listInPersonServicesForBranch(

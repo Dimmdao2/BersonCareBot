@@ -9,6 +9,7 @@ import {
   beClinicServices,
   beExternalEntityMappings,
   beServiceLocationAvailability,
+  beSpecialists,
   beSpecialistServiceAvailability,
 } from "../../../db/schema/bookingEngine";
 import {
@@ -114,19 +115,53 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
           and(
             eq(beSpecialistServiceAvailability.id, ssaId),
             eq(beSpecialistServiceAvailability.organizationId, orgId),
+            eq(beSpecialistServiceAvailability.isActive, true),
           ),
         )
         .limit(1);
       const ssa = ssaRows[0];
       if (!ssa?.branchId) return null;
 
-      const branchRows = await db.select().from(beBranches).where(eq(beBranches.id, ssa.branchId)).limit(1);
-      const branch = branchRows[0];
-      if (!branch || branch.organizationId !== orgId) return null;
+      const specialistRows = await db
+        .select({ id: beSpecialists.id })
+        .from(beSpecialists)
+        .where(
+          and(
+            eq(beSpecialists.id, ssa.specialistId),
+            eq(beSpecialists.organizationId, orgId),
+            eq(beSpecialists.isActive, true),
+          ),
+        )
+        .limit(1);
+      if (!specialistRows[0]) return null;
 
-      const serviceRows = await db.select().from(beClinicServices).where(eq(beClinicServices.id, ssa.serviceId)).limit(1);
+      const branchRows = await db
+        .select()
+        .from(beBranches)
+        .where(
+          and(
+            eq(beBranches.id, ssa.branchId),
+            eq(beBranches.organizationId, orgId),
+            eq(beBranches.isActive, true),
+          ),
+        )
+        .limit(1);
+      const branch = branchRows[0];
+      if (!branch) return null;
+
+      const serviceRows = await db
+        .select()
+        .from(beClinicServices)
+        .where(
+          and(
+            eq(beClinicServices.id, ssa.serviceId),
+            eq(beClinicServices.organizationId, orgId),
+            eq(beClinicServices.isActive, true),
+          ),
+        )
+        .limit(1);
       const service = serviceRows[0];
-      if (!service || service.organizationId !== orgId) return null;
+      if (!service) return null;
 
       const durationMinutes = ssa.durationMinutesOverride ?? service.durationMinutes;
       const bufferAfterMinutes = service.bufferAfterMinutes;
@@ -162,6 +197,14 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
           createdAt: beSpecialistServiceAvailability.createdAt,
         })
         .from(beSpecialistServiceAvailability)
+        .innerJoin(
+          beSpecialists,
+          and(
+            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
+            eq(beSpecialists.organizationId, organizationId),
+            eq(beSpecialists.isActive, true),
+          ),
+        )
         .where(and(...ssaConds));
       if (ssaRows.length === 0) return null;
 

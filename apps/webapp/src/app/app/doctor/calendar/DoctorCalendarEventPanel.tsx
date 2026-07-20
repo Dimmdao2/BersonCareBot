@@ -21,7 +21,11 @@ import {
   doctorClientOverviewPrimaryCardClass,
   doctorClientSectionTitleClass,
 } from "../clients/doctorClientCardChrome";
-import type { CalendarAppointmentEvent, CalendarFilterMeta } from "@/modules/booking-calendar/types";
+import type {
+  CalendarAppointmentEvent,
+  CalendarFilterMeta,
+  CalendarServiceFilterOption,
+} from "@/modules/booking-calendar/types";
 import type { CalendarCreateActiveFilters } from "@/modules/booking-calendar/calendarCreateFieldMode";
 import {
   resolveCalendarCreateFieldMode,
@@ -132,6 +136,20 @@ function panelErrorLabel(error: string | undefined): string {
   return error;
 }
 
+function listCreateServicesForSelection(
+  services: CalendarServiceFilterOption[],
+  specialistId: string | null,
+  branchId: string | null,
+): CalendarServiceFilterOption[] {
+  if (!specialistId || !branchId) return [];
+  return services.filter((service) =>
+    service.availability.some(
+      (availability) =>
+        availability.specialistId === specialistId && availability.branchId === branchId,
+    ),
+  );
+}
+
 export function DoctorCalendarEventPanel(props: Props) {
   return <DoctorCalendarEventPanelInner key={props.selected?.id ?? "none"} {...props} />;
 }
@@ -196,18 +214,25 @@ function DoctorCalendarEventPanelInner({
   // §3.6: при startInCreate=true инициализируем поля создания сразу, как делает openCreateForm
   useEffect(() => {
     if (!startInCreate) return;
-    setCreateSpecialistId(
+    const nextSpecialistId =
       resolveCalendarCreateFieldValue(filterMeta.specialists, activeFilters.specialistId, null) ??
         filterMeta.specialists[0]?.id ??
-        null,
-    );
-    setCreateBranchId(
+        null;
+    const nextBranchId =
       createInitialBranchId ??
-        resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null),
-    );
-    setCreateServiceId(
+        resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, null);
+    const initialServiceId =
       createInitialServiceId ??
-        resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null),
+        resolveCalendarCreateFieldValue(filterMeta.services, activeFilters.serviceId, null);
+    const initialServices = listCreateServicesForSelection(
+      filterMeta.services,
+      nextSpecialistId,
+      nextBranchId,
+    );
+    setCreateSpecialistId(nextSpecialistId);
+    setCreateBranchId(nextBranchId);
+    setCreateServiceId(
+      initialServices.some((service) => service.id === initialServiceId) ? initialServiceId : null,
     );
     // R32: подставить выделенное время старта (если открыто через select по сетке)
     if (createInitialStart) setCreateStart(createInitialStart);
@@ -219,6 +244,16 @@ function DoctorCalendarEventPanelInner({
   }, [mode, onCreateDirtyChange]);
 
   const markCreateDirty = () => onCreateDirtyChange?.(true);
+
+  const createServiceOptions = useMemo(
+    () =>
+      listCreateServicesForSelection(
+        filterMeta.services,
+        createSpecialistId,
+        createBranchId,
+      ),
+    [createBranchId, createSpecialistId, filterMeta.services],
+  );
 
   // #225: duration from drag-interval (end − start), used as fallback when no service
   // is selected yet or the service has no configured duration.
@@ -232,13 +267,13 @@ function DoctorCalendarEventPanelInner({
 
   const createDurationMinutes = useMemo(() => {
     const serviceDuration = createServiceId
-      ? (filterMeta.services.find((s) => s.id === createServiceId)?.durationMinutes ?? null)
+      ? (createServiceOptions.find((s) => s.id === createServiceId)?.durationMinutes ?? null)
       : null;
     // #225: drag duration takes priority over service default so the slot size chosen
     // by the doctor is honoured. Service duration is only the fallback when no drag
     // interval is available (e.g. panel opened via «+ Создать запись» button).
     return dragDurationMinutes ?? serviceDuration;
-  }, [createServiceId, filterMeta.services, dragDurationMinutes]);
+  }, [createServiceId, createServiceOptions, dragDurationMinutes]);
 
   const openCreateForm = () => {
     const nextSpecialistId = resolveCalendarCreateFieldValue(
@@ -247,15 +282,25 @@ function DoctorCalendarEventPanelInner({
       createSpecialistId,
     );
     setCreateSpecialistId(nextSpecialistId ?? filterMeta.specialists[0]?.id ?? null);
-    setCreateBranchId(
-      resolveCalendarCreateFieldValue(filterMeta.branches, activeFilters.branchId, createBranchId),
+    const nextBranchId = resolveCalendarCreateFieldValue(
+      filterMeta.branches,
+      activeFilters.branchId,
+      createBranchId,
+    );
+    const nextServices = listCreateServicesForSelection(
+      filterMeta.services,
+      nextSpecialistId ?? filterMeta.specialists[0]?.id ?? null,
+      nextBranchId,
     );
     const nextServiceId = resolveCalendarCreateFieldValue(
-      filterMeta.services,
+      nextServices,
       activeFilters.serviceId,
       createServiceId,
     );
-    setCreateServiceId(nextServiceId);
+    setCreateBranchId(nextBranchId);
+    setCreateServiceId(
+      nextServices.some((service) => service.id === nextServiceId) ? nextServiceId : null,
+    );
     setMode("create");
   };
 
@@ -286,6 +331,7 @@ function DoctorCalendarEventPanelInner({
         ) : (
           <CreateForm
             filterMeta={filterMeta}
+            serviceOptions={createServiceOptions}
             activeFilters={activeFilters}
             createStart={createStart}
             createDurationMinutes={createDurationMinutes}
@@ -302,6 +348,15 @@ function DoctorCalendarEventPanelInner({
             }}
             onBranchChange={(value) => {
               setCreateBranchId(value);
+              if (
+                !listCreateServicesForSelection(
+                  filterMeta.services,
+                  createSpecialistId,
+                  value,
+                ).some((service) => service.id === createServiceId)
+              ) {
+                setCreateServiceId(null);
+              }
               markCreateDirty();
             }}
             onServiceChange={(value) => {
@@ -319,7 +374,14 @@ function DoctorCalendarEventPanelInner({
             // §3.6: если открыто через startInCreate — отмена закрывает панель
             onCancel={() => (startInCreate ? onClose() : setMode("view"))}
             onSubmit={() => {
-              if (!createStart || !createDurationMinutes || !createBranchId || !createServiceId || !createSpecialistId) {
+              if (
+                !createStart ||
+                !createDurationMinutes ||
+                !createBranchId ||
+                !createServiceId ||
+                !createSpecialistId ||
+                !createServiceOptions.some((service) => service.id === createServiceId)
+              ) {
                 setMessage("Заполните филиал, услугу и специалиста.");
                 return;
               }
@@ -703,6 +765,7 @@ function DoctorCalendarEventPanelInner({
 
 type CreateFormProps = {
   filterMeta: CalendarFilterMeta;
+  serviceOptions: CalendarServiceFilterOption[];
   activeFilters: CalendarCreateActiveFilters;
   createStart: string;
   createDurationMinutes: number | null;
@@ -727,7 +790,7 @@ function CreateForm(props: CreateFormProps) {
     props.createDurationMinutes != null ? `${props.createDurationMinutes} мин` : "—";
 
   const branchMode = resolveCalendarCreateFieldMode(props.filterMeta.branches, props.activeFilters.branchId);
-  const serviceMode = resolveCalendarCreateFieldMode(props.filterMeta.services, props.activeFilters.serviceId);
+  const serviceMode = resolveCalendarCreateFieldMode(props.serviceOptions, props.activeFilters.serviceId);
 
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-3">
@@ -755,7 +818,7 @@ function CreateForm(props: CreateFormProps) {
       <DoctorCalendarCreateFormField
         fieldLabel="Услуга"
         mode={serviceMode}
-        options={props.filterMeta.services}
+        options={props.serviceOptions}
         value={props.createServiceId}
         noneLabel="Услуга"
         onChange={props.onServiceChange}
