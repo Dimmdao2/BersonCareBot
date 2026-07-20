@@ -3555,3 +3555,36 @@ is contract completeness, cross-document consistency, `git diff --check`, task m
 audit. No full CI, server, DB, TEST/PROD, deploy or external delivery action belongs to U5B-0. If current evidence
 cannot classify a record without changing the owner's product model, record the exact owner question rather than
 inventing access.
+
+## 2026-07-21 — U6A-A public acquisition and browser-entry launch manifest (`#807`)
+
+**Base, authority and dependencies.** Integration/origin base is `ab5876fe4`; no TEST/deploy/data action is part of
+this stage. U1 `#916` and U3S `#919` are integrated, audited and satisfy U6A's direct dependencies. The pending U3S
+TEST/Neo handoff `#917` is a rollout checkpoint, not a code dependency. Owner authority is U6A, PUB-01/ACQ entry in
+the roadmap and the dated specialist-first, secondary-patient-entry and browser-complete PWA rulings. Task `#807` is
+the existing mapping; no duplicate task is created.
+
+**Coherent outcome.** U6A-A replaces the current patient/PWA-first `/` composition with a truthful specialist-first
+landing: supported solo workflow and product value first; clinic only as demo/contact without unfinished capability
+claims; patient-care proof remains supporting content; install is optional content below value. Primary «Создать
+кабинет» opens the existing U3S specialist signup through a rendering hint only; ordinary patient/invite login remains
+visible and secondary, while authority and post-auth routing stay server-derived. Legal/privacy/guest support remain
+reachable, PUB-06 directory stays absent, and an unavailable pricing backend degrades to an honest teaser/contact
+instead of fabricated plans or prices. Ordinary browser patient access no longer redirects the entire cabinet to
+`/#install`; existing in-context install/push education and installed-PWA root behavior remain.
+
+**Allowed/protected scope.** Writable paths are the current root landing page/style and `components/landing/**`, one
+focused landing acquisition contract test, the narrow `AuthBootstrap` intent rendering adapter/test, and existing
+patient PWA access-policy/gate/layout files and tests. Landing metadata/install URLs must reuse DB-backed
+`app_base_url`; no setting/env key is added. Protected are `/join/**` and all active `#806` invite/schema/card paths,
+U6B slug/profile/booking/widget and `/book/**`, auth service/redirect policy and existing signup engine, DB/migrations,
+analytics storage, tariffs/entitlements, `StandaloneRootRedirect`, TEST/PROD/deploy/data. Any overlap on
+`AuthBootstrap` is serialized with `#806` before edits.
+
+**Acceptance and validation.** Focused landing, intent and inverted PWA-policy tests; typecheck, scoped ESLint and an
+affected webapp build, without full CI. One independent presentation/behavior audit only; no serial cosmetic churn.
+Anonymous live DEV uses the existing single `127.0.0.1:5200`: desktop `1440x900`, mobile `390x844`, primary CTA opens
+specialist registration, secondary entry opens ordinary login, privacy/terms/support work, no directory link or
+overflow/console/network error. A `dev:client` in an ordinary browser stays in `/app/patient`, and rendered metadata
+uses current `app_base_url`. Signup-disabled fallback is a mocked test state, never a DB mutation. Configured pricing,
+acquisition analytics, public status, ICS host cleanup and all U6B surfaces remain explicitly deferred.
