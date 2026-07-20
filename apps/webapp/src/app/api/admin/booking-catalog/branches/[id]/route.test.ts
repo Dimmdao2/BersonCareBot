@@ -46,7 +46,7 @@ describe("PATCH /api/admin/booking-catalog/branches/[id]", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 400 on PostgreSQL foreign_key_violation (23503)", async () => {
+  it("keeps global branch mutation fail-closed before database handling", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const pgErr = Object.assign(new Error("fk"), { code: "23503" });
     updateBranchByIdMock.mockRejectedValue(pgErr);
@@ -58,8 +58,7 @@ describe("PATCH /api/admin/booking-catalog/branches/[id]", () => {
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("foreign_key_violation");
+    expect(res.status).toBe(403);
+    expect(updateBranchByIdMock).not.toHaveBeenCalled();
   });
 });

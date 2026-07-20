@@ -58,7 +58,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 400 on invalid id", async () => {
+  it("checks the global governance boundary before parsing the id", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await PATCH(
       new Request("http://localhost/", {
@@ -68,10 +68,10 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       }),
       { params: Promise.resolve({ id: "not-a-uuid" }) },
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
-  it("returns 404 when service missing", async () => {
+  it("does not query a missing global service before U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     updateServiceByIdMock.mockResolvedValue(null);
     const res = await PATCH(
@@ -82,10 +82,11 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
+    expect(updateServiceByIdMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 and updated service on valid patch", async () => {
+  it("keeps a valid global service patch fail-closed until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const updated = {
       id: uuid,
@@ -108,19 +109,11 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; service: typeof updated };
-    expect(body.ok).toBe(true);
-    expect(body.service.durationMinutes).toBe(90);
-    expect(body.service.breakAfterMinutes).toBe(20);
-    expect(updateServiceByIdMock).toHaveBeenCalledWith(uuid, {
-      durationMinutes: 90,
-      breakAfterMinutes: 20,
-      priceMinor: 500000,
-    });
+    expect(res.status).toBe(403);
+    expect(updateServiceByIdMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when breakAfterMinutes is not a 5-minute step", async () => {
+  it("does not expose patch validation before U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await PATCH(
       new Request("http://localhost/", {
@@ -130,10 +123,10 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
-  it("returns 409 on unique_violation when title+duration conflicts", async () => {
+  it("does not reach database conflict handling before U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     updateServiceByIdMock.mockRejectedValue(Object.assign(new Error("dup"), { code: "23505" }));
     const res = await PATCH(
@@ -144,8 +137,7 @@ describe("PATCH /api/admin/booking-catalog/services/[id]", () => {
       }),
       { params: Promise.resolve({ id: uuid }) },
     );
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("unique_violation");
+    expect(res.status).toBe(403);
+    expect(updateServiceByIdMock).not.toHaveBeenCalled();
   });
 });

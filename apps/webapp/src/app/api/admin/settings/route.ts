@@ -1,7 +1,8 @@
 /**
  * GET  /api/admin/settings — список настроек scope=admin
  * PATCH /api/admin/settings — обновить ключ scope=admin
- * Guard: global admin in adminMode OR clinic manager for per-org keys only.
+ * Guard: clinic manager for per-org keys only. Global platform configuration stays
+ * fail-closed until the U9 platform API/principal contract is implemented.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";

@@ -53,11 +53,11 @@ describe("GET /api/admin/booking-catalog/branches", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns branches for admin", async () => {
+  it("does not let platform admin borrow a clinic membership for reference reads", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     listBranchesAdminMock.mockResolvedValue([]);
     const res = await GET();
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -69,7 +69,7 @@ describe("POST /api/admin/booking-catalog/branches", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 400 when city missing", async () => {
+  it("keeps global mutation closed before validating input", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await POST(
       new Request("http://localhost/", {
@@ -78,10 +78,11 @@ describe("POST /api/admin/booking-catalog/branches", () => {
         body: JSON.stringify({ rubitimeBranchId: "1", title: "X" }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(upsertBranchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when city_not_found", async () => {
+  it("keeps global mutation closed before reaching the catalog port", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertBranchMock.mockRejectedValue(new Error("city_not_found:zzz"));
     const res = await POST(
@@ -95,6 +96,7 @@ describe("POST /api/admin/booking-catalog/branches", () => {
         }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(upsertBranchMock).not.toHaveBeenCalled();
   });
 });

@@ -44,8 +44,8 @@ describe("CMS content legacy actions workspace principal coverage", () => {
     expect(src).toContain("function currentReadOrganizationId()");
     expect(src).toContain("eq(contentPages.organizationId, organizationId)");
     expect(src).toContain("async listBySection(section, opts?: ListContentPagesBySectionOpts)");
-    expect(src).toContain("async getBySlug(slug)");
-    expect(src).toContain("async getById(id)");
+    expect(src).toContain("async getBySlug(slug, options)");
+    expect(src).toContain("async getById(id, options)");
     expect(src).toContain("async listAll()");
     expect(src).toContain("...(organizationId ? [eq(contentPages.organizationId, organizationId)] : [])");
   });

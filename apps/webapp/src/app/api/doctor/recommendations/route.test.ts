@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: vi.fn(),
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
 const listRecommendations = vi.fn(async () => []);
@@ -18,20 +20,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { getCurrentSession } from "@/modules/auth/service";
 import { GET } from "./route";
 
 describe("GET /api/doctor/recommendations", () => {
   beforeEach(() => {
     listRecommendations.mockClear();
     listActiveItemsByCategoryCode.mockClear();
-    vi.mocked(getCurrentSession).mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+    });
   });
 
   it("returns 400 invalid_query with field region when region is not a UUID", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await GET(new Request("http://localhost/api/doctor/recommendations?region=not-a-uuid"));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; error: string; field?: string };
@@ -42,9 +44,6 @@ describe("GET /api/doctor/recommendations", () => {
   });
 
   it("returns 400 invalid_query with field domain when domain is not in catalog", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     const res = await GET(new Request("http://localhost/api/doctor/recommendations?domain=__not_in_catalog__"));
     expect(res.status).toBe(400);
     const body = (await res.json()) as { ok: boolean; field?: string };
@@ -53,9 +52,6 @@ describe("GET /api/doctor/recommendations", () => {
   });
 
   it("lists when query is valid", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     listRecommendations.mockResolvedValueOnce([]);
     const region = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const res = await GET(
@@ -71,9 +67,6 @@ describe("GET /api/doctor/recommendations", () => {
   });
 
   it("treats includeArchived=false query as active-only", async () => {
-    vi.mocked(getCurrentSession).mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    } as never);
     listRecommendations.mockResolvedValueOnce([]);
     const res = await GET(
       new Request("http://localhost/api/doctor/recommendations?includeArchived=false"),

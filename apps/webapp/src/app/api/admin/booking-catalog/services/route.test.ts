@@ -37,6 +37,10 @@ const adminSession = {
   adminMode: true,
 };
 
+const clinicOwnerSession = {
+  user: { userId: "owner-1", role: "doctor" as const, bindings: {} },
+};
+
 describe("GET /api/admin/booking-catalog/services", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
@@ -50,8 +54,8 @@ describe("GET /api/admin/booking-catalog/services", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 for admin", async () => {
-    getSessionMock.mockResolvedValue(adminSession);
+  it("returns reference services for the legacy organization owner", async () => {
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
     listServicesAdminMock.mockResolvedValue([]);
     const res = await GET();
     expect(res.status).toBe(200);
@@ -66,7 +70,7 @@ describe("POST /api/admin/booking-catalog/services", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 400 on invalid body", async () => {
+  it("checks the global governance boundary before validating input", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await POST(
       new Request("http://localhost/", {
@@ -75,10 +79,11 @@ describe("POST /api/admin/booking-catalog/services", () => {
         body: JSON.stringify({ title: "X" }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(upsertServiceMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 on valid upsert", async () => {
+  it("keeps global service mutation fail-closed until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertServiceMock.mockResolvedValue({ id: "svc-1" });
     getServiceByIdMock.mockResolvedValue({
@@ -105,19 +110,11 @@ describe("POST /api/admin/booking-catalog/services", () => {
         }),
       }),
     );
-    expect(res.status).toBe(200);
-    expect(upsertServiceMock).toHaveBeenCalledWith({
-      title: "Услуга",
-      description: null,
-      durationMinutes: 60,
-      breakAfterMinutes: 15,
-      priceMinor: 100,
-      isActive: true,
-      sortOrder: 0,
-    });
+    expect(res.status).toBe(403);
+    expect(upsertServiceMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when breakAfterMinutes is not a 5-minute step", async () => {
+  it("does not expose validation details before the platform boundary", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await POST(
       new Request("http://localhost/", {
@@ -131,10 +128,10 @@ describe("POST /api/admin/booking-catalog/services", () => {
         }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
-  it("returns 409 unique_violation on database conflict", async () => {
+  it("does not reach database conflict handling before U9 governance", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertServiceMock.mockRejectedValue({ code: "23505" });
     const res = await POST(
@@ -148,8 +145,7 @@ describe("POST /api/admin/booking-catalog/services", () => {
         }),
       }),
     );
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { ok: boolean; error: string };
-    expect(body).toEqual({ ok: false, error: "unique_violation" });
+    expect(res.status).toBe(403);
+    expect(upsertServiceMock).not.toHaveBeenCalled();
   });
 });

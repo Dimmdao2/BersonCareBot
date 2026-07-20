@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, listMock, listClientsMock, buildAppDepsMock } = vi.hoisted(() => {
-  const getSessionMockInner = vi.fn();
+const { requireDoctorWorkspaceApiContextMock, listMock, listClientsMock, buildAppDepsMock } = vi.hoisted(() => {
   const listMockInner = vi.fn();
   const listClientsMockInner = vi.fn().mockResolvedValue([]);
   return {
-    getSessionMock: getSessionMockInner,
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
     listMock: listMockInner,
     listClientsMock: listClientsMockInner,
     buildAppDepsMock: vi.fn(() => ({
@@ -29,38 +28,43 @@ const { getSessionMock, listMock, listClientsMock, buildAppDepsMock } = vi.hoist
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
 import { GET } from "./route";
 
 describe("GET /api/doctor/messages/conversations", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+    });
     listMock.mockReset();
     listClientsMock.mockReset();
     listClientsMock.mockResolvedValue([]);
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(401);
   });
 
   it("returns 403 when not doctor", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 403 }),
     });
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));
     expect(res.status).toBe(403);
   });
 
   it("returns 200 with conversations for doctor", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     listMock.mockResolvedValue([
       {
         conversationId: "00000000-0000-4000-8000-000000000002",
@@ -89,19 +93,17 @@ describe("GET /api/doctor/messages/conversations", () => {
   });
 
   it("passes unread=1 as unreadOnly to service", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     listMock.mockResolvedValue([]);
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations?unread=1"));
     expect(res.status).toBe(200);
-    expect(listMock).toHaveBeenCalledWith({ limit: 50, unreadOnly: true });
+    expect(listMock).toHaveBeenCalledWith({
+      limit: 50,
+      unreadOnly: true,
+      organizationId: "10000000-0000-4000-8000-000000000001",
+    });
   });
 
   it("marks onSupport=true when patient is in on-support list", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const supportUserId = "aaaaaaaa-0000-4000-8000-000000000001";
     listMock.mockResolvedValue([
       {
@@ -146,9 +148,6 @@ describe("GET /api/doctor/messages/conversations", () => {
   });
 
   it("gracefully sets onSupport=false for non-webapp conversation IDs", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     listMock.mockResolvedValue([
       {
         conversationId: "00000000-0000-4000-8000-000000000012",
@@ -176,9 +175,6 @@ describe("GET /api/doctor/messages/conversations", () => {
   });
 
   it("includes patientUserId (already derived, no extra query) for webapp conversations (#813)", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const patientId = "aaaaaaaa-0000-4000-8000-000000000001";
     listMock.mockResolvedValue([
       {
@@ -205,9 +201,6 @@ describe("GET /api/doctor/messages/conversations", () => {
   });
 
   it("calls listClients with scoped userIds extracted from conversations (EXTRA-02)", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const p1 = "aaaaaaaa-0000-4000-8000-000000000001";
     const p2 = "bbbbbbbb-0000-4000-8000-000000000002";
     listMock.mockResolvedValue([
@@ -265,9 +258,6 @@ describe("GET /api/doctor/messages/conversations", () => {
   });
 
   it("skips listClients when conversation list is empty (EXTRA-02)", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     listMock.mockResolvedValue([]);
 
     const res = await GET(new Request("http://localhost/api/doctor/messages/conversations"));

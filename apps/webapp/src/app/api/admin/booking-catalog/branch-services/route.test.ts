@@ -35,6 +35,10 @@ const adminSession = {
   adminMode: true,
 };
 
+const clinicOwnerSession = {
+  user: { userId: "owner-1", role: "doctor" as const, bindings: {} },
+};
+
 const uuid = "550e8400-e29b-41d4-a716-446655440000";
 
 describe("branch-services route", () => {
@@ -46,7 +50,7 @@ describe("branch-services route", () => {
   });
 
   it("GET filters by branchId query", async () => {
-    getSessionMock.mockResolvedValue(adminSession);
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
     listBranchServicesAdminMock.mockResolvedValue([]);
     const res = await GET(
       new Request(`http://localhost/api?branchId=${uuid}`),
@@ -55,7 +59,7 @@ describe("branch-services route", () => {
     expect(listBranchServicesAdminMock).toHaveBeenCalledWith(uuid);
   });
 
-  it("POST returns 400 on specialist_branch_mismatch", async () => {
+  it("POST remains fail-closed before port validation", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertBranchServiceAdminMock.mockRejectedValue(new Error("specialist_branch_mismatch"));
     const res = await POST(
@@ -70,12 +74,11 @@ describe("branch-services route", () => {
         }),
       }),
     );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("specialist_branch_mismatch");
+    expect(res.status).toBe(403);
+    expect(upsertBranchServiceAdminMock).not.toHaveBeenCalled();
   });
 
-  it("POST returns 200 on upsert", async () => {
+  it("POST keeps global branch-service mutation closed until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertBranchServiceAdminMock.mockResolvedValue({
       id: uuid,
@@ -100,10 +103,11 @@ describe("branch-services route", () => {
         }),
       }),
     );
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(upsertBranchServiceAdminMock).not.toHaveBeenCalled();
   });
 
-  it("POST twice with same branch+service resolves as upsert (200 both)", async () => {
+  it("POST retries remain fail-closed and do not call the port", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const row = {
       id: uuid,
@@ -131,13 +135,13 @@ describe("branch-services route", () => {
           body: JSON.stringify(body),
         }),
       );
-    expect((await req()).status).toBe(200);
-    expect((await req()).status).toBe(200);
-    expect(upsertBranchServiceAdminMock).toHaveBeenCalledTimes(2);
+    expect((await req()).status).toBe(403);
+    expect((await req()).status).toBe(403);
+    expect(upsertBranchServiceAdminMock).not.toHaveBeenCalled();
   });
 
-  it("GET returns inactive branch-service rows for admin list", async () => {
-    getSessionMock.mockResolvedValue(adminSession);
+  it("GET returns inactive branch-service rows to the legacy organization owner", async () => {
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
     listBranchServicesAdminMock.mockResolvedValue([
       {
         id: uuid,

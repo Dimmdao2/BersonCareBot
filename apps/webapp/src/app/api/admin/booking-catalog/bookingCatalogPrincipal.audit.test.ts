@@ -114,11 +114,12 @@ function allMatchIndexes(src: string, pattern: RegExp): number[] {
 }
 
 describe("admin booking catalog workspace principal cutover", () => {
-  it("requires selected workspace organization before exposing legacy catalog port", () => {
+  it("keeps global catalog governance closed until U9 has a platform DB principal", () => {
     const src = readSource("src/app/api/admin/booking-catalog/_requireAdminBookingCatalog.ts");
-    expect(src).toContain("requireDoctorWorkspaceApiContext");
+    expect(src).not.toContain("requireDoctorWorkspaceApiContext");
+    expect(src).toContain("U9 owns true global catalog governance");
+    expect(src).toContain('error: "forbidden"');
     expect(src).toContain("organizationId: string");
-    expect(src).toContain("organizationId: workspaceGate.ctx.organizationId");
     expect(src).toContain("withDoctorWorkspacePrincipal");
   });
 

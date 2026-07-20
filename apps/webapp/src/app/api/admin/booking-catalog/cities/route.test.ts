@@ -66,7 +66,7 @@ describe("GET /api/admin/booking-catalog/cities", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 200 and cities for admin+adminMode", async () => {
+  it("keeps global city reads fail-closed for platform admin until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     listCitiesAdminMock.mockResolvedValue([
       {
@@ -80,10 +80,8 @@ describe("GET /api/admin/booking-catalog/cities", () => {
       },
     ]);
     const res = await GET();
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; cities: unknown[] };
-    expect(body.ok).toBe(true);
-    expect(body.cities).toHaveLength(1);
+    expect(res.status).toBe(403);
+    expect(listCitiesAdminMock).not.toHaveBeenCalled();
   });
 });
 
@@ -94,7 +92,7 @@ describe("POST /api/admin/booking-catalog/cities", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 400 on invalid body", async () => {
+  it("checks the platform boundary before validating a global mutation body", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await POST(
       new Request("http://localhost/api/admin/booking-catalog/cities", {
@@ -103,10 +101,11 @@ describe("POST /api/admin/booking-catalog/cities", () => {
         body: JSON.stringify({ code: "" }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(upsertCityMock).not.toHaveBeenCalled();
   });
 
-  it("returns 200 on valid upsert", async () => {
+  it("keeps global city mutations fail-closed for platform admin until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertCityMock.mockResolvedValue({
       id: "c1",
@@ -124,12 +123,7 @@ describe("POST /api/admin/booking-catalog/cities", () => {
         body: JSON.stringify({ code: "Moscow", title: "Москва", sortOrder: 1 }),
       }),
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; city: { code: string } };
-    expect(body.ok).toBe(true);
-    expect(body.city.code).toBe("moscow");
-    expect(upsertCityMock).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "moscow", title: "Москва" }),
-    );
+    expect(res.status).toBe(403);
+    expect(upsertCityMock).not.toHaveBeenCalled();
   });
 });

@@ -15,9 +15,10 @@ const resolveOrganizationForUserMock = vi.hoisted(() =>
     },
   })),
 );
+const listCitiesAdminMock = vi.hoisted(() => vi.fn());
 const buildAppDepsMock = vi.hoisted(() =>
   vi.fn(() => ({
-    bookingCatalogPort: { listCitiesAdmin: vi.fn() },
+    bookingCatalogPort: { listCitiesAdmin: listCitiesAdminMock },
     organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
   })),
 );
@@ -39,53 +40,55 @@ describe("requireAdminBookingCatalog", () => {
 
   it("returns 401 when no session", async () => {
     getSessionMock.mockResolvedValue(null);
-    const g = await requireAdminBookingCatalog();
-    expect(g.ok).toBe(false);
-    if (!g.ok) expect(g.response.status).toBe(401);
+
+    const gate = await requireAdminBookingCatalog();
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(401);
   });
 
-  it("returns 503 when catalog port is null", async () => {
+  it("keeps global legacy catalog mutations fail-closed for platform admin until U9", async () => {
     getSessionMock.mockResolvedValue({
       user: { userId: "a1", role: "admin", bindings: {} },
       adminMode: true,
     });
-    buildAppDepsMock
-      .mockReturnValueOnce({
-        bookingCatalogPort: { listCitiesAdmin: vi.fn() },
-        organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
-      } as never)
-      .mockReturnValueOnce({
-        bookingCatalogPort: null,
-        organizationMembership: { resolveOrganizationForUser: resolveOrganizationForUserMock },
-      } as never);
-    const g = await requireAdminBookingCatalog();
-    expect(g.ok).toBe(false);
-    if (!g.ok) expect(g.response.status).toBe(503);
+
+    const gate = await requireAdminBookingCatalog();
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
-  it("returns selected organization context for admin catalog access", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "a1", role: "admin", bindings: {} },
-      adminMode: true,
-    });
-    const g = await requireAdminBookingCatalog();
-    expect(g.ok).toBe(true);
-    if (g.ok) expect(g.ctx.organizationId).toBe(LEGACY_ORG);
-    expect(resolveOrganizationForUserMock).toHaveBeenCalledWith({
-      platformUserId: "a1",
-      selectedOrganizationId: undefined,
-    });
-  });
-
-  it("allows a clinic owner to read the legacy reference catalog", async () => {
+  it("does not promote a clinic owner into global catalog governance", async () => {
     getSessionMock.mockResolvedValue({
       user: { userId: "owner-1", role: "doctor", bindings: {} },
     });
 
-    const g = await requireClinicManagementBookingCatalogRead();
+    const gate = await requireAdminBookingCatalog();
 
-    expect(g.ok).toBe(true);
-    if (g.ok) expect(g.ctx.organizationId).toBe(LEGACY_ORG);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(403);
+  });
+});
+
+describe("requireClinicManagementBookingCatalogRead", () => {
+  beforeEach(() => {
+    getSessionMock.mockReset();
+    resolveOrganizationForUserMock.mockClear();
+    buildAppDepsMock.mockClear();
+  });
+
+  it("allows the legacy organization owner to read reference catalog data", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "owner-1", role: "doctor", bindings: {} },
+    });
+
+    const gate = await requireClinicManagementBookingCatalogRead();
+
+    expect(gate.ok).toBe(true);
+    if (gate.ok) expect(gate.ctx.organizationId).toBe(LEGACY_ORG);
   });
 
   it("does not expose the unscoped legacy catalog to another clinic owner", async () => {
@@ -104,20 +107,9 @@ describe("requireAdminBookingCatalog", () => {
       },
     });
 
-    const g = await requireClinicManagementBookingCatalogRead();
+    const gate = await requireClinicManagementBookingCatalogRead();
 
-    expect(g.ok).toBe(false);
-    if (!g.ok) expect(g.response.status).toBe(403);
-  });
-
-  it("keeps legacy reference catalog mutations global-admin-only", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "owner-1", role: "doctor", bindings: {} },
-    });
-
-    const g = await requireAdminBookingCatalog();
-
-    expect(g.ok).toBe(false);
-    if (!g.ok) expect(g.response.status).toBe(403);
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.response.status).toBe(403);
   });
 });

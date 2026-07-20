@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, unreadFromPatientMock, getClientIdentityMock, buildAppDepsMock } = vi.hoisted(() => {
-  const getSessionMockInner = vi.fn();
+const { requireDoctorWorkspaceApiContextMock, unreadFromPatientMock, getClientIdentityMock, buildAppDepsMock } = vi.hoisted(() => {
   const unreadFromPatientMockInner = vi.fn();
   const getClientIdentityMockInner = vi.fn();
   return {
-    getSessionMock: getSessionMockInner,
+    requireDoctorWorkspaceApiContextMock: vi.fn(),
     unreadFromPatientMock: unreadFromPatientMockInner,
     getClientIdentityMock: getClientIdentityMockInner,
     buildAppDepsMock: vi.fn(() => ({
       doctorClientsPort: {
-        getClientIdentity: getClientIdentityMockInner,
+        getClientIdentityForOrganization: getClientIdentityMockInner,
       },
       messaging: {
         doctorSupport: {
@@ -30,8 +29,8 @@ const { getSessionMock, unreadFromPatientMock, getClientIdentityMock, buildAppDe
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
 }));
 
 import { POST } from "./route";
@@ -48,37 +47,39 @@ function request(body: unknown) {
 
 describe("POST /api/doctor/messages/conversations/unread-by-patient", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+    });
     unreadFromPatientMock.mockReset();
     getClientIdentityMock.mockReset();
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await POST(request({ patientUserId }));
     expect(res.status).toBe(401);
   });
 
   it("returns 403 when not doctor", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 403 }),
     });
     const res = await POST(request({ patientUserId }));
     expect(res.status).toBe(403);
   });
 
   it("returns 400 for invalid patientUserId", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     const res = await POST(request({ patientUserId: "not-a-uuid" }));
     expect(res.status).toBe(400);
   });
 
   it("returns unread count without ensuring a conversation", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     getClientIdentityMock.mockResolvedValue({
       userId: patientUserId,
       displayName: "Patient",
@@ -98,13 +99,17 @@ describe("POST /api/doctor/messages/conversations/unread-by-patient", () => {
     expect(res.status).toBe(200);
     expect(data.ok).toBe(true);
     expect(data.unreadCount).toBe(2);
-    expect(unreadFromPatientMock).toHaveBeenCalledWith(patientUserId);
+    expect(getClientIdentityMock).toHaveBeenCalledWith(
+      patientUserId,
+      "10000000-0000-4000-8000-000000000001",
+    );
+    expect(unreadFromPatientMock).toHaveBeenCalledWith(
+      patientUserId,
+      "10000000-0000-4000-8000-000000000001",
+    );
   });
 
   it("returns 404 when patient is missing", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
-    });
     getClientIdentityMock.mockResolvedValue(null);
 
     const res = await POST(request({ patientUserId }));

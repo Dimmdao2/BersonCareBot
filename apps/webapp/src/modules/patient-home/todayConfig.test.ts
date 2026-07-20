@@ -111,7 +111,7 @@ describe("getPatientHomeTodayConfig", () => {
     expect(out.practiceTarget).toBe(4);
     expect(out.dailyWarmupItem?.page?.slug).toBe("warm-1");
     expect(out.dailyWarmupItem?.page?.contentPageId).toBe("11111111-1111-4111-8111-111111111111");
-    expect(getBySlug).toHaveBeenCalledWith("warm-1");
+    expect(getBySlug).toHaveBeenCalledWith("warm-1", undefined);
   });
 
   it("skips warmup item when getBySlug returns null", async () => {

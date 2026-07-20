@@ -5,17 +5,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const abortTxMock = vi.fn();
 const s3AbortMock = vi.fn();
 
-vi.mock("@/config/env", () => ({
-  env: {
-    S3_ENDPOINT: "https://fs.test",
-    S3_ACCESS_KEY: "access",
-    S3_SECRET_KEY: "secret",
-    S3_PRIVATE_BUCKET: "private-bucket",
-    S3_REGION: "us-east-1",
-    S3_FORCE_PATH_STYLE: true,
-  },
-  isS3MediaEnabled: () => true,
-}));
+vi.mock("@/config/env", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/config/env")>();
+  return {
+    ...mod,
+    env: {
+      ...mod.env,
+      S3_ENDPOINT: "https://fs.test",
+      S3_ACCESS_KEY: "access",
+      S3_SECRET_KEY: "secret",
+      S3_PRIVATE_BUCKET: "private-bucket",
+      S3_REGION: "us-east-1",
+      S3_FORCE_PATH_STYLE: true,
+    },
+    isS3MediaEnabled: () => true,
+  };
+});
 
 vi.mock("@/app-layer/locks/multipartSessionLock", () => ({
   withMultipartSessionLock: vi.fn(async (_pool: unknown, _sid: string, fn: (c: unknown) => Promise<unknown>) =>
@@ -36,8 +41,14 @@ vi.mock("@/app-layer/db/client", () => ({
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: () => sessionMock(),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: async () => ({
+    ok: true as const,
+    ctx: {
+      session: await sessionMock(),
+      organizationId: "11111111-1111-4111-8111-111111111111",
+    },
+  }),
 }));
 
 import { POST } from "./route";

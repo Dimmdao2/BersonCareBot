@@ -34,12 +34,6 @@ const allowedUncovered: Record<string, string> = {
     "staff account identity self-service, global platform user lifecycle",
   "src/app/api/doctor/account/timezone/route.ts":
     "staff account preference self-service, global platform user lifecycle",
-  "src/app/api/doctor/clients/route.ts":
-    "platform identity patient creation; org enrollment is later product/roadmap work, not silent T0.3 rewrite",
-  "src/app/api/doctor/messages/conversations/unread-by-patient/route.ts":
-    "read-only POST query helper",
-  "src/app/api/doctor/treatment-program-promo/refresh/route.ts":
-    "global promo maintenance action by current product contract",
   "src/app/api/doctor/web-push/subscribe/route.ts":
     "staff account/channel preference self-service",
   "src/app/api/doctor/web-push/unsubscribe/route.ts":

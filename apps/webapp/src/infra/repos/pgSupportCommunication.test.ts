@@ -221,8 +221,9 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(await port.countUnreadUserMessagesForAdminByConversation(id)).toBe(1);
   });
 
-  it("counts unread user messages for admin by patient without ensuring a new conversation", async () => {
+  it("does not expose a legacy unscoped patient conversation to an organization read", async () => {
     const patientUserId = "00000000-0000-4000-8000-000000000123";
+    const organizationId = "10000000-0000-4000-8000-000000000001";
     const { id } = await port.ensureWebappConversationForUser(patientUserId);
     await port.appendWebappMessage({
       conversationId: id,
@@ -233,7 +234,7 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
       createdAt: "2025-01-01T10:04:00Z",
     });
 
-    expect(await port.countUnreadUserMessagesForAdminByPatient(patientUserId)).toBeGreaterThanOrEqual(1);
+    expect(await port.countUnreadUserMessagesForAdminByPatient(patientUserId, organizationId)).toBe(0);
   });
 
   it("listOpenConversationsForAdmin excludes closed conversations", async () => {
@@ -252,8 +253,9 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
     expect(list.some((c) => c.integratorConversationId === "conv-admin-closed-1")).toBe(false);
   });
 
-  it("countUnreadUserMessagesForAdmin counts only open conversations (matches inbox list)", async () => {
-    const baseline = await port.countUnreadUserMessagesForAdmin();
+  it("organization unread count excludes legacy unscoped open and closed conversations", async () => {
+    const organizationId = "10000000-0000-4000-8000-000000000001";
+    const baseline = await port.countUnreadUserMessagesForAdmin({ organizationId });
 
     await port.upsertConversationFromProjection({
       integratorConversationId: "conv-closed-unread",
@@ -275,7 +277,7 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
       createdAt: "2025-01-01T10:03:00Z",
     });
 
-    expect(await port.countUnreadUserMessagesForAdmin()).toBe(baseline);
+    expect(await port.countUnreadUserMessagesForAdmin({ organizationId })).toBe(baseline);
 
     const { id: openId } = await port.upsertConversationFromProjection({
       integratorConversationId: "conv-open-unread",
@@ -295,7 +297,7 @@ describe("SupportCommunicationPort admin reads (in-memory)", () => {
       createdAt: "2025-01-01T11:02:00Z",
     });
 
-    expect(await port.countUnreadUserMessagesForAdmin()).toBe(baseline + 1);
+    expect(await port.countUnreadUserMessagesForAdmin({ organizationId })).toBe(baseline);
     expect(await port.countUnreadUserMessagesForAdminByConversation(openId)).toBe(1);
   });
 

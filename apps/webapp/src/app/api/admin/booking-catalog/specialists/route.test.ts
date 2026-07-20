@@ -37,6 +37,10 @@ const adminSession = {
   adminMode: true,
 };
 
+const clinicOwnerSession = {
+  user: { userId: "owner-1", role: "doctor" as const, bindings: {} },
+};
+
 describe("GET /api/admin/booking-catalog/specialists", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
@@ -51,7 +55,7 @@ describe("GET /api/admin/booking-catalog/specialists", () => {
   });
 
   it("returns 200 and passes branchId filter", async () => {
-    getSessionMock.mockResolvedValue(adminSession);
+    getSessionMock.mockResolvedValue(clinicOwnerSession);
     listSpecialistsAdminMock.mockResolvedValue([]);
     const bid = "550e8400-e29b-41d4-a716-446655440000";
     const res = await GET(new Request(`http://localhost/?branchId=${bid}`));
@@ -68,7 +72,7 @@ describe("POST /api/admin/booking-catalog/specialists", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("returns 400 on branch_not_found", async () => {
+  it("keeps global specialist mutations fail-closed until U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     upsertSpecialistMock.mockRejectedValue(new Error("branch_not_found:x"));
     const res = await POST(
@@ -82,6 +86,7 @@ describe("POST /api/admin/booking-catalog/specialists", () => {
         }),
       }),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(upsertSpecialistMock).not.toHaveBeenCalled();
   });
 });

@@ -6,17 +6,22 @@ const getRowMock = vi.fn();
 const bumpMock = vi.fn();
 const presignMock = vi.fn();
 
-vi.mock("@/config/env", () => ({
-  env: {
-    S3_ENDPOINT: "https://fs.test",
-    S3_ACCESS_KEY: "access",
-    S3_SECRET_KEY: "secret",
-    S3_PRIVATE_BUCKET: "private-bucket",
-    S3_REGION: "us-east-1",
-    S3_FORCE_PATH_STYLE: true,
-  },
-  isS3MediaEnabled: () => true,
-}));
+vi.mock("@/config/env", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/config/env")>();
+  return {
+    ...mod,
+    env: {
+      ...mod.env,
+      S3_ENDPOINT: "https://fs.test",
+      S3_ACCESS_KEY: "access",
+      S3_SECRET_KEY: "secret",
+      S3_PRIVATE_BUCKET: "private-bucket",
+      S3_REGION: "us-east-1",
+      S3_FORCE_PATH_STYLE: true,
+    },
+    isS3MediaEnabled: () => true,
+  };
+});
 
 vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   bumpSessionToUploading: (...args: unknown[]) => bumpMock(...args),
@@ -28,8 +33,23 @@ vi.mock("@/app-layer/media/s3Client", () => ({
 }));
 
 const sessionMock = vi.fn();
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: () => sessionMock(),
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: async () => {
+    const session = await sessionMock();
+    if (!session) {
+      return {
+        ok: false as const,
+        response: Response.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+      };
+    }
+    return {
+      ok: true as const,
+      ctx: {
+        session,
+        organizationId: "11111111-1111-4111-8111-111111111111",
+      },
+    };
+  },
 }));
 
 import { POST } from "./route";
@@ -44,7 +64,7 @@ describe("POST /api/media/multipart/part-url", () => {
     bumpMock.mockResolvedValue(undefined);
   });
 
-  it("returns 403 without doctor session", async () => {
+  it("returns 401 without doctor session", async () => {
     sessionMock.mockResolvedValue(null);
     const res = await POST(
       new Request("http://localhost/api/media/multipart/part-url", {
@@ -53,7 +73,7 @@ describe("POST /api/media/multipart/part-url", () => {
         body: JSON.stringify({ sessionId: "00000000-0000-4000-8000-000000000001", partNumber: 1 }),
       }),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(getRowMock).not.toHaveBeenCalled();
   });
 

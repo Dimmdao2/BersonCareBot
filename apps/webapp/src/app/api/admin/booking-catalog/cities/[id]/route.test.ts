@@ -39,16 +39,6 @@ const adminSession = {
 
 const testCityId = "550e8400-e29b-41d4-a716-446655440001";
 
-const city = {
-  id: testCityId,
-  code: "moscow",
-  title: "Москва",
-  isActive: true,
-  sortOrder: 0,
-  createdAt: "",
-  updatedAt: "",
-};
-
 describe("cities/[id] route", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
@@ -58,33 +48,35 @@ describe("cities/[id] route", () => {
     resolveOrganizationForUserMock.mockClear();
   });
 
-  it("GET returns 400 for invalid id", async () => {
+  it("GET checks the platform boundary before parsing an id", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await GET(new Request("http://localhost/x"), {
       params: Promise.resolve({ id: "not-a-uuid" }),
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
-  it("GET returns 404 when missing", async () => {
+  it("GET does not expose a global city to platform admin before U9", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     getCityByIdMock.mockResolvedValue(null);
     const res = await GET(new Request("http://localhost/x"), {
       params: Promise.resolve({ id: testCityId }),
     });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
+    expect(getCityByIdMock).not.toHaveBeenCalled();
   });
 
-  it("GET returns city", async () => {
+  it("GET remains fail-closed even when a city exists", async () => {
     getSessionMock.mockResolvedValue(adminSession);
-    getCityByIdMock.mockResolvedValue(city);
+    getCityByIdMock.mockResolvedValue({ id: testCityId });
     const res = await GET(new Request("http://localhost/x"), {
       params: Promise.resolve({ id: testCityId }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(getCityByIdMock).not.toHaveBeenCalled();
   });
 
-  it("PATCH validates body", async () => {
+  it("PATCH checks the platform boundary before validating the body", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     const res = await PATCH(
       new Request("http://localhost/x", {
@@ -94,16 +86,17 @@ describe("cities/[id] route", () => {
       }),
       { params: Promise.resolve({ id: testCityId }) },
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
+    expect(updateCityByIdMock).not.toHaveBeenCalled();
   });
 
-  it("DELETE soft-deactivates", async () => {
+  it("DELETE remains fail-closed until U9 global governance", async () => {
     getSessionMock.mockResolvedValue(adminSession);
     deactivateCityMock.mockResolvedValue(true);
     const res = await DELETE(new Request("http://localhost/x"), {
       params: Promise.resolve({ id: testCityId }),
     });
-    expect(res.status).toBe(200);
-    expect(deactivateCityMock).toHaveBeenCalledWith(testCityId);
+    expect(res.status).toBe(403);
+    expect(deactivateCityMock).not.toHaveBeenCalled();
   });
 });

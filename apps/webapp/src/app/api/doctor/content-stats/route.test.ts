@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getSessionMock = vi.hoisted(() => vi.fn());
+const requireDoctorWorkspaceApiContextMock = vi.hoisted(() => vi.fn());
 const loadDoctorAnalyticsAudienceMock = vi.hoisted(() => vi.fn());
 const loadContentEngagementStatsMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getSessionMock }));
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorWorkspaceApiContext: requireDoctorWorkspaceApiContextMock,
+}));
 vi.mock("@/app-layer/analytics/loadAnalyticsAudience", () => ({
   loadDoctorAnalyticsAudience: loadDoctorAnalyticsAudienceMock,
 }));
@@ -72,7 +74,11 @@ const samplePayload = {
 
 describe("GET /api/doctor/content-stats", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockReset();
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: true,
+      ctx: { organizationId: "10000000-0000-4000-8000-000000000001" },
+    });
     loadDoctorAnalyticsAudienceMock.mockReset();
     loadContentEngagementStatsMock.mockReset();
     loadDoctorAnalyticsAudienceMock.mockResolvedValue({ excludedUserIds: [] });
@@ -80,21 +86,26 @@ describe("GET /api/doctor/content-stats", () => {
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await GET(new Request("http://localhost/api/doctor/content-stats"));
     expect(res.status).toBe(401);
     expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 for client role", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", bindings: {} } });
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({
+      ok: false,
+      response: Response.json({}, { status: 403 }),
+    });
     const res = await GET(new Request("http://localhost/api/doctor/content-stats"));
     expect(res.status).toBe(403);
     expect(loadContentEngagementStatsMock).not.toHaveBeenCalled();
   });
 
   it("returns JSON for doctor with windowHours from query", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "d1", role: "doctor", bindings: {} } });
     const res = await GET(new Request("http://localhost/api/doctor/content-stats?windowHours=720"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as typeof samplePayload;
@@ -106,7 +117,6 @@ describe("GET /api/doctor/content-stats", () => {
   });
 
   it("returns JSON for admin role without admin mode", async () => {
-    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     const res = await GET(new Request("http://localhost/api/doctor/content-stats?windowHours=168"));
     expect(res.status).toBe(200);
     expect(loadContentEngagementStatsMock).toHaveBeenCalledWith({

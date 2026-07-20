@@ -87,7 +87,7 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
     expect(buildAppDepsMock).not.toHaveBeenCalled();
   });
 
-  it("archives for doctor", async () => {
+  it("fails closed until organization-scoped archive exists", async () => {
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
         method: "PATCH",
@@ -96,11 +96,11 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean };
-    expect(body.ok).toBe(true);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { ok: boolean; error: string };
+    expect(body).toEqual({ ok: false, error: "patient_archive_not_available" });
     expect(getClientIdentityForOrganizationMock).toHaveBeenCalledWith(uid, organizationId);
-    expect(setUserArchivedMock).toHaveBeenCalledWith(uid, true);
+    expect(setUserArchivedMock).not.toHaveBeenCalled();
   });
 
   it("returns 404 when client is outside selected organization", async () => {
@@ -117,7 +117,7 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
     expect(setUserArchivedMock).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when not a client role", async () => {
+  it("does not use the global platform role to authorize archive", async () => {
     getPlatformUserRoleMock.mockResolvedValueOnce("doctor");
     const res = await PATCH(
       new Request(`http://localhost/api/doctor/clients/${uid}/archive`, {
@@ -127,7 +127,8 @@ describe("PATCH /api/doctor/clients/[userId]/archive", () => {
       }),
       { params: Promise.resolve({ userId: uid }) },
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
+    expect(getPlatformUserRoleMock).not.toHaveBeenCalled();
     expect(setUserArchivedMock).not.toHaveBeenCalled();
   });
 });

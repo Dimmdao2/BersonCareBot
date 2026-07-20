@@ -150,7 +150,7 @@ describe("POST /api/doctor/online-intake/[id]/reply", () => {
     expect(body.ok).toBe(true);
 
     expect(ensureConversationMock).toHaveBeenCalledWith("patient-1");
-    expect(sendAdminReplyMock).toHaveBeenCalledWith("conv-1", "Здравствуйте");
+    expect(sendAdminReplyMock).toHaveBeenCalledWith("conv-1", "Здравствуйте", organizationId);
     expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId }),
       expect.any(Function),
