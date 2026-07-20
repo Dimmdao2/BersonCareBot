@@ -33,6 +33,22 @@ vi.mock("@bersoncare/db-principal", () => ({
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: vi.fn(() => {
+    const tariffChain = {
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      where: vi.fn(),
+      limit: vi.fn(async () => [{ mechanics: { exercise_catalog: true }, includedSeats: 1 }]),
+    };
+    tariffChain.from.mockReturnValue(tariffChain);
+    tariffChain.innerJoin.mockReturnValue(tariffChain);
+    tariffChain.where.mockReturnValue(tariffChain);
+
+    const overridesChain = {
+      from: vi.fn(),
+      where: vi.fn(async () => []),
+    };
+    overridesChain.from.mockReturnValue(overridesChain);
+
     const mediaChain = {
       from: vi.fn(),
       where: vi.fn(),
@@ -47,7 +63,11 @@ vi.mock("@/app-layer/db/drizzle", () => ({
           onConflictDoUpdate: vi.fn(async () => {}),
         })),
       })),
-      select: vi.fn(() => mediaChain),
+      select: vi.fn((selection?: Record<string, unknown>) => {
+        if (selection && "includedSeats" in selection) return tariffChain;
+        if (selection && "mechanic" in selection) return overridesChain;
+        return mediaChain;
+      }),
       query: {
         lfkExercises: {
           findFirst: vi.fn(async () => drizzleSnapshotState.exerciseRow),

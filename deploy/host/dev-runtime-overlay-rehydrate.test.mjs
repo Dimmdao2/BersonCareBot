@@ -419,7 +419,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_runtime_patient_role_boundary/u);
   assert.match(
     source,
-    /-v phase4_enforce_locked_context=1 \\\n  -f "\$PHASE4_LOCKED_POLICIES"/u,
+    /-v phase4_enforce_locked_context=1 \\\n {2}-f "\$PHASE4_LOCKED_POLICIES"/u,
   );
   assert.match(source, /runtime_overlay_apply_post_migration_chain "\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u);
   assert.match(source, /d3_4_bootstrap_base_role=\$TARGET_RUNTIME_ROLE/u);

@@ -30,7 +30,7 @@ vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
   return {
     ...mod,
-    getConfigValue: async (_key: string, envFallback: string) => envFallback,
+    getServerRuntimeTokenList: async (_key: string, envFallback: string) => envFallback,
   };
 });
 
@@ -93,4 +93,3 @@ describe("exchangeIntegratorToken — whitelist via existing binding", () => {
     expect(cookieSet).toHaveBeenCalled();
   });
 });
-

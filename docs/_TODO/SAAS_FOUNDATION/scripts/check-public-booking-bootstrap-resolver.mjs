@@ -91,7 +91,7 @@ function runChecks(overrides = {}) {
     "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC",
   ]);
   requireFragments(paths.route, files.route, [
-    "const publicContext = await resolvePublicInPersonBookingOrganization(deps, parsed.data)",
+    "const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, parsed.data)",
     "{ organizationId: publicContext.organizationId, source: \"api/booking/public/slots:GET\" }",
     "const ctx = await resolveInPersonBookingContext(deps, publicContext.keys)",
     "ctx.organizationId !== publicContext.organizationId",
@@ -144,8 +144,8 @@ if (process.argv.includes("--self-test")) {
     },
     {
       route: readFileSync(paths.route, "utf8").replace(
-        "const publicContext = await resolvePublicInPersonBookingOrganization(deps, parsed.data)",
-        "const publicContext = await resolvePublicInPersonBookingOrganizationMissing(deps, parsed.data)",
+        "const publicContext = await resolveSlugBoundPublicInPersonBookingOrganization(deps, parsed.data)",
+        "const publicContext = await resolveSlugBoundPublicInPersonBookingOrganizationMissing(deps, parsed.data)",
       ),
     },
     {

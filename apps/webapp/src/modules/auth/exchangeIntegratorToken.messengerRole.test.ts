@@ -26,6 +26,10 @@ vi.mock("@/config/env", async (importOriginal) => {
   };
 });
 
+vi.mock("@/modules/system-settings/configAdapter", () => ({
+  getServerRuntimeTokenList: async (_key: string, envFallback: string) => envFallback,
+}));
+
 import { integratorWebappEntrySecret } from "@/config/env";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { exchangeIntegratorToken } from "./service";

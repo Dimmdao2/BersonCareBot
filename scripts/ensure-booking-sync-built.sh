@@ -21,6 +21,7 @@ if [[ ! -f "$PM/dist/index.js" ]] ||
   [[ ! -f "$PM/dist/mergeFailureClassification.js" ]] ||
   [[ ! -f "$PM/dist/pgPlatformUserMerge.js" ]] ||
   ! grep -q classifyMergeFailure "$PM/dist/index.js" 2>/dev/null ||
-  ! grep -q dedupeSingletonSymptomTrackingsForMerge "$PM/dist/pgPlatformUserMerge.js" 2>/dev/null; then
+  ! grep -q dedupeSingletonSymptomTrackingsForMerge "$PM/dist/pgPlatformUserMerge.js" 2>/dev/null ||
+  ! grep -q "a.organization_id = b.organization_id" "$PM/dist/pgPlatformUserMerge.js" 2>/dev/null; then
   pnpm --dir "$PM" run build
 fi
