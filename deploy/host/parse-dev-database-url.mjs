@@ -76,13 +76,13 @@ export function assertExactLocalDevNonstaffDatabaseUrl(value) {
   if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") fail("non_local_database_host");
   if (parsed.port && parsed.port !== "5432") fail("invalid_database_port");
   if (parsed.pathname !== "/bcb_webapp_dev") fail("invalid_database_name");
-  if (decodeURIComponent(parsed.username) !== "app_runtime_nonstaff_login") fail("invalid_database_user");
+  if (decodeURIComponent(parsed.username) !== "bcb_dev_runtime_nonstaff_login") fail("invalid_database_user");
   return value;
 }
 
 function selfTest() {
   const valid = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
-  const validNonstaff = "postgresql://app_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev";
+  const validNonstaff = "postgresql://bcb_dev_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev";
   if (assertExactLocalDevDatabaseUrl(parseDatabaseUrlFromDotenv(`A=1\nDATABASE_URL='${valid}'\n`)) !== valid) {
     fail("self_test_valid_failed");
   }
@@ -92,6 +92,19 @@ function selfTest() {
     ) !== validNonstaff
   ) {
     fail("self_test_valid_nonstaff_failed");
+  }
+  for (const forbiddenNonstaff of [
+    valid,
+    "postgresql://app_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev",
+    "postgresql://bcb_test_operational_nonstaff:secret@127.0.0.1:5432/bcb_webapp_dev",
+  ]) {
+    let rejected = false;
+    try {
+      assertExactLocalDevNonstaffDatabaseUrl(forbiddenNonstaff);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) fail("self_test_expected_nonstaff_rejection");
   }
   for (const sample of [
     "DATABASE_URL=x\nDATABASE_URL=y\n",

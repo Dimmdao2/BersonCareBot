@@ -16,7 +16,7 @@ const scriptPath = fileURLToPath(new URL("./parse-dev-database-url.mjs", import.
 const wrapperPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
 const validUrl = "postgresql://bcb_webapp_dev_user:secret@127.0.0.1:5432/bcb_webapp_dev";
 const validNonstaffUrl =
-  "postgresql://app_runtime_nonstaff_login:runtime-secret@127.0.0.1:5432/bcb_webapp_dev";
+  "postgresql://bcb_dev_runtime_nonstaff_login:runtime-secret@127.0.0.1:5432/bcb_webapp_dev";
 
 test("dotenv parser accepts one exact local DEV URL without evaluating shell", () => {
   assert.equal(
@@ -33,14 +33,20 @@ test("dotenv parser requires a distinct exact local DEV nonstaff runtime URL", (
     ),
     validNonstaffUrl,
   );
-  assert.throws(() =>
-    assertExactLocalDevNonstaffDatabaseUrl(
-      parseDatabaseUrlKeyFromDotenv(
-        `DATABASE_URL_NONSTAFF=${validUrl}\n`,
-        "DATABASE_URL_NONSTAFF",
+  for (const forbiddenUrl of [
+    validUrl,
+    "postgresql://app_runtime_nonstaff_login:secret@127.0.0.1:5432/bcb_webapp_dev",
+    "postgresql://bcb_test_operational_nonstaff:secret@127.0.0.1:5432/bcb_webapp_dev",
+  ]) {
+    assert.throws(() =>
+      assertExactLocalDevNonstaffDatabaseUrl(
+        parseDatabaseUrlKeyFromDotenv(
+          `DATABASE_URL_NONSTAFF=${forbiddenUrl}\n`,
+          "DATABASE_URL_NONSTAFF",
+        ),
       ),
-    ),
-  );
+    );
+  }
 });
 
 test("dotenv parser rejects duplicate, shell-like, foreign and PROD URLs", () => {

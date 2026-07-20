@@ -6,7 +6,7 @@ set -Eeuo pipefail
 
 TARGET_DB="bcb_webapp_dev"
 TARGET_OWNER_ROLE="bcb_webapp_dev_user"
-TARGET_RUNTIME_ROLE="app_runtime_nonstaff_login"
+TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"

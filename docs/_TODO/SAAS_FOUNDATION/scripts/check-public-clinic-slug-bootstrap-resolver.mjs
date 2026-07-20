@@ -8,6 +8,7 @@ const paths = {
   repo: "apps/webapp/src/infra/repos/pgClinicDirectory.ts",
   page: "apps/webapp/src/app/book/[slug]/page.tsx",
   rsc: "apps/webapp/src/app/book/publicOrganizationBooking.ts",
+  runtimeOverlayLib: "deploy/host/runtime-overlay-rehydrate-lib.sh",
 };
 
 function requireFragments(label, text, fragments) {
@@ -21,6 +22,15 @@ function forbidFragments(label, text, fragments) {
   const present = fragments.filter((fragment) => text.includes(fragment));
   if (present.length > 0) {
     throw new Error(`${label} contains forbidden fragment(s):\n- ${present.join("\n- ")}`);
+  }
+}
+
+function requireOrderedFragments(label, text, fragments) {
+  let cursor = 0;
+  for (const fragment of fragments) {
+    const index = text.indexOf(fragment, cursor);
+    if (index < 0) throw new Error(`${label} missing ordered fragment: ${fragment}`);
+    cursor = index + fragment.length;
   }
 }
 
@@ -67,7 +77,26 @@ function runChecks(overrides = {}) {
 
   requireFragments(paths.deploy, files.deploy, [
     "PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER=deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+    'RUNTIME_OVERLAY_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/runtime-overlay-rehydrate-lib.sh"',
+    'source "$RUNTIME_OVERLAY_LIB"',
+    "rehydrate_post_restore_runtime_overlays(){",
+    "runtime_overlay_apply_post_migration_chain",
+    '[ -r "$SRC_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" ]',
+  ]);
+  requireOrderedFragments(`${paths.deploy} shared overlay composition`, files.deploy, [
+    'source "$RUNTIME_OVERLAY_LIB"',
+    "rehydrate_post_restore_runtime_overlays(){",
+    "runtime_overlay_apply_post_migration_chain",
+    'log "strict closure: reviewed runtime overlays"',
+    "rehydrate_post_restore_runtime_overlays",
+  ]);
+  forbidFragments(paths.deploy, files.deploy, [
     'psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"',
+  ]);
+  requireOrderedFragments(`${paths.runtimeOverlayLib} protected resolver order`, files.runtimeOverlayLib, [
+    "deploy/postgres/public-booking-bootstrap-resolver.sql",
+    "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+    "deploy/postgres/e1-webapp-runtime-config.sql",
   ]);
 
   return true;
@@ -96,9 +125,21 @@ function selfTest() {
       page: files.page.replace("if (!resolved) notFound();", "// missing fail-closed 404"),
     },
     {
+      runtimeOverlayLib: files.runtimeOverlayLib.replace(
+        "    deploy/postgres/public-clinic-slug-bootstrap-resolver.sql\n",
+        "",
+      ),
+    },
+    {
+      runtimeOverlayLib: files.runtimeOverlayLib.replace(
+        "    deploy/postgres/public-booking-bootstrap-resolver.sql\n    deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+        "    deploy/postgres/public-clinic-slug-bootstrap-resolver.sql\n    deploy/postgres/public-booking-bootstrap-resolver.sql",
+      ),
+    },
+    {
       deploy: files.deploy.replace(
-        'psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"',
-        "-- missing deploy invocation",
+        '  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
+        "  # missing shared runtime overlay invocation",
       ),
     },
   ];

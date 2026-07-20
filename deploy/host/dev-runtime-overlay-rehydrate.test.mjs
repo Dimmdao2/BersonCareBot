@@ -52,7 +52,7 @@ test("shared closure executes the canonical list and forwards the E1 runtime rol
     set -Eeuo pipefail
     source ${JSON.stringify(libraryPath)}
     runtime_overlay_admin_psql() { printf '%s\\n' "$*" >> ${JSON.stringify(calls)}; }
-    runtime_overlay_apply_post_migration_chain ${JSON.stringify(fakeRepo)} bcb_webapp_dev app_runtime_nonstaff_login 1
+    runtime_overlay_apply_post_migration_chain ${JSON.stringify(fakeRepo)} bcb_webapp_dev bcb_dev_runtime_nonstaff_login 1
   `;
   const result = spawnSync("bash", ["--noprofile", "--norc", "-c", command], {
     encoding: "utf8",
@@ -63,7 +63,7 @@ test("shared closure executes the canonical list and forwards the E1 runtime rol
     .split("\n")
     .map((line) => line.match(/-f (\S+)$/u)?.[1]?.slice(fakeRepo.length + 1));
   assert.deepEqual(applied, canonicalOrder);
-  assert.match(readFileSync(calls, "utf8"), /-v e1_webapp_runtime_role=app_runtime_nonstaff_login/u);
+  assert.match(readFileSync(calls, "utf8"), /-v e1_webapp_runtime_role=bcb_dev_runtime_nonstaff_login/u);
 });
 
 test("shared topology guard rejects owner equals runtime and accepts separate C0 runtime", () => {
@@ -86,7 +86,7 @@ test("shared topology guard rejects owner equals runtime and accepts separate C0
       "--noprofile",
       "--norc",
       "-c",
-      `source ${JSON.stringify(libraryPath)}; runtime_overlay_assert_separate_roles DEV bcb_webapp_dev_user app_runtime_nonstaff_login`,
+      `source ${JSON.stringify(libraryPath)}; runtime_overlay_assert_separate_roles DEV bcb_webapp_dev_user bcb_dev_runtime_nonstaff_login`,
     ],
     { encoding: "utf8" },
   );
@@ -97,7 +97,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   const source = readFileSync(wrapperPath, "utf8");
   assert.match(source, /TARGET_DB="bcb_webapp_dev"/u);
   assert.match(source, /TARGET_OWNER_ROLE="bcb_webapp_dev_user"/u);
-  assert.match(source, /TARGET_RUNTIME_ROLE="app_runtime_nonstaff_login"/u);
+  assert.match(source, /TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"/u);
   assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" "\$DEV_ENV"/u);
   assert.match(source, /"\$NODE_BIN" "\$DEV_ENV_PARSER" --nonstaff "\$DEV_ENV"/u);
   assert.doesNotMatch(source, /\bsource\s+["']?\$DEV_ENV/u);

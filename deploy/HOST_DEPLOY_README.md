@@ -789,7 +789,8 @@ membership/BYPASS через обязательный cleanup; application runti
 - **TEST→DEV не переносит неизменяемость TEST:** локальный `refresh-dev-from-test.sh --execute` после миграций сначала
   запускает `dev-runtime-overlay-rehydrate.sh --execute`, а затем `dev-post-refresh-unlock.sh --execute`. Runtime
   wrapper до reset проверяет раздельные owner `DATABASE_URL` (`bcb_webapp_dev_user`) и C0
-  `DATABASE_URL_NONSTAFF` (`app_runtime_nonstaff_login`), затем восстанавливает потерянные `--no-acl`
+  `DATABASE_URL_NONSTAFF` (`bcb_dev_runtime_nonstaff_login`, отдельный от TEST на общем PG-кластере), затем
+  восстанавливает потерянные `--no-acl`
   grants/helper ownership через общий с TEST канонический overlay-order и доказывает фактический runtime read и
   patient booking capability; unlock wrapper удаляет
   только скопированные TEST-only `system_settings_test_lock` trigger/function. Оба пути DEV-only и не открывают

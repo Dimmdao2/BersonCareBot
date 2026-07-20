@@ -424,7 +424,7 @@ function runChecks(overrides = {}) {
 
   requireFragments(files.devRuntimeOverlay, loaded.devRuntimeOverlay, [
     'TARGET_OWNER_ROLE="bcb_webapp_dev_user"',
-    'TARGET_RUNTIME_ROLE="app_runtime_nonstaff_login"',
+    'TARGET_RUNTIME_ROLE="bcb_dev_runtime_nonstaff_login"',
     '"$NODE_BIN" "$DEV_ENV_PARSER" --nonstaff "$DEV_ENV"',
     'runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"',
     'dev_base_runtime_role_safe_before_overlay',
@@ -445,7 +445,7 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.devDatabaseUrlParser, loaded.devDatabaseUrlParser, [
     'DATABASE_URL_NONSTAFF',
-    'app_runtime_nonstaff_login',
+    'bcb_dev_runtime_nonstaff_login',
     'assertExactLocalDevNonstaffDatabaseUrl',
   ]);
 
@@ -1150,6 +1150,18 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         '  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
         '# missing post-restore runtime overlay rehydration',
+      ),
+    },
+    {
+      runtimeOverlayLib: read(files.runtimeOverlayLib).replace(
+        '    deploy/postgres/public-booking-bootstrap-resolver.sql\n',
+        '',
+      ),
+    },
+    {
+      runtimeOverlayLib: read(files.runtimeOverlayLib).replace(
+        '    deploy/postgres/public-booking-bootstrap-resolver.sql\n    deploy/postgres/public-clinic-slug-bootstrap-resolver.sql',
+        '    deploy/postgres/public-clinic-slug-bootstrap-resolver.sql\n    deploy/postgres/public-booking-bootstrap-resolver.sql',
       ),
     },
     {

@@ -561,8 +561,9 @@ TEST settings locks. Both TEST and DEV call the single ordered implementation in
 
 The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local owner/migrator
 `DATABASE_URL` (`bcb_webapp_dev` / `bcb_webapp_dev_user`) and a distinct exact local C0 base-runtime
-`DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `app_runtime_nonstaff_login`), both parsed as data from the canonical
+`DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `bcb_dev_runtime_nonstaff_login`), both parsed as data from the canonical
 `.env.dev`. It sanitizes PostgreSQL environment input, never reads `/opt/env`, and never opens TEST or PROD. The
+DEV runtime identity is environment-namespaced and must not alias a TEST login on the shared PostgreSQL cluster. The
 refresh wrapper calls its read-only `--preflight` before dump/reset. That preflight rejects owner/runtime aliasing,
 `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, owner/`app_owner` membership, any
 unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.

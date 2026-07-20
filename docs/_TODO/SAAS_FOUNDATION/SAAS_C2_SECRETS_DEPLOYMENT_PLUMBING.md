@@ -31,9 +31,9 @@ Repo-managed preflight:
 
 ```bash
 node deploy/host/saas-c2-secret-preflight.mjs \
-  --env-file=webapp:/absolute/path/to/webapp.env \
-  --env-file=integrator:/absolute/path/to/api.env \
-  --env-file=media-worker:/absolute/path/to/media-worker.env
+  --process-env-file=webapp:/absolute/path/to/webapp.env \
+  --process-env-file=integrator:/absolute/path/to/api.env \
+  --process-env-file=media-worker:/absolute/path/to/media-worker.env
 ```
 
 The preflight:
