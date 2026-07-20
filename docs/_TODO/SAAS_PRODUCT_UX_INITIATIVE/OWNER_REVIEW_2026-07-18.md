@@ -969,3 +969,40 @@ Booking lifecycle templates из прежней FIO Phase 8 не относят�
 - doctor label показывает полное ФИО, patient greeting — имя;
 - production mutation невозможна без актуального preview и отдельного owner gate;
 - runtime parser не удалён до положительного legacy audit.
+
+## 20. Public organization slug, profile and booking widgets — owner addendum 2026-07-20
+
+### Решения владельца
+
+- Каждая solo-practice/clinic выбирает собственный уникальный public slug в первом organization setup. Slug является
+  адресом публичной страницы и записи, но никогда не является authorization authority.
+- Канонические platform-origin routes: `https://therapysto.ru/<slug>` — публичная страница специалиста/клиники;
+  `/<slug>/booking` — запись; `/<slug>/booking/widget` — embeddable booking surface. Production DNS/TLS/deploy
+  остаются отдельным infrastructure gate; код не хардкодит origin и использует sanctioned public base URL.
+- Публичная страница содержит owner-published projection: logo/avatar, название, публичное описание и контакты,
+  специалистов, услуги/локации и CTA/виджет записи. Она не читает raw organization/clinical rows напрямую.
+- Существующий `/book/<slug>` сохраняется как compatibility alias/redirect до external-link census; второй booking
+  wizard не создаётся.
+- Виджет имеет два режима на одном iframe-based engine: inline block для Tilda/CMS и modal overlay, открываемый
+  кнопкой. Один platform loader script принимает slug/mode/target/attribution, создаёт iframe на
+  `/<slug>/booking/widget` и использует узкий typed `postMessage` только для resize/close/success. JS не копирует
+  форму и не получает внутренние organization IDs.
+- Slug rename допускается только как управляемая owner-операция с validation/reserved-word/uniqueness checks,
+  immutable audit и сохранением старого slug как redirect alias, чтобы не ломать публичные ссылки и widgets.
+
+### Рекомендованная механика первого запуска
+
+1. Registration предлагает нормализованный slug из названия, но владелец явно подтверждает его.
+2. Draft slug резервируется за organization до публикации; профиль и booking имеют отдельные readiness/publish
+   состояния, не становятся публичными из-за одного наличия slug.
+3. Inline embed: container + loader `data-clinic="<slug>" data-mode="inline"`; modal embed: button/target + тот же
+   loader с `data-mode="modal"`. Прямой iframe остаётся третьим простым вариантом.
+4. Любой booking request повторно разрешает slug server-side и сверяет derived organization с branch/service/slot;
+   Host, query organizationId и данные parent page не являются authority.
+
+### Task mapping
+
+- U6B public profile/slug/widget — taskdb `#926`.
+- Existing `/book/<slug>` compatibility/runtime grant остаётся `#805` + `#817` и не дублируется.
+- Directory/search всех организаций остаётся deferred `PUB-06`; публичная страница конкретной organization не
+  означает включение каталога.

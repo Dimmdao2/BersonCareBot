@@ -1,5 +1,15 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — owner public profile, slug and booking widget direction (`U6B`, `#926`)
+
+Владелец назначил следующим product-development stage собственную публичную страницу организации/специалиста.
+Slug выбирается владельцем при первом setup и формирует platform-origin routes `/<slug>`, `/<slug>/booking` и
+`/<slug>/booking/widget`; старый `/book/<slug>` сохраняется compatibility redirect. Публичная страница получает
+published logo/avatar, название, информацию/контакты, специалистов, услуги/локации и booking CTA. Виджет строится не
+как копия формы в чужом JS, а как один canonical booking iframe с общим loader script в inline и modal режимах;
+slug повторно связывается с exact organization server-side. Existing `#805/#817` не дублируются, U6B собран в
+taskdb `#926`; directory всех организаций остаётся deferred.
+
 ## 2026-07-20 — owner Doctor UI chrome correction (`UI-P`, `#925`)
 
 Владелец зафиксировал единый presentation-token delta для doctor workspace: фон промежутков `#faf9f4`, белая

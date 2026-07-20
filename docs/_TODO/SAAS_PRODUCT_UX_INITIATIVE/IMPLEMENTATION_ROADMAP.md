@@ -1075,6 +1075,16 @@ context while canonical platform URLs and recovery always work.
   object/version and join projection.
 - **Scope:** draft/preview/publish lifecycle; stable platform alias; public projection fields; service/specialist/
   location cards after ownership audit; booking and join integration; unpublished/suspended/degraded states.
+- **Owner route/slug addendum 2026-07-20 (`#926`):** organization owner chooses a unique slug during first setup;
+  canonical platform-origin paths are `/<slug>`, `/<slug>/booking` and `/<slug>/booking/widget`. Existing
+  `/book/<slug>` remains a compatibility alias/redirect through external-link census. Public projection includes
+  owner-published logo/avatar, name, public information/contacts, specialists, services/locations and booking CTA.
+  Slug rename is audited and preserves a redirect alias. Slug selects a public projection only and never grants
+  organization authority.
+- **Widget contract:** one existing booking wizard powers direct, inline and modal forms. A small platform loader
+  creates an iframe for `/<slug>/booking/widget`; `data-mode=inline` inserts a responsive block, `data-mode=modal`
+  opens an overlay from a site button. Typed `postMessage` is limited to resize/close/success; attribution may be
+  forwarded, internal org IDs/secrets/cookies are not. No copied JS form or second booking engine.
 - **Forbidden:** reading private org base rows directly, Host/client org authority, directory inclusion by default,
   custom domain/auth/PWA, second booking wizard, pre-auth private recipient data.
 - **Boundaries:** public projection is explicit and versioned; booking objects/invite exchange determine org; canonical
