@@ -7,6 +7,9 @@ import {
 } from "@bersoncare/db-principal";
 
 const cookieSet = vi.fn();
+const envControl = vi.hoisted(() => ({
+  principalMode: "legacy-guc" as "legacy-guc" | "shadow" | "locked",
+}));
 
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
@@ -41,6 +44,9 @@ vi.mock("@/config/env", async (importOriginal) => {
       NODE_ENV: "development",
       DATABASE_URL: "postgres://test:test@127.0.0.1:5432/test",
       ALLOW_DEV_AUTH_BYPASS: true,
+      get DB_PRINCIPAL_CONTEXT_MODE() {
+        return envControl.principalMode;
+      },
     },
   };
 });
@@ -55,6 +61,7 @@ import { exchangeIntegratorToken } from "./service";
 
 describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
   beforeEach(() => {
+    envControl.principalMode = "legacy-guc";
     enterWithDbBootstrapPrincipal({ source: "exchange-dev-bypass-test-reset" });
     cookieSet.mockClear();
     applyDevBypassMock.mockClear();
@@ -246,5 +253,80 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       displayName: "Demo Doctor",
       kind: "doctor",
     });
+  });
+
+  it("keeps locked dev bypass read-only when the prepared phone matches", async () => {
+    envControl.principalMode = "locked";
+    const updateRoleMock = vi.fn().mockResolvedValue(undefined);
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => ({
+        userId: "ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "client" as const,
+        displayName: "Demo Admin",
+        phone: "+79990000003",
+        bindings: { telegramId: "333333333" },
+      })),
+      findOrCreateByChannelBinding: vi.fn(async () => {
+        throw new Error("dev bypass must not create a messenger binding");
+      }),
+    };
+
+    const result = await exchangeIntegratorToken(
+      "dev:admin",
+      identityResolutionPort,
+      updateRoleMock,
+    );
+
+    expect(result?.session.user.role).toBe("admin");
+    expect(result?.session.user.phone).toBe("+79990000003");
+    expect(applyDevBypassMock).not.toHaveBeenCalled();
+    expect(ensureStaffWorkspaceMock).not.toHaveBeenCalled();
+    expect(updateRoleMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in locked mode when the prepared account has no phone", async () => {
+    envControl.principalMode = "locked";
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => ({
+        userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "client" as const,
+        displayName: "Demo Client",
+        phone: undefined,
+        bindings: { telegramId: "111111111" },
+      })),
+      findOrCreateByChannelBinding: vi.fn(async () => {
+        throw new Error("dev bypass must not create a messenger binding");
+      }),
+    };
+
+    const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
+
+    expect(result).toBeNull();
+    expect(applyDevBypassMock).not.toHaveBeenCalled();
+    expect(ensureStaffWorkspaceMock).not.toHaveBeenCalled();
+    expect(cookieSet).not.toHaveBeenCalled();
+  });
+
+  it("fails closed in locked mode when the prepared phone differs from the preset", async () => {
+    envControl.principalMode = "locked";
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => ({
+        userId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "doctor" as const,
+        displayName: "Demo Doctor",
+        phone: "+79990000999",
+        bindings: { telegramId: "222222222" },
+      })),
+      findOrCreateByChannelBinding: vi.fn(async () => {
+        throw new Error("dev bypass must not create a messenger binding");
+      }),
+    };
+
+    const result = await exchangeIntegratorToken("dev:doctor", identityResolutionPort);
+
+    expect(result).toBeNull();
+    expect(applyDevBypassMock).not.toHaveBeenCalled();
+    expect(ensureStaffWorkspaceMock).not.toHaveBeenCalled();
+    expect(cookieSet).not.toHaveBeenCalled();
   });
 });

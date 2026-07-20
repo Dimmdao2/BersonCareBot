@@ -329,11 +329,44 @@ NODE_ENV=development
 `user_channel_bindings`. Поэтому эти четыре аккаунта должны быть подготовлены одноразовым DEV seed/setup до
 проверки входа; это не runtime account-creation path и не основание расширять D3.4 SELECT-only grants.
 
-Все три staff-токена идемпотентно создают/чинят общую `DEV UX Clinic` и своё единственное active membership.
-`dev:doctor` получает отдельного specialist, `dev:clinic-admin` — owner-membership и отдельного specialist,
-`dev:admin` — минимальный `assistant` membership без specialist (права global admin даёт platform-role +
-`adminMode`, а не ownership клиники). Поэтому токены продолжают работать после TEST→DEV refresh и после
-произвольных экспериментов с DEV-данными, сохраняя разные меню и полномочия.
+В `legacy-guc`/`shadow` три staff-токена идемпотентно создают/чинят общую `DEV UX Clinic` и своё единственное
+active membership, а все четыре токена синхронизируют preset phone. `dev:doctor` получает отдельного specialist,
+`dev:clinic-admin` — owner-membership и отдельного specialist, `dev:admin` — минимальный `assistant` membership
+без specialist (права global admin даёт platform-role + `adminMode`, а не ownership клиники).
+
+В `locked` dev bypass полностью read-only: найденный по binding аккаунт обязан уже иметь точный preset phone;
+отсутствующий или отличный phone завершает вход fail-closed. Phone, role, organization, membership и specialist
+на входе не исправляются. Это сохраняет D3.4 bootstrap surface SELECT-only.
+
+#### 4.2.1 Разовая подготовка dev-bypass после создания свежей DEV-БД
+
+Это отдельный one-time setup **после** разрешённого restore/seed и migrations, но **до** финального переключения
+этой DEV-БД в `locked`. Он не является deploy, reset или частью обычного перезапуска приложения.
+
+1. Убедиться, что разрешённый DEV dump/seed уже содержит все четыре synthetic `platform_users` и их точные preset
+   messenger bindings. Запустить webapp в `legacy-guc` (либо в уже настроенном write-capable dev mode) с DEV-only
+   `DATABASE_URL`; production URL/secrets не использовать. Если binding отсутствует, остановиться: runtime её не
+   создаёт, D3.4 grants не расширять, ручной ad hoc SQL не писать — сначала исправить утверждённый DEV seed/source.
+2. Не поднимать второй Next server: сначала проверить владельца процесса через `pgrep -af next`. На единственном
+   DEV server последовательно открыть каждый токен; это один раз синхронизирует phones и создаст/починит staff
+   workspace:
+
+   ```bash
+   for token in client doctor clinic-admin admin; do
+     curl -fsS -o /dev/null -c "/tmp/bcb-dev-${token}.cookies" -L \
+       "http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3A${token}"
+   done
+   ```
+
+3. Контролируемо остановить только этот DEV server, вернуть в `.env.dev`
+   `DB_PRINCIPAL_CONTEXT_MODE=locked` и locked dual-pool URLs, не меняя signing secret. Проверить permission `0600`
+   как в разделе 3, затем запустить ровно один DEV server заново.
+4. Повторить четыре входа и для каждого cookie проверить `/api/me`; все четыре запроса должны вернуть успешную
+   сессию. В этом проходе DB не меняется: любой fail означает drift/missing preparation, а не повод дать runtime
+   `UPDATE`/`INSERT` права.
+
+Cookie jars из `/tmp` после проверки удалить. Эту последовательность не повторяют при code-only deploy, build,
+обычном restart или UI-разработке; она нужна только для новой/заново подготовленной DEV-БД.
 
 ### 4.3 Способы входа
 

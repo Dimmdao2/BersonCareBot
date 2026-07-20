@@ -429,12 +429,23 @@ async function applyDevBypassPlatformUserPhoneInDb(
   return fresh ? { ...fresh, role: user.role } : { ...user, phone };
 }
 
+function devBypassPresetPhoneMatches(user: SessionUser, parsed: IntegratorTokenPayload): boolean {
+  const rawPresetPhone = parsed.phone?.trim();
+  const rawStoredPhone = user.phone?.trim();
+  if (!rawPresetPhone || !rawStoredPhone) return false;
+
+  const presetPhone = normalizePhone(rawPresetPhone);
+  const storedPhone = normalizePhone(rawStoredPhone);
+  return isValidPhoneE164(presetPhone) && isValidPhoneE164(storedPhone) && presetPhone === storedPhone;
+}
+
 export async function exchangeIntegratorToken(
   token: string,
   identityResolutionPort?: IdentityResolutionPort | null,
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
+  const lockedDevBypass = Boolean(devParsed) && env.DB_PRINCIPAL_CONTEXT_MODE === "locked";
   const parsed = devParsed ?? (await parseIntegratorToken(token));
   if (!parsed) {
     if (process.env.NODE_ENV !== "test") {
@@ -498,31 +509,35 @@ export async function exchangeIntegratorToken(
   if (devParsed && user.role !== parsed.role) {
     // Dev bypass tokens must keep explicit preset role (dev:admin/dev:doctor/dev:client),
     // even when identity resolution returns an existing row with stale role from DB.
-    if (updateRoleFn && isPlatformUserUuid(user.userId)) {
+    if (!lockedDevBypass && updateRoleFn && isPlatformUserUuid(user.userId)) {
       await updateRoleFn(user.userId, parsed.role);
     }
     user = { ...user, role: parsed.role };
   }
 
   if (devParsed && env.DATABASE_URL?.trim()) {
-    user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
-    const staffWorkspaceKind: DevBypassStaffWorkspaceKind | null =
-      parsed.sub === "00000000-0000-0000-0000-000000000002"
-        ? "doctor"
-        : parsed.sub === "00000000-0000-0000-0000-000000000003"
-          ? "global_admin"
-          : parsed.sub === "00000000-0000-0000-0000-000000000004"
-            ? "clinic_admin"
-            : null;
-    if (staffWorkspaceKind) {
-      const { ensureDevBypassStaffWorkspace } = await import(
-        "@/modules/auth/devBypassClinicAdminWorkspacePort"
-      );
-      await ensureDevBypassStaffWorkspace({
-        platformUserId: user.userId,
-        displayName: parsed.displayName ?? user.displayName,
-        kind: staffWorkspaceKind,
-      });
+    if (lockedDevBypass) {
+      if (!devBypassPresetPhoneMatches(user, parsed)) return null;
+    } else {
+      user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
+      const staffWorkspaceKind: DevBypassStaffWorkspaceKind | null =
+        parsed.sub === "00000000-0000-0000-0000-000000000002"
+          ? "doctor"
+          : parsed.sub === "00000000-0000-0000-0000-000000000003"
+            ? "global_admin"
+            : parsed.sub === "00000000-0000-0000-0000-000000000004"
+              ? "clinic_admin"
+              : null;
+      if (staffWorkspaceKind) {
+        const { ensureDevBypassStaffWorkspace } = await import(
+          "@/modules/auth/devBypassClinicAdminWorkspacePort"
+        );
+        await ensureDevBypassStaffWorkspace({
+          platformUserId: user.userId,
+          displayName: parsed.displayName ?? user.displayName,
+          kind: staffWorkspaceKind,
+        });
+      }
     }
   }
 
