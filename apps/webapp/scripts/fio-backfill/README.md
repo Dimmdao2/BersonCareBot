@@ -68,8 +68,9 @@ updated, 3 already matched, 1 expected missing, and 1 preserve-current row inten
 Production was not changed. The manual decisions and the two exact exceptions remain authoritative; never
 recalculate them with the parser.
 
-Structured registration task `#855` and remaining-writers/display task `#856` are completed and integrated at
-`50eba2619` and `c8492fec5`. Production task `#857` is not an early standalone backfill: it is deferred to the one
+Structured registration task `#855` is completed and integrated at `50eba2619`. Remaining-writers/display task
+`#856` has implementation at `c8492fec5` and completion/closeout at `2718fe68b`. Production task `#857` is not an
+early standalone backfill: it is deferred to the one
 final platform production cutover. Legacy audit/parser retirement task `#858` remains blocked until production
 reconciliation succeeds.
 

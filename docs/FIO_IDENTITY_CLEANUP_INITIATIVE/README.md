@@ -336,7 +336,8 @@ Evidence:
 
 ### Phase 7 — Remaining Writers And Provider Priority
 
-Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
+Status: implementation completed on `feat/doctor-ui-rebuild` at `c8492fec5`; task `#856` completion/closeout is
+recorded at `2718fe68b`.
 
 - Audit manual edit, booking, provisioning, OAuth, Telegram, and MAX writers.
 - Provider names remain weak hints: fill empty fields only and never replace manual/booking/Rubitime FIO.
@@ -358,7 +359,8 @@ Evidence:
 
 ### Phase 8 — Display Cleanup
 
-Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
+Status: implementation completed on `feat/doctor-ui-rebuild` at `c8492fec5`; task `#856` completion/closeout is
+recorded at `2718fe68b`.
 
 Goal: make the app consistently use structured names.
 
@@ -465,8 +467,9 @@ DB-backed `system_settings`, but notification work does not block structured ide
 
 ## Final Acceptance
 
-- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Tasks `#855` and `#856` are
-  completed and integrated at `50eba2619` and `c8492fec5`; TEST apply evidence `#849` was successfully re-established
+- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Task `#855` is completed and
+  integrated at `50eba2619`; task `#856` implementation is at `c8492fec5`, with completion/closeout at `2718fe68b`.
+  TEST apply evidence `#849` was successfully re-established
   on 2026-07-19. Task `#857` is deferred to the single final platform production cutover, and `#858` remains blocked
   until production reconciliation.
 - `accepted` remains owner-only.

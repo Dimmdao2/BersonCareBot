@@ -458,7 +458,8 @@ Evidence:
 
 ## Phase 7 — Remaining Writers And Provider Priority
 
-Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
+Status: implementation completed on `feat/doctor-ui-rebuild` at `c8492fec5`; task `#856` completion/closeout is
+recorded at `2718fe68b`.
 
 Goal:
 
@@ -486,7 +487,8 @@ Evidence:
 
 ## Phase 8 — Display Cleanup
 
-Status: completed on `feat/doctor-ui-rebuild` at `c8492fec5`.
+Status: implementation completed on `feat/doctor-ui-rebuild` at `c8492fec5`; task `#856` completion/closeout is
+recorded at `2718fe68b`.
 
 Goal:
 
@@ -609,8 +611,9 @@ It must continue to use DB-backed `system_settings`, but it neither proves nor b
 
 ## Final Acceptance
 
-- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Residual tasks `#855` and `#856`
-  are completed and integrated at `50eba2619` and `c8492fec5`; TEST evidence `#849` was successfully re-established
+- Historical acceptance of taskdb `#24` covers the earlier delivered tranche only. Task `#855` is completed and
+  integrated at `50eba2619`; task `#856` implementation is at `c8492fec5`, with completion/closeout at `2718fe68b`.
+  TEST evidence `#849` was successfully re-established
   on 2026-07-19. Task `#857` is deferred to the single final platform production cutover, and `#858` remains blocked
   until that production reconciliation succeeds.
 - `accepted` remains owner-only.
