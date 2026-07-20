@@ -852,9 +852,9 @@ required security/recovery setup and reaches a truthful first workspace.
 - **Rollback/degradation:** signup-disabled keeps neutral demo/contact; partial provisioning resumes only from trusted
   receipt/session; missing binding stays management-only with explicit recovery; security failure never falls through
   to a clinical session or high-risk owner action.
-- **Completion:** [ ] ACQ-01…05 complete; [ ] secure retry/session; [ ] organization+owner exactly once;
-  [ ] authorized specialist binding; [ ] clinical actor truthful; [ ] first-run/password/2FA recovery complete;
-  [ ] no duplicate tenant/persona overwrite; [ ] full audit PASS.
+- **Completion:** [x] ACQ-01…05 complete; [x] secure retry/session; [x] organization+owner exactly once;
+  [x] authorized specialist binding; [x] clinical actor truthful; [x] first-run/password/2FA recovery complete;
+  [x] no duplicate tenant/persona overwrite; [x] full audit PASS.
 - **Merge dependency:** U0/U1/U2 plus stable provisioning/auth foundation.
 
 ### U3A — clinic staff invitation under paid entitlement (post-solo capability)

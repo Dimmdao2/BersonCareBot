@@ -34,9 +34,9 @@ first-run, recovery and binding states; organization settings remain **«Нас�
 **«Аккаунт»**, and the rejected label «Практика» is absent.
 
 Independent high-risk audit passed with `P0=0, P1=0, P2=0`; the full disposable smoke, targeted U3S tests,
-typecheck, scoped lint and diff checks passed. No working DEV/TEST/PROD DB, server, deploy, real send or full CI was
-touched. U3S remains `doing`, not terminal: the desktop/mobile live registration → security/recovery → authorized
-binding → first clinical workspace journey must still be accepted, after which `#917` owns the TEST/Neo handoff.
+typecheck, scoped lint and diff checks passed. No TEST/PROD DB, deploy, real send or full CI was touched. The full
+desktop/mobile DEV registration → security/recovery → authorized binding → first clinical workspace journey then
+passed on the existing `:5200`; `#917` separately owns the later TEST/Neo handoff.
 
 **Live DEV result and bounded correction.** На существующем `:5200`, без второго сервера и без прямых действий с
 БД, прошли public registration, non-delivery email challenge, exactly-one organization+owner, confirm replay/retry,
@@ -45,8 +45,10 @@ TOTP, recovery acknowledgement, owner→specialist binding, Today, desktop/mobil
 персональной вкладки и отправлял bindingless owner в Account. Исправление делает `/app/settings` каноническими
 organization **«Настройками»** для capability `organization.management`; `/app/account` остаётся личным
 **«Аккаунтом»**, restricted security и non-manager staff остаются fail-closed. Independent audit:
-`P0=0, P1=0, P2=0`; `110` targeted tests зелёные. Нужен только короткий live recheck именно этой исправленной точки;
-остальной уже пройденный security journey повторять не требуется.
+`P0=0, P1=0, P2=0`; `110` targeted tests зелёные. Короткий live recheck исправленной точки также прошёл: после
+настройки TOTP, но до specialist binding, `/app/settings` возвращает organization «Настройки», `/app/account` —
+личный «Аккаунт», отклонённого названия «Практика» нет. Evidence:
+`.claude/screenshots/U3S-DEV-LIVE/2026-07-20T19-20-34Z`. U3S закрыт; пройденный security journey повторно не гонялся.
 
 ## 2026-07-20 — C4D ownership correction: platform writes wait for U9 (`#724`)
 
