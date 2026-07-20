@@ -83,18 +83,21 @@ export function createPgClinicDirectoryPort(): ClinicDirectoryPort {
           await lockOrganizationSlugClaims(tx, input.organizationId);
           const now = new Date().toISOString();
           const targetCondition = eq(organizationSlugClaims.organizationId, input.organizationId);
-          const [collision] = await tx
-            .select({ id: organizationSlugClaims.id })
-            .from(organizationSlugClaims)
-            .where(eq(organizationSlugClaims.slug, input.slug))
-            .limit(1)
-            .for('update');
           const [existingReservation] = await tx
             .select({ id: organizationSlugClaims.id })
             .from(organizationSlugClaims)
             .where(and(eq(organizationSlugClaims.kind, 'reservation'), targetCondition))
             .limit(1)
             .for('update');
+          // Never row-lock a global collision: it may belong to another organization whose own
+          // reserve transaction holds the opposite reservation row. A plain MVCC read avoids the
+          // cross-org A->B / B->A lock cycle; the global unique index closes concurrent empty-slug
+          // races and maps the losing write to slug_unavailable below.
+          const [collision] = await tx
+            .select({ id: organizationSlugClaims.id })
+            .from(organizationSlugClaims)
+            .where(eq(organizationSlugClaims.slug, input.slug))
+            .limit(1);
 
           if (collision && collision.id !== existingReservation?.id) {
             return { ok: false as const, code: 'slug_unavailable' as const };
