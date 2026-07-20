@@ -9,7 +9,6 @@ const bodySchema = z.object({
   payLinkToken: z.string().trim().min(1),
   buyerPhone: z.string().trim().min(5),
   buyerName: z.string().trim().min(1).optional(),
-  platformUserId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -22,10 +21,11 @@ export async function POST(request: Request) {
   if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.products.resolveProductOrganizationId(parsed.data.productId);
-  if (!organizationId) {
-    return NextResponse.json({ ok: false, error: "product_not_found" }, { status: 404 });
+  const link = await deps.products.resolvePayLink(parsed.data.payLinkToken);
+  if (!link || link.product.id !== parsed.data.productId) {
+    return NextResponse.json({ ok: false, error: "invalid_pay_link" }, { status: 404 });
   }
+  const organizationId = link.organizationId;
   try {
     const result = await withExplicitOrganizationPrincipal(
       { organizationId, source: "api/booking/public/products/purchase:POST" },
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         deps.products!.startPurchase({
           organizationId,
           productId: parsed.data.productId,
-          platformUserId: parsed.data.platformUserId ?? null,
+          platformUserId: null,
           buyerPhone: parsed.data.buyerPhone,
           buyerName: parsed.data.buyerName ?? parsed.data.buyerPhone,
           payLinkToken: parsed.data.payLinkToken,

@@ -46,13 +46,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
   const products = deps.products;
-  const product = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.products.upsert", () =>
-    products.upsertProduct({
-      organizationId: gate.ctx.organizationId,
-      ...parsed.data,
-      compositionJson: parsed.data.compositionJson as never,
-      accessRulesJson: parsed.data.accessRulesJson as never,
-    }),
-  );
-  return NextResponse.json({ ok: true, product });
+  try {
+    const product = await withDoctorWorkspacePrincipal(gate.ctx, "doctor.booking-engine.products.upsert", () =>
+      products.upsertProduct({
+        organizationId: gate.ctx.organizationId,
+        ...parsed.data,
+        compositionJson: parsed.data.compositionJson as never,
+        accessRulesJson: parsed.data.accessRulesJson as never,
+      }),
+    );
+    return NextResponse.json({ ok: true, product });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "product_upsert_failed";
+    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  }
 }

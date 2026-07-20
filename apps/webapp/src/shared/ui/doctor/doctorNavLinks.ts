@@ -31,6 +31,8 @@ export type DoctorMenuLinkItem = {
   badgeKey?: DoctorMenuBadgeKey;
   /** Visibility tier: omitted means regular doctor workspace access. */
   accessTier?: DoctorMenuAccessTier;
+  /** Optional product mechanic layered on top of the clinical workspace capability. */
+  requiresCoursesEntitlement?: boolean;
 };
 
 export type DoctorMenuAccessTier = "doctor" | "staff" | "clinic_admin" | "global_admin";

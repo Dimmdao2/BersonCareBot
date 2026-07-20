@@ -110,6 +110,46 @@ describe("doctor courses/references residual principal coverage", () => {
     expect(paymentFulfillment).toContain("withExplicitOrganizationPrincipal");
   });
 
+  it("fail-closes course products across authoring, links, purchase and fulfillment", () => {
+    const products = readSource("src/modules/products/service.ts");
+    expect(products).toContain("course_entitlement_required");
+    expect(products).toContain("course_patient_enrollment_required");
+    expect(products).toContain("courseBelongsToOrganization");
+    expect(products).toContain("hasActivePatientEnrollment");
+    expect(products).toContain("filterAvailableCourseProducts");
+    expect(products).toContain("await assertCourseProductAvailable(product, purchase.organizationId, platformUserId)");
+
+    const deps = readSource("src/app-layer/di/buildAppDeps.ts");
+    expect(deps).toContain('isMechanicEnabled(orgEntitlementsPort, organizationId, "courses")');
+    expect(deps).toContain("patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId)");
+    expect(deps).toContain('source: "products.course-scope"');
+    expect(deps).toContain("coursesService.getCourseForDoctor(courseId)");
+
+    for (const file of [
+      "src/app/api/doctor/booking-engine/products/route.ts",
+      "src/app/api/admin/booking-engine/products/route.ts",
+    ]) {
+      const source = readSource(file);
+      expect(source).toContain("products.upsertProduct");
+      expect(source).toContain("withDoctorWorkspacePrincipal");
+      expect(source).toContain("product_upsert_failed");
+    }
+  });
+
+  it("derives product purchase scope from enrollment or a stored link, never a caller-selected organization", () => {
+    const patientPurchase = readSource("src/app/api/booking/products/purchase/route.ts");
+    expect(patientPurchase).toContain("resolvePatientEnrollmentOrganizationId");
+    expect(patientPurchase).toContain("productOrganizationId !== organizationId");
+    expect(patientPurchase).toContain("withExplicitOrganizationPrincipal");
+
+    const publicPurchase = readSource("src/app/api/booking/public/products/purchase/route.ts");
+    expect(publicPurchase).toContain("deps.products.resolvePayLink(parsed.data.payLinkToken)");
+    expect(publicPurchase).toContain("const organizationId = link.organizationId");
+    expect(publicPurchase).toContain("platformUserId: null");
+    expect(publicPurchase).not.toContain("platformUserId: z.");
+    expect(publicPurchase).not.toContain("resolveProductOrganizationId(parsed.data.productId)");
+  });
+
   it.each(doctorActionFiles)("%s uses selected workspace principal for server action writes", (file) => {
     const src = readSource(file);
     expect(src).not.toContain("requireDoctorAccess");

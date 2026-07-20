@@ -23,6 +23,8 @@ type DoctorWorkspaceShellProps = {
   patientLabel?: string;
   /** Stable server-resolved org/member context for nested multi-specialist workspace controls. */
   workspaceContext?: DoctorWorkspaceContext;
+  /** Server-resolved organization entitlement; the client shell never infers it from role. */
+  coursesEnabled?: boolean;
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   children: ReactNode;
@@ -43,6 +45,7 @@ export function DoctorWorkspaceShell({
   userDisplayName,
   patientLabel,
   workspaceContext,
+  coursesEnabled = false,
   enableTenantRuntime = true,
   children,
 }: DoctorWorkspaceShellProps) {

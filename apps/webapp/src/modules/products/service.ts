@@ -24,6 +24,14 @@ type ResolvePlatformUserByPhone = (
   name: string,
 ) => Promise<{ ok: true; userId: string } | { ok: false; error: string }>;
 
+type FindPlatformUserByPhone = (phone: string) => Promise<{ userId: string } | null>;
+
+type CourseProductAccess = {
+  isCourseMechanicEnabled?: (organizationId: string) => Promise<boolean>;
+  courseBelongsToOrganization?: (courseId: string, organizationId: string) => Promise<boolean>;
+  hasActivePatientEnrollment?: (platformUserId: string, organizationId: string) => Promise<boolean>;
+};
+
 function visitsRemainingFromFulfillment(fulfillment: Record<string, unknown>): number {
   const n = fulfillment.visitsRemaining;
   return typeof n === "number" && Number.isFinite(n) ? n : 0;
@@ -79,7 +87,58 @@ export function createProductsService(deps: {
   memberships: MembershipsService | null;
   courses: CoursesService | null;
   resolvePlatformUserByPhone?: ResolvePlatformUserByPhone;
-}) {
+  findPlatformUserByPhone?: FindPlatformUserByPhone;
+} & CourseProductAccess) {
+  function isCourseLinked(product: ProductRecord): boolean {
+    return product.productType === "course" || product.courseId !== null;
+  }
+
+  async function assertCourseProductAvailable(
+    product: ProductRecord,
+    organizationId: string,
+    platformUserId?: string | null,
+  ): Promise<void> {
+    if (product.organizationId !== organizationId) throw new Error("product_not_found");
+    if (!isCourseLinked(product)) return;
+    if (product.productType !== "course" || !product.courseId) {
+      throw new Error("course_product_invalid");
+    }
+    if (!deps.isCourseMechanicEnabled || !(await deps.isCourseMechanicEnabled(organizationId))) {
+      throw new Error("course_entitlement_required");
+    }
+    if (
+      !deps.courseBelongsToOrganization ||
+      !(await deps.courseBelongsToOrganization(product.courseId, organizationId))
+    ) {
+      throw new Error("course_not_found");
+    }
+    if (platformUserId) {
+      if (
+        !deps.hasActivePatientEnrollment ||
+        !(await deps.hasActivePatientEnrollment(platformUserId, organizationId))
+      ) {
+        throw new Error("course_patient_enrollment_required");
+      }
+    }
+  }
+
+  async function filterAvailableCourseProducts(
+    products: ProductRecord[],
+    organizationId: string,
+  ): Promise<ProductRecord[]> {
+    const result: ProductRecord[] = [];
+    for (const product of products) {
+      if (product.organizationId !== organizationId) continue;
+      try {
+        await assertCourseProductAvailable(product, organizationId);
+        result.push(product);
+      } catch {
+        // Course-linked products are fail-closed when the mechanic or exact course scope is unavailable.
+      }
+    }
+    return result;
+  }
+
   async function ensurePurchasePlatformUser(
     purchase: ProductPurchaseRecord,
     organizationId: string,
@@ -102,7 +161,7 @@ export function createProductsService(deps: {
 
   return {
     async listCatalog(organizationId: string) {
-      return deps.port.listProducts(organizationId, true);
+      return filterAvailableCourseProducts(await deps.port.listProducts(organizationId, true), organizationId);
     },
 
     async resolveProductOrganizationId(productId: string) {
@@ -114,10 +173,30 @@ export function createProductsService(deps: {
     },
 
     async listStaffProducts(organizationId: string) {
-      return deps.port.listProducts(organizationId, false);
+      return filterAvailableCourseProducts(await deps.port.listProducts(organizationId, false), organizationId);
     },
 
     async upsertProduct(input: UpsertProductInput) {
+      const courseId = input.courseId ?? null;
+      if (input.productType === "course" || courseId) {
+        if (input.productType !== "course" || !courseId) throw new Error("course_product_invalid");
+        const candidate = {
+          ...input,
+          id: input.id ?? "pending",
+          description: input.description ?? null,
+          currency: input.currency ?? "RUB",
+          compositionJson: input.compositionJson ?? {},
+          accessRulesJson: input.accessRulesJson ?? {},
+          paymentRulesJson: input.paymentRulesJson ?? {},
+          validityDays: input.validityDays ?? null,
+          courseId,
+          subscriptionPackageId: input.subscriptionPackageId ?? null,
+          showInPatientCatalog: input.showInPatientCatalog ?? false,
+          payByLinkEnabled: input.payByLinkEnabled ?? false,
+          isActive: input.isActive ?? true,
+        } satisfies ProductRecord;
+        await assertCourseProductAvailable(candidate, input.organizationId);
+      }
       return deps.port.upsertProduct(input);
     },
 
@@ -129,6 +208,7 @@ export function createProductsService(deps: {
     }, options?: ProductWriteOptions) {
       const product = await deps.port.getProduct(input.productId, input.organizationId);
       if (!product?.payByLinkEnabled) throw new Error("pay_link_not_enabled");
+      await assertCourseProductAvailable(product, input.organizationId);
       const token = randomBytes(24).toString("base64url");
       return runProductWrite(options, () => deps.port.createPayLink({ ...input, token }));
     },
@@ -138,6 +218,12 @@ export function createProductsService(deps: {
       if (!link?.isActive) return null;
       if (link.expiresAt && new Date(link.expiresAt).getTime() < Date.now()) return null;
       if (link.maxUses != null && link.useCount >= link.maxUses) return null;
+      if (link.organizationId !== link.product.organizationId) return null;
+      try {
+        await assertCourseProductAvailable(link.product, link.organizationId);
+      } catch {
+        return null;
+      }
       return link;
     },
 
@@ -183,19 +269,27 @@ export function createProductsService(deps: {
         if (!link || link.product.id !== input.productId) throw new Error("invalid_pay_link");
         product = link.product;
         payLinkId = link.id;
-        await deps.port.incrementPayLinkUse(link.id);
       } else {
         product = await deps.port.getProduct(input.productId, input.organizationId);
       }
 
-      if (!product || !product.isActive) throw new Error("product_not_found");
+      if (!product || !product.isActive || product.organizationId !== input.organizationId) {
+        throw new Error("product_not_found");
+      }
 
       const buyerPhoneNormalized = input.buyerPhone ? normalizePhone(input.buyerPhone) : null;
+      let platformUserId = input.platformUserId ?? null;
+      if (isCourseLinked(product) && !platformUserId && buyerPhoneNormalized && deps.findPlatformUserByPhone) {
+        platformUserId = (await deps.findPlatformUserByPhone(buyerPhoneNormalized))?.userId ?? null;
+      }
+      await assertCourseProductAvailable(product, input.organizationId, platformUserId);
+      if (isCourseLinked(product) && !platformUserId) throw new Error("platform_user_required_for_course");
+      if (payLinkId) await deps.port.incrementPayLinkUse(payLinkId);
       const purchase = await deps.port.createPurchase({
         organizationId: input.organizationId,
         productId: product.id,
         productType: product.productType,
-        platformUserId: input.platformUserId ?? null,
+        platformUserId,
         buyerPhoneNormalized,
         giftRecipientPhoneNormalized: input.giftRecipientPhone
           ? normalizePhone(input.giftRecipientPhone)
@@ -216,7 +310,7 @@ export function createProductsService(deps: {
       });
 
       if (product.priceMinor > 0) {
-        let platformUserId = input.platformUserId ?? purchase.platformUserId ?? null;
+        platformUserId = platformUserId ?? purchase.platformUserId ?? null;
         if (!platformUserId && buyerPhoneNormalized && deps.resolvePlatformUserByPhone) {
           const resolved = await deps.resolvePlatformUserByPhone(
             buyerPhoneNormalized,
@@ -294,6 +388,7 @@ export function createProductsService(deps: {
 
       const product = await deps.port.getProduct(purchase.productId, organizationId);
       if (!product) throw new Error("product_not_found");
+      await assertCourseProductAvailable(product, organizationId, purchase.platformUserId);
 
       const now = new Date().toISOString();
       const validUntil = addValidity(now, purchase.validityDays);
@@ -338,11 +433,14 @@ export function createProductsService(deps: {
       let fulfillmentJson = { ...input.fulfillmentJson };
 
       if (product.productType === "course" && product.courseId && deps.courses) {
+        await assertCourseProductAvailable(product, purchase.organizationId, platformUserId);
         await deps.courses.enrollPatient({
           courseId: product.courseId,
           patientUserId: platformUserId,
         });
         fulfillmentJson = { ...fulfillmentJson, courseId: product.courseId, enrolled: true };
+      } else if (product.productType === "course") {
+        throw new Error("courses_unavailable");
       }
 
       if (product.productType === "membership" && product.subscriptionPackageId && deps.memberships) {

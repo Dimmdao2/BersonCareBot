@@ -319,6 +319,7 @@ import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemory
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
 import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
 import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
 import { createPatientOrganizationService } from "@/modules/patient-organization/service";
 import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
@@ -1058,6 +1059,20 @@ productsServiceResolved =
         resolvePlatformUserByPhone: (phone, name) =>
           import("@/app-layer/platform-user/resolveOrCreateUserByPhone").then((m) =>
             m.resolveOrCreateUserByPhone(phone, name),
+          ),
+        findPlatformUserByPhone: async (phone) => {
+          const user = await userByPhonePort.findByPhone(phone);
+          return user ? { userId: user.userId } : null;
+        },
+        isCourseMechanicEnabled: (organizationId) =>
+          isMechanicEnabled(orgEntitlementsPort, organizationId, "courses"),
+        hasActivePatientEnrollment: (platformUserId, organizationId) =>
+          patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
+          Promise.resolve(false),
+        courseBelongsToOrganization: (courseId, organizationId) =>
+          withExplicitOrganizationPrincipal(
+            { organizationId, source: "products.course-scope" },
+            async () => (await coursesService.getCourseForDoctor(courseId)) !== null,
           ),
       })
     : null;

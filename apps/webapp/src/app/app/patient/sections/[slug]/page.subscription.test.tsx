@@ -213,4 +213,40 @@ describe("PatientSectionPage / subscription (Phase 7)", () => {
       source: "app.patient.sections.course-projections",
     }]);
   });
+
+  it.each([
+    { label: "the courses mechanic is OFF", organization: { ok: true, organizationId: "org-a" }, entitled: false },
+    { label: "the patient has no active enrollment", organization: { ok: false }, entitled: true },
+  ])("does not project a linked course when $label", async ({ organization, entitled }) => {
+    const courseId = "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee";
+    listBySectionMock.mockResolvedValueOnce([
+      {
+        id: "pg-1",
+        section: FIXTURE_SLUG,
+        slug: "fixture-material-slug",
+        title: "Материал",
+        summary: "",
+        bodyMd: "",
+        bodyHtml: "",
+        sortOrder: 0,
+        isPublished: true,
+        requiresAuth: false,
+        videoUrl: null,
+        videoType: null,
+        imageUrl: null,
+        archivedAt: null,
+        deletedAt: null,
+        linkedCourseId: courseId,
+      },
+    ]);
+    getOptionalPatientSessionMock.mockResolvedValue({ user: { userId: "patient-a", role: "client" } });
+    resolvePatientEnrollmentOrganizationIdMock.mockResolvedValue(organization);
+    requireEntitlementForActionMock.mockResolvedValue({ ok: entitled });
+
+    const ui = await PatientSectionPage({ params: Promise.resolve({ slug: FIXTURE_SLUG }) });
+    render(ui);
+    expect(screen.queryByRole("link", { name: "Открыть курс" })).not.toBeInTheDocument();
+    expect(getCourseForDoctorMock).not.toHaveBeenCalled();
+    expect(patientPrincipalContexts).toEqual([]);
+  });
 });

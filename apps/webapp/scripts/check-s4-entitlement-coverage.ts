@@ -89,6 +89,8 @@ export function validateMechanicBearingExports(
 }
 
 const APPROVED_BYPASS_BOUNDARY_FILES = new Set([
+  // Composition root: injects lazy, organization-scoped mechanic resolvers into domain services.
+  "src/app-layer/di/buildAppDeps.ts",
   "src/app-layer/guards/requireEntitlement.ts",
   "src/modules/org-entitlements/service.ts",
   "src/modules/org-entitlements/ports.ts",

@@ -1,5 +1,32 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — C4C integrated-base convergence ready for independent audit (`#26`)
+
+**Result.** The parked course capability slice was semantically rebased onto integrated U1/U2 base `9874ddd98`.
+The shared management/account shell and trusted capability/workspace model remain authoritative; the Courses menu
+now requires both `clinical.workspace` and the server-resolved organization entitlement. Migration `0214` retains
+its canonical-owner provenance and remains the unique Drizzle journal tail.
+
+The terminal commerce residual is closed in one coherent pass. Course products are hidden/inert when `courses` is
+OFF or the linked course is outside the exact organization; doctor/admin authoring and pay-link creation reject the
+same states before mutation. Authenticated purchase derives organization from the patient's active enrollment and
+only accepts a product in that organization. Public purchase derives organization from the stored pay link, ignores
+caller-supplied identity, and uses lookup-only phone resolution for course buyers, so denial cannot create a new
+identity. Purchase creation and fulfillment both recheck current entitlement, exact course ownership and active
+patient enrollment. Patient content/section projections and the doctor CMS course picker have executable ON/OFF and
+no-enrollment evidence; entitlement isolation now proves organization A ON and B default-OFF.
+
+**Validation.** Consolidated focused C4C run: `20` files / `192` tests PASS. `pnpm --dir apps/webapp run typecheck`,
+scoped ESLint, `pnpm --dir apps/webapp run check:s4-entitlement-coverage`, checker self-test,
+`bash apps/webapp/scripts/check-drizzle-journal-sync.sh` and `git diff --check` pass. The coverage checker now treats
+the DI composition root as the explicit lazy resolver-injection boundary; a pre-existing management-shell direct
+assertion was routed through the canonical action adapter, leaving the checker green. No full CI was repeated, and
+no DB, DEV server, TEST/PROD, deploy, production payment or external send was touched.
+
+**Remaining gate.** This is ready for one independent high-risk audit, not terminal completion. After that gate,
+the integrated branch still needs the prescribed live two-organization OFF/ON acceptance and authorized migration
+postcondition. Course redesign, template removal, store expansion and C4D remain outside this slice.
+
 ## 2026-07-20 — parallel launch checkpoint: C4C `#26` + U3S `#919`
 
 **Base and environment.** Both high-risk stages launch from `feat/doctor-ui-rebuild` at `55c8e2999`; U0/U1/U2 are

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
 import { requireOrganizationManagementContext } from "@/app-layer/guards/requireRole";
 
 export const loadManagementWorkspace = cache(async () => {
@@ -10,7 +10,7 @@ export const loadManagementWorkspace = cache(async () => {
     bookingEngine
       ? bookingEngine.organization.getOrganization(workspace.organizationId)
       : Promise.resolve(null),
-    assertMechanicEnabled(workspace.organizationId, "clinic_team"),
+    requireEntitlementForAction(workspace, "clinic_team").then((result) => result.ok),
   ]);
   return {
     workspace,

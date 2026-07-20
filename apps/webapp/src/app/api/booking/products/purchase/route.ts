@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
+import { resolvePatientEnrollmentOrganizationId } from "../../bookingTenant";
 
 const bodySchema = z.object({
   productId: z.string().uuid(),
@@ -21,8 +22,14 @@ export async function POST(request: Request) {
   if (!deps.products) {
     return NextResponse.json({ ok: false, error: "products_unavailable" }, { status: 503 });
   }
-  const organizationId = await deps.products.resolveProductOrganizationId(parsed.data.productId);
-  if (!organizationId) {
+  const resolvedOrg = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
+  if (!resolvedOrg.ok) return resolvedOrg.response;
+  const organizationId = resolvedOrg.organizationId;
+  const productOrganizationId = await deps.products.resolveProductOrganizationId(parsed.data.productId);
+  if (!productOrganizationId) {
+    return NextResponse.json({ ok: false, error: "product_not_found" }, { status: 404 });
+  }
+  if (productOrganizationId !== organizationId) {
     return NextResponse.json({ ok: false, error: "product_not_found" }, { status: 404 });
   }
   const userId = gate.session.user.userId;

@@ -117,4 +117,21 @@ describe("/api/admin/booking-engine/products", () => {
       expect.any(Function),
     );
   });
+
+  it("POST returns a controlled rejection for an unavailable course product", async () => {
+    upsertProductMock.mockRejectedValueOnce(new Error("course_entitlement_required"));
+    const res = await POST(
+      new Request("http://localhost/api/admin/booking-engine/products", {
+        method: "POST",
+        body: JSON.stringify({
+          productType: "course",
+          title: "Course",
+          priceMinor: 5000,
+          courseId: "550e8400-e29b-41d4-a716-446655440099",
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({ ok: false, error: "course_entitlement_required" });
+  });
 });

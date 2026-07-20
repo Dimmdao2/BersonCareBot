@@ -116,4 +116,21 @@ describe("/api/doctor/booking-engine/products", () => {
       expect.any(Function),
     );
   });
+
+  it("POST returns a controlled rejection for a foreign course product", async () => {
+    upsertProductMock.mockRejectedValueOnce(new Error("course_not_found"));
+    const res = await POST(
+      new Request("http://localhost/api/doctor/booking-engine/products", {
+        method: "POST",
+        body: JSON.stringify({
+          productType: "course",
+          title: "Course",
+          priceMinor: 5000,
+          courseId: "550e8400-e29b-41d4-a716-446655440099",
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({ ok: false, error: "course_not_found" });
+  });
 });

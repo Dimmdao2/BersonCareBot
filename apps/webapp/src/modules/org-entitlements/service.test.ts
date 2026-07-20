@@ -61,14 +61,14 @@ describe("resolveOrgEntitlements", () => {
 
   it("does not leak an override from organization A into organization B", async () => {
     const ports = new Map<string, OrgEntitlementsPort>([
-      ["org-a", portFor(null, [{ mechanic: "courses", enabled: false }])],
+      ["org-a", portFor(null, [{ mechanic: "courses", enabled: true }])],
       ["org-b", portFor(null, [])],
     ]);
     const scopedPort: OrgEntitlementsPort = {
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
     };
-    await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(false);
+    await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(true);
     await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(false);
   });
 });
