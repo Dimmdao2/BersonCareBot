@@ -356,6 +356,13 @@ describe("PatientsPageClient", () => {
 
     expect(screen.getByRole("link", { name: /Петров Иван/i })).toHaveAttribute("href", "/app/doctor/patients/u1");
     expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Сортировка: клиенты")).toHaveClass(
+      "w-full",
+      "min-w-0",
+      "flex-wrap",
+      "lg:w-auto",
+      "lg:shrink-0",
+    );
 
     await user.click(screen.getByRole("button", { name: "Фильтры" }));
     expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();

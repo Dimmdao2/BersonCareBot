@@ -521,7 +521,10 @@ function PatientsContent({
                 )}
                 {isListPending && <span className="ml-1 animate-pulse">…</span>}
               </p>
-              <div className="flex shrink-0 flex-wrap items-center gap-1.5" aria-label={`Сортировка: ${patientPluralLabelLower}`}>
+              <div
+                className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
+                aria-label={`Сортировка: ${patientPluralLabelLower}`}
+              >
                 <span className="text-xs text-muted-foreground">Сортировать</span>
                 <Button
                   type="button"
