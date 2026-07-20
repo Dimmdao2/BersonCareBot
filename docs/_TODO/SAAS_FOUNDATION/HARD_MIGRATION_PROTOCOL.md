@@ -584,9 +584,10 @@ acceptance.
 ### Existing DEV database runtime-overlay recovery
 
 `bcb_webapp_dev` is not a TEST acceptance target, but a TEST→DEV `pg_restore --no-acl` has the same runtime-overlay
-loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execute` therefore runs the DEV-only
-`deploy/host/dev-runtime-overlay-rehydrate.sh --execute` after current-branch migrations and before removing copied
-TEST settings locks. Both TEST and DEV call the single ordered implementation in
+loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execute` therefore delegates
+current-branch migrations and the DEV runtime closure to `deploy/host/migrate-dev.sh --execute` before removing
+copied TEST settings locks. The migration wrapper then runs the DEV-only
+`deploy/host/dev-runtime-overlay-rehydrate.sh --execute`. Both TEST and DEV call the single ordered implementation in
 `deploy/host/runtime-overlay-rehydrate-lib.sh`; a second list of overlay SQL is forbidden.
 
 The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local owner/migrator
@@ -594,7 +595,8 @@ The DEV rehydrate wrapper is not a restore or deploy command. It accepts only th
 `DATABASE_URL_NONSTAFF` (`bcb_webapp_dev` / `bcb_dev_runtime_nonstaff_login`), both parsed as data from the canonical
 `.env.dev`. It sanitizes PostgreSQL environment input, never reads `/opt/env`, and never opens TEST or PROD. The
 DEV runtime identity is environment-namespaced and must not alias a TEST login on the shared PostgreSQL cluster. The
-refresh wrapper calls its read-only `--preflight` before dump/reset. That preflight rejects owner/runtime aliasing,
+refresh wrapper calls `migrate-dev.sh --preflight` before dump/reset. That entrypoint includes the read-only runtime
+overlay preflight, which rejects owner/runtime aliasing,
 `SUPERUSER`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, `BYPASSRLS`, `INHERIT`, owner/`app_owner` membership, any
 unexpected membership beyond the exact SET-only `app_patient` edge, and protected application-object ownership.
 Because `app_owner`, `app_staff`, `app_patient`, and the C0 login are cluster-global, DEV only validates their

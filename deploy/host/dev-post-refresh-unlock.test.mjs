@@ -112,7 +112,7 @@ test("independent wrapper parses the canonical DEV env as data and sanitizes psq
 
 test("TEST to DEV refresh invokes unlock only after current-branch migrations", () => {
   const source = readFileSync(refreshPath, "utf8");
-  const migrateIndex = source.indexOf("exec pnpm run migrate");
+  const migrateIndex = source.indexOf('bash "$DEV_MIGRATE" --execute');
   const unlockIndex = source.indexOf('bash "$DEV_POST_REFRESH_UNLOCK" --execute');
   const passIndex = source.indexOf("PASS: DEV now mirrors TEST data plus current branch migrations");
 
@@ -120,4 +120,5 @@ test("TEST to DEV refresh invokes unlock only after current-branch migrations", 
   assert.ok(unlockIndex > migrateIndex);
   assert.ok(passIndex > unlockIndex);
   assert.match(source, /DEV post-refresh unlock path guard failed/u);
+  assert.doesNotMatch(source, /pnpm run migrate|DEV_RUNTIME_OVERLAY_REHYDRATE/u);
 });

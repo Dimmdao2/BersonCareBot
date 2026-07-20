@@ -12,16 +12,15 @@ TARGET_ROLE="bcb_webapp_dev_user"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
-DEV_RUNTIME_OVERLAY_REHYDRATE="$REPO_ROOT/deploy/host/dev-runtime-overlay-rehydrate.sh"
+DEV_MIGRATE="$REPO_ROOT/deploy/host/migrate-dev.sh"
 DEV_POST_REFRESH_UNLOCK="$REPO_ROOT/deploy/host/dev-post-refresh-unlock.sh"
-SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
 if [[ "${1:-}" != "--execute" || $# -ne 1 ]]; then
   cat <<EOF
 Usage: bash deploy/host/refresh-dev-from-test.sh --execute
 
-Recreates exactly $TARGET_DB from exactly $SOURCE_DB, then applies current-branch migrations.
+Recreates exactly $TARGET_DB from exactly $SOURCE_DB, then delegates current-branch migrations and runtime closure.
 TEST is read-only; PROD is never opened. The target DEV database is destroyed and recreated.
 EOF
   exit 2
@@ -44,46 +43,20 @@ if [[ -L "$DEV_ENV_PARSER" || ! -f "$DEV_ENV_PARSER" || "$(realpath "$DEV_ENV_PA
   echo "FATAL: DEV env parser path guard failed" >&2
   exit 1
 fi
-if [[ -L "$DEV_RUNTIME_OVERLAY_REHYDRATE" || ! -f "$DEV_RUNTIME_OVERLAY_REHYDRATE" || "$(realpath "$DEV_RUNTIME_OVERLAY_REHYDRATE")" != "$REPO_ROOT/deploy/host/dev-runtime-overlay-rehydrate.sh" ]]; then
-  echo "FATAL: DEV runtime overlay rehydrate path guard failed" >&2
+if [[ -L "$DEV_MIGRATE" || ! -f "$DEV_MIGRATE" || "$(realpath "$DEV_MIGRATE")" != "$REPO_ROOT/deploy/host/migrate-dev.sh" ]]; then
+  echo "FATAL: DEV migration wrapper path guard failed" >&2
   exit 1
 fi
 if [[ -L "$DEV_POST_REFRESH_UNLOCK" || ! -f "$DEV_POST_REFRESH_UNLOCK" || "$(realpath "$DEV_POST_REFRESH_UNLOCK")" != "$REPO_ROOT/deploy/host/dev-post-refresh-unlock.sh" ]]; then
   echo "FATAL: DEV post-refresh unlock path guard failed" >&2
   exit 1
 fi
-if [[ -L "$SAFE_MIGRATION_ENV" || ! -f "$SAFE_MIGRATION_ENV" || "$(realpath "$SAFE_MIGRATION_ENV")" != "$REPO_ROOT/deploy/env/empty.local-migration.env" ]]; then
-  echo "FATAL: safe migration env path guard failed" >&2
-  exit 1
-fi
-if grep -Eqv '^[[:space:]]*(#.*)?$' "$SAFE_MIGRATION_ENV"; then
-  echo "FATAL: safe migration env must contain comments/blank lines only" >&2
-  exit 1
-fi
-
-for command in sudo psql pg_dump pg_restore pnpm node realpath grep; do
+for command in sudo psql pg_dump pg_restore node realpath; do
   command -v "$command" >/dev/null 2>&1 || {
     echo "FATAL: required command is unavailable: $command" >&2
     exit 1
   }
 done
-
-CALLER_HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
-NODE_LAUNCHER="$(type -P node)"
-PNPM_LAUNCHER="$(type -P pnpm)"
-TOOLCHAIN_BIN="$(realpath "$(dirname "$NODE_LAUNCHER")")"
-NODE_BIN="$(realpath "$NODE_LAUNCHER")"
-PNPM_BIN="$(realpath "$PNPM_LAUNCHER")"
-NODE_PREFIX="$(dirname "$TOOLCHAIN_BIN")"
-EXPECTED_PNPM_BIN="$NODE_PREFIX/lib/node_modules/corepack/dist/pnpm.js"
-if [[ -z "$CALLER_HOME" || ! -d "$CALLER_HOME" \
-  || "$NODE_BIN" != "$TOOLCHAIN_BIN/node" \
-  || "$(realpath "$(dirname "$PNPM_LAUNCHER")")" != "$TOOLCHAIN_BIN" \
-  || "$PNPM_BIN" != "$EXPECTED_PNPM_BIN" ]]; then
-  echo "FATAL: caller HOME/toolchain guard failed" >&2
-  exit 1
-fi
-SANITIZED_PATH="$TOOLCHAIN_BIN:/usr/local/bin:/usr/bin:/bin"
 
 DEV_DATABASE_URL="$(node "$DEV_ENV_PARSER" "$DEV_ENV")" || {
   echo "FATAL: DEV DATABASE_URL data parser rejected the env file" >&2
@@ -94,8 +67,8 @@ if [[ "$SOURCE_DATABASE_URL" != "postgresql:///$SOURCE_DB?host=/var/run/postgres
   exit 1
 fi
 
-echo "[refresh-dev] validating separate DEV owner/runtime topology before reset"
-bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight
+echo "[refresh-dev] validating the single DEV migration/closure entrypoint before reset"
+bash "$DEV_MIGRATE" --preflight
 
 actual_source="$({ "${POSTGRES[@]}" psql -X -v ON_ERROR_STOP=1 "$SOURCE_DATABASE_URL" -Atc 'SELECT current_database();'; } 2>/dev/null)"
 if [[ "$actual_source" != "$SOURCE_DB" ]]; then
@@ -155,36 +128,8 @@ fi
 "${POSTGRES[@]}" psql -X -v ON_ERROR_STOP=1 -d postgres \
   -c "ALTER ROLE \"$TARGET_ROLE\" IN DATABASE \"$TARGET_DB\" SET search_path = public, integrator;" >/dev/null
 
-echo "[refresh-dev] applying current branch migrations"
-(
-  cd "$REPO_ROOT"
-  env -i \
-    PATH="$SANITIZED_PATH" \
-    HOME="$CALLER_HOME" \
-    PNPM_HOME="$TOOLCHAIN_BIN" \
-    NODE_ENV=development \
-    CI=1 \
-    DATABASE_URL="$DEV_DATABASE_URL" \
-    API_ENV_FILE="$SAFE_MIGRATION_ENV" \
-    WEBAPP_ENV_FILE="$SAFE_MIGRATION_ENV" \
-    PGHOST=127.0.0.1 \
-    PGPORT=5432 \
-    PGDATABASE="$TARGET_DB" \
-    PGUSER="$TARGET_ROLE" \
-    PGPASSFILE=/dev/null \
-    PGCONNECT_TIMEOUT=10 \
-    bash --noprofile --norc -c '
-      set -Eeuo pipefail
-      if [[ "$(psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -Atc "SELECT current_database();")" != "bcb_webapp_dev" ]]; then
-        echo "FATAL: sanitized migration child target guard failed" >&2
-        exit 1
-      fi
-      exec pnpm run migrate
-    '
-)
-
-echo "[refresh-dev] reinstalling P2-B owner/context and runtime overlays after migrations"
-bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute
+echo "[refresh-dev] applying current migrations and the canonical DEV runtime closure"
+bash "$DEV_MIGRATE" --execute
 
 echo "[refresh-dev] removing copied TEST-only settings locks from DEV"
 bash "$DEV_POST_REFRESH_UNLOCK" --execute

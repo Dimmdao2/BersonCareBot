@@ -508,12 +508,17 @@ function runChecks(overrides = {}) {
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
   ]);
   requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
-    'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight',
+    'bash "$DEV_MIGRATE" --preflight',
     'actual_source=',
     'pg_dump -Fc',
     'DROP DATABASE IF EXISTS "$TARGET_DB" WITH (FORCE)',
-    'exec pnpm run migrate',
-    'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute',
+    '"${POSTGRES[@]}" pg_restore',
+    'bash "$DEV_MIGRATE" --execute',
+    'bash "$DEV_POST_REFRESH_UNLOCK" --execute',
+  ]);
+  forbidFragments(`${files.refreshDevFromTest} duplicated migration closure`, loaded.refreshDevFromTest, [
+    'pnpm run migrate',
+    'DEV_RUNTIME_OVERLAY_REHYDRATE',
   ]);
   requireFragments(files.devDatabaseUrlParser, loaded.devDatabaseUrlParser, [
     'DATABASE_URL_NONSTAFF',

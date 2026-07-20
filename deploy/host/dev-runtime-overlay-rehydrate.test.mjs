@@ -842,24 +842,25 @@ test("relative SQL expansion rejects absolute, escaping, malformed, unsafe, and 
   assertRejectedDirective("cycle", "\\ir ../../includes/cycle-a.sql", /include cycle rejected/u);
 });
 
-test("TEST to DEV refresh runs rehydrate after migrations and before DEV unlock", () => {
+test("TEST to DEV refresh delegates migration and rehydrate to one wrapper before DEV unlock", () => {
   const source = readFileSync(refreshPath, "utf8");
-  const preflightIndex = source.indexOf('bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight');
+  const preflightIndex = source.indexOf('bash "$DEV_MIGRATE" --preflight');
   const dumpIndex = source.indexOf("pg_dump -Fc");
-  const migrateIndex = source.indexOf("exec pnpm run migrate");
-  const rehydrateIndex = source.indexOf('bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute');
+  const restoreIndex = source.indexOf('"${POSTGRES[@]}" pg_restore');
+  const migrateIndex = source.indexOf('bash "$DEV_MIGRATE" --execute');
   const unlockIndex = source.indexOf('bash "$DEV_POST_REFRESH_UNLOCK" --execute');
   const passIndex = source.indexOf("PASS: DEV now mirrors TEST data plus current branch migrations");
 
   assert.ok(preflightIndex >= 0);
   assert.ok(dumpIndex > preflightIndex);
-  assert.ok(migrateIndex >= 0);
-  assert.ok(rehydrateIndex > migrateIndex);
-  assert.ok(unlockIndex > rehydrateIndex);
+  assert.ok(restoreIndex > dumpIndex);
+  assert.ok(migrateIndex > restoreIndex);
+  assert.ok(unlockIndex > migrateIndex);
   assert.ok(passIndex > unlockIndex);
-  assert.match(source, /DEV runtime overlay rehydrate path guard failed/u);
+  assert.match(source, /DEV migration wrapper path guard failed/u);
   assert.match(source, /never an ordinary code-only deploy path/u);
-  assert.match(source, /reinstalling P2-B owner\/context and runtime overlays after migrations/u);
+  assert.doesNotMatch(source, /DEV_RUNTIME_OVERLAY_REHYDRATE|pnpm run migrate/u);
+  assert.match(source, /applying current migrations and the canonical DEV runtime closure/u);
 });
 
 test("DEV strict base policy source retains the locked phone-history predicate", () => {

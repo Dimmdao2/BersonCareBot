@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -227,38 +227,22 @@ test("wrapper parses the fixed env as data and completes all guards before DROP"
   assert.match(source, /-L "\$DEV_ENV"/u);
   assert.match(source, /realpath "\$DEV_ENV"/u);
   assert.match(source, /DEV_DATABASE_URL="\$\(node "\$DEV_ENV_PARSER" "\$DEV_ENV"\)"/u);
-  assert.match(source, /"\$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight/u);
-  assert.ok(source.indexOf('"$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight') < source.indexOf("actual_source="));
+  assert.match(source, /DEV_MIGRATE="\$REPO_ROOT\/deploy\/host\/migrate-dev\.sh"/u);
+  assert.match(source, /DEV migration wrapper path guard failed/u);
+  assert.ok(source.indexOf('bash "$DEV_MIGRATE" --preflight') < source.indexOf("actual_source="));
   assert.ok(source.indexOf("actual_source=") < source.indexOf("DROP DATABASE"));
   assert.ok(source.indexOf("actual_target_before=") < source.indexOf("DROP DATABASE"));
+  assert.ok(
+    source.indexOf('"${POSTGRES[@]}" pg_restore') <
+      source.indexOf('bash "$DEV_MIGRATE" --execute'),
+  );
+  assert.ok(
+    source.indexOf('bash "$DEV_MIGRATE" --execute') <
+      source.indexOf('bash "$DEV_POST_REFRESH_UNLOCK" --execute'),
+  );
   assert.doesNotMatch(source, /\/opt\/env\/bersoncarebot/u);
-  assert.match(source, /env -i/u);
-  assert.match(source, /PNPM_LAUNCHER="\$\(type -P pnpm\)"/u);
-  assert.match(source, /realpath "\$\(dirname "\$PNPM_LAUNCHER"\)"/u);
-  assert.match(source, /lib\/node_modules\/corepack\/dist\/pnpm\.js/u);
-  assert.match(source, /API_ENV_FILE="\$SAFE_MIGRATION_ENV"/u);
-  assert.match(source, /WEBAPP_ENV_FILE="\$SAFE_MIGRATION_ENV"/u);
-  assert.match(source, /safe migration env must contain comments\/blank lines only/u);
-  assert.match(source, /PGDATABASE="\$TARGET_DB"/u);
+  assert.doesNotMatch(source, /DEV_RUNTIME_OVERLAY_REHYDRATE|SAFE_MIGRATION_ENV/u);
+  assert.doesNotMatch(source, /pnpm run migrate/u);
   assert.doesNotMatch(source, /\bPGSERVICE(?:FILE)?=/u);
   assert.doesNotMatch(source, /\bPGOPTIONS=/u);
-  assert.match(source, /PGPASSFILE=\/dev\/null/u);
-  assert.match(source, /sanitized migration child target guard failed/u);
-  assert.ok(source.indexOf("sanitized migration child target guard failed") < source.indexOf("exec pnpm run migrate"));
-});
-
-test("actual host pnpm launcher is in the Node bin and resolves to that Corepack installation", () => {
-  const lookup = spawnSync("bash", ["--noprofile", "--norc", "-c", "type -P pnpm"], {
-    encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "" },
-  });
-  assert.equal(lookup.status, 0);
-  const pnpmLauncher = lookup.stdout.trim();
-  const nodeBin = realpathSync(process.execPath);
-  const toolchainBin = dirname(nodeBin);
-  assert.equal(realpathSync(dirname(pnpmLauncher)), toolchainBin);
-  assert.equal(
-    realpathSync(pnpmLauncher),
-    join(dirname(toolchainBin), "lib/node_modules/corepack/dist/pnpm.js"),
-  );
 });

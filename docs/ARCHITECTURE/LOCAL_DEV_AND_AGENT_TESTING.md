@@ -188,8 +188,9 @@ context нужно заново связать с тем же signing secret, к
 После каждого явно разрешённого `refresh-dev-from-test.sh --execute` порядок фиксирован:
 
 1. restore только `bcb_webapp_dev` с `--no-owner --no-acl`;
-2. current-branch migrations под `bcb_webapp_dev_user`;
-3. `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
+2. `migrate-dev.sh --execute` как единственный entrypoint выполняет current-branch migrations под
+   `bcb_webapp_dev_user`, C4D online-index artifact и всю обязательную runtime closure;
+3. внутри этой closure `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
    `DB_PRINCIPAL_CONTEXT_MODE=locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
    descriptor-pinned snapshot канонического `.env.dev` без `source`; wrapper требует exact безопасные атрибуты
    и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`; входящих membership у `app_owner`
