@@ -158,13 +158,25 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("rethrows a non-phone uniqueness conflict after the savepoint rollback", async () => {
+  it("rethrows a non-phone uniqueness conflict even when the repeated phone lookup succeeds", async () => {
     const conflict = Object.assign(new Error("duplicate email"), {
       code: "23505",
       constraint: "uq_platform_users_email_normalized_active",
     });
     const tx = {
-      select: selectQueue([[], []]),
+      select: selectQueue([
+        [],
+        [
+          {
+            id: "concurrent-user",
+            displayName: "Existing Client",
+            lastName: "Existing",
+            firstName: "Client",
+            patronymic: null,
+            role: "client",
+          },
+        ],
+      ]),
       insert: vi.fn(),
       transaction: vi.fn().mockRejectedValue(conflict),
     };

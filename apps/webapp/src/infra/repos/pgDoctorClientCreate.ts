@@ -28,9 +28,13 @@ export class DoctorClientIdentityError extends Error {
   }
 }
 
-function pgErrorCode(error: unknown): string | null {
-  if (typeof error !== "object" || error === null || !("code" in error)) return null;
-  return typeof error.code === "string" ? error.code : null;
+function isPhoneUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  if (!("code" in error) || !("constraint" in error)) return false;
+  return (
+    error.code === "23505" &&
+    error.constraint === "platform_users_phone_normalized_key"
+  );
 }
 
 /** Canonical staff-entered phone identity writer. The caller owns the outer Drizzle transaction. */
@@ -138,7 +142,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     // PostgreSQL therefore cannot use phone_normalized as an ON CONFLICT arbiter. The nested
     // transaction is a savepoint: a concurrent phone insert rolls back only this attempt, leaving
     // the outer patient/enrollment/appointment transaction usable for the canonical re-read below.
-    if (pgErrorCode(error) !== "23505") throw error;
+    if (!isPhoneUniqueViolation(error)) throw error;
     const concurrent = await findByPhone();
     if (!concurrent) throw error;
     if (concurrent.role !== "client") {
