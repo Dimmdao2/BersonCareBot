@@ -254,8 +254,10 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/specialist-signup-public-bootstrap-rls.sql`, and
   `deploy/postgres/specialist-owner-provisioning-rls.sql`. When P2-B is installed, also rehydrate
   `deploy/postgres/reference-catalog-rls.sql` and
-  `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql`, whose owner contract requires the P2-B
-  `app_owner`; skip only that accessor in `legacy-guc` without a signing secret/app owner. The fresh
+  `deploy/postgres/patient-web-push-vapid-public-key-accessor.sql`,
+  `deploy/postgres/public-booking-bootstrap-resolver.sql`, and
+  `deploy/postgres/public-clinic-slug-bootstrap-resolver.sql`, whose owner contracts require the P2-B
+  `app_owner`; skip those protected overlays in `legacy-guc` without a signing secret/app owner. The fresh
   `pg_dump --no-acl` restore does not
   preserve grants to global `app_staff`/`app_patient` roles. The first two artifacts remain the reviewed grant
   owners for `organization_member_invites`, `saas_org_entitlement_overrides`, and `saas_tariffs`; they must not be
@@ -318,9 +320,12 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `SET ROLE app_patient` lifecycle. The narrow SECURITY DEFINER
   `app.resolve_public_booking_organization(uuid,uuid,uuid)` is the third direct bootstrap accessor: it resolves one
   tenant before tenant-owned reads, retains the intentional `app_patient` EXECUTE, and must not add table grants.
-  All three accessor ACLs must first revoke stale base-login privileges and grant options, then restore plain
-  EXECUTE; the final three direct base-login rows have `is_grantable=false`, PUBLIC is absent, and only the booking
-  resolver may additionally retain `app_patient`. It is not final D3.4 PASS until the owner-authorized locked TEST
+  `app.resolve_public_organization_by_slug(text)` is the fourth direct bootstrap accessor: it resolves a published,
+  active clinic from the canonical `/book/{publicSlug}` path before tenant context exists, retains the intentional
+  `app_patient` EXECUTE, and must not add table grants. All four accessor ACLs must first
+  revoke stale base-login privileges and grant options, then restore plain EXECUTE; the final four direct base-login rows have
+  `is_grantable=false`, PUBLIC is absent, and only the two booking resolvers may additionally retain `app_patient`.
+  It is not final D3.4 PASS until the owner-authorized locked TEST
   product smoke reruns.
 - session role reconciliation must read the six global admin/doctor Telegram, MAX, and phone allowlists only from
   the `server` audience of `public.app_runtime_settings` through

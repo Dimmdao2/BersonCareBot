@@ -63,6 +63,7 @@ SELECT 1 / (
   to_regprocedure('app.read_public_runtime_setting(text,text)') IS NOT NULL
   AND to_regprocedure('app.read_webapp_server_runtime_setting(text,text)') IS NOT NULL
   AND to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL
+  AND to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL
 )::int AS d3_4_webapp_runtime_accessors_exist;
 
 \if :d3_4_skip_media_worker
@@ -228,6 +229,7 @@ REVOKE EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid,
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM :"d3_4_bootstrap_base_role";
 REVOKE EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) FROM :"d3_4_bootstrap_base_role";
+REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :"d3_4_bootstrap_base_role";
 
 REVOKE SELECT ON TABLE public.be_organization_members FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.platform_users FROM :"d3_4_bootstrap_base_role";
@@ -282,7 +284,7 @@ GRANT app_patient TO :"d3_4_bootstrap_base_role"
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"d3_4_bootstrap_base_role";
 
--- Rebuild the three bootstrap accessor ACLs from an exact closed set. REVOKE on the base first
+-- Rebuild the four bootstrap accessor ACLs from an exact closed set. REVOKE on the base first
 -- removes any stale WITH GRANT OPTION before the plain EXECUTE grants are restored.
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_public_runtime_setting(text, text)
   FROM :"d3_4_bootstrap_base_role" CASCADE;
@@ -302,7 +304,8 @@ CROSS JOIN LATERAL aclexplode(
 WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
-    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+    'app.resolve_public_organization_by_slug(text)'::regprocedure
   )
   AND privilege.privilege_type = 'EXECUTE'
   AND privilege.grantee NOT IN (
@@ -311,7 +314,10 @@ WHERE procedure.oid IN (
     (SELECT oid FROM pg_roles WHERE rolname = :'d3_4_bootstrap_base_role')
   )
   AND NOT (
-    procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    procedure.oid IN (
+      'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+      'app.resolve_public_organization_by_slug(text)'::regprocedure
+    )
     AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
   )
 ORDER BY procedure.oid::regprocedure::text, privilege.grantee
@@ -323,13 +329,18 @@ GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
 
 -- Public booking must resolve its organization before a tenant principal can be installed.
 -- D3.4 makes app_patient SET-only, so inherited EXECUTE is deliberately unavailable at this
--- bootstrap point. Restore only this SECURITY DEFINER resolver directly; its overlay owns the
--- app_patient grant and the backing tables remain hidden from app_patient.
+-- bootstrap point. Restore only the two SECURITY DEFINER booking resolvers directly; their
+-- overlays own the app_patient grants and the backing tables remain hidden from app_patient.
 REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
   FROM :"d3_4_bootstrap_base_role" CASCADE;
 REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid)
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :"d3_4_bootstrap_base_role";
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_by_slug(text)
+  FROM :"d3_4_bootstrap_base_role" CASCADE;
+REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_by_slug(text)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO :"d3_4_bootstrap_base_role";
 
 GRANT USAGE ON SCHEMA public, app TO :"d3_4_bootstrap_base_role";
 \if :d3_4_skip_media_worker
@@ -464,7 +475,8 @@ WITH RECURSIVE bootstrap_role AS (
   WHERE procedure.oid IN (
     'app.read_public_runtime_setting(text,text)'::regprocedure,
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
-    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+    'app.resolve_public_organization_by_slug(text)'::regprocedure
   )
 )
 SELECT 1 / (
@@ -522,13 +534,18 @@ SELECT 1 / (
     'app.resolve_public_booking_organization(uuid,uuid,uuid)',
     'EXECUTE'
   )
+  AND has_function_privilege(
+    :'d3_4_bootstrap_base_role',
+    'app.resolve_public_organization_by_slug(text)',
+    'EXECUTE'
+  )
   AND NOT EXISTS (
     SELECT 1
     FROM runtime_accessors accessor
     CROSS JOIN bootstrap_role
     WHERE pg_has_role(bootstrap_role.oid, accessor.proowner, 'MEMBER')
   )
-  AND 3 = (
+  AND 4 = (
     SELECT count(*)
     FROM runtime_accessors accessor
     CROSS JOIN bootstrap_role
@@ -539,14 +556,16 @@ SELECT 1 / (
       AND privilege.grantee = bootstrap_role.oid
       AND NOT privilege.is_grantable
   )
-  AND 1 = (
+  AND 2 = (
     SELECT count(*)
     FROM runtime_accessors accessor
     CROSS JOIN LATERAL aclexplode(
       COALESCE(accessor.proacl, acldefault('f', accessor.proowner))
     ) privilege
-    WHERE accessor.oid =
-        'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+    WHERE accessor.oid IN (
+        'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+        'app.resolve_public_organization_by_slug(text)'::regprocedure
+      )
       AND privilege.privilege_type = 'EXECUTE'
       AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
       AND NOT privilege.is_grantable
@@ -563,7 +582,10 @@ SELECT 1 / (
       OR (
         privilege.grantee NOT IN (accessor.proowner, bootstrap_role.oid)
         AND NOT (
-          accessor.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure
+          accessor.oid IN (
+            'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
+            'app.resolve_public_organization_by_slug(text)'::regprocedure
+          )
           AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')
         )
       )

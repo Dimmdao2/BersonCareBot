@@ -416,6 +416,10 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_runtime_overlay_exact_owner_acl/u);
   assert.match(source, /SELECT app\.release_principal_context\(\);/u);
   assert.match(source, /DEV nonstaff base-login D3\.4 bootstrap surface is incomplete/u);
+  assert.match(
+    source,
+    /has_function_privilege\(current_user, 'app\.resolve_public_organization_by_slug\(text\)', 'EXECUTE'\)/u,
+  );
   const sharedOverlayIndex = source.indexOf(
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
   );

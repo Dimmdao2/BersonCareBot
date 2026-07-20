@@ -199,7 +199,8 @@ context нужно заново связать с тем же signing secret, к
    `SET ROLE app_owner` иначе завершится ошибкой. Отсутствующая exact функция допустима: следующий соответствующий
    overlay создаёт её и явно закрепляет owner `app_owner`. Цепочку останавливает только существующая exact функция с
    неизвестным owner; schema-wide owner rewrite не выполняется. После D3.4 запускаются actual base-login
-   `release_principal_context`, bootstrap-surface и nonstaff runtime capability checks;
+   `release_principal_context`, bootstrap-surface (включая оба public-booking resolver:
+   `resolve_public_booking_organization` и `resolve_public_organization_by_slug`) и nonstaff runtime capability checks;
 6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
 
 Сочетание C0 `NOINHERIT` dual pools с `shadow` не поддерживается: shadow не выполняет `SET ROLE` перед

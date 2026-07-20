@@ -13,6 +13,7 @@ const files = {
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   specialistOwnerProvisioningSql: "deploy/postgres/specialist-owner-provisioning-rls.sql",
   patientVapidAccessorSql: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
+  publicClinicSlugSql: "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
   testDeploySaas: "deploy/host/deploy-test-saas.sh",
   runtimeOverlayLib: "deploy/host/runtime-overlay-rehydrate-lib.sh",
   platformAccessRepo: "apps/webapp/src/infra/repos/pgPlatformAccess.ts",
@@ -39,6 +40,7 @@ const requiredTables = [
 
 const requiredFunctions = [
   "app.resolve_public_booking_organization(uuid, uuid, uuid)",
+  "app.resolve_public_organization_by_slug(text)",
   "app.release_principal_context()",
   "app.current_org_id()",
   "app.current_patient_user_id()",
@@ -183,6 +185,7 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_base_role_exists",
     "d3_4_webapp_runtime_accessors_exist",
     "to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL",
+    "to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL",
     "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
     "granted_role.rolname <> 'app_patient'",
     "REVOKE ADMIN OPTION FOR app_patient FROM :\"d3_4_bootstrap_base_role\";",
@@ -204,8 +207,10 @@ function runChecks(overrides = {}) {
     "'app.read_public_runtime_setting(text,text)'::regprocedure",
     "'app.read_webapp_server_runtime_setting(text,text)'::regprocedure",
     "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
-    "AND 3 = (",
-    "procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "'app.resolve_public_organization_by_slug(text)'::regprocedure",
+    "AND 4 = (",
+    "AND 2 = (",
+    "procedure.oid IN (",
     "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
     "NOT has_table_privilege(",
     "'public.app_runtime_settings', 'SELECT'",
@@ -436,6 +441,19 @@ function runChecks(overrides = {}) {
     "SET search_path = pg_catalog",
     "GRANT EXECUTE ON FUNCTION app.get_web_push_vapid_public_key() TO app_patient;",
   ]);
+  requireFragments(files.publicClinicSlugSql, loaded.publicClinicSlugSql, [
+    "CREATE OR REPLACE FUNCTION app.resolve_public_organization_by_slug(",
+    "SET search_path = pg_catalog",
+    "ALTER FUNCTION app.resolve_public_organization_by_slug(text) OWNER TO app_owner;",
+    "REVOKE ALL ON FUNCTION app.resolve_public_organization_by_slug(text) FROM PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO app_patient;",
+    "NOT has_table_privilege('app_patient', 'public.clinic_public_directory_entries', 'SELECT')",
+    "NOT has_table_privilege('app_patient', 'public.be_organizations', 'SELECT')",
+  ]);
+  forbidFragments(files.publicClinicSlugSql, loaded.publicClinicSlugSql, [
+    "GRANT SELECT ON TABLE public.clinic_public_directory_entries TO app_patient",
+    "GRANT SELECT ON TABLE public.be_organizations TO app_patient",
+  ]);
 
   requireFragments(files.publicBootstrapSql, loaded.publicBootstrapSql, [
     "WHEN p_key <> 'specialist_signup_enabled' THEN NULL::boolean",
@@ -504,6 +522,8 @@ function runChecks(overrides = {}) {
     "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
     "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
     "app.resolve_public_booking_organization(uuid,uuid,uuid)",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;",
+    "app.resolve_public_organization_by_slug(text)",
     "53000000-0000-4000-8000-0000000056a1",
     "53000000-0000-4000-8000-000000000001",
     "arbitraryCapabilityRole",
@@ -704,7 +724,7 @@ function runChecks(overrides = {}) {
     "before `psql -f`",
     "revoke stale base-login privileges and grant options",
     "`is_grantable=false`",
-    "is the third direct bootstrap accessor",
+    "is the fourth direct bootstrap accessor",
     "must not add table grants",
   ]);
   assertPackageScript(loaded.packageJson);
@@ -801,14 +821,20 @@ if (process.argv.includes("--self-test")) {
     },
     {
       grantSql: read(files.grantSql).replace(
+        "AND 4 = (",
         "AND 3 = (",
-        "AND 2 = (",
       ),
     },
     {
       grantSql: read(files.grantSql).replace(
         "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :\"d3_4_bootstrap_base_role\";",
         "-- missing direct bootstrap resolver grant",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing direct bootstrap slug resolver grant",
       ),
     },
     {
@@ -987,7 +1013,7 @@ if (process.argv.includes("--self-test")) {
     },
     {
       hardProtocol: read(files.hardProtocol).replace(
-        "is the third direct bootstrap accessor",
+        "is the fourth direct bootstrap accessor",
         "is not a bootstrap accessor",
       ),
     },

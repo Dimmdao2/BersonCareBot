@@ -9,6 +9,7 @@ const paths = {
   page: "apps/webapp/src/app/book/[slug]/page.tsx",
   rsc: "apps/webapp/src/app/book/publicOrganizationBooking.ts",
   runtimeOverlayLib: "deploy/host/runtime-overlay-rehydrate-lib.sh",
+  d34: "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql",
 };
 
 function requireFragments(label, text, fragments) {
@@ -99,6 +100,15 @@ function runChecks(overrides = {}) {
     "deploy/postgres/e1-webapp-runtime-config.sql",
   ]);
 
+  requireFragments(`${paths.d34} locked base-login closure`, files.d34, [
+    "to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL",
+    "REVOKE EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) FROM :\"d3_4_bootstrap_base_role\";",
+    "REVOKE ALL PRIVILEGES ON FUNCTION app.resolve_public_organization_by_slug(text)",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+    "'app.resolve_public_organization_by_slug(text)'::regprocedure",
+    "'app.resolve_public_organization_by_slug(text)',\n    'EXECUTE'",
+  ]);
+
   return true;
 }
 
@@ -140,6 +150,12 @@ function selfTest() {
       deploy: files.deploy.replace(
         '  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
         "  # missing shared runtime overlay invocation",
+      ),
+    },
+    {
+      d34: files.d34.replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing locked base-login slug resolver grant",
       ),
     },
   ];

@@ -808,6 +808,7 @@ SELECT (
   AND has_function_privilege(current_user, 'app.email_password_find_login_candidate(text)', 'EXECUTE')
   AND has_function_privilege(current_user, 'app.lookup_pending_org_invite(text)', 'EXECUTE')
   AND has_function_privilege(current_user, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')
+  AND has_function_privilege(current_user, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE')
   AND has_table_privilege(current_user, 'public.be_organization_members', 'SELECT')
   AND has_table_privilege(current_user, 'public.platform_users', 'SELECT')
   AND has_table_privilege(current_user, 'public.user_channel_bindings', 'SELECT')
