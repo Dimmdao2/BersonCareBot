@@ -80,24 +80,28 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         insertedValues.push(values);
         if (table === platformUsers) {
           return {
-            onConflictDoNothing: () => ({
-              returning: async () => [
-                {
-                  id: "new-user",
-                  displayName: "Новый Пациент",
-                  lastName: "Новый",
-                  firstName: "Пациент",
-                  patronymic: null,
-                },
-              ],
-            }),
+            returning: async () => [
+              {
+                id: "new-user",
+                displayName: "Новый Пациент",
+                lastName: "Новый",
+                firstName: "Пациент",
+                patronymic: null,
+              },
+            ],
           };
         }
         expect(table).toBe(userPhoneHistory);
         return Promise.resolve();
       }),
     }));
-    const tx = { select: selectQueue([[]]), insert };
+    const tx = {
+      select: selectQueue([[]]),
+      insert,
+      transaction: vi.fn(async (fn: (savepointTx: { insert: typeof insert }) => unknown) =>
+        fn({ insert }),
+      ),
+    };
 
     await expect(
       resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, input),
@@ -118,9 +122,10 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         source: "admin",
       }),
     ]);
+    expect(tx.transaction).toHaveBeenCalledOnce();
   });
 
-  it("converges on the concurrently inserted canonical client without duplicate history", async () => {
+  it("converges after a deferrable phone uniqueness conflict without aborting the outer transaction", async () => {
     const select = selectQueue([
       [],
       [
@@ -135,22 +140,37 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
         },
       ],
     ]);
-    const insert = vi.fn((table: unknown) => {
-      expect(table).toBe(platformUsers);
-      return {
-        values: () => ({
-          onConflictDoNothing: () => ({ returning: async () => [] }),
-        }),
-      };
+    const insert = vi.fn();
+    const conflict = Object.assign(new Error("duplicate phone"), {
+      code: "23505",
+      constraint: "platform_users_phone_normalized_key",
     });
+    const transaction = vi.fn().mockRejectedValue(conflict);
 
     await expect(
       resolveOrCreateDoctorClientByPhoneInTransaction(
-        { select, insert } as never,
+        { select, insert, transaction } as never,
         ORG_ID,
         input,
       ),
     ).resolves.toMatchObject({ userId: "concurrent-user", created: false });
-    expect(insert).toHaveBeenCalledTimes(1);
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("rethrows a non-phone uniqueness conflict after the savepoint rollback", async () => {
+    const conflict = Object.assign(new Error("duplicate email"), {
+      code: "23505",
+      constraint: "uq_platform_users_email_normalized_active",
+    });
+    const tx = {
+      select: selectQueue([[], []]),
+      insert: vi.fn(),
+      transaction: vi.fn().mockRejectedValue(conflict),
+    };
+
+    await expect(
+      resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, input),
+    ).rejects.toBe(conflict);
   });
 });

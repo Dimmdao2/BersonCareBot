@@ -28,6 +28,11 @@ export class DoctorClientIdentityError extends Error {
   }
 }
 
+function pgErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 /** Canonical staff-entered phone identity writer. The caller owns the outer Drizzle transaction. */
 export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   tx: DrizzleDb,
@@ -97,31 +102,46 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     };
   }
 
-  const [inserted] = await tx
-    .insert(platformUsers)
-    .values({
-      phoneNormalized: input.phoneNormalized,
-      displayName,
-      lastName,
-      firstName,
-      patronymic,
-      email: input.emailRaw,
-      emailNormalized: input.emailNormalized,
-      role: "client",
-      patientPhoneTrustAt: new Date().toISOString(),
-    })
-    .onConflictDoNothing({ target: platformUsers.phoneNormalized })
-    .returning({
-      id: platformUsers.id,
-      displayName: platformUsers.displayName,
-      lastName: platformUsers.lastName,
-      firstName: platformUsers.firstName,
-      patronymic: platformUsers.patronymic,
+  let inserted: {
+    id: string;
+    displayName: string;
+    lastName: string | null;
+    firstName: string | null;
+    patronymic: string | null;
+  } | null = null;
+  try {
+    inserted = await tx.transaction(async (savepointTx) => {
+      const [row] = await savepointTx
+        .insert(platformUsers)
+        .values({
+          phoneNormalized: input.phoneNormalized,
+          displayName,
+          lastName,
+          firstName,
+          patronymic,
+          email: input.emailRaw,
+          emailNormalized: input.emailNormalized,
+          role: "client",
+          patientPhoneTrustAt: new Date().toISOString(),
+        })
+        .returning({
+          id: platformUsers.id,
+          displayName: platformUsers.displayName,
+          lastName: platformUsers.lastName,
+          firstName: platformUsers.firstName,
+          patronymic: platformUsers.patronymic,
+        });
+      return row ?? null;
     });
-
-  if (!inserted) {
+  } catch (error) {
+    // Strong identifiers intentionally use DEFERRABLE uniqueness for canonical merge transactions.
+    // PostgreSQL therefore cannot use phone_normalized as an ON CONFLICT arbiter. The nested
+    // transaction is a savepoint: a concurrent phone insert rolls back only this attempt, leaving
+    // the outer patient/enrollment/appointment transaction usable for the canonical re-read below.
+    if (pgErrorCode(error) !== "23505") throw error;
     const concurrent = await findByPhone();
-    if (!concurrent || concurrent.role !== "client") {
+    if (!concurrent) throw error;
+    if (concurrent.role !== "client") {
       throw new DoctorClientIdentityError("identity_conflict");
     }
     return {
@@ -134,6 +154,8 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       created: false,
     };
   }
+
+  if (!inserted) throw new DoctorClientIdentityError("create_failed");
 
   await tx.insert(userPhoneHistory).values({
     platformUserId: inserted.id,

@@ -86,15 +86,13 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
           insertValues.push(values);
           if (current === 1) {
             return {
-              onConflictDoNothing: () => ({
-                returning: async () => [{
-                  id: PATIENT_ID,
-                  displayName: "Новый Пациент",
-                  lastName: "Новый",
-                  firstName: "Пациент",
-                  patronymic: null,
-                }],
-              }),
+              returning: async () => [{
+                id: PATIENT_ID,
+                displayName: "Новый Пациент",
+                lastName: "Новый",
+                firstName: "Пациент",
+                patronymic: null,
+              }],
             };
           }
           if (current === 2) return Promise.resolve();
@@ -102,7 +100,10 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
         }),
       };
     });
-    const tx = { select, insert };
+    const savepoint = vi.fn(async (fn: (value: { insert: typeof insert }) => unknown) =>
+      fn({ insert }),
+    );
+    const tx = { select, insert, transaction: savepoint };
     const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
     getDrizzleMock.mockReturnValue({ transaction });
 
@@ -127,6 +128,7 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
       created: true,
     });
     expect(transaction).toHaveBeenCalledOnce();
+    expect(savepoint).toHaveBeenCalledOnce();
     expect(insert).toHaveBeenCalledTimes(3);
     expect(insertValues).toEqual([
       expect.objectContaining({ phoneNormalized: "+79990000001", role: "client" }),
