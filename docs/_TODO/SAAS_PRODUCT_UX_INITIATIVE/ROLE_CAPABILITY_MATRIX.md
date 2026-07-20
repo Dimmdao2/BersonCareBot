@@ -102,6 +102,13 @@ implicit permission grant.
   `allow` proposal becomes real.
 - The current schema/API does not yet prove entry-level history visibility, restricted/private record classes or
   list/direct/count/search/export parity. The one-card candidate therefore requires a data/API design gate.
+- Current height/weight lives on global `platform_users` without organization-owned measurement provenance; it is
+  `unknown` for U5B until the ownership/author/amendment policy is explicit.
+- Current support/program-discussion shapes do not prove a staff participant/recipient grant or immutable staff
+  sender identity (`admin_scope`/`sender_role` is insufficient). Communication remains closed to U5B until that
+  explicit grant exists; visit/program assignment routing remains deferred U5D.
+- Standalone anamnesis is append-only and attributable, while comorbidity edits and complaint/diagnosis inline
+  changes have incomplete amendment-actor coverage. Current mutable rows are not evidence of a compliant trail.
 - Rejected transfer/hierarchy state machines are not target requirements. Existing appointment relations remain
   appointment facts and drive specialist visibility only under the approved visit-based model.
 - Patient organization context exists conceptually through enrollment, but UX-01 exposed a current
@@ -122,10 +129,12 @@ groups only to keep role traces compact; a group cannot erase the per-class rule
 |---|---|---|
 | Operational profile | `patient_profile`, `contact_channel` | `operational` with exact field/action capability |
 | Operational security | `portal_access` | `operational` plus narrower security action capability; no token/credential projection |
+| Physical measurement | `patient_physical_metric` | Current global-user shape is `unknown`; no U5B read/write until ownership, author and amendment policy are explicit |
 | Operational scheduling | `appointment` | `operational` plus visit relation and/or explicit booking-operation capability |
-| Clinical authored/assigned | `clinical_visit`, `clinical_note`, `care_task`, `symptom_observation`, `program_assignment` | `authored_or_assigned` unless explicitly and validly classified otherwise |
-| Clinical derived | `program_progress`, `record_amendment` | `inherited`; may narrow, never broaden the parent |
-| Care communication | `care_communication` | `restricted` to verified participants/assigned care relation by default |
+| Clinical authored/assigned | `clinical_visit`, `clinical_anamnesis`, `clinical_comorbidity`, `clinical_note`, `care_task`, `symptom_observation`, `program_assignment` | `authored_or_assigned` unless explicitly and validly classified otherwise |
+| Persistent clinical state | `clinical_complaint`, `clinical_diagnosis` | Inherit immutable source-visit author/visibility; every later actor remains a separate amendment fact |
+| Clinical derived | `program_progress`, `care_signal`, `record_amendment` | `inherited`; may narrow, never broaden the genuine parent/source intersection |
+| Care communication | `care_communication` | `restricted` to an explicit verified participant/recipient grant; visit/program assignment is never a grant |
 | Files | `patient_file` | `inherited`; standalone/unresolved parent is unknown and fails closed |
 | Financial/benefit | `membership_benefit`, `payment_ledger` | `operational` plus narrower financial capability |
 
@@ -140,18 +149,21 @@ Every `allow` below additionally requires exact organization ownership, the pati
 and the action capability. `Deny` means no row, metadata, count, search hit or export evidence; it does not mean a
 hidden UI control over a broader API result.
 
-| Actor/context | Operational profile/security/scheduling | Own/assigned clinical + derived | Explicit shared clinical | Restricted/communication/files | Financial/benefit | Required result |
-|---|---|---|---|---|---|---|
-| Solo specialist with binding and visit relation | Allow only permitted fields/actions | Allow when author/attributed/assigned; inherited children follow parent | Allow only when record and capability explicitly permit it | Allow only as participant or through a visible parent | Allow only with financial capability | Same policy as clinic; omit redundant `Мои/Все`, never bypass class checks |
-| Clinic specialist A with visit relation | Allow permitted operational scope | Allow A-authored/attributed/assigned records | Allow with shared-history capability and explicit shareable classification | Deny B-restricted facts; allow only when A is participant or parent is visible | Deny unless a separate financial capability permits it | Default `Мои`; empty result never expands to organization history |
-| Clinic specialist B with visit relation | Symmetric to A | Allow B-authored/attributed/assigned records | Same explicit shared rule | Deny A-restricted facts unless B is explicit participant | Same separate capability rule | A's historical authorship and visibility do not change because B now has a visit |
-| Owner/admin with valid specialist binding | Management grants and clinical binding evaluated independently | Same as the bound specialist, never broader because of owner/admin role | Same explicit shared rule | Same participant/inheritance rule | Allow through independent management capability | Clinical author is the authenticated specialist binding, not selected filter or management role |
-| Owner/admin without specialist binding | Allow only explicitly delegated operational fields/actions | Deny | Deny | Deny clinical/communication/file content and existence facts | Allow only explicit financial/benefit scope | No clinical tabs, direct reads, counts, search or exports by role alone |
-| Global admin/support | No ordinary patient-card projection | Deny | Deny | Deny | No patient ledger through card | Aggregate/org/platform diagnostics remain a separate audited surface |
-| Assistant/future clinic role | No launch capability | Deny | Deny | Deny | Deny | Role and surface absent from initial release |
+| Actor/context | Operational profile/security/scheduling | Own/assigned clinical + derived | Explicit shared clinical | Restricted clinical | Care communication | Inherited files/progress | Financial/benefit | Required result |
+|---|---|---|---|---|---|---|---|---|
+| Solo specialist with binding and visit relation | Allow only permitted fields/actions; physical metric remains unknown | Allow when author/attributed/assigned | Allow only when record and capability explicitly permit it | Allow only with explicit record/episode grant | Allow only with explicit verified participant/recipient grant | Allow only through a genuine visible parent; communication is excluded | Allow only with financial capability | Same policy as clinic; omit redundant `Мои/Все`, never bypass class checks |
+| Clinic specialist A with visit relation | Allow permitted operational scope; physical metric remains unknown | Allow A-authored/attributed/assigned records | Allow with shared-history capability and explicit shareable classification | Deny B-restricted facts unless A has explicit record grant | Allow only when A is verified participant/recipient; assignment is insufficient | Allow when the genuine parent is visible; may narrow only | Deny unless a separate financial capability permits it | Default `Мои`; empty result never expands to organization history |
+| Clinic specialist B with visit relation | Symmetric to A | Allow B-authored/attributed/assigned records | Same explicit shared rule | Deny A-restricted facts unless B has explicit record grant | Allow only when B is verified participant/recipient; visit/assignment is insufficient | Same genuine-parent rule | Same separate capability rule | A's historical authorship and visibility do not change because B now has a visit |
+| Owner/admin with valid specialist binding | Management grants and clinical binding evaluated independently | Same as the bound specialist, never broader because of owner/admin role | Same explicit shared rule | Same explicit record-grant rule | Same verified participant/recipient rule | Same genuine-parent rule | Allow through independent management capability | Clinical author is the authenticated specialist binding, not selected filter or management role |
+| Owner/admin without specialist binding | Allow only explicitly delegated operational fields/actions; physical metric denied | Deny | Deny | Deny | Deny content and existence facts | Only explicitly operational files with visible operational parent; clinical progress denied | Allow only explicit financial/benefit scope | No clinical tabs, direct reads, counts, search or exports by role alone |
+| Global admin/support | No ordinary patient-card projection | Deny | Deny | Deny | Deny | Deny | No patient ledger through card | Aggregate/org/platform diagnostics remain a separate audited surface |
+| Assistant/future clinic role | No launch capability | Deny | Deny | Deny | Deny | Deny | Deny | Role and surface absent from initial release |
 
 A patient-facing self-service route remains governed by active enrollment and its existing patient policy. U5B does
 not turn staff visibility into patient visibility or combine records from two organization enrollments.
+Program assignment, responsible-specialist metadata and ordinary visit relation do not authorize communication.
+Any future assignment-based clinic routing or shared inbox topology remains deferred U5D and cannot be smuggled into
+launch U5B through a visible parent.
 
 ### 2.5 U5B operation parity matrix
 
@@ -199,6 +211,8 @@ The independent critic must trace without contradiction:
 - zero/one/multiple active staff memberships;
 - owner/admin with and without specialist binding;
 - specialist A own/shared/private-B entry across list, direct read, count, search and export;
+- standalone anamnesis, comorbidity lifecycle, persistent complaint/diagnosis amendments and global physical metrics;
+- program assignment visible while its discussion remains absent without an explicit participant/recipient grant;
 - absence of assistant routes, grants and object access in initial release;
 - patient onboarding, one enrollment, A+B enrollments and revoked B;
 - `Мои`, `Вся доступная`, specialist X filters after authorization;

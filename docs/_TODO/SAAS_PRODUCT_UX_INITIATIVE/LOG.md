@@ -3618,11 +3618,32 @@ backfill versus a PII-free ambiguous queue and reversible classification mapping
 entry links this candidate contract without changing the normative DAG or marking application completion. All
 application, schema, migration, API, DB/runtime, UI and `#806` paths remained untouched.
 
-**Worker checks.** All fifteen contract classes and all five usable visibility values are present in both canonical
-policy documents; all seven operation families are present in the operating model. Cross-document registry/parity
-search, exact four-file scope check and `git diff --check` pass. No code test, full CI, server or live-environment
-action is applicable to this docs-only stage.
+**Initial worker checks (superseded by audit correction below).** The first registry contained fifteen classes and
+all five usable visibility values, but the independent audit correctly found that its live-source census was not
+exhaustive. Cross-document registry/parity search, exact four-file scope check and `git diff --check` had passed;
+those mechanical checks did not constitute audit acceptance.
 
 **Residual gates.** This is a worker handoff, not an audit PASS. One independent high-risk audit must verify that no
 class, actor or parity path can broaden access and that the contract does not invent owner scope. U5B schema/API/UI
 implementation remains gated on that review and the remaining U5A two-organization/revoked-selection runtime seals.
+
+## 2026-07-21 — U5B-0 audit correction handoff (`#928`)
+
+**Audit findings closed in the candidate.** P1-1 is addressed by an explicit current standalone-card source/API
+census. The registry now separately covers non-visit anamnesis, comorbidity lifecycle, persistent complaints and
+diagnoses with their status/update paths, global height/weight and derived card signals. The census maps all current
+standalone tabs, SSR projections, program detail and their live API families to exact ownership/provenance,
+visibility and amendment behavior. Current gaps are stated rather than normalized: global `platform_users`
+height/weight is `unknown`; complaint/diagnosis/comorbidity in-place or actor-incomplete mutation paths require an
+amendment closure; mixed aggregates authorize per class.
+
+P1-2 is addressed by making `care_communication` independent from inherited progress/files. Chat or program
+discussion content, existence, unread count, ensure/send/read and export require an explicit verified
+participant/recipient grant. Visit relation, assigned/responsible specialist, visible program or parent visibility
+never grant communication. The census records that current `admin_scope`/`sender_role='admin'` does not identify a
+staff participant, recipient or immutable sender, so those current shapes cannot silently satisfy the launch rule.
+Assignment-based clinic routing and shared-inbox topology remain deferred U5D.
+
+**Correction boundaries and residual gate.** Only the same four U5B-0 canonical documents changed; application,
+schema, migration, API, DB/runtime, UI and `#806` files remain protected. This handoff still requires the same
+independent auditor's full terminal re-audit; it does not mark U5B implementation or the policy merge gate complete.
