@@ -126,6 +126,17 @@ export type ServiceAvailabilityPort = {
     branchId: string;
     isActive: boolean;
   }): Promise<BeServiceLocationAvailability>;
+  /** Atomically normalizes the solo UI's location and default-specialist rows. */
+  setSoloServiceLocationAvailability(input: {
+    organizationId: string;
+    specialistId: string;
+    serviceId: string;
+    branchId: string;
+    isActive: boolean;
+  }): Promise<{
+    locationAvailability: BeServiceLocationAvailability;
+    specialistAvailability: BeSpecialistServiceAvailability;
+  }>;
   listServiceLocationAvailability(organizationId: string): Promise<BeServiceLocationAvailability[]>;
 };
 

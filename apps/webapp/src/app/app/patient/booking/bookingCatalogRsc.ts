@@ -1,11 +1,13 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import type { BookingCity } from "@/modules/booking-catalog/types";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import {
   listInPersonCitiesForOrganization,
   listInPersonServicesForBranch,
   resolveActiveBranchForCity,
+  titleForBookingCityCode,
   type InPersonServiceListItem,
 } from "@/modules/patient-booking/inPersonServicesCatalog";
 
@@ -33,6 +35,27 @@ export type LoadInPersonServicesResult =
     }
   | { ok: false; error: "catalog_unavailable" | "city_not_found"; services: [] };
 
+export type LoadPatientBookingDisplaySettingsResult =
+  | { ok: true; organizationId: string; appDisplayTimeZone: string }
+  | { ok: false; error: "catalog_unavailable" };
+
+export type LoadInPersonSlotContextResult =
+  | {
+      ok: true;
+      organizationId: string;
+      branchId: string;
+      serviceId: string;
+      branchServiceId: string;
+      cityCode: string;
+      cityTitle: string;
+      serviceTitle: string;
+      durationMinutes: number;
+      priceMinor: number;
+      maxConsecutiveSlotHours: number;
+      appDisplayTimeZone: string;
+    }
+  | { ok: false; error: "catalog_unavailable" | "invalid_selection" };
+
 async function resolvePatientOrganizationId(
   deps: { patientOrganization: PatientOrganizationServiceLike | null },
   platformUserId: string | undefined,
@@ -43,6 +66,119 @@ async function resolvePatientOrganizationId(
     rememberedOrganizationId,
   });
   return resolved.ok ? resolved.organizationId : null;
+}
+
+/** RSC: organization-owned display settings for an authenticated patient booking flow. */
+export async function loadPatientBookingDisplaySettingsRsc(
+  platformUserId: string,
+): Promise<LoadPatientBookingDisplaySettingsResult> {
+  const deps = buildAppDeps();
+  const organizationId = await resolvePatientOrganizationId(deps, platformUserId);
+  if (!organizationId) return { ok: false, error: "catalog_unavailable" };
+  try {
+    const appDisplayTimeZone = await withExplicitOrganizationPrincipal(
+      { organizationId, source: "app/patient/booking:load-display-settings" },
+      () => getAppDisplayTimeZone(),
+    );
+    return { ok: true, organizationId, appDisplayTimeZone };
+  } catch {
+    return { ok: false, error: "catalog_unavailable" };
+  }
+}
+
+/**
+ * RSC: validate an authenticated patient's in-person selection and resolve the
+ * canonical slot context without trusting query-string catalog data.
+ */
+export async function loadInPersonSlotContextForPatientRsc(input: {
+  platformUserId: string;
+  branchId?: string;
+  serviceId?: string;
+  branchServiceId?: string;
+}): Promise<LoadInPersonSlotContextResult> {
+  const deps = buildAppDeps();
+  const organizationId = await resolvePatientOrganizationId(deps, input.platformUserId);
+  const bookingScheduling = deps.bookingScheduling;
+  if (!organizationId || !deps.bookingEngine || !bookingScheduling) {
+    return { ok: false, error: "catalog_unavailable" };
+  }
+
+  try {
+    return await withExplicitOrganizationPrincipal(
+      { organizationId, source: "app/patient/booking:load-slot-context" },
+      async () => {
+        let branchId = input.branchId;
+        let serviceId = input.serviceId;
+        let branchServiceId = input.branchServiceId;
+
+        if (branchServiceId) {
+          const context = await bookingScheduling.resolveInPersonContext(branchServiceId);
+          if (!context || context.organizationId !== organizationId) {
+            return { ok: false, error: "invalid_selection" } as const;
+          }
+          if ((branchId && branchId !== context.branchId) || (serviceId && serviceId !== context.serviceId)) {
+            return { ok: false, error: "invalid_selection" } as const;
+          }
+          branchId = context.branchId;
+          serviceId = context.serviceId;
+        }
+
+        if (!branchId || !serviceId) {
+          return { ok: false, error: "invalid_selection" } as const;
+        }
+
+        const listed = await listInPersonServicesForBranch(deps, organizationId, branchId);
+        const service = listed?.services.find((item) => item.id === serviceId);
+        if (!listed || !service) {
+          return { ok: false, error: "invalid_selection" } as const;
+        }
+
+        if (!branchServiceId) {
+          branchServiceId =
+            (await bookingScheduling.resolveLegacyBranchServiceId({
+              organizationId,
+              branchId,
+              serviceId,
+            })) ?? undefined;
+        }
+        if (!branchServiceId) {
+          return { ok: false, error: "invalid_selection" } as const;
+        }
+
+        const context = await bookingScheduling.resolveInPersonContext(branchServiceId);
+        if (
+          !context ||
+          context.organizationId !== organizationId ||
+          context.branchId !== branchId ||
+          context.serviceId !== serviceId
+        ) {
+          return { ok: false, error: "invalid_selection" } as const;
+        }
+
+        const [maxConsecutiveSlotHours, appDisplayTimeZone] = await Promise.all([
+          bookingScheduling.getMaxConsecutiveSlotHours(organizationId),
+          getAppDisplayTimeZone(),
+        ]);
+
+        return {
+          ok: true,
+          organizationId,
+          branchId,
+          serviceId,
+          branchServiceId,
+          cityCode: listed.branch.cityCode,
+          cityTitle: titleForBookingCityCode(listed.branch.cityCode),
+          serviceTitle: service.title,
+          durationMinutes: context.durationMinutes,
+          priceMinor: service.priceMinor,
+          maxConsecutiveSlotHours,
+          appDisplayTimeZone,
+        } as const;
+      },
+    );
+  } catch {
+    return { ok: false, error: "catalog_unavailable" };
+  }
 }
 
 /** RSC: canonical catalog cities for an authenticated patient organization. */

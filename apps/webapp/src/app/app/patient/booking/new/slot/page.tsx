@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { BookingCategory } from "@/modules/patient-booking/types";
-import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  loadInPersonSlotContextForPatientRsc,
+  loadPatientBookingDisplaySettingsRsc,
+} from "../../bookingCatalogRsc";
 import { BOOKING_WIZARD_TOTAL_STEPS } from "../../constants";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { SlotStepClient } from "./SlotStepClient";
@@ -30,8 +32,6 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   }
 
   const raw = await searchParams;
-  const appDisplayTimeZone = await getAppDisplayTimeZone();
-  const deps = buildAppDeps();
   const type = first(raw.type)?.trim();
   if (!type || (type !== "in_person" && type !== "online")) {
     redirect(routePaths.bookingNew);
@@ -44,35 +44,18 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     if ((!branchId || !serviceId) && !branchServiceId) {
       redirect(routePaths.bookingNew);
     }
-    const cityCode = first(raw.cityCode) ?? "";
-    const cityTitle = first(raw.cityTitle) ?? "";
-    const serviceTitle = first(raw.serviceTitle) ?? "";
-    const durationMinutes = Number(first(raw.durationMinutes) ?? "60") || 60;
-    const priceMinor = Math.max(0, Number(first(raw.priceMinor) ?? "0") || 0);
-    const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
-    let maxConsecutiveSlotHours = 3;
-    if (deps.bookingScheduling && deps.bookingEngine) {
-      const branch = branchId ? await deps.bookingEngine.catalog.getBranch(branchId) : null;
-      const resolvedBranchServiceId =
-        branchServiceId ??
-        (branch && serviceId
-          ? await deps.bookingScheduling.resolveLegacyBranchServiceId({
-              organizationId: branch.organizationId,
-              branchId: branchId!,
-              serviceId,
-            })
-          : null);
-      const context = resolvedBranchServiceId
-        ? await deps.bookingScheduling.resolveInPersonContext(resolvedBranchServiceId)
-        : null;
-      if (context) {
-        maxConsecutiveSlotHours = await deps.bookingScheduling.getMaxConsecutiveSlotHours(
-          context.organizationId,
-        );
-      }
+    const slotContext = await loadInPersonSlotContextForPatientRsc({
+      platformUserId: session.user.userId,
+      branchId,
+      serviceId,
+      branchServiceId,
+    });
+    if (!slotContext.ok) {
+      redirect(routePaths.bookingNew);
     }
+    const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
     const backHref =
-      `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(cityCode)}&cityTitle=${encodeURIComponent(cityTitle)}`;
+      `${routePaths.bookingNewService}?cityCode=${encodeURIComponent(slotContext.cityCode)}&cityTitle=${encodeURIComponent(slotContext.cityTitle)}`;
 
     return (
       <BookingWizardShell
@@ -84,16 +67,16 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       >
         <SlotStepClient
           type="in_person"
-          branchId={branchId}
-          serviceId={serviceId}
-          branchServiceId={branchServiceId}
-          cityCode={cityCode}
-          cityTitle={cityTitle}
-          serviceTitle={serviceTitle}
-          durationMinutes={durationMinutes}
-          priceMinor={priceMinor}
-          maxConsecutiveSlotHours={maxConsecutiveSlotHours}
-          appDisplayTimeZone={appDisplayTimeZone}
+          branchId={slotContext.branchId}
+          serviceId={slotContext.serviceId}
+          branchServiceId={slotContext.branchServiceId}
+          cityCode={slotContext.cityCode}
+          cityTitle={slotContext.cityTitle}
+          serviceTitle={slotContext.serviceTitle}
+          durationMinutes={slotContext.durationMinutes}
+          priceMinor={slotContext.priceMinor}
+          maxConsecutiveSlotHours={slotContext.maxConsecutiveSlotHours}
+          appDisplayTimeZone={slotContext.appDisplayTimeZone}
           rescheduleBookingId={rescheduleBookingId}
         />
       </BookingWizardShell>
@@ -106,6 +89,10 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   }
   const category = categoryRaw;
   const rescheduleBookingId = first(raw.rescheduleBookingId)?.trim();
+  const displaySettings = await loadPatientBookingDisplaySettingsRsc(session.user.userId);
+  if (!displaySettings.ok) {
+    redirect(routePaths.bookingNew);
+  }
 
   return (
     <BookingWizardShell
@@ -118,7 +105,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       <SlotStepClient
         type="online"
         category={category}
-        appDisplayTimeZone={appDisplayTimeZone}
+        appDisplayTimeZone={displaySettings.appDisplayTimeZone}
         maxConsecutiveSlotHours={3}
         rescheduleBookingId={rescheduleBookingId}
       />

@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const apiJsonMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/lib/apiJson", () => ({
+  apiJson: apiJsonMock,
+}));
+
 import {
   countServicesWithoutAvailability,
   hasScheduleOnUpcomingDays,
@@ -7,11 +14,16 @@ import {
   parseRublesInput,
   pickDefaultSpecialist,
   rublesToMinor,
+  setServiceLocationAvailability,
   slugCityCode,
   slugFieldKey,
 } from "./bookingSoloAdminApi";
 
 describe("bookingSoloAdminApi", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("converts rubles and minor units", () => {
     expect(rublesToMinor(5000)).toBe(500000);
     expect(minorToRublesInput(500000)).toBe("5000");
@@ -28,7 +40,7 @@ describe("bookingSoloAdminApi", () => {
     expect(slugFieldKey("Имя", ["имя"])).toMatch(/_2$/);
   });
 
-  it("isServiceAvailableAtLocation requires both rows with matching branchId", () => {
+  it("isServiceAvailableAtLocation preserves canonical OR for partial legacy rows", () => {
     const overview = {
       specialists: [{ id: "s1", fullName: "Doc", isActive: true }],
       locationAvailability: [{ id: "l1", serviceId: "svc", branchId: "br", isActive: true }],
@@ -42,6 +54,27 @@ describe("bookingSoloAdminApi", () => {
       isServiceAvailableAtLocation(
         {
           ...overview,
+          specialistAvailability: [],
+        },
+        "svc",
+        "br",
+      ),
+    ).toBe(true);
+    expect(
+      isServiceAvailableAtLocation(
+        {
+          ...overview,
+          locationAvailability: [],
+        },
+        "svc",
+        "br",
+      ),
+    ).toBe(true);
+    expect(
+      isServiceAvailableAtLocation(
+        {
+          ...overview,
+          locationAvailability: [],
           specialistAvailability: [
             { id: "a2", specialistId: "s1", serviceId: "svc", branchId: null, isActive: true },
           ],
@@ -50,6 +83,27 @@ describe("bookingSoloAdminApi", () => {
         "br",
       ),
     ).toBe(false);
+  });
+
+  it("normalizes both solo availability rows through one server command", async () => {
+    apiJsonMock.mockResolvedValue({ ok: true });
+
+    await setServiceLocationAvailability("svc", "branch", true, "specialist");
+
+    expect(apiJsonMock).toHaveBeenCalledOnce();
+    expect(apiJsonMock).toHaveBeenCalledWith(
+      "/api/admin/booking-engine/availability",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          kind: "solo_service_location",
+          specialistId: "specialist",
+          serviceId: "svc",
+          branchId: "branch",
+          isActive: true,
+        }),
+      }),
+    );
   });
 
   it("countServicesWithoutAvailability counts services with no enabled location", () => {

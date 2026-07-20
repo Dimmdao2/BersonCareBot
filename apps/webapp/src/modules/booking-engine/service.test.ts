@@ -52,6 +52,7 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     listSpecialistServiceAvailability: vi.fn().mockResolvedValue([]),
     deactivateSpecialistServiceAvailability: vi.fn(),
     upsertServiceLocationAvailability: vi.fn(),
+    setSoloServiceLocationAvailability: vi.fn(),
     listServiceLocationAvailability: vi.fn().mockResolvedValue([]),
     getAppointment: vi.fn().mockResolvedValue(appointment),
     listAppointmentsByChainId: vi.fn().mockResolvedValue([]),
@@ -134,5 +135,26 @@ describe("createBookingEngineService", () => {
     const result = await svc.bridge.projectAll("a0000000-0000-4000-8000-000000000001");
     expect(result.appointmentRecords.projectedAppointments).toBe(0);
     expect(port.projectAppointmentRecords).not.toHaveBeenCalled();
+  });
+
+  it("forwards the atomic solo service-location command to one port operation", async () => {
+    const setSoloServiceLocationAvailability = vi.fn().mockResolvedValue({
+      locationAvailability: { id: "location" },
+      specialistAvailability: { id: "specialist" },
+    });
+    const port = mockPort({ setSoloServiceLocationAvailability });
+    const svc = createBookingEngineService(port);
+    const input = {
+      organizationId: "a0000000-0000-4000-8000-000000000001",
+      specialistId: "a0000000-0000-4000-8000-000000000002",
+      serviceId: "a0000000-0000-4000-8000-000000000003",
+      branchId: "a0000000-0000-4000-8000-000000000004",
+      isActive: true,
+    };
+
+    await svc.services.setSoloServiceLocationAvailability(input);
+
+    expect(setSoloServiceLocationAvailability).toHaveBeenCalledOnce();
+    expect(setSoloServiceLocationAvailability).toHaveBeenCalledWith(input);
   });
 });

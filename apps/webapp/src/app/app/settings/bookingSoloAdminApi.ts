@@ -109,18 +109,19 @@ export function isServiceAvailableAtLocation(
   branchId: string,
 ): boolean {
   const specialist = pickDefaultSpecialist(overview.specialists);
-  if (!specialist) return false;
   const loc = overview.locationAvailability.find(
     (r) => r.serviceId === serviceId && r.branchId === branchId && r.isActive,
   );
-  const spec = overview.specialistAvailability.find(
-    (r) =>
-      r.specialistId === specialist.id &&
-      r.serviceId === serviceId &&
-      r.branchId === branchId &&
-      r.isActive,
-  );
-  return Boolean(loc && spec);
+  const spec = specialist
+    ? overview.specialistAvailability.find(
+        (r) =>
+          r.specialistId === specialist.id &&
+          r.serviceId === serviceId &&
+          r.branchId === branchId &&
+          r.isActive,
+      )
+    : null;
+  return Boolean(loc || spec);
 }
 
 /** Число активных услуг без хотя бы одной включённой пары услуга×локация. */
@@ -162,17 +163,7 @@ export async function setServiceLocationAvailability(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      kind: "service_location",
-      serviceId,
-      branchId,
-      isActive: enabled,
-    }),
-  });
-  await apiJson(`${BASE}/availability`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      kind: "specialist_service",
+      kind: "solo_service_location",
       specialistId,
       serviceId,
       branchId,

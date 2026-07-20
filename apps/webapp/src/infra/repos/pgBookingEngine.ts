@@ -636,6 +636,157 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       };
     },
 
+    async setSoloServiceLocationAvailability(input) {
+      return runWebappTransaction(async (tx) => {
+        const serviceRows = await tx
+          .select({ id: beClinicServices.id })
+          .from(beClinicServices)
+          .where(
+            and(
+              eq(beClinicServices.id, input.serviceId),
+              eq(beClinicServices.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!serviceRows[0]) throw new Error("service_not_found");
+
+        const branchRows = await tx
+          .select({ id: beBranches.id })
+          .from(beBranches)
+          .where(
+            and(
+              eq(beBranches.id, input.branchId),
+              eq(beBranches.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!branchRows[0]) throw new Error("branch_not_found");
+
+        const specialistRows = await tx
+          .select({ id: beSpecialists.id })
+          .from(beSpecialists)
+          .where(
+            and(
+              eq(beSpecialists.id, input.specialistId),
+              eq(beSpecialists.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (!specialistRows[0]) throw new Error("specialist_not_found");
+
+        const locationRows = await tx
+          .insert(beServiceLocationAvailability)
+          .values({
+            organizationId: input.organizationId,
+            serviceId: input.serviceId,
+            branchId: input.branchId,
+            isActive: input.isActive,
+          })
+          .onConflictDoUpdate({
+            target: [beServiceLocationAvailability.serviceId, beServiceLocationAvailability.branchId],
+            set: { isActive: input.isActive },
+          })
+          .returning();
+        const locationRow = locationRows[0]!;
+
+        const exactSpecialistRows = await tx
+          .select()
+          .from(beSpecialistServiceAvailability)
+          .where(
+            and(
+              eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+              eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+              eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
+              eq(beSpecialistServiceAvailability.branchId, input.branchId),
+              isNull(beSpecialistServiceAvailability.roomId),
+              isNull(beSpecialistServiceAvailability.cityCode),
+            ),
+          );
+        const mappingRows =
+          exactSpecialistRows.length > 0
+            ? await tx
+                .select({
+                  canonicalId: beExternalEntityMappings.canonicalId,
+                  metadata: beExternalEntityMappings.metadata,
+                })
+                .from(beExternalEntityMappings)
+                .where(
+                  and(
+                    eq(beExternalEntityMappings.organizationId, input.organizationId),
+                    eq(beExternalEntityMappings.entityType, "availability"),
+                    eq(beExternalEntityMappings.externalSystem, "rubitime"),
+                    inArray(
+                      beExternalEntityMappings.canonicalId,
+                      exactSpecialistRows.map((row) => row.id),
+                    ),
+                  ),
+                )
+            : [];
+        const preferredSpecialistRowId = pickPreferredSsaId(
+          exactSpecialistRows.map((row) => ({
+            id: row.id,
+            createdAt: row.createdAt,
+            isActive: row.isActive,
+          })),
+          legacyBranchServiceIdBySsaFromMappings(mappingRows),
+        );
+        const now = new Date().toISOString();
+        const specialistAvailabilityRows = preferredSpecialistRowId
+          ? await tx
+              .update(beSpecialistServiceAvailability)
+              .set({
+                durationMinutesOverride: null,
+                priceMinorOverride: null,
+                isActive: input.isActive,
+                sortOrder: 0,
+                updatedAt: now,
+              })
+              .where(eq(beSpecialistServiceAvailability.id, preferredSpecialistRowId))
+              .returning()
+          : await tx
+              .insert(beSpecialistServiceAvailability)
+              .values({
+                organizationId: input.organizationId,
+                specialistId: input.specialistId,
+                serviceId: input.serviceId,
+                branchId: input.branchId,
+                roomId: null,
+                cityCode: null,
+                durationMinutesOverride: null,
+                priceMinorOverride: null,
+                isActive: input.isActive,
+                sortOrder: 0,
+                createdAt: now,
+                updatedAt: now,
+              })
+              .returning();
+        const specialistRow = specialistAvailabilityRows[0]!;
+
+        return {
+          locationAvailability: {
+            id: locationRow.id,
+            organizationId: locationRow.organizationId,
+            serviceId: locationRow.serviceId,
+            branchId: locationRow.branchId,
+            isActive: locationRow.isActive,
+          },
+          specialistAvailability: {
+            id: specialistRow.id,
+            organizationId: specialistRow.organizationId,
+            specialistId: specialistRow.specialistId,
+            serviceId: specialistRow.serviceId,
+            branchId: specialistRow.branchId ?? null,
+            roomId: specialistRow.roomId ?? null,
+            cityCode: specialistRow.cityCode ?? null,
+            durationMinutesOverride: specialistRow.durationMinutesOverride ?? null,
+            priceMinorOverride: specialistRow.priceMinorOverride ?? null,
+            isActive: specialistRow.isActive,
+            sortOrder: specialistRow.sortOrder,
+          },
+        };
+      });
+    },
+
     async listServiceLocationAvailability(organizationId) {
       const db = getDrizzle();
       const rows = await db

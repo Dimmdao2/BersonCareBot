@@ -23,7 +23,15 @@ const LocationSchema = z.object({
   isActive: z.boolean().optional().default(true),
 });
 
-const PostSchema = z.discriminatedUnion("kind", [SpecialistSchema, LocationSchema]);
+const SoloLocationSchema = z.object({
+  kind: z.literal("solo_service_location"),
+  specialistId: z.string().uuid(),
+  serviceId: z.string().uuid(),
+  branchId: z.string().uuid(),
+  isActive: z.boolean().optional().default(true),
+});
+
+const PostSchema = z.discriminatedUnion("kind", [SpecialistSchema, LocationSchema, SoloLocationSchema]);
 
 export async function GET() {
   const gate = await requireClinicManagementBookingEngine();
@@ -41,6 +49,45 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  if (parsed.data.kind === "solo_service_location") {
+    const data = parsed.data;
+    try {
+      const result = await withDoctorWorkspacePrincipal(
+        gate.ctx,
+        "admin.booking-engine.availability.solo-service-location.set",
+        async () => {
+          const [service, branch, specialist] = await Promise.all([
+            gate.ctx.service.services.getService(data.serviceId),
+            gate.ctx.service.catalog.getBranch(data.branchId),
+            gate.ctx.service.catalog.getSpecialist(data.specialistId),
+          ]);
+          if (!service || service.organizationId !== gate.ctx.organizationId) {
+            throw new Error("service_not_found");
+          }
+          if (!branch || branch.organizationId !== gate.ctx.organizationId) {
+            throw new Error("branch_not_found");
+          }
+          if (!specialist || specialist.organizationId !== gate.ctx.organizationId) {
+            throw new Error("specialist_not_found");
+          }
+          return gate.ctx.service.services.setSoloServiceLocationAvailability({
+            organizationId: gate.ctx.organizationId,
+            specialistId: data.specialistId,
+            serviceId: data.serviceId,
+            branchId: data.branchId,
+            isActive: data.isActive,
+          });
+        },
+      );
+      return NextResponse.json({ ok: true, ...result });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "service_not_found" || code === "branch_not_found" || code === "specialist_not_found") {
+        return NextResponse.json({ ok: false, error: code }, { status: 404 });
+      }
+      throw error;
+    }
+  }
   const service = await gate.ctx.service.services.getService(parsed.data.serviceId);
   if (!service || service.organizationId !== gate.ctx.organizationId) {
     return NextResponse.json({ ok: false, error: "service_not_found" }, { status: 404 });

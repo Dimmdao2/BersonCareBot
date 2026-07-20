@@ -171,6 +171,7 @@ function createServiceAvailabilityFacade(port: ServiceAvailabilityPort) {
     listSpecialistServiceAvailability: port.listSpecialistServiceAvailability.bind(port),
     deactivateSpecialistServiceAvailability: port.deactivateSpecialistServiceAvailability.bind(port),
     upsertServiceLocationAvailability: port.upsertServiceLocationAvailability.bind(port),
+    setSoloServiceLocationAvailability: port.setSoloServiceLocationAvailability.bind(port),
     listServiceLocationAvailability: port.listServiceLocationAvailability.bind(port),
   };
 }

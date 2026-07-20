@@ -47,10 +47,23 @@ describe("admin booking-engine repo mutation transactions", () => {
       "upsertSpecialistServiceAvailability",
       "deactivateSpecialistServiceAvailability",
       "upsertServiceLocationAvailability",
+      "setSoloServiceLocationAvailability",
     ];
 
     for (const method of methods) {
       expect(methodBody(src, method)).toContain("runWebappTransaction");
     }
+  });
+
+  it("keeps the solo availability pair and ownership checks in one transaction body", () => {
+    const src = readRepo("pgBookingEngine.ts");
+    const body = methodBody(src, "setSoloServiceLocationAvailability");
+
+    expect(body.match(/runWebappTransaction/g)).toHaveLength(1);
+    expect(body).toContain("beClinicServices.organizationId");
+    expect(body).toContain("beBranches.organizationId");
+    expect(body).toContain("beSpecialists.organizationId");
+    expect(body).toContain("beServiceLocationAvailability");
+    expect(body).toContain("beSpecialistServiceAvailability");
   });
 });
