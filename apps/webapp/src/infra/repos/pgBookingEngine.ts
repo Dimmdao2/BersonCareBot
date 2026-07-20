@@ -1179,6 +1179,18 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
 
         if (input.kind === "scheduled") {
           const fingerprint = scheduledManualPatientCommandFingerprint(input);
+          const [oppositeVisit] = await tx
+            .select({ id: clinicalVisit.id })
+            .from(clinicalVisit)
+            .where(
+              and(
+                eq(clinicalVisit.id, input.commandId),
+                eq(clinicalVisit.organizationId, input.organizationId),
+              ),
+            )
+            .limit(1);
+          if (oppositeVisit) throw new Error("idempotency_conflict");
+
           const [existingAppointmentRow] = await tx
             .select()
             .from(beAppointments)
@@ -1257,6 +1269,18 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
           };
         }
+
+        const [oppositeAppointment] = await tx
+          .select({ id: beAppointments.id })
+          .from(beAppointments)
+          .where(
+            and(
+              eq(beAppointments.id, input.commandId),
+              eq(beAppointments.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (oppositeAppointment) throw new Error("idempotency_conflict");
 
         await assertManualSpecialistSelection(
           tx,

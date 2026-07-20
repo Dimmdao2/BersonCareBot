@@ -100,6 +100,7 @@ function createHarness(commandIds: string[], options?: { missingBranch?: boolean
   const insertOrder: string[] = [];
   let activeCommandId: string | null = null;
   let activeOrganizationId: string | null = null;
+  let activeKind: "scheduled" | "walk_in" | null = null;
   let queue = Promise.resolve();
   let relationshipLockCount = 0;
 
@@ -114,6 +115,7 @@ function createHarness(commandIds: string[], options?: { missingBranch?: boolean
 
   const rowsFor = (table: unknown, selection: unknown): unknown[] => {
     if (table === beAppointments) {
+      activeKind ??= "walk_in";
       const row = activeCommandId ? appointments.get(activeCommandId) : undefined;
       return row && row.organizationId === activeOrganizationId ? [row] : [];
     }
@@ -127,10 +129,15 @@ function createHarness(commandIds: string[], options?: { missingBranch?: boolean
     if (table === orgEnrollments) return [{ status: "invited" }];
     if (table === platformUsers) return [patientRow()];
     if (table === clinicalVisit) {
+      activeKind ??= "scheduled";
       const fields = selection && typeof selection === "object"
         ? Object.keys(selection as Record<string, unknown>)
         : [];
       if (fields.includes("patientUserId")) {
+        const row = activeCommandId ? visits.get(activeCommandId) : undefined;
+        return row && row.organizationId === activeOrganizationId ? [row] : [];
+      }
+      if (activeKind === "scheduled") {
         const row = activeCommandId ? visits.get(activeCommandId) : undefined;
         return row && row.organizationId === activeOrganizationId ? [row] : [];
       }
@@ -218,11 +225,13 @@ function createHarness(commandIds: string[], options?: { missingBranch?: boolean
     const run = queue.then(async () => {
       activeCommandId = commandId;
       activeOrganizationId = getCurrentDbPrincipalOrganizationIdMock();
+      activeKind = null;
       try {
         return await fn(tx);
       } finally {
         activeCommandId = null;
         activeOrganizationId = null;
+        activeKind = null;
       }
     });
     queue = run.then(() => undefined, () => undefined);
@@ -306,6 +315,34 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
     ).rejects.toThrow("idempotency_conflict");
 
     expect(harness.appointments.size).toBe(1);
+    expect(harness.insertOrder).toEqual(["appointment", "event", "history", "timeline"]);
+  });
+
+  it("rejects scheduled reuse of a walk-in command UUID in the same organization", async () => {
+    const harness = createHarness([COMMAND_ID, COMMAND_ID]);
+    const port = createPgBookingEnginePort();
+    await port.createManualPatientVisit(walkInInput());
+
+    await expect(port.createManualPatientVisit(scheduledInput)).rejects.toThrow(
+      "idempotency_conflict",
+    );
+
+    expect(harness.visits.size).toBe(1);
+    expect(harness.appointments.size).toBe(0);
+    expect(harness.insertOrder).toEqual(["visit:first"]);
+  });
+
+  it("rejects walk-in reuse of a scheduled command UUID in the same organization", async () => {
+    const harness = createHarness([COMMAND_ID, COMMAND_ID]);
+    const port = createPgBookingEnginePort();
+    await port.createManualPatientVisit(scheduledInput);
+
+    await expect(port.createManualPatientVisit(walkInInput())).rejects.toThrow(
+      "idempotency_conflict",
+    );
+
+    expect(harness.appointments.size).toBe(1);
+    expect(harness.visits.size).toBe(0);
     expect(harness.insertOrder).toEqual(["appointment", "event", "history", "timeline"]);
   });
 
