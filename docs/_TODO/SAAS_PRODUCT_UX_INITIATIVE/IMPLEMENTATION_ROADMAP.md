@@ -405,25 +405,30 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** targeted tests + typecheck/lint affected files + desktop/mobile source-bound screenshots каждого
   состояния из owner-review; независимый UI audit.
 
-#### UI-0…UI-9 — Doctor UI Rework (owner dump 2026-07-19/20) — РАСШИРЯЕТ/ЗАМЕНЯЕТ части C1
+#### UI-0…UI-9 — Doctor UI Rework execution cluster (owner addendum 2026-07-20)
 
-- **Источник и детали:** `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md` (полная декомпозиция по экранам,
-  provenance, backend-vs-cosmetic, reuse-реестр, развилки владельца G1-G5). Это НЕ параллельный roadmap — это
-  детализация свежего owner-разбора, привязанная к C1/#850/#813/#215/#191/#193/S4.
-- **Outcome:** довести кабинет доктора и клиентскую запись до нового owner-состояния. Часть §§2/5-8 owner-review C1
-  пере-описана детально владельцем → соответствующие пункты C1 суперсидятся (помечено `ЗАМЕНЯЕТ` в плане).
-- **Порядок:** **UI-0 (P0 аварийно)** — сломанная воронка записи клиента (SSR на выборе услуги, фильтр услуги-локации,
-  клиент из календаря, кликабельное ФИО) — ПЕРЕД остальными. Затем presentation-кластер UI-1/UI-3/UI-4/UI-6
-  (независимый file-scope → параллельно, ≤3), UI-5 (архитектурная карточка) и backend/gated UI-2/UI-7/UI-8/UI-9.
-- **Развилки владельца (G1-G5, в плане):** #564 индивид-упражнения (апрув), голосовые (отложить), per-specialist
-  тумблеры (отложить), 45/55 vs 40/60, онлайн-приём MVP. Зависимые этапы ждут ответов.
-- **Backend-зависимые:** поле «вид приёма» услуги (UI-2), all-time отмены/reschedule + «бывш. абонементы» + active-only
-  membership (UI-4), scheduled-message dispatcher (UI-7a), Whisper STT (UI-7b), новые ключи механик + polarity + S4-2
-  (UI-8), presign+scope (UI-9). Независимая косметика — отдельным списком в плане (worker+1 аудит).
-- **Координация:** UI-8 строится НА идущем S4/C4-C5 entitlement-движке (#888) — НЕ форкать. UI-0 сверяется с #801.
-  #885 DNA-рестайл ОТМЕНЁН владельцем (точечная косметика вместо токен-флипа).
-- **Gate:** risk-sized (presentation = 1 аудит; UI-2/UI-8/UI-9 identity/schema/entitlements = полный аудит) + живой
-  TEST-скрин + owner acceptance в середине. Статусы активных taskdb-задач НЕ менять без точного соответствия.
+- **Authority:** продуктовые решения и вопросы находятся только в
+  `docs/_TODO/SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md` §16a. Детальный
+  `docs/_TODO/DOCTOR_UI_REWORK_2026-07-20/PLAN.md` — исполнимый artifact этого roadmap, не второй источник статуса
+  или решений.
+- **UI-0:** bounded DEV reproduction/state trace трёх наблюдений, не доказанный P0 и не доказанная единая причина.
+  TEST journal/DB/remote host требуют отдельного разрешения. Существующая service relevance `location OR
+  specialist assignment` сохраняется до доказанного write/read defect; manual patient/walk-in остаётся U3B/`#801`.
+- **Presentation cluster:** UI-6a Сегодня, UI-1a Расписание и UI-4a Клиенты имеют непересекающиеся exact writable
+  manifests в execution artifact и могут идти параллельно (≤3). Каждый: worker + один независимый audit; live DEV
+  evidence на единственном `:5200` сериализуется. UI-3 отдельно делится на cosmetics, broadcast IA и
+  composer/backend; UI-4 presentation не смешивается с backend metrics.
+- **High-risk dependencies:** UI-5 является U5B и ждёт U5A + record-class policy; UI-8 вложен в C4D/C5 и не создаёт
+  parallel polarity/seed/keys; UI-9 ждёт C4D exact-org isolation + ответ G1; UI-2 ждёт ответ G5; UI-9 media scope и
+  любые identity/schema/tenant/data изменения проходят полный risk-sized цикл.
+- **Owner gates:** G1 (`#564`) открыт; G2 voice/STT deferred; G3 default org-only; G4 split 45/55 — вопрос с safe
+  default 40/60; G5 online appointment — вопрос, MVP лишь рекомендация; SCH-G5 остаётся owner-waiting `#848`.
+  `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
+- **Task mapping:** C1 `#850/#851/#852`; online `#215`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
+  `#191`; individual exercises `#564` + design `#565`; superseded Doctor DNA `#885`. Новые duplicate cards не
+  создавать; subscopes фиксировать в note/meta существующей карты при фактическом запуске.
+- **Gate:** TEST deploy не подразумевается и требует отдельного прямого разрешения владельца; при разрешении — только
+  code-only. Full CI запускается на milestone, а не повторяется для каждого presentation slice.
 
 #### C2 — identity команды и фактический invite journey
 

@@ -1,228 +1,218 @@
-# Doctor UI Rework — детальный план (owner dump 2026-07-19/20)
+# Doctor UI Rework — детальный execution artifact (2026-07-20)
 
-> **Статус:** ПЛАН (docs-only). Ветка `plan/doctor-ui-rework-2026-07-20`, НЕ влита в feat.
-> **Источник истины:** прямой owner-разбор 2026-07-19/20 (чат). Этот документ — исполнимая
-> декомпозиция того разбора. Он НЕ параллельный roadmap: он привязан к существующему
-> `IMPLEMENTATION_ROADMAP.md` (см. §Пересечения) и указывает, куда какой пункт встаёт.
-> **Провенанс:** где новый пункт разворачивает уже принятую работу — помечено `ЗАМЕНЯЕТ <task>`;
-> это осознанное решение владельца (он пере-описал детально), НЕ флип-флоп агента и НЕ находка аудита.
+> **Статус:** docs-only детализация существующего
+> [`IMPLEMENTATION_ROADMAP.md`](../SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md), не второй roadmap и не
+> источник статусов. Продуктовая authority — датированное дополнение в
+> [`OWNER_REVIEW_2026-07-18.md`](../SAAS_PRODUCT_UX_INITIATIVE/OWNER_REVIEW_2026-07-18.md). Taskdb хранит только
+> состояние и ссылки. До интеграции оркестратор повторно сверяет HEAD, taskdb и занятые file scopes.
 
-## 0. Режим исполнения (обязателен, из ORCHESTRATION_BINDINGS §«Универсальный режим»)
-- Аудит по риску: presentation/вёрстка/текст = worker + ОДИН аудит; полный многораундовый цикл — только на
-  identity/tenant/security/миграции/деньги/данные (здесь это UI-2 онлайн-схема, UI-8 entitlements, UI-9 media/RLS).
-- Параллель независимого file-scope (≤3): UI-1/UI-3/UI-6 не пересекаются по файлам — можно одновременно.
-- Приёмка владельца в СЕРЕДИНЕ: после каждого пакета видимых экранов — code-only деплой на TEST + его клик.
-  «audit PASS» сам по себе ≠ «готово».
-- >2 correction-раундов на этапе без закрытия чек-листа = СТОП + вопрос владельцу.
+## 0. Режим исполнения
 
-## 1. Развилки владельца (front-load — закрыть до зависимых этапов)
-| # | Вопрос | Рекомендация | Safe-default до ответа |
-|---|---|---|---|
-| G1 | Индивидуальные упражнения с видео (#193/#564) — запускать реализацию? Дизайн готов (#565). | ДА — дизайн совпадает с intent, ждёт только «го» + 3 мелких имени (`scope` vs `is_personal`; `usage_purpose`; draft-механика). | держать #564 blocked |
-| G2 | Голосовые сообщения — делать сейчас или отложить? STT-инфры в репо НЕТ (стройка с нуля). | ОТЛОЖИТЬ в отдельный поздний этап (UI-7b); самый большой новый кусок, не блокирует остальное. | не начинать |
-| G3 | Тумблеры по СПЕЦИАЛИСТУ (не только по клинике) — сейчас или потом? | ПОТОМ — по-клинике (org-level) движок уже есть; per-specialist = новая ось. | только org-level |
-| G4 | Раздел окон в Коммуникациях: owner сказал 45/55, только что приняли 40/60 (#850-family). | 45/55 (свежее слово владельца). | оставить 40/60 |
-| G5 | Онлайн-приём (UI-2) — это ТЗ к зависшей #215; объём большой (схема + запись + график + публичная). Строим целиком в этом заходе или MVP? | MVP: системная локация «Онлайн» + поле вида приёма у услуги + деление на публичной; сложное (предоплата/отбор) — позже. | не начинать |
+- Presentation/layout/text/mechanical: один цельный worker и один независимый audit, без серийных correction-аудитов.
+- Identity, tenant isolation, schema/data migration, entitlements и деньги: полный risk-sized цикл roadmap §7.2.
+- Не более трёх независимых workers; full CI, lint/build и единственный живой DEV `:5200` сериализуются.
+- Любой TEST deploy — отдельное действие только после прямого разрешения владельца. Этот план его не разрешает.
+- Finding без строки в owner review/roadmap — вопрос владельцу, не новая задача.
 
-## 2. Этапы
+## 1. Решения и открытые развилки
 
-### UI-0 — 🔴 P0 АВАРИЙНО: воронка записи клиента сломана
-Блокирует ВСЮ клиентскую запись и приёмку графика (#821). Отдельный аварийный стейдж (как C0 для Rubitime).
-- **SSR-ошибка после выбора услуги** + развал вёрстки блока услуг. BUG-live, нигде не отслежено.
-  Гипотеза: не в загрузчике каталога (он try/catch → `catalog_unavailable`), а в клиентском рендере описания услуги
-  (`BookingServiceDescription`, DOMPurify+`dangerouslySetInnerHTML`) ИЛИ несовпадение параметров.
-  Файлы: `apps/webapp/src/app/book/new/service/page.tsx`, `ServiceStepClient.tsx`, `bookingChoiceRowClass`.
-  ⚠️ Точный стек не подтверждён (журнал TEST под правами `systemd-journal`) — первый шаг воркера: снять стек из лога.
-- **Вкл/выкл услуги для локации не влияет на клиента.** BUG-live. Корень: read-фильтр по **ИЛИ**
-  (`inPersonServicesCatalog.ts:106-113`: `locationServiceIds.has ‖ ssaServiceIds.has`) + фильтр SSA по branchId/specialistId →
-  рассинхрон write/read. Нужна проверка живых строк БД.
-- **Запись из календаря не заводит видимого клиента.** BUG/by-design. Валидация сабмита
-  (`DoctorCalendarEventPanel.tsx` submit) требует start/duration/branch/service/specialist, но НЕ пациента →
-  запись с `platformUserId=null` / без org-enrollment → не виден в org-списке. Каноничный ручной-пациент+walk-in =
-  **#801** (спроектирован, не построен). Сверить с #801, не плодить.
-- **ФИО в детали записи → кликабельная ссылка** на карточку. NET-NEW малый (`patientCardHref` уже импортирован).
-- Риск: identity/booking → полный аудит.
+| Gate | Зафиксированное состояние | Safe default / зависимость |
+|---|---|---|
+| G1 — индивидуальные упражнения | **owner question:** начинать ли `#564`; `#565` — дизайн, а не разрешение реализации | не начинать; сначала C4D exact-org library isolation |
+| G2 — voice/STT | **deferred** | не строить сейчас; UI-7b остаётся отдельным поздним этапом |
+| G3 — тумблеры механик | **owner ruling:** текущий default только на организацию | не добавлять per-specialist axis |
+| G4 — split коммуникаций | **owner question:** менять ли принятое 40/60 на 45/55 | сохранять 40/60 |
+| G5 — онлайн-приём | **owner question:** точный MVP и граница относительно полной `#215` | не начинать schema/backend; рекомендация MVP не является решением |
+| SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
-### UI-1 — Расписание / График работы (в основном ПЕРЕИСПОЛЬЗОВАНИЕ)
-Файлы: `schedule/tabs/ScheduleWorkTab.tsx`, `ScheduleCalendarTab.tsx`. Не пересекается с UI-3/UI-6 → параллельно.
-- **Цвета локаций не наследуются в НЕДЕЛЬНОМ шаблоне** (и в плашке дня недели). DRIFTED. Механизм есть
-  (`resolveBranchHex`, #530 done) — применить к template-ячейкам и заголовку дня; проверить путь settings→API→grid.
-- **Фильтры локаций: серый=неактив; клик тогглит СВОЙ, не сбрасывая остальные; «Все»=все вкл.** DRIFTED (сейчас
-  эксклюзивный single-select `gridBranchFilter`). Паттерн мультивыбора уже есть (CLI-3/PRG-3) — перенести.
-  ⚠️ ЗАМЕНЯЕТ текущую модель фильтра; проверить, нет ли второго фильтра в CalendarTab.
-- **«Сохранить»→«Установить»** в блоке настройки времени. NET-NEW тривиально (`:1294`).
-- **Единый пикер времени** вместо `<input type=time>`. DRIFTED — пикер уже построен и принят (#48/#52,
-  `DoctorDateTimePicker`), просто не подключён здесь. ПОДКЛЮЧИТЬ, не строить.
-- **Полоски часов тоньше/бледнее.** NET-NEW тривиальный CSS (`ScheduleCalendarTab` inline `<style>`, нет
-  `--fc-border-color`/slot-border override).
-- **SCH-G5 (owner ruling ЗАКРЫТ):** есть недельный график на день → те же слоты, что настройка дня; нет → клиенту
-  ПУСТО (убрать fallback на weekday-окно). Семантика в одном месте: `computeSlots.ts:161-175`. Закрывает #815/#848-часть.
+Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
+не менять. Это снимает вопрос о времени, но не добавляет UI-8 в текущий launch scope.
 
-### UI-2 — Онлайн-приём (= ТЗ к зависшей #215; MVP по G5)
-Крупнейшая новая поверхность расписания. Backend + design.
-- **Системная локация «Онлайн»** в настройках локаций (тумблер вкл/выкл, гейтит онлайн-галочки услуг).
-  `settings/BookingSoloLocationsSection.tsx`.
-- **Поле «вид приёма» у услуги** — СЕЙЧАС ЕГО НЕТ (онлайн моделируется хардкодом категорий). NET-NEW schema:
-  per-service delivery-mode (`BeClinicService`/`upsertService`, `booking-engine/ports.ts:88-105`).
-- В **графике** при включённом онлайн — «Онлайн» в фильтры/список локаций; онлайн-расписание только для онлайн-приёмов;
-  очные локации, где онлайн разрешён, показывают клиенту и онлайн-запись.
-- **Публичная запись:** два блока (очные с адресом | онлайн); услуги «только онлайн» не показываются внутри очной,
-  уходят в онлайн-блок. Связано с UI-0 (тот же каталог).
-- Owner-review §P1 «развести все значения онлайн (запись/видео/телеметрия)» — учесть.
-- Риск: schema/booking → полный аудит.
+## 2. Stage map и границы
 
-### UI-3 — Коммуникации (частично ПЕРЕИСПОЛЬЗОВАНИЕ, частично NET-NEW)
-Файлы: `doctor/communications/tabs/*`, `modules/messaging/components/ChatView.tsx`, `DoctorSupportInbox.tsx`,
-`broadcasts/*`, `DoctorOnlineIntakeClient.tsx`. Оркестратор сейчас ЭТО НЕ трогает. Параллельно с UI-1/UI-6.
-- **Раздел окон 45/55 во всех вкладках** (G4). DRIFTED (сейчас 40/60 через `CatalogSplitLayout` — переиспользовать
-  примитив, НЕ новый split).
-- **Градиент фона чата** (по картинке владельца) ВЕЗДЕ: клиент+доктор, чат/модалка/комментарии. NET-NEW.
-  Чокпоинт: `ChatView` scroll-container (покрывает чат+модалку+пациента разом); комментарии — отдельные рендеры
-  (`ProgramItemDiscussionDialog`, `DoctorProgramDiscussionMessagesPanel`) → тот же токен применить и там.
-- **Шапка чата:** убрать ссылку «открыть карту(очку)», имя сделать кликабельной ссылкой (как на «Заявки»).
-  ⚠️ **ЗАМЕНЯЕТ принятое #813** (`cdb3a0718`, owner ранее «сделано хорошо»). Явно помечено как новое решение владельца.
-- **Рассылки:** убрать верхнюю фразу про архив/ошибки; клик по рассылке → просмотр в ЛЕВОЙ части (заголовок/текст/
-  метрики: кому/куда/ошибки/недоставка; «лог ошибок»→детали в правой); стандарт блок-сверху + крестик. NET-NEW
-  interaction поверх owner-review §8 (там была только плотность строк). Файлы: `broadcasts/BroadcastAuditLog.tsx`,
-  `BroadcastDeliveryArchiveClient.tsx`, `BroadcastForm.tsx`.
-- **Заявки:** убрать ссылку-имя в ЛЕВОМ списке (`DoctorOnlineIntakeClient.tsx:580-591`), оставить только в правом
-  блоке сверху (`:661`). NET-NEW малый.
-- **Общий композер чата (ФУНДАМЕНТ для UI-7):** сейчас 4 разных композера (doctor chat+modal, patient, doctor
-  comments, patient comments). Извлечь shared `<ChatComposer>` — предпосылка для отложенных/голосовых.
+### UI-0 — ограниченная DEV-репродукция записи
 
-### UI-4 — Клиенты (list) — ЗАМЕНЯЕТ §2 принятого #850
-Файл: `patients/PatientsPageClient.tsx`. Оркестратор не трогает. ⚠️ Разворачивает только что принятое (#850/§2) —
-осознанно.
-- **50/50** список|фильтры (ЗАМЕНЯЕТ 40/60 §2.11).
-- **Поиск → в шапку страницы** (правая часть над фильтрами); переезжает ТОЛЬКО поиск; количество+сортировка
-  остаются в шапке левого блока (уже там).
-- **КПИ:** заголовок-сверху/цифра-снизу (уже канон, `DoctorStatCard`), **3 в ряд** (было 5, из-за 50/50).
-- **Вторая цифра КПИ:** отфильтрованное — справа, БЕЗ слеша, меньше/тоньше, основной синий, иконка «фильтр» перед
-  (сейчас `current/total` со слешем в muted — переписать `renderSegmentMetricValue`).
-- **Подсказки:** задержка появления + укоротить до одной строки (примеры владельца).
-- **«Все люди»→«Все клиенты/пациенты»** по настройке терминологии (`patientPluralLabel` есть).
-- **«С отменами» = за всё время** (сейчас 30д). BACKEND: новое all-time поле в проекции.
-- **«С абонементом» (ед.ч.) = только активным**, без ожидающих оплату; подсказка «с действующим абонементом».
-  BACKEND: active-only флаг (сейчас `hasMemberships` включает pending).
-- **Новые КПИ:** «С переносами» (BACKEND: all-time reschedule) и «Бывш. абонементы» (BACKEND: нет поля).
-- **Убрать превью-карточку** (её содержимое) — карточка теперь открывается инлайн (см. UI-5). ⚠️ ЗАМЕНЯЕТ §2 master/detail.
-- **Иконки строки:** порядок абонемент→программа-ИЛИ-сопровождение(один слот)→запись; убрать фон+обводку вокруг иконки.
+**Не доказано:** P0, единая первопричина, ошибка canonical service OR или связь всех симптомов с `#801`.
 
-### UI-5 — Страница клиента (card) — АРХИТЕКТУРНАЯ переделка
-Файлы: `patients/[userId]/PatientCardClient.tsx` + `tabs/*`. Крупнейший этап. Много ПЕРЕНОСА готовых блоков.
-- **Открывается ВНУТРИ контейнера «Клиенты»** по клику в списке, без шага превью (NET-NEW архитектура: карточку
-  поднять в контейнер списка + state/routing). ⚠️ ЗАМЕНЯЕТ standalone-route + preview #850.
-- **Поиск при активной карточке** — совпадения выпадающим списком под полем. NET-NEW.
-- **Шапка:** только ФИО + «Дата рождения» (полное слово); ручка правки ФИО с бóльшим отступом; чат/телефон/имейл/
-  мессенджеры диплинками в ПРАВОЙ части (чат→модалка). Убрать пол/рост/вес/чипы/мини-статы. DRIFTED heavy.
-- **Вкладки под шапкой; шапка(имя)+вкладки sticky при скролле.** NET-NEW.
-- **Контейнер внутри вкладок 50/50; моб = одна из частей.** Унифицировать.
-- **Убрать вкладку «Коммуникации».** Убрать страницу **«Обзор»** — её механики перенести в правую часть «Карточки»
-  (⚠️ «Обзор» тяжело построен #526/#19/#210 — удалить+перераспределить).
-- **Правая часть «Карточки»:** запись о визите скрыта по умолчанию; сверху вниз:
-  - строка плашек-КПИ **«Визиты / Будущие записи / Абонементы»** → клик открывает данные в ЛЕВОЙ части (над карточкой
-    диагноза). Это убирает вкладку **«Визиты»** и уводит абонементы из **«Финансы»**.
-  - **«Заметки»** (пусто → только кнопка добавить, без «нет заметок»); **«Задачи»** так же; **«Динамика симптомов»**;
-    **«Назначенная программа»** (только название + дата контроля + этапы с подсветкой активного, БЕЗ состава упражнений;
-    клик по названию → программа); календарь **«Выполнение упражнений»**.
-    (Все эти блоки существуют в «Обзоре»/«Записях» — ПЕРЕНОС, не переписывание.)
-- **Визиты в левом блоке:** для визита с уже оформленной записью — «Открыть заметки» вместо «создать визит из записи».
-- **Абонементы в левом блоке:** список+история, «Списать» активному, «Пересчитать», сверху «Добавить абонемент»
-  (открывается в правой части — настройки/выбор/оплата; онлайн-оплата = #819 todo). ПЕРЕНОС `MembershipPanel`.
-- **Убрать пояснительные подписи** (список приоритет/выраженность, «диагнозов нет», «по клику…», «сопутствующих
-  нет», «травм не внесено»). Тривиально.
-- **Диагноз:** без «Актуальный» в названии; не отделять «ПРЕДВАРИТЕЛЬНЫЕ» (слить в один список).
-- **Симптомы** — цветом как на «Обзоре» (переиспользовать его color-логику при удалении «Обзора»).
-- Риск: presentation, НО объём+перенос данных большой → 1 аудит + обязательный живой скрин.
+Сначала на DEV воспроизвести и трассировать три независимых состояния:
 
-### UI-6 — Сегодня (мелкая перестановка + регресс-фикс)
-Файлы: `DoctorTodayMiniCalendar.tsx`, `DoctorTodayDashboard.tsx`, `DoctorTodayLeftKpiRow.tsx`. Параллельно с UI-1/UI-3.
-- **КПИ раздулись** (огромная высота, пустота). DRIFTED/BUG — регресс из `98cb5455f` (`h-[5.5rem]`+`mt-auto`),
-  пост-#850. Убрать/уменьшить фикс-высоту и распорку → компактно, заголовок-сверху/цифра-снизу. Низкий риск.
-- Дата рядом с днём недели вверху календаря; убрать дубль дня/даты из шапки блока; убрать фразу с количеством записей;
-  «открыть расписание» → на уровень заголовка, вправо, переименовать «Открыть календарь».
-- Блок «на сопровождении»: иконка-шестерёнка → выбор «на сопровождении»/«недавние (с визитами)»; TODO «самые
-  активные»; и вообще экран «Сегодня» настраиваемый (какие сигналы). Настраиваемость пересекается с UI-8.
+1. выбор услуги и последующий render/SSR;
+2. видимость услуги при комбинации location-service и specialist-service assignment;
+3. создание записи из календаря и появление пациента в organization-owned client projection.
 
-### UI-7 — Движок сообщений (на общем композере из UI-3)
-- **UI-7a Отложенные сообщения** (чат+комментарии, врач+клиент): квадратная кнопка-часики справа от «Отправить» →
-  пикер даты/времени → «Отправить»→«Запланировать» → уходит в чат отправителя с будильником вместо галочек.
-  NET-NEW. BACKEND: per-message `scheduled_at`+status+worker-dispatcher (паттерн есть у broadcast-scheduling #90, но
-  отдельное хранилище). Статус-рендер — в `ChatView`/`ChatBubbleOutgoingMeta`.
-- **UI-7b Голосовые сообщения** (G2 — ОТЛОЖЕНО по рекомендации): mic-кнопка справа; запись (`MediaRecorder`); хранение;
-  **новый Whisper-сервис (STT в репо НЕТ вообще)**; входящее — прослушать/расшифровать; отображение как в Telegram
-  (библиотеки нет) или упрощённо (иконка+курсив, «Аб»→расшифровка ниже); лимит 5 мин; длинный текст сворачивать.
-  Whisper — на нашем боксе (уже крутит STT для персон), на проде свой. Самый большой новый кусок; отдельный поздний этап.
+Проверка ограничена request/state trace, существующими тестами и безопасными DEV fixtures. TEST journal, TEST DB и
+любой remote TEST-host доступ не входят в scope без отдельного разрешения. Текущая логика canonical service
+relevance `location assignment OR specialist assignment` сохраняется, пока trace не докажет конкретный write/read
+дефект; нельзя заменять её более узким AND по предположению. Ручной пациент, appointment и walk-in остаются в
+существующей `#801`/U3B — здесь не создаётся второй механизм. Кликабельное ФИО в существующей детали записи —
+отдельный низкорисковый presentation slice после подтверждения текущего route contract.
 
-### UI-8 — Тумблеры фич / супер-тариф (НА существующем S4-движке)
-KEY: движок per-ORG уже есть и сдан (#888 S4-0/S4-1): типизированный `MECHANIC_REGISTRY`, резолвер
-`override>tariff>default`, чокпоинт `requireEntitlement()`, таблица `saas_org_entitlement_overrides`. НЕ форкать —
-координировать с идущими S4/C4-C5 codex-оркестратора.
-- **Новые ключи механик** `today_screen`, `warmups` (сейчас их нет; `courses` уже механика). NET-NEW registry.
-- **Переворот полярности** default-OFF для недоделанных фич (сейчас default-ON кроме courses/clinic_team); + засеять
-  owner-org all-ON тарифом. CONFLICT/осознанно — по паттерну courses.
-- **Per-specialist ось** (G3 — ОТЛОЖЕНО): сейчас ключ только `organizationId`. Новая ось.
-- **Админ-конструктор** тарифов/тумблеров — S4-2 (в плане, не построен). Владелец настроит свой супер-тариф здесь.
-- **Разминки как механика** (#191 blocked): расписание/кол-во настраивает специалист в кабинете; уведомлений
-  тренировок по умолчанию нет (совпадает с owner-review §15); existing клиентов не трогать.
-- Риск: entitlements/tenant → полный аудит; координация с C4/C5.
+**Risk:** trace — read-only/targeted; найденный identity/booking fix получает отдельный high-risk scope по доказанной
+причине, а не автоматически весь UI-0.
 
-### UI-9 — Индивидуальные упражнения с видео (#193/#564 — G1)
-Полностью спроектировано (#565, `PROGRAM_INDIVIDUAL_ITEM_DESIGN.md`), реализация #564 blocked на апрув владельца (G1).
-Дизайн совпадает с intent: доктор создаёт `personal`-scoped `lfk_exercises` инлайн из редактора программы, видео через
-новый doctor-side presign-роут (зеркало пациентского), файл в папку пациента (папка решена PFI ST-08/O3), видео
-immutable после назначения. ⚠️ Оговорка: LFK `list()` (`pgLfkExercises.ts:449-518`) без org-предиката (тот самый
-спящий tenant-leak) — «скрыто из пикера» ≠ «изолировано на уровне запроса»; НЕ смешивать, но учесть.
-Риск: media/RLS → полный аудит.
+### UI-1 — расписание
 
-### CLIENT-misc
-- **Пустой график самочувствия** на пациентском «Сегодня» — показывается всегда; спрятать до первой отметки эмодзи.
-  DRIFTED/bug, 1 компонент (`PatientHomeMoodCheckin.tsx:183` / `PatientHomeWellbeingWeekStrip.tsx`). Тривиально.
+- **UI-1a presentation:** цвета существующих location tokens в недельном шаблоне, текст «Установить», подключение
+  существующего `DoctorDateTimePicker`, более спокойные grid lines. Launch manifest — §4.
+- **UI-1b behavior:** independent multi-select location filters: inactive серые, каждый location toggles независимо,
+  «Все» включает все; отдельный focused behavior scope после trace текущего state contract.
+- **SCH-G5:** не входит ни в UI-1a, ни в UI-1b; остаётся owner-waiting `#848`.
+- **UI-2 online appointment:** отдельный backend/schema этап после ответа G5; системная online-location,
+  delivery-mode услуги и public booking не строятся как косметика.
 
-## 3. Backend-зависимые пункты (нужна схема/порт/миграция или новый сервис)
-- UI-0: read-фильтр услуг локации (логика ИЛИ), валидация календарной записи + org-enrollment (сверить #801).
-- UI-2: **новое поле «вид приёма» у услуги** (schema/migration); онлайн-локация; слот-логика онлайн.
-- UI-4: all-time отмены; active-only membership флаг; all-time reschedule; «бывш. абонементы» поле.
-- UI-5: агрегаты Визиты/Будущие/Абонементы для плашек (переиспользуют существующие источники, но новая сборка).
-- UI-7a: per-message `scheduled_at`+status+dispatcher-worker.
-- UI-7b: Whisper STT-сервис (с нуля) + хранение аудио.
-- UI-8: новые ключи механик, переворот полярности, (опц.) per-specialist ось, S4-2 конструктор.
-- UI-9: presign-роут доктора + `scope` на `lfk_exercises` (по готовому дизайну).
+### UI-3 — коммуникации
 
-## 4. Независимая косметика (presentation-only, worker+1 аудит, можно параллелить)
-- UI-1: «Сохранить»→«Установить»; полоски часов тоньше/бледнее; подключить готовый пикер; цвета недельного шаблона.
-- UI-3: 45/55; градиент фона; убрать фразу в рассылках; ссылка-имя в Заявках.
-- UI-4: 3-в-ряд; вторая цифра КПИ; подсказки задержка/укорот; «Все клиенты/пациенты»; иконки строки порядок+без фона.
-- UI-5: убрать пояснительные подписи; диагноз без «Актуальный»/без разделения предварительных; пусто-заметки/задачи.
-- UI-6: КПИ-регресс фикс; дата/день; ссылка «Открыть календарь»; убрать дубль/фразу.
-- CLIENT: скрыть пустой график самочувствия.
+Разделить три непересекающихся по риску этапа:
 
-## 5. Пересечения с текущим roadmap (координация, НЕ дублировать)
-- **C1 «текущие исправления интерфейса»** (owner-review §§1-8) — UI-1/UI-3/UI-4/UI-6 РАСШИРЯЮТ/ЗАМЕНЯЮТ его свежими
-  правками. Часть §2 (Клиенты) и §5-8 (Коммуникации) пере-описаны детально → план суперсидит именно те пункты.
-- **#850 [done]** = базлайн, который UI-4/UI-5 разворачивают (осознанно, помечено ЗАМЕНЯЕТ).
-- **#813 [accepted]** — ссылка «открыть карточку» в чате; UI-3 её ЗАМЕНЯЕТ (имя-ссылка).
-- **#215 [blocked]** — UI-2 является его недостающим ТЗ.
-- **#193/#564/#565** — UI-9; апрув владельца (G1).
-- **#191 [blocked]** — разминки в UI-8.
-- **#801 [todo]** — ручной пациент/walk-in; UI-0 календарная запись обязана свериться, не форкать.
-- **#819 [todo]** — онлайн-оплата абонемента; питает UI-5 «Добавить абонемент».
-- **S4/C4-C5 (idущие)** — UI-8 строится на их entitlement-движке; координировать, НЕ форкать параллельную систему тумблеров.
-- **#885 DNA — ОТМЕНЁН** владельцем 20.07 (механический рестайл не делаем); точечные правки цвета/радиусов входят
-  сюда как обычная косметика, без токен-флипа.
+1. **UI-3a cosmetics:** подтверждённые тексты, фон/градиент и мелкая presentation-плотность без смены split;
+2. **UI-3b broadcast IA:** журнал, выбор/раскрытие и error-details с отдельным interaction acceptance;
+3. **UI-3c composer/backend:** shared composer, scheduled messages и delivery state; high-risk там, где появляется
+   durable queue/dispatcher.
 
-## 6. Реестр «переиспользовать, не строить заново»
-- Единый пикер времени (`DoctorDateTimePicker`, #48/#52) → UI-1.
-- `resolveBranchHex`/branch color (#530) → UI-1 (недельный шаблон, заголовок дня).
-- Мультивыбор-без-сброса (CLI-3/PRG-3) → UI-1 фильтры.
-- `CatalogSplitLayout` → UI-3/UI-4/UI-5 (не новый split).
-- `ChatView` как единый рендер пузырей → UI-3 градиент, UI-7 статус-будильник.
-- Блоки «Обзора» (Заметки/Задачи/Динамика/Программа/Календарь) + `MembershipPanel` из «Записей» → ПЕРЕНОС в UI-5.
-- S4 entitlement-движок (#888) → UI-8.
-- Готовый дизайн #565 + PFI-папка → UI-9.
+**Owner-ruling content to preserve in the bounded subscopes:** одинаковый chat background в doctor/patient chat,
+modal и comments; имя в шапке как единственная card navigation; убрать лишнюю верхнюю фразу broadcasts; выбранная
+рассылка раскрывается без перекрытий с summary/delivery/error data; в левом списке заявок не дублировать ссылку на
+имя, если она есть в detail. Принятый 40/60 остаётся до ответа G4. Существующую принятую chat-card navigation нельзя
+молча заменить новой: route и доступность должны сохраниться. Shared composer — рекомендация по reuse, а не
+разрешение переписать четыре consumers. Voice/STT — deferred UI-7b, не часть общего composer refactor.
 
-## 7. Предлагаемая вставка в IMPLEMENTATION_ROADMAP.md
-Добавить кластер стадий **UI-0…UI-9** после C1 (текущий UI-кластер), с UI-0 как аварийным (перед остальными),
-пометив каждую стадию: risk-класс, backend-vs-cosmetic, maps-to существующий task, supersedes. Пойнтер на этот файл.
-НЕ создавать второй roadmap; статусы активных задач НЕ менять без точного соответствия (единственная сделанная
-правка статуса — #885, точное соответствие owner-отмене).
+### UI-4 — список клиентов
+
+- **UI-4a presentation:** layout, поиск, KPI presentation/tooltips/терминология и порядок информационных иконок;
+  launch manifest — §4.
+- **UI-4b metrics/backend:** all-time cancellations/reschedules, active-only и expired membership semantics —
+  отдельный contract stage с repository/API evidence. Presentation не должна выдумывать недоступные цифры.
+- 50/50 и удаление preview нельзя считать разрешением на архитектурную inline-карточку: это UI-5.
+
+**UI-4a exact presentation:** поиск переезжает в page header, а количество и сортировка остаются в шапке списка;
+KPI показываются по три в ряд, filtered value — отдельной меньшей цифрой без slash с filter icon; tooltip появляется
+с задержкой и укладывается в одну строку; «Все люди» использует настроенный patient plural label; icon slots идут
+membership → program-or-supervision → appointment без фоновых коробок. **UI-4b owner intent:** cancellations и
+reschedules — all-time, membership KPI — только active, expired memberships — отдельная метрика. Точные repository
+fields/API сначала доказываются; pending payment нельзя молча считать active.
+
+### UI-5 — organization patient card
+
+UI-5 является реализацией U5B, а не продолжением косметики списка. Он стартует только после U5A и решения
+record-class visibility/export policy. Organization context, foreign-object denial и clinical record ownership
+имеют high-risk audit. Пока gate не закрыт, существующая standalone patient card остаётся канонической.
+
+После readiness U5B сохраняет следующий owner outcome, но не начинает его раньше gate:
+
+- карточка открывается в контейнере «Клиенты» без промежуточного preview; поиск активной карточки даёт dropdown;
+- compact sticky header: ФИО, полная «Дата рождения», edit affordance и правые deep links chat/phone/email/messenger;
+- tabs под header, внутренний 50/50 layout; mobile показывает одну часть за раз;
+- Communications и Overview не остаются дублирующими tabs: существующие Notes, Tasks, symptom dynamics, assigned
+  program и exercise-completion calendar переносятся, а не переписываются;
+- KPI Visits/Future appointments/Memberships открывают соответствующий left content; prepared visit открывает notes;
+- membership list/history сохраняет Add, Write off и Recalculate flows; online payment остаётся отдельной `#819`;
+- убрать пустые/объяснительные подписи, «Актуальный» и отдельный preliminary diagnosis bucket; переиспользовать
+  существующую symptom color logic.
+
+Ни один из этих пунктов не разрешает обход organization context, объединение record classes или потерю standalone
+deep-link compatibility до принятого U5B routing contract.
+
+### UI-6 — Сегодня
+
+- **UI-6a presentation:** компактные KPI, перестановка даты/ссылки календаря и удаление дублирующих подписей;
+  launch manifest — §4.
+- Настраиваемые owner signals, переключатель «на сопровождении»/«недавние с визитами», «самые активные», новые
+  counters и скрытие клиентов — рекомендация для отдельной product/behavior работы, не косметика UI-6a.
+
+### UI-7 — коммуникационные возможности
+
+- **UI-7a scheduled messages:** только после отдельного backend contract для queue, retry, cancellation, org scope
+  и delivery; owner outcome — schedule button рядом с Send, date/time picker, «Запланировать» и pending clock state
+  у sender; не прячется внутри presentation UI-3 и не копирует broadcast storage без contract review.
+- **UI-7b voice/STT:** deferred по G2.
+
+### UI-8 — capability/commercial projection
+
+UI-8 вложен в C4D/C5. Он использует единый entitlement registry, точную organization ownership и commercial
+defaults; не создаёт параллельную polarity system, seed или второй набор feature keys. Org-only — текущий default;
+per-specialist axis deferred. Owner outcome — администратор может собирать тариф/включать доступные организации
+механики через единый commercial contour; точные registry keys/default polarity и migration определяет C4D/C5, а
+не этот UI plan. Значения `#191` не являются разрешением запускать UI-8 раньше C4D/C5.
+
+### UI-9 — индивидуальные упражнения
+
+UI-9 зависит от C4D exact-org library isolation и ответа G1. `#565` — design evidence; `#564` остаётся blocked до
+прямого «запускать». Design recommendation: personal-scoped exercise создаётся из program editor, doctor media
+upload использует organization/patient-owned folder contract, а назначенное видео immutable; точные field names и
+draft semantics не являются owner rulings. Media access/presign и tenant ownership проверяются high-risk циклом.
+
+### Client UI residual
+
+Пустой mood chart на patient «Сегодня» скрывается до первой emoji/check-in отметки. Это точечная presentation-задача,
+не расширяет Doctor UI stage и получает отдельный exact file manifest перед запуском.
+
+## 3. Exact task mapping — без дублей
+
+| Scope | Existing authority/task | Действие |
+|---|---|---|
+| UI-0 patient/appointment/walk-in | U3B / `#801` | trace и переиспользование; не форкать карточку |
+| UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
+| SCH-G5 | `#848` | owner-waiting, без реализации |
+| UI-2 online appointment | `#215` | owner-waiting до ответа G5 |
+| UI-3 communications | C1 / `#852` | split на subscopes в meta/note, не новые дубли |
+| UI-4/UI-6 presentation | C1 / `#850` | launch manifests ниже; backend residual отдельно в той же карте до triage |
+| UI-5 organization patient card | U5B roadmap stage | task создаётся/расширяется только при readiness, не заранее |
+| UI-8 mechanics/reminders | C4D/C5 + `#191` | не форкать entitlement/commercial систему |
+| UI-9 individual exercises | `#564`, design `#565` | blocked до G1 и C4D |
+| Full Doctor DNA migration | `#885` | owner-cancelled/superseded; сохранить blocked historical record без stale question |
+
+## 4. Immediate parallel presentation launch manifests
+
+Эти три scope готовы к выдаче workers, но **этот docs-only pass их не запускает**. Файлы не пересекаются.
+
+### UI-6a — Сегодня
+
+**Writable manifest:**
+
+- `apps/webapp/src/app/app/doctor/DoctorTodayMiniCalendar.tsx`
+- `apps/webapp/src/app/app/doctor/DoctorTodayMiniCalendar.test.tsx`
+- `apps/webapp/src/app/app/doctor/DoctorTodayDashboard.tsx`
+- `apps/webapp/src/app/app/doctor/DoctorTodayDashboard.test.tsx`
+- `apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.tsx`
+- `apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.test.tsx`
+
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor`, `dev:doctor`; `1440×900` и `390×844`. KPI не имеют
+искусственной пустой высоты; дата и «Открыть календарь» находятся в компактной календарной шапке; день/дата и
+количество записей не дублируются. Никаких новых KPI/сигналов или query changes.
+
+### UI-1a — Расписание presentation
+
+**Writable manifest:**
+
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.tsx`
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleWorkTab.test.tsx`
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.tsx`
+- `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.test.tsx`
+
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/schedule?tab=work` и `?tab=calendar`, `dev:admin`;
+`1440×900` и `390×844`. Existing branch colors видны в weekly template/day label, действие называется
+«Установить», используется существующий shared time picker, grid lines спокойнее. Фильтр state и SCH-G5 не менять.
+
+### UI-4a — Клиенты presentation
+
+**Writable manifest:**
+
+- `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.tsx`
+- `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.test.tsx`
+
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/patients`, `dev:doctor`; `1440×900` и `390×844`. Layout 50/50
+на desktop и упражнения-подобный master/detail на mobile; поиск в page header; KPI по три в ряд, имеют единый active
+state и короткие delayed tooltips; терминология берётся из patient label; информационные иконки имеют стабильные
+слоты. Не менять metric queries/semantics и не строить inline patient card.
+
+Для каждого scope: focused tests + scoped typecheck/lint по политике, один живой DEV evidence pass (сериализован на
+`:5200`), затем один независимый audit по точным acceptance. TEST deploy и full CI не входят; full CI идёт только на
+следующей milestone-вехе.
+
+## 5. Handoff и completion
+
+- Этот документ детализирует исполнение; status, completion и DAG остаются только в roadmap/taskdb/LOG.
+- Worker handoff: commit, exact files, acceptance lines, commands/results, DEV URLs/viewports, residual risks.
+- Presentation PASS не закрывает backend sibling; backend PASS не разрешает owner-waiting gates.
+- После интеграции accepted slice в `feat/doctor-ui-rebuild` временная branch/worktree удаляется.
+- Owner-visible TEST checkpoint проводится только по отдельному явному разрешению и только code-only deploy.

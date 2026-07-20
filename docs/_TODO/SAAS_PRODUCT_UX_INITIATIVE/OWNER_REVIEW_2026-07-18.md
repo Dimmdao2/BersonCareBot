@@ -834,6 +834,62 @@ client/subscriber category по умолчанию и не требует это
 | Owner-only patient-home controls | CMS/content entitlement и tenant isolation |
 | Рассылки/settings | communications entitlement + broadcasts-local settings |
 
+## 16a. Дополнение владельца от 2026-07-20 — Doctor UI rework
+
+Это дополнение является продуктовой authority для детального
+[`Doctor UI Rework execution artifact`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md). Сам execution artifact не может
+создавать решения владельца. Каждый новый пункт ниже имеет ровно один статус:
+
+- **решение владельца** — можно переводить в исполнимый scope с учётом DAG;
+- **рекомендация** — инженерный вариант, не разрешение реализации;
+- **отложено** — сейчас не исполнять;
+- **вопрос владельцу** — сохранять safe default и не начинать зависимую работу.
+
+### Решения владельца
+
+| Область | Точное решение |
+|---|---|
+| Запись клиента | На DEV отдельно воспроизвести выбор услуги, service/location visibility и создание записи из календаря; ФИО в детали записи должно вести в существующую карточку. Наблюдения не доказывают общий P0 или единую первопричину. Ручной пациент/walk-in остаётся в U3B/`#801`. |
+| Расписание | В недельном шаблоне использовать существующие цвета локаций; «Сохранить» заменить на «Установить»; переиспользовать общий picker времени; сделать линии сетки спокойнее. В отдельном behavior slice location filters независимы: inactive серые, клик toggles только свою локацию, «Все» включает все. |
+| Разминки `#191` | Default для новых назначений: `12:00` и `15:00` в рабочие дни. Существующих клиентов не изменять. |
+| Коммуникации | Косметику, broadcast IA и composer/backend разделить по риску. Одинаковый chat background нужен в doctor/patient chat, modal и comments; имя остаётся единственной card navigation в шапке. В broadcasts убрать лишнюю фразу и раскрывать выбранную строку без перекрытий с summary/delivery/error data; в intake left list не дублировать name link из detail. Voice/STT не прятать в общий composer. |
+| Клиенты | Presentation: desktop 50/50, поиск в шапке (количество/сортировка остаются над списком), по три KPI в ряд, filtered value отдельной меньшей цифрой без slash с filter icon, единое active-поведение, короткие delayed tooltips, terminology label и icon slots membership → program-or-supervision → appointment без фоновых boxes. Cancellations/reschedules должны стать all-time, membership — active-only, expired memberships — отдельной метрикой, но это отдельный backend contract. |
+| Карточка пациента | Inline organization patient card относится к U5B и не стартует раньше U5A и record-class visibility/export policy. Целевое состояние: no-preview container, search dropdown, compact sticky FIO/birth-date/contact header, tabs и 50/50 content, перенос существующих Notes/Tasks/Dynamics/Program/Completion blocks, KPI Visits/Future/Memberships, visit notes и membership actions; не дублировать Overview/Communications, пустые пояснения и diagnosis buckets. До gate сохраняется standalone route и deep-link compatibility. |
+| Сегодня | KPI и календарную шапку сделать компактнее, убрать дубли дня/даты/количества, ссылку назвать «Открыть календарь». Новые configurable signals не включать в косметический slice. |
+| Patient Today | Пустой mood chart скрывать до первой emoji/check-in отметки; это отдельная точечная presentation-задача. |
+| Scheduled messages | Целевой UX: schedule button рядом с Send, date/time picker, действие «Запланировать» и pending clock state у отправителя. Queue/retry/cancel/org-scope — отдельный backend contract до реализации. |
+| Механики | Текущий default — настройки на организацию. Per-specialist axis сейчас не добавлять. UI механик строится только как projection единого C4D/C5 entitlement/commercial contract. |
+| Doctor DNA | Полная миграция темы/токенов отменена владельцем 2026-07-20. Допустимы только точечные UI-исправления в соответствующих экранных stages. |
+| TEST | Ни этот addendum, ни execution artifact не разрешают TEST deploy/log/DB. Любой TEST deploy остаётся отдельным owner-authorized code-only действием. |
+
+### Рекомендации, не решения
+
+| Область | Рекомендация |
+|---|---|
+| Запись клиента | DOM/render, parameter mismatch и write/read mismatch — только гипотезы до DEV trace. Canonical service relevance `location assignment OR specialist assignment` сохраняется, пока trace не докажет конкретный дефект. |
+| Онлайн-приём | Системная локация «Онлайн», delivery-mode услуги, online schedule/filter и разделение public booking на очный/online блоки могут быть безопасной формой MVP, но это не закрывает G5/`#215`. |
+| Composer | Общий composer может уменьшить дублирование, но extraction допускается только внутри отдельного bounded scope с доказанными consumers. |
+| Метрики клиентов | All-time cancellations/reschedules, active-only и expired membership требуют contract evidence до выбора полей/API. |
+| Индивидуальные упражнения | `#565` — design evidence и рекомендуемая основа (personal scope, editor creation, owned media, immutable assigned video), но не owner approval реализации `#564`; field names и draft semantics остаются design choices. |
+| Online/settings defaults | Новые keys, polarity flip и seed владельческой организации не утверждены; нельзя создавать их параллельно C4D/C5. |
+| Today signals | Переключатель «на сопровождении»/«недавние с визитами», «самые активные» и configurable screen — рекомендация для отдельной product/behavior задачи. |
+
+### Отложено
+
+- Voice messages и STT/Whisper (G2/UI-7b).
+- Per-specialist mechanics toggles; текущая реализация остаётся org-only (G3).
+- Расширяемые/configurable Today signals и сложный экспорт/перестройка карточки до соответствующих foundation gates.
+
+### Вопросы владельцу
+
+1. **G1:** запускать ли `#564` после C4D exact-org library isolation? До ответа `#564` blocked; `#565` не является
+   разрешением.
+2. **G4:** менять ли уже принятое соотношение коммуникаций 40/60 на 45/55? Safe default — 40/60.
+3. **G5:** какой точный объём онлайн-приёма нужен сейчас: bounded MVP или полный `#215`? До ответа schema/backend не
+   начинать; MVP — только рекомендация.
+4. **SCH-G5 / `#848`:** при отсутствии недельного графика показывать пусто или сохранять fallback на weekday-window?
+   До ответа действующее поведение не менять.
+
 ## 17. Статус
 
 - [x] Устные замечания этого блока записаны без сокращения продуктового смысла.

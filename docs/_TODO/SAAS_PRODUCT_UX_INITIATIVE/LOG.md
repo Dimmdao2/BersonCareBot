@@ -1,5 +1,25 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — Doctor UI plan authority convergence (docs-only)
+
+**Result.** Claude planning commit `ef501ed41` was retained as a detailed execution artifact but corrected against
+the existing authority chain. New owner material is now classified in owner review §16a as an exact ruling,
+recommendation, deferred item or owner question. The artifact no longer declares UI-0 a proven P0/root cause,
+does not authorize TEST log/DB/deploy, keeps the canonical service-assignment OR until evidence proves a defect,
+and maps the calendar/manual-patient symptom to existing U3B/`#801` without forking it.
+
+**DAG and gates.** UI-3 cosmetics/broadcast IA/composer-backend and UI-4 presentation/backend metrics are separated;
+UI-5 is U5B after U5A + record-class policy; UI-8 is subordinate to C4D/C5 without parallel polarity/seed; UI-9
+waits C4D exact-org isolation and G1. G2 is deferred, G3 keeps org-only default, G4 keeps 40/60 while owner-waiting,
+G5 remains owner-waiting with MVP only a recommendation, and SCH-G5 remains `#848`. `#191` records new-only
+working-day defaults `12:00` and `15:00`, leaving existing clients untouched.
+
+**Execution mapping.** Existing cards remain authoritative: C1 `#850/#851/#852`, online `#215`, manual
+patient/walk-in `#801`, mechanics/reminders C4D/C5 + `#191`, individual exercises `#564` with design `#565`, and
+cancelled Doctor DNA `#885`. No duplicate task was created. Exact disjoint manifests and DEV acceptance for
+UI-6a/UI-1a/UI-4a were recorded for later worker launch; no code worker, TEST/PROD action, DB action, deploy or full
+CI was started in this convergence pass.
+
 ## 2026-07-20 — U5A patient organization context launch (`#796`)
 
 **Base and authority.** U5A launches from clean/pushed `feat/doctor-ui-rebuild` at `9601c71c6` after terminal U1 and
