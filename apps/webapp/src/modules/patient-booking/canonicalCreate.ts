@@ -118,9 +118,12 @@ function toPendingRowInPerson(
     contactName: input.contactName,
     contactPhone: input.contactPhone,
     contactEmail: input.contactEmail ?? null,
-    branchId: context.branchId,
-    serviceId: context.serviceId,
-    branchServiceId: context.branchServiceId,
+    // `patient_bookings` is a legacy compatibility projection whose three IDs
+    // reference legacy catalog tables. Canonical-native SSA keys must not be
+    // written into those FKs; the canonical appointment keeps the real IDs.
+    branchId: context.legacyBranchServiceId ? context.branchId : null,
+    serviceId: context.legacyBranchServiceId ? context.serviceId : null,
+    branchServiceId: context.legacyBranchServiceId,
     cityCodeSnapshot: branch.cityCode,
     branchTitleSnapshot: branch.title,
     serviceTitleSnapshot: service.title,

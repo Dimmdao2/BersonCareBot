@@ -21,7 +21,10 @@ export type CanonicalBookingContext = {
   specialistId: string;
   serviceId: string;
   roomId: string | null;
+  /** Opaque scheduling key: legacy branch-service id when mapped, otherwise canonical SSA id. */
   branchServiceId: string;
+  /** Nullable legacy FK for the compatibility `patient_bookings` projection. */
+  legacyBranchServiceId: string | null;
   durationMinutes: number;
   bufferAfterMinutes: number;
   branchTimezone: string;
@@ -117,7 +120,9 @@ export type BookingSchedulingPort = {
     serviceId?: string | null;
     branchServiceId?: string | null;
   }): Promise<string | null>;
+  /** Resolves either a mapped legacy branch-service id or a canonical SSA id. */
   resolveCanonicalFromBranchService(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  /** Returns the mapped legacy id when present; otherwise the preferred canonical SSA id. */
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
     branchId: string;
@@ -252,7 +257,9 @@ export type BookingSchedulingService = {
     serviceId?: string | null;
     branchServiceId?: string | null;
   }): Promise<string | null>;
+  /** `branchServiceId` is an opaque compatibility key: legacy id or canonical SSA id. */
   resolveInPersonContext(branchServiceId: string): Promise<CanonicalBookingContext | null>;
+  /** Returns legacy id when mapped, otherwise canonical SSA id. */
   resolveLegacyBranchServiceId(input: {
     organizationId: string;
     branchId: string;

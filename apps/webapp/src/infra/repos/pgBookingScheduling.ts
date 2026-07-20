@@ -85,8 +85,26 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
       const mapping = uniqueMappings.values().next().value as
         | { organizationId: string; canonicalId: string }
         | undefined;
-      const orgId = mapping?.organizationId;
-      const ssaId = mapping?.canonicalId;
+      let orgId = mapping?.organizationId;
+      let ssaId = mapping?.canonicalId;
+      const legacyBranchServiceId = mapping ? branchServiceId : null;
+      if (!orgId || !ssaId) {
+        const directRows = await db
+          .select({
+            organizationId: beSpecialistServiceAvailability.organizationId,
+            id: beSpecialistServiceAvailability.id,
+          })
+          .from(beSpecialistServiceAvailability)
+          .where(
+            and(
+              eq(beSpecialistServiceAvailability.id, branchServiceId),
+              eq(beSpecialistServiceAvailability.isActive, true),
+            ),
+          )
+          .limit(1);
+        orgId = directRows[0]?.organizationId;
+        ssaId = directRows[0]?.id;
+      }
       if (!orgId || !ssaId) return null;
 
       const ssaRows = await db
@@ -120,6 +138,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         serviceId: ssa.serviceId,
         roomId: ssa.roomId ?? null,
         branchServiceId,
+        legacyBranchServiceId,
         durationMinutes,
         bufferAfterMinutes,
         branchTimezone: branch.timezone,
@@ -167,7 +186,7 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
         ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
         legacyBySsa,
       );
-      return legacyBranchServiceIdForSsaId(pickedId, legacyBySsa);
+      return legacyBranchServiceIdForSsaId(pickedId, legacyBySsa) ?? pickedId;
     },
 
     async listServicesByCityCode(organizationId, cityCode) {

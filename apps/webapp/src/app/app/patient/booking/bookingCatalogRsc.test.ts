@@ -198,6 +198,7 @@ describe("patient booking catalog RSC principal boundary", () => {
       specialistId: "66666666-6666-4666-8666-666666666666",
       roomId: null,
       branchServiceId,
+      legacyBranchServiceId: null,
       durationMinutes: 75,
       bufferAfterMinutes: 0,
       branchTimezone: "Europe/Moscow",

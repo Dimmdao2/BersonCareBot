@@ -337,6 +337,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 30,
       branchTimezone: "Europe/Moscow",
     });
@@ -356,6 +357,40 @@ describe("createBookingOnCanonicalEngine", () => {
       expect.objectContaining({ durationMinutes: 30 }),
     );
     expect(bookingCatalog.resolveBranchService).not.toHaveBeenCalled();
+  });
+
+  it("keeps canonical-native SSA ids out of legacy patient-booking foreign keys", async () => {
+    const ssaId = "550e8400-e29b-41d4-a716-446655440003";
+    bookingScheduling.resolveInPersonContext.mockResolvedValue({
+      organizationId: "org-1",
+      branchId: "br-1",
+      specialistId: "sp-1",
+      serviceId: "sv-1",
+      roomId: null,
+      branchServiceId: ssaId,
+      legacyBranchServiceId: null,
+      durationMinutes: 60,
+      bufferAfterMinutes: 0,
+      branchTimezone: "Europe/Moscow",
+    });
+
+    await createBookingOnCanonicalEngine(deps(false), {
+      userId: "user-1",
+      type: "in_person",
+      branchServiceId: ssaId,
+      cityCode: "msk",
+      slotStart: "2026-06-01T10:00:00.000Z",
+      slotEnd: "2026-06-01T11:00:00.000Z",
+      contactName: "Иван",
+      contactPhone: "+79001234567",
+    });
+
+    expect(bookingsPort.createPending).toHaveBeenCalledWith(
+      expect.objectContaining({ branchId: null, serviceId: null, branchServiceId: null }),
+    );
+    expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ branchId: "br-1", specialistId: "sp-1", serviceId: "sv-1" }),
+    );
   });
 
   it("retired rubitime slot mode still uses native be: doctor projection", async () => {
@@ -517,6 +552,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 60,
       branchTimezone: "Europe/Moscow",
     });
@@ -613,6 +649,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 60,
       branchTimezone: "Europe/Moscow",
     });
@@ -707,6 +744,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 60,
       branchTimezone: "Europe/Moscow",
     });
@@ -845,6 +883,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 60,
       branchTimezone: "Europe/Moscow",
     });
@@ -941,6 +980,7 @@ describe("createBookingOnCanonicalEngine", () => {
       serviceId: "sv-1",
       roomId: null,
       branchServiceId: "bs-1",
+      legacyBranchServiceId: "bs-1",
       durationMinutes: 60,
       bufferAfterMinutes: 0,
       branchTimezone: "Europe/Moscow",

@@ -732,17 +732,31 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         );
         const now = new Date().toISOString();
         const specialistAvailabilityRows = preferredSpecialistRowId
-          ? await tx
-              .update(beSpecialistServiceAvailability)
-              .set({
-                durationMinutesOverride: null,
-                priceMinorOverride: null,
-                isActive: input.isActive,
-                sortOrder: 0,
-                updatedAt: now,
-              })
-              .where(eq(beSpecialistServiceAvailability.id, preferredSpecialistRowId))
-              .returning()
+          ? await (async () => {
+              // Exact historical duplicates are possible because room/city are nullable.
+              // Converge the whole exact set first so an inactive duplicate cannot keep
+              // the public OR-availability visible after the owner switches it off.
+              await tx
+                .update(beSpecialistServiceAvailability)
+                .set({ isActive: false, updatedAt: now })
+                .where(
+                  inArray(
+                    beSpecialistServiceAvailability.id,
+                    exactSpecialistRows.map((row) => row.id),
+                  ),
+                );
+              return tx
+                .update(beSpecialistServiceAvailability)
+                .set({
+                  durationMinutesOverride: null,
+                  priceMinorOverride: null,
+                  isActive: input.isActive,
+                  sortOrder: 0,
+                  updatedAt: now,
+                })
+                .where(eq(beSpecialistServiceAvailability.id, preferredSpecialistRowId))
+                .returning();
+            })()
           : await tx
               .insert(beSpecialistServiceAvailability)
               .values({

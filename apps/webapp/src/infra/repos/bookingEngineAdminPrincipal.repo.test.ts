@@ -65,5 +65,7 @@ describe("admin booking-engine repo mutation transactions", () => {
     expect(body).toContain("beSpecialists.organizationId");
     expect(body).toContain("beServiceLocationAvailability");
     expect(body).toContain("beSpecialistServiceAvailability");
+    expect(body).toContain("exactSpecialistRows.map((row) => row.id)");
+    expect(body.match(/update\(beSpecialistServiceAvailability\)/g)).toHaveLength(2);
   });
 });
