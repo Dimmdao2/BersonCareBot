@@ -52,6 +52,7 @@ DBROLE=bersoncarebot_test
 RESTORE=/tmp/bcb-test-setup/restore-test-db.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
+C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
@@ -1217,6 +1218,7 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 stage_hash_bound_rubitime_csv
 [ -r "$RESTORE" ] || { echo "FATAL: missing required file: $RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
+[ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }
@@ -1334,6 +1336,12 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }
 done
 echo "   drizzle migrations = $CNT (org columns present)"
+
+# media_files is already large. Build the C4D owner index as a separate autocommit psql
+# operation after Drizzle has committed, never inside its migration transaction.
+log "C4D media owner index (online, transaction-free)"
+sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+  -f "$DEPLOY_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"
 
 # 4. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy

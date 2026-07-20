@@ -15,6 +15,14 @@ writes and updates `patient_lfk_assignments`, `lfk_complexes` and `lfk_complex_e
 `organization_id`, and fails closed if an existing assignment cannot be updated inside that organization. No DB,
 TEST, PROD, deploy or store-commerce action is part of this correction.
 
+The terminal correction also replaces the historical global active-assignment unique key with
+`organization_id + patient_user_id + template_id`: one platform patient may therefore receive the same platform
+template independently in two organizations, while a duplicate inside one organization remains rejected. Merge
+and merge-preview conflict guards now use the same exact-organization contract. The hot `media_files` owner index
+was removed from the transactional Drizzle body and moved to a versioned, transaction-free concurrent operator
+artifact. Future owner-authorized fresh TEST rehearsals and the production cutover chain execute that artifact;
+this code-only correction did not run it and did not access any database or environment.
+
 ## 2026-07-20 — code-only TEST checkpoint, C1 closure and UI-0 live residual
 
 TEST был обновлён только кодом до `27c19a275`; dump, restore и reset не выполнялись. Code-only wrapper получил

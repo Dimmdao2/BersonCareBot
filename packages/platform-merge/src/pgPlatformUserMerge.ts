@@ -889,6 +889,7 @@ async function assertPatientLfkAssignmentsSafe(
      INNER JOIN patient_lfk_assignments b
        ON a.patient_user_id = $1::uuid
       AND b.patient_user_id = $2::uuid
+      AND a.organization_id = b.organization_id
       AND a.template_id = b.template_id
       AND a.is_active = true
       AND b.is_active = true`,

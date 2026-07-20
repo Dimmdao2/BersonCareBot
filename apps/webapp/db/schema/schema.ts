@@ -1075,7 +1075,7 @@ export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
 }, (table) => [
 	index("idx_assignments_patient").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.isActive.asc().nullsLast().op("bool_ops")),
 	index("idx_patient_lfk_assignments_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
-	uniqueIndex("idx_patient_lfk_assign_active_template").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.templateId.asc().nullsLast().op("uuid_ops")).where(sql`(is_active = true)`),
+	uniqueIndex("idx_patient_lfk_assign_active_template").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops"), table.patientUserId.asc().nullsLast().op("uuid_ops"), table.templateId.asc().nullsLast().op("uuid_ops")).where(sql`(is_active = true)`),
 	foreignKey({
 			columns: [table.assignedBy],
 			foreignColumns: [platformUsers.id],

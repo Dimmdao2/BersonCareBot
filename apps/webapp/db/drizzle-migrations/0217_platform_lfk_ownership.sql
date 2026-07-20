@@ -21,6 +21,36 @@ BEGIN
 END;
 $preflight$;
 
+-- The same platform patient may receive the same platform template independently in multiple
+-- organizations. Reject legacy ownership holes or same-organization duplicates before replacing
+-- the historical global partial unique index.
+DO $assignment_preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public.patient_lfk_assignments
+     WHERE organization_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'C4D.0217 patient_lfk_assignments require exact organization ownership before index replacement';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public.patient_lfk_assignments
+     WHERE is_active = true
+     GROUP BY organization_id, patient_user_id, template_id
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'C4D.0217 duplicate active patient LFK assignment inside one organization';
+  END IF;
+END;
+$assignment_preflight$;
+
+DROP INDEX IF EXISTS public.idx_patient_lfk_assign_active_template;
+CREATE UNIQUE INDEX idx_patient_lfk_assign_active_template
+  ON public.patient_lfk_assignments (organization_id, patient_user_id, template_id)
+  WHERE is_active = true;
+
 ALTER TABLE public.lfk_exercises
   ADD CONSTRAINT lfk_exercises_owner_check CHECK (
     (owner_kind = 'organization' AND organization_id IS NOT NULL)
@@ -58,8 +88,9 @@ CREATE INDEX IF NOT EXISTS idx_lfk_complex_templates_owner
   ON public.lfk_complex_templates (owner_kind, organization_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_lfk_exercise_media_owner
   ON public.lfk_exercise_media (owner_kind, organization_id, exercise_id, sort_order);
-CREATE INDEX IF NOT EXISTS idx_media_files_owner
-  ON public.media_files (owner_kind, organization_id, status, created_at DESC);
+
+-- media_files is an existing hot table. Its owner index is intentionally built outside the
+-- Drizzle transaction by deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql.
 
 CREATE OR REPLACE FUNCTION app.enforce_lfk_child_owner()
 RETURNS trigger

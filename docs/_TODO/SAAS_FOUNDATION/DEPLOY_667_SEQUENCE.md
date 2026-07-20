@@ -169,6 +169,14 @@ bash scripts/deploy-saas-667.sh
 unset SUPERUSER_URL P2_B_SIGNING_SECRET
 ```
 
+The version-matched `deploy-saas-667.sh` chain runs
+`deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` immediately after the Drizzle chain commits and
+while writers remain stopped. This is the mandatory one-time production-cutover path for the C4D
+`media_files(owner_kind, organization_id, status, created_at DESC)` index: it is concurrent, idempotent and outside
+the Drizzle transaction. The artifact fails closed on a valid same-name index with any other table, column order or
+predicate instead of replacing it silently. Do not replace it with a blocking index inside migration `0217` or an
+ad hoc SQL command.
+
 Units остаются остановленными до успешного завершения всех post-state assertions. После `✅ ALL GREEN`
 запустить writers и проверить их состояние:
 

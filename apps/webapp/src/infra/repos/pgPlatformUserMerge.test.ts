@@ -80,6 +80,8 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
     expect(sqlLog.some((s) => s.includes("UPDATE media_files SET uploaded_by"))).toBe(true);
     expect(sqlLog.some((s) => s.includes("UPDATE media_upload_sessions SET owner_user_id"))).toBe(true);
+    const lfkConflictGuard = sqlLog.find((s) => s.includes("patient_lfk_assignments a"));
+    expect(lfkConflictGuard).toContain("a.organization_id = b.organization_id");
   });
 
   it("uses scalar CASE branches from ManualMergeResolution.fields", async () => {

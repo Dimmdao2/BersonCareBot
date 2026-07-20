@@ -16,6 +16,7 @@ allowed sequence once a fresh production dump is obtained.
 - `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
 - `scripts/deploy-saas-667.sh` - disposable/prod-copy #667 migration chain model.
+- `deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` - one-time transaction-free C4D hot-index step.
 - `docs/_TODO/SAAS_FOUNDATION/DEPLOY_667_SEQUENCE.md` - production-window sequence and rollback model.
 - `docs/_TODO/SAAS_FOUNDATION/PHASE4_ROLLOUT_RUNBOOK.md` - strict/FORCE future cutover gates.
 - `docs/OPERATIONS/RUBITIME_R1_FRESH_PROD_DUMP_AGENT_README.md` - fresh dump, Rubitime R1, and no-ad-hoc-SQL entrypoint.
@@ -206,6 +207,15 @@ Before `pnpm migrate`, the wrapper must:
 The purpose is narrow: owner-only DDL must run under owner authority, while backfills under RLS/FORCE need
 temporary BYPASSRLS. The temporary grant and BYPASSRLS flag must be revoked on success and through the
 `EXIT` trap on failure.
+
+After Drizzle has committed migration `0217` and before TEST services restart, the full-reset wrapper runs
+`deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` as its own autocommit `psql` operation. The artifact
+uses `CREATE INDEX CONCURRENTLY IF NOT EXISTS` for the existing hot `public.media_files` table, removes only an
+invalid residue of that exact index on retry, and fails unless the final index is valid, ready and has the exact
+`public.media_files(owner_kind, organization_id, status, created_at DESC)` definition. A valid same-name index with
+an incompatible definition is not dropped automatically. It must never be
+folded into the Drizzle migration transaction. Ordinary code-only deploy does not restore the DB or implicitly
+rebuild this index; the next owner-authorized fresh TEST rehearsal executes the version-matched one-time step.
 
 ### 7. Cleanup and post-cleanup assertions are mandatory
 
