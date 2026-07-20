@@ -72,8 +72,9 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
       },
       accountOutcome: "created" as const,
     }));
+    const findByChannelBinding = vi.fn(async () => null);
     const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
+      findByChannelBinding,
       findOrCreateByChannelBinding,
     };
 
@@ -99,6 +100,7 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
         phoneNormalized: "+79991234567",
       },
     });
+    expect(findByChannelBinding).not.toHaveBeenCalled();
   });
 
   it("does not set platformUserSub when sub is external (e.g. tg:…)", async () => {
@@ -166,29 +168,45 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
 
   it("dev bypass with identityResolutionPort resolves canonical user by messenger binding", async () => {
     cookieSet.mockClear();
-    const findOrCreateByChannelBinding = vi.fn(async () => ({
-      user: {
-        userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
-        role: "client" as const,
-        displayName: "Demo Client",
-        phone: "+79990000001",
-        bindings: { telegramId: "111111111" },
-      },
-      accountOutcome: "linked_existing" as const,
+    const findByChannelBinding = vi.fn(async () => ({
+      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "client" as const,
+      displayName: "Demo Client",
+      phone: "+79990000001",
+      bindings: { telegramId: "111111111" },
     }));
+    const findOrCreateByChannelBinding = vi.fn(async () => {
+      throw new Error("dev bypass must not create a messenger binding");
+    });
     const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
+      findByChannelBinding,
       findOrCreateByChannelBinding,
     };
 
     const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
     expect(result).not.toBeNull();
     expect(result!.session.user.userId).toBe("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee");
-    const params = firstFindOrCreateCall(findOrCreateByChannelBinding);
-    expect(params).toMatchObject({
+    expect(findByChannelBinding).toHaveBeenCalledWith({
       channelCode: "telegram",
       externalId: "111111111",
     });
-    expect(params?.resolutionHints).toBeUndefined();
+    expect(findOrCreateByChannelBinding).not.toHaveBeenCalled();
+  });
+
+  it("dev bypass fails closed when its synthetic messenger binding was not prepared", async () => {
+    cookieSet.mockClear();
+    const findOrCreateByChannelBinding = vi.fn(async () => {
+      throw new Error("dev bypass must not create a messenger binding");
+    });
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => null),
+      findOrCreateByChannelBinding,
+    };
+
+    const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
+
+    expect(result).toBeNull();
+    expect(findOrCreateByChannelBinding).not.toHaveBeenCalled();
+    expect(cookieSet).not.toHaveBeenCalled();
   });
 });

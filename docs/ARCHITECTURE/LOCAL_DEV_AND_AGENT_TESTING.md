@@ -323,6 +323,12 @@ NODE_ENV=development
 | `dev:doctor` | `doctor` + membership `doctor` + specialist | нет | Кабинет специалиста без admin-only экранов |
 | `dev:client` | `client` | — | Кабинет пациента |
 
+Когда включён DB-backed identity port, каждый `dev:*` preset требует уже подготовленные synthetic
+`platform_users` + точную messenger binding из preset. Dev bypass на входе делает только read-only lookup;
+отсутствующая binding завершает вход fail-closed и не создаёт пользователя, не вставляет и не переназначает
+`user_channel_bindings`. Поэтому эти четыре аккаунта должны быть подготовлены одноразовым DEV seed/setup до
+проверки входа; это не runtime account-creation path и не основание расширять D3.4 SELECT-only grants.
+
 Все три staff-токена идемпотентно создают/чинят общую `DEV UX Clinic` и своё единственное active membership.
 `dev:doctor` получает отдельного specialist, `dev:clinic-admin` — owner-membership и отдельного specialist,
 `dev:admin` — минимальный `assistant` membership без specialist (права global admin даёт platform-role +

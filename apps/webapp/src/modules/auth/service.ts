@@ -405,11 +405,7 @@ async function optionalResolutionHintsFromVerifiedWebappEntryToken(
   return messengerResolutionHintsFromToken(parsed);
 }
 
-/**
- * Dev bypass + БД: `findOrCreate` создаёт строку без телефона → для client tier onboarding / bind-phone;
- * для admin/doctor в кабинете тоже ожидается номер из пресета в `platform_users`.
- * Только non-production dev bypass.
- */
+/** Dev bypass + БД: синтетический аккаунт уже найден read-only по binding; синхронизируем его preset phone. */
 async function applyDevBypassPlatformUserPhoneInDb(
   user: SessionUser,
   parsed: IntegratorTokenPayload,
@@ -459,16 +455,22 @@ export async function exchangeIntegratorToken(
   if (identityResolutionPort) {
     const binding = effectiveMessengerBinding(parsed);
     if (binding) {
-      const resolutionHints = !devParsed ? messengerResolutionHintsFromToken(parsed) : undefined;
-      const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
-        channelCode: binding.channelCode,
-        externalId: binding.externalId,
-        displayName: parsed.displayName,
-        role: parsed.role,
-        ...(resolutionHints ? { resolutionHints } : {}),
-      });
-      user = resolved.user;
-      accountOutcome = resolved.accountOutcome;
+      if (devParsed) {
+        const existing = await identityResolutionPort.findByChannelBinding(binding);
+        if (!existing) return null;
+        user = existing;
+      } else {
+        const resolutionHints = messengerResolutionHintsFromToken(parsed);
+        const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+          channelCode: binding.channelCode,
+          externalId: binding.externalId,
+          displayName: parsed.displayName,
+          role: parsed.role,
+          ...(resolutionHints ? { resolutionHints } : {}),
+        });
+        user = resolved.user;
+        accountOutcome = resolved.accountOutcome;
+      }
     } else if (!devParsed) {
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.

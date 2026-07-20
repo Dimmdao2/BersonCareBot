@@ -71,18 +71,18 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       bindings: { telegramId: "111111111" },
     } satisfies SessionUser);
 
-    const findOrCreateByChannelBinding = vi.fn(async () => ({
-      user: {
-        userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-        role: "client" as const,
-        displayName: "Demo Client",
-        phone: undefined,
-        bindings: { telegramId: "111111111" },
-      },
-      accountOutcome: "linked_existing" as const,
+    const findByChannelBinding = vi.fn(async () => ({
+      userId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      role: "client" as const,
+      displayName: "Demo Client",
+      phone: undefined,
+      bindings: { telegramId: "111111111" },
     }));
+    const findOrCreateByChannelBinding = vi.fn(async () => {
+      throw new Error("dev bypass must not create a messenger binding");
+    });
     const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
+      findByChannelBinding,
       findOrCreateByChannelBinding,
     };
 
@@ -94,6 +94,11 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       "+79990000001",
     );
     expect(findByUserIdMock).toHaveBeenCalledWith("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    expect(findByChannelBinding).toHaveBeenCalledWith({
+      channelCode: "telegram",
+      externalId: "111111111",
+    });
+    expect(findOrCreateByChannelBinding).not.toHaveBeenCalled();
     expect(result!.session.user.phone).toBe("+79990000001");
   });
 
@@ -119,18 +124,17 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       } satisfies SessionUser;
     });
 
-    const findOrCreateByChannelBinding = vi.fn(async () => ({
-      user: {
+    const findOrCreateByChannelBinding = vi.fn(async () => {
+      throw new Error("dev bypass must not create a messenger binding");
+    });
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => ({
         userId: "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         role: "admin" as const,
         displayName: "Demo Admin",
         phone: undefined,
         bindings: { telegramId: "333333333" },
-      },
-      accountOutcome: "linked_existing" as const,
-    }));
-    const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
+      })),
       findOrCreateByChannelBinding,
     };
 
@@ -159,18 +163,17 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
       bindings: { telegramId: "333333333" },
     } satisfies SessionUser);
 
-    const findOrCreateByChannelBinding = vi.fn(async () => ({
-      user: {
+    const findOrCreateByChannelBinding = vi.fn(async () => {
+      throw new Error("dev bypass must not create a messenger binding");
+    });
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => ({
         userId: "cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         role: "client" as const,
         displayName: "Demo Admin",
         phone: undefined,
         bindings: { telegramId: "333333333" },
-      },
-      accountOutcome: "linked_existing" as const,
-    }));
-    const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
+      })),
       findOrCreateByChannelBinding,
     };
 
@@ -191,16 +194,15 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     } satisfies SessionUser);
 
     const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
-      findOrCreateByChannelBinding: vi.fn(async () => ({
-        user: {
-          userId: "dddddddd-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-          role: "doctor" as const,
-          displayName: "Demo Clinic Owner",
-          bindings: { telegramId: "999999999999004" },
-        },
-        accountOutcome: "linked_existing" as const,
+      findByChannelBinding: vi.fn(async () => ({
+        userId: "dddddddd-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "doctor" as const,
+        displayName: "Demo Clinic Owner",
+        bindings: { telegramId: "999999999999004" },
       })),
+      findOrCreateByChannelBinding: vi.fn(async () => {
+        throw new Error("dev bypass must not create a messenger binding");
+      }),
     };
 
     const result = await exchangeIntegratorToken("dev:clinic-admin", identityResolutionPort);
@@ -224,16 +226,15 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     } satisfies SessionUser);
 
     const identityResolutionPort: IdentityResolutionPort = {
-      findByChannelBinding: vi.fn(async () => null),
-      findOrCreateByChannelBinding: vi.fn(async () => ({
-        user: {
-          userId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-          role: "doctor" as const,
-          displayName: "Demo Doctor",
-          bindings: { telegramId: "222222222" },
-        },
-        accountOutcome: "linked_existing" as const,
+      findByChannelBinding: vi.fn(async () => ({
+        userId: "eeeeeeee-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        role: "doctor" as const,
+        displayName: "Demo Doctor",
+        bindings: { telegramId: "222222222" },
       })),
+      findOrCreateByChannelBinding: vi.fn(async () => {
+        throw new Error("dev bypass must not create a messenger binding");
+      }),
     };
 
     const result = await exchangeIntegratorToken("dev:doctor", identityResolutionPort);
