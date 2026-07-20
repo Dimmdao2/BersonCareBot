@@ -86,4 +86,23 @@ describe("DoctorSectionLayout", () => {
     }>;
     expect(element.props.workspaceContext.organizationName).toBe("Практика Берсона");
   });
+
+  it("renders the clinical route for a valid dev-bypass doctor session", async () => {
+    const devBypassDoctor = { ...doctorSession, authSource: "dev_bypass" as const };
+    mocks.getCurrentSession.mockResolvedValue(devBypassDoctor);
+    mocks.requireOrganizationWorkspaceContext.mockResolvedValue({
+      ...workspace(true),
+      session: devBypassDoctor,
+    });
+    mocks.getOrganization.mockResolvedValue({ title: "DEV UX Clinic" });
+
+    const element = (await DoctorSectionLayout({ children: null })) as ReactElement<{
+      userRole: string;
+      workspaceContext: { organizationName: string | null };
+    }>;
+
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(element.props.userRole).toBe("doctor");
+    expect(element.props.workspaceContext.organizationName).toBe("DEV UX Clinic");
+  });
 });

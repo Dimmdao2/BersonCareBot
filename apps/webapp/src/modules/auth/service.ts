@@ -40,7 +40,10 @@ import {
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
-import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
+import {
+  enterStaffSecuritySelfPrincipal,
+  runWithStaffSecuritySelfPrincipal,
+} from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import {
   normalizePatientOrganizationPreference,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
@@ -134,10 +137,21 @@ async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUs
   if (!env.DATABASE_URL?.trim()) return user;
   if (!isPlatformUserUuid(user.userId)) return user;
   try {
-    const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
-    const fresh = await pgUserByPhonePort.findByUserId(user.userId);
-    if (!fresh) return null;
-    return fresh;
+    // `getCurrentSession()` can run more than once during one RSC render. Its outer principal
+    // cell is deliberately mutable so the completed session can promote the request to staff,
+    // but an in-flight identity lookup must not share that cell with a sibling resolver. Scope
+    // the exact-id read to its own identity-self cell so a concurrent staff promotion cannot
+    // change the principal observed by `pgUserByPhone.findByUserId()` mid-query.
+    return await runWithStaffSecuritySelfPrincipal(
+      user.userId,
+      "getCurrentSession:identity-self",
+      async () => {
+        const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+        const fresh = await pgUserByPhonePort.findByUserId(user.userId);
+        if (!fresh) return null;
+        return fresh;
+      },
+    );
   } catch {
     // Staff security and revocation are fail-closed: a transient identity-state
     // lookup failure must not turn a protected staff cookie into an accepted one.
@@ -847,10 +861,6 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       console.info("[auth] session_cookie_invalid_or_expired");
     }
     return null;
-  }
-
-  if (isPlatformUserUuid(decoded.user.userId)) {
-    enterStaffSecuritySelfPrincipal(decoded.user.userId, "getCurrentSession:identity-self");
   }
 
   const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);
