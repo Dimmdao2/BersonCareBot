@@ -1,5 +1,23 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — DEV restore closure live-proven (`#920`, `#921`; supersedes the earlier same-day claim)
+
+The earlier entry below recorded green rehydrate scripts before authenticated runtime evidence and was therefore
+premature. The closure is now terminally proven on the existing `bcb_webapp_dev`: there was no new dump, reset,
+restore, migration run, deploy, TEST or PROD access. Locked dev bypass resolves pre-created synthetic identities
+read-only, validates preset phones and never repairs phone, role or workspace data during login. The one-time
+fresh-DEV preparation sequence is recorded in `LOCAL_DEV_AND_AGENT_TESTING.md` and is explicitly not part of an
+ordinary code deploy or restart.
+
+Live testing exposed one post-migration-chain defect: the owner of staff-security `SECURITY DEFINER` functions
+could not resolve a sibling helper in schema `app`. The canonical specialist-signup overlay now grants only this
+derived owner effective schema `USAGE`, checks it fail-closed and leaves runtime/base-login memberships and
+table/function grants unchanged. An independent critical audit passed. The current DEV database received only that
+single owner-only grant through the existing local PostgreSQL admin path; the first lower-authority attempt failed
+without mutation. Final evidence: `dev:admin`, `dev:clinic-admin`, `dev:doctor` and `dev:client` each issue a session
+cookie and return `200` from `/api/me` with the expected role. Tasks `#920` and `#921` are sealed `done` at
+`59b830c7c`.
+
 ## 2026-07-20 — DEV restore closure completed without reset (`#920`, `#921`)
 
 Текущая подготовленная DEV-база исправлена без нового dump, restore, full reset или переноса application data.
