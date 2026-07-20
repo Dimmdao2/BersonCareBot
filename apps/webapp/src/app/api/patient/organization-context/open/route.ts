@@ -5,7 +5,10 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getCurrentSession } from "@/modules/auth/service";
-import { PATIENT_ORGANIZATION_PREFERENCE_COOKIE } from "@/modules/patient-organization/preference";
+import {
+  PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE,
+  PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
+} from "@/modules/patient-organization/preference";
 import { canAccessPatient } from "@/modules/roles/service";
 import { getRememberedPatientOrganizationId } from "@/app-layer/patient-organization/requestContext";
 
@@ -70,14 +73,12 @@ export async function GET(request: Request) {
     targetPath = addQuery(goPath, {
       from: "reminder",
       organizationId: resolved.organizationId,
-      ...(contextChanged ? { organizationChanged: "1" } : {}),
     });
   } else {
     targetPath =
       parsed.data.kind === "treatment_program_item" && parsed.data.itemId
         ? routePaths.patientTreatmentProgramItem(parsed.data.instanceId, parsed.data.itemId)
         : routePaths.patientTreatmentProgram(parsed.data.instanceId);
-    if (contextChanged) targetPath = addQuery(targetPath, { organizationChanged: "1" });
   }
   const response = noStoreRedirect(targetPath, request.url);
   response.cookies.set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, resolved.organizationId, {
@@ -87,6 +88,17 @@ export async function GET(request: Request) {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });
+  if (contextChanged) {
+    response.cookies.set(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE, resolved.organizationId, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 5 * 60,
+    });
+  } else {
+    response.cookies.delete(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE);
+  }
   revalidatePath("/app/patient", "layout");
   return response;
 }

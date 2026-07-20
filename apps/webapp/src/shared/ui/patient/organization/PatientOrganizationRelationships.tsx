@@ -40,10 +40,9 @@ export function PatientOrganizationRelationships({
         body: JSON.stringify({ organizationId }),
       });
       if (!response.ok) throw new Error("organization_switch_failed");
-      navigate(`${routePaths.patient}?organizationChanged=1`);
+      navigate(routePaths.patient);
     } catch {
-      pendingRef.current = false;
-      setPending(null);
+      navigate(`${routePaths.patientOrganizations}?unavailable=1`);
     }
   }
 

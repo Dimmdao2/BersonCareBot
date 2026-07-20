@@ -7,7 +7,10 @@ import { patientClientBusinessGate } from "@/app-layer/platform-access";
 import { resolvePatientOrganizationRequestContext } from "@/app-layer/patient-organization/requestContext";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
-import { PATIENT_ORGANIZATION_PREFERENCE_COOKIE } from "@/modules/patient-organization/preference";
+import {
+  PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE,
+  PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
+} from "@/modules/patient-organization/preference";
 
 const switchSchema = z.object({ organizationId: z.string().uuid() }).strict();
 
@@ -35,12 +38,21 @@ export async function GET() {
     buildAppDeps().patientOrganization,
     gate.session.user.userId,
   );
-  return noStore(NextResponse.json({ ok: true, context: resolved }));
+  const cookieStore = await cookies();
+  const rawReceipt = cookieStore.get(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE)?.value;
+  const receipt = switchSchema.shape.organizationId.safeParse(rawReceipt);
+  const contextChanged = Boolean(
+    resolved.ok && receipt.success && receipt.data === resolved.organizationId,
+  );
+  if (rawReceipt) cookieStore.delete(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE);
+  return noStore(NextResponse.json({ ok: true, context: resolved, contextChanged }));
 }
 
 export async function POST(request: Request) {
   const gate = await requirePatientContextAccount();
   if (!gate.ok) return noStore(gate.response);
+  const cookieStore = await cookies();
+  cookieStore.delete(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE);
   const parsed = switchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return noStore(NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 }));
@@ -55,7 +67,6 @@ export async function POST(request: Request) {
     return noStore(NextResponse.json({ ok: false, error: "organization_not_available" }, { status: 403 }));
   }
 
-  const cookieStore = await cookies();
   cookieStore.set(PATIENT_ORGANIZATION_PREFERENCE_COOKIE, resolved.organizationId, {
     httpOnly: true,
     sameSite: "lax",
@@ -72,6 +83,7 @@ export async function DELETE() {
   if (!gate.ok) return noStore(gate.response);
   const cookieStore = await cookies();
   cookieStore.delete(PATIENT_ORGANIZATION_PREFERENCE_COOKIE);
+  cookieStore.delete(PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE);
   revalidatePath("/app/patient", "layout");
   return noStore(NextResponse.json({ ok: true }));
 }

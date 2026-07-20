@@ -20,11 +20,15 @@ export function buildPatientReminderOrganizationOpener(
   return `/api/patient/organization-context/open?${search.toString()}`;
 }
 
-export function addPatientOrganizationChangedNotice(path: string, changed: boolean): string {
-  if (!changed) return path;
-  const url = new URL(path, "http://patient.local");
-  url.searchParams.set("organizationChanged", "1");
-  return `${url.pathname}${url.search}`;
+export function buildPatientReminderContinuation(
+  kind: "daily-warmup" | "plan-start-lesson",
+  organizationId: string,
+): string {
+  const path = kind === "daily-warmup"
+    ? routePaths.patientGoDailyWarmup
+    : routePaths.patientGoPlanStartLesson;
+  const search = new URLSearchParams({ from: "reminder", organizationId });
+  return `${path}?${search.toString()}`;
 }
 
 export function patientOrganizationRecoveryPath(

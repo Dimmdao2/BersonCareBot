@@ -3,15 +3,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const searchParamsMock = vi.hoisted(() => vi.fn(() => new URLSearchParams()));
+const pathnameMock = vi.hoisted(() => vi.fn(() => "/app/patient"));
 
 vi.mock("next/navigation", () => ({
-  useSearchParams: searchParamsMock,
+  usePathname: pathnameMock,
 }));
 
 import {
   PatientOrganizationContextBar,
   PatientOrganizationContextProvider,
+  PatientOrganizationRecoveryScreen,
   usePatientOrganizationContext,
 } from "./PatientOrganizationContext";
 
@@ -41,7 +42,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
-  searchParamsMock.mockReturnValue(new URLSearchParams());
+  pathnameMock.mockReturnValue("/app/patient");
 });
 
 describe("PatientOrganizationContextProvider", () => {
@@ -54,6 +55,7 @@ describe("PatientOrganizationContextProvider", () => {
         organization={organizations[0]}
         organizations={[organizations[0]]}
         rememberOrganizationOnMount
+        checkContextChangeReceipt={false}
       >
         <div>content</div>
       </PatientOrganizationContextProvider>,
@@ -79,6 +81,7 @@ describe("PatientOrganizationContextProvider", () => {
         organization={organizations[0]}
         organizations={organizations}
         navigate={navigate}
+        checkContextChangeReceipt={false}
       >
         <div>organization A object</div>
         <SwitchProbe />
@@ -89,7 +92,7 @@ describe("PatientOrganizationContextProvider", () => {
     expect(screen.queryByText("organization A object")).toBeNull();
     expect(screen.getByText("Переключаем организацию…")).toBeTruthy();
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/app/patient?organizationChanged=1");
+      expect(navigate).toHaveBeenCalledWith("/app/patient");
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -102,6 +105,7 @@ describe("PatientOrganizationContextProvider", () => {
         organization={organizations[0]}
         organizations={organizations}
         navigate={navigate}
+        checkContextChangeReceipt={false}
       >
         <SwitchProbe />
       </PatientOrganizationContextProvider>,
@@ -113,16 +117,49 @@ describe("PatientOrganizationContextProvider", () => {
     });
   });
 
-  it("shows a visible exact-context notice with a safe chooser link", () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams("organizationChanged=1"));
+  it("shows a verified opener receipt once without trusting URL query", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ ok: true, contextChanged: true }),
+      { status: 200 },
+    )));
     render(
       <PatientOrganizationContextProvider organization={organizations[1]} organizations={[organizations[1]]}>
         <PatientOrganizationContextBar />
       </PatientOrganizationContextProvider>,
     );
-    expect(screen.getByRole("status").textContent).toContain("Клиника Б");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Клиника Б"));
     expect(screen.getByRole("link", { name: "Выбрать другую" }).getAttribute("href")).toBe(
       "/app/patient/organizations",
     );
+  });
+
+  it("does not show MOR-04 notice without a consumed server receipt", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ ok: true, contextChanged: false }),
+      { status: 200 },
+    ));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <PatientOrganizationContextProvider organization={organizations[1]} organizations={[organizations[1]]}>
+        <PatientOrganizationContextBar />
+      </PatientOrganizationContextProvider>,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("navigates the chooser to unavailable recovery when access is revoked before click", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 403 })));
+    const navigate = vi.fn();
+    render(
+      <PatientOrganizationRecoveryScreen
+        organizations={[organizations[0]]}
+        navigate={navigate}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Клиника А" }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/app/patient/organizations?unavailable=1");
+    });
   });
 });

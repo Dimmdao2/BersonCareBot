@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addPatientOrganizationChangedNotice,
+  buildPatientReminderContinuation,
   buildPatientReminderOrganizationOpener,
   parsePatientReminderOrganizationTarget,
   patientOrganizationRecoveryPath,
@@ -21,11 +21,10 @@ describe("patient reminder organization target", () => {
     );
   });
 
-  it("preserves existing target query while adding the visible context-change state", () => {
-    expect(addPatientOrganizationChangedNotice("/app/patient/treatment/a?tab=program", true)).toBe(
-      "/app/patient/treatment/a?tab=program&organizationChanged=1",
+  it("builds an exact continuation that can survive authentication", () => {
+    expect(buildPatientReminderContinuation("plan-start-lesson", ORG_A)).toBe(
+      `/app/patient/go/plan-start-lesson?from=reminder&organizationId=${ORG_A}`,
     );
-    expect(addPatientOrganizationChangedNotice("/app/patient", false)).toBe("/app/patient");
   });
 
   it("uses a neutral chooser for missing or unavailable targets", () => {

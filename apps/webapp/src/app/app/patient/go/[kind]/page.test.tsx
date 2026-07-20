@@ -62,7 +62,7 @@ describe("PatientGoReminderTargetPage organization continuation", () => {
     expect(resolveContextMock).not.toHaveBeenCalled();
   });
 
-  it("revalidates a matching exact target and carries the context-change notice to the destination", async () => {
+  it("revalidates a matching exact target without trusting a raw notice query", async () => {
     getRememberedMock.mockResolvedValue(ORG_A);
     resolveContextMock.mockResolvedValue({ ok: true, organizationId: ORG_A });
     await expect(
@@ -71,13 +71,34 @@ describe("PatientGoReminderTargetPage organization continuation", () => {
         searchParams: Promise.resolve({
           from: "reminder",
           organizationId: ORG_A,
-          organizationChanged: "1",
         }),
       }),
-    ).rejects.toThrow("redirect:/app/patient/content/warmup?from=daily_warmup&organizationChanged=1");
+    ).rejects.toThrow("redirect:/app/patient/content/warmup?from=daily_warmup");
     expect(resolveContextMock).toHaveBeenCalledWith({}, PATIENT_ID, {
       verifiedTargetOrganizationId: ORG_A,
     });
+  });
+
+  it("preserves a validated exact reminder target through unauthenticated login", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const continuation = `/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_A}`;
+    await expect(
+      PatientGoReminderTargetPage({
+        params: Promise.resolve({ kind: "daily-warmup" }),
+        searchParams: Promise.resolve({ from: "reminder", organizationId: ORG_A }),
+      }),
+    ).rejects.toThrow(`redirect:/app?next=${encodeURIComponent(continuation)}`);
+  });
+
+  it("does not preserve an invalid reminder target through login", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const recovery = "/app/patient/organizations?reason=reminder_target_missing";
+    await expect(
+      PatientGoReminderTargetPage({
+        params: Promise.resolve({ kind: "daily-warmup" }),
+        searchParams: Promise.resolve({ from: "reminder", organizationId: "not-an-org" }),
+      }),
+    ).rejects.toThrow(`redirect:/app?next=${encodeURIComponent(recovery)}`);
   });
 
   it("sends a legacy reminder without an exact organization to the neutral chooser", async () => {

@@ -77,11 +77,24 @@ describe("patient organization trusted object opener", () => {
       ),
     );
     expect(response.headers.get("location")).toBe(
-      `http://localhost/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_B}&organizationChanged=1`,
+      `http://localhost/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_B}`,
     );
     expect(response.cookies.get("bc_patient_organization")?.value).toBe(ORG_B);
+    expect(response.cookies.get("bc_patient_organization_change_receipt")?.value).toBe(ORG_B);
     expect(resolveOrganizationMock).toHaveBeenCalledWith(PATIENT_ID, {
       verifiedTargetOrganizationId: ORG_B,
+    });
+  });
+
+  it("does not issue a context-change receipt when the verified target is already current", async () => {
+    getRememberedOrganizationMock.mockResolvedValue(ORG_B);
+    resolveOrganizationMock.mockResolvedValue({ ok: true, organizationId: ORG_B });
+    const response = await GET(new Request(
+      `http://localhost/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=daily-warmup`,
+    ));
+    expect(response.cookies.get("bc_patient_organization_change_receipt")).toMatchObject({
+      value: "",
+      expires: new Date(0),
     });
   });
 

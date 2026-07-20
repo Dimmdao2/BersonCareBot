@@ -32,6 +32,8 @@ describe("U5A patient organization context wiring", () => {
     expect(organizationUi).not.toContain("<button");
     expect(organizationUi).toContain("window.location.replace");
     expect(organizationUi).not.toContain("window.location.reload");
+    expect(organizationUi).not.toContain("organizationChanged");
+    expect(organizationUi).toContain("contextChangeNotice");
   });
 
   it("runs Today and reminder go-targets under the selected patient organization principal", () => {
@@ -87,6 +89,7 @@ describe("U5A patient organization context wiring", () => {
     expect(program).toContain("resolveTreatmentProgramOrganizationForPatient");
     expect(item).toContain("resolveTreatmentProgramOrganizationForPatient");
     expect(opener).toContain("PATIENT_ORGANIZATION_PREFERENCE_COOKIE");
+    expect(opener).toContain("PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE");
     expect(opener).toContain("resolved.organizationId");
   });
 

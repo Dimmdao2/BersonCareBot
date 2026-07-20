@@ -42,10 +42,29 @@ describe("PatientOrganizationRelationships", () => {
 
     expect(screen.getByText("Текущая")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Открыть" }));
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/app/patient?organizationChanged=1"));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/app/patient"));
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/patient/organization-context",
       expect.objectContaining({ body: JSON.stringify({ organizationId: ORG_B }) }),
     );
+  });
+
+  it("opens destination-unavailable recovery when a relationship is revoked before click", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 403 })));
+    const navigate = vi.fn();
+    render(
+      <PatientOrganizationRelationships
+        organizations={[
+          { organizationId: ORG_A, title: "Клиника А" },
+          { organizationId: ORG_B, title: "Клиника Б" },
+        ]}
+        currentOrganizationId={ORG_A}
+        navigate={navigate}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Открыть" }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/app/patient/organizations?unavailable=1");
+    });
   });
 });
