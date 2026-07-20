@@ -1,5 +1,27 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — U5A patient organization context launch (`#796`)
+
+**Base and authority.** U5A launches from clean/pushed `feat/doctor-ui-rebuild` at `9601c71c6` after terminal U1 and
+C4C. The owner-visible TEST checkpoint remains `4a889093d`; this stage has no TEST/PROD/deploy/reset/dump authority.
+Authority is roadmap U5A, owner ruling UX08-05 and taskdb `#796` (expanded from the confirmed Today symptom to the
+whole canonical resolver stage rather than creating a duplicate card).
+
+**Scope and evidence plan.** The worker owns patient-organization enrollment/preference resolution, chooser/switcher,
+patient shell/context, Today root fix, patient deep-link/booking context and focused tests. Required synthetic/live
+states are zero, one and two active organizations; valid/invalid/revoked remembered context; foreign object/link;
+concurrent switch; back/forward/refresh; no stale previous-organization data; desktop `1440×900`, mobile `390×844`
+and PWA-shaped entry. Preference is only a non-authoritative hint and every selection/object is revalidated on the
+server. No merged clinical overview, query/Host authority, staff-style membership or patient invite/activation.
+
+U3S `#919` runs concurrently only in signup/provisioning/staff-security/account. U5A must not edit those paths.
+Shared `buildAppDeps`, auth/session types, migration journal and roadmap/LOG are integration hotspots: changes may be
+prepared only minimally in the isolated worktree and must be called out for lead-owned semantic integration; U5A
+does not allocate a migration unless the preference contract proves persistence is required. Targeted state-graph,
+DB-role negatives, typecheck/scoped lint/build and serialized live DEV evidence precede one independent high-risk
+audit; no full CI runs before the next accumulated milestone. More than two correction rounds or a finding without
+owner/roadmap authority stops as an owner question.
+
 ## 2026-07-20 — C4C terminal closure (`#26`)
 
 **Result.** The parked course capability slice was semantically rebased onto integrated U1/U2 base `9874ddd98`.
