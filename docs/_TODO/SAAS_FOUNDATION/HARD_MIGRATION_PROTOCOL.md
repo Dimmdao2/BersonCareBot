@@ -658,6 +658,13 @@ already prepared DEV database with only owner/ACL drift must use this command di
 unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
 forbidden recovery paths.
 
+When that already prepared DEV database has pending current-branch migrations, the supported non-destructive
+entrypoint is `bash deploy/host/migrate-dev.sh --preflight`, then `bash deploy/host/migrate-dev.sh --execute`. It
+reuses the TEST privilege-window invariants without adding a second SQL chain: exact local owner/database guards,
+temporary `app_owner` membership plus BYPASS only around the existing ordered `pnpm migrate`, mandatory cleanup,
+the standalone C4D concurrent-index artifact, this existing DEV rehydrate wrapper and both migration-ledger
+postchecks. It never calls dump/restore/reset/refresh and is not an ordinary code-only deploy hook.
+
 Within that one shared list, `runtime-overlay-app-owner-handoff.sql` runs immediately before the protected overlays.
 It is the only repeatable repair for pre-existing overlay functions restored under the database owner; the separate
 cluster-global C0 login/password bootstrap remains the documented one-time manual operator action and is never folded

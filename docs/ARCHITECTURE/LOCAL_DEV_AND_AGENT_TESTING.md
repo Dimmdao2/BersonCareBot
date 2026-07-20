@@ -12,7 +12,7 @@ pnpm install
 cp .env.example .env
 cp apps/webapp/.env.example apps/webapp/.env.dev
 # заполните DATABASE_URL, SESSION_COOKIE_SECRET, INTEGRATOR_* — см. комментарии в файлах
-pnpm run migrate
+pnpm run migrate  # только первичный bootstrap; prepared locked DEV — через migrate-dev.sh ниже
 ```
 
 | Файл | Назначение |
@@ -37,6 +37,27 @@ pnpm run migrate
 Копирование TEST→DEV также разрешено. Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
 реальные сообщения/SMS, вызывать production endpoints или писать в production S3. PROD-БД wrapper не читает и
 не открывает.
+
+### Обычная работа, миграция схемы и destructive refresh — три разных действия
+
+| Ситуация | Действие | Что происходит с данными DEV |
+|---|---|---|
+| Изменился только код/UI, схема уже актуальна | build/restart/dev server; DB-команда не нужна | Ничего |
+| В текущей ветке есть pending migrations для уже подготовленной DEV-БД | `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute` | Существующие данные сохраняются; применяются только pending migrations, C4D online-index и canonical runtime closure |
+| Нужен новый снимок данных именно из TEST | только явно разрешённый `bash deploy/host/refresh-dev-from-test.sh --execute` | `bcb_webapp_dev` удаляется и создаётся заново |
+| Ledger актуален, разошлись только owner/ACL/runtime overlays | `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` | Прикладные данные не меняются |
+
+`migrate-dev.sh` принимает только exact local `bcb_webapp_dev`/`bcb_webapp_dev_user`, сначала выполняет read-only
+preflight и не читает `/opt/env`, TEST или PROD. На время `pnpm migrate` он открывает тот же короткий
+owner/`app_owner`+BYPASS window, что проверенный TEST code-only deploy, и обязательно отзывает его при успехе и
+ошибке. После миграций отдельно выполняется transaction-free C4D hot-index artifact, затем существующий
+`dev-runtime-overlay-rehydrate.sh`; финал проверяет оба migration ledger и online index. Wrapper не управляет
+процессами: перед `--execute` оператор отдельно координирует единственный DEV server/writer и не поднимает второй
+Next server.
+
+Ни code-only работа, ни schema migration не являются основанием для dump/reset/refresh. Не вызывайте
+`refresh-dev-from-test.sh` из deploy/build/restart/migration wrapper и не заменяйте `migrate-dev.sh` ручными
+`GRANT`, `ALTER ROLE`, SQL или standalone `pnpm migrate` на prepared locked DEV.
 
 Перед TEST→DEV refresh остановите локальный webapp/integrator (`pnpm run dev:stop`): target DEV-БД будет удалена.
 TEST при этом только читается через `pg_dump`, TEST-сервисы не перезапускаются.
@@ -594,9 +615,14 @@ pnpm run scheduler:dev
 ### 6.5 После правок схемы БД
 
 ```bash
-pnpm run migrate
+bash deploy/host/migrate-dev.sh --preflight
+bash deploy/host/migrate-dev.sh --execute
 # при необходимости обновить docs/ARCHITECTURE/DB_STRUCTURE.md
 ```
+
+Для prepared locked DEV используйте wrapper выше, а не destructive refresh. На локальной одноразовой БД без
+locked runtime contract допустимость прямого `pnpm run migrate` определяется отдельным setup этой БД; это не
+операционный путь для канонической `bcb_webapp_dev` на общем dev-хосте.
 
 ---
 

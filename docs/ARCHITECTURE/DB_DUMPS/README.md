@@ -47,6 +47,9 @@ git history и не используйте обычный code deploy, build, re
 Разрешённые пути теперь разделены:
 
 - обычный deploy кода никогда не пересоздаёт базу;
+- pending schema delta на уже подготовленной `bcb_webapp_dev` применяется недеструктивно только через
+  `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`; wrapper
+  сохраняет данные, владеет временным privilege window, C4D online-index, runtime closure и ledger postchecks;
 - уже подготовленную DEV-БД с owner/ACL drift чинит без reset
   `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute`;
 - явный owner-authorized TEST→DEV refresh выполняется только

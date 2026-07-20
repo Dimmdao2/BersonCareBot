@@ -666,6 +666,22 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - integrator dev по факту использует root `.env`, потому что `apps/integrator/src/config/loadEnv.ts` по умолчанию грузит `.env`, а не `.env.dev`
 - dev cutover/backfill/reconcile/gate должен использовать отдельный `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
 
+### DEV: code-only, schema migration и refresh не смешиваются
+
+- Обычная UI/code работа использует существующую `bcb_webapp_dev` и не запускает DB restore/reset/refresh.
+- Pending migrations текущей ветки на уже подготовленной locked DEV-БД применяются только через
+  `bash deploy/host/migrate-dev.sh --preflight`, затем `bash deploy/host/migrate-dev.sh --execute`. Это
+  недеструктивный exact-DEV путь: короткий audited privilege window, существующий `pnpm migrate`, отдельный C4D
+  concurrent-index artifact, обязательный cleanup, существующий DEV runtime-overlay closure и ledger postchecks.
+- `bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute` — targeted owner/ACL/runtime repair при актуальном
+  migration ledger; dump/restore не выполняется.
+- `bash deploy/host/refresh-dev-from-test.sh --execute` — отдельная явно разрушительная операция замены данных DEV
+  из TEST. Она не вызывается обычным deploy, build, restart или `migrate-dev.sh`.
+
+Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
+скоординировать единственный DEV writer/server; нельзя поднимать второй Next server. Ручные `GRANT`/`ALTER ROLE`,
+ad hoc SQL или вызов destructive refresh ради pending migration не являются поддерживаемым обходом.
+
 ---
 
 ## Deploy scripts
