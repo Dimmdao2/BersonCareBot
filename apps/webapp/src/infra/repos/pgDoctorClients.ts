@@ -2,8 +2,10 @@
  * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
  */
 import { getPool } from "@/infra/db/client";
+import { getDrizzle } from "@/app-layer/db/drizzle";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
+import { and, countDistinct, eq, inArray, isNull } from "drizzle-orm";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
 import type {
@@ -30,6 +32,9 @@ import {
   sqlActiveTelegramBinding,
   sqlMessengerBotBlocked,
 } from "@/modules/doctor-clients/activeMessengerBindingSql";
+import { beAppointments } from "../../../db/schema/bookingEngine";
+import { bePatientPackages } from "../../../db/schema/bookingMemberships";
+import { beAppointmentReschedules } from "../../../db/schema/bookingPolicies";
 
 function rowToBindings(
   rows: { channel_code: string; external_id: string; bot_blocked_at?: string | null }[],
@@ -92,6 +97,136 @@ function sqlLiteralUuid(value: string): string {
 
 const CANONICAL_CANCELLED_STATUS_SQL =
   "'cancelled_by_patient', 'cancelled_by_specialist', 'late_cancellation', 'no_show'";
+const CANONICAL_CANCELLED_STATUSES = [
+  "cancelled_by_patient",
+  "cancelled_by_specialist",
+  "late_cancellation",
+  "no_show",
+] as const;
+
+type ClientEventMetrics = {
+  userId: string;
+  cancellationsCount: number;
+  reschedulesCount: number;
+};
+
+type ClientMembershipMetrics = {
+  userId: string;
+  purchasedMembershipsCount: number;
+  activeMembershipsCount: number;
+  expiredMembershipsCount: number;
+};
+
+async function loadClientEventMetrics(
+  userIds: string[],
+  organizationId: string | null,
+): Promise<ClientEventMetrics[]> {
+  if (userIds.length === 0) return [];
+  const db = getDrizzle();
+  const appointmentOrganizationFilter = organizationId
+    ? eq(beAppointments.organizationId, organizationId)
+    : undefined;
+  const rescheduleOrganizationFilter = organizationId
+    ? eq(beAppointmentReschedules.organizationId, organizationId)
+    : undefined;
+
+  const [cancellationRows, rescheduleRows] = await Promise.all([
+    db
+      .select({
+        userId: beAppointments.platformUserId,
+        cancellationsCount: countDistinct(beAppointments.id),
+      })
+      .from(beAppointments)
+      .where(
+        and(
+          inArray(beAppointments.platformUserId, userIds),
+          appointmentOrganizationFilter,
+          isNull(beAppointments.deletedAt),
+          inArray(beAppointments.status, [...CANONICAL_CANCELLED_STATUSES]),
+        ),
+      )
+      .groupBy(beAppointments.platformUserId),
+    db
+      .select({
+        userId: beAppointments.platformUserId,
+        reschedulesCount: countDistinct(beAppointmentReschedules.id),
+      })
+      .from(beAppointmentReschedules)
+      .innerJoin(beAppointments, eq(beAppointments.id, beAppointmentReschedules.appointmentId))
+      .where(
+        and(
+          inArray(beAppointments.platformUserId, userIds),
+          appointmentOrganizationFilter,
+          rescheduleOrganizationFilter,
+        ),
+      )
+      .groupBy(beAppointments.platformUserId),
+  ]);
+
+  const metricsByUserId = new Map<string, ClientEventMetrics>();
+  for (const row of cancellationRows) {
+    if (!row.userId) continue;
+    metricsByUserId.set(row.userId, {
+      userId: row.userId,
+      cancellationsCount: Number(row.cancellationsCount ?? 0),
+      reschedulesCount: 0,
+    });
+  }
+  for (const row of rescheduleRows) {
+    if (!row.userId) continue;
+    const current = metricsByUserId.get(row.userId);
+    metricsByUserId.set(row.userId, {
+      userId: row.userId,
+      cancellationsCount: current?.cancellationsCount ?? 0,
+      reschedulesCount: Number(row.reschedulesCount ?? 0),
+    });
+  }
+  return [...metricsByUserId.values()];
+}
+
+async function loadClientMembershipMetrics(
+  userIds: string[],
+  organizationId: string | null,
+): Promise<ClientMembershipMetrics[]> {
+  if (userIds.length === 0) return [];
+  const db = getDrizzle();
+  const rows = await db
+    .select({
+      userId: bePatientPackages.platformUserId,
+      status: bePatientPackages.status,
+      membershipsCount: countDistinct(bePatientPackages.id),
+    })
+    .from(bePatientPackages)
+    .where(
+      and(
+        inArray(bePatientPackages.platformUserId, userIds),
+        organizationId ? eq(bePatientPackages.organizationId, organizationId) : undefined,
+        inArray(bePatientPackages.status, ["active", "awaiting_payment", "expired"]),
+      ),
+    )
+    .groupBy(bePatientPackages.platformUserId, bePatientPackages.status);
+
+  const metricsByUserId = new Map<string, ClientMembershipMetrics>();
+  for (const row of rows) {
+    const current = metricsByUserId.get(row.userId) ?? {
+      userId: row.userId,
+      purchasedMembershipsCount: 0,
+      activeMembershipsCount: 0,
+      expiredMembershipsCount: 0,
+    };
+    const membershipsCount = Number(row.membershipsCount ?? 0);
+    if (row.status === "active") {
+      current.purchasedMembershipsCount += membershipsCount;
+      current.activeMembershipsCount += membershipsCount;
+    } else if (row.status === "awaiting_payment") {
+      current.purchasedMembershipsCount += membershipsCount;
+    } else if (row.status === "expired") {
+      current.expiredMembershipsCount += membershipsCount;
+    }
+    metricsByUserId.set(row.userId, current);
+  }
+  return [...metricsByUserId.values()];
+}
 
 function canonicalAppointmentOrgPredicate(alias: string, organizationId?: string): string {
   if (!organizationId) return "TRUE";
@@ -197,6 +332,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const [
         appointmentAggRows,
+        eventMetricRows,
         supportConversationRows,
         activeProgramPatients,
         onSupportIds,
@@ -211,8 +347,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             history_count: number;
             last_appointment_at: Date | string | null;
             active_count: number;
-            cancellations_count: number;
-            reschedules_count: number;
             visited_month_count: number;
           }>(
             `SELECT
@@ -238,14 +372,6 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                )::int AS active_count,
                COUNT(DISTINCT bea.id) FILTER (
                  WHERE bea.deleted_at IS NULL
-                   AND bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
-               )::int AS cancellations_count,
-               COUNT(DISTINCT r.id) FILTER (
-                 WHERE ($2::uuid IS NULL OR r.organization_id = $2::uuid)
-               )::int AS reschedules_count,
-               COUNT(DISTINCT bea.id) FILTER (
-                 WHERE bea.deleted_at IS NULL
                    AND bea.start_at IS NOT NULL
                    AND bea.start_at >= date_trunc('month', NOW())
                    AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
@@ -255,13 +381,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                )::int AS visited_month_count
              FROM platform_users pu
              LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
-             LEFT JOIN be_appointment_reschedules r
-               ON r.appointment_id = bea.id
-              AND ($2::uuid IS NULL OR r.organization_id = $2::uuid)
              WHERE pu.id = ANY($1::uuid[])
              GROUP BY pu.id`,
             [userIds, organizationId],
           ),
+          loadClientEventMetrics(userIds, organizationId),
           runWebappPgText<{
             user_id: string;
             conversation_count: number;
@@ -336,29 +460,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                 [userIds, filters.viewerUserId, organizationId],
               )
             : Promise.resolve({ rows: [] as { patient_user_id: string; unread_comments_count: number }[] }),
-          runWebappPgText<{
-            user_id: string;
-            purchased_memberships_count: number;
-            active_memberships_count: number;
-            expired_memberships_count: number;
-          }>(
-            `SELECT
-               pp.platform_user_id::text AS user_id,
-               COUNT(*) FILTER (
-                 WHERE pp.status IN ('active', 'awaiting_payment')
-               )::int AS purchased_memberships_count,
-               COUNT(*) FILTER (
-                 WHERE pp.status = 'active'
-               )::int AS active_memberships_count,
-               COUNT(*) FILTER (
-                 WHERE pp.status = 'expired'
-               )::int AS expired_memberships_count
-             FROM be_patient_packages pp
-             WHERE pp.platform_user_id = ANY($1::uuid[])
-               AND ($2::uuid IS NULL OR pp.organization_id = $2::uuid)
-             GROUP BY pp.platform_user_id`,
-            [userIds, organizationId],
-          ),
+          loadClientMembershipMetrics(userIds, organizationId),
           // no_show_count from booking profile
           runWebappPgText<{ user_id: string; no_show_count: number }>(
             `SELECT
@@ -395,12 +497,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             hasHistory: Number(row.history_count ?? 0) > 0,
             lastAppointmentAt: row.last_appointment_at ? toIsoStringSafe(row.last_appointment_at) : null,
             activeCount: Number(row.active_count ?? 0),
-            cancellationsCount: Number(row.cancellations_count ?? 0),
-            reschedulesCount: Number(row.reschedules_count ?? 0),
             visitedThisCalendarMonth: Number(row.visited_month_count ?? 0) > 0,
           },
         ]),
       );
+      const eventMetricsByUserId = new Map(eventMetricRows.map((row) => [row.userId, row]));
       const supportConversationByUserId = new Map(
         supportConversationRows.rows.map((row) => [
           row.user_id,
@@ -417,12 +518,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         unreadExerciseCommentRows.rows.map((row) => [row.patient_user_id, Number(row.unread_comments_count ?? 0)]),
       );
       const membershipsByPatientId = new Map(
-        membershipRows.rows.map((row) => [
-          row.user_id,
+        membershipRows.map((row) => [
+          row.userId,
           {
-            purchased: Number(row.purchased_memberships_count ?? 0),
-            active: Number(row.active_memberships_count ?? 0),
-            expired: Number(row.expired_memberships_count ?? 0),
+            purchased: row.purchasedMembershipsCount,
+            active: row.activeMembershipsCount,
+            expired: row.expiredMembershipsCount,
           },
         ]),
       );
@@ -436,6 +537,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
           const phone = r.phone_normalized;
           const appointmentAgg = appointmentAggByUserId.get(r.id);
+          const eventMetrics = eventMetricsByUserId.get(r.id);
           const supportConversation = supportConversationByUserId.get(r.id);
           const activeAppointmentsCount = appointmentAgg?.activeCount ?? 0;
           const activeInstanceId = activeProgramInstanceByPatient.get(r.id) ?? null;
@@ -457,8 +559,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             activeAppointmentsCount,
             activeTreatmentProgram: activeInstanceId != null,
             activeTreatmentProgramInstanceId: activeInstanceId,
-            cancellationsCount: appointmentAgg?.cancellationsCount ?? 0,
-            reschedulesCount: appointmentAgg?.reschedulesCount ?? 0,
+            cancellationsCount: eventMetrics?.cancellationsCount ?? 0,
+            reschedulesCount: eventMetrics?.reschedulesCount ?? 0,
             noShowCount: noShowByPatientId.get(r.id) ?? 0,
             visitedThisCalendarMonth: appointmentAgg?.visitedThisCalendarMonth ?? false,
             hasConversation: supportConversation?.hasConversation ?? false,
@@ -924,26 +1026,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         organizationId,
       );
 
-      // Абонементы: действующие и истёкшие считаются раздельно; awaiting_payment не является active.
-      const membershipsBase = `SELECT
-           COUNT(DISTINCT pu.id) FILTER (WHERE pp.status = 'active')::text AS active_count,
-           COUNT(DISTINCT pu.id) FILTER (WHERE pp.status = 'expired')::text AS expired_count
-           FROM platform_users pu
-           INNER JOIN be_patient_packages pp ON pp.platform_user_id = pu.id
-           WHERE pu.role = 'client'
-             AND pu.merged_into_id IS NULL
-             AND COALESCE(pu.is_archived, false) = false`;
-      const membershipsQ = appendSqlOrganizationColumn(
-        appendSqlOrganizationEnrollment(
-          appendSqlExcludeUserIds(membershipsBase, "pu.id", excluded, []),
-          "pu.id",
-          organizationId,
-        ),
-        "pp.organization_id",
-        organizationId,
-      );
-
-      // Подсчёт агрегатов истории записей одним запросом для сегментов записей, отмен и переносов.
+      // Legacy aggregate remains the source for past/future appointment segments.
+      // UI-4b event and membership metrics are loaded through Drizzle below.
       // Один агрегирующий запрос на платформных клиентов
       const aggBase = `SELECT
            pu.id,
@@ -960,20 +1044,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                AND bea.start_at IS NOT NULL
                AND bea.start_at >= NOW()
                AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
-           )::int AS future_count,
-           COUNT(DISTINCT bea.id) FILTER (
-             WHERE bea.deleted_at IS NULL
-               AND bea.status IN (${CANONICAL_CANCELLED_STATUS_SQL})
-               AND ${canonicalAppointmentOrgPredicate("bea", organizationId)}
-           )::int AS cancellations_count,
-           COUNT(DISTINCT r.id) FILTER (
-             WHERE ${organizationId ? `r.organization_id = ${sqlLiteralUuid(organizationId)}` : "TRUE"}
-           )::int AS reschedules_count
+           )::int AS future_count
          FROM platform_users pu
          LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
-         LEFT JOIN be_appointment_reschedules r
-           ON r.appointment_id = bea.id
-          AND ${organizationId ? `r.organization_id = ${sqlLiteralUuid(organizationId)}` : "TRUE"}
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;
@@ -983,51 +1056,54 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         organizationId,
       );
 
-      const [totalR, supportR, visitedR, withProgramR, membershipsR, aggR] = await Promise.all([
+      const [totalR, supportR, visitedR, withProgramR, aggR] = await Promise.all([
         runWebappPgText<{ c: string }>(totalQ.sql, totalQ.params),
         runWebappPgText<{ c: string }>(supportQ.sql, supportQ.params),
         runWebappPgText<{ c: string }>(visitedQ.sql, visitedQ.params),
         runWebappPgText<{ c: string }>(withProgramQ.sql, withProgramQ.params),
-        runWebappPgText<{ active_count: string; expired_count: string }>(membershipsQ.sql, membershipsQ.params),
         runWebappPgText<{
           id: string;
           past_count: number;
           future_count: number;
-          cancellations_count: number;
-          reschedules_count: number;
         }>(
           `${aggQ.sql} GROUP BY pu.id`,
           aggQ.params,
         ),
       ]);
 
+      const eligibleUserIds = aggR.rows.map((row) => row.id);
+      const [eventMetricRows, membershipMetricRows] = await Promise.all([
+        loadClientEventMetrics(eligibleUserIds, organizationId ?? null),
+        loadClientMembershipMetrics(eligibleUserIds, organizationId ?? null),
+      ]);
+
       let newCount = 0;
       let formerCount = 0;
       let subscriberCount = 0;
-      let cancellationsCount = 0;
-      let reschedulesCount = 0;
       for (const row of aggR.rows) {
         const past = Number(row.past_count ?? 0);
         const future = Number(row.future_count ?? 0);
-        const cancels = Number(row.cancellations_count ?? 0);
-        const reschedules = Number(row.reschedules_count ?? 0);
         // «Новые»: есть будущая запись, но ещё не было прошедшего посещения
         if (future > 0 && past === 0) newCount++;
         // «Бывшие»: были посещения, нет будущей записи
         else if (past > 0 && future === 0) formerCount++;
         // «Подписчики»: никогда не было ни одной записи
         else if (past === 0 && future === 0) subscriberCount++;
-        if (cancels > 0) cancellationsCount++;
-        if (reschedules > 0) reschedulesCount++;
       }
+      const cancellationsCount = eventMetricRows.filter((row) => row.cancellationsCount > 0).length;
+      const reschedulesCount = eventMetricRows.filter((row) => row.reschedulesCount > 0).length;
+      const membershipsCount = membershipMetricRows.filter((row) => row.activeMembershipsCount > 0).length;
+      const expiredMembershipsCount = membershipMetricRows.filter(
+        (row) => row.expiredMembershipsCount > 0,
+      ).length;
 
       return {
         totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
         onSupportCount: parseInt(supportR.rows[0]?.c ?? "0", 10),
         visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? "0", 10),
         withProgramCount: parseInt(withProgramR.rows[0]?.c ?? "0", 10),
-        membershipsCount: parseInt(membershipsR.rows[0]?.active_count ?? "0", 10),
-        expiredMembershipsCount: parseInt(membershipsR.rows[0]?.expired_count ?? "0", 10),
+        membershipsCount,
+        expiredMembershipsCount,
         newCount,
         formerCount,
         subscriberCount,

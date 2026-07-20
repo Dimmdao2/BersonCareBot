@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const listOnSupportPatientUserIdsMock = vi.hoisted(() => vi.fn());
+const getDrizzleMock = vi.hoisted(() => vi.fn());
+const drizzleSelectMock = vi.hoisted(() => vi.fn());
+const drizzleMetricRowsMock = vi.hoisted(() => ({
+  cancellations: [] as Array<{ userId: string | null; cancellationsCount: number }>,
+  reschedules: [] as Array<{ userId: string | null; reschedulesCount: number }>,
+  memberships: [] as Array<{ userId: string; status: string; membershipsCount: number }>,
+}));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
@@ -11,6 +18,10 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 
 vi.mock("@/infra/db/client", () => ({
   getPool: vi.fn(() => ({})),
+}));
+
+vi.mock("@/app-layer/db/drizzle", () => ({
+  getDrizzle: getDrizzleMock,
 }));
 
 vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
@@ -31,6 +42,27 @@ describe("pgDoctorClients repo", () => {
     resolveCanonicalUserIdMock.mockReset();
     listOnSupportPatientUserIdsMock.mockReset();
     listOnSupportPatientUserIdsMock.mockResolvedValue(new Set());
+    getDrizzleMock.mockReset();
+    drizzleSelectMock.mockReset();
+    drizzleMetricRowsMock.cancellations = [];
+    drizzleMetricRowsMock.reschedules = [];
+    drizzleMetricRowsMock.memberships = [];
+    drizzleSelectMock.mockImplementation((selection: unknown) => {
+      const selected = typeof selection === "object" && selection !== null
+        ? selection as Record<string, unknown>
+        : {};
+      const rows = "cancellationsCount" in selected
+        ? drizzleMetricRowsMock.cancellations
+        : "reschedulesCount" in selected
+          ? drizzleMetricRowsMock.reschedules
+          : drizzleMetricRowsMock.memberships;
+      const groupBy = vi.fn().mockResolvedValue(rows);
+      const where = vi.fn(() => ({ groupBy }));
+      const innerJoin = vi.fn(() => ({ where }));
+      const from = vi.fn(() => ({ where, innerJoin }));
+      return { from };
+    });
+    getDrizzleMock.mockReturnValue({ select: drizzleSelectMock });
   });
 
   it("listClients returns empty when no platform_users rows", async () => {
@@ -176,7 +208,7 @@ describe("pgDoctorClients repo", () => {
 
     const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
     expect(appointmentAggSql).toContain("LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id");
-    expect(appointmentAggSql).toContain("LEFT JOIN be_appointment_reschedules r");
+    expect(appointmentAggSql).not.toContain("be_appointment_reschedules");
     expect(appointmentAggSql).toContain("COUNT(DISTINCT bea.id) FILTER");
     expect(appointmentAggSql).toContain("bea.status NOT IN");
     expect(appointmentAggSql).not.toContain("LEFT JOIN appointment_records");
@@ -221,6 +253,12 @@ describe("pgDoctorClients repo", () => {
   });
 
   it("maps lifetime cancellation/reschedule counts and separates purchased, active, and expired memberships", async () => {
+    drizzleMetricRowsMock.cancellations = [{ userId: "u1", cancellationsCount: 2 }];
+    drizzleMetricRowsMock.reschedules = [{ userId: "u1", reschedulesCount: 3 }];
+    drizzleMetricRowsMock.memberships = [
+      { userId: "u1", status: "awaiting_payment", membershipsCount: 1 },
+      { userId: "u1", status: "expired", membershipsCount: 1 },
+    ];
     runWebappPgTextMock
       .mockResolvedValueOnce({
         rows: [{ id: "u1", display_name: "Client", phone_normalized: null, created_at: "2026-01-01" }],
@@ -232,21 +270,11 @@ describe("pgDoctorClients repo", () => {
           history_count: 1,
           last_appointment_at: "2026-01-02T09:00:00.000Z",
           active_count: 0,
-          cancellations_count: 2,
-          reschedules_count: 3,
           visited_month_count: 0,
         }],
       })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({
-        rows: [{
-          user_id: "u1",
-          purchased_memberships_count: 1,
-          active_memberships_count: 0,
-          expired_memberships_count: 1,
-        }],
-      })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -263,12 +291,17 @@ describe("pgDoctorClients repo", () => {
     });
     const appointmentAggSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
     expect(appointmentAggSql).not.toContain("INTERVAL '30 days'");
-    expect(appointmentAggSql).toContain("AS cancellations_count");
-    expect(appointmentAggSql).toContain("AS reschedules_count");
-    const membershipSql = String(runWebappPgTextMock.mock.calls[5]?.[0] ?? "");
-    expect(membershipSql).toContain("pp.status = 'active'");
-    expect(membershipSql).toContain("pp.status = 'expired'");
-    expect(membershipSql).toContain("pp.status IN ('active', 'awaiting_payment')");
+    expect(appointmentAggSql).not.toContain("cancellations_count");
+    expect(appointmentAggSql).not.toContain("reschedules_count");
+    expect(appointmentAggSql).not.toContain("be_appointment_reschedules");
+    expect(runWebappPgTextMock.mock.calls.map((call) => String(call[0])).join("\n"))
+      .not.toContain("be_patient_packages");
+    expect(drizzleSelectMock.mock.calls.map((call) => Object.keys(call[0] as Record<string, unknown>)))
+      .toEqual(expect.arrayContaining([
+        expect.arrayContaining(["cancellationsCount"]),
+        expect.arrayContaining(["reschedulesCount"]),
+        expect.arrayContaining(["membershipsCount"]),
+      ]));
   });
 
   it("listPatientAppointments reads patient rows from canonical appointments", async () => {
@@ -353,7 +386,6 @@ describe("pgDoctorClients repo", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ user_id: "u1" }] })
       .mockResolvedValueOnce({ rows: [{ user_id: "u2" }] });
 
@@ -364,7 +396,7 @@ describe("pgDoctorClients repo", () => {
     expect(list.find((item) => item.userId === "u1")?.hasWebPush).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasApp).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasWebPush).toBe(true);
-    const webPushSql = String(runWebappPgTextMock.mock.calls[8]?.[0] ?? "");
+    const webPushSql = String(runWebappPgTextMock.mock.calls[7]?.[0] ?? "");
     expect(webPushSql).toContain("p.platform_user_id = s.user_id");
   });
 
@@ -377,7 +409,6 @@ describe("pgDoctorClients repo", () => {
           { id: "u3", display_name: "Both user", phone_normalized: null, created_at: "2026-01-03" },
         ],
       })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
@@ -401,7 +432,6 @@ describe("pgDoctorClients repo", () => {
           { id: "u3", display_name: "Both user", phone_normalized: null, created_at: "2026-01-03" },
         ],
       })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
@@ -438,13 +468,11 @@ describe("pgDoctorClients repo", () => {
     expect(allParams).toContain("uid-2");
   });
 
-  it("getDashboardPatientMetrics runs six count queries in parallel", async () => {
+  it("getDashboardPatientMetrics keeps legacy counts in SQL and loads UI-4b metrics through Drizzle", async () => {
     runWebappPgTextMock.mockResolvedValue({ rows: [{ c: "3" }] });
     const port = createPgDoctorClientsPort();
     const metrics = await port.getDashboardPatientMetrics();
 
-    // Scalar COUNT queries resolve to 3. The membership projection expects named
-    // active/expired fields, so the generic mock maps both to zero.
     expect(metrics).toEqual({
       totalClients: 3,
       onSupportCount: 3,
@@ -458,31 +486,42 @@ describe("pgDoctorClients repo", () => {
       cancellationsCount: 0,
       reschedulesCount: 0,
     });
-    expect(runWebappPgTextMock).toHaveBeenCalledTimes(6);
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(5);
     const visitedSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
-    const membershipsSql = String(runWebappPgTextMock.mock.calls[4]?.[0] ?? "");
-    const aggregateSql = String(runWebappPgTextMock.mock.calls[5]?.[0] ?? "");
+    const aggregateSql = String(runWebappPgTextMock.mock.calls[4]?.[0] ?? "");
     expect(visitedSql).toContain("INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id");
     expect(aggregateSql).toContain("LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id");
-    expect(aggregateSql).toContain("LEFT JOIN be_appointment_reschedules r");
+    expect(aggregateSql).not.toContain("be_appointment_reschedules");
     expect(aggregateSql).not.toContain("INTERVAL '30 days'");
-    expect(membershipsSql).toContain("pp.status = 'active'");
-    expect(membershipsSql).toContain("pp.status = 'expired'");
+    expect(runWebappPgTextMock.mock.calls.map((call) => String(call[0])).join("\n"))
+      .not.toContain("be_patient_packages");
+    expect(drizzleSelectMock).toHaveBeenCalledTimes(3);
     expect(visitedSql).not.toContain("appointment_records");
     expect(aggregateSql).not.toContain("appointment_records");
   });
 
   it("getDashboardPatientMetrics reports active and expired memberships and lifetime event segments", async () => {
+    drizzleMetricRowsMock.cancellations = [{ userId: "u1", cancellationsCount: 1 }];
+    drizzleMetricRowsMock.reschedules = [{ userId: "u2", reschedulesCount: 2 }];
+    drizzleMetricRowsMock.memberships = [
+      { userId: "u1", status: "active", membershipsCount: 1 },
+      { userId: "u2", status: "active", membershipsCount: 1 },
+      { userId: "u3", status: "expired", membershipsCount: 1 },
+      { userId: "u4", status: "expired", membershipsCount: 1 },
+      { userId: "u5", status: "expired", membershipsCount: 1 },
+    ];
     runWebappPgTextMock
       .mockResolvedValueOnce({ rows: [{ c: "5" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
-      .mockResolvedValueOnce({ rows: [{ active_count: "2", expired_count: "3" }] })
       .mockResolvedValueOnce({
         rows: [
-          { id: "u1", past_count: 1, future_count: 0, cancellations_count: 1, reschedules_count: 0 },
-          { id: "u2", past_count: 1, future_count: 1, cancellations_count: 0, reschedules_count: 2 },
+          { id: "u1", past_count: 1, future_count: 0 },
+          { id: "u2", past_count: 1, future_count: 1 },
+          { id: "u3", past_count: 0, future_count: 0 },
+          { id: "u4", past_count: 0, future_count: 0 },
+          { id: "u5", past_count: 0, future_count: 0 },
         ],
       });
 
