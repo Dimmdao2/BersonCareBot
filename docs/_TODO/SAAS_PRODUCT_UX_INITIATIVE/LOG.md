@@ -3531,3 +3531,27 @@ disposable proof.
 identity outcomes. Stop implementation (without broadening grants or adding fallback senders) on ambiguous identity,
 missing exact-org ownership, inability to keep pre-auth data non-clinical, or a migration/role requirement outside the
 documented app owner/Drizzle path. No audit recommendation becomes product scope automatically.
+
+## 2026-07-21 — U5B-0 record visibility contract launch manifest (`#928`)
+
+**Why this stage is ready.** The normative DAG gives U5B only U1 + U5A dependencies. U1 is complete; U5A code,
+independent audit and one-organization/invalid-target DEV checks pass, while its two-organization switch and revoked
+selection live seals remain explicitly deferred until a sanctioned activation path or TEST fixture. Those missing
+runtime seals block U5B application code, but not this required design-first policy contract. Active U3B `#806` and
+U4 are not U5B dependencies. No owner decision is open: one organization card, visit relation and own-events default
+are fixed; record-class visibility/export parity is an engineering and security contract.
+
+**Scope and ownership.** Task `#928` defines one docs-only high-risk stage: enumerate every patient-card section and
+record class; record organization ownership, immutable author and attributed specialist; define solo, specialist A/B
+and owner/admin-without-specialist behavior; require parity across list/direct/count/search/export/write; hide
+private/restricted facts even through counts and search; fail closed for an unclassified class; separate deterministic
+legacy backfill from ambiguous review; preserve amendment history. Authority is U5B in this roadmap, the current
+`OPERATING_MODEL.md`, `ROLE_CAPABILITY_MATRIX.md` and owner-review patient-card decisions.
+
+**Allowed/protected paths and checks.** Writable files are limited to `OPERATING_MODEL.md`,
+`ROLE_CAPABILITY_MATRIX.md`, this roadmap for a pointer/status only without DAG changes, and this `LOG.md`. All
+`apps/webapp/**`, schema, migrations, APIs, DB/runtime, patient-card UI and active `#806` files are protected. Evidence
+is contract completeness, cross-document consistency, `git diff --check`, task mapping and one independent high-risk
+audit. No full CI, server, DB, TEST/PROD, deploy or external delivery action belongs to U5B-0. If current evidence
+cannot classify a record without changing the owner's product model, record the exact owner question rather than
+inventing access.
