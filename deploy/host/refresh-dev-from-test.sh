@@ -11,6 +11,7 @@ TARGET_ROLE="bcb_webapp_dev_user"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 DEV_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
+DEV_RUNTIME_OVERLAY_REHYDRATE="$REPO_ROOT/deploy/host/dev-runtime-overlay-rehydrate.sh"
 DEV_POST_REFRESH_UNLOCK="$REPO_ROOT/deploy/host/dev-post-refresh-unlock.sh"
 SAFE_MIGRATION_ENV="$REPO_ROOT/deploy/env/empty.local-migration.env"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
@@ -40,6 +41,10 @@ if [[ "$(realpath "$DEV_ENV")" != "$REPO_ROOT/apps/webapp/.env.dev" ]]; then
 fi
 if [[ -L "$DEV_ENV_PARSER" || ! -f "$DEV_ENV_PARSER" || "$(realpath "$DEV_ENV_PARSER")" != "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" ]]; then
   echo "FATAL: DEV env parser path guard failed" >&2
+  exit 1
+fi
+if [[ -L "$DEV_RUNTIME_OVERLAY_REHYDRATE" || ! -f "$DEV_RUNTIME_OVERLAY_REHYDRATE" || "$(realpath "$DEV_RUNTIME_OVERLAY_REHYDRATE")" != "$REPO_ROOT/deploy/host/dev-runtime-overlay-rehydrate.sh" ]]; then
+  echo "FATAL: DEV runtime overlay rehydrate path guard failed" >&2
   exit 1
 fi
 if [[ -L "$DEV_POST_REFRESH_UNLOCK" || ! -f "$DEV_POST_REFRESH_UNLOCK" || "$(realpath "$DEV_POST_REFRESH_UNLOCK")" != "$REPO_ROOT/deploy/host/dev-post-refresh-unlock.sh" ]]; then
@@ -173,6 +178,9 @@ echo "[refresh-dev] applying current branch migrations"
       exec pnpm run migrate
     '
 )
+
+echo "[refresh-dev] rehydrating canonical runtime grants/helpers after migrations"
+bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --execute
 
 echo "[refresh-dev] removing copied TEST-only settings locks from DEV"
 bash "$DEV_POST_REFRESH_UNLOCK" --execute

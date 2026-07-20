@@ -31,7 +31,7 @@ pnpm run migrate
 |---|---|---|
 | Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru` | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet |
 | Быстро менять код, данные и роли, делать повторные скриншоты | DEV `http://127.0.0.1:5200` | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev` |
-| Получить в DEV тот же состав данных, что сейчас на TEST | Сначала `bash deploy/host/refresh-dev-from-test.sh --execute` | Wrapper пересоздаёт **только** `bcb_webapp_dev` из **только** `bersoncarebot_test`, накатывает миграции текущей ветки и удаляет скопированные TEST-only locks настроек |
+| Получить в DEV тот же состав данных, что сейчас на TEST | Сначала `bash deploy/host/refresh-dev-from-test.sh --execute` | Wrapper пересоздаёт **только** `bcb_webapp_dev` из **только** `bersoncarebot_test`, накатывает миграции текущей ветки, восстанавливает runtime grants/helpers после `--no-acl` restore и удаляет скопированные TEST-only locks настроек |
 
 `bcb_webapp_dev` — рабочая песочница: её разрешено пересоздавать, сидировать и менять для разработки/UX.
 Копирование TEST→DEV также разрешено. Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
@@ -45,6 +45,20 @@ TEST при этом только читается через `pg_dump`, TEST-с
 `bash deploy/host/dev-post-refresh-unlock.sh --execute`. Команда fail-closed принимает только канонический локальный
 `DATABASE_URL` для `bcb_webapp_dev` и удаляет только две TEST-only пары trigger/function в `public` и `integrator`.
 Значения TEST-настроек она не меняет; после разблокировки DEV их можно менять штатным API/admin UI.
+
+Если после уже выполненного refresh журнал миграций актуален, но runtime-функции/ACL разошлись (например, после
+`pg_restore --no-acl` или повторного `CREATE OR REPLACE FUNCTION`), DEV пересоздавать не нужно. Используйте отдельную
+идемпотентную closure-команду:
+
+```bash
+bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
+```
+
+Она принимает только локальный exact `bcb_webapp_dev` URL из канонического `.env.dev`, не читает `/opt/env`, TEST
+или PROD, не делает dump/reset и не меняет прикладные данные. Команда проверяет существующие глобальные роли, затем
+переиспользует тот же упорядоченный runtime-overlay closure, что TEST wrapper, и завершается только после фактических
+runtime-проверок public settings и patient booking capability. Глобальные роли в DEV не создаются и не перенастраиваются:
+они общие для PostgreSQL-кластера, поэтому отсутствие/небезопасное состояние роли является fail-closed ошибкой.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 

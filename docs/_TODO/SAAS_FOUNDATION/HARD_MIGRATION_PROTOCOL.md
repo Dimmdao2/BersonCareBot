@@ -551,6 +551,23 @@ acceptance.
 
 ## DEV/disposable dormant wrapper
 
+### Existing DEV database runtime-overlay recovery
+
+`bcb_webapp_dev` is not a TEST acceptance target, but a TEST→DEV `pg_restore --no-acl` has the same runtime-overlay
+loss mode as a fresh TEST restore. `deploy/host/refresh-dev-from-test.sh --execute` therefore runs the DEV-only
+`deploy/host/dev-runtime-overlay-rehydrate.sh --execute` after current-branch migrations and before removing copied
+TEST settings locks. Both TEST and DEV call the single ordered implementation in
+`deploy/host/runtime-overlay-rehydrate-lib.sh`; a second list of overlay SQL is forbidden.
+
+The DEV rehydrate wrapper is not a restore or deploy command. It accepts only the exact local
+`bcb_webapp_dev` / `bcb_webapp_dev_user` URL parsed as data from the canonical `.env.dev`, sanitizes PostgreSQL
+environment input, never reads `/opt/env`, and never opens TEST or PROD. Because `app_owner`, `app_staff`, and
+`app_patient` are cluster-global, DEV only validates their canonical safe state; it does not create or rewire them.
+It reapplies per-database P0.5b grants and the shared helper/E1 closure, then fails unless the targeted functions have
+exact `app_owner` ownership, closed ACLs, the DEV base login can read through the public runtime accessor, and an
+actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An already prepared DEV database
+with only owner/ACL drift must use this command directly; recreating it from a dump is unnecessary.
+
 The DEV/disposable rehearsal path is now repo-tracked and separate from TEST services:
 
 ```bash

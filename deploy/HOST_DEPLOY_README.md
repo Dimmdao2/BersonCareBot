@@ -786,10 +786,13 @@ membership/BYPASS через обязательный cleanup; application runti
 - **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
 - **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
 - **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → strict preflight → stop 5 writers → controlled owner/BYPASS `pnpm migrate` → общая roles/helpers/grants/telemetry/base+overlays/FORCE/seed closure → cleanup assertions → restart locked units → health/nginx/product smoke. Он не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
-- **TEST→DEV не переносит неизменяемость TEST:** локальный `refresh-dev-from-test.sh --execute` после миграций запускает
-  `dev-post-refresh-unlock.sh --execute`. Второй wrapper проверяет точную БД `bcb_webapp_dev` и удаляет только
-  скопированные TEST-only `system_settings_test_lock` trigger/function в `public` и `integrator`. Для уже обновлённой
-  DEV-БД его можно вызвать отдельно, без dump/restore/reset; TEST и PROD он не открывает.
+- **TEST→DEV не переносит неизменяемость TEST:** локальный `refresh-dev-from-test.sh --execute` после миграций сначала
+  запускает `dev-runtime-overlay-rehydrate.sh --execute`, а затем `dev-post-refresh-unlock.sh --execute`. Runtime
+  wrapper восстанавливает потерянные `--no-acl` grants/helper ownership через общий с TEST канонический overlay-order,
+  проверяет exact `bcb_webapp_dev`, фактический runtime read и patient booking capability; unlock wrapper удаляет
+  только скопированные TEST-only `system_settings_test_lock` trigger/function. Оба пути DEV-only и не открывают
+  TEST/PROD. Если миграционный ledger уже актуален, а разошлись только runtime owner/ACL, rehydrate можно вызвать
+  отдельно без dump/restore/reset; если нужен только lock cleanup — отдельно вызвать unlock.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный

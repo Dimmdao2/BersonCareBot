@@ -21,6 +21,15 @@
 #   --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> [branch]
 set -euo pipefail
 
+DEPLOY_TEST_SAAS_SCRIPT_DIR="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
+RUNTIME_OVERLAY_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/runtime-overlay-rehydrate-lib.sh"
+if [[ -L "$RUNTIME_OVERLAY_LIB" || ! -f "$RUNTIME_OVERLAY_LIB" || "$(realpath "$RUNTIME_OVERLAY_LIB")" != "$RUNTIME_OVERLAY_LIB" ]]; then
+  echo "FATAL: shared runtime-overlay library path guard failed" >&2
+  exit 1
+fi
+# shellcheck source=deploy/host/runtime-overlay-rehydrate-lib.sh
+source "$RUNTIME_OVERLAY_LIB"
+
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="feat/doctor-ui-rebuild"
@@ -219,12 +228,7 @@ assert_staged_rubitime_csv_ready(){
 }
 
 validate_pg_identifier(){
-  local label="$1"
-  local value="$2"
-  if [[ ! "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-    echo "FATAL: $label must be a simple PostgreSQL identifier, got: $value" >&2
-    exit 1
-  fi
+  runtime_overlay_validate_pg_identifier "$@"
 }
 
 read_deploy_env_value(){
@@ -460,22 +464,16 @@ rehydrate_post_restore_runtime_overlays(){
   local e1_runtime_role
   e1_runtime_role="$(discover_webapp_bootstrap_base_role)"
   validate_pg_identifier "webapp.test E1 runtime role" "$e1_runtime_role"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_COURSE_WALL"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"
-  if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
-    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$REFERENCE_CATALOG_RLS"
-    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VISIBLE_CATALOG_RLS"
-    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"
-    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER"
-    sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"
-  fi
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v e1_webapp_runtime_role="$e1_runtime_role" \
-    -f "$DEPLOY_REPO/$E1_WEBAPP_RUNTIME_CONFIG"
+  runtime_overlay_apply_post_migration_chain \
+    "$DEPLOY_REPO" \
+    "$DB" \
+    "$e1_runtime_role" \
+    "$P2_B_CONTEXT_INSTALLED"
   echo "   post-restore runtime overlays: OK"
+}
+
+runtime_overlay_admin_psql(){
+  sudo -u postgres psql "$@"
 }
 
 assert_api_runtime_can_release_principal_context(){
@@ -512,26 +510,18 @@ assert_webapp_credential_helper_runtime_acl(){
 discover_database_role_from_env(){
   local label="$1"
   local env_file="$2"
-  local identity role_name database_name
+  local identity
   identity="$(sudo -u deploy bash -lc "set -a && . '$env_file' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
-  role_name="${identity%%|*}"
-  database_name="${identity#*|}"
-  validate_pg_identifier "$label DATABASE_URL role" "$role_name"
-  [ "$database_name" = "$DB" ] || { echo "FATAL: $label DATABASE_URL points to '$database_name', expected '$DB'"; exit 1; }
-  printf '%s\n' "$role_name"
+  runtime_overlay_parse_database_identity "$label DATABASE_URL" "$DB" "$identity"
 }
 
 discover_database_role_from_env_key(){
   local label="$1"
   local env_file="$2"
   local env_key="$3"
-  local identity role_name database_name
+  local identity
   identity="$(sudo -u deploy bash -lc "set -a && . '$env_file' && set +a && env_key='$env_key' && db_url=\"\${!env_key:-}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
-  role_name="${identity%%|*}"
-  database_name="${identity#*|}"
-  validate_pg_identifier "$label $env_key role" "$role_name"
-  [ "$database_name" = "$DB" ] || { echo "FATAL: $label $env_key points to '$database_name', expected '$DB'"; exit 1; }
-  printf '%s\n' "$role_name"
+  runtime_overlay_parse_database_identity "$label $env_key" "$DB" "$identity"
 }
 
 discover_webapp_migrator_role(){
@@ -581,23 +571,15 @@ assert_c4_operational_runtime_ready(){
 }
 
 discover_webapp_staff_runtime_role(){
-  local identity role_name database_name
+  local identity
   identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && [ -n \"\${DATABASE_URL_STAFF:-}\" ] && psql \"\$DATABASE_URL_STAFF\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
-  role_name="${identity%%|*}"
-  database_name="${identity#*|}"
-  validate_pg_identifier "webapp.test staff DATABASE_URL_STAFF role" "$role_name"
-  [ "$database_name" = "$DB" ] || { echo "FATAL: webapp.test staff DB URL points to '$database_name', expected '$DB'"; exit 1; }
-  printf '%s\n' "$role_name"
+  runtime_overlay_parse_database_identity "webapp.test staff DATABASE_URL_STAFF" "$DB" "$identity"
 }
 
 discover_webapp_bootstrap_base_role(){
-  local identity role_name database_name
+  local identity
   identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && db_url=\"\${DATABASE_URL_NONSTAFF:-\${DATABASE_URL:-}}\" && [ -n \"\$db_url\" ] && psql \"\$db_url\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
-  role_name="${identity%%|*}"
-  database_name="${identity#*|}"
-  validate_pg_identifier "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL role" "$role_name"
-  [ "$database_name" = "$DB" ] || { echo "FATAL: webapp.test bootstrap DB URL points to '$database_name', expected '$DB'"; exit 1; }
-  printf '%s\n' "$role_name"
+  runtime_overlay_parse_database_identity "webapp.test bootstrap DATABASE_URL_NONSTAFF/DATABASE_URL" "$DB" "$identity"
 }
 
 discover_api_runtime_role(){
@@ -605,13 +587,9 @@ discover_api_runtime_role(){
 }
 
 discover_saas_isolation_operator_role(){
-  local identity role_name database_name
+  local identity
   identity="$(sudo -u deploy bash -lc "set -a && . '$WEBAPP_ENV' && set +a && [ -n \"\${SAAS_ISOLATION_OPERATOR_DATABASE_URL:-}\" ] && psql \"\$SAAS_ISOLATION_OPERATOR_DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT current_user || '|' || current_database();\"")"
-  role_name="${identity%%|*}"
-  database_name="${identity#*|}"
-  validate_pg_identifier "webapp.test SaaS isolation operator role" "$role_name"
-  [ "$database_name" = "$DB" ] || { echo "FATAL: SaaS isolation operator URL points to '$database_name', expected '$DB'"; exit 1; }
-  printf '%s\n' "$role_name"
+  runtime_overlay_parse_database_identity "webapp.test SaaS isolation operator URL" "$DB" "$identity"
 }
 
 provision_saas_isolation_operator_login(){

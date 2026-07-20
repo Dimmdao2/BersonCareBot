@@ -14,6 +14,7 @@ const files = {
   specialistOwnerProvisioningSql: "deploy/postgres/specialist-owner-provisioning-rls.sql",
   patientVapidAccessorSql: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
   testDeploySaas: "deploy/host/deploy-test-saas.sh",
+  runtimeOverlayLib: "deploy/host/runtime-overlay-rehydrate-lib.sh",
   platformAccessRepo: "apps/webapp/src/infra/repos/pgPlatformAccess.ts",
   hardProtocol: "docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md",
   runtimeHelperSmoke: "docs/_TODO/SAAS_FOUNDATION/scripts/smoke-d3-4-runtime-helper-grants.mjs",
@@ -381,15 +382,15 @@ function runChecks(overrides = {}) {
     'REVOKE ALL PRIVILEGES ON TABLE "public"."user_password_credentials" FROM app_patient;',
     'REVOKE ALL PRIVILEGES ON TABLE "public"."user_oauth_bindings" FROM app_patient;',
     "'REVOKE ALL PRIVILEGES (%s) ON TABLE %I.%I FROM app_patient'",
+    "REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings, public.app_runtime_settings_audit FROM app_staff;",
+    "REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings FROM app_patient;",
+    "GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;",
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_staff;",
   ]);
   forbidRegex(files.p05bGrantSql, loaded.p05bGrantSql, [
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_password_credentials"\s+TO\s+app_patient/i,
     /GRANT\s+[^;]*ON\s+TABLE\s+"public"\."user_oauth_bindings"\s+TO\s+app_patient/i,
   ]);
-  forbidFragments(files.p05bGrantSql, loaded.p05bGrantSql, [
-    "public.app_runtime_settings",
-  ]);
-
   requireFragments(files.organizationMemberInvitesSql, loaded.organizationMemberInvitesSql, [
     "R1 clinic member invites RLS/grants overlay",
     'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."organization_member_invites" TO app_staff;',
@@ -519,12 +520,7 @@ function runChecks(overrides = {}) {
     "SPECIALIST_OWNER_PROVISIONING_RLS=deploy/postgres/specialist-owner-provisioning-rls.sql",
     "PATIENT_VAPID_ACCESSOR=deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
     "-f \"$DEPLOY_REPO/$P0_5B_GRANTS\"",
-    "-f \"$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS\"",
-    "-f \"$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS\"",
-    "-f \"$DEPLOY_REPO/$PATIENT_COURSE_WALL\"",
-    "-f \"$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS\"",
-    "-f \"$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS\"",
-    "-f \"$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR\"",
+    "runtime_overlay_apply_post_migration_chain",
     "sudo -u deploy cat \"$DEPLOY_REPO/$P2_B_CONTEXT\"",
     "[ -r \"$SRC_REPO/$P0_5B_GRANTS\" ]",
     "[ -r \"$SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS\" ]",
@@ -600,14 +596,26 @@ function runChecks(overrides = {}) {
     loaded.testDeploySaas,
     "rehydrate_post_restore_runtime_overlays",
   );
-  requireOrderedFragments(`${files.testDeploySaas} post-restore overlay rehydration`, overlayInstaller, [
-    "-f \"$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS\"",
-    "-f \"$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS\"",
-    "-f \"$DEPLOY_REPO/$PATIENT_COURSE_WALL\"",
-    "-f \"$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS\"",
-    "-f \"$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS\"",
-    "if [ \"$P2_B_CONTEXT_INSTALLED\" = \"1\" ]; then",
-    "-f \"$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR\"",
+  requireOrderedFragments(`${files.testDeploySaas} shared post-restore overlay invocation`, overlayInstaller, [
+    'e1_runtime_role="$(discover_webapp_bootstrap_base_role)"',
+    "runtime_overlay_apply_post_migration_chain",
+    '"$DEPLOY_REPO"',
+    '"$DB"',
+    '"$e1_runtime_role"',
+    '"$P2_B_CONTEXT_INSTALLED"',
+  ]);
+  requireOrderedFragments(`${files.runtimeOverlayLib} canonical post-restore overlay order`, loaded.runtimeOverlayLib, [
+    "deploy/postgres/organization-member-invites-rls.sql",
+    "deploy/postgres/store-p0-entitlements-rls.sql",
+    "deploy/postgres/patient-course-assignment-wall.sql",
+    "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
+    "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/reference-catalog-rls.sql",
+    "deploy/postgres/patient-visible-catalog-rls.sql",
+    "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
+    "deploy/postgres/public-booking-bootstrap-resolver.sql",
+    "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+    "deploy/postgres/e1-webapp-runtime-config.sql",
   ]);
   const sharedClosure = extractBashFunction(
     loaded.testDeploySaas,

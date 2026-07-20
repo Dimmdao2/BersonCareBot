@@ -7,6 +7,7 @@ const files = {
   protocol: 'docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md',
   deployTestFullReset: 'deploy/host/deploy-test-full-reset.sh',
   deployTestSaas: 'deploy/host/deploy-test-saas.sh',
+  runtimeOverlayLib: 'deploy/host/runtime-overlay-rehydrate-lib.sh',
   deployTestCodeOnly: 'deploy/host/deploy-test.sh',
   fixtureSeeder: 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts',
   fixturePacket: 'deploy/host/saas-test-fixture-packet.mjs',
@@ -369,13 +370,9 @@ function runChecks(overrides = {}) {
     '-v telemetry_webapp_runtime_role="$webapp_runtime_role"',
     '-v telemetry_api_runtime_role="$api_runtime_role"',
     '-v telemetry_operator_runtime_role="$operator_runtime_role"',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$STORE_P0_ENTITLEMENTS_RLS"',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_COURSE_WALL"',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PUBLIC_BOOTSTRAP_RLS"',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$SPECIALIST_OWNER_PROVISIONING_RLS"',
-    'if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then',
-    'sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -f "$DEPLOY_REPO/$PATIENT_VAPID_ACCESSOR"',
+    'RUNTIME_OVERLAY_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/runtime-overlay-rehydrate-lib.sh"',
+    'source "$RUNTIME_OVERLAY_LIB"',
+    'runtime_overlay_apply_post_migration_chain',
     "has_function_privilege(current_user, 'app.release_principal_context()', 'EXECUTE')",
     'app.release_principal_context: OK',
     'trap cleanup_exit EXIT',
@@ -406,6 +403,20 @@ function runChecks(overrides = {}) {
     'assert_test_health_ok',
     'assert_awg_relay_active',
     'DONE — full data-ready TEST migration (Rubitime history + reviewed FIO + locked runtime verified)',
+  ]);
+
+  requireOrderedFragments(`${files.runtimeOverlayLib} canonical overlay sequence`, loaded.runtimeOverlayLib, [
+    'deploy/postgres/organization-member-invites-rls.sql',
+    'deploy/postgres/store-p0-entitlements-rls.sql',
+    'deploy/postgres/patient-course-assignment-wall.sql',
+    'deploy/postgres/specialist-signup-public-bootstrap-rls.sql',
+    'deploy/postgres/specialist-owner-provisioning-rls.sql',
+    'deploy/postgres/reference-catalog-rls.sql',
+    'deploy/postgres/patient-visible-catalog-rls.sql',
+    'deploy/postgres/patient-web-push-vapid-public-key-accessor.sql',
+    'deploy/postgres/public-booking-bootstrap-resolver.sql',
+    'deploy/postgres/public-clinic-slug-bootstrap-resolver.sql',
+    'deploy/postgres/e1-webapp-runtime-config.sql',
   ]);
 
   requireOrderedFragments(

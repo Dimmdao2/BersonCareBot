@@ -43,6 +43,7 @@ const files = {
   poolProviderTest: "apps/webapp/src/infra/db/webappPoolProvider.test.ts",
   diagnostics: "apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts",
   deploy: "deploy/host/deploy-test-saas.sh",
+  runtimeOverlayLib: "deploy/host/runtime-overlay-rehydrate-lib.sh",
   deployProd: "deploy/host/deploy-prod.sh",
   deployWebappProd: "deploy/host/deploy-webapp-prod.sh",
   deploy667: "scripts/deploy-saas-667.sh",
@@ -494,8 +495,11 @@ function runChecks(overrides = {}) {
   ]);
   requireText(files.deploy, loaded.deploy, [
     "E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql",
-    'e1_webapp_runtime_role="$e1_runtime_role"',
-    '"$DEPLOY_REPO/$E1_WEBAPP_RUNTIME_CONFIG"',
+    "runtime_overlay_apply_post_migration_chain",
+  ]);
+  requireText(files.runtimeOverlayLib, loaded.runtimeOverlayLib, [
+    "deploy/postgres/e1-webapp-runtime-config.sql",
+    '-v e1_webapp_runtime_role="$e1_runtime_role"',
   ]);
   requireText(files.journal, loaded.journal, [
     '"idx": 193', '"tag": "0193_e1_safe_runtime_config"',
@@ -522,7 +526,10 @@ function runChecks(overrides = {}) {
   ]);
   requireText(files.deploy, loaded.deploy, [
     "PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql",
-    '"$DEPLOY_REPO/$PATIENT_VISIBLE_CATALOG_RLS"',
+    "rehydrate_post_restore_runtime_overlays",
+  ]);
+  requireText(files.runtimeOverlayLib, loaded.runtimeOverlayLib, [
+    "deploy/postgres/patient-visible-catalog-rls.sql",
   ]);
   requireText(files.deployProd, loaded.deployProd, [
     "PATIENT_VISIBLE_CATALOG_RLS=deploy/postgres/patient-visible-catalog-rls.sql",
