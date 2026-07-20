@@ -497,10 +497,13 @@ card; запрещено строить временный resolver, второ�
   purchase and fulfillment: organization comes from active enrollment or the stored link, exact course ownership and
   current entitlement are rechecked, and an active patient enrollment is required without creating an identity on a
   denied public attempt. The expanded focused matrix is green (`20` files / `192` tests), as are S4 coverage,
-  checker self-test, Drizzle journal sync, webapp typecheck, scoped lint and diff checks; no DB/TEST/PROD/deploy action
-  was taken. The single independent high-risk audit at `0e14c0a32` passed with no P0/P1/P2 findings. **C4C is still
-  non-terminal:** the prescribed live two-organization OFF/ON acceptance (including migration apply and postcondition
-  in an authorized environment) remains required.
+  checker self-test, Drizzle journal sync, webapp typecheck, scoped lint and diff checks. The single independent
+  high-risk audit at `0e14c0a32` passed with no P0/P1/P2 findings. C4C landed through `6988f05ac` with a bounded
+  test-fixture correction at `6bfb4050d`; migration `0214` applied only to explicitly verified `bcb_webapp_dev`.
+  Drizzle-port and live authenticated proof show owner org A `courses=true`, visible navigation and direct-route
+  `200`, while independent DEV org B resolves `courses=false`, hides navigation and returns direct-route `404`.
+  The resumed milestone gate passed lint/typecheck, integrator `1271/1271`, webapp `8181` tests, media-worker `60/60`,
+  root/webapp builds and full audit. **C4C is terminally complete;** no TEST/PROD/deploy/reset/dump was performed.
   C4D remains a separate pending substage. C5C seat
   commerce is not part of the completed C4A scope.
 - **Dependencies:** U0/U1/U2, S4-0/S4-1 registry/chokepoint и C2 identity. Store commerce не блокирует первые два

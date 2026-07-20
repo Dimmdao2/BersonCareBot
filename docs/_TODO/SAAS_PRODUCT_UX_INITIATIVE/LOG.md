@@ -1,6 +1,6 @@
 # Log — SaaS Product UX Initiative
 
-## 2026-07-20 — C4C integrated-base convergence ready for independent audit (`#26`)
+## 2026-07-20 — C4C terminal closure (`#26`)
 
 **Result.** The parked course capability slice was semantically rebased onto integrated U1/U2 base `9874ddd98`.
 The shared management/account shell and trusted capability/workspace model remain authoritative; the Courses menu
@@ -28,9 +28,21 @@ the owner/roadmap checklist and passed with no P0/P1/P2 findings. Its own safe r
 S4 coverage (`35` mappings), checker self-test, journal sync and diff check also passed. It made no changes and added
 no requirements.
 
-**Remaining gate.** This is still not terminal completion. The integrated branch needs the prescribed live
-two-organization OFF/ON acceptance and authorized migration postcondition. Course redesign, template removal, store
-expansion and C4D remain outside this slice.
+**Integrated live and milestone gate.** The audited chain landed on `feat/doctor-ui-rebuild` as `adb1198a4`,
+`ddf4dc8f8` and `6988f05ac`; the bounded stale-fixture correction is `6bfb4050d`. Migration `0214` was applied only
+to the explicitly verified local database `bcb_webapp_dev` through the canonical migration command; there was no
+dump, reset, TEST or PROD access. A Drizzle-port postcondition resolved `courses=true` for canonical owner org A and
+`courses=false` for independent DEV org B. Live authenticated rendering then proved org A has the Courses navigation
+and receives `200` on `/app/doctor/courses`, while org B has no Courses navigation and receives `404` on the same
+direct route.
+
+The one milestone CI was resumed from failures rather than restarted. Lint and static invariants passed; the first
+typecheck saw stale `.next` route metadata from the lead-owned DEV server, so that server was stopped, its cache was
+moved aside, and typecheck passed. Integrator tests passed `1271/1271`; the first webapp run passed `1429` files /
+`8179` tests and exposed only two stale entitlement mocks. The bounded test-only correction passed `2` files / `5`
+tests; resumed webapp passed `1431` files / `8181` tests, media-worker `60/60`, root build, webapp production build and
+the full repository audit all passed. The existing Next NFT tracing warning remains non-blocking. Course redesign,
+template removal, store expansion and C4D remain outside this completed slice.
 
 ## 2026-07-20 — parallel launch checkpoint: C4C `#26` + U3S `#919`
 
