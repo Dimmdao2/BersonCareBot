@@ -19,6 +19,7 @@ RUNTIME_OVERLAY_LIB="$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh"
 SQL_STREAMER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
+PHASE4_LOCKED_POLICIES="$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql"
 D3_4_BOOTSTRAP_GRANTS="$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF="$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
@@ -29,7 +30,7 @@ Usage:
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --preflight
   bash deploy/host/dev-runtime-overlay-rehydrate.sh --execute
 
-Reinstalls the canonical P2-B protected context, then reapplies runtime grants/helpers/E1 and D3.4 to exactly $TARGET_DB.
+Reinstalls the canonical P2-B protected context, strict locked-helper base policies, then runtime overlays/E1 and D3.4 to exactly $TARGET_DB.
 The exact C0 dual-pool DEV topology requires DB_PRINCIPAL_CONTEXT_MODE=locked.
 It never restores, recreates or dumps a database and never opens TEST, PROD or /opt/env.
 This is a one-time post-restore/owner-drift repair, never an ordinary code-only deploy step.
@@ -61,6 +62,7 @@ for guarded_file in \
   "$SQL_STREAMER|$REPO_ROOT/deploy/host/stream-canonical-sql.mjs|canonical SQL reader" \
   "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants" \
   "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context" \
+  "$PHASE4_LOCKED_POLICIES|$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql|Phase 4 strict locked-helper policies" \
   "$D3_4_BOOTSTRAP_GRANTS|$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql|D3.4 bootstrap grants" \
   "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF|$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql|runtime overlay app_owner handoff"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
@@ -175,6 +177,15 @@ runtime_overlay_admin_psql() {
   ]]; then
     sql_file="$9"
     include_e1_role=1
+  elif [[
+    "$#" -eq 9 &&
+    "$1" == "-d" && "$2" == "$TARGET_DB" &&
+    "$3" == "-X" && "$4" == "-v" && "$5" == "ON_ERROR_STOP=1" &&
+    "$6" == "-v" && "$7" == "phase4_enforce_locked_context=1" &&
+    "$8" == "-f"
+  ]]; then
+    sql_file="$9"
+    psql_args+=(-v phase4_enforce_locked_context=1)
   elif [[
     "$#" -eq 13 &&
     "$1" == "-d" && "$2" == "$TARGET_DB" &&
@@ -736,6 +747,12 @@ SQL
 echo "[dev-runtime-overlay] applying canonical per-database role grants"
 runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS" >/dev/null
 
+echo "[dev-runtime-overlay] applying canonical strict locked-helper base policies"
+runtime_overlay_admin_psql \
+  -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 \
+  -v phase4_enforce_locked_context=1 \
+  -f "$PHASE4_LOCKED_POLICIES" >/dev/null
+
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
 
@@ -839,4 +856,4 @@ if [[ "$verified_database" != "$TARGET_DB" ]]; then
   exit 1
 fi
 
-echo "[dev-runtime-overlay] PASS: exact DEV runtime grants/helpers/E1 closure is ready"
+echo "[dev-runtime-overlay] PASS: exact DEV strict helper policies/runtime grants/E1 closure is ready"

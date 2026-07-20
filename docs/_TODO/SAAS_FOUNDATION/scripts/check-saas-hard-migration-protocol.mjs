@@ -441,6 +441,9 @@ function runChecks(overrides = {}) {
     'runtime_overlay_assert_separate_roles "DEV" "$owner_role" "$runtime_role"',
     "member_role.rolname IN ('app_owner', 'app_staff', 'app_patient')",
     'dev_base_runtime_role_safe_before_overlay',
+    'PHASE4_LOCKED_POLICIES="$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql"',
+    '-v phase4_enforce_locked_context=1',
+    '-f "$PHASE4_LOCKED_POLICIES"',
     'NOT rolcreatedb',
     'NOT rolcreaterole',
     'NOT rolreplication',
@@ -454,6 +457,12 @@ function runChecks(overrides = {}) {
     'd3_4_skip_bootstrap_role_normalization=1',
     'SELECT app.release_principal_context();',
     'DEV C0 dual-pool runtime requires locked principal-context mode',
+  ]);
+  requireOrderedFragments(`${files.devRuntimeOverlay} strict base before specialized overlays`, loaded.devRuntimeOverlay, [
+    'runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRANTS"',
+    '-v phase4_enforce_locked_context=1',
+    '-f "$PHASE4_LOCKED_POLICIES"',
+    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
   ]);
   requireOrderedFragments(`${files.refreshDevFromTest} preflight before destructive refresh`, loaded.refreshDevFromTest, [
     'bash "$DEV_RUNTIME_OVERLAY_REHYDRATE" --preflight',
@@ -1176,6 +1185,12 @@ function runSelfTest() {
       deployTestSaas: read(files.deployTestSaas).replace(
         '  log "strict closure: reviewed runtime overlays"\n  rehydrate_post_restore_runtime_overlays',
         '# missing post-restore runtime overlay rehydration',
+      ),
+    },
+    {
+      devRuntimeOverlay: read(files.devRuntimeOverlay).replace(
+        '  -v phase4_enforce_locked_context=1 \\\n  -f "$PHASE4_LOCKED_POLICIES" >/dev/null',
+        '  # missing strict locked-helper base-policy application',
       ),
     },
     {

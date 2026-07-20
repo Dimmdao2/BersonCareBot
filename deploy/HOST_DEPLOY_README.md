@@ -791,12 +791,15 @@ membership/BYPASS через обязательный cleanup; application runti
   wrapper до reset проверяет раздельные owner `DATABASE_URL` (`bcb_webapp_dev_user`) и C0
   `DATABASE_URL_NONSTAFF` (`bcb_dev_runtime_nonstaff_login`, отдельный от TEST на общем PG-кластере), затем
   восстанавливает потерянные `--no-acl`
-  grants/helper ownership через общий с TEST канонический overlay-order и доказывает фактический runtime read и
+  grants/helper ownership, затем в обязательном порядке применяет канонические strict locked-helper base policies
+  (`phase4_enforce_locked_context=1`) до специализированных overlays и доказывает фактический runtime read и
   patient booking capability; unlock wrapper удаляет
   только скопированные TEST-only `system_settings_test_lock` trigger/function. Оба пути DEV-only и не открывают
   TEST/PROD. Если миграционный ledger уже актуален, а разошлись только runtime owner/ACL, rehydrate можно вызвать
-  отдельно без dump/restore/reset; если нужен только lock cleanup — отдельно вызвать unlock. Rehydrate не создаёт и
-  не перенастраивает cluster-global runtime login: его credential/topology заранее provision-ит C0/C2 ops-проход.
+  отдельно без dump/restore/reset; если нужен только lock cleanup — отдельно вызвать unlock. DEV rehydrate не
+  выполняет FORCE RLS cutover: он заменяет устаревшие raw-GUC policies на helper-based predicates для уже
+  настроенного locked runtime. Rehydrate не создаёт и не перенастраивает cluster-global runtime login: его
+  credential/topology заранее provision-ит C0/C2 ops-проход.
 - **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
 - **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
 - **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный

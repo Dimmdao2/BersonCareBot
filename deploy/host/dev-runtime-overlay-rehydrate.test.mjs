@@ -33,6 +33,9 @@ const e1OverlayPath = fileURLToPath(
 const d34BootstrapPath = fileURLToPath(
   new URL("../postgres/d3-4-bootstrap-base-login-read-grants.sql", import.meta.url),
 );
+const phase4LockedPoliciesPath = fileURLToPath(
+  new URL("../postgres/phase4-locked-helper-rls-policies.sql", import.meta.url),
+);
 const e1MigrationPaths = [
   "apps/webapp/db/drizzle-migrations/0193_e1_safe_runtime_config.sql",
   "apps/webapp/db/drizzle-migrations/0194_e1_patient_identity_exception.sql",
@@ -319,6 +322,14 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
   assert.match(source, /d3-4-bootstrap-base-login-read-grants\.sql/u);
   assert.match(source, /runtime-overlay-app-owner-handoff\.sql/u);
+  assert.match(
+    source,
+    /PHASE4_LOCKED_POLICIES="\$REPO_ROOT\/deploy\/postgres\/phase4-locked-helper-rls-policies\.sql"/u,
+  );
+  assert.match(
+    source,
+    /"\$PHASE4_LOCKED_POLICIES\|\$REPO_ROOT\/deploy\/postgres\/phase4-locked-helper-rls-policies\.sql\|Phase 4 strict locked-helper policies"/u,
+  );
   assert.equal(source.split('--snapshot-stream "$DEV_ENV"').length - 1, 1);
   assert.match(source, /DEV_SNAPSHOT_COPROC_READ_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[0\]\}"/u);
   assert.match(source, /DEV_SNAPSHOT_COPROC_WRITE_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[1\]\}"/u);
@@ -406,6 +417,10 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /namespace\.nspname IN \('public', 'integrator', 'app'\)/u);
   assert.match(source, /dev_protected_context_bundle_complete/u);
   assert.match(source, /dev_runtime_patient_role_boundary/u);
+  assert.match(
+    source,
+    /-v phase4_enforce_locked_context=1 \\\n  -f "\$PHASE4_LOCKED_POLICIES"/u,
+  );
   assert.match(source, /runtime_overlay_apply_post_migration_chain "\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u);
   assert.match(source, /d3_4_bootstrap_base_role=\$TARGET_RUNTIME_ROLE/u);
   assert.match(source, /d3_4_skip_media_worker=1/u);
@@ -423,12 +438,20 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   const sharedOverlayIndex = source.indexOf(
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
   );
+  const strictBasePolicyIndex = source.indexOf(
+    '-v phase4_enforce_locked_context=1 \\\n  -f "$PHASE4_LOCKED_POLICIES"',
+  );
   const d34Index = source.indexOf("d3_4_skip_media_worker=1", sharedOverlayIndex);
   const releaseProofIndex = source.indexOf(
     'run_dev_runtime_psql -Atc "SELECT app.release_principal_context();"',
     d34Index,
   );
-  assert.ok(sharedOverlayIndex >= 0 && d34Index > sharedOverlayIndex && releaseProofIndex > d34Index);
+  assert.ok(
+    strictBasePolicyIndex >= 0 &&
+      sharedOverlayIndex > strictBasePolicyIndex &&
+      d34Index > sharedOverlayIndex &&
+      releaseProofIndex > d34Index,
+  );
   assert.match(source, /app\.read_public_runtime_setting\('oauth_google_enabled','admin'\)/u);
   assert.match(source, /SET LOCAL ROLE app_patient/u);
   assert.match(source, /app\.read_current_patient_booking_rows\('upcoming', now\(\)\)/u);
@@ -437,6 +460,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /\/opt\/env\/bersoncarebot|bersoncarebot_test|bcb_webapp_prod|bersoncarebot_prod/iu,
   );
+  assert.doesNotMatch(source, /phase4-force-rls-cutover/u);
 });
 
 test("P2-B transport suppresses inherited xtrace and keeps the actual secret out of SQL literals", () => {
@@ -629,6 +653,27 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     "SELECT 'before-include';\nSELECT 'included';\nSELECT 'after-include';\n",
   );
 
+  const acceptedStrictPolicies = runCallback([
+    "-d",
+    "bcb_webapp_dev",
+    "-X",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-v",
+    "phase4_enforce_locked_context=1",
+    "-f",
+    canonicalFile,
+  ]);
+  assert.equal(acceptedStrictPolicies.status, 0, acceptedStrictPolicies.stderr);
+  assert.equal(
+    readFileSync(calls, "utf8"),
+    "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v phase4_enforce_locked_context=1\n",
+  );
+  assert.equal(
+    readFileSync(stdinCapture, "utf8"),
+    "SELECT 'canonical';\n\\ir ../../apps/webapp/db/drizzle-migrations/included.sql\n",
+  );
+
   const acceptedD34 = runCallback([
     "-d",
     "bcb_webapp_dev",
@@ -663,6 +708,17 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     ["-dbcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
     ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", "-f", canonicalFile],
     ["-d", "other_db", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    [
+      "-d",
+      "bcb_webapp_dev",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-v",
+      "phase4_enforce_locked_context=0",
+      "-f",
+      canonicalFile,
+    ],
     [
       "-d",
       "bcb_webapp_dev",
@@ -804,6 +860,22 @@ test("TEST to DEV refresh runs rehydrate after migrations and before DEV unlock"
   assert.match(source, /DEV runtime overlay rehydrate path guard failed/u);
   assert.match(source, /never an ordinary code-only deploy path/u);
   assert.match(source, /reinstalling P2-B owner\/context and runtime overlays after migrations/u);
+});
+
+test("DEV strict base policy source retains the locked phone-history predicate", () => {
+  const source = readFileSync(phase4LockedPoliciesPath, "utf8");
+  const phoneHistoryStart = source.indexOf("-- public.user_phone_history");
+  const nextTableStart = source.indexOf("\n-- public.", phoneHistoryStart + 1);
+  assert.ok(phoneHistoryStart >= 0 && nextTableStart > phoneHistoryStart);
+  const phoneHistoryPolicy = source.slice(phoneHistoryStart, nextTableStart);
+
+  assert.match(phoneHistoryPolicy, /\\if :phase4_enforce_locked_context/u);
+  assert.match(phoneHistoryPolicy, /app\.current_org_id\(\) IS NOT NULL/u);
+  assert.match(phoneHistoryPolicy, /"organization_id" = app\.current_org_id\(\)/u);
+  assert.match(phoneHistoryPolicy, /app\.current_patient_user_id\(\) IS NULL/u);
+  assert.match(phoneHistoryPolicy, /app\.current_integrator_user_id\(\) IS NULL/u);
+  assert.match(phoneHistoryPolicy, /NOT app\.is_staff\(\)/u);
+  assert.doesNotMatch(phoneHistoryPolicy, /current_setting\('app\.org'/u);
 });
 
 test("wrapper defaults to usage and performs no operation without the exact execute flag", () => {
