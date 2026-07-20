@@ -575,6 +575,8 @@ describe("requireDoctorWorkspaceContext", () => {
       },
     });
 
-    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/manage");
+    await expect(requireDoctorWorkspaceContext()).rejects.toThrow(
+      "redirect:/app/settings?tab=organization",
+    );
   });
 });

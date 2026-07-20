@@ -150,9 +150,9 @@ The existing and owner-approved invariant is: **one staff login has exactly one 
 - selected specialist, URL, local storage and a custom Host cannot override resolved membership organization;
 - global-admin cross-org navigation is a separate platform capability and does not weaken this invariant.
 
-The final operating model may still support mode switching for an owner/admin who is also a specialist:
-`Управление практикой <-> Клиническая работа`. That is a surface/mode switch inside the same resolved organization,
-not a tenant switch and not a second authorization session.
+The final operating model may still support navigation between organization settings and clinical work for an
+owner/admin who is also a specialist. Product labels remain **«Настройки»** and the clinical destination name; this is
+navigation inside the same resolved organization, not a tenant switch and not a second authorization session.
 
 ## 5. Organization-scoped patient record and history
 

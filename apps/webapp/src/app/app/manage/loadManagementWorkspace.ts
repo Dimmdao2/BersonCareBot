@@ -14,7 +14,7 @@ export const loadManagementWorkspace = cache(async () => {
   ]);
   return {
     workspace,
-    organizationName: organization?.title?.trim() || "Практика",
+    organizationName: organization?.title?.trim() || "Кабинет",
     clinicTeamEnabled,
   };
 });

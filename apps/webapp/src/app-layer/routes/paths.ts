@@ -15,7 +15,7 @@ export const routePaths = {
   /** Редирект из напоминаний бота: «Начать занятие» по программе (как на карточке плана / в программе). */
   patientGoPlanStartLesson: "/app/patient/go/plan-start-lesson",
   doctor: "/app/doctor",
-  /** Управление одной организацией/практикой для owner/admin membership. */
+  /** Legacy compatibility entry; redirects to the organization section in Settings. */
   manage: "/app/manage",
   /** Единая личная область staff-аккаунта, не требующая organization membership. */
   account: "/app/account",

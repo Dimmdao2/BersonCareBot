@@ -45,7 +45,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
   const workspaceAccess = await requireOrganizationWorkspaceContext();
   const session = workspaceAccess.session;
   if (!workspaceAccess.canAccessClinicalWorkspace) {
-    redirect(routePaths.manage);
+    redirect(`${routePaths.settings}?tab=organization`);
   }
   const deps = buildAppDeps();
   const [organization, doctorSettings] = await Promise.all([

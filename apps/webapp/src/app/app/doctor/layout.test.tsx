@@ -70,10 +70,12 @@ describe("DoctorSectionLayout", () => {
     mocks.listOverrides.mockResolvedValue([]);
   });
 
-  it("routes a management-only owner to the management shell", async () => {
+  it("routes a management-only owner to Settings", async () => {
     mocks.requireOrganizationWorkspaceContext.mockResolvedValue(workspace(false));
 
-    await expect(DoctorSectionLayout({ children: null })).rejects.toThrow("redirect:/app/manage");
+    await expect(DoctorSectionLayout({ children: null })).rejects.toThrow(
+      "redirect:/app/settings?tab=organization",
+    );
     expect(mocks.getOrganization).not.toHaveBeenCalled();
   });
 

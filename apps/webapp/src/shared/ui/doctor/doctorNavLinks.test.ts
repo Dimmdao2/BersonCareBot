@@ -86,7 +86,7 @@ describe("doctor menu structure", () => {
       "content",
       "files-and-media",
       "courses",
-      "management",
+      "settings",
       "account",
       "analytics",
       "system",
@@ -123,7 +123,7 @@ describe("doctor menu structure", () => {
   it("shows management and account entries for an organization manager", () => {
     const items = getDoctorMenuItems(clinicAdminAccess);
     const ids = items.map((i) => i.id);
-    expect(ids).toContain("management");
+    expect(ids).toContain("settings");
     expect(ids).toContain("account");
     expect(ids).not.toContain("analytics");
     expect(ids).not.toContain("system");
@@ -213,7 +213,7 @@ describe("doctor menu structure", () => {
     expect(isDoctorMenuClusterId("system")).toBe(true);
     // analytics collapsed to a single page-shell link → no longer a cluster
     expect(isDoctorMenuClusterId("analytics")).toBe(false);
-    expect(isDoctorMenuClusterId("management")).toBe(false);
+    expect(isDoctorMenuClusterId("settings")).toBe(false);
     expect(isDoctorMenuClusterId("account")).toBe(false);
     expect(isDoctorMenuClusterId("today")).toBe(false);
     expect(isDoctorMenuClusterId("patients")).toBe(false);
@@ -240,7 +240,7 @@ describe("doctor menu structure", () => {
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Пациенты")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Расписание")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Аккаунт")).toBe(true);
-    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Управление практикой")).toBe(true);
+    expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Настройки")).toBe(true);
     expect(DOCTOR_MENU_LINKS.some((l) => l.label === "Комплексы ЛФК")).toBe(true);
     expect(hrefs).toContain("/app/doctor/communications");
     // schedule is now a flat link (no sub-items in DOCTOR_MENU_LINKS)
@@ -250,7 +250,7 @@ describe("doctor menu structure", () => {
     expect(hrefs).not.toContain("/app/doctor/schedule?tab=setup");
     expect(hrefs).not.toContain("/app/doctor/appointments");
     expect(hrefs).toContain("/app/account");
-    expect(hrefs).toContain("/app/manage");
+    expect(hrefs).toContain("/app/settings?tab=organization");
   });
 
   it("exposes localStorage keys for accordion persistence", () => {
@@ -324,7 +324,7 @@ describe("getDoctorShellHomeHref", () => {
   it("keeps each launch persona in its own canonical shell", () => {
     expect(getDoctorShellHomeHref(platformOnlyAccess)).toBe("/app/doctor/system-health");
     expect(getDoctorShellHomeHref(doctorAccess)).toBe("/app/doctor");
-    expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/manage");
+    expect(getDoctorShellHomeHref(clinicAdminAccess)).toBe("/app/settings?tab=organization");
     expect(getDoctorShellHomeHref({ capabilities: ["account.self"] })).toBe("/app/account");
     expect(getDoctorShellHomeHref({ capabilities: [] })).toBe("/app");
   });
@@ -332,6 +332,8 @@ describe("getDoctorShellHomeHref", () => {
   it("keeps an owner with a specialist binding clinical by default but exposes management nav", () => {
     const access = { capabilities: ["organization.management", "clinical.workspace", "account.self"] as const };
     expect(getDoctorShellHomeHref(access)).toBe("/app/doctor");
-    expect(getDoctorMenuItems(access).find((item) => item.id === "management")?.href).toBe("/app/manage");
+    expect(getDoctorMenuItems(access).find((item) => item.id === "settings")?.href).toBe(
+      "/app/settings?tab=organization",
+    );
   });
 });

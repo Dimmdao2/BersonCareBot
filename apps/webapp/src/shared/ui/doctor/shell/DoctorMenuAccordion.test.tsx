@@ -189,11 +189,11 @@ describe("DoctorMenuAccordion", () => {
   it("shows the personal account link and hides management and system for doctor role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={menuAccess} />);
     expect(screen.getByRole("link", { name: "Аккаунт" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Управление практикой" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Настройки" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows management and personal account links for clinic admin access", () => {
+  it("shows settings and personal account links for clinic admin access", () => {
     render(
       <DoctorMenuAccordion
         variant="sidebar"
@@ -201,15 +201,18 @@ describe("DoctorMenuAccordion", () => {
         menuAccess={{ capabilities: ["organization.management"] }}
       />,
     );
-    expect(screen.getByRole("link", { name: "Управление практикой" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute(
+      "href",
+      "/app/settings?tab=organization",
+    );
     expect(screen.getByRole("link", { name: "Аккаунт" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Аналитика/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Система/ })).not.toBeInTheDocument();
   });
 
-  it("shows management, personal account and system links for platform admin role", () => {
+  it("shows settings, personal account and system links for platform admin role", () => {
     render(<DoctorMenuAccordion variant="sidebar" pathname="/app/doctor" menuAccess={adminAccess} />);
-    expect(screen.getByRole("link", { name: "Управление практикой" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Аккаунт" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Система/ })).toBeInTheDocument();
   });

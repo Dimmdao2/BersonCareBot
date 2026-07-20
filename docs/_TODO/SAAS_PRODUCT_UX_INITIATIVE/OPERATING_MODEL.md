@@ -101,12 +101,12 @@ organization shape and entitlement, not by a permanent `solo=true` branch.
 
 | Surface | Solo owner-specialist | Clinic specialist |
 |---|---|---|
-| Header/context | «Моя практика»; no redundant specialist selector | Clinic identity; own specialist context visible |
+| Header/context | Identity специалиста/кабинета; no redundant specialist selector | Clinic identity; own specialist context visible |
 | Today/patients | Own practice; «Мои» control omitted when it cannot change result | «Мои» by default; optional «Все доступные» after authorization |
 | Patient history | All permitted solo history without team chrome | Own attributed events by default; optional permitted shared history/specialist filter |
 | Future clinic coordination | Absent | Reserved concept only; exact permissions/UI require a future clinic contract |
 | Schedule | Own calendar; setup entry if management-capable | Own calendar; organization calendar/setup separately gated |
-| Settings | Personal + compact practice setup | Personal and organization settings clearly separated |
+| Settings | «Настройки» кабинета + отдельный «Аккаунт» | «Настройки» организации + отдельный «Аккаунт» |
 | Growth | First staff invite activates team composition without account migration | Staff lifecycle, seats and collaboration mechanics |
 
 Initial release is explicitly solo-first. Future clinic growth can reuse the same Organization/account model, but

@@ -30,7 +30,7 @@ const {
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/app-layer/routes/paths", () => ({
-  routePaths: { account: "/app/account", manage: "/app/manage" },
+  routePaths: { account: "/app/account", settings: "/app/settings" },
 }));
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireOrganizationWorkspaceContext: requireWorkspaceMock,
@@ -103,7 +103,7 @@ describe("legacy settings compatibility", () => {
   it("preserves the one guarded organization writer without restoring a second settings tab tree", async () => {
     render(await SettingsPage({ searchParams: Promise.resolve({ tab: "organization" }) }));
 
-    expect(screen.getByRole("heading", { name: "Настройки практики" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Настройки" })).toBeInTheDocument();
     expect(screen.getByTestId("organization-settings")).toBeInTheDocument();
     expect(screen.getByTestId("appointment-reminders")).toBeInTheDocument();
     expect(settingsFormMock).toHaveBeenCalledWith(
@@ -127,7 +127,7 @@ describe("legacy settings compatibility", () => {
 
   it("keeps Team fail-closed when clinic_team is unavailable without redirecting to itself", async () => {
     await expect(SettingsPage({ searchParams: Promise.resolve({ tab: "team" }) })).rejects.toThrow(
-      "redirect:/app/manage",
+      "redirect:/app/settings?tab=organization",
     );
     expect(entitlementMock).toHaveBeenCalledWith({ organizationId: "org-1" }, "clinic_team");
     expect(teamSectionMock).not.toHaveBeenCalled();

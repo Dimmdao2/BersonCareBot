@@ -105,7 +105,7 @@ export function StaffSecuritySection(props: Props) {
 
   async function retryProvisioning() {
     const result = await postJson<{ ok: boolean; redirectTo?: string }>("/api/auth/specialist-signup/retry");
-    if (!result.ok) return toast.error("Практика ещё не готова. Повторите позже.");
+    if (!result.ok) return toast.error("Аккаунт ещё не готов. Повторите позже.");
     window.location.assign(result.redirectTo ?? "/app/account?tab=security");
   }
 
@@ -122,7 +122,7 @@ export function StaffSecuritySection(props: Props) {
         <ul className="space-y-2 text-sm">
           <li>{props.hasProfileName ? "✓" : "○"} Профиль специалиста</li>
           <li>{props.hasTimezone ? "✓" : "○"} Часовой пояс</li>
-          <li>{props.hasOrganization ? "✓" : "○"} Практика создана</li>
+          <li>{props.hasOrganization ? "✓" : "○"} Кабинет создан</li>
           <li>{securityReady ? "✓" : "○"} Двухфакторная защита и резервные коды</li>
           <li>{props.hasSpecialistBinding ? "✓" : "○"} Рабочий кабинет специалиста</li>
           <li>{props.hasSpecialistBinding ? "○" : "—"} Услуга, место и доступность для записи</li>
@@ -130,7 +130,7 @@ export function StaffSecuritySection(props: Props) {
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link className="text-sm underline" href="/app/account">Профиль и часовой пояс</Link>
-          {!props.hasOrganization ? <Button size="sm" variant="outline" onClick={retryProvisioning}>Повторить создание практики</Button> : null}
+          {!props.hasOrganization ? <Button size="sm" variant="outline" onClick={retryProvisioning}>Повторить настройку аккаунта</Button> : null}
           {props.hasSpecialistBinding ? (
             <Link className="text-sm underline" href="/app/doctor/schedule?tab=setup">Настроить запись</Link>
           ) : null}

@@ -66,8 +66,8 @@ export default async function SettingsPage({
       [],
     );
     return (
-      <DoctorAppShell title="Настройки практики" user={workspace.session.user}>
-        <DoctorPageHeader title="Настройки практики" />
+      <DoctorAppShell title="Настройки" user={workspace.session.user}>
+        <DoctorPageHeader title="Настройки" />
         <SettingsForm
           patientLabel={String(patientLabel)}
           smsFallbackEnabled={false}
@@ -97,7 +97,7 @@ export default async function SettingsPage({
       { organizationId: workspace.organizationId },
       "clinic_team",
     );
-    if (!entitlement.ok) redirect(routePaths.manage);
+    if (!entitlement.ok) redirect(`${routePaths.settings}?tab=organization`);
 
     const deps = buildAppDeps();
     const [members, invites, seats] = await Promise.all([

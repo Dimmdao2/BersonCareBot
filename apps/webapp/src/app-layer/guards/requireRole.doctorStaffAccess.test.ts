@@ -178,7 +178,7 @@ describe("requireDoctorAccess", () => {
         canManageAllSpecialists: true,
       },
     });
-    await expect(requireDoctorAccess()).rejects.toThrow("redirect:/app/manage");
+    await expect(requireDoctorAccess()).rejects.toThrow("redirect:/app/settings?tab=organization");
   });
 
   it("redirects to /app when no session", async () => {

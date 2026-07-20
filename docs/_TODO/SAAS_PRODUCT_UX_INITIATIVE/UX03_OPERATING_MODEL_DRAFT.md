@@ -130,12 +130,12 @@ route tree, а фактическими capabilities и состоянием о�
 | Аспект | Solo specialist | Clinic specialist |
 |---|---|---|
 | Organization | Одна организация, обычно один active specialist | Одна организация, несколько staff/specialists |
-| Primary context | «Моя практика»; specialist filter не показывается, если выбор всегда единственный | Клиника и команда; собственный specialist context является default |
+| Primary context | Имя специалиста/кабинета; specialist filter не показывается, если выбор всегда единственный | Клиника и команда; собственный specialist context является default |
 | Patients default | Мои active patients без лишнего selector chrome | «Мои пациенты»; при наличии права доступно «Все пациенты организации» |
 | History default | Вся разрешённая история solo practice | Мои визиты/entries; optional «Вся разрешённая история» и specialist filter |
 | Team UI | Нет members, handoff, care-team и specialist selectors в daily clinical flow | Team, assignment, care team и handoff actions по capabilities |
 | Schedule | Мой календарь + setup, если owner | Мой календарь; organization schedule/setup — management capability |
-| Settings | Personal + compact practice setup | Personal отдельно от organization management subsections |
+| Settings | «Настройки» кабинета + отдельный «Аккаунт» | «Настройки» организации + отдельный «Аккаунт» |
 | Growth | Invite first staff переводит composition в team mode без миграции account | Seat/staff lifecycle и team capabilities |
 
 Важно: `staff_count === 1` не должен сам навсегда определять коммерческий тип. UI composition лучше вычислять из

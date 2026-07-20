@@ -1,5 +1,13 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — owner correction: «Настройки» и «Аккаунт», без product label «Практика» (`U2`, `#918`)
+
+Владелец прямо исправил ложную атрибуцию: пара «Практика» / «Настройки практики» никогда им не утверждалась.
+Целевая навигация использует **«Настройки»** для кабинета/организации и **«Аккаунт»** для личного профиля, входа и
+безопасности; отдельной страницы «Управление практикой» нет. `/app/manage` сохраняется только как compatibility
+redirect на `/app/settings?tab=organization`. Канон owner-review и decision packet исправлены; исторические записи
+ниже о старом UI считаются superseded этим решением.
+
 ## 2026-07-20 — owner public profile, slug and booking widget direction (`U6B`, `#926`)
 
 Владелец назначил следующим product-development stage собственную публичную страницу организации/специалиста.
@@ -294,8 +302,8 @@ cards through the canonical taskdb port; no task was accepted or marked complete
   one trial per organization, audited overrides/extensions. YooKassa is a candidate only until merchant/legal/
   receipt/retry/proration operations are specified and proven for real activation.
 - Accepted packet outcomes: 80% warning, 100% block only new growth/consumption, no deletion/unpriced overage,
-  downgrade blocks growth; accepted seat policy; aggregate analytics without patient drill-down or hours-worked;
-  solo label «Практика» / «Настройки практики».
+  downgrade blocks growth; accepted seat policy; aggregate analytics without patient drill-down or hours-worked.
+  The then-recorded solo label «Практика» / «Настройки практики» was later invalidated by the owner correction above.
 - `#888` is unblocked as an owner-policy gate but not completed: entitlement-off `patient_card`/`files` must block all
   mutations/writes while preserving read/export/recovery/safe offboarding and existing data. `#855` is likewise
   unblocked but not completed: separate new-patient structured registration collects required last/first name and
@@ -3186,13 +3194,13 @@ guards; no runtime authorization was weakened. DEV role/direct-route checks pass
 platform admin. Desktop `1480×1024` and mobile `390×844` management/account screenshots passed after an additive DEV
 migration; no reset, dump, TEST/PROD or deploy action occurred.
 
-**Keyboard evidence closure.** A live clinic-owner pass on `/app/manage` at feature HEAD `70d042e4f` used the same
+**Keyboard evidence closure (historical; labels superseded 2026-07-20).** A live clinic-owner pass on `/app/manage` at feature HEAD `70d042e4f` used the same
 single DEV server and a persisted `dev:clinic-admin` session. Sequential `Tab` navigation reached the visible shell
 destinations, `Управление практикой`, `Аккаунт`, `Выйти`, then every management action in document order:
 `Настройки практики`, `Личный аккаунт`, `Тариф и биллинг`, `Рабочий кабинет`, `Настройки записи`. Each focus target
 was a visible native link or button with the expected destination; focus then returned to the document and cycled
-without a keyboard trap. This closes the previously unrecorded U2 keyboard/focus smoke only; it does not reopen the
-stage or add a new visual correction round.
+without a keyboard trap. This historical check remains evidence for keyboard behavior only; its product labels and
+`/app/manage` destination are superseded by the owner correction at the top of this log.
 
 **Deferred boundary.** There is no sanctioned platform DB principal yet. Per U0/U9 ownership, global platform settings
 and legacy global catalog mutation remain fail-closed until U9 defines the platform API/principal and audit contract;

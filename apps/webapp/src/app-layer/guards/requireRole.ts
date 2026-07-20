@@ -291,7 +291,11 @@ export async function requireOrganizationManagementContext(): Promise<DoctorWork
 export async function requireDoctorWorkspaceContext(): Promise<DoctorWorkspaceAccessContext> {
   const ctx = await requireOrganizationWorkspaceContext();
   if (!contextHasCapability(ctx, "clinical.workspace")) {
-    redirect(contextHasCapability(ctx, "organization.management") ? routePaths.manage : routePaths.account);
+    redirect(
+      contextHasCapability(ctx, "organization.management")
+        ? `${routePaths.settings}?tab=organization`
+        : routePaths.account,
+    );
   }
   return ctx;
 }

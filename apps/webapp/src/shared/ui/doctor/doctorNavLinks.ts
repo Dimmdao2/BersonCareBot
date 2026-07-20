@@ -45,7 +45,9 @@ export type DoctorMenuAccess = {
 export function getDoctorShellHomeHref(access: DoctorMenuAccess): string {
   if (hasLaunchCapability(access.capabilities, "platform.operations")) return "/app/doctor/system-health";
   if (hasLaunchCapability(access.capabilities, "clinical.workspace")) return routePaths.doctor;
-  if (hasLaunchCapability(access.capabilities, "organization.management")) return routePaths.manage;
+  if (hasLaunchCapability(access.capabilities, "organization.management")) {
+    return `${routePaths.settings}?tab=organization`;
+  }
   if (hasLaunchCapability(access.capabilities, "account.self")) return routePaths.account;
   return routePaths.root;
 }
@@ -111,9 +113,9 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     requiresCoursesEntitlement: true,
   },
   {
-    id: "management",
-    label: "Управление практикой",
-    href: routePaths.manage,
+    id: "settings",
+    label: "Настройки",
+    href: `${routePaths.settings}?tab=organization`,
     accessTier: "clinic_admin",
   },
   { id: "account", label: "Аккаунт", href: routePaths.account, accessTier: "staff" },
