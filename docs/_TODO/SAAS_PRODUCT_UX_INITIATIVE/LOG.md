@@ -1,5 +1,15 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — DEV restore closure completed without reset (`#920`, `#921`)
+
+Текущая подготовленная DEV-база исправлена без нового dump, restore, full reset или переноса application data.
+Одноразовая ручная cluster-role подготовка отделена от обязательного per-restore шага в долговечной документации.
+Guarded DEV rehydrate теперь атомарно восстанавливает P2-B owner/context и точные ACL, передаёт владельца только
+существующим exact protected-overlay функциям с разрешённым исходным owner, безопасно раскрывает канонические E1
+`\ir`-включения до stdin-передачи и затем доказывает runtime grants/helpers/E1 capability closure. Финальный live
+`--preflight` и `--execute` завершились `PASS`; TEST и PROD не затрагивались, обычный code-only deploy эту цепочку
+не вызывает.
+
 ## 2026-07-20 — UI-0 service visibility owner ruling
 
 Владелец закрыл единственный неоднозначный booking gate. При выбранном специалисте пациент видит только услуги,
