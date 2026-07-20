@@ -12,6 +12,7 @@
 --   - d3_4_media_worker_runtime_role (TEST/default composition only)
 -- Optional psql variable:
 --   - d3_4_skip_media_worker=1 (DEV webapp-only composition; no media role is read or mutated)
+--   - d3_4_skip_bootstrap_role_normalization=1 (DEV only; preflight must already prove C0 topology)
 --
 -- Rollback:
 --   Re-run with -v d3_4_bootstrap_grants_down=1.
@@ -32,6 +33,20 @@ SELECT 1 / 0 AS d3_4_bootstrap_base_role_missing;
 
 SELECT 1 / (:'d3_4_skip_media_worker' IN ('0', '1'))::int
   AS d3_4_skip_media_worker_is_boolean;
+
+\if :{?d3_4_skip_bootstrap_role_normalization}
+\else
+\set d3_4_skip_bootstrap_role_normalization 0
+\endif
+
+SELECT 1 / (:'d3_4_skip_bootstrap_role_normalization' IN ('0', '1'))::int
+  AS d3_4_skip_bootstrap_role_normalization_is_boolean;
+
+-- Only the explicit DEV webapp-only composition may rely on an earlier validate-only C0 preflight.
+-- Reject both partial opt-ins so TEST/default can never skip cluster-global normalization accidentally.
+SELECT 1 / (
+  :'d3_4_skip_bootstrap_role_normalization' = :'d3_4_skip_media_worker'
+)::int AS d3_4_skip_flags_form_exact_supported_composition;
 
 SELECT 1 / (
   length(:'d3_4_bootstrap_base_role') > 0
@@ -242,7 +257,10 @@ REVOKE USAGE ON SCHEMA public FROM :"d3_4_bootstrap_base_role";
 
 -- Normalize only the discovered nonstaff/bootstrap login. The separate staff pool is not
 -- passed to this artifact and its topology remains untouched. Strip every stale direct edge,
--- then rebuild the single SET-only patient lifecycle used by classified requests.
+-- then rebuild the single SET-only patient lifecycle used by classified requests. DEV skips
+-- only this cluster-global block after its wrapper has already proven the exact C0 topology.
+\if :d3_4_skip_bootstrap_role_normalization
+\else
 ALTER ROLE :"d3_4_bootstrap_base_role"
   LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
 SELECT format(
@@ -260,6 +278,7 @@ ORDER BY granted_role.rolname
 REVOKE ADMIN OPTION FOR app_patient FROM :"d3_4_bootstrap_base_role";
 GRANT app_patient TO :"d3_4_bootstrap_base_role"
   WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+\endif
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"d3_4_bootstrap_base_role";
 

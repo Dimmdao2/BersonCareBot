@@ -176,6 +176,9 @@ function runChecks(overrides = {}) {
     "d3_4_skip_media_worker",
     "d3_4_skip_media_worker_is_boolean",
     "d3_4_skip_media_worker_role_must_be_absent",
+    "d3_4_skip_bootstrap_role_normalization",
+    "d3_4_skip_bootstrap_role_normalization_is_boolean",
+    "d3_4_skip_flags_form_exact_supported_composition",
     "d3_4_bootstrap_grants_down",
     "d3_4_bootstrap_base_role_exists",
     "d3_4_webapp_runtime_accessors_exist",
@@ -252,8 +255,19 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(`${files.grantSql} DEV webapp-only composition`, loaded.grantSql, [
     "\\set d3_4_skip_media_worker 0",
+    "\\set d3_4_skip_bootstrap_role_normalization 0",
     "\\if :d3_4_skip_media_worker",
+    "\\if :d3_4_skip_bootstrap_role_normalization",
     "d3_4_media_worker_runtime_role must be absent when d3_4_skip_media_worker=1",
+  ]);
+  requireOrderedFragments(`${files.grantSql} validate-only DEV C0 composition`, loaded.grantSql, [
+    "\\if :d3_4_skip_bootstrap_role_normalization",
+    "\\else",
+    'ALTER ROLE :"d3_4_bootstrap_base_role"',
+    'GRANT app_patient TO :"d3_4_bootstrap_base_role"',
+    "WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
+    "\\endif",
+    "REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings",
   ]);
   requireOccurrenceCount(
     files.grantSql,
@@ -570,6 +584,10 @@ function runChecks(overrides = {}) {
     'sudo -u postgres psql -d "$DB"',
     '-f "$DEPLOY_REPO/$D3_4_BOOTSTRAP_GRANTS"',
   ]);
+  forbidFragments(`${files.testDeploySaas} default TEST D3.4 composition`, d34Installer, [
+    "d3_4_skip_media_worker",
+    "d3_4_skip_bootstrap_role_normalization",
+  ]);
   const wallInstaller = extractBashFunction(
     loaded.testDeploySaas,
     "install_p0_5b_runtime_wall",
@@ -660,7 +678,8 @@ function runChecks(overrides = {}) {
     "service restart or product smoke",
     "not final D3.4 PASS until the owner-authorized locked TEST",
     "d3_4_skip_media_worker=1",
-    "without requiring,\nreading or mutating a TEST media login",
+    "d3_4_skip_bootstrap_role_normalization=1",
+    "without changing the\ncluster-global C0 role",
     "smoke reruns",
     "deploy/postgres/organization-member-invites-rls.sql",
     "deploy/postgres/store-p0-entitlements-rls.sql",

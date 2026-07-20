@@ -248,6 +248,9 @@ test("D3.4 exposes an explicit DEV webapp-only composition without weakening TES
   assert.match(source, /\\set d3_4_skip_media_worker 0/u);
   assert.match(source, /d3_4_skip_media_worker_is_boolean/u);
   assert.match(source, /d3_4_skip_media_worker_role_must_be_absent/u);
+  assert.match(source, /\\set d3_4_skip_bootstrap_role_normalization 0/u);
+  assert.match(source, /d3_4_skip_bootstrap_role_normalization_is_boolean/u);
+  assert.match(source, /d3_4_skip_flags_form_exact_supported_composition/u);
   assert.match(
     source,
     /\\if :d3_4_skip_media_worker\n\\if :\{\?d3_4_media_worker_runtime_role\}/u,
@@ -273,6 +276,10 @@ test("D3.4 exposes an explicit DEV webapp-only composition without weakening TES
       ),
     );
   }
+  assert.match(
+    source,
+    /\\if :d3_4_skip_bootstrap_role_normalization\n\\else\nALTER ROLE :"d3_4_bootstrap_base_role"[\s\S]*GRANT app_patient TO :"d3_4_bootstrap_base_role"[\s\S]*WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;\n\\endif\nREVOKE SELECT ON TABLE public\.app_runtime_settings/u,
+  );
 });
 
 test("shared topology guard rejects owner equals runtime and accepts separate C0 runtime", () => {
@@ -402,6 +409,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /runtime_overlay_apply_post_migration_chain "\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u);
   assert.match(source, /d3_4_bootstrap_base_role=\$TARGET_RUNTIME_ROLE/u);
   assert.match(source, /d3_4_skip_media_worker=1/u);
+  assert.match(source, /d3_4_skip_bootstrap_role_normalization=1/u);
   assert.doesNotMatch(source, /d3_4_media_worker_runtime_role=/u);
   assert.match(source, /DEV C0 dual-pool runtime requires locked principal-context mode/u);
   assert.doesNotMatch(source, /requires shadow or locked mode/u);
@@ -627,13 +635,15 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     "d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login",
     "-v",
     "d3_4_skip_media_worker=1",
+    "-v",
+    "d3_4_skip_bootstrap_role_normalization=1",
     "-f",
     canonicalFile,
   ]);
   assert.equal(acceptedD34.status, 0, acceptedD34.stderr);
   assert.equal(
     readFileSync(calls, "utf8"),
-    "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login -v d3_4_skip_media_worker=1\n",
+    "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1 -v d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login -v d3_4_skip_media_worker=1 -v d3_4_skip_bootstrap_role_normalization=1\n",
   );
   assert.equal(
     readFileSync(stdinCapture, "utf8"),
@@ -649,6 +659,19 @@ test("DEV admin callback streams one canonical SQL file and rejects unsafe file 
     ["-dbcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
     ["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-c", "SELECT 1", "-f", canonicalFile],
     ["-d", "other_db", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile],
+    [
+      "-d",
+      "bcb_webapp_dev",
+      "-X",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-v",
+      "d3_4_bootstrap_base_role=bcb_dev_runtime_nonstaff_login",
+      "-v",
+      "d3_4_skip_media_worker=1",
+      "-f",
+      canonicalFile,
+    ],
     [
       "-d",
       "bcb_webapp_dev",

@@ -584,7 +584,7 @@ For every DEV restore performed with `--no-owner --no-acl`, the mandatory fail-c
 1. current-branch migrations;
 2. exact P2-B owner/context handoff by `dev-runtime-overlay-rehydrate.sh --execute`;
 3. P0.5b grants, the single shared runtime-overlay chain, then the canonical D3.4 bootstrap/base-login closure in
-   explicit DEV webapp-only mode (no TEST media runtime role);
+   explicit DEV webapp-only/validate-only-C0 mode (no TEST media runtime role and no cluster-global role rewiring);
 4. exact owner/ACL, actual base-login release, bootstrap-surface and nonstaff capability postchecks;
 5. copied TEST-only settings unlock.
 
@@ -618,8 +618,10 @@ recovery validates it but never revokes, grants or otherwise repairs cluster-glo
 
 The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure, followed by the existing
 `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql`. DEV passes
-`d3_4_skip_media_worker=1`, so that artifact composes the reviewed webapp bootstrap grants without requiring,
-reading or mutating a TEST media login; TEST keeps its existing default media composition unchanged. The wrapper
+`d3_4_skip_media_worker=1` and `d3_4_skip_bootstrap_role_normalization=1`, so that artifact composes the reviewed
+per-database webapp bootstrap ACL without requiring, reading or mutating a TEST media login and without changing the
+cluster-global C0 role already proven exact by DEV preflight. Partial opt-in combinations fail closed. TEST passes
+neither flag and keeps its existing media composition plus bootstrap role normalization unchanged. The wrapper
 fails unless the targeted functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can
 actually release protected context, has the required bootstrap surface, can read through the public runtime accessor,
 and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An

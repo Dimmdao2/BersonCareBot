@@ -246,7 +246,9 @@ function runChecks(overrides = {}) {
     'pnpm run check:saas-hard-migration-protocol',
     'DEV/disposable dormant wrapper',
     '`d3_4_skip_media_worker=1`',
-    'without requiring,\nreading or mutating a TEST media login',
+    '`d3_4_skip_bootstrap_role_normalization=1`',
+    'without changing the\ncluster-global C0 role',
+    'Partial opt-in combinations fail closed.',
     'Mode must be `locked`:',
     'shadow does not `SET ROLE` before installing signed context',
     'run-saas-disposable-dormant-rehearsal.mjs',
@@ -449,6 +451,7 @@ function runChecks(overrides = {}) {
     'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
     'd3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE',
     'd3_4_skip_media_worker=1',
+    'd3_4_skip_bootstrap_role_normalization=1',
     'SELECT app.release_principal_context();',
     'DEV C0 dual-pool runtime requires locked principal-context mode',
   ]);

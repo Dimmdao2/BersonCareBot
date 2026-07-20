@@ -176,17 +176,19 @@ runtime_overlay_admin_psql() {
     sql_file="$9"
     include_e1_role=1
   elif [[
-    "$#" -eq 11 &&
+    "$#" -eq 13 &&
     "$1" == "-d" && "$2" == "$TARGET_DB" &&
     "$3" == "-X" && "$4" == "-v" && "$5" == "ON_ERROR_STOP=1" &&
     "$6" == "-v" && "$7" == "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE" &&
     "$8" == "-v" && "$9" == "d3_4_skip_media_worker=1" &&
-    "${10}" == "-f"
+    "${10}" == "-v" && "${11}" == "d3_4_skip_bootstrap_role_normalization=1" &&
+    "${12}" == "-f"
   ]]; then
-    sql_file="${11}"
+    sql_file="${13}"
     psql_args+=(
       -v "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE"
       -v d3_4_skip_media_worker=1
+      -v d3_4_skip_bootstrap_role_normalization=1
     )
   else
     echo "FATAL: DEV runtime overlay rejected unexpected psql arguments" >&2
@@ -737,11 +739,12 @@ runtime_overlay_admin_psql -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 -f "$P0_5B_GRAN
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
 
-echo "[dev-runtime-overlay] applying canonical D3.4 DEV bootstrap closure (media excluded)"
+echo "[dev-runtime-overlay] applying canonical D3.4 DEV bootstrap closure (validated C0; media excluded)"
 runtime_overlay_admin_psql \
   -d "$TARGET_DB" -X -v ON_ERROR_STOP=1 \
   -v "d3_4_bootstrap_base_role=$TARGET_RUNTIME_ROLE" \
   -v d3_4_skip_media_worker=1 \
+  -v d3_4_skip_bootstrap_role_normalization=1 \
   -f "$D3_4_BOOTSTRAP_GRANTS" >/dev/null
 
 # Exact catalog proof for the two capabilities whose migration journal can be current while restored

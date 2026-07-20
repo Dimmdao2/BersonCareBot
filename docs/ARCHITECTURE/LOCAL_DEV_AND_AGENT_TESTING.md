@@ -187,7 +187,10 @@ context нужно заново связать с тем же signing secret, к
    protected functions имеют только exact owner/staff/patient ACL и сохранённый secret равен stdin-значению;
    затем применяются P0.5b и единая shared runtime-overlay chain. После неё wrapper обязательно применяет
    канонический `deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql` к exact DEV nonstaff base login с
-   явным webapp-only режимом `d3_4_skip_media_worker=1`: TEST media login не требуется, не читается и не меняется.
+   явным webapp-only режимом `d3_4_skip_media_worker=1` +
+   `d3_4_skip_bootstrap_role_normalization=1`: TEST media login не требуется, не читается и не меняется, а уже
+   проверенная preflight-ом cluster-global C0 topology не перенастраивается. Любая частичная комбинация этих
+   opt-in флагов запрещена; TEST по умолчанию передаёт ни один из них и сохраняет полную нормализацию роли.
    Перед первым protected overlay shared-цепочка
    обязательно запускает `deploy/postgres/runtime-overlay-app-owner-handoff.sql`: он передаёт `app_owner` только
    три exact уже существующие функции — Web Push public-key accessor и два public-booking resolver — и только если
