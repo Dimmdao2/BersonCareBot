@@ -85,6 +85,46 @@ for (const signature of [
   ]);
 }
 
+const expectedAclScrubSignatures = [
+  "app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)",
+  "app.current_org_id()",
+  "app.current_patient_user_id()",
+  "app.current_integrator_user_id()",
+  "app.reset_principal_context()",
+  "app.release_principal_context()",
+  "app.close_active_user_phone_history(uuid)",
+  "app.is_staff()",
+];
+const aclScrubMatch = opsSql.match(
+  /-- CREATE OR REPLACE preserves existing ACL entries\.[\s\S]*?\\gexec/,
+);
+if (!aclScrubMatch) {
+  fail("P2-B ops SQL must scrub preserved direct EXECUTE ACLs before reapplying intended grants");
+}
+const aclScrubSql = aclScrubMatch[0];
+const actualAclScrubSignatures = [...aclScrubSql.matchAll(/^\s*'(app\.[^']+)'\s*,?$/gmu)].map(
+  (match) => match[1],
+);
+if (JSON.stringify(actualAclScrubSignatures) !== JSON.stringify(expectedAclScrubSignatures)) {
+  fail("P2-B ACL scrub must remain limited to the exact eight protected-context functions");
+}
+requireFragments("P2-B exact function ACL scrub", aclScrubSql, [
+  "procedure.oid::regprocedure",
+  "aclexplode(",
+  "privilege.privilege_type = 'EXECUTE'",
+  "privilege.grantee NOT IN (",
+  "rolname = :'p2_b_owner_role'",
+  "rolname = :'p2_b_staff_role'",
+  "rolname = :'p2_b_patient_role'",
+  "quote_ident(grantee_role.rolname)",
+  "REVOKE EXECUTE ON FUNCTION %s FROM %s CASCADE",
+]);
+forbidFragments("P2-B exact function ACL scrub", aclScrubSql, [
+  "ALL FUNCTIONS IN SCHEMA",
+  "REASSIGN OWNED",
+  "DROP OWNED",
+]);
+
 const closeActiveFunctionMatch = opsSql.match(
   /CREATE OR REPLACE FUNCTION app\.close_active_user_phone_history\(p_user uuid\) RETURNS void[\s\S]*?\$\$;/,
 );

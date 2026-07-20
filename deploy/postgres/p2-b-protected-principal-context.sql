@@ -367,6 +367,40 @@ REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.close_active_user_phone_history(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION app.is_staff() FROM PUBLIC;
 
+-- CREATE OR REPLACE preserves existing ACL entries. A restored or previously owner-normalized
+-- database can therefore retain a direct EXECUTE grant to a former owner/runtime role even after
+-- PUBLIC is closed. Scrub only these exact P2-B functions and keep the three intended principals.
+SELECT format(
+  'REVOKE EXECUTE ON FUNCTION %s FROM %s CASCADE',
+  procedure.oid::regprocedure,
+  CASE
+    WHEN privilege.grantee = 0 THEN 'PUBLIC'
+    ELSE quote_ident(grantee_role.rolname)
+  END
+)
+FROM unnest(ARRAY[
+  'app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)',
+  'app.current_org_id()',
+  'app.current_patient_user_id()',
+  'app.current_integrator_user_id()',
+  'app.reset_principal_context()',
+  'app.release_principal_context()',
+  'app.close_active_user_phone_history(uuid)',
+  'app.is_staff()'
+]) AS expected(signature)
+JOIN pg_proc procedure ON procedure.oid = to_regprocedure(expected.signature)
+CROSS JOIN LATERAL aclexplode(
+  COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
+) privilege
+LEFT JOIN pg_roles grantee_role ON grantee_role.oid = privilege.grantee
+WHERE privilege.privilege_type = 'EXECUTE'
+  AND privilege.grantee NOT IN (
+    (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_owner_role'),
+    (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_staff_role'),
+    (SELECT oid FROM pg_roles WHERE rolname = :'p2_b_patient_role')
+  )
+\gexec
+
 GRANT EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text)
   TO :"p2_b_staff_role", :"p2_b_patient_role";
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO :"p2_b_staff_role", :"p2_b_patient_role";

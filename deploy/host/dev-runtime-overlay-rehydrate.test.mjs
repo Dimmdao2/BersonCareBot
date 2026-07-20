@@ -225,6 +225,10 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /DEV_SNAPSHOT_COPROC_WRITE_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[1\]\}"/u);
   assert.match(source, /exec \{DEV_SNAPSHOT_READ_FD\}<&"\$DEV_SNAPSHOT_COPROC_READ_FD"/u);
   assert.match(source, /exec \{DEV_SNAPSHOT_WRITE_FD\}>&"\$DEV_SNAPSHOT_COPROC_WRITE_FD"/u);
+  assert.match(source, /DEV_SNAPSHOT_READ_FD_OPEN=1/u);
+  assert.match(source, /DEV_SNAPSHOT_WRITE_FD_OPEN=1/u);
+  assert.match(source, /close_dev_snapshot_write_fd/u);
+  assert.match(source, /close_dev_snapshot_read_fd/u);
   assert.match(source, /exec \{DEV_SNAPSHOT_COPROC_READ_FD\}<&-/u);
   assert.match(source, /exec \{DEV_SNAPSHOT_COPROC_WRITE_FD\}>&-/u);
   assert.doesNotMatch(source, /DEV_ENV_PARSER" --(?:nonstaff|context-mode|signing-secret)/u);
@@ -360,6 +364,55 @@ test("P2-B transport suppresses inherited xtrace and keeps the actual secret out
     .split("\n")
     .findIndex((line) => line.startsWith("\\copy pg_temp.dev_p2_b_secret_input"));
   assert.ok(copyLine >= 0 && secretLine === copyLine + 1);
+});
+
+test("post-GO failure closes the snapshot transport idempotently without leaking its secret", () => {
+  const source = readFileSync(wrapperPath, "utf8");
+  const cleanupStart = source.indexOf("close_dev_snapshot_write_fd() {");
+  const cleanupEnd = source.indexOf("\ntrap abort_dev_env_snapshot EXIT", cleanupStart);
+  assert.ok(cleanupStart >= 0 && cleanupEnd > cleanupStart);
+  const cleanupSource = source.slice(cleanupStart, cleanupEnd);
+  const fixtureSecret = "fixture-post-go-secret-never-print-123456789";
+  const harness = `
+    set -Eeuo pipefail
+    coproc FIXTURE_SNAPSHOT_PROCESS {
+      printf '%s\n' owner-url runtime-url locked
+      IFS= read -r signal
+      [[ "$signal" == "GO" ]] || exit 71
+      printf '%s\n' ${JSON.stringify(fixtureSecret)}
+    }
+    DEV_ENV_SNAPSHOT_PID_VALUE="$FIXTURE_SNAPSHOT_PROCESS_PID"
+    DEV_SNAPSHOT_COPROC_READ_FD="\${FIXTURE_SNAPSHOT_PROCESS[0]}"
+    DEV_SNAPSHOT_COPROC_WRITE_FD="\${FIXTURE_SNAPSHOT_PROCESS[1]}"
+    exec {DEV_SNAPSHOT_READ_FD}<&"$DEV_SNAPSHOT_COPROC_READ_FD"
+    exec {DEV_SNAPSHOT_WRITE_FD}>&"$DEV_SNAPSHOT_COPROC_WRITE_FD"
+    DEV_SNAPSHOT_READ_FD_OPEN=1
+    DEV_SNAPSHOT_WRITE_FD_OPEN=1
+    exec {DEV_SNAPSHOT_COPROC_READ_FD}<&-
+    exec {DEV_SNAPSHOT_COPROC_WRITE_FD}>&-
+    IFS= read -r _owner <&"$DEV_SNAPSHOT_READ_FD"
+    IFS= read -r _runtime <&"$DEV_SNAPSHOT_READ_FD"
+    IFS= read -r _mode <&"$DEV_SNAPSHOT_READ_FD"
+    ${cleanupSource}
+    trap abort_dev_env_snapshot EXIT
+    printf 'GO\n' >&"$DEV_SNAPSHOT_WRITE_FD"
+    close_dev_snapshot_write_fd
+    close_dev_snapshot_write_fd
+    false | true
+    printf 'unreachable\n'
+  `;
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-c", harness], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stderr, /Bad file descriptor/u);
+  assert.doesNotMatch(result.stdout, new RegExp(fixtureSecret, "u"));
+  assert.doesNotMatch(result.stderr, new RegExp(fixtureSecret, "u"));
+  assert.doesNotMatch(result.stdout, /unreachable/u);
 });
 
 test("DEV env parser validates protected-context mode and keeps signing values argv-free", () => {

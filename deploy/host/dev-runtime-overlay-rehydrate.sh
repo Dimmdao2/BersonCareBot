@@ -88,6 +88,8 @@ DEV_SNAPSHOT_COPROC_READ_FD="${DEV_ENV_SNAPSHOT_PROCESS[0]}"
 DEV_SNAPSHOT_COPROC_WRITE_FD="${DEV_ENV_SNAPSHOT_PROCESS[1]}"
 exec {DEV_SNAPSHOT_READ_FD}<&"$DEV_SNAPSHOT_COPROC_READ_FD"
 exec {DEV_SNAPSHOT_WRITE_FD}>&"$DEV_SNAPSHOT_COPROC_WRITE_FD"
+DEV_SNAPSHOT_READ_FD_OPEN=1
+DEV_SNAPSHOT_WRITE_FD_OPEN=1
 # Bash marks its original coproc descriptors specially and does not expose them to pipeline
 # subshells. Keep ordinary duplicates for the GO stream, then close the originals so ABORT
 # reaches EOF instead of waiting forever.
@@ -101,11 +103,27 @@ if ! IFS= read -r DEV_OWNER_DATABASE_URL <&"$DEV_SNAPSHOT_READ_FD" ||
   exit 1
 fi
 
+close_dev_snapshot_write_fd() {
+  if [[ "${DEV_SNAPSHOT_WRITE_FD_OPEN:-0}" == "1" ]]; then
+    { exec {DEV_SNAPSHOT_WRITE_FD}>&-; } 2>/dev/null || true
+    DEV_SNAPSHOT_WRITE_FD_OPEN=0
+  fi
+}
+
+close_dev_snapshot_read_fd() {
+  if [[ "${DEV_SNAPSHOT_READ_FD_OPEN:-0}" == "1" ]]; then
+    { exec {DEV_SNAPSHOT_READ_FD}<&-; } 2>/dev/null || true
+    DEV_SNAPSHOT_READ_FD_OPEN=0
+  fi
+}
+
 abort_dev_env_snapshot() {
   { set +x; } 2>/dev/null
-  printf 'ABORT\n' >&"$DEV_SNAPSHOT_WRITE_FD" 2>/dev/null || true
-  exec {DEV_SNAPSHOT_WRITE_FD}>&- 2>/dev/null || true
-  exec {DEV_SNAPSHOT_READ_FD}<&- 2>/dev/null || true
+  if [[ "${DEV_SNAPSHOT_WRITE_FD_OPEN:-0}" == "1" ]]; then
+    printf 'ABORT\n' 2>/dev/null >&"$DEV_SNAPSHOT_WRITE_FD" || true
+  fi
+  close_dev_snapshot_write_fd
+  close_dev_snapshot_read_fd
   wait "$DEV_ENV_SNAPSHOT_PID_VALUE" 2>/dev/null || true
 }
 trap abort_dev_env_snapshot EXIT
@@ -663,9 +681,9 @@ SQL
 
 echo "[dev-runtime-overlay] atomically reinstalling exact P2-B owner/context/ACL closure"
 printf 'GO\n' >&"$DEV_SNAPSHOT_WRITE_FD"
-exec {DEV_SNAPSHOT_WRITE_FD}>&-
+close_dev_snapshot_write_fd
 stream_dev_p2_b_input | run_dev_admin_psql -d "$TARGET_DB" -q >/dev/null
-exec {DEV_SNAPSHOT_READ_FD}<&-
+close_dev_snapshot_read_fd
 if ! wait "$DEV_ENV_SNAPSHOT_PID_VALUE"; then
   echo "FATAL: DEV runtime snapshot secret transport failed" >&2
   exit 1
