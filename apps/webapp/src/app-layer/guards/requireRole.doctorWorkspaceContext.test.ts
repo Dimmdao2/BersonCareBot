@@ -505,6 +505,6 @@ describe("requireDoctorWorkspaceContext", () => {
       },
     });
 
-    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/settings");
+    await expect(requireDoctorWorkspaceContext()).rejects.toThrow("redirect:/app/manage");
   });
 });
