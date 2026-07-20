@@ -1788,6 +1788,12 @@ export function ScheduleCalendarTab({
                    CR-8: non-working = #eee/0.6, break = #eee/0.6 (both light, owner pref). */
                 .fc {
                   --fc-bg-event-color: transparent;
+                  --fc-border-color: color-mix(in srgb, var(--border) 62%, transparent);
+                }
+
+                /* UI-1a: grid stays legible without competing with appointments. */
+                .fc .fc-timegrid-slot {
+                  border-color: color-mix(in srgb, var(--border) 52%, transparent) !important;
                 }
 
                 .fc-timegrid-event-harness { margin-inline: 1px; }

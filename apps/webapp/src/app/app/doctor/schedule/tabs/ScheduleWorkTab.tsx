@@ -94,8 +94,8 @@ type WorkingHoursRow = {
 };
 
 type EffectiveHours =
-  | { source: "template"; startMinute: number; endMinute: number }
-  | { source: "override"; startMinute: number; endMinute: number }
+  | { source: "template"; startMinute: number; endMinute: number; branchId: string | null }
+  | { source: "override"; startMinute: number; endMinute: number; branchId: string | null }
   | { source: "closed" }
   | null;
 
@@ -171,14 +171,26 @@ function resolveEffectiveHours(
   if (record) {
     if (record.isClosed) return { source: "closed" };
     if (record.startMinute != null && record.endMinute != null) {
-      return { source: "override", startMinute: record.startMinute, endMinute: record.endMinute };
+      return {
+        source: "override",
+        startMinute: record.startMinute,
+        endMinute: record.endMinute,
+        branchId: record.branchId,
+      };
     }
   }
   // Luxon weekday: 1=Mon..7=Sun. be_working_hours: 0=Sun, 1=Mon..6=Sat → (luxon % 7)
   const luxonWd = DateTime.fromISO(dateKey).weekday;
   const wd = luxonWd % 7;
   const match = workingHours.find((wh) => wh.weekday === wd && wh.isActive);
-  if (match) return { source: "template", startMinute: match.startMinute, endMinute: match.endMinute };
+  if (match) {
+    return {
+      source: "template",
+      startMinute: match.startMinute,
+      endMinute: match.endMinute,
+      branchId: match.branchId,
+    };
+  }
   return null;
 }
 
@@ -329,7 +341,7 @@ function branchStyle(hex: string, active = false): CSSProperties {
   return {
     "--branch-bg": rgba(hex, active ? 0.16 : 0.08),
     "--branch-hover": rgba(hex, active ? 0.2 : 0.12),
-    "--branch-border": rgba(hex, active ? 0.42 : 0.3),
+    "--branch-border": rgba(hex, active ? 0.36 : 0.22),
     "--branch-fg": hex,
   } as CSSProperties;
 }
@@ -362,9 +374,17 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   const isToday = dateKey === today;
   // §3.15: «выходной»/isClosed removed — a day either has a schedule or falls
   // back to weekday hours (no explicit closed state surfaced in the grid).
-  const hasSchedule = record?.startMinute != null;
-  const branchHex = hasSchedule && record?.branchId
-    ? resolveBranchHex(branches, record.branchId)
+  const hasSchedule =
+    record?.startMinute != null ||
+    effectiveHours?.source === "override" ||
+    effectiveHours?.source === "template";
+  const effectiveBranchId = record?.branchId ?? (
+    effectiveHours?.source === "override" || effectiveHours?.source === "template"
+      ? effectiveHours.branchId
+      : null
+  );
+  const branchHex = hasSchedule && effectiveBranchId
+    ? resolveBranchHex(branches, effectiveBranchId)
     : undefined;
 
   // Resolved breaks for display
@@ -373,29 +393,39 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
   let cellClass = "rounded-md border p-1 min-h-[52px] cursor-pointer select-none transition-colors ";
 
   if (isSelected) {
-    cellClass += "bg-primary/15 border-primary/60 ring-1 ring-primary/40 ";
+    cellClass += "bg-primary/15 border-primary/40 ring-1 ring-primary/40 ";
   } else if (isToday) {
     // §3.17 / §3.10–3.12: muted transparent-green «сегодня» (no yellow).
-    cellClass += "bg-emerald-500/10 border-emerald-500/40 ";
+    cellClass += "bg-emerald-500/10 border-emerald-500/30 ";
   } else if (branchHex) {
     cellClass += "bg-[color:var(--branch-bg)] border-[color:var(--branch-border)] hover:bg-[color:var(--branch-hover)] ";
   } else if (effectiveHours?.source === "override") {
     // SCH-R-06: override = light blue tint
-    cellClass += "bg-primary/10 border-primary/30 hover:bg-primary/15 ";
+    cellClass += "bg-primary/10 border-primary/20 hover:bg-primary/15 ";
   } else if (effectiveHours?.source === "closed") {
     // SCH-R-06: closed/выходной = light red tint
-    cellClass += "bg-destructive/5 border-destructive/20 hover:bg-destructive/10 ";
+    cellClass += "bg-destructive/5 border-destructive/15 hover:bg-destructive/10 ";
   } else {
-    cellClass += "bg-card border-border hover:bg-muted/30 ";
+    cellClass += "bg-card border-border/60 hover:bg-muted/30 ";
   }
 
   const day = DateTime.fromISO(dateKey).day;
 
   // Short branch label (shortTitle ?? first word of title)
-  const branchForRecord = record?.branchId ? branches.find((b) => b.id === record.branchId) : undefined;
+  const branchForRecord = effectiveBranchId
+    ? branches.find((b) => b.id === effectiveBranchId)
+    : undefined;
   const branchShortLabel = branchForRecord
     ? (branchForRecord.shortTitle ?? branchForRecord.title.split(" ")[0] ?? branchForRecord.title)
     : null;
+  const displayStartMinute =
+    effectiveHours?.source === "override" || effectiveHours?.source === "template"
+      ? effectiveHours.startMinute
+      : record?.startMinute ?? null;
+  const displayEndMinute =
+    effectiveHours?.source === "override" || effectiveHours?.source === "template"
+      ? effectiveHours.endMinute
+      : record?.endMinute ?? null;
 
   return (
     <div
@@ -403,7 +433,7 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
       tabIndex={0}
       className={cellClass}
       aria-pressed={isSelected}
-      aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(record!.startMinute, record!.endMinute)}` : ""}`}
+      aria-label={`${dateKey}${hasSchedule ? ` ${formatHourRange(displayStartMinute, displayEndMinute)}` : ""}`}
       style={branchHex ? branchStyle(branchHex) : undefined}
       onClick={(e) => onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey)}
       onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onToggle(dateKey, e.shiftKey, e.metaKey || e.ctrlKey); } }}
@@ -418,7 +448,10 @@ function DayCell({ cellIndex, dateKey, today, record, branches, isSelected, onTo
         </div>
       )}
       {effectiveHours?.source === "template" && (
-        <div className="mt-0.5 text-[10px] leading-none italic text-muted-foreground">
+        <div className={cn(
+          "mt-0.5 text-[10px] leading-none italic",
+          branchHex ? "text-[color:var(--branch-fg)]" : "text-muted-foreground",
+        )}>
           ~{formatHourRange(effectiveHours.startMinute, effectiveHours.endMinute)}
         </div>
       )}
@@ -1159,7 +1192,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                       "text-[10px] font-medium rounded px-0.5 py-0.5 transition-colors cursor-pointer border",
                       isActiveWd
                         ? "text-primary font-semibold bg-primary/10 border-primary/40"
-                        : "text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/40",
+                        : "text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/30",
                     )}
                     aria-label={`Выбрать все ${d} месяца`}
                     aria-pressed={isActiveWd}
@@ -1291,7 +1324,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   onClick={handleSave}
                   data-testid="btn-save"
                 >
-                  Сохранить
+                  Установить
                 </Button>
                 <Button
                   type="button"

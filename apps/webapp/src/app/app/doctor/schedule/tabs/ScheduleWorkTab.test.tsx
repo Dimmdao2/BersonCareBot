@@ -393,6 +393,17 @@ describe("ScheduleWorkTab", () => {
     });
   });
 
+  it("colors weekday-template cells and shows the location short label", async () => {
+    await renderWorkTab({ month: "2026-06" });
+
+    await waitFor(() => {
+      const templateCell = screen.getByTestId("day-cell-2026-06-04");
+      expect(templateCell).toHaveStyle("--branch-fg: #dc2626");
+      expect(templateCell).toHaveTextContent("~8–12");
+      expect(templateCell).toHaveTextContent("Мск");
+    });
+  });
+
   it("§3.15: «выходной»/isClosed label is gone — closed-shaped rows render without it", async () => {
     await renderWorkTab({ month: "2026-06" });
     await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
@@ -477,6 +488,16 @@ describe("ScheduleWorkTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("break-row-0")).toBeInTheDocument();
     });
+  });
+
+  it("labels the schedule action as «Установить»", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    fireEvent.click(await screen.findByTestId("day-cell-2026-06-10"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("btn-save")).toHaveTextContent("Установить");
+    });
+    expect(screen.queryByRole("button", { name: "Сохранить" })).not.toBeInTheDocument();
   });
 
   it("E4: can remove a break row", async () => {

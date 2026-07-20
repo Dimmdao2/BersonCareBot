@@ -917,6 +917,19 @@ describe('ScheduleCalendarTab — v26 rebuild', () => {
       }
     });
 
+    it('uses subdued border tokens for the calendar grid', async () => {
+      setupFetchMock(makeCalendarResponse());
+      const Tab = await setup();
+      render(<Tab deepLinkParams={{ view: 'weekgrid' }} onDeepLinkChange={vi.fn()} />);
+
+      await waitFor(() => expect(screen.getByTestId('fullcalendar')).toBeInTheDocument());
+      const styleText = Array.from(document.querySelectorAll('style'))
+        .map((style) => style.textContent ?? '')
+        .join('\n');
+      expect(styleText).toContain('--fc-border-color: color-mix(in srgb, var(--border) 62%, transparent)');
+      expect(styleText).toContain('color-mix(in srgb, var(--border) 52%, transparent)');
+    });
+
     it('uses custom day header content in time-grid views and custom day cell content in month view', async () => {
       setupFetchMock(makeCalendarResponse());
       const Tab = await setup();
