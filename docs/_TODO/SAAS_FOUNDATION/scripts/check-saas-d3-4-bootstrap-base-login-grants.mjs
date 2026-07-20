@@ -513,6 +513,7 @@ function runChecks(overrides = {}) {
   requireFragments(files.testDeploySaas, loaded.testDeploySaas, [
     "D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql",
     "P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql",
+    "RUNTIME_OVERLAY_APP_OWNER_HANDOFF=deploy/postgres/runtime-overlay-app-owner-handoff.sql",
     "ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql",
     "STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql",
     "PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql",
@@ -610,6 +611,7 @@ function runChecks(overrides = {}) {
     "deploy/postgres/patient-course-assignment-wall.sql",
     "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
     "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
     "deploy/postgres/reference-catalog-rls.sql",
     "deploy/postgres/patient-visible-catalog-rls.sql",
     "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
@@ -654,6 +656,7 @@ function runChecks(overrides = {}) {
     "deploy/postgres/store-p0-entitlements-rls.sql",
     "deploy/postgres/patient-course-assignment-wall.sql",
     "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
     "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
     "after any optional P2-B replacement",
     "LOGIN NOINHERIT NOBYPASSRLS",

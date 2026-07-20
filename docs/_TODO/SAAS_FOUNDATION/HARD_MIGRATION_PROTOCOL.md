@@ -237,6 +237,12 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   fail before P2-B if it is missing or still owned by another role. Migration 0175 creates/replaces this helper as
   `CURRENT_USER`; P2-B runs `CREATE OR REPLACE FUNCTION app.is_staff()` under `SET ROLE app_owner`, so the owner handoff
   must be repo-controlled rather than a manual `ALTER FUNCTION`;
+- before protected overlays, run the shared exact owner handoff
+  `deploy/postgres/runtime-overlay-app-owner-handoff.sql`. A `--no-owner` restore can leave the existing Web Push
+  accessor and both public-booking resolver functions owned by the current database owner, while their reviewed
+  overlays replace them under `SET ROLE app_owner`. The artifact may transfer only those three exact signatures,
+  accepts only the current database owner or existing `app_owner` as the source owner, and fails closed on any other
+  owner. It does not rewrite a schema and does not provision or change cluster-global roles;
 - after any optional P2-B replacement, rehydrate the dedicated runtime overlays from
   `deploy/postgres/organization-member-invites-rls.sql`,
   `deploy/postgres/store-p0-entitlements-rls.sql`,
@@ -606,6 +612,11 @@ runtime accessor, and an actual `SET LOCAL ROLE app_patient` call can execute th
 already prepared DEV database with only owner/ACL drift must use this command directly; recreating it from a dump is
 unnecessary. `REASSIGN OWNED`, `DROP OWNED`, P2-B down mode, broad ownership surgery and a second SQL/overlay list are
 forbidden recovery paths.
+
+Within that one shared list, `runtime-overlay-app-owner-handoff.sql` runs immediately before the protected overlays.
+It is the only repeatable repair for pre-existing overlay functions restored under the database owner; the separate
+cluster-global C0 login/password bootstrap remains the documented one-time manual operator action and is never folded
+into restore, deploy or rehydrate.
 
 This sequence is wired only into explicit destructive `refresh-dev-from-test.sh --execute`. Ordinary code-only
 deploys, builds, restarts, UI work and standalone `pnpm migrate` must never invoke refresh, dump/restore, P2-B

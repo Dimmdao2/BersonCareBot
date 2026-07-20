@@ -19,6 +19,7 @@ RUNTIME_OVERLAY_LIB="$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh"
 SQL_STREAMER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
+RUNTIME_OVERLAY_APP_OWNER_HANDOFF="$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
 usage() {
@@ -57,7 +58,8 @@ for guarded_file in \
   "$RUNTIME_OVERLAY_LIB|$REPO_ROOT/deploy/host/runtime-overlay-rehydrate-lib.sh|runtime overlay library" \
   "$SQL_STREAMER|$REPO_ROOT/deploy/host/stream-canonical-sql.mjs|canonical SQL reader" \
   "$P0_5B_GRANTS|$REPO_ROOT/deploy/postgres/p0-5b-grants.sql|P0.5b grants" \
-  "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context"; do
+  "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context" \
+  "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF|$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql|runtime overlay app_owner handoff"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
   if [[ -L "$guarded_path" || ! -f "$guarded_path" || "$(realpath "$guarded_path")" != "$expected_path" ]]; then
     echo "FATAL: $guarded_label path guard failed" >&2

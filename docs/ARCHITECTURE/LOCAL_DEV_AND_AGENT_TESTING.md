@@ -185,7 +185,13 @@ context нужно заново связать с тем же signing secret, к
    literal/psql variable; до commit доказывается, что `pgcrypto` находится в `app_ext`, exact P2-B
    schema/tables/functions принадлежат `app_owner`, три protected tables не имеют ACL-grantees кроме owner, восемь
    protected functions имеют только exact owner/staff/patient ACL и сохранённый secret равен stdin-значению;
-   затем применяются P0.5b, единая shared runtime-overlay chain и nonstaff runtime capability checks;
+   затем применяются P0.5b и единая shared runtime-overlay chain. Перед первым protected overlay эта цепочка
+   обязательно запускает `deploy/postgres/runtime-overlay-app-owner-handoff.sql`: он передаёт `app_owner` только
+   три exact уже существующие функции — Web Push public-key accessor и два public-booking resolver — и только если
+   их исходный owner равен owner текущей БД или уже `app_owner`. Это обязательный повторяемый per-restore handoff:
+   `pg_restore --no-owner` делает эти функции объектами owner роли БД, а последующий `CREATE OR REPLACE` под
+   `SET ROLE app_owner` иначе завершится ошибкой. Неизвестный owner останавливает цепочку; schema-wide owner rewrite
+   не выполняется. После overlays запускаются nonstaff runtime capability checks;
 6. только после PASS вызывается `dev-post-refresh-unlock.sh --execute` для снятия скопированных TEST-only locks.
 
 Signing secret парсится как данные из единственного атомарно открытого non-symlink `.env.dev` snapshot,
@@ -199,6 +205,9 @@ Handoff запускается только сразу после explicit TEST�
 `pnpm migrate` или UI-правки. Не повторяйте destructive refresh ради repair. Запрещены `REASSIGN OWNED`,
 `DROP OWNED`, P2-B down mode, broad ownership rewrites и hand-written replacement SQL. При FAIL исправляется
 repo-wrapper/canonical artifact, после чего closure повторяется на той же DEV-БД.
+
+Этот exact function-owner handoff не создаёт и не перенастраивает cluster-global роли. Одноразовая ручная подготовка
+C0 runtime-login остаётся отдельным операторским шагом из раздела выше и не повторяется при restore/deploy.
 
 **Node:** ≥22 (`nvm use` по `.nvmrc`).
 

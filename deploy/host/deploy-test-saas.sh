@@ -55,6 +55,7 @@ DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
 P2_B_CONTEXT=deploy/postgres/p2-b-protected-principal-context.sql
+RUNTIME_OVERLAY_APP_OWNER_HANDOFF=deploy/postgres/runtime-overlay-app-owner-handoff.sql
 ORGANIZATION_MEMBER_INVITES_RLS=deploy/postgres/organization-member-invites-rls.sql
 STORE_P0_ENTITLEMENTS_RLS=deploy/postgres/store-p0-entitlements-rls.sql
 PATIENT_COURSE_WALL=deploy/postgres/patient-course-assignment-wall.sql
@@ -1048,7 +1049,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$OVERRIDE" "$P0_5B_ROLES" "$P0_5B_GRANTS" "$P2_B_CONTEXT" \
     "$ORGANIZATION_MEMBER_INVITES_RLS" "$STORE_P0_ENTITLEMENTS_RLS" "$PATIENT_COURSE_WALL" \
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
-    "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
+    "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF" "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
     "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
@@ -1219,6 +1220,7 @@ stage_hash_bound_rubitime_csv
 [ -r "$SRC_REPO/$P0_5B_ROLES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_ROLES"; exit 1; }
 [ -r "$SRC_REPO/$P0_5B_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P0_5B_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$P2_B_CONTEXT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$P2_B_CONTEXT"; exit 1; }
+[ -r "$SRC_REPO/$RUNTIME_OVERLAY_APP_OWNER_HANDOFF" ] || { echo "FATAL: missing repo file: $SRC_REPO/$RUNTIME_OVERLAY_APP_OWNER_HANDOFF"; exit 1; }
 [ -r "$SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$ORGANIZATION_MEMBER_INVITES_RLS"; exit 1; }
 [ -r "$SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$STORE_P0_ENTITLEMENTS_RLS"; exit 1; }
 [ -r "$SRC_REPO/$PATIENT_COURSE_WALL" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PATIENT_COURSE_WALL"; exit 1; }

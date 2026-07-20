@@ -60,4 +60,11 @@ role/owner/ACL/runtime postchecks → снятие environment-specific locks т
 подробно и с точным моментом одноразовой role/context настройки закреплён в
 [`LOCAL_DEV_AND_AGENT_TESTING.md`](../LOCAL_DEV_AND_AGENT_TESTING.md#обязательный-разовый-p2-b-ownercontext-handoff-после---no-owner-restore).
 
+Внутри shared chain, непосредственно перед protected overlays, всегда выполняется exact
+`deploy/postgres/runtime-overlay-app-owner-handoff.sql`. Он исправляет только восстановленные под owner текущей БД
+Web Push accessor и два public-booking resolver, которые затем заменяются под `SET ROLE app_owner`; неизвестный owner
+останавливает процесс. Это per-restore owner handoff, не повторная настройка глобальных ролей и не broad `ALTER OWNER`.
+Одноразовые C0 login/password роли готовятся вручную по `LOCAL_DEV_AND_AGENT_TESTING.md` и при следующих restore/deploy
+не пересоздаются.
+
 **Удалены устаревшие артефакты** (отдельные legacy dev-базы, март–апрель 2026): `integrator_bersoncarebot_dev_schema.sql`, `webapp_bcb_webapp_dev_schema.sql`.

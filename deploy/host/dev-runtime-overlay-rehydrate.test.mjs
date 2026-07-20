@@ -20,6 +20,10 @@ const libraryPath = fileURLToPath(new URL("./runtime-overlay-rehydrate-lib.sh", 
 const refreshPath = fileURLToPath(new URL("./refresh-dev-from-test.sh", import.meta.url));
 const sqlStreamerPath = fileURLToPath(new URL("./stream-canonical-sql.mjs", import.meta.url));
 const envParserPath = fileURLToPath(new URL("./parse-dev-database-url.mjs", import.meta.url));
+const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
+const appOwnerHandoffPath = fileURLToPath(
+  new URL("../postgres/runtime-overlay-app-owner-handoff.sql", import.meta.url),
+);
 
 const canonicalOrder = [
   "deploy/postgres/organization-member-invites-rls.sql",
@@ -27,6 +31,7 @@ const canonicalOrder = [
   "deploy/postgres/patient-course-assignment-wall.sql",
   "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   "deploy/postgres/specialist-owner-provisioning-rls.sql",
+  "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
   "deploy/postgres/reference-catalog-rls.sql",
   "deploy/postgres/patient-visible-catalog-rls.sql",
   "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
@@ -48,6 +53,74 @@ test("shared runtime-overlay library owns one exact protected closure order", ()
   assert.match(source, /declare -F runtime_overlay_admin_psql/u);
   assert.match(source, /runtime overlay repository root path guard failed/u);
   assert.match(source, /runtime_overlay_parse_database_identity/u);
+});
+
+test("protected overlays hand off every SET ROLE app_owner replacement before creation", () => {
+  const handoff = readFileSync(appOwnerHandoffPath, "utf8");
+  const protectedReplacements = [
+    {
+      relativePath: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
+      path: fileURLToPath(
+        new URL("../postgres/patient-web-push-vapid-public-key-accessor.sql", import.meta.url),
+      ),
+      functionName: "get_web_push_vapid_public_key",
+      signature: "app.get_web_push_vapid_public_key()",
+    },
+    {
+      relativePath: "deploy/postgres/public-booking-bootstrap-resolver.sql",
+      path: fileURLToPath(
+        new URL("../postgres/public-booking-bootstrap-resolver.sql", import.meta.url),
+      ),
+      functionName: "resolve_public_booking_organization",
+      signature: "app.resolve_public_booking_organization(uuid,uuid,uuid)",
+    },
+    {
+      relativePath: "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+      path: fileURLToPath(
+        new URL("../postgres/public-clinic-slug-bootstrap-resolver.sql", import.meta.url),
+      ),
+      functionName: "resolve_public_organization_by_slug",
+      signature: "app.resolve_public_organization_by_slug(text)",
+    },
+  ];
+
+  const detectedSetRoleReplacements = canonicalOrder.filter((relativePath) => {
+    if (!relativePath.startsWith("deploy/postgres/") || relativePath === canonicalOrder.at(-1)) {
+      return false;
+    }
+    const overlay = readFileSync(join(repoRoot, relativePath), "utf8");
+    return /SET ROLE app_owner;[\s\S]*CREATE OR REPLACE FUNCTION app\./u.test(overlay);
+  });
+  assert.deepEqual(
+    detectedSetRoleReplacements,
+    protectedReplacements.map((replacement) => replacement.relativePath),
+  );
+
+  for (const replacement of protectedReplacements) {
+    const overlay = readFileSync(replacement.path, "utf8");
+    assert.match(overlay, /SET ROLE app_owner;/u);
+    assert.match(
+      overlay,
+      new RegExp(`CREATE OR REPLACE FUNCTION app\\.${replacement.functionName}\\b`, "u"),
+    );
+    assert.ok(
+      handoff.includes(`('${replacement.signature}')`),
+      `missing safe-source gate for ${replacement.signature}`,
+    );
+    const spacedSignature = replacement.signature.replaceAll(",", ", ");
+    assert.ok(
+      handoff.includes(`ALTER FUNCTION IF EXISTS ${spacedSignature} OWNER TO app_owner;`),
+      `missing exact owner handoff for ${replacement.signature}`,
+    );
+  }
+
+  assert.match(handoff, /procedure\.proowner NOT IN/u);
+  assert.match(handoff, /database_owner\.datdba/u);
+  assert.match(handoff, /rolname = 'app_owner'/u);
+  assert.match(handoff, /rolcanlogin = false/u);
+  assert.match(handoff, /rolbypassrls = true/u);
+  assert.doesNotMatch(handoff, /REASSIGN\s+OWNED|DROP\s+OWNED/iu);
+  assert.equal((handoff.match(/ALTER FUNCTION IF EXISTS/gu) ?? []).length, 3);
 });
 
 test("shared closure executes the canonical list and forwards the E1 runtime role", () => {
@@ -112,6 +185,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /P2_B_OWNER_ROLE="app_owner"/u);
   assert.match(source, /P2_B_STAFF_ROLE="app_staff"/u);
   assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
+  assert.match(source, /runtime-overlay-app-owner-handoff\.sql/u);
   assert.equal(source.split('--snapshot-stream "$DEV_ENV"').length - 1, 1);
   assert.match(source, /DEV_SNAPSHOT_COPROC_READ_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[0\]\}"/u);
   assert.match(source, /DEV_SNAPSHOT_COPROC_WRITE_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[1\]\}"/u);
