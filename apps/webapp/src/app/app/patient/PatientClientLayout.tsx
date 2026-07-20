@@ -18,17 +18,20 @@ const allowPatientBrowserAccess = process.env.NODE_ENV !== "production";
 export function PatientClientLayout({
   children,
   organizationContext,
+  rememberOrganizationOnMount = false,
 }: {
   children: ReactNode;
   organizationContext?: {
     organization: PatientOrganizationSummary;
     organizations: PatientOrganizationSummary[];
   } | null;
+  rememberOrganizationOnMount?: boolean;
 }) {
   const content = organizationContext ?
     <PatientOrganizationContextProvider
       organization={organizationContext.organization}
       organizations={organizationContext.organizations}
+      rememberOrganizationOnMount={rememberOrganizationOnMount}
     >
       {children}
     </PatientOrganizationContextProvider>

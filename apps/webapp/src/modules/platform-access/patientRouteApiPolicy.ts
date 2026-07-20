@@ -49,6 +49,7 @@ export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
 const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   "/app/patient/bind-phone",
   "/app/patient/profile",
+  "/app/patient/organizations",
   "/app/patient/sections",
   "/app/patient/sections/",
   "/app/patient/content/",
@@ -210,4 +211,3 @@ export function patientServerActionPageAllowsOnboardingOnly(appPathname: string)
 export function patientSessionSnapshotHasPhone(session: { user: { phone?: string | null } } | null): boolean {
   return Boolean(session?.user.phone?.trim());
 }
-

@@ -4,8 +4,8 @@
  */
 import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
-const GO_DAILY_WARMUP = '/app/patient/go/daily-warmup?from=reminder';
-const GO_PLAN_START_LESSON = '/app/patient/go/plan-start-lesson?from=reminder';
+const GO_DAILY_WARMUP = '/app/patient/go/daily-warmup';
+const GO_PLAN_START_LESSON = '/app/patient/go/plan-start-lesson';
 /** Canonical CMS warmups section slug (mirrors webapp `DEFAULT_WARMUPS_SECTION_SLUG`). */
 const WARMUPS_SECTION_SLUG = 'warmups';
 
@@ -33,6 +33,13 @@ export type BuildPatientReminderDeepLinkOptions = {
   warmupsSectionSlugs?: ReadonlySet<string>;
 };
 
+function reminderGoPath(path: string, organizationId: string | null | undefined): string {
+  const search = new URLSearchParams({ from: 'reminder' });
+  const targetOrganizationId = organizationId?.trim();
+  if (targetOrganizationId) search.set('organizationId', targetOrganizationId);
+  return `${path}?${search.toString()}`;
+}
+
 function isWarmupsSectionDeepLink(
   linkedObjectId: string,
   opts?: BuildPatientReminderDeepLinkOptions,
@@ -47,16 +54,19 @@ export function buildPatientReminderDeepLink(
     linkedObjectType: string | null | undefined;
     linkedObjectId: string | null | undefined;
     reminderIntent?: string | null | undefined;
+    organizationId?: string | null | undefined;
   },
   opts?: BuildPatientReminderDeepLinkOptions,
 ): string {
   const base = getAppBaseUrlSync().replace(/\/$/, '');
+  const dailyWarmupPath = reminderGoPath(GO_DAILY_WARMUP, params.organizationId);
+  const planStartLessonPath = reminderGoPath(GO_PLAN_START_LESSON, params.organizationId);
   const intentRaw = typeof params.reminderIntent === 'string' ? params.reminderIntent.trim() : '';
   if (intentRaw === 'warmup') {
-    return base ? `${base}${GO_DAILY_WARMUP}` : GO_DAILY_WARMUP;
+    return base ? `${base}${dailyWarmupPath}` : dailyWarmupPath;
   }
   if (intentRaw === 'exercises' || intentRaw === 'stretch') {
-    return base ? `${base}${GO_PLAN_START_LESSON}` : GO_PLAN_START_LESSON;
+    return base ? `${base}${planStartLessonPath}` : planStartLessonPath;
   }
   if (!base) return '/app/patient/reminders?from=reminder';
   const rawType = typeof params.linkedObjectType === 'string' ? params.linkedObjectType.trim() : '';
@@ -66,7 +76,7 @@ export function buildPatientReminderDeepLink(
     return `${base}/app/patient/reminders?from=reminder`;
   }
   if (linkedObjectType === 'content_section' && isWarmupsSectionDeepLink(linkedObjectId, opts)) {
-    return base ? `${base}${GO_DAILY_WARMUP}` : GO_DAILY_WARMUP;
+    return base ? `${base}${dailyWarmupPath}` : dailyWarmupPath;
   }
   const id = encodeURIComponent(linkedObjectId);
   switch (linkedObjectType) {

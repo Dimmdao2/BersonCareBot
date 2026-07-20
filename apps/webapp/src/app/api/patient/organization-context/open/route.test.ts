@@ -3,15 +3,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const patientClientBusinessGateMock = vi.hoisted(() => vi.fn());
 const resolveTargetMock = vi.hoisted(() => vi.fn());
+const resolveOrganizationMock = vi.hoisted(() => vi.fn());
+const getRememberedOrganizationMock = vi.hoisted(() => vi.fn());
 const revalidatePathMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession: getCurrentSessionMock }));
-vi.mock("@/app-layer/platform-access", () => ({ patientClientBusinessGate: patientClientBusinessGateMock }));
+vi.mock("@/app-layer/platform-access", () => ({
+  patientClientBusinessGate: patientClientBusinessGateMock,
+}));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    patientOrganization: { resolveTreatmentProgramOrganizationForPatient: resolveTargetMock },
+    patientOrganization: {
+      resolveTreatmentProgramOrganizationForPatient: resolveTargetMock,
+      resolveActiveOrganizationForPatient: resolveOrganizationMock,
+    },
   }),
+}));
+vi.mock("@/app-layer/patient-organization/requestContext", () => ({
+  getRememberedPatientOrganizationId: getRememberedOrganizationMock,
 }));
 vi.mock("@/modules/roles/service", () => ({ canAccessPatient: () => true }));
 
@@ -26,13 +36,16 @@ describe("patient organization trusted object opener", () => {
     vi.clearAllMocks();
     getCurrentSessionMock.mockResolvedValue({ user: { userId: PATIENT_ID, role: "client" } });
     patientClientBusinessGateMock.mockResolvedValue("allow");
+    getRememberedOrganizationMock.mockResolvedValue(null);
   });
 
   it("switches only to the organization derived from the owned object", async () => {
     resolveTargetMock.mockResolvedValue({ ok: true, organizationId: ORG_B });
-    const response = await GET(new Request(
-      `http://localhost/api/patient/organization-context/open?kind=treatment_program&instanceId=${INSTANCE_ID}`,
-    ));
+    const response = await GET(
+      new Request(
+        `http://localhost/api/patient/organization-context/open?kind=treatment_program&instanceId=${INSTANCE_ID}`,
+      ),
+    );
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(`http://localhost/app/patient/treatment/${INSTANCE_ID}`);
     expect(response.cookies.get("bc_patient_organization")?.value).toBe(ORG_B);
@@ -40,11 +53,51 @@ describe("patient organization trusted object opener", () => {
   });
 
   it("does not reveal or persist a foreign object organization", async () => {
-    resolveTargetMock.mockResolvedValue({ ok: false, reason: "organization_target_not_authorized" });
-    const response = await GET(new Request(
-      `http://localhost/api/patient/organization-context/open?kind=treatment_program&instanceId=${INSTANCE_ID}`,
-    ));
-    expect(response.headers.get("location")).toBe("http://localhost/app/patient");
+    resolveTargetMock.mockResolvedValue({
+      ok: false,
+      reason: "organization_target_not_authorized",
+    });
+    const response = await GET(
+      new Request(
+        `http://localhost/api/patient/organization-context/open?kind=treatment_program&instanceId=${INSTANCE_ID}`,
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/app/patient/organizations?reason=organization_unavailable",
+    );
+    expect(response.cookies.get("bc_patient_organization")).toBeUndefined();
+  });
+
+  it("validates and persists an exact reminder organization before continuing", async () => {
+    getRememberedOrganizationMock.mockResolvedValue("11111111-1111-4111-8111-111111111111");
+    resolveOrganizationMock.mockResolvedValue({ ok: true, organizationId: ORG_B });
+    const response = await GET(
+      new Request(
+        `http://localhost/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=daily-warmup`,
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      `http://localhost/app/patient/go/daily-warmup?from=reminder&organizationId=${ORG_B}&organizationChanged=1`,
+    );
+    expect(response.cookies.get("bc_patient_organization")?.value).toBe(ORG_B);
+    expect(resolveOrganizationMock).toHaveBeenCalledWith(PATIENT_ID, {
+      verifiedTargetOrganizationId: ORG_B,
+    });
+  });
+
+  it("does not overwrite the preference for a revoked reminder organization", async () => {
+    resolveOrganizationMock.mockResolvedValue({
+      ok: false,
+      reason: "organization_target_not_authorized",
+    });
+    const response = await GET(
+      new Request(
+        `http://localhost/api/patient/organization-context/open?kind=organization_go&organizationId=${ORG_B}&goKind=plan-start-lesson`,
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/app/patient/organizations?reason=organization_unavailable",
+    );
     expect(response.cookies.get("bc_patient_organization")).toBeUndefined();
   });
 });

@@ -6,8 +6,17 @@ import {
   resolveDailyWarmupStartPathForPatient,
   resolvePlanStartLessonPathForPatient,
 } from "../resolvePatientReminderGoTargets";
-import { resolvePatientOrganizationRequestContext } from "@/app-layer/patient-organization/requestContext";
+import {
+  getRememberedPatientOrganizationId,
+  resolvePatientOrganizationRequestContext,
+} from "@/app-layer/patient-organization/requestContext";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import {
+  addPatientOrganizationChangedNotice,
+  buildPatientReminderOrganizationOpener,
+  parsePatientReminderOrganizationTarget,
+  patientOrganizationRecoveryPath,
+} from "../patientReminderOrganizationTarget";
 
 type Kind = "daily-warmup" | "plan-start-lesson";
 
@@ -20,7 +29,11 @@ export default async function PatientGoReminderTargetPage({
   searchParams,
 }: {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    organizationId?: string;
+    organizationChanged?: string;
+  }>;
 }) {
   const { kind: raw } = await params;
   const sp = await searchParams;
@@ -36,34 +49,46 @@ export default async function PatientGoReminderTargetPage({
   }
 
   const deps = buildAppDeps();
+  const fromReminder = sp.from === "reminder";
+  const reminderOrganizationId = fromReminder ? parsePatientReminderOrganizationTarget(sp.organizationId) : null;
+  if (fromReminder && !reminderOrganizationId) {
+    redirect(patientOrganizationRecoveryPath("reminder_target_missing"));
+  }
+  if (reminderOrganizationId) {
+    const rememberedOrganizationId = await getRememberedPatientOrganizationId();
+    if (rememberedOrganizationId !== reminderOrganizationId) {
+      redirect(buildPatientReminderOrganizationOpener(kind, reminderOrganizationId));
+    }
+  }
   const patientContext = await resolvePatientOrganizationRequestContext(
     deps.patientOrganization,
     session.user.userId,
+    reminderOrganizationId ? { verifiedTargetOrganizationId: reminderOrganizationId } : {},
   );
-  if (!patientContext.ok) redirect(routePaths.patient);
+  if (!patientContext.ok) {
+    redirect(reminderOrganizationId ? patientOrganizationRecoveryPath("organization_unavailable") : routePaths.patient);
+  }
+  const showContextChangedNotice = sp.organizationChanged === "1";
   if (kind === "daily-warmup") {
     const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
-    const fromReminder = sp.from === "reminder";
-    redirect(await withPatientOrganizationPrincipal(
+    const target = await withPatientOrganizationPrincipal(
       {
         organizationId: patientContext.organizationId,
         platformUserId: session.user.userId,
         source: "app.patient.go.daily-warmup",
       },
-      () => resolveDailyWarmupStartPathForPatient(
-          deps,
-          session,
-          personalTierOk,
-          fromReminder ? "push_reminder" : "home",
-        ),
-    ));
+      () =>
+        resolveDailyWarmupStartPathForPatient(deps, session, personalTierOk, fromReminder ? "push_reminder" : "home"),
+    );
+    redirect(addPatientOrganizationChangedNotice(target, showContextChangedNotice));
   }
-  redirect(await withPatientOrganizationPrincipal(
+  const target = await withPatientOrganizationPrincipal(
     {
       organizationId: patientContext.organizationId,
       platformUserId: session.user.userId,
       source: "app.patient.go.plan-start-lesson",
     },
     () => resolvePlanStartLessonPathForPatient(deps, session.user.userId),
-  ));
+  );
+  redirect(addPatientOrganizationChangedNotice(target, showContextChangedNotice));
 }

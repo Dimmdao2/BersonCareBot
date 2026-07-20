@@ -511,14 +511,17 @@ export async function handleReminders(
         linkedObjectType: rule?.linkedObjectType ?? null,
         linkedObjectId: rule?.linkedObjectId ?? null,
         reminderIntent: rule?.reminderIntent ?? null,
+        organizationId: occurrenceOrganizationId,
       });
+      const computedOpenIsOrganizationGo = computedOpen.includes('/app/patient/go/');
       const openUrl =
-        reminderDispatchUsesIntentOpenTarget(rule?.reminderIntent ?? null) ? computedOpen
+        reminderDispatchUsesIntentOpenTarget(rule?.reminderIntent ?? null) || computedOpenIsOrganizationGo ? computedOpen
         : (rule?.deepLink?.trim() && rule.deepLink.trim().length > 0 ? rule.deepLink.trim() : computedOpen) ||
           buildPatientReminderDeepLink({
             linkedObjectType: null,
             linkedObjectId: null,
             reminderIntent: null,
+            organizationId: occurrenceOrganizationId,
           });
 
       let remindersEditUrl: string | undefined;

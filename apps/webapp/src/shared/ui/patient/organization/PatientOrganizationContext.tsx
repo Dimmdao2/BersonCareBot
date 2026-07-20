@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientOrganizationSummary } from "@/modules/patient-organization/service";
 import { Button } from "@/shared/ui/patient/primitives/button";
 import {
@@ -20,6 +22,14 @@ export type PatientOrganizationClientContext = {
 
 const Context = createContext<PatientOrganizationClientContext | null>(null);
 
+const SAFE_PATIENT_DESTINATION = `${routePaths.patient}?organizationChanged=1`;
+
+type PatientOrganizationNavigate = (href: string) => void;
+
+function replacePatientLocation(href: string): void {
+  window.location.replace(href);
+}
+
 export function usePatientOrganizationContext(): PatientOrganizationClientContext | null {
   return useContext(Context);
 }
@@ -27,15 +37,29 @@ export function usePatientOrganizationContext(): PatientOrganizationClientContex
 export function PatientOrganizationContextProvider({
   organization,
   organizations,
+  rememberOrganizationOnMount = false,
+  navigate = replacePatientLocation,
   children,
 }: {
   organization: PatientOrganizationSummary;
   organizations: PatientOrganizationSummary[];
+  rememberOrganizationOnMount?: boolean;
+  navigate?: PatientOrganizationNavigate;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const [switching, setSwitching] = useState(false);
   const switchingRef = useRef(false);
+  const rememberStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!rememberOrganizationOnMount || rememberStartedRef.current) return;
+    rememberStartedRef.current = true;
+    void fetch("/api/patient/organization-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId: organization.organizationId }),
+    }).catch(() => undefined);
+  }, [organization.organizationId, rememberOrganizationOnMount]);
 
   const value = useMemo<PatientOrganizationClientContext>(
     () => ({
@@ -53,63 +77,89 @@ export function PatientOrganizationContextProvider({
             body: JSON.stringify({ organizationId }),
           });
           if (!response.ok) throw new Error("organization_switch_failed");
-          window.location.reload();
+          navigate(SAFE_PATIENT_DESTINATION);
         } catch {
           switchingRef.current = false;
           setSwitching(false);
-          router.push("/app/patient");
-          router.refresh();
+          navigate(`${routePaths.patientOrganizations}?unavailable=1`);
         }
       },
     }),
-    [organization, organizations, router, switching],
+    [navigate, organization, organizations, switching],
   );
 
   return (
     <Context.Provider value={value}>
-      {switching ?
+      {switching ? (
         <div className="flex min-h-[50vh] items-center justify-center px-4 text-center text-sm text-[var(--patient-text-secondary)]">
           Переключаем организацию…
         </div>
-      : children}
+      ) : (
+        children
+      )}
     </Context.Provider>
   );
 }
 
 export function PatientOrganizationContextBar() {
   const context = usePatientOrganizationContext();
+  const searchParams = useSearchParams();
   if (!context) return null;
   const multiple = context.organizations.length > 1;
   return (
-    <div
-      className="mx-auto flex w-full min-w-0 shrink-0 items-center justify-between gap-2 rounded-xl border border-[var(--patient-border)] bg-white/95 px-3 py-2 text-sm shadow-sm patient-shell-above-slot-pad"
-      data-testid="patient-organization-context"
-    >
-      <span className="min-w-0 truncate text-[var(--patient-text-secondary)]">Организация</span>
-      {multiple ?
-        <Select
-          value={context.organization.organizationId}
-          disabled={context.switching}
-          onValueChange={(organizationId) => {
-            if (organizationId) void context.switchOrganization(organizationId);
-          }}
+    <div className="grid w-full min-w-0 shrink-0 gap-2 patient-shell-above-slot-pad">
+      <div
+        className="mx-auto flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-[var(--patient-border)] bg-white/95 px-3 py-2 text-sm shadow-sm"
+        data-testid="patient-organization-context"
+      >
+        <Link
+          href={routePaths.patientOrganizations}
+          className="min-w-0 truncate text-[var(--patient-text-secondary)] underline-offset-4 hover:underline"
         >
-          <SelectTrigger
-            aria-label="Текущая организация"
-            displayLabel={context.organization.title}
-            className="min-w-0 max-w-[70%] bg-white font-medium text-[var(--patient-text-primary)]"
-          />
-          <SelectContent align="end">
-            {context.organizations.map((organization) => (
-              <SelectItem key={organization.organizationId} value={organization.organizationId}>
-                {organization.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      : <span className="min-w-0 truncate font-medium text-[var(--patient-text-primary)]" title={context.organization.title}>
-          {context.organization.title}
-        </span>}
+          Организация
+        </Link>
+        {multiple ? (
+          <Select
+            value={context.organization.organizationId}
+            disabled={context.switching}
+            onValueChange={(organizationId) => {
+              if (organizationId) void context.switchOrganization(organizationId);
+            }}
+          >
+            <SelectTrigger
+              aria-label="Текущая организация"
+              displayLabel={context.organization.title}
+              className="min-w-0 max-w-[70%] bg-white font-medium text-[var(--patient-text-primary)]"
+            />
+            <SelectContent align="end">
+              {context.organizations.map((organization) => (
+                <SelectItem key={organization.organizationId} value={organization.organizationId}>
+                  {organization.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span
+            className="min-w-0 truncate font-medium text-[var(--patient-text-primary)]"
+            title={context.organization.title}
+          >
+            {context.organization.title}
+          </span>
+        )}
+      </div>
+      {searchParams.get("organizationChanged") === "1" ? (
+        <div
+          role="status"
+          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950"
+          data-testid="patient-organization-changed-notice"
+        >
+          Открыта организация «{context.organization.title}».{" "}
+          <Link href={routePaths.patientOrganizations} className="font-medium underline underline-offset-4">
+            Выбрать другую
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -132,7 +182,7 @@ export function PatientOrganizationRecoveryScreen({
       body: JSON.stringify({ organizationId }),
     });
     if (response.ok) {
-      window.location.assign("/app/patient");
+      window.location.replace(routePaths.patient);
       return;
     }
     setPending(null);
@@ -148,11 +198,11 @@ export function PatientOrganizationRecoveryScreen({
           ? "Данные будут показаны только после подтверждения доступной организации."
           : "Сейчас у аккаунта нет активной связи с организацией. Обратитесь к своему специалисту."}
       </p>
-      {invalidRememberedOrganization ?
+      {invalidRememberedOrganization ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Ранее выбранная организация больше недоступна. Выберите другую.
         </p>
-      : null}
+      ) : null}
       <div className="grid gap-2">
         {organizations.map((organization) => (
           <Button

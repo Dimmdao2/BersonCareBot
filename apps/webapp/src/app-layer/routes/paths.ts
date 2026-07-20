@@ -44,6 +44,8 @@ export const routePaths = {
   /** Кратко о специалисте + ссылка на полный сайт. */
   patientAbout: "/app/patient/about",
   profile: "/app/patient/profile",
+  /** Разрешённые связи пациента с организациями и выбор текущего контекста. */
+  patientOrganizations: "/app/patient/organizations",
   notifications: "/app/patient/notifications",
   notificationSettings: "/app/patient/notifications/settings",
   purchases: "/app/patient/purchases",

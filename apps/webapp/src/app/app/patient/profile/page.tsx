@@ -56,6 +56,19 @@ export default async function PatientProfilePage() {
         />
 
         <section className={patientSectionSurfaceClass}>
+          <h2 className={patientSectionTitleClass}>Организации</h2>
+          <p className={patientMutedTextClass}>
+            Здесь можно посмотреть доступные организации и выбрать, чьи данные открывать в приложении.
+          </p>
+          <Link
+            href={routePaths.patientOrganizations}
+            className="mt-2 inline-flex shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Мои организации
+          </Link>
+        </section>
+
+        <section className={patientSectionSurfaceClass}>
           <h2 className={patientSectionTitleClass}>Мессенджеры</h2>
           <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
         </section>
