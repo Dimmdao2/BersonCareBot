@@ -2859,6 +2859,29 @@ task-related paths (repo-wide `git diff --check` errors on pre-existing unrelate
 `git status` before this session started; not part of this task's diff). No full root CI, DB, DEV/TEST/PROD, deploy,
 server start or taskdb write.
 
+## 2026-07-20 — U1 bounded post-fix audit seal (`#916`)
+
+**Verdict: PASS.** This is the single bounded independent check of the only residual from
+`bcb-u1-916-sol-final-reaudit-20260720`; it did not reopen the U1 checklist or search for new requirements. Audited
+feature HEAD: `70d042e4f` (the U1 correction itself is `367f64ca9`, detector hardening `10616885d`).
+
+- `patientHomeDoctorSettingsActions.ts` uses only the canonical `requireDoctorWorkspaceContext` entry: practice-target
+  and warmup-rotation writes additionally require `membershipRole === "owner"`; specialist-configurable cooldown and
+  mood writes still require the bound clinical workspace; the focused negative proves that a platform admin without
+  that workspace is denied and no setting is written.
+- `doctorLaunchCensus.test.ts` keeps an exact doctor Server Action manifest, rejects raw
+  `getCurrentSession`/`canAccessDoctor` authorization, and its executable directive cases cover leading whitespace,
+  block comments, line comments, single quotes and the false-positive non-directive case.
+- Final focused command:
+  `pnpm --dir apps/webapp exec vitest run src/app/app/doctor/patient-home/patientHomeDoctorSettingsActions.test.ts src/app-layer/guards/doctorLaunchCensus.test.ts --reporter=dot`
+  — **2 files / 11 tests PASS**. The first attempt did not execute tests because `apps/webapp/node_modules/vitest`
+  still pointed at the already-removed U2 worktree; `pnpm install --offline --frozen-lockfile` repaired only the local
+  dependency links, after which the unchanged focused command passed. No application code, DB, DEV/TEST/PROD,
+  deploy, external send or full CI was touched.
+
+This PASS closes only the previously identified Server Action residual and supplies the missing independent
+post-fix audit evidence; it is not another whole-stage audit or a source of follow-up scope.
+
 ## 2026-07-20 — U2 management/account shell terminal closure (`#918`)
 
 **Result.** Added one capability-driven management landing and one shared personal account area. A management-only
@@ -2884,6 +2907,14 @@ media-worker `60/60`, root build, webapp build and audit all passed. Stale U1 fi
 guards; no runtime authorization was weakened. DEV role/direct-route checks passed for clinic owner, specialist and
 platform admin. Desktop `1480×1024` and mobile `390×844` management/account screenshots passed after an additive DEV
 migration; no reset, dump, TEST/PROD or deploy action occurred.
+
+**Keyboard evidence closure.** A live clinic-owner pass on `/app/manage` at feature HEAD `70d042e4f` used the same
+single DEV server and a persisted `dev:clinic-admin` session. Sequential `Tab` navigation reached the visible shell
+destinations, `Управление практикой`, `Аккаунт`, `Выйти`, then every management action in document order:
+`Настройки практики`, `Личный аккаунт`, `Тариф и биллинг`, `Рабочий кабинет`, `Настройки записи`. Each focus target
+was a visible native link or button with the expected destination; focus then returned to the document and cycled
+without a keyboard trap. This closes the previously unrecorded U2 keyboard/focus smoke only; it does not reopen the
+stage or add a new visual correction round.
 
 **Deferred boundary.** There is no sanctioned platform DB principal yet. Per U0/U9 ownership, global platform settings
 and legacy global catalog mutation remain fail-closed until U9 defines the platform API/principal and audit contract;
