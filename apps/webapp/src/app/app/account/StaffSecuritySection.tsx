@@ -20,6 +20,7 @@ type Props = {
   hasTimezone: boolean;
   hasOrganization: boolean;
   hasSpecialistBinding: boolean;
+  recoveryOnly?: boolean;
 };
 
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
@@ -91,7 +92,7 @@ export function StaffSecuritySection(props: Props) {
     const result = await postJson<{ ok: boolean }>("/api/account/security/recovery/confirm");
     if (!result.ok) return toast.error("Не удалось подтвердить сохранение кодов");
     setRecoveryCodes([]);
-    await refreshStatus();
+    window.location.assign("/app/account?tab=security");
   }
 
   async function bindSpecialist() {
@@ -116,7 +117,7 @@ export function StaffSecuritySection(props: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <DoctorSection>
+      {!props.recoveryOnly ? <DoctorSection>
         <DoctorSectionHeader><DoctorSectionTitle>Первый запуск</DoctorSectionTitle></DoctorSectionHeader>
         <ul className="space-y-2 text-sm">
           <li>{props.hasProfileName ? "✓" : "○"} Профиль специалиста</li>
@@ -134,7 +135,7 @@ export function StaffSecuritySection(props: Props) {
             <Link className="text-sm underline" href="/app/doctor/schedule?tab=setup">Настроить запись</Link>
           ) : null}
         </div>
-      </DoctorSection>
+      </DoctorSection> : null}
 
       <DoctorSection>
         <DoctorSectionHeader><DoctorSectionTitle>Защита аккаунта</DoctorSectionTitle></DoctorSectionHeader>
@@ -161,7 +162,7 @@ export function StaffSecuritySection(props: Props) {
             <Button size="sm" onClick={confirmRecovery}>Я сохранил коды</Button>
           </div>
         ) : null}
-        {securityReady ? (
+        {securityReady && !props.recoveryOnly ? (
           <div className="flex flex-wrap gap-2">
             {!props.hasSpecialistBinding ? <Button size="sm" onClick={bindSpecialist}>Подключить рабочий кабинет</Button> : null}
             <Button size="sm" variant="outline" onClick={revokeSessions}>Завершить другие сеансы</Button>

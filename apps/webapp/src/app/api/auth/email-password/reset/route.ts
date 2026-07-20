@@ -8,6 +8,7 @@ import {
   normalizeEmail,
 } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -52,10 +53,11 @@ export async function POST(request: Request) {
 
   const passwordHash = await hashPin(parsed.data.newPassword);
   try {
-    const security = await deps.staffSecurity.getStatus(userId);
+    enterStaffSecuritySelfPrincipal(userId, "api/auth/email-password/reset:challenge-verified-self");
+    const security = await deps.staffSecurity.getStatus();
     // Revoke first: if the credential write fails, existing staff sessions still
     // fail closed and the user can request a fresh reset challenge.
-    if (security) await deps.staffSecurity.revokeSessions(userId);
+    if (security) await deps.staffSecurity.revokeSessions();
     await deps.userPasswordCredentials.updatePasswordHash(userId, passwordHash);
   } catch {
     return NextResponse.json({ ok: false, error: "reset_failed" }, { status: 500 });

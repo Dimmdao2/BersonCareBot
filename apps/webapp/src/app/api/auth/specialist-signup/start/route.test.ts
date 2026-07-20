@@ -171,7 +171,10 @@ describe("POST /api/auth/specialist-signup/start", () => {
 
   it("rotates the challenge for the same pending specialist instead of creating a second intent", async () => {
     registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: false, reason: "duplicate_email" });
-    tryResendRegistrationChallengeMock.mockResolvedValueOnce({ ok: true, userId: "user-1" });
+    tryResendRegistrationChallengeMock.mockResolvedValueOnce({
+      ok: true,
+      userId: "11111111-1111-4111-8111-111111111111",
+    });
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: true,
       challengeId: "33333333-3333-4333-8333-333333333333",
@@ -195,7 +198,6 @@ describe("POST /api/auth/specialist-signup/start", () => {
 
     expect(res.status).toBe(200);
     expect(replacePendingSpecialistSignupChallengeMock).toHaveBeenCalledWith({
-      userId: "user-1",
       challengeId: "33333333-3333-4333-8333-333333333333",
     });
     expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();

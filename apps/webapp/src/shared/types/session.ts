@@ -47,7 +47,7 @@ export type AppSession = {
   };
   /** Authentication assurance for staff-only security gates; never inferred from role or membership. */
   staffSecurity?: {
-    assurance: "pending_enrollment" | "factor_verified" | "recovery";
+    assurance: "pending_enrollment" | "factor_verified" | "recovery" | "recovery_confirmation";
     verifiedAt?: number;
   };
   /**

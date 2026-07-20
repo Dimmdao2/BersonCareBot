@@ -33,9 +33,13 @@ WHERE n.nspname = 'public' AND c.relname = 'user_password_credentials' AND c.rel
 SELECT pg_get_userbyid(c.relowner) AS specialist_signup_oauth_bindings_owner
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public' AND c.relname = 'user_oauth_bindings' AND c.relkind IN ('r', 'p') \gset
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_staff_security_owner
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'staff_security_profiles' AND c.relkind IN ('r', 'p') \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_system_settings_owner', 'postgres')) AS specialist_signup_system_settings_owner_ident \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_password_credentials_owner', 'postgres')) AS specialist_signup_password_credentials_owner_ident \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_oauth_bindings_owner', 'postgres')) AS specialist_signup_oauth_bindings_owner_ident \gset
+SELECT quote_ident(COALESCE(:'specialist_signup_staff_security_owner', 'postgres')) AS specialist_signup_staff_security_owner_ident \gset
 SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
 \if :specialist_signup_has_current_org_id
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :specialist_signup_system_settings_owner_ident;
@@ -44,23 +48,25 @@ SELECT (to_regprocedure('app.current_patient_user_id()') IS NOT NULL)::int AS sp
 \if :specialist_signup_has_current_patient_user_id
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_password_credentials_owner_ident;
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_oauth_bindings_owner_ident;
+REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_staff_security_owner_ident;
 \endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
 DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
-DROP FUNCTION IF EXISTS app.get_latest_specialist_signup_intent_for_user(uuid);
-DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid, uuid);
-DROP FUNCTION IF EXISTS app.revoke_staff_sessions(uuid);
-DROP FUNCTION IF EXISTS app.record_failed_staff_factor_attempt(uuid);
-DROP FUNCTION IF EXISTS app.consume_staff_recovery_login(uuid, text, text);
-DROP FUNCTION IF EXISTS app.consume_staff_totp_login(uuid, text);
-DROP FUNCTION IF EXISTS app.begin_staff_login_challenge(uuid, text, timestamptz);
-DROP FUNCTION IF EXISTS app.confirm_staff_recovery_codes(uuid);
-DROP FUNCTION IF EXISTS app.complete_staff_totp_enrollment(uuid, text, jsonb);
-DROP FUNCTION IF EXISTS app.save_pending_staff_totp(uuid, text);
-DROP FUNCTION IF EXISTS app.get_staff_security_session_state(uuid);
-DROP FUNCTION IF EXISTS app.get_staff_security_profile(uuid);
-DROP FUNCTION IF EXISTS app.ensure_staff_security_profile(uuid);
+DROP FUNCTION IF EXISTS app.get_latest_specialist_signup_intent_for_user();
+DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid);
+DROP FUNCTION IF EXISTS app.revoke_staff_sessions();
+DROP FUNCTION IF EXISTS app.record_failed_staff_factor_attempt();
+DROP FUNCTION IF EXISTS app.consume_staff_recovery_login(text, text);
+DROP FUNCTION IF EXISTS app.consume_staff_totp_login(text);
+DROP FUNCTION IF EXISTS app.begin_staff_login_challenge(text, timestamptz);
+DROP FUNCTION IF EXISTS app.confirm_staff_recovery_codes();
+DROP FUNCTION IF EXISTS app.complete_staff_totp_enrollment(text, jsonb);
+DROP FUNCTION IF EXISTS app.save_pending_staff_totp(text);
+DROP FUNCTION IF EXISTS app.get_staff_security_session_state();
+DROP FUNCTION IF EXISTS app.get_staff_security_profile();
+DROP FUNCTION IF EXISTS app.ensure_staff_security_profile();
+DROP FUNCTION IF EXISTS app.require_staff_security_self_user_id();
 DROP FUNCTION IF EXISTS app.email_password_find_user_id_by_email_challenge(uuid);
 DROP FUNCTION IF EXISTS app.email_password_find_login_candidate(text);
 DROP FUNCTION IF EXISTS app.email_password_delete_unverified_registration(uuid);
@@ -83,19 +89,20 @@ SELECT (
   AND to_regclass('public.email_challenges') IS NOT NULL
   AND to_regclass('public.specialist_signup_intents') IS NOT NULL
   AND to_regclass('public.staff_security_profiles') IS NOT NULL
-  AND to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid,uuid)') IS NOT NULL
-  AND to_regprocedure('app.get_latest_specialist_signup_intent_for_user(uuid)') IS NOT NULL
-  AND to_regprocedure('app.ensure_staff_security_profile(uuid)') IS NOT NULL
-  AND to_regprocedure('app.get_staff_security_profile(uuid)') IS NOT NULL
-  AND to_regprocedure('app.get_staff_security_session_state(uuid)') IS NOT NULL
-  AND to_regprocedure('app.save_pending_staff_totp(uuid,text)') IS NOT NULL
-  AND to_regprocedure('app.complete_staff_totp_enrollment(uuid,text,jsonb)') IS NOT NULL
-  AND to_regprocedure('app.confirm_staff_recovery_codes(uuid)') IS NOT NULL
-  AND to_regprocedure('app.begin_staff_login_challenge(uuid,text,timestamptz)') IS NOT NULL
-  AND to_regprocedure('app.consume_staff_totp_login(uuid,text)') IS NOT NULL
-  AND to_regprocedure('app.consume_staff_recovery_login(uuid,text,text)') IS NOT NULL
-  AND to_regprocedure('app.record_failed_staff_factor_attempt(uuid)') IS NOT NULL
-  AND to_regprocedure('app.revoke_staff_sessions(uuid)') IS NOT NULL
+  AND to_regprocedure('app.replace_pending_specialist_signup_challenge(uuid)') IS NOT NULL
+  AND to_regprocedure('app.get_latest_specialist_signup_intent_for_user()') IS NOT NULL
+  AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
+  AND to_regprocedure('app.ensure_staff_security_profile()') IS NOT NULL
+  AND to_regprocedure('app.get_staff_security_profile()') IS NOT NULL
+  AND to_regprocedure('app.get_staff_security_session_state()') IS NOT NULL
+  AND to_regprocedure('app.save_pending_staff_totp(text)') IS NOT NULL
+  AND to_regprocedure('app.complete_staff_totp_enrollment(text,jsonb)') IS NOT NULL
+  AND to_regprocedure('app.confirm_staff_recovery_codes()') IS NOT NULL
+  AND to_regprocedure('app.begin_staff_login_challenge(text,timestamptz)') IS NOT NULL
+  AND to_regprocedure('app.consume_staff_totp_login(text)') IS NOT NULL
+  AND to_regprocedure('app.consume_staff_recovery_login(text,text)') IS NOT NULL
+  AND to_regprocedure('app.record_failed_staff_factor_attempt()') IS NOT NULL
+  AND to_regprocedure('app.revoke_staff_sessions()') IS NOT NULL
 )::int AS specialist_signup_public_bootstrap_preflight_ok \gset
 
 \if :specialist_signup_public_bootstrap_preflight_ok
@@ -546,31 +553,33 @@ ALTER FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) OWNER TO :spe
 -- U3S functions are created by migration 0215. Reassert ownership here after the
 -- role/table-owner hardening sequence so FORCE-RLS/runtime deployment cannot leave
 -- their SECURITY DEFINER privilege path dependent on the migration login role.
-ALTER FUNCTION app.replace_pending_specialist_signup_challenge(uuid, uuid)
+ALTER FUNCTION app.replace_pending_specialist_signup_challenge(uuid)
   OWNER TO :specialist_signup_intents_owner_ident;
-ALTER FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid)
+ALTER FUNCTION app.get_latest_specialist_signup_intent_for_user()
   OWNER TO :specialist_signup_intents_owner_ident;
-ALTER FUNCTION app.ensure_staff_security_profile(uuid)
+ALTER FUNCTION app.require_staff_security_self_user_id()
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.get_staff_security_profile(uuid)
+ALTER FUNCTION app.ensure_staff_security_profile()
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.get_staff_security_session_state(uuid)
+ALTER FUNCTION app.get_staff_security_profile()
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.save_pending_staff_totp(uuid, text)
+ALTER FUNCTION app.get_staff_security_session_state()
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb)
+ALTER FUNCTION app.save_pending_staff_totp(text)
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.confirm_staff_recovery_codes(uuid)
+ALTER FUNCTION app.complete_staff_totp_enrollment(text, jsonb)
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz)
+ALTER FUNCTION app.confirm_staff_recovery_codes()
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.consume_staff_totp_login(uuid, text)
+ALTER FUNCTION app.begin_staff_login_challenge(text, timestamptz)
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.consume_staff_recovery_login(uuid, text, text)
+ALTER FUNCTION app.consume_staff_totp_login(text)
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.record_failed_staff_factor_attempt(uuid)
+ALTER FUNCTION app.consume_staff_recovery_login(text, text)
   OWNER TO :specialist_signup_staff_security_owner_ident;
-ALTER FUNCTION app.revoke_staff_sessions(uuid)
+ALTER FUNCTION app.record_failed_staff_factor_attempt()
+  OWNER TO :specialist_signup_staff_security_owner_ident;
+ALTER FUNCTION app.revoke_staff_sessions()
   OWNER TO :specialist_signup_staff_security_owner_ident;
 
 REVOKE ALL ON FUNCTION app.get_public_config_bool(text) FROM PUBLIC;
@@ -585,19 +594,20 @@ REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC
 REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.ensure_staff_security_profile(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_staff_security_profile(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_staff_security_session_state(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.save_pending_staff_totp(uuid, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.confirm_staff_recovery_codes(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.consume_staff_totp_login(uuid, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.consume_staff_recovery_login(uuid, text, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.record_failed_staff_factor_attempt(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.revoke_staff_sessions(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_latest_specialist_signup_intent_for_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.require_staff_security_self_user_id() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.ensure_staff_security_profile() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_staff_security_profile() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_staff_security_session_state() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.save_pending_staff_totp(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.confirm_staff_recovery_codes() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.begin_staff_login_challenge(text, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.consume_staff_totp_login(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.consume_staff_recovery_login(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_failed_staff_factor_attempt() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.revoke_staff_sessions() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.get_public_config_bool(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_patient_has_password_credentials() TO app_staff, app_patient;
@@ -611,19 +621,19 @@ GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_p
 GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, uuid) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile(uuid) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.get_staff_security_profile(uuid) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state(uuid) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.save_pending_staff_totp(uuid, text) TO app_staff;
-GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) TO app_staff;
-GRANT EXECUTE ON FUNCTION app.confirm_staff_recovery_codes(uuid) TO app_staff;
-GRANT EXECUTE ON FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.consume_staff_totp_login(uuid, text) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.consume_staff_recovery_login(uuid, text, text) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.record_failed_staff_factor_attempt(uuid) TO app_staff, app_patient;
-GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions(uuid) TO app_staff, app_patient;
+GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.get_staff_security_profile() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.save_pending_staff_totp(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.confirm_staff_recovery_codes() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.begin_staff_login_challenge(text, timestamptz) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.consume_staff_totp_login(text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.consume_staff_recovery_login(text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.record_failed_staff_factor_attempt() TO app_patient;
+GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions() TO app_patient;
 
 -- app.get_public_config_bool reads FORCE-RLS public.system_settings, whose policy predicate
 -- calls app.current_org_id(). A SECURITY DEFINER runs as the function owner (the table owner),
@@ -638,6 +648,7 @@ SELECT (to_regprocedure('app.current_patient_user_id()') IS NOT NULL)::int AS sp
 \if :specialist_signup_has_current_patient_user_id
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_password_credentials_owner_ident;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_oauth_bindings_owner_ident;
+GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_staff_security_owner_ident;
 \endif
 \endif
 

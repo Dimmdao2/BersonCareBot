@@ -22,6 +22,19 @@ DB-role negatives, typecheck/scoped lint/build and serialized live DEV evidence 
 audit; no full CI runs before the next accumulated milestone. More than two correction rounds or a finding without
 owner/roadmap authority stops as an owner question.
 
+## 2026-07-20 — U3S `#919` independent-audit correction candidate
+
+The first security audit did not accept the worker candidate. Its three in-scope findings are corrected as one
+whole-stage pass, still without a completion claim: staff-security and authenticated signup-resend DB functions no
+longer accept a target user id and resolve only the signed identity-self principal; recovery and intermediate
+recovery-confirmation sessions are replacement-only and cannot enter general account, organization, clinical or
+unrelated doctor APIs; TOTP envelopes plus recovery/login hashes now use a dedicated versioned infrastructure
+keyring with retained read keys instead of `SESSION_COOKIE_SECRET`. The canonical bootstrap overlay grants these
+self functions only to the protected identity role, not to `app_staff`. OAuth/Telegram continuation remains the
+already documented P2 follow-up and is not pulled into U3S. Correction validation: focused U3S/DI suite `18` files /
+`145` tests PASS; webapp typecheck and scoped source lint PASS; Drizzle journal sync, frozen-migration guard, hard-
+migration protocol check and `git diff --check` PASS. Independent re-audit and live evidence remain gates.
+
 ## 2026-07-20 — U3S `#919` worker candidate ready for independent audit
 
 The isolated U3S branch now contains one coherent implementation candidate, not a completion claim. Specialist

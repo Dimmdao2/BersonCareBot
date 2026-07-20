@@ -100,26 +100,26 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       });
     },
 
-    async getLatestSpecialistSignupIntentForUser(userId) {
+    async getLatestSpecialistSignupIntentForUser() {
       return runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
           `SELECT id::text, user_id::text, challenge_id::text, email_normalized,
                   organization_title, specialist_full_name, status,
                   provisioned_organization_id::text, provisioned_specialist_id::text,
                   provisioned_membership_id::text
-           FROM app.get_latest_specialist_signup_intent_for_user($1::uuid)`,
-          [userId],
+           FROM app.get_latest_specialist_signup_intent_for_user()`,
+          [],
           tx,
         );
         return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
       });
     },
 
-    async replacePendingSpecialistSignupChallenge({ userId, challengeId }) {
+    async replacePendingSpecialistSignupChallenge({ challengeId }) {
       return runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<{ replaced: boolean }>(
-          "SELECT app.replace_pending_specialist_signup_challenge($1::uuid, $2::uuid) AS replaced",
-          [userId, challengeId],
+          "SELECT app.replace_pending_specialist_signup_challenge($1::uuid) AS replaced",
+          [challengeId],
           tx,
         );
         return result.rows[0]?.replaced === true;

@@ -12,6 +12,8 @@ describe("staff security database boundary", () => {
     expect(source).toContain("app.get_staff_security_profile");
     expect(source).toContain("app.complete_staff_totp_enrollment");
     expect(source).toContain("app.consume_staff_recovery_login");
+    expect(source).not.toContain("$1::uuid");
+    expect(source).not.toMatch(/app\.[a-z_]+\([^)]*user/iu);
     expect(source).not.toContain("staffSecurityProfiles");
     expect(source).not.toContain(".insert(");
     expect(source).not.toContain(".update(");
@@ -19,7 +21,7 @@ describe("staff security database boundary", () => {
 
   it("keeps session refresh behind the same narrow security-state projection", () => {
     const source = readFileSync(join(here, "pgUserByPhone.ts"), "utf8");
-    expect(source).toContain("app.get_staff_security_session_state(pu.id)");
+    expect(source).toContain("app.get_staff_security_session_state()");
     expect(source).not.toContain("LEFT JOIN staff_security_profiles");
   });
 
@@ -38,16 +40,20 @@ describe("staff security database boundary", () => {
     expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uq_specialist_signup_intents_user_id"');
     expect(overlay).toContain("apply migrations through 0215");
     expect(overlay).toContain(
-      "ALTER FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb)\n  OWNER TO :specialist_signup_staff_security_owner_ident",
+      "ALTER FUNCTION app.complete_staff_totp_enrollment(text, jsonb)\n  OWNER TO :specialist_signup_staff_security_owner_ident",
     );
     expect(overlay).toContain(
-      "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) TO app_staff",
+      "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_patient",
     );
     expect(overlay).not.toContain(
-      "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) TO app_patient",
+      "GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_staff",
     );
     expect(overlay).toContain(
-      "GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions(uuid) TO app_staff, app_patient",
+      "GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions() TO app_patient",
     );
+    expect(migration).toContain("CREATE OR REPLACE FUNCTION app.require_staff_security_self_user_id()");
+    expect(migration).toContain("app.current_patient_user_id()");
+    expect(migration).not.toMatch(/FUNCTION app\.(?:ensure|get|save|complete|confirm|begin|consume|record|revoke)_staff_[^(]+\([^)]*uuid/u);
+    expect(overlay).not.toMatch(/GRANT EXECUTE ON FUNCTION app\.(?:ensure|get|save|complete|confirm|begin|consume|record|revoke)_staff_[^(]+\([^)]*\) TO app_staff/u);
   });
 });

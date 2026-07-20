@@ -616,6 +616,9 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
 - `APP_BASE_URL=https://bersoncare.ru`
 - `DATABASE_URL=...`
 - `SESSION_COOKIE_SECRET=...`
+- `STAFF_SECURITY_KEYRING_JSON=...` — infrastructure key custody for staff TOTP/recovery envelopes. JSON contains
+  `activeKeyId` and a `keys` map of retained base64-encoded 32-byte keys. Rotate by adding a new key id, making it
+  active, and retaining old read keys until every envelope/hash using them is retired. Never log or commit values.
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=https://tgcarebot.bersonservices.ru`
 - `ALLOW_DEV_AUTH_BYPASS=...`

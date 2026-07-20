@@ -5,6 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 import { hashPin } from "@/modules/auth/pinHash";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
 
 const bodySchema = z.object({
@@ -64,8 +65,8 @@ export async function POST(request: Request) {
         { status: challenge.code === "rate_limited" ? 429 : 400 },
       );
     }
+    enterStaffSecuritySelfPrincipal(resend.userId, "api/auth/specialist-signup/start:resend-self");
     const replaced = await deps.organizationProvisioning.replacePendingSpecialistSignupChallenge({
-      userId: resend.userId,
       challengeId: challenge.challengeId,
     });
     if (!replaced) {

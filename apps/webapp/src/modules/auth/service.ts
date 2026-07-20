@@ -40,6 +40,7 @@ import {
 // does NOT import `@/app-layer/di/buildAppDeps` (which would cycle back to this file), so a
 // static import here is safe and does not create a require cycle.
 import { stampDbPrincipalFromSession } from "@/app-layer/principal/sessionPrincipal";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
 import { isDevAuthBypassEnabled } from "./devBypassPolicy";
 import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
@@ -833,6 +834,10 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       console.info("[auth] session_cookie_invalid_or_expired");
     }
     return null;
+  }
+
+  if (isPlatformUserUuid(decoded.user.userId)) {
+    enterStaffSecuritySelfPrincipal(decoded.user.userId, "getCurrentSession:identity-self");
   }
 
   const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);

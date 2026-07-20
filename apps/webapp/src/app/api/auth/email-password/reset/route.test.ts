@@ -67,7 +67,7 @@ describe("POST /api/auth/email-password/reset", () => {
       }),
     );
 
-    expect(revokeSessions).toHaveBeenCalledWith(uid);
+    expect(revokeSessions).toHaveBeenCalledWith();
     expect(revokeSessions.mock.invocationCallOrder[0]).toBeLessThan(updatePasswordHash.mock.invocationCallOrder[0]!);
     expect(res.status).toBe(200);
   });

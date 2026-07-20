@@ -15,6 +15,12 @@ export type StaffAccountPageContext = {
  */
 export const loadStaffAccountPageContext = cache(async (): Promise<StaffAccountPageContext> => {
   const session = await requireStaffAccountPage();
+  if (
+    session.staffSecurity?.assurance === "recovery" ||
+    session.staffSecurity?.assurance === "recovery_confirmation"
+  ) {
+    return { session, workspaceContext: null };
+  }
   const resolution = await buildAppDeps().organizationMembership.resolveOrganizationForUser({
     platformUserId: session.user.userId,
   });

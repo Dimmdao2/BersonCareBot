@@ -14,6 +14,8 @@ import { DoctorSection, DoctorSectionHeader, DoctorSectionTitle } from "@/shared
 import { AccountTabs, type AccountTab } from "./AccountTabs";
 import { loadStaffAccountPageContext } from "./accountContext";
 import { StaffSecuritySection } from "./StaffSecuritySection";
+import { isRestrictedStaffSecuritySession } from "@/app-layer/guards/requireRole";
+import { runWithStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)
@@ -32,10 +34,14 @@ export default async function AccountPage({
   searchParams?: Promise<{ tab?: string | string[] }>;
 }) {
   const sp = searchParams != null ? await searchParams : {};
-  const tab = parseTab(sp.tab);
+  const requestedTab = parseTab(sp.tab);
   const { session, workspaceContext } = await loadStaffAccountPageContext();
+  const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
+  const recoveryOnly =
+    session.staffSecurity?.assurance === "recovery" ||
+    session.staffSecurity?.assurance === "recovery_confirmation";
+  const tab = restrictedSecuritySession ? "security" : requestedTab;
   const deps = buildAppDeps();
-  const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
 
   let content: ReactNode;
   if (tab === "install") {
@@ -48,10 +54,12 @@ export default async function AccountPage({
       </DoctorSection>
     );
   } else if (tab === "security") {
-    const [storedStatus, timezone] = await Promise.all([
-      deps.staffSecurity.getStatus(session.user.userId),
-      getDoctorAccountTimezone(session.user.userId),
-    ]);
+    const storedStatus = await runWithStaffSecuritySelfPrincipal(
+      session.user.userId,
+      "app/account:security-self",
+      () => deps.staffSecurity.getStatus(),
+    );
+    const timezone = recoveryOnly ? null : await getDoctorAccountTimezone(session.user.userId);
     const status = storedStatus ?? {
       enrolled: false,
       recoveryConfirmed: false,
@@ -66,9 +74,11 @@ export default async function AccountPage({
         hasTimezone={Boolean(timezone)}
         hasOrganization={workspaceContext !== null}
         hasSpecialistBinding={workspaceContext?.specialistId != null}
+        recoveryOnly={recoveryOnly}
       />
     );
   } else if (tab === "notifications") {
+    const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
     const hasMax = Boolean(session.user.bindings.maxId?.trim());
     const [hasWebPushSubscription, channelPrefs, topicPrefs, doctorSettings] = await Promise.all([
@@ -108,6 +118,7 @@ export default async function AccountPage({
       />
     );
   } else {
+    const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
       ? await deps.systemSettings.listSettingsByScope("doctor", {
           organizationId: workspaceContext.organizationId,
@@ -143,6 +154,15 @@ export default async function AccountPage({
           />
         ) : null}
       </>
+    );
+  }
+
+  if (recoveryOnly) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-3 p-4">
+        <DoctorPageHeader title="Восстановление защиты" />
+        {content}
+      </main>
     );
   }
 

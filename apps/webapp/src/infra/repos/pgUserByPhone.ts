@@ -53,7 +53,7 @@ async function loadSessionUser(pool: Pool, userId: string): Promise<SessionUser>
             COALESCE(sss.session_version, 0) AS security_version,
             COALESCE(sss.factor_required, false) AS security_factor_required
      FROM platform_users pu
-     LEFT JOIN LATERAL app.get_staff_security_session_state(pu.id) sss ON true
+     LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
      WHERE pu.id = $1`,
     [canonicalId],
   );
@@ -115,7 +115,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
               COALESCE(sss.session_version, 0) AS security_version,
               COALESCE(sss.factor_required, false) AS security_factor_required
        FROM platform_users pu
-       LEFT JOIN LATERAL app.get_staff_security_session_state(pu.id) sss ON true
+       LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
        WHERE pu.id = $1`,
       [canonicalId],
     );

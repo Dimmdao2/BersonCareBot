@@ -23,22 +23,29 @@ export type StaffSecurityStatus = {
 };
 
 export type StaffSecurityPort = {
-  ensureProfile(userId: string): Promise<StaffSecurityProfile>;
-  getProfile(userId: string): Promise<StaffSecurityProfile | null>;
-  savePendingTotp(userId: string, encryptedSecret: string): Promise<void>;
+  ensureProfile(): Promise<StaffSecurityProfile>;
+  getProfile(): Promise<StaffSecurityProfile | null>;
+  savePendingTotp(encryptedSecret: string): Promise<void>;
   completeTotpEnrollment(input: {
-    userId: string;
     encryptedSecret: string;
     recoveryCodeHashes: string[];
   }): Promise<number>;
-  confirmRecoveryCodes(userId: string): Promise<boolean>;
-  beginLoginChallenge(input: { userId: string; challengeHash: string; expiresAt: string }): Promise<void>;
-  consumeTotpLogin(input: { userId: string; challengeHash: string }): Promise<boolean>;
+  confirmRecoveryCodes(): Promise<boolean>;
+  beginLoginChallenge(input: { challengeHash: string; expiresAt: string }): Promise<void>;
+  consumeTotpLogin(input: { challengeHash: string }): Promise<boolean>;
   consumeRecoveryLogin(input: {
-    userId: string;
     challengeHash: string;
     recoveryCodeHash: string;
   }): Promise<{ ok: boolean; sessionVersion: number }>;
-  recordFailedFactorAttempt(userId: string): Promise<string | null>;
-  revokeSessions(userId: string): Promise<number>;
+  recordFailedFactorAttempt(): Promise<string | null>;
+  revokeSessions(): Promise<number>;
+};
+
+export type StaffSecurityCryptoPort = {
+  encryptTotpSecret(secret: string): string;
+  decryptTotpSecret(envelope: string): string;
+  hashRecoveryCode(code: string): string;
+  matchRecoveryCodeHash(code: string, storedHashes: readonly string[]): string | null;
+  hashLoginChallenge(token: string): string;
+  matchesLoginChallenge(token: string, storedHash: string): boolean;
 };

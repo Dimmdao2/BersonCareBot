@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import {
   ensureDbPrincipalContext,
   enterWithDbPatientPrincipal,
@@ -95,6 +96,11 @@ export async function requireStaffAccountPage(): Promise<AppSession> {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
   }
   return session;
+}
+
+export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
+  const assurance = session.staffSecurity?.assurance;
+  return assurance === "pending_enrollment" || assurance === "recovery" || assurance === "recovery_confirmation";
 }
 
 /** Platform-only RSC entry. It intentionally does not resolve an organization membership. */
@@ -193,6 +199,7 @@ async function resolveDoctorWorkspaceAccessContext(
   if (
     session.staffSecurity?.assurance === "pending_enrollment" ||
     session.staffSecurity?.assurance === "recovery" ||
+    session.staffSecurity?.assurance === "recovery_confirmation" ||
     (session.user.securityFactorRequired === true &&
       session.staffSecurity?.assurance !== "factor_verified")
   ) {
@@ -245,6 +252,9 @@ export async function requireOrganizationWorkspaceContext(): Promise<DoctorWorks
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) {
     redirect(buildOwnHubUrlWithAccessDeniedToast(session.user.role));
+  }
+  if (isRestrictedStaffSecuritySession(session)) {
+    redirect(routePaths.account);
   }
   const accountCapabilities = resolveLaunchCapabilities({
     sessionRole: session.user.role,
@@ -305,7 +315,29 @@ export async function requireDoctorApiSession(): Promise<
   if (!hasLaunchCapability(accountCapabilities, "account.self")) {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
   }
+  if (isRestrictedStaffSecuritySession(session)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "security_setup_required" }, { status: 403 }),
+    };
+  }
   await stampBestEffortStaffPrincipal(session, "requireDoctorApiSession");
+  return { ok: true, session };
+}
+
+/** Identity-self security routes only; never grants organization-wide staff DB context. */
+export async function requireStaffSecurityApiSession(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requireStaffSecurityApiSession:pending" });
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  if (!canAccessDoctor(session.user.role) || !session.staffSecurity) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  enterStaffSecuritySelfPrincipal(session.user.userId, "requireStaffSecurityApiSession:self");
   return { ok: true, session };
 }
 

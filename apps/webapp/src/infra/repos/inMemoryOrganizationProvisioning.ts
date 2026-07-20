@@ -36,12 +36,12 @@ export function createInMemoryOrganizationProvisioningPort(): OrganizationProvis
       return intents.find((intent) => intent.challengeId === challengeId) ?? null;
     },
 
-    async getLatestSpecialistSignupIntentForUser(userId) {
-      return [...intents].reverse().find((intent) => intent.userId === userId) ?? null;
+    async getLatestSpecialistSignupIntentForUser() {
+      return intents.at(-1) ?? null;
     },
 
-    async replacePendingSpecialistSignupChallenge({ userId, challengeId }) {
-      const intent = [...intents].reverse().find((candidate) => candidate.userId === userId && candidate.status === "pending");
+    async replacePendingSpecialistSignupChallenge({ challengeId }) {
+      const intent = [...intents].reverse().find((candidate) => candidate.status === "pending");
       if (!intent) return false;
       intent.challengeId = challengeId;
       return true;

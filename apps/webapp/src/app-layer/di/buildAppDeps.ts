@@ -328,6 +328,7 @@ import { createOrganizationProvisioningService } from "@/modules/organization-pr
 import { createPgStaffSecurityPort } from "@/infra/repos/pgStaffSecurity";
 import { createInMemoryStaffSecurityPort } from "@/infra/repos/inMemoryStaffSecurity";
 import { createStaffSecurityService } from "@/modules/staff-security/service";
+import { createLazyStaffSecurityCryptoFromEnv } from "@/modules/staff-security/crypto";
 import { createPgOrganizationInvitesPort } from "@/infra/repos/pgOrganizationInvites";
 import { createInMemoryOrganizationInvitesPort } from "@/infra/repos/inMemoryOrganizationInvites";
 import { createOrganizationInvitesService } from "@/modules/organization-invites/service";
@@ -525,6 +526,7 @@ const organizationProvisioningService = createOrganizationProvisioningService({
 });
 const staffSecurityService = createStaffSecurityService(
   !inMemoryRepos ? createPgStaffSecurityPort() : createInMemoryStaffSecurityPort(),
+  createLazyStaffSecurityCryptoFromEnv(() => env.STAFF_SECURITY_KEYRING_JSON),
 );
 const organizationInvitesPort = !inMemoryRepos
   ? createPgOrganizationInvitesPort()

@@ -7,6 +7,7 @@ import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from "@/modules/auth/e
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { issueStaffLoginContinuation } from "@/modules/auth/staffLoginContinuation";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
   if (!sessionUser) {
     return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
   }
+  enterStaffSecuritySelfPrincipal(sessionUser.userId, "api/auth/email-password/login:primary-verified");
 
   const envRole = resolveRoleFromEnv({
     phone: sessionUser.phone,
@@ -48,14 +50,14 @@ export async function POST(request: Request) {
     sessionUser = { ...sessionUser, role: effectiveRole };
   }
 
-  let security = await deps.staffSecurity.getStatus(sessionUser.userId);
+  let security = await deps.staffSecurity.getStatus();
   let recoveringSpecialistSignup = false;
   if (!security) {
-    const signupIntent = await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser(sessionUser.userId);
+    const signupIntent = await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser();
     if (signupIntent) {
       recoveringSpecialistSignup = true;
       try {
-        security = await deps.staffSecurity.ensureProfile(sessionUser.userId);
+        security = await deps.staffSecurity.ensureProfile();
       } catch {
         return NextResponse.json(
           {
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
     }
   }
   if (security?.enrolled) {
-    const challenge = await deps.staffSecurity.beginLogin(sessionUser.userId);
+    const challenge = await deps.staffSecurity.beginLogin();
     if (challenge.required) {
       await issueStaffLoginContinuation({
         userId: sessionUser.userId,

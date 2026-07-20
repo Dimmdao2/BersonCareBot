@@ -8,6 +8,7 @@ import {
 } from "@/modules/auth/staffLoginContinuation";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 const bodySchema = z
   .object({
@@ -24,9 +25,9 @@ export async function POST(request: Request) {
   if (!continuation) {
     return NextResponse.json({ ok: false, error: "login_challenge_expired" }, { status: 401 });
   }
+  enterStaffSecuritySelfPrincipal(continuation.userId, "api/auth/email-password/login/factor:primary-verified");
   const deps = buildAppDeps();
   const result = await deps.staffSecurity.completeLogin({
-    userId: continuation.userId,
     token: continuation.token,
     code: parsed.data.code,
     recoveryCode: parsed.data.recoveryCode,

@@ -51,7 +51,7 @@ describe("POST /api/auth/specialist-signup/retry", () => {
 
     const response = await POST();
     expect(response.status).toBe(200);
-    expect(getLatestIntentMock).toHaveBeenCalledWith(userId);
+    expect(getLatestIntentMock).toHaveBeenCalledWith();
     expect(provisionOwnerMock).toHaveBeenCalledWith({
       userId,
       challengeId: "22222222-2222-4222-8222-222222222222",

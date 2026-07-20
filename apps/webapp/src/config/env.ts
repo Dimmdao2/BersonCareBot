@@ -42,6 +42,8 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? "").trim()),
+  /** Infrastructure key custody for U3S TOTP/recovery envelopes; parsed lazily by the typed crypto port. */
+  STAFF_SECURITY_KEYRING_JSON: z.string().optional(),
   /** Required in production; in test uses safe default. In development must be set (no repo default). */
   SESSION_COOKIE_SECRET: z
     .string()
@@ -182,6 +184,7 @@ const parsed = envSchema.parse({
   DATABASE_URL: process.env.DATABASE_URL,
   DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
   DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
+  STAFF_SECURITY_KEYRING_JSON: process.env.STAFF_SECURITY_KEYRING_JSON,
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
   INTEGRATOR_SHARED_SECRET: process.env.INTEGRATOR_SHARED_SECRET,
   INTEGRATOR_API_URL: process.env.INTEGRATOR_API_URL ?? "",

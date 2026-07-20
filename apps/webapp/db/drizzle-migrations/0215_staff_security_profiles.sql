@@ -27,7 +27,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS "uq_specialist_signup_intents_user_id"
 -- Runtime roles receive no table privileges: every read/write uses the narrow functions below.
 REVOKE ALL ON TABLE public.staff_security_profiles FROM PUBLIC;
 
-CREATE OR REPLACE FUNCTION app.ensure_staff_security_profile(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.require_staff_security_self_user_id()
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+	v_user_id uuid;
+BEGIN
+	v_user_id := app.current_patient_user_id();
+	IF v_user_id IS NULL THEN
+		RAISE EXCEPTION 'staff_security_self_principal_required';
+	END IF;
+	RETURN v_user_id;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION app.ensure_staff_security_profile()
 RETURNS void
 LANGUAGE sql
 VOLATILE
@@ -35,11 +53,11 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
 	INSERT INTO public.staff_security_profiles (user_id)
-	VALUES (p_user_id)
+	VALUES (app.require_staff_security_self_user_id())
 	ON CONFLICT (user_id) DO NOTHING
 $$;
 
-CREATE OR REPLACE FUNCTION app.get_staff_security_profile(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.get_staff_security_profile()
 RETURNS TABLE (
 	user_id uuid, factor_type text, totp_secret_ciphertext text,
 	pending_totp_secret_ciphertext text,
@@ -60,10 +78,10 @@ AS $$
 	       p.failed_attempts, p.locked_until, p.session_version,
 	       p.login_challenge_hash, p.login_challenge_expires_at
 	FROM public.staff_security_profiles p
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 $$;
 
-CREATE OR REPLACE FUNCTION app.get_staff_security_session_state(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.get_staff_security_session_state()
 RETURNS TABLE (session_version integer, factor_required boolean)
 LANGUAGE sql
 STABLE
@@ -72,10 +90,10 @@ SET search_path = pg_catalog
 AS $$
 	SELECT p.session_version, (p.factor_verified_at IS NOT NULL)
 	FROM public.staff_security_profiles p
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 $$;
 
-CREATE OR REPLACE FUNCTION app.save_pending_staff_totp(p_user_id uuid, p_secret_ciphertext text)
+CREATE OR REPLACE FUNCTION app.save_pending_staff_totp(p_secret_ciphertext text)
 RETURNS void
 LANGUAGE sql
 VOLATILE
@@ -83,7 +101,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog
 AS $$
 	INSERT INTO public.staff_security_profiles (user_id, pending_totp_secret_ciphertext, failed_attempts, locked_until, updated_at)
-	VALUES (p_user_id, p_secret_ciphertext, 0, NULL, now())
+	VALUES (app.require_staff_security_self_user_id(), p_secret_ciphertext, 0, NULL, now())
 	ON CONFLICT (user_id) DO UPDATE SET
 		pending_totp_secret_ciphertext = EXCLUDED.pending_totp_secret_ciphertext,
 		failed_attempts = 0,
@@ -92,7 +110,6 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION app.complete_staff_totp_enrollment(
-	p_user_id uuid,
 	p_secret_ciphertext text,
 	p_recovery_code_hashes jsonb
 )
@@ -122,7 +139,7 @@ BEGIN
 	    locked_until = NULL,
 	    session_version = p.session_version + 1,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	  AND p.pending_totp_secret_ciphertext = p_secret_ciphertext
 	RETURNING p.session_version INTO v_session_version;
 
@@ -133,7 +150,7 @@ BEGIN
 END
 $$;
 
-CREATE OR REPLACE FUNCTION app.confirm_staff_recovery_codes(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.confirm_staff_recovery_codes()
 RETURNS boolean
 LANGUAGE plpgsql
 VOLATILE
@@ -143,7 +160,7 @@ AS $$
 BEGIN
 	UPDATE public.staff_security_profiles p
 	SET recovery_codes_confirmed_at = now(), updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	  AND p.factor_verified_at IS NOT NULL
 	  AND jsonb_array_length(p.recovery_code_hashes) > 0;
 	RETURN FOUND;
@@ -151,7 +168,6 @@ END
 $$;
 
 CREATE OR REPLACE FUNCTION app.begin_staff_login_challenge(
-	p_user_id uuid,
 	p_challenge_hash text,
 	p_expires_at timestamptz
 )
@@ -166,12 +182,12 @@ BEGIN
 	SET login_challenge_hash = p_challenge_hash,
 	    login_challenge_expires_at = p_expires_at,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id AND p.factor_verified_at IS NOT NULL;
+	WHERE p.user_id = app.require_staff_security_self_user_id() AND p.factor_verified_at IS NOT NULL;
 	RETURN FOUND;
 END
 $$;
 
-CREATE OR REPLACE FUNCTION app.consume_staff_totp_login(p_user_id uuid, p_challenge_hash text)
+CREATE OR REPLACE FUNCTION app.consume_staff_totp_login(p_challenge_hash text)
 RETURNS boolean
 LANGUAGE plpgsql
 VOLATILE
@@ -185,7 +201,7 @@ BEGIN
 	    failed_attempts = 0,
 	    locked_until = NULL,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	  AND p.login_challenge_hash = p_challenge_hash
 	  AND p.login_challenge_expires_at > now()
 	  AND (p.locked_until IS NULL OR p.locked_until <= now());
@@ -194,7 +210,6 @@ END
 $$;
 
 CREATE OR REPLACE FUNCTION app.consume_staff_recovery_login(
-	p_user_id uuid,
 	p_challenge_hash text,
 	p_recovery_code_hash text
 )
@@ -210,7 +225,7 @@ DECLARE
 BEGIN
 	SELECT p.* INTO v_profile
 	FROM public.staff_security_profiles p
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	FOR UPDATE;
 
 	IF NOT FOUND
@@ -236,14 +251,14 @@ BEGIN
 	    locked_until = NULL,
 	    session_version = p.session_version + 1,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	RETURNING p.session_version INTO v_profile.session_version;
 
 	RETURN QUERY SELECT true, v_profile.session_version;
 END
 $$;
 
-CREATE OR REPLACE FUNCTION app.record_failed_staff_factor_attempt(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.record_failed_staff_factor_attempt()
 RETURNS timestamptz
 LANGUAGE plpgsql
 VOLATILE
@@ -264,13 +279,13 @@ BEGIN
 	      ELSE p.locked_until
 	    END,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	RETURNING p.locked_until INTO v_locked_until;
 	RETURN v_locked_until;
 END
 $$;
 
-CREATE OR REPLACE FUNCTION app.revoke_staff_sessions(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.revoke_staff_sessions()
 RETURNS integer
 LANGUAGE plpgsql
 VOLATILE
@@ -285,7 +300,7 @@ BEGIN
 	    login_challenge_hash = NULL,
 	    login_challenge_expires_at = NULL,
 	    updated_at = now()
-	WHERE p.user_id = p_user_id
+	WHERE p.user_id = app.require_staff_security_self_user_id()
 	RETURNING p.session_version INTO v_session_version;
 	IF v_session_version IS NULL THEN
 		RAISE EXCEPTION 'staff_security_profile_missing';
@@ -295,7 +310,6 @@ END
 $$;
 
 CREATE OR REPLACE FUNCTION app.replace_pending_specialist_signup_challenge(
-	p_user_id uuid,
 	p_challenge_id uuid
 )
 RETURNS boolean
@@ -307,12 +321,12 @@ AS $$
 BEGIN
 	UPDATE public.specialist_signup_intents
 	SET challenge_id = p_challenge_id
-	WHERE user_id = p_user_id AND status = 'pending';
+	WHERE user_id = app.require_staff_security_self_user_id() AND status = 'pending';
 	RETURN FOUND;
 END
 $$;
 
-CREATE OR REPLACE FUNCTION app.get_latest_specialist_signup_intent_for_user(p_user_id uuid)
+CREATE OR REPLACE FUNCTION app.get_latest_specialist_signup_intent_for_user()
 RETURNS TABLE (
 	id uuid, user_id uuid, challenge_id uuid, email_normalized text,
 	organization_title text, specialist_full_name text, status text,
@@ -328,52 +342,42 @@ AS $$
 	       i.specialist_full_name, i.status, i.provisioned_organization_id,
 	       i.provisioned_specialist_id, i.provisioned_membership_id
 	FROM public.specialist_signup_intents i
-	WHERE i.user_id = p_user_id
+	WHERE i.user_id = app.require_staff_security_self_user_id()
 	ORDER BY i.created_at DESC
 	LIMIT 1
 $$;
 
-REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.ensure_staff_security_profile(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_staff_security_profile(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.get_staff_security_session_state(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.save_pending_staff_totp(uuid, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.confirm_staff_recovery_codes(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.consume_staff_totp_login(uuid, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.consume_staff_recovery_login(uuid, text, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.record_failed_staff_factor_attempt(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.revoke_staff_sessions(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.require_staff_security_self_user_id() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_latest_specialist_signup_intent_for_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.ensure_staff_security_profile() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_staff_security_profile() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.get_staff_security_session_state() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.save_pending_staff_totp(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.confirm_staff_recovery_codes() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.begin_staff_login_challenge(text, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.consume_staff_totp_login(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.consume_staff_recovery_login(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.record_failed_staff_factor_attempt() FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.revoke_staff_sessions() FROM PUBLIC;
 
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') THEN
-		GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid, uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile(uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.get_staff_security_profile(uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state(uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.consume_staff_totp_login(uuid, text) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.consume_staff_recovery_login(uuid, text, text) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.record_failed_staff_factor_attempt(uuid) TO app_patient;
-		GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions(uuid) TO app_patient;
-	END IF;
-	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff') THEN
-		GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.get_staff_security_profile(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.save_pending_staff_totp(uuid, text) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(uuid, text, jsonb) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.confirm_staff_recovery_codes(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.begin_staff_login_challenge(uuid, text, timestamptz) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.consume_staff_totp_login(uuid, text) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.consume_staff_recovery_login(uuid, text, text) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.record_failed_staff_factor_attempt(uuid) TO app_staff;
-		GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions(uuid) TO app_staff;
+		GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.get_latest_specialist_signup_intent_for_user() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.ensure_staff_security_profile() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.get_staff_security_profile() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.get_staff_security_session_state() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.save_pending_staff_totp(text) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.complete_staff_totp_enrollment(text, jsonb) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.confirm_staff_recovery_codes() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.begin_staff_login_challenge(text, timestamptz) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.consume_staff_totp_login(text) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.consume_staff_recovery_login(text, text) TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.record_failed_staff_factor_attempt() TO app_patient;
+		GRANT EXECUTE ON FUNCTION app.revoke_staff_sessions() TO app_patient;
 	END IF;
 END
 $$;

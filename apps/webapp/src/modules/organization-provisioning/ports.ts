@@ -44,8 +44,8 @@ export type OrganizationProvisioningPort = {
     challengeId: string;
   }): Promise<SpecialistSignupIntent | null>;
   getSpecialistSignupIntentByChallengeId(challengeId: string): Promise<SpecialistSignupIntent | null>;
-  getLatestSpecialistSignupIntentForUser(userId: string): Promise<SpecialistSignupIntent | null>;
-  replacePendingSpecialistSignupChallenge(input: { userId: string; challengeId: string }): Promise<boolean>;
+  getLatestSpecialistSignupIntentForUser(): Promise<SpecialistSignupIntent | null>;
+  replacePendingSpecialistSignupChallenge(input: { challengeId: string }): Promise<boolean>;
   provisionSpecialistOwner(input: SpecialistOwnerProvisioningInput): Promise<SpecialistOwnerProvisioningResult>;
   ensureOwnBookableSpecialist(
     input: EnsureOwnBookableSpecialistInput,

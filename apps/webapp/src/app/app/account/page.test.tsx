@@ -17,6 +17,8 @@ const {
   notificationsMock,
   settingsFormMock,
   installMock,
+  staffSecurityMock,
+  staffSecuritySectionMock,
 } = vi.hoisted(() => ({
   loadContextMock: vi.fn(),
   listSettingsByScopeMock: vi.fn(),
@@ -30,6 +32,8 @@ const {
   notificationsMock: vi.fn(() => <section data-testid="notifications" />),
   settingsFormMock: vi.fn(() => <section data-testid="specialist-defaults" />),
   installMock: vi.fn(() => <section data-testid="install" />),
+  staffSecurityMock: { getStatus: vi.fn() },
+  staffSecuritySectionMock: vi.fn(() => <section data-testid="staff-security" />),
 }));
 
 vi.mock("./accountContext", () => ({ loadStaffAccountPageContext: loadContextMock }));
@@ -40,7 +44,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     webPushSubscriptions: { hasAnyForUserId: hasAnyForUserIdMock },
     channelPreferencesPort: { getPreferences: getPreferencesMock },
     topicChannelPrefs: { listByUserId: listTopicPrefsMock },
+    staffSecurity: staffSecurityMock,
   }),
+}));
+vi.mock("@/app-layer/principal/staffSecuritySelfPrincipal", () => ({
+  runWithStaffSecuritySelfPrincipal: vi.fn((_userId: string, _source: string, callback: () => unknown) => callback()),
 }));
 vi.mock("@/app-layer/doctor/accountTimezone", () => ({ getDoctorAccountTimezone: getTimezoneMock }));
 vi.mock("@/modules/doctor-notifications/doctorProfileTopicChannelsModel", () => ({
@@ -53,6 +61,7 @@ vi.mock("@/app/app/settings/DoctorNotificationChannelsSection", () => ({
 }));
 vi.mock("@/app/app/settings/SettingsForm", () => ({ SettingsForm: settingsFormMock }));
 vi.mock("@/shared/ui/doctor/pwa/StaffPwaInstallSection", () => ({ StaffPwaInstallSection: installMock }));
+vi.mock("./StaffSecuritySection", () => ({ StaffSecuritySection: staffSecuritySectionMock }));
 vi.mock("@/shared/ui/doctor/DoctorAppShell", () => ({
   DoctorAppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
@@ -95,6 +104,13 @@ describe("shared staff account", () => {
     getPreferencesMock.mockResolvedValue([{ channelCode: "web_push", isEnabledForNotifications: true }]);
     listTopicPrefsMock.mockResolvedValue([]);
     getTimezoneMock.mockResolvedValue("Europe/Moscow");
+    staffSecurityMock.getStatus.mockResolvedValue({
+      enrolled: true,
+      recoveryConfirmed: true,
+      replacementRequired: true,
+      lockedUntil: null,
+      sessionVersion: 2,
+    });
   });
 
   it("reuses the personal email, timezone and retained specialist defaults on the profile tab", async () => {
@@ -165,4 +181,34 @@ describe("shared staff account", () => {
     render(await AccountPage({ searchParams: Promise.resolve({ tab: "unknown" }) }));
     expect(screen.getByRole("link", { name: "Профиль" })).toHaveAttribute("aria-current", "page");
   });
+
+  it.each(["recovery", "recovery_confirmation"] as const)(
+    "renders a %s session as a replacement-only surface with no general account UI",
+    async (assurance) => {
+      loadContextMock.mockResolvedValue({
+        ...clinicalContext,
+        session: {
+          ...clinicalContext.session,
+          staffSecurity: { assurance },
+        },
+        workspaceContext: null,
+      });
+
+      render(await AccountPage({ searchParams: Promise.resolve({ tab: "profile" }) }));
+
+      expect(screen.getByRole("heading", { name: "Восстановление защиты" })).toBeInTheDocument();
+      expect(screen.getByTestId("staff-security")).toBeInTheDocument();
+      expect(staffSecuritySectionMock).toHaveBeenCalledWith(
+        expect.objectContaining({ recoveryOnly: true }),
+        undefined,
+      );
+      expect(screen.queryByRole("link", { name: "Профиль" })).not.toBeInTheDocument();
+      expect(screen.queryByTestId("account-email")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("timezone")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("notifications")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("install")).not.toBeInTheDocument();
+      expect(getProfileEmailFieldsMock).not.toHaveBeenCalled();
+      expect(getTimezoneMock).not.toHaveBeenCalled();
+    },
+  );
 });

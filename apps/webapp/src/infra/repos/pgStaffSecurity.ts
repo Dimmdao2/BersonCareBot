@@ -45,85 +45,73 @@ function mapProfile(row: unknown): StaffSecurityProfile {
   };
 }
 
-async function getProfile(userId: string): Promise<StaffSecurityProfile | null> {
-  const result = await runWebappPgText(
-    "SELECT * FROM app.get_staff_security_profile($1::uuid)",
-    [userId],
-  );
+async function getProfile(): Promise<StaffSecurityProfile | null> {
+  const result = await runWebappPgText("SELECT * FROM app.get_staff_security_profile()");
   return result.rows[0] ? mapProfile(result.rows[0]) : null;
 }
 
 export function createPgStaffSecurityPort(): StaffSecurityPort {
   return {
-    async ensureProfile(userId) {
-      await runWebappPgText("SELECT app.ensure_staff_security_profile($1::uuid)", [userId]);
-      const profile = await getProfile(userId);
+    async ensureProfile() {
+      await runWebappPgText("SELECT app.ensure_staff_security_profile()");
+      const profile = await getProfile();
       if (!profile) throw new Error("staff_security_profile_missing");
       return profile;
     },
 
     getProfile,
 
-    async savePendingTotp(userId, encryptedSecret) {
-      await runWebappPgText("SELECT app.save_pending_staff_totp($1::uuid, $2::text)", [userId, encryptedSecret]);
+    async savePendingTotp(encryptedSecret) {
+      await runWebappPgText("SELECT app.save_pending_staff_totp($1::text)", [encryptedSecret]);
     },
 
-    async completeTotpEnrollment({ userId, encryptedSecret, recoveryCodeHashes }) {
+    async completeTotpEnrollment({ encryptedSecret, recoveryCodeHashes }) {
       const result = await runWebappPgText(
-        "SELECT app.complete_staff_totp_enrollment($1::uuid, $2::text, $3::jsonb) AS session_version",
-        [userId, encryptedSecret, JSON.stringify(recoveryCodeHashes)],
+        "SELECT app.complete_staff_totp_enrollment($1::text, $2::jsonb) AS session_version",
+        [encryptedSecret, JSON.stringify(recoveryCodeHashes)],
       );
       return versionRowSchema.parse(result.rows[0]).session_version;
     },
 
-    async confirmRecoveryCodes(userId) {
-      const result = await runWebappPgText(
-        "SELECT app.confirm_staff_recovery_codes($1::uuid) AS ok",
-        [userId],
-      );
+    async confirmRecoveryCodes() {
+      const result = await runWebappPgText("SELECT app.confirm_staff_recovery_codes() AS ok");
       return booleanRowSchema.parse(result.rows[0]).ok;
     },
 
-    async beginLoginChallenge({ userId, challengeHash, expiresAt }) {
+    async beginLoginChallenge({ challengeHash, expiresAt }) {
       const result = await runWebappPgText(
-        "SELECT app.begin_staff_login_challenge($1::uuid, $2::text, $3::timestamptz) AS ok",
-        [userId, challengeHash, expiresAt],
+        "SELECT app.begin_staff_login_challenge($1::text, $2::timestamptz) AS ok",
+        [challengeHash, expiresAt],
       );
       if (!booleanRowSchema.parse(result.rows[0]).ok) {
         throw new Error("staff_security_factor_not_enrolled");
       }
     },
 
-    async consumeTotpLogin({ userId, challengeHash }) {
+    async consumeTotpLogin({ challengeHash }) {
       const result = await runWebappPgText(
-        "SELECT app.consume_staff_totp_login($1::uuid, $2::text) AS ok",
-        [userId, challengeHash],
+        "SELECT app.consume_staff_totp_login($1::text) AS ok",
+        [challengeHash],
       );
       return booleanRowSchema.parse(result.rows[0]).ok;
     },
 
-    async consumeRecoveryLogin({ userId, challengeHash, recoveryCodeHash }) {
+    async consumeRecoveryLogin({ challengeHash, recoveryCodeHash }) {
       const result = await runWebappPgText(
-        "SELECT * FROM app.consume_staff_recovery_login($1::uuid, $2::text, $3::text)",
-        [userId, challengeHash, recoveryCodeHash],
+        "SELECT * FROM app.consume_staff_recovery_login($1::text, $2::text)",
+        [challengeHash, recoveryCodeHash],
       );
       const row = recoveryResultRowSchema.parse(result.rows[0]);
       return { ok: row.ok, sessionVersion: row.session_version };
     },
 
-    async recordFailedFactorAttempt(userId) {
-      const result = await runWebappPgText(
-        "SELECT app.record_failed_staff_factor_attempt($1::uuid) AS locked_until",
-        [userId],
-      );
+    async recordFailedFactorAttempt() {
+      const result = await runWebappPgText("SELECT app.record_failed_staff_factor_attempt() AS locked_until");
       return nullableToIsoStringSafe(lockedRowSchema.parse(result.rows[0]).locked_until);
     },
 
-    async revokeSessions(userId) {
-      const result = await runWebappPgText(
-        "SELECT app.revoke_staff_sessions($1::uuid) AS session_version",
-        [userId],
-      );
+    async revokeSessions() {
+      const result = await runWebappPgText("SELECT app.revoke_staff_sessions() AS session_version");
       return versionRowSchema.parse(result.rows[0]).session_version;
     },
   };

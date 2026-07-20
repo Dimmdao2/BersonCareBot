@@ -24,28 +24,28 @@ export function resetInMemoryStaffSecurityForTests(): void {
   profiles.clear();
 }
 
-export function createInMemoryStaffSecurityPort(): StaffSecurityPort {
+export function createInMemoryStaffSecurityPort(selfUserId = "11111111-1111-4111-8111-111111111111"): StaffSecurityPort {
   return {
-    async ensureProfile(userId) {
-      const profile = profiles.get(userId) ?? fresh(userId);
-      profiles.set(userId, profile);
+    async ensureProfile() {
+      const profile = profiles.get(selfUserId) ?? fresh(selfUserId);
+      profiles.set(selfUserId, profile);
       return { ...profile, recoveryCodeHashes: [...profile.recoveryCodeHashes] };
     },
-    async getProfile(userId) {
-      const profile = profiles.get(userId);
+    async getProfile() {
+      const profile = profiles.get(selfUserId);
       return profile ? { ...profile, recoveryCodeHashes: [...profile.recoveryCodeHashes] } : null;
     },
-    async savePendingTotp(userId, encryptedSecret) {
-      const profile = profiles.get(userId) ?? fresh(userId);
-      profiles.set(userId, {
+    async savePendingTotp(encryptedSecret) {
+      const profile = profiles.get(selfUserId) ?? fresh(selfUserId);
+      profiles.set(selfUserId, {
         ...profile,
         pendingTotpSecretCiphertext: encryptedSecret,
         failedAttempts: 0,
         lockedUntil: null,
       });
     },
-    async completeTotpEnrollment({ userId, encryptedSecret, recoveryCodeHashes }) {
-      const profile = profiles.get(userId);
+    async completeTotpEnrollment({ encryptedSecret, recoveryCodeHashes }) {
+      const profile = profiles.get(selfUserId);
       if (
         !profile ||
         profile.pendingTotpSecretCiphertext !== encryptedSecret
@@ -62,20 +62,20 @@ export function createInMemoryStaffSecurityPort(): StaffSecurityPort {
       profile.sessionVersion += 1;
       return profile.sessionVersion;
     },
-    async confirmRecoveryCodes(userId) {
-      const profile = profiles.get(userId);
+    async confirmRecoveryCodes() {
+      const profile = profiles.get(selfUserId);
       if (!profile?.factorVerifiedAt || profile.recoveryCodeHashes.length === 0) return false;
       profile.recoveryCodesConfirmedAt = new Date().toISOString();
       return true;
     },
-    async beginLoginChallenge({ userId, challengeHash, expiresAt }) {
-      const profile = profiles.get(userId);
+    async beginLoginChallenge({ challengeHash, expiresAt }) {
+      const profile = profiles.get(selfUserId);
       if (!profile?.factorVerifiedAt) throw new Error("staff_security_factor_not_enrolled");
       profile.loginChallengeHash = challengeHash;
       profile.loginChallengeExpiresAt = expiresAt;
     },
-    async consumeTotpLogin({ userId, challengeHash }) {
-      const profile = profiles.get(userId);
+    async consumeTotpLogin({ challengeHash }) {
+      const profile = profiles.get(selfUserId);
       if (
         !profile ||
         profile.loginChallengeHash !== challengeHash ||
@@ -89,8 +89,8 @@ export function createInMemoryStaffSecurityPort(): StaffSecurityPort {
       profile.lockedUntil = null;
       return true;
     },
-    async consumeRecoveryLogin({ userId, challengeHash, recoveryCodeHash }) {
-      const profile = profiles.get(userId);
+    async consumeRecoveryLogin({ challengeHash, recoveryCodeHash }) {
+      const profile = profiles.get(selfUserId);
       if (
         !profile ||
         profile.loginChallengeHash !== challengeHash ||
@@ -107,8 +107,8 @@ export function createInMemoryStaffSecurityPort(): StaffSecurityPort {
       profile.loginChallengeExpiresAt = null;
       return { ok: true, sessionVersion: profile.sessionVersion };
     },
-    async recordFailedFactorAttempt(userId) {
-      const profile = profiles.get(userId);
+    async recordFailedFactorAttempt() {
+      const profile = profiles.get(selfUserId);
       if (!profile) return null;
       if (profile.lockedUntil && Date.parse(profile.lockedUntil) <= Date.now()) {
         profile.failedAttempts = 0;
@@ -118,8 +118,8 @@ export function createInMemoryStaffSecurityPort(): StaffSecurityPort {
       if (profile.failedAttempts >= 5) profile.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       return profile.lockedUntil;
     },
-    async revokeSessions(userId) {
-      const profile = profiles.get(userId);
+    async revokeSessions() {
+      const profile = profiles.get(selfUserId);
       if (!profile) throw new Error("staff_security_profile_missing");
       profile.sessionVersion += 1;
       profile.loginChallengeHash = null;

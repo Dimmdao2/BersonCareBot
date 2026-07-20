@@ -34,6 +34,7 @@ import {
   requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
+  requireStaffSecurityApiSession,
 } from "./requireRole";
 import { resolveLaunchCapabilities } from "./workspaceCapabilities";
 
@@ -128,6 +129,23 @@ describe("requireDoctorWorkspaceApiContext", () => {
     expect(gate.response.status).toBe(403);
     expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
   });
+
+  it.each(["recovery", "recovery_confirmation"] as const)(
+    "denies the clinical workspace to a %s session",
+    async (assurance) => {
+      getCurrentSessionMock.mockResolvedValueOnce({
+        ...session("doctor"),
+        staffSecurity: { assurance },
+      });
+
+      const gate = await requireDoctorWorkspaceApiContext();
+
+      expect(gate.ok).toBe(false);
+      if (gate.ok) return;
+      expect(gate.response.status).toBe(403);
+      expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns resolved organization membership context", async () => {
     const doctor = session("doctor");
@@ -298,6 +316,43 @@ describe("requireDoctorApiSession", () => {
 
     expect(gate).toEqual({ ok: true, session: doctor });
     expect(getCurrentDbPrincipal()).toMatchObject({ kind: "bootstrap" });
+  });
+
+  it.each(["pending_enrollment", "recovery", "recovery_confirmation"] as const)(
+    "denies unrelated account and doctor APIs to a %s session",
+    async (assurance) => {
+      getCurrentSessionMock.mockResolvedValueOnce({
+        ...session("doctor"),
+        staffSecurity: { assurance },
+      });
+
+      const gate = await requireDoctorApiSession();
+
+      expect(gate.ok).toBe(false);
+      if (gate.ok) return;
+      expect(gate.response.status).toBe(403);
+      await expect(gate.response.json()).resolves.toMatchObject({ error: "security_setup_required" });
+      expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("requireStaffSecurityApiSession", () => {
+  it("allows recovery only into identity-self security APIs", async () => {
+    const recovery = {
+      ...session("doctor"),
+      staffSecurity: { assurance: "recovery" as const },
+    };
+    getCurrentSessionMock.mockResolvedValueOnce(recovery);
+
+    const gate = await requireStaffSecurityApiSession();
+
+    expect(gate).toEqual({ ok: true, session: recovery });
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toMatchObject({
+      kind: "patient",
+      platformUserId: recovery.user.userId,
+    });
   });
 });
 

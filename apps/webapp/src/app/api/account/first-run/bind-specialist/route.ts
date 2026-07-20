@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireAdminWorkspaceApiContext } from "@/app-layer/guards/requireRole";
+import { runWithStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 export async function POST() {
   const gate = await requireAdminWorkspaceApiContext();
@@ -10,7 +11,11 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "owner_required" }, { status: 403 });
   }
   const deps = buildAppDeps();
-  const security = await deps.staffSecurity.getStatus(ctx.session.user.userId);
+  const security = await runWithStaffSecuritySelfPrincipal(
+    ctx.session.user.userId,
+    "api/account/first-run/bind-specialist:security-self",
+    () => deps.staffSecurity.getStatus(),
+  );
   if (
     !security?.enrolled ||
     !security.recoveryConfirmed ||

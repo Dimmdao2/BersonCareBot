@@ -5,6 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getSpecialistSignupEnabled } from "@/modules/auth/specialistSignupRollout";
 import { getCurrentSession, setSessionFromUser } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 const bodySchema = z.object({
   challengeId: z.string().uuid(),
@@ -63,8 +64,9 @@ export async function POST(request: Request) {
       );
     }
 
+    enterStaffSecuritySelfPrincipal(verifiedUserId, "api/auth/specialist-signup/confirm:verified-self");
     try {
-      await deps.staffSecurity.ensureProfile(verifiedUserId);
+      await deps.staffSecurity.ensureProfile();
     } catch {
       return NextResponse.json(
         {
@@ -85,8 +87,9 @@ export async function POST(request: Request) {
   }
 
   if (establishedSession) {
+    enterStaffSecuritySelfPrincipal(userId, "api/auth/specialist-signup/confirm:retry-self");
     try {
-      await deps.staffSecurity.ensureProfile(userId);
+      await deps.staffSecurity.ensureProfile();
     } catch {
       return NextResponse.json(
         {

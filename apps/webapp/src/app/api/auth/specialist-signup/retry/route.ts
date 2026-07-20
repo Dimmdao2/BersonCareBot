@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 export async function POST() {
   stampBootstrapPrincipal("api/auth/specialist-signup/retry:POST");
@@ -17,7 +18,8 @@ export async function POST() {
     return NextResponse.json({ ok: false, error: "security_session_required" }, { status: 403 });
   }
   const deps = buildAppDeps();
-  const intent = await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser(session.user.userId);
+  enterStaffSecuritySelfPrincipal(session.user.userId, "api/auth/specialist-signup/retry:self");
+  const intent = await deps.organizationProvisioning.getLatestSpecialistSignupIntentForUser();
   if (!intent) return NextResponse.json({ ok: false, error: "signup_intent_not_found" }, { status: 404 });
   try {
     const provisioned = await deps.organizationProvisioning.provisionSpecialistOwner({

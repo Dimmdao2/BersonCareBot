@@ -150,6 +150,10 @@ user; terminal token сам по себе не выбирает workspace.
   a new self-signup owner must enroll TOTP, verify it and explicitly acknowledge saved one-time recovery codes;
   there is no grace period, and every new password session requires the factor. A recovery-code login is restricted
   to factor replacement, increments the session generation and cannot reach clinical/high-risk owner actions.
+  Recovery and recovery-confirmation sessions cannot use general account/email/timezone, organization, clinical or
+  unrelated API surfaces; the account page renders only the factor-replacement flow until recovery codes are
+  acknowledged. TOTP secrets and recovery/login challenge hashes use a dedicated versioned infrastructure keyring
+  with an active write key id and retained read keys; they never derive from `SESSION_COOKIE_SECRET`.
   Existing staff accounts are not silently enrolled merely by viewing Account security. Exact future factor choices
   remain security architecture rather than another UX08 product gate.
 
@@ -215,9 +219,14 @@ staff later grows the same organization.
 ### U3S persistence and rollback contract
 
 - Migration `0215_staff_security_profiles.sql` adds one global identity-security row per canonical user, the
-  one-intent-per-user uniqueness guard and atomic narrow accessors. Runtime repositories do not receive or use broad
-  table DML; the canonical specialist bootstrap overlay reasserts exact function owners and grants after DB-role
-  hardening.
+  one-intent-per-user uniqueness guard and atomic narrow accessors. Every runtime security/signup-resend accessor is
+  identity-self scoped through the signed protected principal and accepts no target user id; `app_staff` receives no
+  security-profile accessor grant. Runtime repositories do not receive or use broad table DML; the canonical
+  specialist bootstrap overlay reasserts exact function owners and grants after DB-role hardening.
+- `STAFF_SECURITY_KEYRING_JSON` is infrastructure key custody, not integration configuration. Its typed format is
+  `{ "activeKeyId": "<non-secret-id>", "keys": { "<id>": "<base64-32-byte-key>" } }`. Rotation adds the new
+  active key while retaining every old read key until all envelopes and keyed hashes using it have been retired;
+  missing, wrong and tampered key material fails closed. Values are never written to repository docs or logs.
 - Roll forward is idempotent. A code rollback disables public signup first and preserves enrolled factor/recovery
   rows; it must not delete security state from active accounts. The overlay's explicit DOWN is used only together
   with a compatible application rollback. Existing provisioned organizations are never recreated or backfilled by

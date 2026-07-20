@@ -112,7 +112,7 @@ describe("POST /api/auth/email-password/login", () => {
 
     const response = await POST(loginRequest());
     expect(response.status).toBe(200);
-    expect(ensureProfileMock).toHaveBeenCalledWith(user.userId);
+    expect(ensureProfileMock).toHaveBeenCalledWith();
     expect(setSessionFromUserMock).toHaveBeenCalledWith(
       { ...user, role: "doctor" },
       { staffSecurity: { assurance: "pending_enrollment" } },

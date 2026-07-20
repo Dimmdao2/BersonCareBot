@@ -1,15 +1,8 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { env } from "@/config/env";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const TOTP_STEP_SECONDS = 30;
 const TOTP_DIGITS = 6;
-
-function encryptionKey(): Buffer {
-  return createHash("sha256")
-    .update(`bersoncare:staff-totp:v1:${env.SESSION_COOKIE_SECRET}`)
-    .digest();
-}
 
 export function generateTotpSecret(): string {
   const bytes = randomBytes(20);
@@ -32,21 +25,6 @@ function decodeBase32(value: string): Buffer {
   const bytes: number[] = [];
   for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(Number.parseInt(bits.slice(i, i + 8), 2));
   return Buffer.from(bytes);
-}
-
-export function encryptTotpSecret(secret: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
-  return [iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
-}
-
-export function decryptTotpSecret(ciphertext: string): string {
-  const [ivRaw, tagRaw, payloadRaw] = ciphertext.split(".");
-  if (!ivRaw || !tagRaw || !payloadRaw) throw new Error("invalid_totp_ciphertext");
-  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivRaw, "base64url"));
-  decipher.setAuthTag(Buffer.from(tagRaw, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(payloadRaw, "base64url")), decipher.final()]).toString("utf8");
 }
 
 function codeForCounter(secret: string, counter: number): string {
@@ -79,10 +57,4 @@ export function generateRecoveryCodes(count = 10): string[] {
     const raw = randomBytes(8).toString("hex").toUpperCase();
     return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
   });
-}
-
-export function hashStaffSecuritySecret(value: string): string {
-  return createHmac("sha256", env.SESSION_COOKIE_SECRET)
-    .update(`staff-security:v1:${value.trim().toUpperCase()}`)
-    .digest("hex");
 }
