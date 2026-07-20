@@ -6,8 +6,17 @@ import {
   resolveDailyWarmupStartPathForPatient,
   resolvePlanStartLessonPathForPatient,
 } from "../resolvePatientReminderGoTargets";
-import { resolvePatientOrganizationRequestContext } from "@/app-layer/patient-organization/requestContext";
+import {
+  getRememberedPatientOrganizationId,
+  resolvePatientOrganizationRequestContext,
+} from "@/app-layer/patient-organization/requestContext";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
+import {
+  buildPatientReminderContinuation,
+  buildPatientReminderOrganizationOpener,
+  parsePatientReminderOrganizationTarget,
+  patientOrganizationRecoveryPath,
+} from "../patientReminderOrganizationTarget";
 
 type Kind = "daily-warmup" | "plan-start-lesson";
 
@@ -20,7 +29,10 @@ export default async function PatientGoReminderTargetPage({
   searchParams,
 }: {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{
+    from?: string;
+    organizationId?: string;
+  }>;
 }) {
   const { kind: raw } = await params;
   const sp = await searchParams;
@@ -29,41 +41,57 @@ export default async function PatientGoReminderTargetPage({
     redirect(routePaths.patient);
   }
 
-  const session = await getOptionalPatientSession();
   const selfPath = kind === "daily-warmup" ? routePaths.patientGoDailyWarmup : routePaths.patientGoPlanStartLesson;
+  const fromReminder = sp.from === "reminder";
+  const reminderOrganizationId = fromReminder ? parsePatientReminderOrganizationTarget(sp.organizationId) : null;
+  const session = await getOptionalPatientSession();
   if (!session) {
-    redirect(`${routePaths.root}?next=${encodeURIComponent(selfPath)}`);
+    const returnTo = fromReminder
+      ? reminderOrganizationId
+        ? buildPatientReminderContinuation(kind, reminderOrganizationId)
+        : patientOrganizationRecoveryPath("reminder_target_missing")
+      : selfPath;
+    redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
   }
 
   const deps = buildAppDeps();
+  if (fromReminder && !reminderOrganizationId) {
+    redirect(patientOrganizationRecoveryPath("reminder_target_missing"));
+  }
+  if (reminderOrganizationId) {
+    const rememberedOrganizationId = await getRememberedPatientOrganizationId();
+    if (rememberedOrganizationId !== reminderOrganizationId) {
+      redirect(buildPatientReminderOrganizationOpener(kind, reminderOrganizationId));
+    }
+  }
   const patientContext = await resolvePatientOrganizationRequestContext(
     deps.patientOrganization,
     session.user.userId,
+    reminderOrganizationId ? { verifiedTargetOrganizationId: reminderOrganizationId } : {},
   );
-  if (!patientContext.ok) redirect(routePaths.patient);
+  if (!patientContext.ok) {
+    redirect(reminderOrganizationId ? patientOrganizationRecoveryPath("organization_unavailable") : routePaths.patient);
+  }
   if (kind === "daily-warmup") {
     const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
-    const fromReminder = sp.from === "reminder";
-    redirect(await withPatientOrganizationPrincipal(
+    const target = await withPatientOrganizationPrincipal(
       {
         organizationId: patientContext.organizationId,
         platformUserId: session.user.userId,
         source: "app.patient.go.daily-warmup",
       },
-      () => resolveDailyWarmupStartPathForPatient(
-          deps,
-          session,
-          personalTierOk,
-          fromReminder ? "push_reminder" : "home",
-        ),
-    ));
+      () =>
+        resolveDailyWarmupStartPathForPatient(deps, session, personalTierOk, fromReminder ? "push_reminder" : "home"),
+    );
+    redirect(target);
   }
-  redirect(await withPatientOrganizationPrincipal(
+  const target = await withPatientOrganizationPrincipal(
     {
       organizationId: patientContext.organizationId,
       platformUserId: session.user.userId,
       source: "app.patient.go.plan-start-lesson",
     },
     () => resolvePlanStartLessonPathForPatient(deps, session.user.userId),
-  ));
+  );
+  redirect(target);
 }

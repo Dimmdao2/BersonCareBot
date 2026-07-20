@@ -104,6 +104,14 @@ describe("runWebPushOnlyReminderTick", () => {
     expect(result.failed).toBe(0);
     expect(reminders.markOccurrenceSent).toHaveBeenCalledWith(ORGANIZATION_ID, "occ-1");
     expect(runPlatformUserReminderWebPushNotify).toHaveBeenCalledOnce();
+    const notifyInput = runPlatformUserReminderWebPushNotify.mock.calls[0]?.[0] as
+      | { organizationId?: string; openUrl?: string }
+      | undefined;
+    expect(notifyInput?.organizationId).toBe(ORGANIZATION_ID);
+    const openUrl = new URL(notifyInput?.openUrl ?? "http://invalid.local");
+    expect(openUrl.pathname).toBe("/app/patient/go/daily-warmup");
+    expect(openUrl.searchParams.get("from")).toBe("reminder");
+    expect(openUrl.searchParams.get("organizationId")).toBe(ORGANIZATION_ID);
   });
 
   it("skips without failing when topic code is missing", async () => {

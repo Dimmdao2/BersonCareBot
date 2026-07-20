@@ -13,7 +13,7 @@ describe("U5A patient organization context wiring", () => {
     const auth = source("src/modules/auth/service.ts");
     const stamp = source("src/app-layer/principal/sessionPrincipal.ts");
     expect(auth).toContain("PATIENT_ORGANIZATION_PREFERENCE_COOKIE");
-    expect(auth).toContain("stampDbPrincipalFromSession(normalized, \"getCurrentSession\", patientOrganizationHint)");
+    expect(auth).toContain('stampDbPrincipalFromSession(normalized, "getCurrentSession", patientOrganizationHint)');
     expect(stamp).toContain("rememberedOrganizationId: patientOrganizationHint");
     expect(stamp).toContain("patient-enrollment-resolution");
   });
@@ -30,6 +30,10 @@ describe("U5A patient organization context wiring", () => {
     expect(organizationUi).toContain('from "@/shared/ui/patient/primitives/select"');
     expect(organizationUi).not.toContain("<select");
     expect(organizationUi).not.toContain("<button");
+    expect(organizationUi).toContain("window.location.replace");
+    expect(organizationUi).not.toContain("window.location.reload");
+    expect(organizationUi).not.toContain("organizationChanged");
+    expect(organizationUi).toContain("contextChangeNotice");
   });
 
   it("runs Today and reminder go-targets under the selected patient organization principal", () => {
@@ -38,8 +42,33 @@ describe("U5A patient organization context wiring", () => {
     expect(today).toContain("withPatientOrganizationPrincipal");
     expect(today).toContain('source: "app.patient.home.today"');
     expect(go).toContain("resolvePatientOrganizationRequestContext");
+    expect(go).toContain("verifiedTargetOrganizationId: reminderOrganizationId");
+    expect(go).toContain("buildPatientReminderOrganizationOpener");
     expect(go).toContain('source: "app.patient.go.daily-warmup"');
     expect(go).toContain('source: "app.patient.go.plan-start-lesson"');
+  });
+
+  it("binds both reminder delivery paths to the occurrence organization", () => {
+    const webScheduler = source("src/modules/reminders/webPushOnlyScheduler.ts");
+    const webBuilder = source("src/modules/reminders/buildReminderDeepLink.ts");
+    const integratorHandler = source("../../apps/integrator/src/kernel/domain/executor/handlers/reminders.ts");
+    const integratorBuilder = source(
+      "../../apps/integrator/src/kernel/domain/reminders/buildPatientReminderDeepLink.ts",
+    );
+    expect(webScheduler).toContain("targetOrganizationId: occ.organizationId");
+    expect(webBuilder).toContain("organizationId?: string | null");
+    expect(integratorHandler).toContain("organizationId: occurrenceOrganizationId");
+    expect(integratorHandler).toContain("computedOpenIsOrganizationGo");
+    expect(integratorBuilder).toContain("organizationId?: string | null | undefined");
+  });
+
+  it("exposes a canonical patient relationship surface from Profile", () => {
+    const paths = source("src/app-layer/routes/paths.ts");
+    const profile = source("src/app/app/patient/profile/page.tsx");
+    const organizations = source("src/app/app/patient/organizations/page.tsx");
+    expect(paths).toContain('patientOrganizations: "/app/patient/organizations"');
+    expect(profile).toContain("routePaths.patientOrganizations");
+    expect(organizations).toContain("PatientOrganizationRelationships");
   });
 
   it("maps treatment object links to an enrolled organization before changing visible context", () => {
@@ -60,6 +89,7 @@ describe("U5A patient organization context wiring", () => {
     expect(program).toContain("resolveTreatmentProgramOrganizationForPatient");
     expect(item).toContain("resolveTreatmentProgramOrganizationForPatient");
     expect(opener).toContain("PATIENT_ORGANIZATION_PREFERENCE_COOKIE");
+    expect(opener).toContain("PATIENT_ORGANIZATION_CHANGE_RECEIPT_COOKIE");
     expect(opener).toContain("resolved.organizationId");
   });
 

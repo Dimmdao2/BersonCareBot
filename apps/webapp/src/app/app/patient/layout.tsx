@@ -29,7 +29,13 @@ import {
 import { PatientOrganizationRecoveryScreen } from "@/shared/ui/patient/organization/PatientOrganizationContext";
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
-  return [routePaths.profile, routePaths.bindPhone, routePaths.notifications, routePaths.patientInstall].some(
+  return [
+    routePaths.profile,
+    routePaths.patientOrganizations,
+    routePaths.bindPhone,
+    routePaths.notifications,
+    routePaths.patientInstall,
+  ].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
 }
@@ -142,7 +148,14 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         </PatientClientLayout>
       );
     }
-    return <PatientClientLayout organizationContext={patientContext}>{children}</PatientClientLayout>;
+    return (
+      <PatientClientLayout
+        organizationContext={patientContext}
+        rememberOrganizationOnMount={patientContext.selectedBy === "only_active"}
+      >
+        {children}
+      </PatientClientLayout>
+    );
   }
 
   return <PatientClientLayout>{children}</PatientClientLayout>;

@@ -3159,9 +3159,16 @@ describe('executeAction', () => {
 
     it('calls webapp fan-out after dispatchDue', async () => {
       const notifyPatientReminderChannels = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      const staleGoRule = {
+        ...baseRule,
+        reminderIntent: 'generic' as const,
+        linkedObjectType: 'content_section',
+        linkedObjectId: 'warmups',
+        deepLink: 'https://app.example/app/patient/go/daily-warmup?from=reminder',
+      };
       const readDb = vi.fn().mockImplementation(async (q: { type: string }) => {
         if (q.type === 'reminders.occurrences.due') return [dueOcc];
-        if (q.type === 'reminders.rules.forUser') return [baseRule];
+        if (q.type === 'reminders.rules.forUser') return [staleGoRule];
         if (q.type === 'identities.allByUserId') {
           return [{ resource: 'max', externalId: 'max-ext-1', chatId: 7 }];
         }
@@ -3197,10 +3204,17 @@ describe('executeAction', () => {
         topicCode?: string;
         integratorUserId?: string;
         organizationId?: string;
+        openUrl?: string;
       };
-      expect(parsed.topicCode).toBe('warmup_reminders');
+      expect(parsed.topicCode).toBe('training_reminders');
       expect(parsed.integratorUserId).toBe('user-1');
       expect(parsed.organizationId).toBe('11111111-1111-4111-8111-111111111111');
+      const openUrl = new URL(parsed.openUrl ?? 'https://invalid.local');
+      expect(openUrl.pathname).toBe('/app/patient/go/daily-warmup');
+      expect(openUrl.searchParams.get('from')).toBe('reminder');
+      expect(openUrl.searchParams.get('organizationId')).toBe(
+        '11111111-1111-4111-8111-111111111111',
+      );
     });
 
     it('does not drop all channels when topic bindings resolve to an empty object', async () => {

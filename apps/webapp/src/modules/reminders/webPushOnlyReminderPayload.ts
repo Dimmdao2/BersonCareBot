@@ -23,6 +23,7 @@ export async function buildWebPushOnlyReminderNotifyContent(
   opts?: {
     sectionLookup?: ReminderIntentSectionLookup;
     deepLinkOpts?: BuildReminderDeepLinkOptions;
+    targetOrganizationId?: string;
   },
 ): Promise<{ title: string; bodyText: string; openUrl: string; topicCode: string | null }> {
   let title =
@@ -41,6 +42,7 @@ export async function buildWebPushOnlyReminderNotifyContent(
       linkedObjectType: rule.linkedObjectType,
       linkedObjectId: rule.linkedObjectId,
       reminderIntent: rule.reminderIntent,
+      organizationId: opts?.targetOrganizationId,
     },
     opts?.sectionLookup,
     opts?.deepLinkOpts,

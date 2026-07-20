@@ -17,6 +17,19 @@ describe("buildReminderDeepLink", () => {
     ).toBe("https://app.example/app/patient/go/daily-warmup?from=reminder");
   });
 
+  it("carries the exact reminder organization into a go URL", () => {
+    expect(
+      buildReminderDeepLink({
+        linkedObjectType: "rehab_program",
+        linkedObjectId: "program-a",
+        reminderIntent: "exercises",
+        organizationId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).toBe(
+      "https://app.example/app/patient/go/plan-start-lesson?from=reminder&organizationId=11111111-1111-4111-8111-111111111111",
+    );
+  });
+
   it("generic intent + warmups section slug uses go daily-warmup URL (legacy rules)", () => {
     expect(
       buildReminderDeepLink({

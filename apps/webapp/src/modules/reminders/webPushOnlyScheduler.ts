@@ -194,7 +194,11 @@ export async function runWebPushOnlyReminderTick(
         const content = await buildWebPushOnlyReminderNotifyContent(
           rule,
           (type, id) => deps.reminders.resolveLinkedCatalogTitle(type, id),
-          { sectionLookup: deps.sectionLookup, deepLinkOpts: deps.deepLinkOpts },
+          {
+            sectionLookup: deps.sectionLookup,
+            deepLinkOpts: deps.deepLinkOpts,
+            targetOrganizationId: occ.organizationId,
+          },
         );
 
         const ruleMeta = {

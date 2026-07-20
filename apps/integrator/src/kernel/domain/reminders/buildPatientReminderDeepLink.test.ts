@@ -42,6 +42,18 @@ describe('buildPatientReminderDeepLink', () => {
     expect(url).toBe('https://app.example/app/patient/go/daily-warmup?from=reminder');
   });
 
+  it('carries the occurrence organization into intent go URLs', () => {
+    const url = buildPatientReminderDeepLink({
+      linkedObjectType: 'rehab_program',
+      linkedObjectId: 'prog-9',
+      reminderIntent: 'exercises',
+      organizationId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(url).toBe(
+      'https://app.example/app/patient/go/plan-start-lesson?from=reminder&organizationId=11111111-1111-4111-8111-111111111111',
+    );
+  });
+
   it('exercises intent uses go plan-start-lesson URL', () => {
     const url = buildPatientReminderDeepLink({
       linkedObjectType: 'rehab_program',
