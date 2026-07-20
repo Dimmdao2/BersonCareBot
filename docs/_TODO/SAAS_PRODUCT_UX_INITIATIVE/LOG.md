@@ -1,5 +1,28 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — C4D ownership correction: platform writes wait for U9 (`#724`)
+
+C4D keeps the explicit `organization | platform` ownership tags, exact child-owner checks, platform-row read
+composition and the `exercise_catalog` entitlement default-OFF gate. It does not pre-empt U9's sanctioned platform
+principal: the premature global-admin page, navigation entry, mutation port/service/repository and broad
+`SECURITY DEFINER`/`app_staff` function surface were removed. Until U9 defines the platform governance/write path,
+platform catalog writes therefore remain fail-closed; no clinic content is promoted or copied automatically.
+
+The downgrade path now preserves only already-assigned platform exercise media under the current organization,
+including the valid organization-owned-template → platform-exercise case, while requiring the template membership
+row and treatment-program instance to match the exact organization. The observed assignment snapshot path now
+writes and updates `patient_lfk_assignments`, `lfk_complexes` and `lfk_complex_exercises` with the trusted current
+`organization_id`, and fails closed if an existing assignment cannot be updated inside that organization. No DB,
+TEST, PROD, deploy or store-commerce action is part of this correction.
+
+The terminal correction also replaces the historical global active-assignment unique key with
+`organization_id + patient_user_id + template_id`: one platform patient may therefore receive the same platform
+template independently in two organizations, while a duplicate inside one organization remains rejected. Merge
+and merge-preview conflict guards now use the same exact-organization contract. The hot `media_files` owner index
+was removed from the transactional Drizzle body and moved to a versioned, transaction-free concurrent operator
+artifact. Future owner-authorized fresh TEST rehearsals and the production cutover chain execute that artifact;
+this code-only correction did not run it and did not access any database or environment.
+
 ## 2026-07-20 — UI-0 live DEV closure after strict-policy rehydrate (`#923`)
 
 UI-0 закрыт на существующем DEV-сервере без второго Next instance и без dump/restore/reset. После кода атомарного

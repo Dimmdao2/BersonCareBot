@@ -6,6 +6,7 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { AppSession } from "@/shared/types/session";
+import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
 import {
   recordPlaybackClientEvent,
   type PlaybackClientDelivery,
@@ -62,7 +63,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "invalid_event_class" }, { status: 400 });
   }
 
-  const accessRow = await getMediaAccessRow(id);
+  let allowPlatformBase = false;
+  let accessRow = await getMediaAccessRow(id);
+  if (!accessRow) {
+    allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
+    if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+  }
   if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

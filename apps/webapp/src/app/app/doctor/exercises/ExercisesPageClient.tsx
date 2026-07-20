@@ -256,7 +256,12 @@ function ExercisesContent({
                   className={cn(doctorCatalogRowClass, active && doctorCatalogRowActiveClass)}
                 >
                   {mediaNode(ex)}
-                  <span className="line-clamp-2">{ex.title}</span>
+                  <span className="min-w-0 text-left">
+                    <span className="line-clamp-2">{ex.title}</span>
+                    {ex.ownerKind === "platform" ? (
+                      <span className="block text-[11px] text-muted-foreground">Базовая библиотека</span>
+                    ) : null}
+                  </span>
                 </Button>
               </div>
             </li>

@@ -8,6 +8,7 @@ const getStoredMock = vi.fn();
 const readLocalMock = vi.fn();
 const presignGetUrlMock = vi.fn();
 const getSessionMock = vi.fn();
+const resolvePlatformLfkMediaAccessMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://test/bersoncarebot_test" },
@@ -17,6 +18,9 @@ vi.mock("@/config/env", () => ({
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaS3KeyForRedirect: (...args: unknown[]) => getS3KeyMock(...args),
   getMediaAccessRow: (...args: unknown[]) => getAccessRowMock(...args),
+}));
+vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+  resolvePlatformLfkMediaAccess: (...args: unknown[]) => resolvePlatformLfkMediaAccessMock(...args),
 }));
 
 vi.mock("@/app-layer/media/mockMediaStorage", () => ({
@@ -61,6 +65,8 @@ describe("GET /api/media/[id]", () => {
     readLocalMock.mockReset();
     presignGetUrlMock.mockReset();
     getSessionMock.mockReset();
+    resolvePlatformLfkMediaAccessMock.mockReset();
+    resolvePlatformLfkMediaAccessMock.mockResolvedValue(false);
     getTtlMock.mockReset();
     getTtlMock.mockResolvedValue(3600);
     getSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client", displayName: "U", bindings: {} } });
@@ -95,8 +101,30 @@ describe("GET /api/media/[id]", () => {
     expect(res.status).toBe(307);
     expect(res.headers.get("Location")).toBe("https://fs.example/signed-get?token=abc");
     expect(res.headers.get("Cache-Control")).toContain("max-age=0");
-    expect(getS3KeyMock).toHaveBeenCalledWith(testUuid);
+    expect(getS3KeyMock).toHaveBeenCalledWith(testUuid, { allowPlatformBase: false });
     expect(presignGetUrlMock).toHaveBeenCalledWith("media/uuid/file.png", 3600);
+  });
+
+  it("passes an entitled platform-media decision to both DB reads", async () => {
+    resolvePlatformLfkMediaAccessMock.mockResolvedValue(true);
+    getAccessRowMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        usage_purpose: null,
+        uploaded_by: "u1",
+        mime_type: "image/png",
+        stored_path: "platform/exercise.png",
+        s3_key: "platform/exercise.png",
+      });
+    getS3KeyMock.mockResolvedValue("platform/exercise.png");
+    presignGetUrlMock.mockResolvedValue("https://fs.example/platform-signed");
+    const res = await GET(new Request("http://localhost/api/media/x"), {
+      params: Promise.resolve({ id: testUuid }),
+    });
+    expect(res.status).toBe(307);
+    expect(getAccessRowMock).toHaveBeenNthCalledWith(1, testUuid);
+    expect(getAccessRowMock).toHaveBeenNthCalledWith(2, testUuid, { allowPlatformBase: true });
+    expect(getS3KeyMock).toHaveBeenCalledWith(testUuid, { allowPlatformBase: true });
   });
 
   it("passes presign TTL from settings", async () => {

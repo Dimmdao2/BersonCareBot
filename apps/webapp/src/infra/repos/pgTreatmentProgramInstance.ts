@@ -1,6 +1,8 @@
-import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
@@ -39,6 +41,7 @@ import type {
   UpdateTreatmentProgramInstanceStageGroupInput,
   UpdateTreatmentProgramInstanceStageMetadataInput,
 } from "@/modules/treatment-program/types";
+
 import {
   effectiveInstanceStageItemComment,
   TREATMENT_PROGRAM_INSTANCE_FREEFORM_RECOMMENDATION_TAG,
@@ -53,6 +56,8 @@ import { testSetItems, testSets } from "../../../db/schema/clinicalTests";
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from "../../../db/schema/schema";
 import { TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
 import { nullableToIsoStringSafe, toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
+
+const instanceLfkCatalogEntitlements = createPgOrgEntitlementsPort();
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -961,6 +966,13 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
       input: ExpandLfkComplexIntoInstanceStageItemsPortInput,
     ): Promise<ExpandLfkComplexIntoInstanceStageItemsResult | null> {
       const snapshots = createPgTreatmentProgramItemSnapshotPort();
+      const organizationId = getCurrentDbPrincipalOrganizationId();
+      if (!organizationId) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
+      const includePlatformBase = await isMechanicEnabled(
+        instanceLfkCatalogEntitlements,
+        organizationId,
+        "exercise_catalog",
+      );
       return runDrizzleMutationTransaction(async (tx) => {
         const stRow = await tx.query.treatmentProgramInstanceStages.findFirst({
           where: eq(stageTable.id, input.stageId),
@@ -974,6 +986,15 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
           where: and(
             eq(lfkComplexTemplates.id, input.complexTemplateId),
             ne(lfkComplexTemplates.status, "archived"),
+            or(
+              and(
+                eq(lfkComplexTemplates.ownerKind, "organization"),
+                eq(lfkComplexTemplates.organizationId, organizationId),
+              ),
+              includePlatformBase
+                ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+                : undefined,
+            ),
           ),
         });
         if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
@@ -981,7 +1002,13 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         const exerciseRows = await tx
           .select()
           .from(lfkComplexTemplateExercises)
-          .where(eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId))
+          .where(and(
+            eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId),
+            eq(lfkComplexTemplateExercises.ownerKind, complexRow.ownerKind),
+            complexRow.ownerKind === "platform"
+              ? isNull(lfkComplexTemplateExercises.organizationId)
+              : eq(lfkComplexTemplateExercises.organizationId, organizationId),
+          ))
           .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
 
         if (exerciseRows.length === 0) throw new Error("В комплексе нет упражнений");

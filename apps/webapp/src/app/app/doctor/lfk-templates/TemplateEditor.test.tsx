@@ -68,6 +68,7 @@ function makeTemplate(over: Partial<Template> = {}): Template {
   const now = "2026-01-01T00:00:00.000Z";
   return {
     id: "tpl-1",
+    ownerKind: "organization",
     title: "Комплекс",
     description: null,
     status: "draft",

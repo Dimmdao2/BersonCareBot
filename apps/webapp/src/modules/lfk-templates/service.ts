@@ -9,6 +9,7 @@ import type {
   ArchiveTemplateOptions,
   CreateTemplateInput,
   TemplateExerciseInput,
+  TemplateAccessOptions,
   TemplateFilter,
   UpdateTemplateInput,
 } from "./types";
@@ -16,6 +17,8 @@ import { lfkTemplateArchiveRequiresAcknowledgement } from "./types";
 
 export type LfkTemplateWriteOptions = {
   runTemplateWrite?: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** Trusted server-side entitlement decision for composing an own template with platform exercises. */
+  includePlatformBase?: boolean;
 };
 
 function runTemplateWrite<T>(
@@ -31,8 +34,8 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
       return port.list(filter);
     },
 
-    async getTemplate(id: string) {
-      return port.getById(id);
+    async getTemplate(id: string, options?: TemplateAccessOptions) {
+      return port.getById(id, options);
     },
 
     async createTemplate(
@@ -84,7 +87,11 @@ export function createLfkTemplatesService(port: LfkTemplatesPort) {
         ...e,
         sortOrder: e.sortOrder ?? idx,
       }));
-      await runTemplateWrite(options, () => port.updateExercises(templateId, normalized));
+      await runTemplateWrite(options, () =>
+        port.updateExercises(templateId, normalized, {
+          includePlatformBase: options?.includePlatformBase === true,
+        }),
+      );
     },
 
     async publishTemplate(id: string, options?: LfkTemplateWriteOptions) {

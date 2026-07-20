@@ -1,24 +1,28 @@
 import { notFound } from "next/navigation";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorCatalogEditorSectionClass } from "@/shared/ui/doctor/doctorVisual";
 import { TemplateEditor } from "../TemplateEditor";
+import { LfkTemplatePreviewPanel } from "../LfkTemplatePreviewPanel";
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { id } = await params;
   const deps = buildAppDeps();
-  const template = await deps.lfkTemplates.getTemplate(id);
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const template = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
   if (!template) {
     notFound();
   }
 
   const [usage, exercises] = await Promise.all([
-    deps.lfkTemplates.getTemplateUsage(template.id),
-    deps.lfkExercises.listExercises({ includeArchived: false }),
+    template.ownerKind === "organization" ? deps.lfkTemplates.getTemplateUsage(template.id) : Promise.resolve(undefined),
+    deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
   ]);
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,
@@ -34,11 +38,15 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
       backHref="/app/doctor/lfk-templates"
     >
       <section className={doctorCatalogEditorSectionClass}>
-        <TemplateEditor
-          template={template}
-          exerciseCatalog={exerciseCatalog}
-          externalUsageSnapshot={usage}
-        />
+        {template.ownerKind === "platform" ? (
+          <LfkTemplatePreviewPanel template={template} showOpenButton={false} />
+        ) : (
+          <TemplateEditor
+            template={template}
+            exerciseCatalog={exerciseCatalog}
+            externalUsageSnapshot={usage}
+          />
+        )}
       </section>
     </DoctorAppShell>
   );

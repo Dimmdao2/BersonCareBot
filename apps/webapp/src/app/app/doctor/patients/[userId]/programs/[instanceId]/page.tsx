@@ -7,7 +7,8 @@
  */
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { doctorPageStackClass } from "@/shared/ui/doctor/doctorVisual";
@@ -24,7 +25,8 @@ type Props = {
 };
 
 export default async function DoctorPatientProgramEmbeddedPage({ params, searchParams }: Props) {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const { userId, instanceId } = await params;
   const { scope: scopeParam, discussionItem: discussionItemParam, focusItemId: focusItemIdParam } =
     await searchParams;
@@ -34,6 +36,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   }
 
   const deps = buildAppDeps();
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
 
   let detail;
   try {
@@ -66,8 +69,8 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     deps.treatmentProgramInstance.listProgramEvents(instanceId),
     deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
     getAppDisplayTimeZone(),
-    deps.lfkExercises.listExercises({ includeArchived: false }),
-    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true }),
+    deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
+    deps.lfkTemplates.listTemplates({ statusIn: ["draft", "published"], includeExerciseDetails: true, includePlatformBase }),
     deps.testSets.listTestSets({ includeArchived: false }),
     deps.clinicalTests.listClinicalTests({ archiveScope: "active" }),
     deps.recommendations.listRecommendations({ includeArchived: false }),

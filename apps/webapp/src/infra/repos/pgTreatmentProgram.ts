@@ -1,5 +1,5 @@
 /** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runDrizzleMutationTransaction } from "@/infra/db/drizzleMutationTx";
@@ -53,6 +53,10 @@ import {
   treatmentProgramTemplateStageCountForList,
 } from "@/modules/treatment-program/types";
 import { TreatmentProgramTemplateAlreadyArchivedError, TreatmentProgramExpandNotFoundError } from "@/modules/treatment-program/errors";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+
+const lfkCatalogEntitlements = createPgOrgEntitlementsPort();
 
 function sameIdSet(ordered: string[], expected: Set<string>): boolean {
   if (ordered.length !== expected.size) return false;
@@ -187,7 +191,8 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_url::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND em.organization_id = $2::uuid
+            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+              OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -210,8 +215,10 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND te.organization_id = $2::uuid
-            AND em.organization_id = $2::uuid
+            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+              OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
+            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+              OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -221,7 +228,8 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_type::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND em.organization_id = $2::uuid
+            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+              OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -244,8 +252,10 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND te.organization_id = $2::uuid
-            AND em.organization_id = $2::uuid
+            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+              OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
+            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+              OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
         )
@@ -1159,14 +1169,37 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async getLfkComplexExpandPreview(complexTemplateId: string): Promise<LfkComplexExpandPreview | null> {
       const db = getDrizzle();
       const organizationId = currentPrincipalOrganizationId();
+      const includePlatformBase = await isMechanicEnabled(
+        lfkCatalogEntitlements,
+        organizationId,
+        "exercise_catalog",
+      );
       const row = await db.query.lfkComplexTemplates.findFirst({
-        where: and(eq(lfkComplexTemplates.id, complexTemplateId), eq(lfkComplexTemplates.organizationId, organizationId), ne(lfkComplexTemplates.status, "archived")),
+        where: and(
+          eq(lfkComplexTemplates.id, complexTemplateId),
+          ne(lfkComplexTemplates.status, "archived"),
+          or(
+            and(
+              eq(lfkComplexTemplates.ownerKind, "organization"),
+              eq(lfkComplexTemplates.organizationId, organizationId),
+            ),
+            includePlatformBase
+              ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+              : undefined,
+          ),
+        ),
       });
       if (!row) return null;
       const exerciseRows = await db
         .select({ exerciseId: lfkComplexTemplateExercises.exerciseId })
         .from(lfkComplexTemplateExercises)
-        .where(and(eq(lfkComplexTemplateExercises.templateId, complexTemplateId), eq(lfkComplexTemplateExercises.organizationId, organizationId)))
+        .where(and(
+          eq(lfkComplexTemplateExercises.templateId, complexTemplateId),
+          eq(lfkComplexTemplateExercises.ownerKind, row.ownerKind),
+          row.ownerKind === "platform"
+            ? isNull(lfkComplexTemplateExercises.organizationId)
+            : eq(lfkComplexTemplateExercises.organizationId, organizationId),
+        ))
         .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
       const d = row.description?.trim() ?? "";
       const title = row.title?.trim() ?? "";
@@ -1180,7 +1213,12 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
     async expandLfkComplexIntoStageItems(
       input: ExpandLfkComplexIntoStageItemsPortInput,
     ): Promise<ExpandLfkComplexIntoStageItemsResult> {
-      currentPrincipalOrganizationId();
+      const requestedOrganizationId = currentPrincipalOrganizationId();
+      const includePlatformBase = await isMechanicEnabled(
+        lfkCatalogEntitlements,
+        requestedOrganizationId,
+        "exercise_catalog",
+      );
       return runDrizzleMutationTransaction(async (tx) => {
         const stageRow = await tx.query.treatmentProgramTemplateStages.findFirst({
           where: and(eq(stageTable.id, input.stageId), eq(stageTable.organizationId, currentPrincipalOrganizationId())),
@@ -1201,10 +1239,21 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
         const organizationId = currentWriteOrganizationId(stageRow.organizationId, tplRow.organizationId);
 
         const complexRow = await tx.query.lfkComplexTemplates.findFirst({
-          where: and(eq(lfkComplexTemplates.id, input.complexTemplateId), eq(lfkComplexTemplates.organizationId, organizationId), ne(lfkComplexTemplates.status, "archived")),
+          where: and(
+            eq(lfkComplexTemplates.id, input.complexTemplateId),
+            ne(lfkComplexTemplates.status, "archived"),
+            or(
+              and(
+                eq(lfkComplexTemplates.ownerKind, "organization"),
+                eq(lfkComplexTemplates.organizationId, organizationId),
+              ),
+              includePlatformBase
+                ? and(eq(lfkComplexTemplates.ownerKind, "platform"), isNull(lfkComplexTemplates.organizationId))
+                : undefined,
+            ),
+          ),
         });
         if (!complexRow) throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК не найден или в архиве");
-        currentWriteOrganizationId(complexRow.organizationId, organizationId);
 
         const exerciseRows = await tx
           .select({
@@ -1213,10 +1262,20 @@ export function createPgTreatmentProgramPort(): TreatmentProgramPort {
             organizationId: lfkComplexTemplateExercises.organizationId,
           })
           .from(lfkComplexTemplateExercises)
-          .where(and(eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId), eq(lfkComplexTemplateExercises.organizationId, organizationId)))
+          .where(and(
+            eq(lfkComplexTemplateExercises.templateId, input.complexTemplateId),
+            eq(lfkComplexTemplateExercises.ownerKind, complexRow.ownerKind),
+            complexRow.ownerKind === "platform"
+              ? isNull(lfkComplexTemplateExercises.organizationId)
+              : eq(lfkComplexTemplateExercises.organizationId, organizationId),
+          ))
           .orderBy(asc(lfkComplexTemplateExercises.sortOrder), asc(lfkComplexTemplateExercises.id));
-        for (const row of exerciseRows) {
-          currentWriteOrganizationId(row.organizationId, organizationId);
+        for (const exerciseRow of exerciseRows) {
+          if (complexRow.ownerKind === "organization") {
+            currentWriteOrganizationId(exerciseRow.organizationId, organizationId);
+          } else if (exerciseRow.organizationId !== null) {
+            throw new TreatmentProgramExpandNotFoundError("Комплекс ЛФК имеет некорректного владельца");
+          }
         }
 
         if (exerciseRows.length === 0) throw new Error("В комплексе нет упражнений");

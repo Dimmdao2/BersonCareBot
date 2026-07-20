@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
-const pgPoolQueryMock = vi.hoisted(() => vi.fn());
+const getCurrentOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentOrganizationIdMock,
+}));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
   runWebappTransaction: runWebappTransactionMock,
-}));
-
-vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({ query: pgPoolQueryMock }),
 }));
 
 import { createPgLfkExercisesPort } from "./pgLfkExercises";
@@ -20,6 +20,7 @@ const exerciseId = "550e8400-e29b-41d4-a716-446655440000";
 function exerciseDbRow(overrides: Partial<{ id: string; title: string }> = {}) {
   return {
     id: exerciseId,
+    owner_kind: "organization",
     title: "Присед",
     description: null,
     region_ref_id: null,
@@ -39,8 +40,16 @@ describe("createPgLfkExercisesPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runWebappTransactionMock.mockReset();
-    pgPoolQueryMock.mockReset();
+    getCurrentOrganizationIdMock.mockReset();
+    getCurrentOrganizationIdMock.mockReturnValue("a0000000-0000-4000-8000-000000000001");
     runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
+  });
+
+  it("fails closed when an organization principal is absent", async () => {
+    getCurrentOrganizationIdMock.mockReturnValue(null);
+    const port = createPgLfkExercisesPort();
+    await expect(port.list({})).rejects.toThrow(/Organization principal/);
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
   it("list builds filter for load_type and archived", async () => {
@@ -50,6 +59,7 @@ describe("createPgLfkExercisesPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("load_type");
     expect(sql).toContain("is_archived = false");
+    expect(sql).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
   });
 
   it("list with archiveListScope archived filters archived only", async () => {
@@ -58,6 +68,28 @@ describe("createPgLfkExercisesPort", () => {
     await port.list({ archiveListScope: "archived" });
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("is_archived = true");
+  });
+
+  it("keeps platform base hidden by default and includes it only from a trusted option", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.list({});
+    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(offSql).not.toContain("e.owner_kind = 'platform'");
+
+    await port.list({ includePlatformBase: true });
+    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(onSql).toContain("e.owner_kind = 'platform'");
+    expect(onSql).toContain("e.organization_id IS NULL");
+  });
+
+  it("direct lookup binds entitlement OFF/ON instead of trusting a target id", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.getById(exerciseId);
+    await port.getById(exerciseId, { includePlatformBase: true });
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([exerciseId, false]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([exerciseId, true]);
   });
 
   it("list applies NFC-normalized ILIKE search for titles", async () => {
@@ -172,7 +204,7 @@ describe("createPgLfkExercisesPort", () => {
   });
 
   it("listTitlesByIds passes ids as single uuid[] param", async () => {
-    pgPoolQueryMock.mockResolvedValueOnce({
+    runWebappPgTextMock.mockResolvedValueOnce({
       rows: [{ id: exerciseId, title: "Присед" }],
     });
     const port = createPgLfkExercisesPort();
@@ -182,7 +214,9 @@ describe("createPgLfkExercisesPort", () => {
       " 1fcb7fb7-3f85-4388-a607-5f008be4e3f1 ",
     ]);
     expect(out.get(exerciseId)).toBe("Присед");
-    const params = pgPoolQueryMock.mock.calls[0]?.[1] as unknown[] | undefined;
+    const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+    const params = runWebappPgTextMock.mock.calls[0]?.[1] as unknown[] | undefined;
     expect(Array.isArray(params)).toBe(true);
     expect(Array.isArray(params?.[0])).toBe(true);
     expect((params?.[0] as string[]).length).toBe(2);

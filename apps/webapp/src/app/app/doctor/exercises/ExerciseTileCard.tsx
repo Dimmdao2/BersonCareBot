@@ -45,6 +45,9 @@ export function ExerciseTileCard({ exercise, onSelect, isActive, squarePreview =
           </div>
         ) : null}
         <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
+        {exercise.ownerKind === "platform" ? (
+          <p className="text-center text-[10px] leading-tight text-muted-foreground">Базовая библиотека</p>
+        ) : null}
       </CardContent>
     </Card>
   );

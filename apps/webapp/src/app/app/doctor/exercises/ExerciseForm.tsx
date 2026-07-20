@@ -144,7 +144,7 @@ export function ExerciseForm({
   }, [recordKey]);
 
   useEffect(() => {
-    if (!exercise?.id) {
+    if (!exercise?.id || exercise.ownerKind === "platform") {
       setUsage(null);
       return;
     }
@@ -170,7 +170,7 @@ export function ExerciseForm({
     return () => {
       cancelled = true;
     };
-  }, [exercise?.id, externalUsageSnapshot]);
+  }, [exercise?.id, exercise?.ownerKind, externalUsageSnapshot]);
 
   const wrappedSaveAction = useCallback(
     async (prev: SaveDoctorExerciseState | null, formData: FormData) => {
@@ -231,9 +231,18 @@ export function ExerciseForm({
     unarchiveState?.ok === false && "error" in unarchiveState ? unarchiveState.error : null;
 
   const isArchived = !!exercise?.isArchived;
+  const isReadOnly = exercise?.ownerKind === "platform";
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
+      {isReadOnly ? (
+        <div className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm">
+          <p className="font-medium text-foreground">Базовая библиотека платформы</p>
+          <p className="mt-1 text-muted-foreground">
+            Материал доступен для назначения, но изменяется только администратором платформы.
+          </p>
+        </div>
+      ) : null}
       <form action={formAction} className="flex flex-col gap-4">
         {displayError ? (
           <p role="alert" className="text-sm text-destructive">
@@ -246,7 +255,7 @@ export function ExerciseForm({
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <fieldset disabled={isArchived} className="m-0 min-w-0 border-0 p-0">
+        <fieldset disabled={isArchived || isReadOnly} className="m-0 min-w-0 border-0 p-0">
           <legend className="sr-only">Поля упражнения</legend>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-3">
@@ -354,16 +363,18 @@ export function ExerciseForm({
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={savePending}>
-                {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
-              </Button>
-            </div>
+            {!isReadOnly ? (
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={savePending}>
+                  {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </fieldset>
       </form>
 
-      {exercise && isArchived ? (
+      {exercise && !isReadOnly && isArchived ? (
         <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
           <p className="font-medium text-foreground">Упражнение в архиве</p>
           <p className="mt-1 text-muted-foreground">Верните из архива, чтобы снова назначать и редактировать.</p>
@@ -395,7 +406,7 @@ export function ExerciseForm({
         </div>
       ) : null}
 
-      {exercise && !isArchived ? (
+      {exercise && !isReadOnly && !isArchived ? (
         <div className="border-t border-border/60 pt-4">
           <div className="mb-3 rounded-md border border-border/60 bg-muted/20 p-3">
             <MaterialRatingBlock

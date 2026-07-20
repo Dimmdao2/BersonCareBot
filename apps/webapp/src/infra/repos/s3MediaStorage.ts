@@ -777,14 +777,20 @@ export type MediaAccessRow = {
   s3_key: string | null;
 };
 
-export async function getMediaAccessRow(id: string): Promise<MediaAccessRow | null> {
+export async function getMediaAccessRow(
+  id: string,
+  options: { allowPlatformBase?: boolean } = {},
+): Promise<MediaAccessRow | null> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<MediaAccessRow>(
     getWebappSqlDb(),
     sql`SELECT usage_purpose, uploaded_by::text, mime_type, stored_path, s3_key
      FROM media_files
      WHERE id = ${id}::uuid
-       AND organization_id = ${organizationId}::uuid
+       AND (
+         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
+         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+       )
        AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
@@ -856,7 +862,7 @@ export type MediaPlaybackRow = {
 
 export async function getMediaRowForPlayback(
   id: string,
-  options: { allowLocalSaasTestFixture?: boolean } = {},
+  options: { allowLocalSaasTestFixture?: boolean; allowPlatformBase?: boolean } = {},
 ): Promise<MediaPlaybackRow | null> {
   const organizationId = currentPrincipalOrganizationId();
   const storagePredicate = options.allowLocalSaasTestFixture
@@ -870,20 +876,29 @@ export async function getMediaRowForPlayback(
             usage_purpose, uploaded_by::text
      FROM media_files
      WHERE id = ${id}::uuid AND ${storagePredicate}
-       AND organization_id = ${organizationId}::uuid
+       AND (
+         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
+         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+       )
        AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0] ?? null;
 }
 
 /** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
-export async function getMediaS3KeyForRedirect(id: string): Promise<string | null> {
+export async function getMediaS3KeyForRedirect(
+  id: string,
+  options: { allowPlatformBase?: boolean } = {},
+): Promise<string | null> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{ s3_key: string | null }>(
     getWebappSqlDb(),
     sql`SELECT s3_key FROM media_files
          WHERE id = ${id}::uuid AND s3_key IS NOT NULL
-           AND organization_id = ${organizationId}::uuid
+           AND (
+             (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
+             OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+           )
            AND ${mediaReadableStatusPredicate}`,
   );
   return res.rows[0]?.s3_key ?? null;
@@ -893,6 +908,7 @@ export async function getMediaS3KeyForRedirect(id: string): Promise<string | nul
 export async function getMediaPreviewS3KeyForRedirect(
   id: string,
   size: "sm" | "md",
+  options: { allowPlatformBase?: boolean } = {},
 ): Promise<string | null> {
   const organizationId = currentPrincipalOrganizationId();
   const res = await runWebappSql<{
@@ -904,7 +920,10 @@ export async function getMediaPreviewS3KeyForRedirect(
     sql`SELECT preview_sm_key, preview_md_key, preview_status
      FROM media_files
      WHERE id = ${id}::uuid
-       AND organization_id = ${organizationId}::uuid
+       AND (
+         (owner_kind = 'organization' AND organization_id = ${organizationId}::uuid)
+         OR (${options.allowPlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+       )
        AND ${mediaReadableStatusPredicate}`,
   );
   const row = res.rows[0];

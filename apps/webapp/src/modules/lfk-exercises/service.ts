@@ -7,6 +7,7 @@ import {
 import type { LfkExercisesPort } from "./ports";
 import type {
   ArchiveExerciseOptions,
+  ExerciseAccessOptions,
   CreateExerciseInput,
   ExerciseFilter,
   UpdateExerciseInput,
@@ -30,12 +31,12 @@ export function createLfkExercisesService(port: LfkExercisesPort) {
       return port.list(filter);
     },
 
-    async getExercise(id: string) {
-      return port.getById(id);
+    async getExercise(id: string, options?: ExerciseAccessOptions) {
+      return port.getById(id, options);
     },
 
-    async listExerciseTitlesByIds(ids: readonly string[]) {
-      return port.listTitlesByIds(ids);
+    async listExerciseTitlesByIds(ids: readonly string[], options?: ExerciseAccessOptions) {
+      return port.listTitlesByIds(ids, options);
     },
 
     async createExercise(

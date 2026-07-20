@@ -18,6 +18,9 @@ vi.mock("@/app-layer/media/playbackClientEvents", () => ({
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaAccessRow: (...args: unknown[]) => getMediaAccessRowMock(...args),
 }));
+vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+  resolvePlatformLfkMediaAccess: vi.fn(async () => false),
+}));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: vi.fn(),

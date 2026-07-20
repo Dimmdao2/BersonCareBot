@@ -58,6 +58,7 @@ function makeUsageWithTemplateRef(): ExerciseUsageSnapshot {
 function makeExercise(over: Partial<Exercise>): Exercise {
   return {
     id: "ex-1",
+    ownerKind: "organization",
     title: "Title",
     description: null,
     regionRefId: null,
@@ -76,6 +77,19 @@ function makeExercise(over: Partial<Exercise>): Exercise {
 }
 
 describe("ExerciseForm", () => {
+  it("renders a platform exercise read-only and hides clinic mutations", () => {
+    render(
+      <ExerciseForm
+        exercise={makeExercise({ ownerKind: "platform" })}
+        externalUsageSnapshot={undefined}
+      />,
+    );
+    expect(screen.getByText("Базовая библиотека платформы")).toBeInTheDocument();
+    expect(screen.getByLabelText(/название/i)).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Сохранить$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Архивировать/i })).toBeNull();
+  });
+
   it("resets controlled fields when exercise id changes without remount key", () => {
     const saveAction = vi.fn(
       async (_prev: SaveDoctorExerciseState | null): Promise<SaveDoctorExerciseState> => ({ ok: true }),

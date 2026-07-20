@@ -42,6 +42,7 @@ export async function resolveMediaPlaybackPayload(input: {
   /** Non-null enforced at call sites (HTTP guard / RSC); reserved for future scoped ACL. */
   session: AppSession;
   adminPrefer: PlaybackDeliveryStrategy | null;
+  allowPlatformBase?: boolean;
 }): Promise<ResolveMediaPlaybackSuccess | ResolveMediaPlaybackFailure> {
   const t0 = performance.now();
   const { id, adminPrefer } = input;
@@ -51,6 +52,7 @@ export async function resolveMediaPlaybackPayload(input: {
 
   const row = await getMediaRowForPlayback(id, {
     allowLocalSaasTestFixture: databaseNameFromUrl(env.DATABASE_URL ?? '') === 'bersoncarebot_test',
+    allowPlatformBase: input.allowPlatformBase === true,
   });
   if (!row) {
     return { ok: false, status: 404, error: "not found" };

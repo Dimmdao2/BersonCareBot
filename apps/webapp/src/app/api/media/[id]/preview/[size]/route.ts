@@ -10,6 +10,7 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { AppSession } from "@/shared/types/session";
+import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,13 +63,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const serve = async (session: AppSession): Promise<Response> => {
-    const accessRow = await getMediaAccessRow(id);
+    let allowPlatformBase = false;
+    let accessRow = await getMediaAccessRow(id);
+    if (!accessRow) {
+      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
+      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    }
     if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
     if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size);
+    const s3Key = await getMediaPreviewS3KeyForRedirect(id, size, { allowPlatformBase });
     if (!s3Key) {
     logger.warn({ mediaId: id, size }, "[preview GET] not found");
     logger.warn({ mediaId: id, size }, "[preview GET] fallback original redirect used");

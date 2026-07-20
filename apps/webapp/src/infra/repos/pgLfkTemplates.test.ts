@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappTransactionMock = vi.hoisted(() => vi.fn());
+const getCurrentOrganizationIdMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipalOrganizationId: getCurrentOrganizationIdMock,
+}));
 
 vi.mock("@/infra/db/runWebappSql", () => ({
   runWebappPgText: runWebappPgTextMock,
@@ -15,6 +20,7 @@ const templateId = "00000000-0000-4000-8000-000000000001";
 function templateHeaderRow(overrides: Partial<{ id: string; title: string; status: string }> = {}) {
   return {
     id: templateId,
+    owner_kind: "organization",
     title: "T",
     description: null,
     status: "draft",
@@ -29,7 +35,16 @@ describe("createPgLfkTemplatesPort", () => {
   beforeEach(() => {
     runWebappPgTextMock.mockReset();
     runWebappTransactionMock.mockReset();
+    getCurrentOrganizationIdMock.mockReset();
+    getCurrentOrganizationIdMock.mockReturnValue("a0000000-0000-4000-8000-000000000001");
     runWebappTransactionMock.mockImplementation(async (fn) => fn({ rollback: vi.fn() }));
+  });
+
+  it("fails closed when an organization principal is absent", async () => {
+    getCurrentOrganizationIdMock.mockReturnValue(null);
+    const port = createPgLfkTemplatesPort();
+    await expect(port.list({})).rejects.toThrow(/Organization principal/);
+    expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 
   it("list includes exercise_count subquery", async () => {
@@ -40,6 +55,29 @@ describe("createPgLfkTemplatesPort", () => {
     const sql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
     expect(sql).toContain("exercise_count");
     expect(sql).toContain("lfk_complex_template_exercises");
+    expect(sql).toContain("t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
+  });
+
+  it("keeps platform templates hidden OFF and exposes tagged platform rows ON", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    await port.list({});
+    const offSql = String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "");
+    expect(offSql).not.toContain("t.owner_kind = 'platform'");
+
+    await port.list({ includePlatformBase: true });
+    const onSql = String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "");
+    expect(onSql).toContain("t.owner_kind = 'platform'");
+    expect(onSql).toContain("t.organization_id IS NULL");
+  });
+
+  it("direct template lookup binds trusted OFF/ON access", async () => {
+    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    const port = createPgLfkTemplatesPort();
+    await port.getById(templateId);
+    await port.getById(templateId, { includePlatformBase: true });
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([templateId, false]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([templateId, true]);
   });
 
   it("list runs lightweight thumbnail query by default when templates exist", async () => {
@@ -163,6 +201,7 @@ describe("createPgLfkTemplatesPort", () => {
       .map((c) => String(c[0]))
       .join("\n");
     expect(txSql).toContain("INSERT INTO lfk_complex_templates");
+    expect(txSql).toContain("organization_id");
   });
 
   it("update patches template through one webapp transaction before reloading", async () => {
@@ -198,7 +237,10 @@ describe("createPgLfkTemplatesPort", () => {
   });
 
   it("updateExercises deletes then inserts in sort order and touches updated_at", async () => {
-    runWebappPgTextMock.mockResolvedValue({ rows: [] });
+    runWebappPgTextMock.mockImplementation(async (sql: string) => ({
+      rows: [],
+      rowCount: sql.includes("INSERT INTO lfk_complex_template_exercises") ? 1 : 0,
+    }));
     const port = createPgLfkTemplatesPort();
     const templateId = "00000000-0000-4000-8000-000000000001";
     await port.updateExercises(templateId, [
@@ -211,11 +253,22 @@ describe("createPgLfkTemplatesPort", () => {
       .map((c) => String(c[0]));
     expect(txSql[0]).toContain("DELETE FROM lfk_complex_template_exercises");
     expect(txSql.filter((s) => s.includes("INSERT INTO lfk_complex_template_exercises"))).toHaveLength(2);
+    expect(txSql.join("\n")).toContain("e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid");
     expect(txSql.at(-1)).toContain("UPDATE lfk_complex_templates SET updated_at");
     const insertParams = runWebappPgTextMock.mock.calls
       .filter((c) => String(c[0]).includes("INSERT INTO lfk_complex_template_exercises"))
       .map((c) => c[1] as unknown[]);
     expect(insertParams[0]?.[2]).toBe(0);
     expect(insertParams[1]?.[2]).toBe(1);
+  });
+
+  it("rejects a cross-organization exercise instead of saving a partial template", async () => {
+    runWebappPgTextMock.mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+    const port = createPgLfkTemplatesPort();
+    await expect(
+      port.updateExercises(templateId, [
+        { exerciseId: "00000000-0000-4000-8000-000000000099", sortOrder: 0 },
+      ]),
+    ).rejects.toThrow(/outside the current organization/);
   });
 });

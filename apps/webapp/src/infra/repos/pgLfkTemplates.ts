@@ -3,6 +3,7 @@ import {
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from "@/infra/db/runWebappSql";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type { ExerciseMedia, ExerciseMediaType } from "@/modules/lfk-exercises/types";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
@@ -11,6 +12,7 @@ import type {
   LfkTemplateUsageRef,
   LfkTemplateUsageSnapshot,
   Template,
+  TemplateAccessOptions,
   TemplateExercise,
   TemplateExerciseInput,
   TemplateFilter,
@@ -24,6 +26,12 @@ import {
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { toIsoStringSafe } from "@/shared/lib/toIsoStringSafe";
 
+function requireOrganizationPrincipal(): void {
+  if (!getCurrentDbPrincipalOrganizationId()) {
+    throw new Error("Organization principal is required for the exercise template library");
+  }
+}
+
 /** Legacy `lfk_complex` или разворот в `exercise` с `settings.lfkComplexTemplateId`. */
 function sqlTpStageItemUsesLfkComplexTemplate(alias: string): string {
   return `((${alias}.item_type = 'lfk_complex' AND ${alias}.item_ref_id = $1::uuid) OR (${alias}.settings->>'lfkComplexTemplateId' = $1::text))`;
@@ -32,6 +40,7 @@ function sqlTpStageItemUsesLfkComplexTemplate(alias: string): string {
 function mapTemplateRow(
   row: {
     id: string;
+    owner_kind: string;
     title: string;
     description: string | null;
     status: string;
@@ -44,6 +53,7 @@ function mapTemplateRow(
 ): Template {
   return {
     id: String(row.id),
+    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
     title: row.title,
     description: row.description,
     status: row.status as TemplateStatus,
@@ -168,27 +178,37 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
     `SELECT
        (SELECT COUNT(*)::int
           FROM patient_lfk_assignments pla
-         WHERE pla.template_id = $1::uuid AND pla.is_active = true) AS active_patient_lfk,
+         WHERE pla.template_id = $1::uuid
+           AND pla.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND pla.is_active = true) AS active_patient_lfk,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'published') AS published_tp_templates,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+           AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'draft') AS draft_tp_templates,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+           AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'active') AS active_tp_instances,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+           AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'completed') AS completed_tp_instances,
+         WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+           AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT jsonb_build_object(
@@ -204,7 +224,10 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM patient_lfk_assignments pla
             INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
             LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
-            WHERE pla.template_id = $1::uuid AND pla.is_active = true
+            WHERE pla.template_id = $1::uuid
+              AND pla.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND pla.is_active = true
             ORDER BY pla.assigned_at DESC NULLS LAST
             LIMIT ${lim}
           ) q) AS active_patient_lfk_refs,
@@ -219,7 +242,9 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'published'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+              AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -234,7 +259,9 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")} AND t.status = 'draft'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("si")}
+              AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -251,7 +278,9 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'active'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+              AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -268,10 +297,15 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")} AND i.status = 'completed'
+            WHERE ${sqlTpStageItemUsesLfkComplexTemplate("sii")}
+              AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
-          ) q) AS completed_tp_instance_refs`,
+          ) q) AS completed_tp_instance_refs
+     FROM lfk_complex_templates owned
+     WHERE owned.id = $1::uuid
+       AND owned.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
     [templateId],
   );
   const row = r.rows[0];
@@ -326,6 +360,7 @@ function mapTeRow(
 
 type TemplateHeaderDbRow = {
   id: string;
+  owner_kind: string;
   title: string;
   description: string | null;
   status: string;
@@ -357,11 +392,17 @@ function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMe
 export function createPgLfkTemplatesPort(): LfkTemplatesPort {
   return {
     async getTemplateUsageSummary(templateId: string): Promise<LfkTemplateUsageSnapshot> {
+      requireOrganizationPrincipal();
       return loadTemplateUsageSummary(templateId);
     },
 
     async list(filter: TemplateFilter): Promise<Template[]> {
-      const conds: string[] = ["1=1"];
+      requireOrganizationPrincipal();
+      const conds: string[] = [
+        filter.includePlatformBase
+          ? "((t.owner_kind = 'organization' AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid) OR (t.owner_kind = 'platform' AND t.organization_id IS NULL))"
+          : "t.owner_kind = 'organization' AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
+      ];
       const params: unknown[] = [];
       let i = 1;
       if (filter.status) {
@@ -377,7 +418,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         params.push(`%${filter.search.trim()}%`);
       }
       const sql = `
-        SELECT t.id, t.title, t.description, t.status, t.created_by, t.created_at, t.updated_at,
+        SELECT t.id, t.owner_kind, t.title, t.description, t.status, t.created_by, t.created_at, t.updated_at,
                COALESCE(c.cnt, 0)::int AS exercise_count
         FROM lfk_complex_templates t
         LEFT JOIN (
@@ -392,6 +433,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         mapTemplateRow(
           {
             id: row.id,
+            owner_kind: row.owner_kind,
             title: row.title,
             description: row.description,
             status: row.status,
@@ -413,9 +455,17 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         WITH te_ranked AS (
           SELECT te.template_id,
                  te.exercise_id,
+                 e.owner_kind AS exercise_owner_kind,
+                 e.organization_id AS exercise_organization_id,
                  te.sort_order,
                  ROW_NUMBER() OVER (PARTITION BY te.template_id ORDER BY te.sort_order ASC, te.id ASC) AS rn
           FROM lfk_complex_template_exercises te
+          JOIN lfk_exercises e
+            ON e.id = te.exercise_id
+           AND (
+             (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+             OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+           )
           WHERE te.template_id = ANY($1::uuid[])
         )
         SELECT tr.template_id,
@@ -427,6 +477,8 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
           FROM lfk_exercise_media em
           WHERE em.exercise_id = tr.exercise_id
+            AND em.owner_kind = tr.exercise_owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM tr.exercise_organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) em ON true
@@ -434,6 +486,8 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
           ''
         )::uuid
+          AND mf.owner_kind = tr.exercise_owner_kind
+          AND mf.organization_id IS NOT DISTINCT FROM tr.exercise_organization_id
         WHERE tr.rn <= 6
         ORDER BY tr.template_id, tr.sort_order`;
         const tr = await runWebappPgText(thumbSql, [ids]);
@@ -483,11 +537,18 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
                mf.preview_md_key,
                mf.preview_status
         FROM lfk_complex_template_exercises te
-        JOIN lfk_exercises e ON e.id = te.exercise_id
+        JOIN lfk_exercises e
+          ON e.id = te.exercise_id
+         AND (
+           (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+           OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+         )
         LEFT JOIN LATERAL (
           SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
           FROM lfk_exercise_media em
           WHERE em.exercise_id = te.exercise_id
+            AND em.owner_kind = e.owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM e.organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) em ON true
@@ -495,6 +556,8 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
           ''
         )::uuid
+          AND mf.owner_kind = e.owner_kind
+          AND mf.organization_id IS NOT DISTINCT FROM e.organization_id
         WHERE te.template_id = ANY($1::uuid[])
         ORDER BY te.template_id, te.sort_order ASC, te.id ASC`;
       const er = await runWebappPgText(exercisesSql, [ids]);
@@ -522,33 +585,47 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       });
     },
 
-    async getById(id: string): Promise<Template | null> {
+    async getById(id: string, options: TemplateAccessOptions = {}): Promise<Template | null> {
+      requireOrganizationPrincipal();
       const tr = await runWebappPgText<TemplateHeaderDbRow>(
-        `SELECT id, title, description, status, created_by, created_at, updated_at
-         FROM lfk_complex_templates WHERE id = $1`,
-        [id]
+        `SELECT id, owner_kind, title, description, status, created_by, created_at, updated_at
+         FROM lfk_complex_templates
+         WHERE id = $1
+           AND (
+             (owner_kind = 'organization' AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+             OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+           )`,
+        [id, options.includePlatformBase === true]
       );
       if (!tr.rows[0]) return null;
       const er = await runWebappPgText<TemplateExerciseDbRow>(
         `SELECT te.id, te.template_id, te.exercise_id, te.sort_order, te.reps, te.sets, te.side,
                 te.max_pain_0_10, te.comment, e.title AS exercise_title
          FROM lfk_complex_template_exercises te
-         JOIN lfk_exercises e ON e.id = te.exercise_id
+         JOIN lfk_exercises e
+           ON e.id = te.exercise_id
+          AND (
+            (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
+            OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+          )
          WHERE te.template_id = $1
+           AND te.owner_kind = $2
+           AND te.organization_id IS NOT DISTINCT FROM $3::uuid
          ORDER BY te.sort_order ASC, te.id ASC`,
-        [id]
+        [id, tr.rows[0].owner_kind, tr.rows[0].owner_kind === "platform" ? null : getCurrentDbPrincipalOrganizationId()]
       );
       const exercises = er.rows.map(mapTeRow);
       return mapTemplateRow(tr.rows[0], exercises);
     },
 
     async create(input: CreateTemplateInput, createdBy: string | null): Promise<Template> {
+      requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
         txPgText<TemplateHeaderDbRow>(
           tx,
-          `INSERT INTO lfk_complex_templates (title, description, created_by, updated_at)
-           VALUES ($1, $2, $3, now())
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          `INSERT INTO lfk_complex_templates (owner_kind, organization_id, title, description, created_by, updated_at)
+           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, now())
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           [input.title, input.description ?? null, createdBy],
         ),
       );
@@ -556,6 +633,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
     },
 
     async update(id: string, input: UpdateTemplateInput): Promise<Template | null> {
+      requireOrganizationPrincipal();
       const sets: string[] = ["updated_at = now()"];
       const vals: unknown[] = [];
       let n = 1;
@@ -571,8 +649,10 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       const r = await runWebappTransaction((tx) =>
         txPgText<TemplateHeaderDbRow>(
           tx,
-          `UPDATE lfk_complex_templates SET ${sets.join(", ")} WHERE id = $${n}
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          `UPDATE lfk_complex_templates SET ${sets.join(", ")}
+           WHERE id = $${n}
+             AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           vals,
         ),
       );
@@ -580,16 +660,35 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       return this.getById(id);
     },
 
-    async updateExercises(templateId: string, exercises: TemplateExerciseInput[]): Promise<void> {
+    async updateExercises(
+      templateId: string,
+      exercises: TemplateExerciseInput[],
+      options: TemplateAccessOptions = {},
+    ): Promise<void> {
+      requireOrganizationPrincipal();
       await runWebappTransaction(async (tx) => {
-        await txPgText(tx, `DELETE FROM lfk_complex_template_exercises WHERE template_id = $1`, [templateId]);
+        await txPgText(
+          tx,
+          `DELETE FROM lfk_complex_template_exercises
+            WHERE template_id = $1
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+          [templateId],
+        );
         let order = 0;
         for (const e of exercises) {
-          await txPgText(
+          const inserted = await txPgText(
             tx,
             `INSERT INTO lfk_complex_template_exercises
-             (template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+             (owner_kind, organization_id, template_id, exercise_id, sort_order, reps, sets, side, max_pain_0_10, comment)
+             SELECT 'organization', NULLIF(current_setting('app.org', true), '')::uuid, t.id, e.id, $3, $4, $5, $6, $7, $8
+               FROM lfk_complex_templates t
+               JOIN lfk_exercises e ON e.id = $2
+              WHERE t.id = $1
+                AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+                AND (
+                  (e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+                  OR ($9::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+                )`,
             [
               templateId,
               e.exerciseId,
@@ -599,20 +698,33 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
               e.side ?? null,
               e.maxPain0_10 ?? null,
               e.comment ?? null,
+              options.includePlatformBase === true,
             ],
           );
+          if ((inserted.rowCount ?? 0) !== 1) {
+            throw new Error("Exercise is outside the current organization library");
+          }
           order += 1;
         }
-        await txPgText(tx, `UPDATE lfk_complex_templates SET updated_at = now() WHERE id = $1`, [templateId]);
+        await txPgText(
+          tx,
+          `UPDATE lfk_complex_templates SET updated_at = now()
+            WHERE id = $1
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+          [templateId],
+        );
       });
     },
 
     async setStatus(id: string, status: TemplateStatus): Promise<Template | null> {
+      requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
         txPgText<TemplateHeaderDbRow>(
           tx,
-          `UPDATE lfk_complex_templates SET status = $2, updated_at = now() WHERE id = $1
-           RETURNING id, title, description, status, created_by, created_at, updated_at`,
+          `UPDATE lfk_complex_templates SET status = $2, updated_at = now()
+           WHERE id = $1
+             AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           RETURNING id, owner_kind, title, description, status, created_by, created_at, updated_at`,
           [id, status],
         ),
       );

@@ -18,14 +18,15 @@ function portFor(
 }
 
 describe("resolveOrgEntitlements", () => {
-  it("defaults compatibility mechanics to enabled but clinic_team and courses to disabled when there is no tariff and no overrides", async () => {
+  it("defaults compatibility mechanics to enabled but paid capabilities to disabled without tariff or overrides", async () => {
     const result = await resolveOrgEntitlements(portFor(null, []), "legacy-org");
     for (const mechanic of MECHANICS) {
-      if (mechanic === "clinic_team" || mechanic === "courses") continue;
+      if (mechanic === "clinic_team" || mechanic === "courses" || mechanic === "exercise_catalog") continue;
       expect(result[mechanic]).toBe(true);
     }
     expect(result.clinic_team).toBe(false);
     expect(result.courses).toBe(false);
+    expect(result.exercise_catalog).toBe(false);
   });
 
   it("enables clinic_team once a tariff explicitly turns it on", async () => {

@@ -67,6 +67,7 @@ function httpStatusForReason(reason: HlsProxyReasonCodeDb): number {
 async function finishError(params: {
   mediaId: string;
   userId: string;
+  allowPlatformBase?: boolean;
   reason: HlsProxyReasonCodeDb;
   artifactKind: HlsProxyArtifactKind;
   objectKey: string;
@@ -111,6 +112,7 @@ export async function handleHlsDeliveryProxyRequest(input: {
   pathSegments: string[] | undefined;
   rangeHeader: string | null;
   userId: string;
+  allowPlatformBase?: boolean;
   clientAbortSignal?: AbortSignal | null;
 }): Promise<Response> {
   const { mediaId, userId } = input;
@@ -133,6 +135,7 @@ async function runHlsDeliveryProxy(input: {
   pathSegments: string[] | undefined;
   rangeHeader: string | null;
   userId: string;
+  allowPlatformBase?: boolean;
   clientAbortSignal?: AbortSignal | null;
 }): Promise<Response> {
   const { mediaId, userId } = input;
@@ -162,7 +165,9 @@ async function runHlsDeliveryProxy(input: {
     });
   }
 
-  const row = await getMediaRowForPlayback(mediaId);
+  const row = await getMediaRowForPlayback(mediaId, {
+    allowPlatformBase: input.allowPlatformBase === true,
+  });
   if (!row) {
     return finishError({
       mediaId,

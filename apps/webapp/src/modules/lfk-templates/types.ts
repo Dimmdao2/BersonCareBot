@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
+import type { ExerciseOwnerKind } from "@/modules/lfk-exercises/types";
 
 import type { LfkExerciseSide } from "./lfkExerciseSide";
 
@@ -24,6 +25,7 @@ export type TemplateExercise = {
 
 export type Template = {
   id: string;
+  ownerKind: ExerciseOwnerKind;
   title: string;
   description: string | null;
   status: TemplateStatus;
@@ -47,6 +49,12 @@ export type TemplateFilter = {
    * По умолчанию false — только счётчик и до 6 превью-миниатюр для списка.
    */
   includeExerciseDetails?: boolean;
+  /** Trusted server-side entitlement decision; never derive from a request query/body. */
+  includePlatformBase?: boolean;
+};
+
+export type TemplateAccessOptions = {
+  includePlatformBase?: boolean;
 };
 
 export type CreateTemplateInput = {

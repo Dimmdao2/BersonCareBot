@@ -9,6 +9,9 @@ import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { TreatmentProgramItemSnapshotPort } from "@/modules/treatment-program/ports";
 import type { TreatmentProgramItemType } from "@/modules/treatment-program/types";
 import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
+import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
+import { isMechanicEnabled } from "@/modules/org-entitlements/service";
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
@@ -19,6 +22,7 @@ function notFound(type: TreatmentProgramItemType): Error {
 }
 
 const BODY_PREVIEW_LEN = 600;
+const snapshotEntitlements = createPgOrgEntitlementsPort();
 
 type CatalogMediaRowInput = { mediaUrl: string; mediaType: string; sortOrder: number };
 
@@ -100,14 +104,39 @@ export function createPgTreatmentProgramItemSnapshotPort(): TreatmentProgramItem
       const db = getDrizzle();
       switch (type) {
         case "exercise": {
+          const organizationId = getCurrentDbPrincipalOrganizationId();
+          if (!organizationId) throw notFound(type);
+          const includePlatformBase = await isMechanicEnabled(
+            snapshotEntitlements,
+            organizationId,
+            "exercise_catalog",
+          );
           const row = await db.query.lfkExercises.findFirst({
-            where: and(eq(lfkExercises.id, itemRefId), eq(lfkExercises.isArchived, false)),
+            where: and(
+              eq(lfkExercises.id, itemRefId),
+              eq(lfkExercises.isArchived, false),
+              or(
+                and(
+                  eq(lfkExercises.ownerKind, "organization"),
+                  eq(lfkExercises.organizationId, organizationId),
+                ),
+                includePlatformBase
+                  ? and(eq(lfkExercises.ownerKind, "platform"), isNull(lfkExercises.organizationId))
+                  : undefined,
+              ),
+            ),
           });
           if (!row) throw notFound(type);
           const mediaRows = await db
             .select()
             .from(lfkExerciseMedia)
-            .where(eq(lfkExerciseMedia.exerciseId, itemRefId))
+            .where(and(
+              eq(lfkExerciseMedia.exerciseId, itemRefId),
+              eq(lfkExerciseMedia.ownerKind, row.ownerKind),
+              row.ownerKind === "platform"
+                ? isNull(lfkExerciseMedia.organizationId)
+                : eq(lfkExerciseMedia.organizationId, organizationId),
+            ))
             .orderBy(asc(lfkExerciseMedia.sortOrder), asc(lfkExerciseMedia.id));
           const base = mediaRows.map((m) => ({
             mediaUrl: m.mediaUrl,

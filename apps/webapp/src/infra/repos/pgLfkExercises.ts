@@ -3,7 +3,7 @@ import {
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from "@/infra/db/runWebappSql";
-import { getPool } from "@/infra/db/client";
+import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
@@ -13,6 +13,7 @@ import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
   Exercise,
+  ExerciseAccessOptions,
   ExerciseFilter,
   ExerciseLoadType,
   ExerciseMedia,
@@ -25,6 +26,7 @@ import { EMPTY_EXERCISE_USAGE_SNAPSHOT, EXERCISE_USAGE_DETAIL_LIMIT, mergeExerci
 
 type MediaDbRow = {
   id: string;
+  owner_kind: string;
   exercise_id: string;
   media_url: string;
   media_type: string;
@@ -36,8 +38,15 @@ type MediaDbRow = {
   preview_status: string | null;
 };
 
+function requireOrganizationPrincipal(): void {
+  if (!getCurrentDbPrincipalOrganizationId()) {
+    throw new Error("Organization principal is required for the exercise library");
+  }
+}
+
 type ExerciseDbRow = {
   id: string;
+  owner_kind: string;
   title: string;
   description: string | null;
   region_ref_id: string | null;
@@ -80,6 +89,7 @@ const MEDIA_ID_UUID_RE =
 export async function pgListExerciseUsageForMediaIds(
   mediaIds: readonly string[],
 ): Promise<Record<string, MediaExerciseUsageEntry[]>> {
+  requireOrganizationPrincipal();
   const out: Record<string, MediaExerciseUsageEntry[]> = {};
   const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -95,6 +105,8 @@ export async function pgListExerciseUsageForMediaIds(
      FROM lfk_exercise_media m
      INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false
      WHERE m.media_url = ANY($1::text[])
+       AND m.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+       AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
      ORDER BY m.media_url, e.id, e.title ASC`,
     [urls],
   );
@@ -119,6 +131,7 @@ function mapExerciseRow(row: ExerciseDbRow, media: ExerciseMedia[]): Exercise {
   const regionRefId = regionRefIds[0] ?? null;
   return {
     id: String(row.id),
+    ownerKind: row.owner_kind === "platform" ? "platform" : "organization",
     title: row.title,
     description: row.description,
     regionRefId,
@@ -148,21 +161,31 @@ async function replaceLfkExerciseRegions(
   exerciseId: string,
   regionRefIds: readonly string[],
 ) {
-  await runWebappPgText(`DELETE FROM lfk_exercise_regions WHERE exercise_id = $1`, [exerciseId], tx);
+  await runWebappPgText(
+    `DELETE FROM lfk_exercise_regions
+      WHERE exercise_id = $1
+        AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+    [exerciseId],
+    tx,
+  );
   for (const rid of regionRefIds) {
     const t = rid.trim();
     if (!t) continue;
     await runWebappPgText(
-      `INSERT INTO lfk_exercise_regions (exercise_id, region_ref_id) VALUES ($1, $2::uuid)`,
+      `INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
+       VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2::uuid)`,
       [exerciseId, t],
       tx,
     );
   }
 }
 
-async function loadAllMediaForExercise(exerciseId: string): Promise<ExerciseMedia[]> {
+async function loadAllMediaForExercise(
+  exerciseId: string,
+  options: ExerciseAccessOptions = {},
+): Promise<ExerciseMedia[]> {
   const r = await runWebappPgText<MediaDbRow>(
-    `SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
+    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
             mf.id AS media_file_id,
             mf.preview_sm_key, mf.preview_md_key, mf.preview_status
      FROM lfk_exercise_media em
@@ -171,9 +194,15 @@ async function loadAllMediaForExercise(exerciseId: string): Promise<ExerciseMedi
        substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
        ''
      )::uuid
+       AND mf.owner_kind = em.owner_kind
+       AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
      WHERE em.exercise_id = $1
+       AND (
+         (em.owner_kind = 'organization' AND em.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+         OR ($2::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
+       )
      ORDER BY em.sort_order ASC, em.created_at ASC`,
-    [exerciseId],
+    [exerciseId, options.includePlatformBase === true],
   );
   return r.rows.map(mapMediaRow);
 }
@@ -236,45 +265,64 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid AND ct.status = 'published') AS published_lfk_templates,
+         WHERE te.exercise_id = $1::uuid
+           AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND ct.status = 'published') AS published_lfk_templates,
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid AND ct.status = 'draft') AS draft_lfk_templates,
+         WHERE te.exercise_id = $1::uuid
+           AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND ct.status = 'draft') AS draft_lfk_templates,
        (SELECT COUNT(DISTINCT pla.id)::int
           FROM patient_lfk_assignments pla
-         WHERE pla.is_active = true
+         WHERE pla.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND pla.is_active = true
            AND (
              (pla.complex_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_exercises ce
-               WHERE ce.complex_id = pla.complex_id AND ce.exercise_id = $1::uuid
+               WHERE ce.complex_id = pla.complex_id
+                 AND ce.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+                 AND ce.exercise_id = $1::uuid
              ))
              OR
              (pla.complex_id IS NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_template_exercises te2
-               WHERE te2.template_id = pla.template_id AND te2.exercise_id = $1::uuid
+               WHERE te2.template_id = pla.template_id
+                 AND te2.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+                 AND te2.exercise_id = $1::uuid
              ))
            )) AS active_patient_lfk,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'published') AS published_tp_templates,
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
+           AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'draft') AS draft_tp_templates,
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
+           AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'active') AS active_tp_instances,
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
+           AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed') AS completed_tp_instances,
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
+           AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+           AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (ct.id)
@@ -285,7 +333,10 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid AND ct.status = 'published'
+            WHERE te.exercise_id = $1::uuid
+              AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.status = 'published'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
           ) q) AS published_lfk_template_refs,
@@ -299,7 +350,10 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid AND ct.status = 'draft'
+            WHERE te.exercise_id = $1::uuid
+              AND te.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.status = 'draft'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
           ) q) AS draft_lfk_template_refs,
@@ -314,7 +368,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'published'
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
+              AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS published_tp_template_refs,
@@ -329,7 +385,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid AND t.status = 'draft'
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
+              AND t.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
           ) q) AS draft_tp_template_refs,
@@ -346,7 +404,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'active'
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
+              AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_tp_instance_refs,
@@ -363,7 +423,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid AND i.status = 'completed'
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
+              AND i.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_tp_instance_refs,
@@ -383,21 +445,30 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM patient_lfk_assignments pla
             INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
             LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
-            WHERE pla.is_active = true
+            WHERE pla.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND ct.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND pla.is_active = true
               AND (
                 (pla.complex_id IS NOT NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_exercises ce
-                  WHERE ce.complex_id = pla.complex_id AND ce.exercise_id = $1::uuid
+                  WHERE ce.complex_id = pla.complex_id
+                    AND ce.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+                    AND ce.exercise_id = $1::uuid
                 ))
                 OR
                 (pla.complex_id IS NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_template_exercises te2
-                  WHERE te2.template_id = pla.template_id AND te2.exercise_id = $1::uuid
+                  WHERE te2.template_id = pla.template_id
+                    AND te2.organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+                    AND te2.exercise_id = $1::uuid
                 ))
               )
             ORDER BY pla.assigned_at DESC NULLS LAST
             LIMIT ${lim}
-          ) q) AS active_patient_lfk_refs`,
+          ) q) AS active_patient_lfk_refs
+     FROM lfk_exercises owned
+     WHERE owned.id = $1::uuid
+       AND owned.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
     [exerciseId],
   );
   const row = r.rows[0];
@@ -447,7 +518,12 @@ type ExerciseListRow = ExerciseDbRow & {
 export function createPgLfkExercisesPort(): LfkExercisesPort {
   return {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
-      const conds: string[] = ["1=1"];
+      requireOrganizationPrincipal();
+      const conds: string[] = [
+        filter.includePlatformBase
+          ? "((e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))"
+          : "e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid",
+      ];
       const params: unknown[] = [];
       let i = 1;
 
@@ -459,7 +535,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       }
       if (filter.regionRefId) {
         conds.push(
-          `(EXISTS (SELECT 1 FROM lfk_exercise_regions r0 WHERE r0.exercise_id = e.id AND r0.region_ref_id = $${i}) OR e.region_ref_id = $${i})`,
+          `(EXISTS (
+             SELECT 1 FROM lfk_exercise_regions r0
+              WHERE r0.exercise_id = e.id
+                AND r0.owner_kind = e.owner_kind
+                AND r0.organization_id IS NOT DISTINCT FROM e.organization_id
+                AND r0.region_ref_id = $${i}
+           ) OR e.region_ref_id = $${i})`,
         );
         params.push(filter.regionRefId);
         i += 1;
@@ -487,11 +569,14 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       }
 
       const sql = `
-        SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                COALESCE((
                  SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
-                 FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                 FROM lfk_exercise_regions x
+                 WHERE x.exercise_id = e.id
+                   AND x.owner_kind = e.owner_kind
+                   AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                ), ARRAY[]::uuid[]) AS region_m2m_ids,
                pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
                pm.created_at AS pm_created,
@@ -510,7 +595,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
             ''
           )::uuid
+            AND mf.owner_kind = em.owner_kind
+            AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
           WHERE em.exercise_id = e.id
+            AND em.owner_kind = e.owner_kind
+            AND em.organization_id IS NOT DISTINCT FROM e.organization_id
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
@@ -530,6 +619,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           media.push(
             mapMediaRow({
               id: row.pm_id,
+              owner_kind: row.owner_kind,
               exercise_id: row.id,
               media_url: row.pm_url,
               media_type: row.pm_type,
@@ -546,13 +636,23 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       });
     },
 
-    async listTitlesByIds(ids: readonly string[]): Promise<Map<string, string>> {
+    async listTitlesByIds(
+      ids: readonly string[],
+      options: ExerciseAccessOptions = {},
+    ): Promise<Map<string, string>> {
+      requireOrganizationPrincipal();
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
       if (unique.length === 0) return out;
-      const r = await getPool().query<{ id: string; title: string }>(
-        `SELECT id::text AS id, title FROM lfk_exercises WHERE id = ANY($1::uuid[])`,
-        [unique],
+      const r = await runWebappPgText<{ id: string; title: string }>(
+        `SELECT id::text AS id, title
+           FROM lfk_exercises
+          WHERE id = ANY($1::uuid[])
+            AND (
+              (owner_kind = 'organization' AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+              OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+            )`,
+        [unique, options.includePlatformBase === true],
       );
       for (const row of r.rows ?? []) {
         out.set(row.id, row.title);
@@ -560,33 +660,43 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       return out;
     },
 
-    async getById(id: string): Promise<Exercise | null> {
+    async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
+      requireOrganizationPrincipal();
       const r = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
-                  FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                  FROM lfk_exercise_regions x
+                  WHERE x.exercise_id = e.id
+                    AND x.owner_kind = e.owner_kind
+                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
-         FROM lfk_exercises e WHERE e.id = $1`,
-        [id],
+         FROM lfk_exercises e
+         WHERE e.id = $1
+           AND (
+             (e.owner_kind = 'organization' AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid)
+             OR ($2::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+           )`,
+        [id, options.includePlatformBase === true],
       );
       if (!r.rows[0]) return null;
-      const media = await loadAllMediaForExercise(id);
+      const media = await loadAllMediaForExercise(id, options);
       return mapExerciseRow(r.rows[0], media);
     },
 
     async create(input: CreateExerciseInput, createdBy: string | null): Promise<Exercise> {
+      requireOrganizationPrincipal();
       const regionIds = mergeExerciseRegionRefIds(input.regionRefId, input.regionRefIds ?? null);
       const legacyRegion = regionIds[0] ?? null;
       const { row, exId } = await runWebappTransaction(async (tx) => {
         const ins = await txPgText<ExerciseDbRow>(
           tx,
           `INSERT INTO lfk_exercises (
-             title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
+             owner_kind, organization_id, title, description, region_ref_id, load_type, difficulty_1_10, contraindications, tags, created_by, updated_at
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
-           RETURNING id, title, description, region_ref_id, load_type, difficulty_1_10,
+           VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4, $5, $6, $7, $8, now())
+           RETURNING id, owner_kind, title, description, region_ref_id, load_type, difficulty_1_10,
                      contraindications, tags, is_archived, created_by, created_at, updated_at`,
           [
             input.title,
@@ -607,8 +717,8 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           for (const m of input.media) {
             await txPgText(
               tx,
-              `INSERT INTO lfk_exercise_media (exercise_id, media_url, media_type, sort_order)
-               VALUES ($1, $2, $3, $4)`,
+              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
               [newExId, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
@@ -622,8 +732,15 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     },
 
     async update(id: string, input: UpdateExerciseInput): Promise<Exercise | null> {
+      requireOrganizationPrincipal();
       const touched = await runWebappTransaction(async (tx) => {
-        const cur = await txPgText<{ id: string }>(tx, `SELECT id FROM lfk_exercises WHERE id = $1`, [id]);
+        const cur = await txPgText<{ id: string }>(
+          tx,
+          `SELECT id FROM lfk_exercises
+            WHERE id = $1
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+          [id],
+        );
         if (!cur.rows[0]) return false;
 
         const sets: string[] = ["updated_at = now()"];
@@ -651,20 +768,32 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         if (input.tags !== undefined) add("tags", input.tags);
 
         vals.push(id);
-        await txPgText(tx, `UPDATE lfk_exercises SET ${sets.join(", ")} WHERE id = $${n}`, vals);
+        await txPgText(
+          tx,
+          `UPDATE lfk_exercises SET ${sets.join(", ")}
+            WHERE id = $${n}
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+          vals,
+        );
 
         if (regionPatch !== null) {
           await replaceLfkExerciseRegions(tx, id, regionPatch);
         }
 
         if (input.media !== undefined && input.media !== null) {
-          await txPgText(tx, `DELETE FROM lfk_exercise_media WHERE exercise_id = $1`, [id]);
+          await txPgText(
+            tx,
+            `DELETE FROM lfk_exercise_media
+              WHERE exercise_id = $1
+                AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
+            [id],
+          );
           let order = 0;
           for (const m of input.media) {
             await txPgText(
               tx,
-              `INSERT INTO lfk_exercise_media (exercise_id, media_url, media_type, sort_order)
-               VALUES ($1, $2, $3, $4)`,
+              `INSERT INTO lfk_exercise_media (owner_kind, organization_id, exercise_id, media_url, media_type, sort_order)
+               VALUES ('organization', NULLIF(current_setting('app.org', true), '')::uuid, $1, $2, $3, $4)`,
               [id, m.mediaUrl, m.mediaType, m.sortOrder ?? order],
             );
             order += 1;
@@ -676,22 +805,31 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
       const media = await loadAllMediaForExercise(id);
       const rowR = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+        `SELECT e.id, e.owner_kind, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
-                  FROM lfk_exercise_regions x WHERE x.exercise_id = e.id
+                  FROM lfk_exercise_regions x
+                  WHERE x.exercise_id = e.id
+                    AND x.owner_kind = e.owner_kind
+                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
-         FROM lfk_exercises e WHERE e.id = $1`,
+         FROM lfk_exercises e
+         WHERE e.id = $1
+           AND e.organization_id = NULLIF(current_setting('app.org', true), '')::uuid`,
         [id],
       );
       return mapExerciseRow(rowR.rows[0]!, media);
     },
 
     async archive(id: string): Promise<boolean> {
+      requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
         runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = true, updated_at = now() WHERE id = $1 AND is_archived = false`,
+          `UPDATE lfk_exercises SET is_archived = true, updated_at = now()
+            WHERE id = $1
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND is_archived = false`,
           [id],
           tx,
         ),
@@ -700,9 +838,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     },
 
     async unarchive(id: string): Promise<boolean> {
+      requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
         runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = false, updated_at = now() WHERE id = $1 AND is_archived = true`,
+          `UPDATE lfk_exercises SET is_archived = false, updated_at = now()
+            WHERE id = $1
+              AND organization_id = NULLIF(current_setting('app.org', true), '')::uuid
+              AND is_archived = true`,
           [id],
           tx,
         ),
@@ -711,6 +853,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     },
 
     async getExerciseUsageSummary(id: string): Promise<ExerciseUsageSnapshot> {
+      requireOrganizationPrincipal();
       return loadExerciseUsageSummary(id);
     },
   };

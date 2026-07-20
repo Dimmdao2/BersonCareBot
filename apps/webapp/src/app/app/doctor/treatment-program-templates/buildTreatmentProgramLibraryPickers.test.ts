@@ -8,6 +8,7 @@ import type { ClinicalTest } from "@/modules/tests/types";
 function minimalExercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
     id: "ex-1",
+    ownerKind: "organization",
     title: "Упр",
     description: null,
     regionRefId: "reg-1",
@@ -105,6 +106,7 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     const lfkTemplates: Template[] = [
       {
         id: "tpl-1",
+        ownerKind: "organization",
         title: "Комплекс",
         description: null,
         status: "published",
@@ -161,6 +163,7 @@ describe("buildTreatmentProgramLibraryPickers", () => {
     const lfkTemplates = [
       {
         id: "tpl-1",
+        ownerKind: "organization" as const,
         title: "Комплекс",
         description: null,
         status: "published" as const,

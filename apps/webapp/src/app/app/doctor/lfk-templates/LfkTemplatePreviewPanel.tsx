@@ -52,7 +52,13 @@ function TemplateExercisePreviewRow({ line }: { line: TemplateExercise }) {
   );
 }
 
-export function LfkTemplatePreviewPanel({ template }: { template: Template }) {
+export function LfkTemplatePreviewPanel({
+  template,
+  showOpenButton = true,
+}: {
+  template: Template;
+  showOpenButton?: boolean;
+}) {
   const lines = [...template.exercises].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
@@ -67,12 +73,19 @@ export function LfkTemplatePreviewPanel({ template }: { template: Template }) {
       <p className="text-xs text-muted-foreground tabular-nums">
         Упражнений: {template.exerciseCount ?? lines.length}
       </p>
-      <Link
-        href={`/app/doctor/lfk-templates/${template.id}`}
-        className={cn(buttonVariants(), "w-full sm:w-auto")}
-      >
-        Открыть конструктор
-      </Link>
+      {template.ownerKind === "platform" ? (
+        <p className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm text-muted-foreground">
+          Базовый комплекс платформы доступен для назначения и не редактируется клиникой.
+        </p>
+      ) : null}
+      {showOpenButton ? (
+        <Link
+          href={`/app/doctor/lfk-templates/${template.id}`}
+          className={cn(buttonVariants(), "w-full sm:w-auto")}
+        >
+          {template.ownerKind === "platform" ? "Открыть" : "Открыть конструктор"}
+        </Link>
+      ) : null}
       {lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">В шаблоне пока нет упражнений.</p>
       ) : (

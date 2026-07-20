@@ -936,6 +936,7 @@ export const motivationalQuotes = pgTable("motivational_quotes", {
 
 export const lfkExercises = pgTable("lfk_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	title: text().notNull(),
 	description: text(),
@@ -963,10 +964,12 @@ export const lfkExercises = pgTable("lfk_exercises", {
 			name: "lfk_exercises_region_ref_id_fkey"
 		}),
 	check("lfk_exercises_difficulty_1_10_check", sql`(difficulty_1_10 IS NULL) OR ((difficulty_1_10 >= 1) AND (difficulty_1_10 <= 10))`),
+	check("lfk_exercises_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 
 /** M2M: упражнение ↔ регион тела (`reference_items`, категория `body_region`). Legacy: `lfk_exercises.region_ref_id` (dual-write, первый выбранный). */
 export const lfkExerciseRegions = pgTable("lfk_exercise_regions", {
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	exerciseId: uuid("exercise_id").notNull(),
 	regionRefId: uuid("region_ref_id").notNull(),
@@ -984,10 +987,12 @@ export const lfkExerciseRegions = pgTable("lfk_exercise_regions", {
 		name: "lfk_exercise_regions_region_ref_id_fkey",
 	}).onDelete("cascade"),
 	index("idx_lfk_exercise_regions_region_ref").using("btree", table.regionRefId.asc().nullsLast().op("uuid_ops")),
+	check("lfk_exercise_regions_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 
 export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercises", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	templateId: uuid("template_id").notNull(),
 	exerciseId: uuid("exercise_id").notNull(),
@@ -1013,10 +1018,12 @@ export const lfkComplexTemplateExercises = pgTable("lfk_complex_template_exercis
 	unique("lfk_complex_template_exercises_template_id_exercise_id_key").on(table.templateId, table.exerciseId),
 	check("lfk_complex_template_exercises_max_pain_0_10_check", sql`(max_pain_0_10 IS NULL) OR ((max_pain_0_10 >= 0) AND (max_pain_0_10 <= 10))`),
 	check("lfk_complex_template_exercises_side_check", sql`(side IS NULL) OR (side = ANY (ARRAY['left'::text, 'right'::text, 'both'::text, 'damaged'::text, 'healthy'::text]))`),
+	check("lfk_complex_template_exercises_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 
 export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	exerciseId: uuid("exercise_id").notNull(),
 	mediaUrl: text("media_url").notNull(),
@@ -1032,10 +1039,12 @@ export const lfkExerciseMedia = pgTable("lfk_exercise_media", {
 			name: "lfk_exercise_media_exercise_id_fkey"
 		}).onDelete("cascade"),
 	check("lfk_exercise_media_media_type_check", sql`media_type = ANY (ARRAY['image'::text, 'video'::text, 'gif'::text])`),
+	check("lfk_exercise_media_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 
 export const lfkComplexTemplates = pgTable("lfk_complex_templates", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	title: text().notNull(),
 	description: text(),
@@ -1051,6 +1060,7 @@ export const lfkComplexTemplates = pgTable("lfk_complex_templates", {
 			name: "lfk_complex_templates_created_by_fkey"
 		}),
 	check("lfk_complex_templates_status_check", sql`status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])`),
+	check("lfk_complex_templates_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 ]);
 
 export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
@@ -1065,7 +1075,7 @@ export const patientLfkAssignments = pgTable("patient_lfk_assignments", {
 }, (table) => [
 	index("idx_assignments_patient").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.isActive.asc().nullsLast().op("bool_ops")),
 	index("idx_patient_lfk_assignments_organization_id").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops")),
-	uniqueIndex("idx_patient_lfk_assign_active_template").using("btree", table.patientUserId.asc().nullsLast().op("uuid_ops"), table.templateId.asc().nullsLast().op("uuid_ops")).where(sql`(is_active = true)`),
+	uniqueIndex("idx_patient_lfk_assign_active_template").using("btree", table.organizationId.asc().nullsLast().op("uuid_ops"), table.patientUserId.asc().nullsLast().op("uuid_ops"), table.templateId.asc().nullsLast().op("uuid_ops")).where(sql`(is_active = true)`),
 	foreignKey({
 			columns: [table.assignedBy],
 			foreignColumns: [platformUsers.id],
@@ -1130,6 +1140,7 @@ export const authRateLimitEvents = pgTable("auth_rate_limit_events", {
 
 export const mediaFiles = pgTable("media_files", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
+	ownerKind: text("owner_kind").default('organization').notNull(),
 	organizationId: uuid("organization_id"),
 	originalName: text("original_name").notNull(),
 	storedPath: text("stored_path").notNull(),
@@ -1183,6 +1194,7 @@ export const mediaFiles = pgTable("media_files", {
 	check("media_files_preview_status_check", sql`preview_status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text, 'skipped'::text])`),
 	check("media_files_size_bytes_check", sql`(size_bytes >= 0) AND (size_bytes <= '3221225472'::bigint)`),
 	check("media_files_status_check", sql`status = ANY (ARRAY['ready'::text, 'pending'::text, 'deleting'::text, 'pending_delete'::text])`),
+	check("media_files_owner_check", sql`(owner_kind = 'organization' AND organization_id IS NOT NULL) OR (owner_kind = 'platform' AND organization_id IS NULL)`),
 	check(
 		"media_files_video_processing_status_check",
 		sql`(video_processing_status IS NULL) OR (video_processing_status = ANY (ARRAY['none'::text, 'pending'::text, 'processing'::text, 'ready'::text, 'failed'::text]))`,

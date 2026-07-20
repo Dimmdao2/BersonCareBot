@@ -8,6 +8,7 @@ import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspace
 import { requireDoctorWorkspaceApiContext, requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { canAccessDoctor } from "@/modules/roles/service";
 import type { AppSession } from "@/shared/types/session";
+import { resolvePlatformLfkMediaAccess } from "@/app-layer/media/resolvePlatformLfkMediaAccess";
 
 function parsePreferParam(raw: string | null): PlaybackDeliveryStrategy | null {
   if (!raw) return null;
@@ -29,13 +30,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const initialSession = await getCurrentSession();
   if (!initialSession) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const serve = async (session: AppSession): Promise<Response> => {
-    const accessRow = await getMediaAccessRow(id);
+    let allowPlatformBase = false;
+    let accessRow = await getMediaAccessRow(id);
+    if (!accessRow) {
+      allowPlatformBase = await resolvePlatformLfkMediaAccess(id);
+      if (allowPlatformBase) accessRow = await getMediaAccessRow(id, { allowPlatformBase: true });
+    }
     if (!accessRow) return NextResponse.json({ error: "not found" }, { status: 404 });
     if (!assertMediaPlaybackAccess(session, { usagePurpose: accessRow.usage_purpose, uploadedBy: accessRow.uploaded_by })) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
     const prefer = parsePreferParam(new URL(request.url).searchParams.get("prefer"));
-    const result = await resolveMediaPlaybackPayload({ id, session, adminPrefer: session.user.role === "admin" ? prefer : null });
+    const result = await resolveMediaPlaybackPayload({
+      id,
+      session,
+      adminPrefer: session.user.role === "admin" ? prefer : null,
+      allowPlatformBase,
+    });
     return result.ok ? NextResponse.json(result.data) : NextResponse.json({ error: result.error }, { status: result.status });
   };
   if (canAccessDoctor(initialSession.user.role)) {

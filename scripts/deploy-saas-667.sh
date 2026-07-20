@@ -235,6 +235,10 @@ psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
 header "Step 3/6: run the three-phase migration chain"
 bash scripts/migrate-all.sh
 
+header "Step 3b/6: build C4D media owner index online"
+run_superuser_psql_file deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql \
+  -X -v ON_ERROR_STOP=1
+
 header "Step 4/6: normalize app schema ownership after migrations"
 superuser_psql_target -X -v ON_ERROR_STOP=1 \
   -v p2_b_owner_role="${P2_B_OWNER_ROLE}" <<'SQL'

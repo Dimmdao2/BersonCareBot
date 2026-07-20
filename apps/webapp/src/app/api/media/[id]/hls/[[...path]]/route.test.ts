@@ -31,6 +31,9 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaAccessRow: (...a: unknown[]) => getAccessRowMock(...a),
 }));
+vi.mock("@/app-layer/media/resolvePlatformLfkMediaAccess", () => ({
+  resolvePlatformLfkMediaAccess: vi.fn(async () => false),
+}));
 
 vi.mock("@/app-layer/media/hlsDeliveryProxy", () => ({
   handleHlsDeliveryProxyRequest: (...a: unknown[]) => handleMock(...a),
@@ -98,6 +101,7 @@ describe("GET /api/media/[id]/hls/[[...path]]", () => {
     });
     await GET(req, { params: Promise.resolve({ id: mid, path: ["720p", "seg.ts"] }) });
     expect(handleMock).toHaveBeenCalledWith({
+      allowPlatformBase: false,
       mediaId: mid,
       pathSegments: ["720p", "seg.ts"],
       rangeHeader: "bytes=0-1",

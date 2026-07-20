@@ -1,12 +1,15 @@
-import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 import { LfkTemplateNewStandalone } from "./LfkTemplateNewStandalone";
 
 export default async function DoctorLfkTemplateNewPage() {
-  const session = await requireDoctorAccess();
+  const workspace = await requireDoctorWorkspaceContext();
+  const session = workspace.session;
   const deps = buildAppDeps();
-  const exercises = await deps.lfkExercises.listExercises({ includeArchived: false });
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
+  const exercises = await deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase });
   const exerciseCatalog = exercises.map((e) => ({
     id: e.id,
     title: e.title,

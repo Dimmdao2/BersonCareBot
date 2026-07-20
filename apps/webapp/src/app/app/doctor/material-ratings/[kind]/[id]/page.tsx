@@ -8,6 +8,7 @@ import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
 
 import { MaterialRatingDetailClient } from "@/app/app/doctor/material-ratings/MaterialRatingDetailClient";
 import { MaterialRatingFeedbackDoctorPanel } from "@/app/app/doctor/material-ratings/MaterialRatingFeedbackDoctorPanel";
+import { assertMechanicEnabled } from "@/app-layer/guards/requireEntitlement";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -29,6 +30,7 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
   }
 
   const deps = buildAppDeps();
+  const includePlatformBase = await assertMechanicEnabled(workspace.organizationId, "exercise_catalog");
   const iana = await getAppDisplayTimeZone();
   const calendarTodayYmd = DateTime.now().setZone(iana).toFormat("yyyy-LL-dd");
 
@@ -42,10 +44,10 @@ export default async function DoctorMaterialRatingDetailPage({ params }: Props) 
       contentPageId: id,
     });
   } else if (kind === "lfk_exercise") {
-    const titles = await deps.lfkExercises.listExerciseTitlesByIds([id]);
+    const titles = await deps.lfkExercises.listExerciseTitlesByIds([id], { includePlatformBase });
     titleSuffix = titles.get(id)?.trim() || id;
   } else if (kind === "lfk_complex") {
-    const t = await deps.lfkTemplates.getTemplate(id);
+    const t = await deps.lfkTemplates.getTemplate(id, { includePlatformBase });
     titleSuffix = t?.title?.trim() || id;
   }
 
