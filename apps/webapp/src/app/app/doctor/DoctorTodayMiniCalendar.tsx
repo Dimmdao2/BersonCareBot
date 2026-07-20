@@ -279,6 +279,7 @@ export function DoctorTodayMiniCalendar({
           initialView="timeGridDay"
           initialDate={todayIso}
           headerToolbar={false}
+          dayHeaders={false}
           allDaySlot={false}
           nowIndicator
           height="auto"

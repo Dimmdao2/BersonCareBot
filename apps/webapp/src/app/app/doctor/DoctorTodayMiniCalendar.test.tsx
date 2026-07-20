@@ -140,6 +140,7 @@ describe('DoctorTodayMiniCalendar', () => {
         />,
       );
       expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
+      expect(lastFullCalendarProps?.dayHeaders).toBe(false);
     });
   });
 
