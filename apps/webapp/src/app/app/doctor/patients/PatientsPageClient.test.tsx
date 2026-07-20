@@ -4,7 +4,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getClientCategory, PatientsPageClient } from "./PatientsPageClient";
-import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -50,46 +50,6 @@ const metrics: DoctorDashboardPatientMetrics = {
   newCount: 0,
   formerCount: 0,
   cancellationsCount: 0,
-};
-
-const patientHeader: PatientCardHeader = {
-  identity: {
-    userId: "u1",
-    displayName: "Пациент",
-    firstName: "Иван",
-    lastName: "Петров",
-    patronymic: null,
-    phone: "+79990000001",
-    email: "patient@example.test",
-    bindings: {},
-    hasConversation: true,
-    isArchived: false,
-    isBlocked: false,
-    birthDate: null,
-    age: null,
-    gender: null,
-  },
-  support: {
-    isOnSupport: true,
-    startedAt: "2026-01-01T00:00:00.000Z",
-    supportMonthsApprox: 6,
-  },
-  lastVisit: {
-    date: "2026-06-01",
-    visitType: null,
-    city: null,
-  },
-  nextAppointment: {
-    date: "2026-07-10",
-    time: "15:30",
-    city: null,
-    appointmentType: null,
-  },
-  totalVisits: 3,
-  cancellationsCount: 0,
-  reschedulesCount: 0,
-  noShowCount: 0,
-  firstVisitDate: "2026-05-01",
 };
 
 async function renderPatientsPage(clients: ClientListItem[]) {
@@ -141,7 +101,8 @@ describe("PatientsPageClient", () => {
       }),
     ]);
 
-    await screen.findByRole("searchbox", { name: "Поиск пациентов" });
+    const search = await screen.findByRole("searchbox", { name: "Поиск: клиенты" });
+    expect(search.closest("[data-doctor-page-header]")).not.toBeNull();
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
     expect(screen.getByText("Подписчик")).toBeInTheDocument();
@@ -152,12 +113,12 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByRole("button", { name: "Фильтр сопровождения" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Фильтр абонементов" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Пуш-уведомления" })).toBeInTheDocument();
+    const allClientsCard = screen.getByRole("button", { name: /^Все клиенты/i });
+    expect(allClientsCard.parentElement).toHaveClass("grid-cols-3", "xl:grid-cols-3", "2xl:grid-cols-3");
     expect(screen.getByRole("button", { name: /^Все/i })).toHaveAttribute("aria-pressed", "true");
     const rightPanel = screen.getByText("Каналы связи").closest("section");
     expect(rightPanel).toBeVisible();
-    const splitLayout = Array.from(document.querySelectorAll("div")).find((element) =>
-      element.className.includes("lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"),
-    );
+    const splitLayout = Array.from(document.querySelectorAll("div")).find((element) => element.className.includes("lg:grid-cols-2"));
     expect(splitLayout).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
@@ -171,6 +132,8 @@ describe("PatientsPageClient", () => {
     expect(supportCard).not.toBeNull();
     expect(within(supportCard as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(within(supportCard as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).getByLabelText("После фильтров: 1")).toBeInTheDocument();
+    expect(within(supportCard as HTMLElement).queryByText("/")).not.toBeInTheDocument();
     expect(within(supportCard as HTMLElement).queryByText("всего")).not.toBeInTheDocument();
 
     expect(screen.getByText("С записью и сопровождением")).toBeInTheDocument();
@@ -238,7 +201,11 @@ describe("PatientsPageClient", () => {
     const user = userEvent.setup();
     window.history.pushState({}, "", "/app/doctor/patients?channel=max");
     await renderPatientsPage([
-      client({ userId: "telegram", displayName: "Telegram client", bindings: { telegramId: "tg-1" } }),
+      client({
+        userId: "telegram",
+        displayName: "Telegram client",
+        bindings: { telegramId: "tg-1" },
+      }),
       client({ userId: "push", displayName: "Push client", hasWebPush: true }),
       client({ userId: "plain", displayName: "Plain client" }),
     ]);
@@ -260,47 +227,42 @@ describe("PatientsPageClient", () => {
     const user = userEvent.setup();
     await renderPatientsPage([
       client({ userId: "null", displayName: "Яна", lastName: "Яна" }),
-      client({ userId: "same-b", displayName: "Борис", lastName: "Борис", lastAppointmentAt: "2026-07-01T09:00:00.000Z" }),
-      client({ userId: "newest", displayName: "Вера", lastName: "Вера", lastAppointmentAt: "2026-07-02T09:00:00.000Z" }),
-      client({ userId: "same-a", displayName: "Алексей", lastName: "Алексей", lastAppointmentAt: "2026-07-01T09:00:00.000Z" }),
+      client({
+        userId: "same-b",
+        displayName: "Борис",
+        lastName: "Борис",
+        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+      }),
+      client({
+        userId: "newest",
+        displayName: "Вера",
+        lastName: "Вера",
+        lastAppointmentAt: "2026-07-02T09:00:00.000Z",
+      }),
+      client({
+        userId: "same-a",
+        displayName: "Алексей",
+        lastName: "Алексей",
+        lastAppointmentAt: "2026-07-01T09:00:00.000Z",
+      }),
     ]);
 
     const listIds = () => Array.from(document.querySelectorAll("#doctor-patients-list > li")).map((item) => item.id);
-    expect(listIds()).toEqual([
-      "doctor-patients-item-newest",
-      "doctor-patients-item-same-a",
-      "doctor-patients-item-same-b",
-      "doctor-patients-item-null",
-    ]);
+    expect(listIds()).toEqual(["doctor-patients-item-newest", "doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-null"]);
 
     const recentSort = screen.getByRole("button", { name: "Недавние: недавние сверху" });
     expect(recentSort).toHaveAttribute("aria-pressed", "true");
     await user.click(recentSort);
-    expect(listIds()).toEqual([
-      "doctor-patients-item-same-a",
-      "doctor-patients-item-same-b",
-      "doctor-patients-item-newest",
-      "doctor-patients-item-null",
-    ]);
+    expect(listIds()).toEqual(["doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-newest", "doctor-patients-item-null"]);
 
     const fioSort = screen.getByRole("button", { name: "По фамилии: А–Я" });
     await user.click(fioSort);
-    expect(listIds()).toEqual([
-      "doctor-patients-item-same-a",
-      "doctor-patients-item-same-b",
-      "doctor-patients-item-newest",
-      "doctor-patients-item-null",
-    ]);
+    expect(listIds()).toEqual(["doctor-patients-item-same-a", "doctor-patients-item-same-b", "doctor-patients-item-newest", "doctor-patients-item-null"]);
 
     await user.click(screen.getByRole("button", { name: "По фамилии: А–Я" }));
-    expect(listIds()).toEqual([
-      "doctor-patients-item-null",
-      "doctor-patients-item-newest",
-      "doctor-patients-item-same-b",
-      "doctor-patients-item-same-a",
-    ]);
+    expect(listIds()).toEqual(["doctor-patients-item-null", "doctor-patients-item-newest", "doctor-patients-item-same-b", "doctor-patients-item-same-a"]);
 
-    await user.type(screen.getByRole("searchbox", { name: "Поиск пациентов" }), "Вера");
+    await user.type(screen.getByRole("searchbox", { name: "Поиск: клиенты" }), "Вера");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 220));
     });
@@ -315,7 +277,12 @@ describe("PatientsPageClient", () => {
       client({ userId: "future", displayName: "Будущая запись", activeAppointmentsCount: 3 }),
       client({ userId: "support", displayName: "Только сопровождение", isOnSupport: true }),
       client({ userId: "program", displayName: "Только программа", activeTreatmentProgram: true }),
-      client({ userId: "program-support", displayName: "Программа и сопровождение", activeTreatmentProgram: true, isOnSupport: true }),
+      client({
+        userId: "program-support",
+        displayName: "Программа и сопровождение",
+        activeTreatmentProgram: true,
+        isOnSupport: true,
+      }),
       client({ userId: "membership", displayName: "С абонементом", hasMemberships: true }),
     ]);
 
@@ -336,13 +303,19 @@ describe("PatientsPageClient", () => {
     expect(programSupportRow.getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
     expect(programSupportRow.queryByLabelText("Назначенная программа")).not.toBeInTheDocument();
     expect(membershipRow.getByLabelText("Есть абонемент")).toBeInTheDocument();
+    expect(membershipRow.getByLabelText("Есть абонемент")).not.toHaveClass("bg-muted/40", "border-border/60");
 
     for (const row of [historyRow, futureRow, supportRow, programRow, programSupportRow, membershipRow]) {
       expect(row.queryByLabelText(/Переписка|История|Telegram|MAX|Телефон|email|приложение/i)).not.toBeInTheDocument();
       const indicatorRail = row.getByLabelText("Статусы клиента");
-      expect(indicatorRail).toHaveClass("grid", "w-[7.75rem]", "grid-cols-4");
-      expect(indicatorRail.children).toHaveLength(4);
+      expect(indicatorRail).toHaveClass("grid", "w-[5.75rem]", "grid-cols-3");
+      expect(indicatorRail.children).toHaveLength(3);
     }
+
+    const combinedRow = programSupportRow.getByLabelText("Статусы клиента");
+    expect(combinedRow.children[0]).not.toHaveAttribute("aria-label");
+    expect(within(combinedRow.children[1] as HTMLElement).getByLabelText("Клиент на сопровождении")).toBeInTheDocument();
+    expect(combinedRow.children[2]).not.toHaveAttribute("aria-label");
   });
 
   it("shows one structured FIO line without repeating the legacy display name", async () => {
@@ -360,25 +333,8 @@ describe("PatientsPageClient", () => {
     expect(screen.queryByText("Старая строка")).not.toBeInTheDocument();
   });
 
-  it("opens an Exercises-style detail view from a patient row with communication actions and visit summary", async () => {
+  it("keeps the standalone patient-card route and uses Exercises-style mobile switching for filters", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("treatment-program-instances")) {
-          return {
-            ok: true,
-            json: async () => ({ ok: true, items: [{ id: "program-1", title: "Колено: этап 1", status: "active" }] }),
-          };
-        }
-        return {
-          ok: true,
-          json: async () => ({ ok: true, header: patientHeader }),
-        };
-      }),
-    );
-
     await renderPatientsPage([
       client({
         userId: "u1",
@@ -398,28 +354,14 @@ describe("PatientsPageClient", () => {
       }),
     ]);
 
-    await user.click(screen.getByRole("button", { name: /Петров Иван/i }));
+    expect(screen.getByRole("link", { name: /Петров Иван/i })).toHaveAttribute("href", "/app/doctor/patients/u1");
+    expect(screen.queryByRole("button", { name: "Закрыть" })).not.toBeInTheDocument();
 
-    const listItem = document.getElementById("doctor-patients-item-u1");
-    expect(listItem).not.toBeNull();
-    expect(within(listItem as HTMLElement).queryByText("Прошлый визит:")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Фильтры" }));
     expect(screen.getByRole("button", { name: "← Назад" })).toBeInTheDocument();
-    const previewRoot = screen.getByRole("button", { name: "Закрыть" }).closest("div.rounded-xl");
-    expect(previewRoot).not.toBeNull();
-    const preview = within(previewRoot as HTMLElement);
-    expect(preview.getByRole("button", { name: /Чат/i })).toBeEnabled();
-    expect(preview.getByRole("link", { name: /Позвонить/i })).toHaveAttribute("href", "tel:+79990000001");
-    expect(preview.getByRole("link", { name: /Карта/i })).toHaveAttribute("href", "/app/doctor/patients/u1");
-    expect(preview.getByRole("button", { name: "Скопировать Telegram ID" })).toBeEnabled();
-    expect(preview.getByRole("button", { name: "Скопировать MAX ID" })).toBeEnabled();
-    expect(preview.getByRole("link", { name: /Вкладка/i })).toHaveAttribute("href", "/app/doctor/patients/u1?tab=comms");
+    expect(screen.getByText("Каналы связи")).toBeInTheDocument();
 
-    expect(await preview.findByRole("link", { name: /Email/i })).toHaveAttribute("href", "mailto:patient@example.test");
-    expect(await preview.findByText("Колено: этап 1")).toBeInTheDocument();
-    expect(preview.getByText("Приложение")).toBeInTheDocument();
-    expect(preview.getByText("Пуши включены")).toBeInTheDocument();
-    expect(preview.getByText("01.06.2026")).toBeInTheDocument();
-    expect(preview.getByText("10.07.2026 15:30")).toBeInTheDocument();
-    expect(preview.getByText("3")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "← Назад" }));
+    expect(screen.queryByRole("button", { name: "← Назад" })).not.toBeInTheDocument();
   });
 });

@@ -4,38 +4,27 @@
  * PatientsPageClient — unified patients list.
  *
  * Layout (desktop, 2-column):
- *   LEFT  – patient list with search on top
+ *   LEFT  – patient list with count and sorting
  *   RIGHT – filter panel (segment stat cards + channel row + additional filters)
- *           + PatientPreviewPane when a row is selected
  *
  * Search logic: debounced client-side match across the loaded organization roster.
  */
 
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Search, X, Bell, CalendarDays, Dumbbell, ExternalLink, Handshake, Mail, MessageSquare, Phone, Send, Smartphone, Ticket } from "lucide-react";
+import { ArrowDown, ArrowUp, Bell, CalendarDays, Dumbbell, Filter, Handshake, Search, Ticket, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
-import type { ClientListItem, DoctorDashboardPatientMetrics, PatientCardHeader } from "@/modules/doctor-clients/ports";
+import type { ClientListItem, DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 import { DoctorMetricList } from "@/shared/ui/doctor/DoctorMetricList";
 import { DoctorStatCard } from "@/app/app/doctor/analytics/clients/DoctorStatCard";
 import { Button, buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import { Input } from "@/shared/ui/doctor/primitives/input";
-import { doctorSectionCardClass } from "@/shared/ui/doctor/doctorVisual";
-import {
-  DoctorDnaFlatListSelectionStrip,
-  doctorDnaFlatListClass,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
-  doctorDnaFlatListSelectedPrimaryClass,
-} from "@/shared/ui/doctor/DoctorDnaFlatListRow";
+import { TooltipProvider } from "@/shared/ui/doctor/primitives/tooltip";
+import { doctorDnaFlatListClass, doctorDnaFlatListClickableClass, doctorDnaFlatListPrimaryClass, doctorDnaFlatListRowClass } from "@/shared/ui/doctor/DoctorDnaFlatListRow";
 import { DoctorPageHeader } from "@/shared/ui/doctor/shell/DoctorPageHeader";
-import { phoneToTelHref } from "@/shared/lib/phoneLinks";
-import { DoctorOpenChatButton } from "@/shared/ui/doctor/DoctorOpenChatButton";
 import { CatalogSplitLayout } from "@/shared/ui/doctor/catalog/CatalogSplitLayout";
 import { CatalogRightPane } from "@/shared/ui/doctor/catalog/CatalogRightPane";
-import { patientCardHref } from "./patientCardHref";
 import { formatDoctorFio } from "@/shared/lib/fio";
 
 // ---------------------------------------------------------------------------
@@ -89,17 +78,7 @@ type LegacyFiltersState = {
 // Segment definitions (merged: old 4-card model + new extended segments)
 // ---------------------------------------------------------------------------
 
-type SegmentKey =
-  | "all"
-  | "appointments"
-  | "on_support"
-  | "with_program"
-  | "without_appointments"
-  | "visits"
-  | "former"
-  | "cancellations"
-  | "memberships"
-  | "visited_month";
+type SegmentKey = "all" | "appointments" | "on_support" | "with_program" | "without_appointments" | "visits" | "former" | "cancellations" | "memberships" | "visited_month";
 
 type SegmentDef = {
   key: SegmentKey;
@@ -110,59 +89,59 @@ type SegmentDef = {
 };
 
 const SEGMENTS: SegmentDef[] = [
-  { key: "all", title: "Все", tooltip: "Все люди текущей организации.", urlValue: null },
+  { key: "all", title: "Все", tooltip: "Все люди организации.", urlValue: null },
   {
     key: "appointments",
     title: "С записями",
-    tooltip: "Есть хотя бы одна будущая или прошедшая запись без отмены.",
+    tooltip: "Есть будущая или прошедшая запись без отмены.",
     urlValue: "appointments",
   },
   {
     key: "on_support",
     title: "На сопровождении",
-    tooltip: "Сейчас находятся на активном сопровождении.",
+    tooltip: "Сейчас на активном сопровождении.",
     urlValue: "on_support",
   },
   {
     key: "with_program",
     title: "С программой",
-    tooltip: "Есть активная назначенная программа.",
+    tooltip: "Есть активная программа.",
     urlValue: "with_program",
   },
   {
     key: "without_appointments",
     title: "Без приёмов",
-    tooltip: "Нет ни состоявшихся визитов, ни будущих записей.",
+    tooltip: "Нет визитов и будущих записей.",
     urlValue: "without_appointments",
   },
   {
     key: "visits",
     title: "С визитами",
-    tooltip: "Есть хотя бы один состоявшийся визит.",
+    tooltip: "Есть состоявшийся визит.",
     urlValue: "visits",
   },
   {
     key: "former",
     title: "Без будущих",
-    tooltip: "Визиты уже были, но будущих записей сейчас нет.",
+    tooltip: "Визиты были, будущих записей нет.",
     urlValue: "former",
   },
   {
     key: "cancellations",
     title: "С отменами",
-    tooltip: "Есть отмены за последние 30 дней.",
+    tooltip: "Есть отмены за 30 дней.",
     urlValue: "cancellations",
   },
   {
     key: "memberships",
     title: "С абонементами",
-    tooltip: "Есть купленный действующий или ожидающий оплаты абонемент.",
+    tooltip: "Есть действующий или ожидающий оплаты абонемент.",
     urlValue: "memberships",
   },
   {
     key: "visited_month",
     title: "Приём в этом мес.",
-    tooltip: "Есть состоявшийся визит в текущем календарном месяце.",
+    tooltip: "Есть визит в текущем месяце.",
     urlValue: "visited_month",
   },
 ];
@@ -249,11 +228,7 @@ function applySegmentFilters(list: ClientListItem[], activeSegments: SegmentKey[
 /** Определяет категорию клиента по флагам из ClientListItem. */
 export function getClientCategory(item: ClientListItem): Exclude<ClientCategory, "all"> {
   const isClient =
-    item.isOnSupport === true ||
-    item.activeTreatmentProgram === true ||
-    (item.hasAppointmentHistory ?? false) ||
-    (item.activeAppointmentsCount ?? 0) > 0 ||
-    item.hasMemberships === true;
+    item.isOnSupport === true || item.activeTreatmentProgram === true || (item.hasAppointmentHistory ?? false) || (item.activeAppointmentsCount ?? 0) > 0 || item.hasMemberships === true;
   return isClient ? "client" : "subscriber_only";
 }
 
@@ -264,7 +239,11 @@ function applyCategoryFilter(list: ClientListItem[], category: ClientCategory): 
 
 function clientFioSortKey(item: ClientListItem): string {
   return formatDoctorFio(
-    { lastName: item.lastName ?? null, firstName: item.firstName ?? null, patronymic: item.patronymic ?? null },
+    {
+      lastName: item.lastName ?? null,
+      firstName: item.firstName ?? null,
+      patronymic: item.patronymic ?? null,
+    },
     item.displayName,
   ).trim();
 }
@@ -296,7 +275,11 @@ function sortClients(list: ClientListItem[], sort: ClientListSort, direction: Cl
 
 function clientPrimaryName(item: ClientListItem): string {
   return formatDoctorFio(
-    { lastName: item.lastName ?? null, firstName: item.firstName ?? null, patronymic: item.patronymic ?? null },
+    {
+      lastName: item.lastName ?? null,
+      firstName: item.firstName ?? null,
+      patronymic: item.patronymic ?? null,
+    },
     item.displayName.trim() || "—",
   );
 }
@@ -305,11 +288,7 @@ function clientPrimaryName(item: ClientListItem): string {
 // Segment count helper (computed from allClients using clientSegmentPredicate)
 // ---------------------------------------------------------------------------
 
-function getSegmentCount(
-  key: SegmentKey,
-  _metrics: DoctorDashboardPatientMetrics,
-  clients: ClientListItem[],
-): number | null {
+function getSegmentCount(key: SegmentKey, _metrics: DoctorDashboardPatientMetrics, clients: ClientListItem[]): number | null {
   if (key === "all") return clients.length;
   return clients.filter((item) => clientSegmentPredicate(item, key)).length;
 }
@@ -319,9 +298,11 @@ function renderSegmentMetricValue(current: number | string, total: number | null
 
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span>{current}</span>
-      <span className="text-sm font-medium text-muted-foreground/50">/</span>
-      <span className="text-base font-semibold tabular-nums leading-none text-muted-foreground">{total}</span>
+      <span>{total}</span>
+      <span className="inline-flex items-center gap-0.5 text-sm font-semibold tabular-nums leading-none text-muted-foreground" aria-label={`После фильтров: ${current}`}>
+        <Filter className="size-3" aria-hidden />
+        {current}
+      </span>
     </span>
   );
 }
@@ -332,33 +313,24 @@ function renderSegmentMetricValue(current: number | string, total: number | null
 
 function iconBadge(value: number | null): ReactNode {
   if (!value || value <= 0) return null;
-  return (
-    <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">
-      {value}
-    </span>
-  );
+  return <span className="absolute -right-1 -top-1 inline-flex min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] leading-none text-primary-foreground">{value}</span>;
 }
 
 type IconSlotProps = {
   visible: boolean;
   label: string;
-  title: string;
   badge?: number;
   className?: string;
   children: ReactNode;
 };
 
-function IconSlot({ visible, label, title, badge, className, children }: IconSlotProps) {
+function IconSlot({ visible, label, badge, className, children }: IconSlotProps) {
   if (!visible) {
     return <span className="size-7" aria-hidden />;
   }
   return (
     <span className={cn("inline-flex size-7 shrink-0 items-center justify-center", className)}>
-      <span
-        className="relative inline-flex size-6 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-muted-foreground"
-        aria-label={label}
-        title={title}
-      >
+      <span className="relative inline-flex size-6 items-center justify-center text-muted-foreground" aria-label={label}>
         {children}
         {iconBadge(badge ?? 0)}
       </span>
@@ -372,7 +344,7 @@ function IconSlot({ visible, label, title, badge, className, children }: IconSlo
 
 function PatientListSkeleton() {
   return (
-    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
+    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-2 lg:items-start">
       {/* List skeleton — left */}
       <div className="rounded-lg border border-border bg-card">
         <div className="border-b border-border/60 px-5 py-2">
@@ -393,320 +365,6 @@ function PatientListSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// PatientPreviewPane — inline summary shown when a list row is selected
-// ---------------------------------------------------------------------------
-
-/** Format ISO date string → DD.MM.YYYY */
-function fmtDate(iso: string | null | undefined, tz = "Europe/Moscow"): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-/** Format ISO date+time → DD.MM.YYYY HH:MM */
-function fmtDateTime(date: string | null | undefined, time?: string | null, tz = "Europe/Moscow"): string {
-  if (!date) return "—";
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return "—";
-  const dateStr = d.toLocaleDateString("ru-RU", { timeZone: tz, day: "2-digit", month: "2-digit", year: "numeric" });
-  return time ? `${dateStr} ${time}` : dateStr;
-}
-
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // silent
-  }
-}
-
-type PreviewProgramSummary = {
-  id: string;
-  title: string;
-  status: string;
-};
-
-type PreviewProgramListResponse = {
-  ok: boolean;
-  items?: PreviewProgramSummary[];
-};
-
-type ChannelActionButtonProps = {
-  label: string;
-  title: string;
-  active: boolean;
-  href?: string | null;
-  onClick?: () => void;
-  children: ReactNode;
-};
-
-function channelActionClass(active: boolean): string {
-  return cn(
-    buttonVariants({ variant: active ? "outline" : "secondary", size: "sm" }),
-    channelActionExtraClass(active),
-  );
-}
-
-function channelActionExtraClass(active: boolean): string {
-  return cn(
-    "h-10 justify-center px-2 text-xs sm:h-8",
-    active
-      ? "border-primary/35 bg-primary/5 text-primary hover:bg-primary/15"
-      : "pointer-events-none border-border/50 bg-muted/30 text-muted-foreground/50",
-  );
-}
-
-function ChannelActionButton({ label, title, active, href, onClick, children }: ChannelActionButtonProps) {
-  if (active && href) {
-    return (
-      <a href={href} className={channelActionClass(true)} title={title} aria-label={label}>
-        {children}
-      </a>
-    );
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={channelActionClass(active)}
-      title={title}
-      aria-label={label}
-      disabled={!active}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  );
-}
-
-type PatientPreviewPaneProps = {
-  userId: string;
-  item: ClientListItem;
-  onClose: () => void;
-  displayIana?: string;
-};
-
-function PatientPreviewPane({ userId, item, onClose, displayIana = "Europe/Moscow" }: PatientPreviewPaneProps) {
-  const [header, setHeader] = useState<PatientCardHeader | null>(null);
-  const [activeProgram, setActiveProgram] = useState<PreviewProgramSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-    setHeader(null);
-    setActiveProgram(null);
-    const headerRequest = fetch(`/api/doctor/patients/${encodeURIComponent(userId)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<{ ok: boolean; header?: PatientCardHeader }>;
-      });
-    const programRequest = item.activeTreatmentProgram
-      ? fetch(`/api/doctor/clients/${encodeURIComponent(userId)}/treatment-program-instances`, { credentials: "include" })
-          .then((r) => (r.ok ? (r.json() as Promise<PreviewProgramListResponse>) : null))
-          .catch(() => null)
-      : Promise.resolve(null);
-
-    Promise.all([headerRequest, programRequest])
-      .then(([headerData, programData]) => {
-        if (!cancelled) {
-          if (headerData.ok && headerData.header) {
-            setHeader(headerData.header);
-          } else {
-            setError(true);
-          }
-          const active = (programData?.items ?? []).find((program) => program.status === "active") ?? null;
-          setActiveProgram(active);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError(true);
-          setLoading(false);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [item.activeTreatmentProgram, userId]);
-
-  const hasTelegram = Boolean(item.bindings.telegramId?.trim()) && !item.bindings.telegramBotBlocked;
-  const hasMax = Boolean(item.bindings.maxId?.trim()) && !item.bindings.maxBotBlocked;
-  const hasEmail = item.hasEmail === true;
-  const hasChat = item.hasApp === true || item.hasConversation === true || hasTelegram || hasMax;
-  const cardHref = routePaths.doctorPatientCard(userId);
-  const commsHref = patientCardHref(userId, { tab: "comms" });
-  const telHref = phoneToTelHref(item.phone);
-  const email = header?.identity.email?.trim() ?? null;
-  const telegramId = item.bindings.telegramId?.trim() ?? "";
-  const maxId = item.bindings.maxId?.trim() ?? "";
-
-  const copyChannelValue = (label: string, value: string) => {
-    void copyToClipboard(value);
-    setCopiedLabel(label);
-    window.setTimeout(() => setCopiedLabel((current) => (current === label ? null : current)), 1400);
-  };
-
-  return (
-    <div className={cn(doctorSectionCardClass, "flex flex-col gap-2 p-3")}>
-      {/* Header row: name + close button */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">
-            {clientPrimaryName(item)}
-          </span>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
-
-      {/* Fast actions */}
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        <DoctorOpenChatButton
-          patientUserId={userId}
-          patientName={item.displayName}
-          variant="outline"
-          size="sm"
-          disabled={!hasChat}
-          title={hasChat ? "Открыть чат" : "Нет доступного канала для чата"}
-          className={channelActionExtraClass(hasChat)}
-        >
-          <MessageSquare className="mr-1 size-3.5" aria-hidden />
-          Чат
-        </DoctorOpenChatButton>
-        <ChannelActionButton label="Позвонить" title={item.phone ?? "Телефон не указан"} active={telHref !== null} href={telHref}>
-          <Phone className="mr-1 size-3.5" aria-hidden />
-          Звонок
-        </ChannelActionButton>
-        <ChannelActionButton label="Написать email" title={email ?? "Email не указан"} active={hasEmail && email !== null} href={email ? `mailto:${email}` : null}>
-          <Mail className="mr-1 size-3.5" aria-hidden />
-          Email
-        </ChannelActionButton>
-        <Link href={cardHref} className={cn(buttonVariants({ size: "sm" }), "h-8 justify-center px-2 text-xs")}>
-          <ExternalLink className="mr-1 size-3.5" aria-hidden />
-          Карта
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        <ChannelActionButton
-          label="Скопировать Telegram ID"
-          title={hasTelegram ? `Скопировать Telegram ID ${telegramId}` : "Telegram не привязан"}
-          active={hasTelegram}
-          onClick={() => copyChannelValue("Telegram", telegramId)}
-        >
-          <Send className="mr-1 size-3.5" aria-hidden />
-          {copiedLabel === "Telegram" ? "Скопировано" : "Telegram"}
-        </ChannelActionButton>
-        <ChannelActionButton
-          label="Скопировать MAX ID"
-          title={hasMax ? `Скопировать MAX ID ${maxId}` : "MAX не привязан"}
-          active={hasMax}
-          onClick={() => copyChannelValue("MAX", maxId)}
-        >
-          <Smartphone className="mr-1 size-3.5" aria-hidden />
-          {copiedLabel === "MAX" ? "Скопировано" : "MAX"}
-        </ChannelActionButton>
-        <ChannelActionButton
-          label="Скопировать телефон"
-          title={item.phone ? `Скопировать ${item.phone}` : "Телефон не указан"}
-          active={Boolean(item.phone?.trim())}
-          onClick={() => item.phone && copyChannelValue("Телефон", item.phone)}
-        >
-          <Phone className="mr-1 size-3.5" aria-hidden />
-          {copiedLabel === "Телефон" ? "Скопировано" : "Копия тел."}
-        </ChannelActionButton>
-        <Link href={commsHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 justify-center px-2 text-xs sm:h-8")}>
-          <MessageSquare className="mr-1 size-3.5" aria-hidden />
-          Вкладка
-        </Link>
-      </div>
-
-      {/* Quick chips */}
-      <div className="flex flex-wrap gap-1">
-        {item.hasApp ? (
-          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Приложение
-          </span>
-        ) : null}
-        {item.hasWebPush ? (
-          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Пуши включены
-          </span>
-        ) : null}
-        {item.isOnSupport ? (
-          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            ★ На сопровождении
-          </span>
-        ) : null}
-        {item.activeTreatmentProgram ? (
-          <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {activeProgram?.title ?? "С программой"}
-          </span>
-        ) : null}
-        {item.hasMemberships ? (
-          <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            Абонемент
-          </span>
-        ) : null}
-        {(item.unreadMessagesCount ?? 0) > 0 ? (
-          <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-            Непрочитанных: {item.unreadMessagesCount}
-          </span>
-        ) : null}
-      </div>
-
-      {/* Stats row — lazy loaded */}
-      {loading ? (
-        <div className="flex flex-col gap-1.5">
-          <div className="h-4 w-3/4 animate-pulse rounded bg-muted/50" />
-          <div className="h-4 w-1/2 animate-pulse rounded bg-muted/50" />
-          <div className="h-4 w-2/3 animate-pulse rounded bg-muted/50" />
-        </div>
-      ) : error ? (
-        <p className="text-xs text-muted-foreground">Не удалось загрузить детали.</p>
-      ) : header ? (
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-          <div className="flex gap-1">
-            <span className="font-medium text-foreground">Прошлый визит:</span>
-            <span>{fmtDate(header.lastVisit?.date, displayIana)}</span>
-          </div>
-          <div className="flex gap-1">
-            <span className="font-medium text-foreground">Следующая запись:</span>
-            <span>{fmtDateTime(header.nextAppointment?.date, header.nextAppointment?.time, displayIana)}</span>
-          </div>
-          <div className="flex gap-1">
-            <span className="font-medium text-foreground">Визитов:</span>
-            <span>{header.totalVisits}</span>
-          </div>
-        </div>
-      ) : null}
-
-      {/* CTA */}
-      <div className="mt-1 border-t border-border/40 pt-2">
-        <Link
-          href={cardHref}
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-        >
-          Открыть карту <ExternalLink className="size-3" />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main content (Suspense boundary — uses `use()`)
 // ---------------------------------------------------------------------------
 
@@ -721,16 +379,15 @@ type PatientsContentProps = {
   searchInput: string;
   legacyFilters: LegacyFiltersState;
   isListPending: boolean;
-  selectedUserId: string | null;
+  mobileFiltersOpen: boolean;
   sort: ClientListSort;
   sortDirection: ClientListSortDirection;
-  displayIana?: string;
   onSortSelect: (sort: ClientListSort) => void;
   onSegmentToggle: (key: SegmentKey) => void;
   onChannelChange: (channel: string | null, archived: boolean) => void;
   onClearSearch: () => void;
   onSearchInput: (value: string) => void;
-  onSelectPatient: (userId: string | null) => void;
+  onMobileFiltersOpenChange: (open: boolean) => void;
 };
 
 function PatientsContent({
@@ -744,16 +401,15 @@ function PatientsContent({
   searchInput,
   legacyFilters,
   isListPending,
-  selectedUserId,
+  mobileFiltersOpen,
   sort,
   sortDirection,
-  displayIana,
   onSortSelect,
   onSegmentToggle,
   onChannelChange,
   onClearSearch,
   onSearchInput,
-  onSelectPatient,
+  onMobileFiltersOpenChange,
 }: PatientsContentProps) {
   const allClients = use(listPromise);
   const metrics = use(metricsPromise);
@@ -766,9 +422,7 @@ function PatientsContent({
   // Legacy filters (AND-logic)
   if (legacyFilters.cancellations) filtered = filtered.filter((c) => c.cancellationCount30d > 0);
   if (legacyFilters.visitedMonth) filtered = filtered.filter((c) => c.visitedThisCalendarMonth === true);
-  if (legacyFilters.withoutAppointments) filtered = filtered.filter(
-    (c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0,
-  );
+  if (legacyFilters.withoutAppointments) filtered = filtered.filter((c) => !(c.hasAppointmentHistory ?? false) && (c.activeAppointmentsCount ?? 0) === 0);
   if (legacyFilters.memberships) filtered = filtered.filter((c) => c.hasMemberships === true);
   if (legacyFilters.reschedules) filtered = filtered.filter((c) => (c.rescheduleCount30d ?? 0) > 0);
 
@@ -776,11 +430,7 @@ function PatientsContent({
   if (searchQuery.trim()) {
     const q = searchQuery.trim().toLowerCase();
     filtered = filtered.filter(
-      (c) =>
-        c.displayName?.toLowerCase().includes(q) ||
-        c.firstName?.toLowerCase().includes(q) ||
-        c.lastName?.toLowerCase().includes(q) ||
-        c.phone?.toLowerCase().includes(q),
+      (c) => c.displayName?.toLowerCase().includes(q) || c.firstName?.toLowerCase().includes(q) || c.lastName?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q),
     );
   }
   filtered = sortClients(filtered, sort, sortDirection);
@@ -804,216 +454,182 @@ function PatientsContent({
     legacyFilters.reschedules ||
     !!searchQuery.trim();
 
-  const selectedItem = selectedUserId ? filtered.find((c) => c.userId === selectedUserId) ?? null : null;
+  const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase("ru-RU");
 
   return (
     <>
       <DoctorPageHeader
         id="doctor-patients-header"
         title={patientPluralLabel}
+        toolbar={
+          <div className="relative min-w-0">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+              <Search className="size-3.5" aria-hidden />
+            </span>
+            <Input
+              type="search"
+              placeholder={`Поиск: ${patientPluralLabelLower}`}
+              value={searchInput}
+              onChange={(event) => onSearchInput(event.target.value)}
+              className="h-8 pl-8 pr-8 text-sm"
+              aria-label={`Поиск: ${patientPluralLabelLower}`}
+            />
+            {searchInput ? (
+              <Button
+                type="button"
+                variant="ghost"
+                  size="icon-sm"
+                  onClick={onClearSearch}
+                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+                  aria-label="Сбросить поиск"
+              >
+                <X className="size-3.5" />
+              </Button>
+            ) : null}
+          </div>
+        }
       />
       <CatalogSplitLayout
-        desktopColsClassName="lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"
-        mobileView={selectedUserId ? "detail" : "list"}
+        desktopColsClassName="lg:grid-cols-2"
+        mobileView={mobileFiltersOpen ? "detail" : "list"}
         mobileBackSlot={
-          selectedUserId ? (
-            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => onSelectPatient(null)}>
+          mobileFiltersOpen ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => onMobileFiltersOpenChange(false)}>
               ← Назад
             </Button>
           ) : null
         }
         className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
-        left={(
+        left={
           <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Search — above sticky header, non-sticky */}
-        <div className="shrink-0 px-2 pt-2">
-          <div className="relative min-w-0">
-            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-              <Search className="size-3.5" aria-hidden />
-            </span>
-              <Input
-                type="search"
-                placeholder="Поиск…"
-                value={searchInput}
-                onChange={(e) => onSearchInput(e.target.value)}
-                className="pl-8 pr-8 text-sm"
-                aria-label="Поиск пациентов"
-              />
-              {searchInput && (
+            {/* Sticky header: count + reversible sorting */}
+            {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
+            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-2 py-2">
+              <p className="min-w-0 truncate text-xs text-muted-foreground">
+                {isAnyFilterActive ? (
+                  <>
+                    найдено {filtered.length} / {categoryBase.length}
+                  </>
+                ) : activeCategory === "all" ? (
+                  <>
+                    {patientPluralLabel}: {allClients.length}
+                  </>
+                ) : (
+                  <>
+                    {patientPluralLabel}: {categoryBase.length}
+                  </>
+                )}
+                {isListPending && <span className="ml-1 animate-pulse">…</span>}
+              </p>
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5" aria-label={`Сортировка: ${patientPluralLabelLower}`}>
+                <span className="text-xs text-muted-foreground">Сортировать</span>
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={onClearSearch}
-                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                  aria-label="Сбросить поиск"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              )}
-            </div>
-        </div>
-
-        {/* Sticky header: count + reversible sorting */}
-        {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-        <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-2 py-2">
-          <p className="min-w-0 truncate text-xs text-muted-foreground">
-            {isAnyFilterActive
-              ? <>найдено {filtered.length} / {categoryBase.length}</>
-              : activeCategory === "all"
-                ? <>Клиентов: {allClients.length}</>
-                : <>Пациентов: {categoryBase.length}</>}
-            {isListPending && <span className="ml-1 animate-pulse">…</span>}
-          </p>
-          <div className="flex shrink-0 items-center gap-1.5" aria-label="Сортировка клиентов">
-            <span className="text-xs text-muted-foreground">Сортировать</span>
-            <Button
-              type="button"
               size="sm"
               variant={sort === "recent_appointments" ? "default" : "outline"}
               className="h-8 gap-1.5 px-2 text-xs"
               aria-pressed={sort === "recent_appointments"}
               aria-label={`Недавние: ${sort === "recent_appointments" && sortDirection === "asc" ? "давние сверху" : "недавние сверху"}`}
-              onClick={() => onSortSelect("recent_appointments")}
-            >
-              Недавние
-              {sort === "recent_appointments" ? (
-                sortDirection === "desc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />
-              ) : null}
-            </Button>
-            <Button
-              type="button"
+                  onClick={() => onSortSelect("recent_appointments")}
+                >
+                  Недавние
+                  {sort === "recent_appointments" ? sortDirection === "desc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden /> : null}
+                </Button>
+                <Button
+                  type="button"
               size="sm"
               variant={sort === "fio" ? "default" : "outline"}
               className="h-8 gap-1.5 px-2 text-xs"
               aria-pressed={sort === "fio"}
               aria-label={`По фамилии: ${sort === "fio" && sortDirection === "desc" ? "Я–А" : "А–Я"}`}
-              onClick={() => onSortSelect("fio")}
-            >
-              По фамилии
-              {sort === "fio" ? (
-                sortDirection === "asc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />
-              ) : null}
-            </Button>
-          </div>
-        </div>
+                  onClick={() => onSortSelect("fio")}
+                >
+                  По фамилии
+                  {sort === "fio" ? sortDirection === "asc" ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden /> : null}
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 px-2 text-xs lg:hidden" onClick={() => onMobileFiltersOpenChange(true)}>
+                  <Filter className="size-3.5" aria-hidden />
+                  Фильтры
+                </Button>
+              </div>
+            </div>
 
-        {filtered.length === 0 ? (
-          <p className="px-3 py-4 text-sm text-muted-foreground">
-            {searchQuery.trim()
-              ? "Нет пациентов по запросу."
-              : "Нет пациентов по заданным фильтрам."}
-          </p>
-        ) : (
-          <ul id="doctor-patients-list" className={`${doctorDnaFlatListClass} min-h-0 flex-1 overflow-y-auto`}>
-            {filtered.map((c, index) => {
-              const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
-              const isSelected = c.userId === selectedUserId;
-              return (
-                <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    id={`doctor-patients-card-${c.userId}`}
-                    aria-pressed={isSelected}
-                    onClick={() => onSelectPatient(isSelected ? null : c.userId)}
-                    className={cn(
-                      doctorDnaFlatListRowClass,
-                      doctorDnaFlatListClickableClass,
-                      "h-auto w-full rounded-none border-0 bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
-                      index === 0 && "border-t-0",
-                    )}
-                  >
-                    {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
-                    <div className="min-w-0 flex-1">
-                      <span
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-muted-foreground">{searchQuery.trim() ? "Нет пациентов по запросу." : "Нет пациентов по заданным фильтрам."}</p>
+            ) : (
+              <ul id="doctor-patients-list" className={`${doctorDnaFlatListClass} min-h-0 flex-1 overflow-y-auto`}>
+                {filtered.map((c, index) => {
+                  const futureAppointmentCount = c.activeAppointmentsCount ?? 0;
+                  const programOrSupervision = c.isOnSupport === true || c.activeTreatmentProgram;
+                  return (
+                    <li key={c.userId} id={`doctor-patients-item-${c.userId}`}>
+                      <Link
+                        id={`doctor-patients-card-${c.userId}`}
+                        href={routePaths.doctorPatientCard(c.userId)}
                         className={cn(
-                          "block truncate",
-                          doctorDnaFlatListPrimaryClass,
-                          isSelected && doctorDnaFlatListSelectedPrimaryClass,
+                          buttonVariants({ variant: "ghost" }),
+                          doctorDnaFlatListRowClass,
+                          doctorDnaFlatListClickableClass,
+                          "h-auto w-full rounded-none border-0 bg-transparent text-left shadow-none active:bg-muted/80 md:gap-3",
+                          index === 0 && "border-t-0",
                         )}
                       >
-                        {clientPrimaryName(c)}
-                      </span>
-                    </div>
-                    <div className="grid w-[7.75rem] shrink-0 grid-cols-4 gap-1" aria-label="Статусы клиента">
-                      <IconSlot
-                        visible={futureAppointmentCount > 0}
-                        label={`Будущие записи: ${futureAppointmentCount}`}
-                        title="Будущие записи"
-                        badge={futureAppointmentCount}
-                      >
-                        <CalendarDays className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.activeTreatmentProgram && c.isOnSupport !== true}
-                        label="Назначенная программа"
-                        title="Назначенная программа"
-                      >
-                        <Dumbbell className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.isOnSupport === true}
-                        label="Клиент на сопровождении"
-                        title="На сопровождении"
-                      >
-                        <Handshake className="size-3.5" aria-hidden />
-                      </IconSlot>
-                      <IconSlot
-                        visible={c.hasMemberships === true}
-                        label="Есть абонемент"
-                        title="Есть абонемент"
-                      >
-                        <Ticket className="size-3.5" aria-hidden />
-                      </IconSlot>
-                    </div>
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                        <div className="min-w-0 flex-1">
+                          <span className={cn("block truncate", doctorDnaFlatListPrimaryClass)}>{clientPrimaryName(c)}</span>
+                        </div>
+                        <div className="grid w-[5.75rem] shrink-0 grid-cols-3 gap-1" aria-label="Статусы клиента">
+                          <IconSlot visible={c.hasMemberships === true} label="Есть абонемент">
+                            <Ticket className="size-3.5" aria-hidden />
+                          </IconSlot>
+                          <IconSlot visible={programOrSupervision} label={c.isOnSupport === true ? "Клиент на сопровождении" : "Назначенная программа"}>
+                            {c.isOnSupport === true ? <Handshake className="size-3.5" aria-hidden /> : <Dumbbell className="size-3.5" aria-hidden />}
+                          </IconSlot>
+                          <IconSlot visible={futureAppointmentCount > 0} label={`Будущие записи: ${futureAppointmentCount}`} badge={futureAppointmentCount}>
+                            <CalendarDays className="size-3.5" aria-hidden />
+                          </IconSlot>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
-        )}
-        right={(
+        }
+        right={
           <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
-        {/* Filter panel */}
-        <section
-          className={cn(
-            "rounded-lg border border-border bg-card p-3",
-          )}
-        >
-          {/* Factual filters in the desktop right panel. */}
-          <DoctorMetricList className="grid-cols-3 gap-1.5 lg:grid-cols-5 xl:grid-cols-5">
-            {SEGMENTS.map((seg) => {
-              const segmentContextBase =
-                seg.key === "all"
+            {/* Filter panel */}
+            <section className={cn("rounded-lg border border-border bg-card p-3")}>
+              {/* Factual filters in the desktop right panel. */}
+              <TooltipProvider delay={450}>
+                <DoctorMetricList className="grid-cols-3 gap-1.5 xl:grid-cols-3 2xl:grid-cols-3">
+                  {SEGMENTS.map((seg) => {
+                    const segmentContextBase =
+                      seg.key === "all"
                   ? categoryBase
                   : applySegmentFilters(
-                      categoryBase,
-                      activeSegments.filter((key) => key !== seg.key),
+                            categoryBase,
+                            activeSegments.filter((key) => key !== seg.key),
+                          );
+                    const currentValue = seg.key === "all" ? filteredBySegments.length : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? "—");
+                    const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
+                    return (
+                      <DoctorStatCard
+                        key={seg.key}
+                        id={`doctor-patients-segment-${seg.key}`}
+                        title={seg.key === "all" ? `Все ${patientPluralLabelLower}` : seg.title}
+                        value={renderSegmentMetricValue(currentValue, totalValue)}
+                        tooltip={seg.key === "all" ? `Все ${patientPluralLabelLower} этой организации.` : seg.tooltip}
+                        selected={seg.key === "all" ? activeSegments.length === 0 && !archivedOnly : activeSegments.includes(seg.key)}
+                        onClick={() => onSegmentToggle(seg.key)}
+                      />
                     );
-              const currentValue =
-                seg.key === "all"
-                  ? filteredBySegments.length
-                  : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? "—");
-              const totalValue = seg.key === "all" ? categoryBase.length : getSegmentCount(seg.key, metrics, categoryBase);
-              return (
-                <DoctorStatCard
-                  key={seg.key}
-                  id={`doctor-patients-segment-${seg.key}`}
-                  title={seg.title}
-                  value={renderSegmentMetricValue(currentValue, totalValue)}
-                  tooltip={seg.tooltip}
-                  selected={seg.key === "all" ? activeSegments.length === 0 && !archivedOnly : activeSegments.includes(seg.key)}
-                  onClick={() => onSegmentToggle(seg.key)}
-                />
-              );
-            })}
-          </DoctorMetricList>
+                  })}
+                </DoctorMetricList>
+              </TooltipProvider>
 
-          {/* Communication channels */}
-          <div className="mt-3 border-t border-border/60 pt-3">
+              {/* Communication channels */}
+              <div className="mt-3 border-t border-border/60 pt-3">
             <p className="mb-2 text-xs text-muted-foreground">Каналы связи</p>
             <div id="doctor-patients-filters" className="flex flex-wrap gap-1.5">
               <Button
@@ -1067,23 +683,11 @@ function PatientsContent({
                 <Bell className="mr-1 size-3.5" aria-hidden />
                 Пуш-уведомления
               </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* Preview pane — shown when a row is selected */}
-        {selectedUserId && selectedItem ? (
-          <div className="order-first lg:order-none">
-            <PatientPreviewPane
-              userId={selectedUserId}
-              item={selectedItem}
-              onClose={() => onSelectPatient(null)}
-              displayIana={displayIana}
-            />
-          </div>
-        ) : null}
+                </div>
+              </div>
+            </section>
           </CatalogRightPane>
-        )}
+        }
       />
     </>
   );
@@ -1095,13 +699,7 @@ function PatientsContent({
 
 const SEARCH_DEBOUNCE_MS = 200;
 
-export function PatientsPageClient({
-  listPromise: initialListPromise,
-  metricsPromise,
-  initialFilters,
-  patientPluralLabel = "Пациенты",
-  displayIana,
-}: PatientsPageClientProps) {
+export function PatientsPageClient({ listPromise: initialListPromise, metricsPromise, initialFilters, patientPluralLabel = "Пациенты" }: PatientsPageClientProps) {
   const isListPending = false;
 
   // Search state (local, debounced)
@@ -1122,8 +720,7 @@ export function PatientsPageClient({
   const [sort, setSort] = useState<ClientListSort>("recent_appointments");
   const [sortDirection, setSortDirection] = useState<ClientListSortDirection>("desc");
 
-  // Selected patient for preview
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1140,26 +737,20 @@ export function PatientsPageClient({
     });
   }, []);
 
-  const handleChannelChange = useCallback(
-    (channel: string | null, archived: boolean) => {
-      setActiveChannel(channel);
-      setArchivedOnly(archived);
-    },
-    [],
-  );
+  const handleChannelChange = useCallback((channel: string | null, archived: boolean) => {
+    setActiveChannel(channel);
+    setArchivedOnly(archived);
+  }, []);
 
-  const handleSearchInput = useCallback(
-    (value: string) => {
-      setSearchInput(value);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      const trimmed = value.trim();
+  const handleSearchInput = useCallback((value: string) => {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const trimmed = value.trim();
       // PAT-10: debounce only — no API call, filtering is purely client-side
-      debounceRef.current = setTimeout(() => {
-        setSearchQuery(trimmed);
-      }, SEARCH_DEBOUNCE_MS);
-    },
-    [],
-  );
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(trimmed);
+    }, SEARCH_DEBOUNCE_MS);
+  }, []);
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
@@ -1178,18 +769,17 @@ export function PatientsPageClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialListPromise]);
 
-  const handleSelectPatient = useCallback((userId: string | null) => {
-    setSelectedUserId(userId);
-  }, []);
-
-  const handleSortSelect = useCallback((nextSort: ClientListSort) => {
-    if (nextSort === sort) {
-      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSort(nextSort);
-    setSortDirection(nextSort === "recent_appointments" ? "desc" : "asc");
-  }, [sort]);
+  const handleSortSelect = useCallback(
+    (nextSort: ClientListSort) => {
+      if (nextSort === sort) {
+        setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+        return;
+      }
+      setSort(nextSort);
+      setSortDirection(nextSort === "recent_appointments" ? "desc" : "asc");
+    },
+    [sort],
+  );
 
   return (
     <Suspense fallback={<PatientListSkeleton />}>
@@ -1204,16 +794,15 @@ export function PatientsPageClient({
         searchInput={searchInput}
         legacyFilters={legacyFilters}
         isListPending={isListPending}
-        selectedUserId={selectedUserId}
+        mobileFiltersOpen={mobileFiltersOpen}
         sort={sort}
         sortDirection={sortDirection}
-        displayIana={displayIana}
         onSortSelect={handleSortSelect}
         onSegmentToggle={handleSegmentToggle}
         onChannelChange={handleChannelChange}
         onClearSearch={clearSearch}
         onSearchInput={handleSearchInput}
-        onSelectPatient={handleSelectPatient}
+        onMobileFiltersOpenChange={setMobileFiltersOpen}
       />
     </Suspense>
   );
