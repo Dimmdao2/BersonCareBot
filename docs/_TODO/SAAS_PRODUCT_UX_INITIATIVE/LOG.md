@@ -3681,3 +3681,22 @@ The audit also confirmed a separate unresolved owner-required capability: creati
 neither phone nor email. The current `#801` manual command and routes still require phone and were protected by this
 slice's launch manifest. They are not silently widened in the correction. Task `#806` remains open after the invite
 commit and receives a separately manifested no-contact substage with its own ownership/deduplication acceptance.
+
+## 2026-07-21 — U6A-A specialist acquisition live closure (`#807`)
+
+Worker `4abc2e08e` rebuilt the public root as a truthful specialist-first acquisition surface and removed the
+whole-cabinet PWA browser gate; correction `6f16b43e` closed the audit's only P1 by giving disabled specialist signup
+a neutral demo/support recovery and separate existing-account login. Integration commits are `b38036f76` and
+`d34a2a611`. The single independent presentation/behavior audit otherwise passed the full bounded checklist; focused
+tests, webapp typecheck, scoped ESLint and production build pass. Full CI was not repeated.
+
+On the existing single DEV server, anonymous desktop `1440x900` and mobile `390x844` renders show the specialist CTA,
+secondary patient/invite entry and no overflow. `/app?intent=specialist` renders the existing specialist/organization
+form without changing auth authority. A `dev:client` session at mobile `390x844` remains on `/app/patient` in an
+ordinary browser instead of redirecting to install. Root, specialist entry, privacy, terms and guest support return
+`200`; no `/organizations` link is rendered, and OpenGraph URL resolves to the current DB-backed
+`http://127.0.0.1:5200`. Ignored evidence is under `.shots/u6a-807/`.
+
+U6A-A is complete, but parent `#807` remains `doing`: configured pricing projection, privacy-safe acquisition
+analytics and public status are not fabricated by this presentation checkpoint. No DB, TEST/PROD, deploy, external
+send, U6B profile/booking/widget or `/join` action occurred.

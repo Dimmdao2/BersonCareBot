@@ -1076,8 +1076,14 @@ but secondary; public legal/support recovery stays reachable on desktop/mobile.
   seals; console/network/overflow; typecheck/lint/build; no application delivery/DB mutation in visual acceptance.
 - **Rollback/degradation:** signup disabled/demo fallback; pricing unavailable has honest contact path; legal/support
   remains reachable.
-- **Completion:** [ ] specialist-first composition; [ ] patient secondary entry; [ ] ACQ trace; [ ] no PUB-06 leak;
-  [ ] responsive/accessibility/visual seals; [ ] full audit PASS.
+- **Status (2026-07-21, U6A-A `#807`):** specialist-first PUB-01 and visible ACQ/browser-entry surface are integrated
+  through `d34a2a611`. The one independent presentation/behavior audit found only the disabled-signup recovery gap;
+  the bounded correction now shows neutral unavailable copy, demo/support and secondary existing-account login.
+  Targeted tests, typecheck, scoped lint, build and serialized DEV desktop/mobile/public/patient-browser smoke pass.
+  Configured pricing, acquisition analytics and public status remain explicit later U6A work; no U6B surface moved
+  into this checkpoint.
+- **Completion:** [x] specialist-first composition; [x] patient secondary entry; [ ] ACQ trace; [x] no PUB-06 leak;
+  [x] responsive/accessibility/visual seals; [ ] full U6A audit PASS.
 - **Merge dependency:** U1/U3S; rollout remains separately owner/deploy gated.
 
 ### U6B — published organization profile, booking and trusted join
