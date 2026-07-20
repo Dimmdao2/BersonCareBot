@@ -1,9 +1,10 @@
 # settings compatibility
 
-`/app/settings` больше не является вторым деревом персональных настроек. Канонический личный раздел staff-account —
-`/app/account`:
+`/app/settings` — канонический раздел управления кабинетом/организацией для staff с capability
+`organization.management`. Канонический личный раздел staff-account — `/app/account`:
 
-- default / `?tab=specialist` → `/app/account`;
+- default → guarded organization settings; binding специалиста для этого не требуется;
+- explicit legacy `?tab=specialist` → `/app/account`;
 - `?tab=install` → `/app/account?tab=install`;
 - `?tab=organization` сохраняет единственный guarded writer терминологии и organization reminders и является
   канонической поверхностью **«Настройки»** для владельца кабинета/организации;

@@ -89,8 +89,7 @@ describe("legacy settings compatibility", () => {
     ]);
   });
 
-  it("routes the old personal and install entries to the one account area", async () => {
-    await expect(SettingsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect:/app/account");
+  it("routes the explicit old personal and install entries to the one account area", async () => {
     await expect(SettingsPage({ searchParams: Promise.resolve({ tab: "specialist" }) })).rejects.toThrow(
       "redirect:/app/account",
     );
@@ -98,6 +97,30 @@ describe("legacy settings compatibility", () => {
       "redirect:/app/account?tab=install",
     );
     expect(requireWorkspaceMock).not.toHaveBeenCalled();
+  });
+
+  it("opens organization settings at the canonical root for a management-capable owner without a binding", async () => {
+    requireWorkspaceMock.mockResolvedValue({
+      ...ownerWorkspace,
+      specialistId: null,
+      canAccessClinicalWorkspace: false,
+    });
+
+    render(await SettingsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("heading", { name: "Настройки" })).toBeInTheDocument();
+    expect(screen.getByTestId("organization-settings")).toBeInTheDocument();
+  });
+
+  it("keeps the canonical Settings root out of a plain specialist account", async () => {
+    requireWorkspaceMock.mockResolvedValue({
+      ...ownerWorkspace,
+      membershipRole: "doctor",
+      canManageOrganization: false,
+      canManageAllSpecialists: false,
+    });
+
+    await expect(SettingsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect:/app/account");
   });
 
   it("preserves the one guarded organization writer without restoring a second settings tab tree", async () => {
