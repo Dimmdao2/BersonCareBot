@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const createManualPatientVisitMock = vi.hoisted(() => vi.fn());
+const getAppointmentMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
 const emitBookingEventMock = vi.hoisted(() => vi.fn());
 const getBookingByCanonicalAppointmentMock = vi.hoisted(() => vi.fn());
@@ -35,6 +36,7 @@ import { POST } from "./route";
 
 const requestBody = {
   kind: "scheduled",
+  requestId: "99999999-9999-4999-8999-999999999999",
   lastName: "Новый",
   firstName: "Пациент",
   patronymic: null,
@@ -57,11 +59,13 @@ function request(body: Record<string, unknown> = requestBody) {
 
 describe("POST manual patient visit", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     principalState.inside = false;
     assertSlotAvailableMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
     });
+    getAppointmentMock.mockResolvedValue(null);
     getBookingByCanonicalAppointmentMock.mockImplementation(async () => {
       expect(principalState.inside).toBe(true);
       return null;
@@ -75,7 +79,10 @@ describe("POST manual patient visit", () => {
         organizationId: "44444444-4444-4444-8444-444444444444",
         specialistId: "22222222-2222-4222-8222-222222222222",
         session: { user: { userId: "55555555-5555-4555-8555-555555555555" } },
-        service: { createManualPatientVisit: createManualPatientVisitMock },
+        service: {
+          createManualPatientVisit: createManualPatientVisitMock,
+          getAppointment: getAppointmentMock,
+        },
       },
     });
   });
@@ -85,6 +92,7 @@ describe("POST manual patient visit", () => {
       expect(principalState.inside).toBe(true);
       return {
         kind: "scheduled",
+        replayed: false,
         clinicalVisitId: null,
         portalStatus: "not_activated",
         patient: {
@@ -116,6 +124,7 @@ describe("POST manual patient visit", () => {
     expect(createManualPatientVisitMock).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: "44444444-4444-4444-8444-444444444444",
+        commandId: requestBody.requestId,
         appointment: expect.objectContaining({
           specialistId: "22222222-2222-4222-8222-222222222222",
           status: "confirmed",
@@ -129,6 +138,7 @@ describe("POST manual patient visit", () => {
   it("keeps a committed visit successful when optional booking enrichment fails", async () => {
     createManualPatientVisitMock.mockResolvedValue({
       kind: "scheduled",
+      replayed: false,
       clinicalVisitId: null,
       portalStatus: "not_activated",
       patient: {
@@ -210,7 +220,10 @@ describe("POST manual patient visit", () => {
         canManageOrganization: true,
         canManageAllSpecialists: true,
         session: { user: { userId: "55555555-5555-4555-8555-555555555555" } },
-        service: { createManualPatientVisit: createManualPatientVisitMock },
+        service: {
+          createManualPatientVisit: createManualPatientVisitMock,
+          getAppointment: getAppointmentMock,
+        },
       },
     });
 
@@ -224,6 +237,7 @@ describe("POST manual patient visit", () => {
   it("creates a walk-in for the trusted actor without slot checks or booking events", async () => {
     createManualPatientVisitMock.mockImplementation(async (input) => ({
       kind: "walk_in",
+      replayed: false,
       clinicalVisitId: "88888888-8888-4888-8888-888888888888",
       portalStatus: "not_activated",
       patient: {
@@ -235,21 +249,13 @@ describe("POST manual patient visit", () => {
         phoneNormalized: input.phoneNormalized,
         created: true,
       },
-      appointment: {
-        id: "77777777-7777-4777-8777-777777777777",
-        organizationId: input.organizationId,
-        startAt: input.walkIn.visitedAt,
-        endAt: "2026-07-20T09:31:00.000Z",
-        platformUserId: "66666666-6666-4666-8666-666666666666",
-        phoneNormalized: input.phoneNormalized,
-        serviceId: null,
-        attributionJson: {},
-      },
+      appointment: null,
     }));
 
     const response = await POST(
       request({
         kind: "walk_in",
+        requestId: "88888888-8888-4888-8888-888888888888",
         lastName: "Новый",
         firstName: "Пациент",
         patronymic: null,
@@ -268,12 +274,73 @@ describe("POST manual patient visit", () => {
     expect(createManualPatientVisitMock).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: "44444444-4444-4444-8444-444444444444",
+        commandId: "88888888-8888-4888-8888-888888888888",
         kind: "walk_in",
         walkIn: expect.objectContaining({
           specialistId: "22222222-2222-4222-8222-222222222222",
         }),
       }),
     );
+    expect(assertSlotAvailableMock).not.toHaveBeenCalled();
+    expect(emitBookingEventMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a walk-in outside the explicit clock tolerance", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-20T09:30:00.000Z"));
+    const response = await POST(
+      request({
+        kind: "walk_in",
+        requestId: "88888888-8888-4888-8888-888888888888",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+        phone: "+79990000000",
+        email: null,
+        visitedAt: "2026-07-20T09:32:01.000Z",
+      }),
+    );
+    vi.useRealTimers();
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: "visit_in_future" });
+    expect(createManualPatientVisitMock).not.toHaveBeenCalled();
+  });
+
+  it("does not emit a second booking event for a scheduled command replay", async () => {
+    getAppointmentMock.mockResolvedValue({
+      id: requestBody.requestId,
+      organizationId: "44444444-4444-4444-8444-444444444444",
+    });
+    createManualPatientVisitMock.mockResolvedValue({
+      kind: "scheduled",
+      replayed: true,
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
+      patient: {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Новый Пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+        phoneNormalized: "+79990000000",
+        created: false,
+      },
+      appointment: {
+        id: requestBody.requestId,
+        organizationId: "44444444-4444-4444-8444-444444444444",
+        startAt: requestBody.startAt,
+        endAt: requestBody.endAt,
+        platformUserId: "66666666-6666-4666-8666-666666666666",
+        phoneNormalized: "+79990000000",
+        serviceId: requestBody.serviceId,
+        attributionJson: {},
+      },
+    });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
     expect(assertSlotAvailableMock).not.toHaveBeenCalled();
     expect(emitBookingEventMock).not.toHaveBeenCalled();
   });

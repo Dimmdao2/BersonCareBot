@@ -162,6 +162,7 @@ describe("DoctorCalendarEventPanel patient heading", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(url).toBe("/api/doctor/booking-engine/appointments/manual-patient-visit");
     expect(JSON.parse(String(init?.body))).toMatchObject({
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       kind: "scheduled",
       lastName: "Новый",
       firstName: "Пациент",

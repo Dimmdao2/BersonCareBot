@@ -17,6 +17,7 @@ type BookingEngineManualPatientVisitService = Pick<
 
 type ManualPatientIdentityInput = {
   organizationId: string;
+  requestId: string;
   createdByUserId: string;
   lastName: string;
   firstName: string;
@@ -70,6 +71,7 @@ function enqueueManualPatientContactSetup(
   emailNormalized: string | null,
   deps: { emailSetupAccess: Pick<EmailSetupAccessService, "requestContactEmailSetup"> },
 ) {
+  if (result.replayed) return;
   if (result.patient.created) {
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.DoctorStaffClientCreate);
   }
@@ -98,6 +100,7 @@ export async function createScheduledManualPatientVisit(
   if (!normalized.ok) return normalized;
   const result = await deps.bookingEngine.createManualPatientVisit({
     organizationId: input.organizationId,
+    commandId: input.requestId,
     ...normalized.identity,
     kind: "scheduled",
     appointment: input.appointment,
@@ -116,8 +119,16 @@ export async function createWalkInManualPatientVisit(
 ) {
   const normalized = normalizeManualPatientIdentity(input);
   if (!normalized.ok) return normalized;
+  const visitedAtMs = new Date(input.visitedAt).getTime();
+  if (Number.isNaN(visitedAtMs)) {
+    return { ok: false as const, error: "invalid_visit_time" as const };
+  }
+  if (visitedAtMs > Date.now() + 2 * 60_000) {
+    return { ok: false as const, error: "visit_in_future" as const };
+  }
   const result = await deps.bookingEngine.createManualPatientVisit({
     organizationId: input.organizationId,
+    commandId: input.requestId,
     ...normalized.identity,
     kind: "walk_in",
     walkIn: {

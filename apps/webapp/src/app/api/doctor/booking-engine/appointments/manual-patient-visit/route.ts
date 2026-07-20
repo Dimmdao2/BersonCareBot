@@ -14,6 +14,7 @@ import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
 const identitySchema = z.object({
+  requestId: z.string().uuid(),
   lastName: z.string().min(1).max(200),
   firstName: z.string().min(1).max(200),
   patronymic: z.string().max(200).nullable().optional(),
@@ -66,18 +67,22 @@ export async function POST(request: Request) {
       "doctor.booking-engine.appointments.manual-patient-visit",
       async () => {
         if (parsed.data.kind === "scheduled" && deps.bookingScheduling) {
-          await deps.bookingScheduling.assertSlotAvailable({
-            organizationId: ctx.organizationId,
-            specialistId,
-            roomId: parsed.data.roomId ?? null,
-            slotStart: parsed.data.startAt,
-            slotEnd: parsed.data.endAt,
-            durationMinutes: parsed.data.durationMinutes,
-          });
+          const existingCommand = await ctx.service.getAppointment(parsed.data.requestId);
+          if (existingCommand?.organizationId !== ctx.organizationId) {
+            await deps.bookingScheduling.assertSlotAvailable({
+              organizationId: ctx.organizationId,
+              specialistId,
+              roomId: parsed.data.roomId ?? null,
+              slotStart: parsed.data.startAt,
+              slotEnd: parsed.data.endAt,
+              durationMinutes: parsed.data.durationMinutes,
+            });
+          }
         }
 
         const identity = {
           organizationId: ctx.organizationId,
+          requestId: parsed.data.requestId,
           createdByUserId: ctx.session.user.userId,
           lastName: parsed.data.lastName,
           firstName: parsed.data.firstName,
@@ -127,35 +132,38 @@ export async function POST(request: Request) {
         } catch {
           // The identity/relationship/appointment transaction already committed. Enrichment is optional.
         }
-        try {
-          await createBookingSyncPort().emitBookingEvent({
-            eventType: "booking.created",
-            idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
-            payload: {
-              organizationId: created.appointment.organizationId,
-              bookingId: bookingRow?.id ?? created.appointment.id,
-              userId: bookingRow?.userId ?? created.patient.userId,
-              rubitimeId: bookingRow?.rubitimeId ?? null,
-              bookingType: bookingRow?.bookingType ?? "in_person",
-              city: bookingRow?.city ?? undefined,
-              category: bookingRow?.category ?? "general",
-              slotStart: created.appointment.startAt,
-              slotEnd: created.appointment.endAt,
-              contactName:
-                bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created.appointment),
-              contactPhone: bookingRow?.contactPhone ?? created.patient.phoneNormalized,
-              contactEmail: bookingRow?.contactEmail ?? undefined,
-              branchServiceId: bookingRow?.branchServiceId ?? null,
-              cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-              serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
-                created.appointment,
-                bookingRow,
-              ),
-              canonicalAppointmentId: created.appointment.id,
-            },
-          });
-        } catch {
-          // Lifecycle delivery is best-effort and cannot turn a committed visit into an API failure.
+        if (!created.replayed) {
+          try {
+            await createBookingSyncPort().emitBookingEvent({
+              eventType: "booking.created",
+              idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
+              payload: {
+                organizationId: created.appointment.organizationId,
+                bookingId: bookingRow?.id ?? created.appointment.id,
+                userId: bookingRow?.userId ?? created.patient.userId,
+                rubitimeId: bookingRow?.rubitimeId ?? null,
+                bookingType: bookingRow?.bookingType ?? "in_person",
+                city: bookingRow?.city ?? undefined,
+                category: bookingRow?.category ?? "general",
+                slotStart: created.appointment.startAt,
+                slotEnd: created.appointment.endAt,
+                contactName:
+                  bookingRow?.contactName ??
+                  staffBookingContactNameFromAppointment(created.appointment),
+                contactPhone: bookingRow?.contactPhone ?? created.patient.phoneNormalized,
+                contactEmail: bookingRow?.contactEmail ?? undefined,
+                branchServiceId: bookingRow?.branchServiceId ?? null,
+                cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+                serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
+                  created.appointment,
+                  bookingRow,
+                ),
+                canonicalAppointmentId: created.appointment.id,
+              },
+            });
+          } catch {
+            // Lifecycle delivery is best-effort and cannot turn a committed visit into an API failure.
+          }
         }
         return created;
       },
@@ -184,6 +192,12 @@ export async function POST(request: Request) {
     const pg = pgCode(error);
     if (message === "slot_overlap" || pg.code === "23P01") {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (message === "idempotency_conflict") {
+      return NextResponse.json({ ok: false, error: "idempotency_conflict" }, { status: 409 });
+    }
+    if (message === "visit_in_future" || message === "invalid_visit_time") {
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
     if (
       message === "email_conflict" ||

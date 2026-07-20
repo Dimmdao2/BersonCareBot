@@ -119,6 +119,7 @@ export type BeAppointment = {
 };
 
 export type CreateAppointmentInput = {
+  id?: string;
   organizationId: string;
   branchId?: string | null;
   roomId?: string | null;
@@ -141,6 +142,7 @@ export type CreateAppointmentInput = {
 
 type CreateManualPatientIdentityInput = {
   organizationId: string;
+  commandId: string;
   lastName: string;
   firstName: string;
   patronymic: string | null;
@@ -168,11 +170,8 @@ export type CreateManualPatientVisitInput = CreateManualPatientIdentityInput &
       }
   );
 
-export type CreateManualPatientVisitResult = {
-  kind: "scheduled" | "walk_in";
-  appointment: BeAppointment;
-  /** Present only for a completed walk-in; scheduled appointments do not create clinical notes. */
-  clinicalVisitId: string | null;
+type CreateManualPatientResult = {
+  replayed: boolean;
   /** Manual staff creation never proves patient control of a portal identity. */
   portalStatus: "not_activated" | "linked";
   patient: {
@@ -185,6 +184,20 @@ export type CreateManualPatientVisitResult = {
     created: boolean;
   };
 };
+
+export type CreateManualPatientVisitResult = CreateManualPatientResult &
+  (
+    | {
+        kind: "scheduled";
+        appointment: BeAppointment;
+        clinicalVisitId: null;
+      }
+    | {
+        kind: "walk_in";
+        appointment: null;
+        clinicalVisitId: string;
+      }
+  );
 
 export type TransitionAppointmentStatusInput = {
   appointmentId: string;

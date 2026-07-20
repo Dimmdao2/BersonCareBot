@@ -402,8 +402,8 @@ function PatientListSkeleton() {
   );
 }
 
-function currentLocalDateTimeValue(): string {
-  const now = new Date();
+function currentLocalDateTimeValue(clockToleranceMinutes = 0): string {
+  const now = new Date(Date.now() + clockToleranceMinutes * 60_000);
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
@@ -414,6 +414,7 @@ function manualVisitErrorLabel(error: string | undefined): string {
   if (error === "email_conflict") return "Этот email уже связан с другой карточкой.";
   if (error === "patient_not_available") return "Карточка недоступна в этой организации.";
   if (error === "specialist_required") return "Для сотрудника не назначен профиль специалиста.";
+  if (error === "visit_in_future") return "Время визита не может быть в будущем.";
   return "Не удалось создать визит.";
 }
 
@@ -428,6 +429,7 @@ function ManualWalkInPatientDialog() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [visitedAt, setVisitedAt] = useState(currentLocalDateTimeValue);
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
 
   function reset() {
     setError(null);
@@ -437,6 +439,7 @@ function ManualWalkInPatientDialog() {
     setPhone("");
     setEmail("");
     setVisitedAt(currentLocalDateTimeValue());
+    setRequestId(crypto.randomUUID());
   }
 
   async function submit() {
@@ -451,6 +454,7 @@ function ManualWalkInPatientDialog() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId,
           kind: "walk_in",
           lastName,
           firstName,
@@ -488,9 +492,19 @@ function ManualWalkInPatientDialog() {
         if (!next && !pending) reset();
       }}
     >
-      <DialogTrigger render={<Button type="button" size="sm" className="shrink-0 gap-1.5" />}>
+      <DialogTrigger
+        render={
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            aria-label="Новый визит"
+          />
+        }
+      >
         <Plus className="size-4" aria-hidden />
-        Новый визит
+        <span className="hidden sm:inline">Новый визит</span>
+        <span className="sr-only sm:hidden">Новый визит</span>
       </DialogTrigger>
       <DialogContent className="max-h-[min(90dvh,680px)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -522,7 +536,13 @@ function ManualWalkInPatientDialog() {
           </div>
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="manual-walk-in-visited-at">Дата и время визита</Label>
-            <Input id="manual-walk-in-visited-at" type="datetime-local" value={visitedAt} onChange={(event) => setVisitedAt(event.target.value)} />
+            <Input
+              id="manual-walk-in-visited-at"
+              type="datetime-local"
+              value={visitedAt}
+              max={currentLocalDateTimeValue(2)}
+              onChange={(event) => setVisitedAt(event.target.value)}
+            />
           </div>
         </div>
         {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
@@ -634,33 +654,30 @@ function PatientsContent({
         title={patientPluralLabel}
         tabsClassName="w-full"
         tabs={
-          <div className="flex w-full min-w-0 items-center gap-2">
-            <ManualWalkInPatientDialog />
-            <div className="relative min-w-0 flex-1">
-              <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-                <Search className="size-3.5" aria-hidden />
-              </span>
-              <Input
-                type="search"
-                placeholder={`Поиск: ${patientPluralLabelLower}`}
-                value={searchInput}
-                onChange={(event) => onSearchInput(event.target.value)}
-                className="h-8 pl-8 pr-8 text-sm"
-                aria-label={`Поиск: ${patientPluralLabelLower}`}
-              />
-              {searchInput ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={onClearSearch}
-                  className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                  aria-label="Сбросить поиск"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              ) : null}
-            </div>
+          <div className="relative w-full min-w-0">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+              <Search className="size-3.5" aria-hidden />
+            </span>
+            <Input
+              type="search"
+              placeholder={`Поиск: ${patientPluralLabelLower}`}
+              value={searchInput}
+              onChange={(event) => onSearchInput(event.target.value)}
+              className="h-8 pl-8 pr-8 text-sm"
+              aria-label={`Поиск: ${patientPluralLabelLower}`}
+            />
+            {searchInput ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onClearSearch}
+                className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+                aria-label="Сбросить поиск"
+              >
+                <X className="size-3.5" />
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -700,6 +717,7 @@ function PatientsContent({
                 className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
                 aria-label={`Сортировка: ${patientPluralLabelLower}`}
               >
+                <ManualWalkInPatientDialog />
                 <span className="text-xs text-muted-foreground">Сортировать</span>
                 <Button
                   type="button"

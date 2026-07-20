@@ -60,6 +60,10 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
     createAppointment: vi.fn().mockResolvedValue(appointment),
     createManualPatientVisit: vi.fn().mockResolvedValue({
+      kind: "scheduled",
+      replayed: false,
+      clinicalVisitId: null,
+      portalStatus: "not_activated",
       appointment,
       patient: {
         userId: "22222222-2222-4222-8222-222222222222",

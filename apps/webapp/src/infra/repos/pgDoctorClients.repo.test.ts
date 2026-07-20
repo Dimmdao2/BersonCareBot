@@ -211,6 +211,9 @@ describe("pgDoctorClients repo", () => {
     expect(appointmentAggSql).not.toContain("be_appointment_reschedules");
     expect(appointmentAggSql).toContain("COUNT(DISTINCT bea.id) FILTER");
     expect(appointmentAggSql).toContain("bea.status NOT IN");
+    expect(appointmentAggSql).toContain("FROM clinical_visit cv");
+    expect(appointmentAggSql).toContain("cv.canonical_appointment_id IS NULL");
+    expect(appointmentAggSql).toContain("cv.appointment_record_id IS NULL");
     expect(appointmentAggSql).not.toContain("LEFT JOIN appointment_records");
     expect(list.find((item) => item.userId === "u1")?.hasAppointmentHistory).toBe(false);
     expect(list.find((item) => item.userId === "u2")?.hasAppointmentHistory).toBe(true);
@@ -249,7 +252,11 @@ describe("pgDoctorClients repo", () => {
     expect(appointmentAggSql).toContain("bea.status NOT IN");
     expect(appointmentAggSql).toContain("bea.start_at <= NOW()");
     expect(appointmentAggSql).toContain("bea.organization_id = $2::uuid");
+    expect(appointmentAggSql).toContain("GREATEST(");
+    expect(appointmentAggSql).toContain("cva.last_visit_at");
     expect(list[0]?.lastAppointmentAt).toBe("2026-07-02T09:00:00.000Z");
+    expect(list[0]?.hasAppointmentHistory).toBe(true);
+    expect(list[0]?.visitedThisCalendarMonth).toBe(true);
   });
 
   it("maps lifetime cancellation/reschedule counts and separates purchased, active, and expired memberships", async () => {

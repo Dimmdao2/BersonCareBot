@@ -114,6 +114,7 @@ describe("PatientsPageClient", () => {
     expect(pageHeader).not.toBeNull();
     expect(search.closest("[data-doctor-page-header-tabs]")).toHaveClass("w-full");
     expect(pageHeader?.querySelector("[data-doctor-page-header-toolbar]")).toBeNull();
+    expect(pageHeader).not.toContainElement(screen.getByRole("button", { name: "Новый визит" }));
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
     expect(screen.getByText("Подписчик")).toBeInTheDocument();
@@ -454,12 +455,14 @@ describe("PatientsPageClient", () => {
     await user.type(screen.getByLabelText("Отчество"), "Сергеевич");
     await user.type(screen.getByLabelText("Телефон"), "+7 999 000-00-00");
     await user.type(screen.getByLabelText("Email, если есть"), "patient@example.com");
+    expect(screen.getByLabelText("Дата и время визита")).toHaveAttribute("max");
     await user.click(screen.getByRole("button", { name: "Создать визит" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
     const [, init] = fetchMock.mock.calls[0] ?? [];
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       kind: "walk_in",
       lastName: "Петров",
       firstName: "Иван",

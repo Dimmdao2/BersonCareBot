@@ -349,19 +349,41 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
             active_count: number;
             visited_month_count: number;
           }>(
-            `SELECT
+            `WITH clinical_visit_agg AS (
+               SELECT
+                 cv.patient_user_id,
+                 COUNT(*)::int AS history_count,
+                 MAX(cv.visited_at) FILTER (WHERE cv.visited_at <= NOW()) AS last_visit_at,
+                 COUNT(*) FILTER (
+                   WHERE cv.visited_at >= date_trunc('month', NOW())
+                     AND cv.visited_at < date_trunc('month', NOW()) + interval '1 month'
+                     AND cv.visited_at <= NOW()
+                 )::int AS visited_month_count
+               FROM clinical_visit cv
+               WHERE cv.patient_user_id = ANY($1::uuid[])
+                 AND ($2::uuid IS NULL OR cv.organization_id = $2::uuid)
+                 AND cv.canonical_appointment_id IS NULL
+                 AND cv.appointment_record_id IS NULL
+               GROUP BY cv.patient_user_id
+             )
+             SELECT
                pu.id::text AS user_id,
-              COUNT(DISTINCT bea.id) FILTER (
-                 WHERE bea.deleted_at IS NULL
-                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+               (
+                 COUNT(DISTINCT bea.id) FILTER (
+                   WHERE bea.deleted_at IS NULL
+                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                 )::int + COALESCE(cva.history_count, 0)
                )::int AS history_count,
-               MAX(bea.start_at) FILTER (
-                 WHERE bea.deleted_at IS NULL
-                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                   AND bea.start_at IS NOT NULL
-                   AND bea.start_at <= NOW()
-                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+               GREATEST(
+                 MAX(bea.start_at) FILTER (
+                   WHERE bea.deleted_at IS NULL
+                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                     AND bea.start_at IS NOT NULL
+                     AND bea.start_at <= NOW()
+                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                 ),
+                 cva.last_visit_at
                ) AS last_appointment_at,
                COUNT(DISTINCT bea.id) FILTER (
                  WHERE bea.deleted_at IS NULL
@@ -370,19 +392,22 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                    AND bea.start_at >= NOW()
                    AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
                )::int AS active_count,
-               COUNT(DISTINCT bea.id) FILTER (
-                 WHERE bea.deleted_at IS NULL
-                   AND bea.start_at IS NOT NULL
-                   AND bea.start_at >= date_trunc('month', NOW())
-                   AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
-                   AND bea.start_at < NOW()
-                   AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
-                   AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+               (
+                 COUNT(DISTINCT bea.id) FILTER (
+                   WHERE bea.deleted_at IS NULL
+                     AND bea.start_at IS NOT NULL
+                     AND bea.start_at >= date_trunc('month', NOW())
+                     AND bea.start_at < date_trunc('month', NOW()) + interval '1 month'
+                     AND bea.start_at < NOW()
+                     AND bea.status NOT IN (${CANONICAL_CANCELLED_STATUS_SQL})
+                     AND ($2::uuid IS NULL OR bea.organization_id = $2::uuid)
+                 )::int + COALESCE(cva.visited_month_count, 0)
                )::int AS visited_month_count
              FROM platform_users pu
              LEFT JOIN be_appointments bea ON bea.platform_user_id = pu.id
+             LEFT JOIN clinical_visit_agg cva ON cva.patient_user_id = pu.id
              WHERE pu.id = ANY($1::uuid[])
-             GROUP BY pu.id`,
+             GROUP BY pu.id, cva.history_count, cva.last_visit_at, cva.visited_month_count`,
             [userIds, organizationId],
           ),
           loadClientEventMetrics(userIds, organizationId),

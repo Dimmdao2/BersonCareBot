@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { patientCardHref } from "../patients/patientCardHref";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { DateTime } from "luxon";
 import { Badge } from "@/shared/ui/doctor/primitives/badge";
 import { Button } from "@/shared/ui/doctor/primitives/button";
@@ -191,6 +191,7 @@ function DoctorCalendarEventPanelInner({
   const [createBranchId, setCreateBranchId] = useState<string | null>(null);
   const [createServiceId, setCreateServiceId] = useState<string | null>(null);
   const [createPatient, setCreatePatient] = useState<CalendarPatientOption | null>(null);
+  const createManualRequestIdRef = useRef(crypto.randomUUID());
   // R16: комментарий, добавляемый сразу после создания записи (staff-коммент).
   const [createComment, setCreateComment] = useState("");
   const selectedId = selected?.id ?? null;
@@ -243,7 +244,10 @@ function DoctorCalendarEventPanelInner({
     if (mode !== "create") onCreateDirtyChange?.(false);
   }, [mode, onCreateDirtyChange]);
 
-  const markCreateDirty = () => onCreateDirtyChange?.(true);
+  const markCreateDirty = () => {
+    createManualRequestIdRef.current = crypto.randomUUID();
+    onCreateDirtyChange?.(true);
+  };
 
   const createServiceOptions = useMemo(
     () =>
@@ -408,6 +412,7 @@ function DoctorCalendarEventPanelInner({
                     body: JSON.stringify({
                       ...(isNewPatient
                           ? {
+                            requestId: createManualRequestIdRef.current,
                             kind: "scheduled",
                             lastName: createPatient.lastName,
                             firstName: createPatient.firstName,
@@ -435,6 +440,7 @@ function DoctorCalendarEventPanelInner({
                 };
                 setMessage(json.ok ? "Создано" : panelErrorLabel(json.error));
                 if (json.ok) {
+                  createManualRequestIdRef.current = crypto.randomUUID();
                   // R16: после создания (есть id) добавляем staff-коммент отдельным запросом.
                   const newId = json.appointment?.id;
                   if (newId && createComment.trim()) {

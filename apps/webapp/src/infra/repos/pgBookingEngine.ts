@@ -1,8 +1,10 @@
+import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
+import { stableStringifyForIdempotency } from "@/infra/idempotency/integratorEventSemanticHash";
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from "@/infra/repos/pgDoctorClientCreate";
 import { ensureInvitedOrganizationClientRelationship } from "@/infra/repos/pgPatientOrganizationEnrollment";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
@@ -14,6 +16,7 @@ import {
   beClinicServices,
   beExternalEntityMappings,
   beOrganizations,
+  orgEnrollments,
   bePatientTimelineEvents,
   beRooms,
   beServiceLocationAvailability,
@@ -23,6 +26,7 @@ import {
   beSpecialists,
 } from "../../../db/schema/bookingEngine";
 import { clinicalVisit } from "../../../db/schema/patientClinical";
+import { platformUsers } from "../../../db/schema/schema";
 import {
   legacyBranchServiceIdBySsaFromMappings,
   pickPreferredSsaId,
@@ -40,6 +44,7 @@ import type {
   BeSpecialistServiceAvailability,
   CreateAppointmentInput,
   CreateManualPatientVisitInput,
+  CreateManualPatientVisitResult,
   TransitionAppointmentStatusInput,
 } from "@/modules/booking-engine/types";
 
@@ -146,6 +151,7 @@ async function insertAppointmentInTransaction(
   const inserted = await tx
     .insert(beAppointments)
     .values({
+      id: input.id,
       organizationId: input.organizationId,
       branchId: input.branchId ?? null,
       roomId: input.roomId ?? null,
@@ -198,27 +204,34 @@ async function insertAppointmentInTransaction(
   return appointment;
 }
 
-async function assertManualAppointmentCatalogSelection(
+async function assertManualSpecialistSelection(
   tx: DrizzleDb,
-  input: CreateAppointmentInput,
+  organizationId: string,
+  specialistId: string,
 ): Promise<void> {
-  if (getCurrentDbPrincipalOrganizationId() !== input.organizationId) {
+  if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
     throw new Error("organization_principal_mismatch");
   }
-  if (!input.specialistId) throw new Error("specialist_required");
-
   const [specialist] = await tx
     .select({ id: beSpecialists.id })
     .from(beSpecialists)
     .where(
       and(
-        eq(beSpecialists.id, input.specialistId),
-        eq(beSpecialists.organizationId, input.organizationId),
+        eq(beSpecialists.id, specialistId),
+        eq(beSpecialists.organizationId, organizationId),
         eq(beSpecialists.isActive, true),
       ),
     )
     .limit(1);
   if (!specialist) throw new Error("specialist_not_found");
+}
+
+async function assertManualAppointmentCatalogSelection(
+  tx: DrizzleDb,
+  input: CreateAppointmentInput,
+): Promise<void> {
+  if (!input.specialistId) throw new Error("specialist_required");
+  await assertManualSpecialistSelection(tx, input.organizationId, input.specialistId);
 
   if (input.branchId) {
     const [branch] = await tx
@@ -289,6 +302,93 @@ async function assertManualAppointmentCatalogSelection(
     .where(and(...availabilityConditions))
     .limit(1);
   if (!availability) throw new Error("service_not_available_for_specialist");
+}
+
+function scheduledManualPatientCommandFingerprint(
+  input: Extract<CreateManualPatientVisitInput, { kind: "scheduled" }>,
+): string {
+  const identity = {
+    lastName: input.lastName,
+    firstName: input.firstName,
+    patronymic: input.patronymic,
+    phoneNormalized: input.phoneNormalized,
+    emailNormalized: input.emailNormalized,
+  };
+  const semantic = { kind: input.kind, identity, appointment: input.appointment };
+  return createHash("sha256")
+    .update(stableStringifyForIdempotency(semantic))
+    .digest("hex");
+}
+
+async function lockManualCommand(
+  tx: DrizzleDb,
+  organizationId: string,
+  commandId: string,
+): Promise<void> {
+  const key = `doctor-manual-patient:${organizationId}:${commandId}`;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}::text, 0))`);
+}
+
+async function loadManualPatientForReplay(
+  tx: DrizzleDb,
+  organizationId: string,
+  userId: string,
+): Promise<Pick<CreateManualPatientVisitResult, "patient" | "portalStatus">> {
+  const [patient] = await tx
+    .select({
+      userId: platformUsers.id,
+      displayName: platformUsers.displayName,
+      lastName: platformUsers.lastName,
+      firstName: platformUsers.firstName,
+      patronymic: platformUsers.patronymic,
+      phoneNormalized: platformUsers.phoneNormalized,
+    })
+    .from(platformUsers)
+    .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)))
+    .limit(1);
+  const [relationship] = await tx
+    .select({ status: orgEnrollments.status })
+    .from(orgEnrollments)
+    .where(
+      and(
+        eq(orgEnrollments.organizationId, organizationId),
+        eq(orgEnrollments.platformUserId, userId),
+      ),
+    )
+    .limit(1);
+  if (!patient?.phoneNormalized || !relationship) throw new Error("idempotency_replay_missing");
+  return {
+    patient: { ...patient, phoneNormalized: patient.phoneNormalized, created: false },
+    portalStatus: relationship.status === "active" ? "linked" : "not_activated",
+  };
+}
+
+async function lockManualPatientRelationship(
+  tx: DrizzleDb,
+  organizationId: string,
+  userId: string,
+): Promise<string> {
+  const [relationship] = await tx
+    .select({ status: orgEnrollments.status })
+    .from(orgEnrollments)
+    .where(
+      and(
+        eq(orgEnrollments.organizationId, organizationId),
+        eq(orgEnrollments.platformUserId, userId),
+      ),
+    )
+    .for("update");
+  if (!relationship) throw new Error("patient_not_available");
+  return relationship.status;
+}
+
+function isCommandPrimaryKeyConflict(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const value = error as { code?: unknown; constraint?: unknown };
+  return (
+    value.code === "23505" &&
+    (value.constraint === "be_appointments_pkey" || value.constraint === "clinical_visit_pkey")
+  );
 }
 
 export function createPgBookingEnginePort(): BookingEngineCorePort {
@@ -1075,75 +1175,182 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const now = new Date().toISOString();
       return db.transaction(async (rawTx) => {
         const tx = rawTx as DrizzleDb;
-        const appointmentInput =
-          input.kind === "scheduled"
-            ? input.appointment
-            : {
-                specialistId: input.walkIn.specialistId,
-                startAt: input.walkIn.visitedAt,
-                endAt: new Date(new Date(input.walkIn.visitedAt).getTime() + 60_000).toISOString(),
-                durationMinutes: 1,
-                source: "admin_manual" as const,
-                status: "completed" as const,
-                actorId: input.walkIn.actorId,
-              };
-        await assertManualAppointmentCatalogSelection(tx, {
-          ...appointmentInput,
-          organizationId: input.organizationId,
-        });
+        await lockManualCommand(tx, input.organizationId, input.commandId);
+
+        if (input.kind === "scheduled") {
+          const fingerprint = scheduledManualPatientCommandFingerprint(input);
+          const [existingAppointmentRow] = await tx
+            .select()
+            .from(beAppointments)
+            .where(
+              and(
+                eq(beAppointments.id, input.commandId),
+                eq(beAppointments.organizationId, input.organizationId),
+              ),
+            )
+            .limit(1);
+          if (existingAppointmentRow) {
+            const appointment = mapAppointment(existingAppointmentRow);
+            if (
+              appointment.attributionJson.manualCommandFingerprint !== fingerprint ||
+              !appointment.platformUserId
+            ) {
+              throw new Error("idempotency_conflict");
+            }
+            const replay = await loadManualPatientForReplay(
+              tx,
+              input.organizationId,
+              appointment.platformUserId,
+            );
+            return {
+              kind: "scheduled" as const,
+              replayed: true,
+              appointment,
+              clinicalVisitId: null,
+              ...replay,
+            };
+          }
+
+          await assertManualAppointmentCatalogSelection(tx, {
+            ...input.appointment,
+            organizationId: input.organizationId,
+          });
+          const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
+            tx,
+            input.organizationId,
+            input,
+          );
+          const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
+            tx,
+            input.organizationId,
+            patient.userId,
+          );
+          let appointment: BeAppointment;
+          try {
+            appointment = await insertAppointmentInTransaction(
+              tx,
+              {
+                ...input.appointment,
+                id: input.commandId,
+                organizationId: input.organizationId,
+                platformUserId: patient.userId,
+                phoneNormalized: patient.phoneNormalized,
+                attributionJson: {
+                  ...input.appointment.attributionJson,
+                  manualCommandFingerprint: fingerprint,
+                },
+              },
+              now,
+              true,
+            );
+          } catch (error) {
+            if (isCommandPrimaryKeyConflict(error)) throw new Error("idempotency_conflict");
+            throw error;
+          }
+          return {
+            kind: "scheduled" as const,
+            replayed: false,
+            patient,
+            appointment,
+            clinicalVisitId: null,
+            portalStatus:
+              relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
+          };
+        }
+
+        await assertManualSpecialistSelection(
+          tx,
+          input.organizationId,
+          input.walkIn.specialistId,
+        );
         const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
           tx,
           input.organizationId,
           input,
         );
-        const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
+        await ensureInvitedOrganizationClientRelationship(
           tx,
           input.organizationId,
           patient.userId,
         );
-        const appointment = await insertAppointmentInTransaction(
+        const relationshipStatus = await lockManualPatientRelationship(
           tx,
-          {
-            ...appointmentInput,
-            organizationId: input.organizationId,
-            platformUserId: patient.userId,
-            phoneNormalized: patient.phoneNormalized,
-          },
-          now,
-          true,
+          input.organizationId,
+          patient.userId,
         );
+        const [existingVisit] = await tx
+          .select({
+            id: clinicalVisit.id,
+            patientUserId: clinicalVisit.patientUserId,
+            visitedAt: clinicalVisit.visitedAt,
+            createdBy: clinicalVisit.createdBy,
+          })
+          .from(clinicalVisit)
+          .where(
+            and(
+              eq(clinicalVisit.id, input.commandId),
+              eq(clinicalVisit.organizationId, input.organizationId),
+            ),
+          )
+          .limit(1);
+        if (existingVisit) {
+          if (
+            existingVisit.patientUserId !== patient.userId ||
+            new Date(existingVisit.visitedAt).getTime() !==
+              new Date(input.walkIn.visitedAt).getTime() ||
+            existingVisit.createdBy !== input.walkIn.actorId
+          ) {
+            throw new Error("idempotency_conflict");
+          }
+          return {
+            kind: "walk_in" as const,
+            replayed: true,
+            patient: { ...patient, created: false },
+            appointment: null,
+            clinicalVisitId: existingVisit.id,
+            portalStatus:
+              relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
+          };
+        }
+
+        const [priorVisit] = await tx
+          .select({ id: clinicalVisit.id })
+          .from(clinicalVisit)
+          .where(
+            and(
+              eq(clinicalVisit.organizationId, input.organizationId),
+              eq(clinicalVisit.patientUserId, patient.userId),
+            ),
+          )
+          .limit(1);
         let clinicalVisitId: string | null = null;
-        if (input.kind === "walk_in") {
-          const [priorVisit] = await tx
-            .select({ id: clinicalVisit.id })
-            .from(clinicalVisit)
-            .where(
-              and(
-                eq(clinicalVisit.organizationId, input.organizationId),
-                eq(clinicalVisit.patientUserId, patient.userId),
-              ),
-            )
-            .limit(1);
+        try {
           const insertedVisit = await tx
             .insert(clinicalVisit)
             .values({
+              id: input.commandId,
               organizationId: input.organizationId,
               patientUserId: patient.userId,
               visitType: priorVisit ? "repeat" : "first",
               visitedAt: input.walkIn.visitedAt,
-              canonicalAppointmentId: appointment.id,
+              canonicalAppointmentId: null,
               createdBy: input.walkIn.actorId,
             })
             .returning({ id: clinicalVisit.id });
           clinicalVisitId = insertedVisit[0]?.id ?? null;
-          if (!clinicalVisitId) throw new Error("clinical_visit_insert_failed");
+        } catch (error) {
+          if (isCommandPrimaryKeyConflict(error)) throw new Error("idempotency_conflict");
+          throw error;
         }
+        if (!clinicalVisitId) throw new Error("clinical_visit_insert_failed");
         return {
-          kind: input.kind,
+          kind: "walk_in" as const,
+          replayed: false,
           patient,
-          appointment,
+          appointment: null,
           clinicalVisitId,
-          portalStatus: relationshipStatus === "active" ? "linked" : "not_activated",
+          portalStatus:
+            relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
         };
       });
     },
