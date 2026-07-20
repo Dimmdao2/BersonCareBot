@@ -129,6 +129,7 @@ export function PatientHomeMoodCheckin({
     submittingScore !== null ?
       "Сохраняем..."
     : null;
+  const hasWellbeingWeekMarks = moodWeekMarks.length > 0;
 
   const renderMoodScale = (frozenDisabled: boolean) => (
     <PatientHomeMoodScoreRow
@@ -147,7 +148,7 @@ export function PatientHomeMoodCheckin({
         id="patient-home-mood-checkin"
         className={cn(patientHomeMoodCheckinShellClass, patientHomeMoodCardGeometryClass)}
         aria-labelledby={
-          personalTierOk && !anonymousGuest ?
+          personalTierOk && !anonymousGuest && hasWellbeingWeekMarks ?
             "patient-home-mood-week-heading patient-home-mood-heading"
           : "patient-home-mood-heading"
         }
@@ -176,22 +177,24 @@ export function PatientHomeMoodCheckin({
             </div>
           : <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-4 pt-1">
               <div className="flex min-h-0 flex-1 flex-col gap-6 min-[560px]:flex-row min-[560px]:items-stretch min-[560px]:gap-4">
-                <div className="order-2 flex min-h-0 w-full min-w-0 flex-col min-[560px]:order-1 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-0">
-                  <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
-                    Ваша неделя
-                  </h3>
-                  {wellbeingWeekAnchorNowMs != null && wellbeingWeekTodayIso ? (
-                    <PatientHomeWellbeingWeekStrip
-                      marks={moodWeekMarks}
-                      timeZone={wellbeingWeekTimeZone}
-                      anchorNowMs={wellbeingWeekAnchorNowMs}
-                      todayIso={wellbeingWeekTodayIso}
-                      anchorDayBeforeWindowHadMarks={moodWeekAnchorDayBeforeWindowHadMarks}
-                      anchorDayBeforeWindowLastScore={moodWeekAnchorDayBeforeWindowLastScore}
-                      lastScoreBeforeWindow={moodWeekLastScoreBeforeWindow}
-                    />
-                  ) : null}
-                </div>
+                {hasWellbeingWeekMarks ?
+                  <div className="order-2 flex min-h-0 w-full min-w-0 flex-col min-[560px]:order-1 min-[560px]:flex-1 min-[560px]:basis-0 min-[560px]:min-w-0">
+                    <h3 id="patient-home-mood-week-heading" className={patientHomeMoodColumnHeadingClass}>
+                      Ваша неделя
+                    </h3>
+                    {wellbeingWeekAnchorNowMs != null && wellbeingWeekTodayIso ? (
+                      <PatientHomeWellbeingWeekStrip
+                        marks={moodWeekMarks}
+                        timeZone={wellbeingWeekTimeZone}
+                        anchorNowMs={wellbeingWeekAnchorNowMs}
+                        todayIso={wellbeingWeekTodayIso}
+                        anchorDayBeforeWindowHadMarks={moodWeekAnchorDayBeforeWindowHadMarks}
+                        anchorDayBeforeWindowLastScore={moodWeekAnchorDayBeforeWindowLastScore}
+                        lastScoreBeforeWindow={moodWeekLastScoreBeforeWindow}
+                      />
+                    ) : null}
+                  </div>
+                : null}
                 <div
                   className={cn(
                     "order-1 flex min-h-0 w-full min-w-0 flex-col",

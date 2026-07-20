@@ -62,6 +62,42 @@ describe("PatientHomeMoodCheckin", () => {
     expect(screen.queryByRole("button", { name: /Изменить/i })).toBeNull();
   });
 
+  it("hides the empty weekly chart while keeping mood check-in controls visible", () => {
+    render(
+      <PatientHomeMoodCheckin
+        moodOptions={defaultMoodOptions}
+        personalTierOk
+        anonymousGuest={false}
+        moodWeekMarks={[]}
+        wellbeingWeekTimeZone="Europe/Moscow"
+        wellbeingWeekAnchorNowMs={Date.parse("2026-07-20T10:00:00.000Z")}
+        wellbeingWeekTodayIso="2026-07-20"
+      />,
+    );
+
+    expect(screen.queryByRole("img", { name: /График самочувствия/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Ваша неделя" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: /Самочувствие/i })).toHaveLength(5);
+  });
+
+  it("keeps the weekly chart unchanged once a mood mark exists", () => {
+    render(
+      <PatientHomeMoodCheckin
+        moodOptions={defaultMoodOptions}
+        personalTierOk
+        anonymousGuest={false}
+        moodWeekMarks={[{ recordedAt: "2026-07-20T08:00:00.000Z", score: 4 }]}
+        wellbeingWeekTimeZone="Europe/Moscow"
+        wellbeingWeekAnchorNowMs={Date.parse("2026-07-20T10:00:00.000Z")}
+        wellbeingWeekTodayIso="2026-07-20"
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Ваша неделя" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /График самочувствия/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Самочувствие/i })).toHaveLength(5);
+  });
+
   it("optimistically saves selected score", async () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
