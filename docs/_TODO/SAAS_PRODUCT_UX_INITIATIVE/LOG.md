@@ -38,6 +38,16 @@ typecheck, scoped lint and diff checks passed. No working DEV/TEST/PROD DB, serv
 touched. U3S remains `doing`, not terminal: the desktop/mobile live registration → security/recovery → authorized
 binding → first clinical workspace journey must still be accepted, after which `#917` owns the TEST/Neo handoff.
 
+**Live DEV result and bounded correction.** На существующем `:5200`, без второго сервера и без прямых действий с
+БД, прошли public registration, non-delivery email challenge, exactly-one organization+owner, confirm replay/retry,
+TOTP, recovery acknowledgement, owner→specialist binding, Today, desktop/mobile, password+TOTP login, session revoke
+и recovery replacement. Проверка нашла один acceptance blocker: bare `/app/settings` сохранял старую default-семантику
+персональной вкладки и отправлял bindingless owner в Account. Исправление делает `/app/settings` каноническими
+organization **«Настройками»** для capability `organization.management`; `/app/account` остаётся личным
+**«Аккаунтом»**, restricted security и non-manager staff остаются fail-closed. Independent audit:
+`P0=0, P1=0, P2=0`; `110` targeted tests зелёные. Нужен только короткий live recheck именно этой исправленной точки;
+остальной уже пройденный security journey повторять не требуется.
+
 ## 2026-07-20 — C4D ownership correction: platform writes wait for U9 (`#724`)
 
 C4D keeps the explicit `organization | platform` ownership tags, exact child-owner checks, platform-row read
