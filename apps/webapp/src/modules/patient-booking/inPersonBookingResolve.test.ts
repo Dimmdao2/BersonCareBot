@@ -15,7 +15,6 @@ describe("resolveInPersonBranchServiceId", () => {
     bookingEngine: {
       catalog: {
         getBranch: vi.fn().mockResolvedValue({ id: "branch-1", organizationId: "org-1" }),
-        listSpecialists: vi.fn().mockResolvedValue([{ id: "sp-1", isActive: true }]),
       },
       services: {
         getService: vi.fn().mockResolvedValue({ id: "service-1", organizationId: "org-1" }),
@@ -44,6 +43,11 @@ describe("resolveInPersonBranchServiceId", () => {
         serviceId: "550e8400-e29b-41d4-a716-446655440002",
       }),
     ).resolves.toBe("bs-1");
+    expect(bookingScheduling.resolveLegacyBranchServiceId).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      branchId: "550e8400-e29b-41d4-a716-446655440001",
+      serviceId: "550e8400-e29b-41d4-a716-446655440002",
+    });
   });
 
   it("throws when mapping missing", async () => {

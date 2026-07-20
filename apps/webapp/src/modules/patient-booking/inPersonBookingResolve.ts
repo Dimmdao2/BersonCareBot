@@ -7,7 +7,7 @@ import { logger } from "@/app-layer/logging/logger";
 
 export type InPersonBookingResolveDeps = {
   bookingEngine: {
-    catalog: Pick<OrganizationCatalogPort, "listSpecialists" | "getBranch">;
+    catalog: Pick<OrganizationCatalogPort, "getBranch">;
     services: Pick<ServiceAvailabilityPort, "getService">;
   } | null;
   bookingScheduling: Pick<
@@ -106,14 +106,10 @@ export async function resolveInPersonBookingContext(
   }
 
   const organizationId = branch.organizationId;
-  const specialists = await deps.bookingEngine.catalog.listSpecialists(organizationId);
-  const defaultSpecialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
-
   const branchServiceId = await deps.bookingScheduling.resolveLegacyBranchServiceId({
     organizationId,
     branchId,
     serviceId,
-    specialistId: defaultSpecialist?.id ?? null,
   });
   if (!branchServiceId) {
     throw new InPersonBookingResolveError("branch_service_mapping_missing");
