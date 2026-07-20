@@ -27,6 +27,7 @@
 | G3 — тумблеры механик | **решено: только organization/clinic**, не специалист | строить на существующем S4 engine `#888`, не форкать |
 | G4 — split коммуникаций | **решено: 45/55** | согласованный fallback: 50/50 |
 | G5 — онлайн-приём | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн» | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить |
+| G6 — общий Doctor UI chrome | **решено:** gap background `#faf9f4`, белая page header, радиусы blocks/KPI/controls `12/8/24px`, белый input, KPI label сверху/value снизу, списки крупнее и легче | один shared-primitives presentation pass; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов | **owner question `#848`** | не менять строгую/резервную семантику без ответа |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -137,6 +138,19 @@ deep-link compatibility до принятого U5B routing contract.
 - Настраиваемые owner signals, переключатель «на сопровождении»/«недавние с визитами», «самые активные», новые
   counters и скрытие клиентов — рекомендация для отдельной product/behavior работы, не косметика UI-6a.
 
+### UI-P — общий Doctor UI presentation-token pass
+
+- Фон между page-level блоками — `#faf9f4`; sticky page header с названием остаётся белой.
+- Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
+  `24px`. Внутренний `input` имеет белый фон. Локальные копии этих классов по страницам не создаются.
+- KPI во всех затронутых doctor surfaces используют один порядок: label сверху, value снизу.
+- Основной шрифт строк doctor-списков становится крупнее и легче без изменения meta/badge/calendar typography.
+- На странице «Клиенты» поиск переносится из отдельного toolbar под header в правый слот белой page header, на
+  одну линию с title. Desktop width совпадает с правой половиной 50/50 split; mobile остаётся доступным и компактным.
+- Это presentation-only stage: metric semantics, list sorting/filtering, patient UI, public booking и page data
+  contracts не меняются. Перед worker запуском нужен current-use census shared primitives и точный affected-file
+  manifest; один worker + один независимый presentation audit, без серийных correction rounds.
+
 ### UI-7 — коммуникационные возможности
 
 - **UI-7a scheduled messages:** только после отдельного backend contract для queue, retry, cancellation, org scope
@@ -191,6 +205,7 @@ Targeted checks presentation workers могут идти независимо; l
 | UI-5 organization patient card | U5B roadmap stage | task создаётся/расширяется только при readiness, не заранее |
 | UI-8 mechanics/reminders | C4D/C5 + `#191`, foundation `#888` accepted | только organization/clinic axis; не форкать entitlement/commercial систему |
 | UI-9 individual exercises | `#564`, design `#565` | owner-approved; запуск после C4D exact-org isolation |
+| UI-P doctor chrome/tokens | taskdb `#925` | shared doctor primitives + Clients header search; presentation-only, без patient/public UI |
 | Full Doctor DNA migration | `#885` | owner-cancelled/superseded; сохранить blocked historical record без stale question |
 
 ## 4. Parallel presentation manifests

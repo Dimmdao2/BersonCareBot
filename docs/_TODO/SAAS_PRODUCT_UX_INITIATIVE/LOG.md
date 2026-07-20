@@ -1,5 +1,14 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-20 — owner Doctor UI chrome correction (`UI-P`, `#925`)
+
+Владелец зафиксировал единый presentation-token delta для doctor workspace: фон промежутков `#faf9f4`, белая
+page header, радиусы page block/KPI/control `12/8/24px`, белый фон input, единый порядок KPI label сверху/value
+снизу и более крупный/лёгкий основной текст строк списков. На «Клиентах» поиск переносится из отдельной полосы под
+шапкой в правую половину самой шапки на одну линию с title. Решение записано в owner-review §16a, roadmap §7.3 и
+детальный UI plan как `UI-P`; taskdb `#925` создан без дублирования. Реализация должна идти через существующие
+doctor shared primitives вместе с обновлением style guide/rule, не затрагивая patient/public UI и data semantics.
+
 ## 2026-07-20 — code-only TEST checkpoint, C1 closure and UI-0 live residual
 
 TEST был обновлён только кодом до `27c19a275`; dump, restore и reset не выполнялись. Code-only wrapper получил

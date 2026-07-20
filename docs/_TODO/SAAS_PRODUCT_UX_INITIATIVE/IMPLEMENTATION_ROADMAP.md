@@ -429,17 +429,23 @@ card; запрещено строить временный resolver, второ�
   slices UI-4a/UI-6a не перезапускаются; выдаётся только новый owner delta/residual после current code/live census.
   Каждый presentation scope: worker + один audit; live DEV evidence на единственном `:5200` сериализуется. UI-3
   делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
+- **UI-P shared presentation delta (owner 2026-07-20):** taskdb `#925`; doctor workspace получает единый
+  shared-primitives pass для gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
+  белого input, порядка KPI label→value и более крупного/лёгкого основного list text. Поиск «Клиентов» переносится
+  в правую половину page header на одну линию с title. Это не patient/public UI и не изменение data/metric semantics.
 - **Order after presentation:** UI-5 является U5B и стартует после U5A + record-class policy; затем остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
   parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` owner-approved, но ждёт C4D
   exact-org isolation. UI-2 — bounded built-in toggleable «Онлайн» location на существующей модели, гейтящая
   существующие service checkboxes; новую schema/booking engine не вводить. UI-9 media scope и любые
   identity/schema/tenant/data изменения проходят полный risk-sized цикл.
-- **Owner decisions G1–G5 closed:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3
+- **Owner decisions G1–G6 closed:** G1 `#564` — да; G2 voice/STT — post-production `#922`, сейчас не трогать; G3
   toggles — organization/clinic only; G4 communications — 45/55 с fallback 50/50; G5 online уже существует,
-  требуется только встроенная toggleable location. Независимый SCH-G5 остаётся owner-waiting `#848`.
+  требуется только встроенная toggleable location; G6 — UI-P shared doctor chrome из предыдущего пункта.
+  Независимый SCH-G5 остаётся owner-waiting `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
-- **Task mapping:** C1 `#850/#851/#852`; online `#215`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
+- **Task mapping:** C1 `#850/#851/#852`; bounded built-in Online location переиспользует `#197`, а expanded online
+  booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
   Doctor DNA `#885`. Новые duplicate cards не
   создавать; subscopes фиксировать в note/meta существующей карты при фактическом запуске.
