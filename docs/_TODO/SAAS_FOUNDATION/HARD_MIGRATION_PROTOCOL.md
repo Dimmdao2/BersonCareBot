@@ -596,8 +596,9 @@ stdin `COPY` value before the atomic transaction commits and later overlays run.
 The same preflight also checks the reverse cluster-global membership direction: `app_owner` must have no incoming
 member at all, and every incoming `app_staff`/`app_patient` edge must match the explicit DEV topology plus the
 optional, separately managed TEST topology, including exact PostgreSQL 16 `ADMIN`/`INHERIT`/`SET` options and safe
-login attributes. An unknown member or option drift is a fail-closed incident; DEV recovery validates it but never
-revokes, grants or otherwise repairs cluster-global membership.
+login attributes. Transitive membership is checked too: no unlisted role may reach `app_owner` or either wall through
+an allowed intermediate login. An unknown member, indirect chain or option drift is a fail-closed incident; DEV
+recovery validates it but never revokes, grants or otherwise repairs cluster-global membership.
 
 The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure and fails unless the targeted
 functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public

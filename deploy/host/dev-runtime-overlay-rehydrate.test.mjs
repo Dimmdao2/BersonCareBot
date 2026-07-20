@@ -131,6 +131,8 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)/u);
   assert.match(source, /dev_runtime_incoming_memberships_exact/u);
   assert.match(source, /actual\.granted_role = 'app_owner'/u);
+  assert.match(source, /pg_has_role\(candidate_role\.oid, owner_role\.oid, 'MEMBER'\)/u);
+  assert.match(source, /NOT \(candidate_role\.rolsuper AND candidate_role\.rolname = 'postgres'\)/u);
   assert.match(source, /SELECT \* FROM actual_protected_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM active_expected/u);
   assert.match(source, /SELECT \* FROM active_expected[\s\S]*EXCEPT[\s\S]*SELECT \* FROM actual_protected_membership/u);
   for (const roleName of [
@@ -150,6 +152,9 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /member_role\.rolcreaterole/u);
   assert.match(source, /member_role\.rolreplication/u);
   assert.match(source, /member_role\.rolbypassrls/u);
+  assert.match(source, /CROSS JOIN \(VALUES \('app_staff'\), \('app_patient'\)\) AS wall/u);
+  assert.match(source, /pg_has_role\(candidate_role\.oid, wall_role\.oid, 'MEMBER'\)/u);
+  assert.match(source, /expected\.member_role = candidate_role\.rolname/u);
   assert.match(source, /dev_base_runtime_role_safe_before_overlay/u);
   assert.match(source, /dev_p2_b_exact_owner_handoff_preconditions/u);
   assert.match(source, /dev_p2_b_pgcrypto_move_precondition/u);

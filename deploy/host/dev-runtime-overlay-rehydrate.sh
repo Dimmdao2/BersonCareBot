@@ -291,6 +291,14 @@ SELECT 1 / (
     WHERE actual.granted_role = 'app_owner'
   )
   AND NOT EXISTS (
+    SELECT 1
+    FROM pg_roles candidate_role
+    JOIN pg_roles owner_role ON owner_role.rolname = 'app_owner'
+    WHERE candidate_role.rolname <> owner_role.rolname
+      AND NOT (candidate_role.rolsuper AND candidate_role.rolname = 'postgres')
+      AND pg_has_role(candidate_role.oid, owner_role.oid, 'MEMBER')
+  )
+  AND NOT EXISTS (
     (SELECT * FROM actual_protected_membership
      EXCEPT
      SELECT * FROM active_expected)
@@ -313,6 +321,21 @@ SELECT 1 / (
        OR member_role.rolbypassrls
        OR member_role.rolconnlimit <> -1
        OR member_role.rolconfig IS DISTINCT FROM expected.member_config
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_roles candidate_role
+    CROSS JOIN (VALUES ('app_staff'), ('app_patient')) AS wall(granted_role)
+    JOIN pg_roles wall_role ON wall_role.rolname = wall.granted_role
+    WHERE candidate_role.rolname <> wall.granted_role
+      AND NOT (candidate_role.rolsuper AND candidate_role.rolname = 'postgres')
+      AND pg_has_role(candidate_role.oid, wall_role.oid, 'MEMBER')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM active_expected expected
+        WHERE expected.granted_role = wall.granted_role
+          AND expected.member_role = candidate_role.rolname
+      )
   )
 )::int AS dev_runtime_incoming_memberships_exact;
 
