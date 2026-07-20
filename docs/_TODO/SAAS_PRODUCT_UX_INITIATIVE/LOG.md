@@ -3700,3 +3700,20 @@ ordinary browser instead of redirecting to install. Root, specialist entry, priv
 U6A-A is complete, but parent `#807` remains `doing`: configured pricing projection, privacy-safe acquisition
 analytics and public status are not fabricated by this presentation checkpoint. No DB, TEST/PROD, deploy, external
 send, U6B profile/booking/widget or `/join` action occurred.
+
+## 2026-07-21 — orchestration process audit after U5B-0 and U6A-A
+
+The required two-stage process audit returned **CONDITIONAL PASS**. U5B-0 used one coherent high-risk correction and
+one terminal full re-audit for owner-mapped policy/tenant gaps. U6A-A used one presentation audit and one bounded
+correction, without a serial presentation re-audit. No audit-driven product scope or repeated full CI was added.
+
+The current `#806` invite correction remains proportionate to identity/auth/tenant/migration risk, but is capped at
+this coherent correction, one terminal full re-audit and one disposable-PostgreSQL proof. The separately required
+no-contact patient-creation capability remains a manifested follow-on inside `#806`; it is not folded into audit
+findings. U6A's temporary branch/worktree was removed after patch-equivalence and integration were verified, leaving
+only active worktrees.
+
+UI-9 / `#564` may run in parallel: C4D `#724` is complete, `#565` provides the design evidence, its file scope is
+independent from `#806`, and migration lanes are reserved as `0220` for invite activation and `0221` for the
+individual-exercise stage. Heavy CI and live DEV remain serialized. After U3B, invite activation supplies the honest
+path for the remaining U5A two-organization/revoked-selection seals; U5B/UI-5 follows only after those seals.
