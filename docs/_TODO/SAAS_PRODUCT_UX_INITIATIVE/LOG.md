@@ -3603,3 +3603,26 @@ generic policy or direct `app_patient` table grants. This is mandatory security/
 feature. No script may be executed, no DB may be migrated/restored/reset, and no TEST/PROD/deploy action is authorized.
 The overlay must FORCE exact-org RLS, deny direct patient table access, hand narrow functions to existing `app_owner`,
 and remain compatible with the ordinary code-deploy versus explicit migration/reset separation already documented.
+
+## 2026-07-21 — U5B-0 worker handoff draft (`#928`)
+
+**Delivered contract.** `OPERATING_MODEL.md` §6 now separates server-resolved organization ownership, finite record
+class, visibility, immutable provenance and actor relation. Its registry covers profile/contact/portal access,
+appointments, visits and notes, tasks, symptoms, programs/progress, care communications, files, memberships/benefits,
+payments and amendments. It defines exact solo, specialist A/B and owner/admin with/without binding outcomes;
+permission-before-filter parity for list/direct/count/search/export/write/amend paths; restricted/private
+non-disclosure; unknown fail-closed behavior; parent inheritance; immutable authorship; and deterministic legacy
+backfill versus a PII-free ambiguous queue and reversible classification mapping.
+
+`ROLE_CAPABILITY_MATRIX.md` §§2.3–2.5 projects the same registry into actor and operation matrices. The U5B roadmap
+entry links this candidate contract without changing the normative DAG or marking application completion. All
+application, schema, migration, API, DB/runtime, UI and `#806` paths remained untouched.
+
+**Worker checks.** All fifteen contract classes and all five usable visibility values are present in both canonical
+policy documents; all seven operation families are present in the operating model. Cross-document registry/parity
+search, exact four-file scope check and `git diff --check` pass. No code test, full CI, server or live-environment
+action is applicable to this docs-only stage.
+
+**Residual gates.** This is a worker handoff, not an audit PASS. One independent high-risk audit must verify that no
+class, actor or parity path can broaden access and that the contract does not invent owner scope. U5B schema/API/UI
+implementation remains gated on that review and the remaining U5A two-organization/revoked-selection runtime seals.

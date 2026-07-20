@@ -1,6 +1,6 @@
 # UX-03 — Product operating model
 
-**Статус:** latest owner clarifications integrated; awaiting full independent audit.
+**Статус:** U5B-0 record/section visibility contract drafted; awaiting independent high-risk audit.
 **Authority:** производный contract; `OWNER_RULINGS_2026-07-16.md` побеждает старые candidates этого документа.
 **Дата:** 2026-07-15.
 **Scope:** actor/context model, solo/clinic composition, patient record/history, visit coordination и entitlement boundaries.
@@ -187,6 +187,140 @@ server-derived organization and actor relation
 Owner ruling 2026-07-16 approves one organization-scoped card, own events by default and on-demand authorized org
 history/specialist filters. Record-class/private visibility remains an authorization/data-policy task; UI uses
 “Вся доступная история”, never an unconditional promise of all stored data. No patient hierarchy is introduced.
+
+### U5B-0 policy dimensions
+
+The organization card is a projection over already-authorized objects, not an authorization boundary of its own.
+Every projected object must resolve all of the following server-side before a query or mutation returns data:
+
+1. **Organization ownership:** the record owns `organization_id` directly or reaches exactly one organization through
+   a reviewed parent path (enrollment, appointment/visit, program assignment, conversation, membership or payment).
+   A route parameter, selected specialist, patient identity or shared UI container is never ownership evidence.
+2. **Record class:** one finite class from the registry below. An unknown/unmapped class is not operational or shared
+   by default.
+3. **Visibility class:** `operational`, `authored_or_assigned`, `shared_clinical`, `restricted` or `inherited` as
+   defined below. Visibility is independent from entitlement and from a presentation filter.
+4. **Provenance:** subject patient/enrollment, immutable original author when an author exists, attributed specialist
+   or assignee when the workflow has one, and immutable parent linkage for inherited objects.
+5. **Actor relation and capability:** valid organization membership plus specialist binding and visit relation for
+   clinical work, or an explicit operational capability for a non-clinical owner/admin.
+
+The policy names are semantic contract labels, not approval of exact schema columns or a second authorization engine.
+U5B implementation must map them through the existing capability/principal ports and choose storage only after a
+schema/API census.
+
+### Patient-card section and record-class registry
+
+“Section” describes where an authorized projection may appear. Removing duplicate `Overview` or `Communications`
+tabs does not remove the underlying classes or weaken their policy. Each row applies to item lists, direct reads,
+counts, search, export and writes.
+
+| Contract class | Card projection / examples | Required organization ownership | Author / attributed specialist | Launch visibility baseline | Non-clinical owner/admin without specialist binding |
+|---|---|---|---|---|---|
+| `patient_profile` | Compact FIO, birth date, organization-local patient label and demographics | Active/retained organization enrollment; global patient identity alone is insufficient | Last editor is audit actor; no invented clinical author | `operational`, limited by profile capability | May read/update only explicitly delegated profile fields; no clinical inference |
+| `contact_channel` | Phone, email, messenger/channel availability and contact actions | Organization enrollment or reviewed organization-channel binding | Binding/consent actor where applicable; no specialist attribution implied | `operational`, field/action capability required | May use permitted contact operations; secret credentials and unrelated global bindings are never projected |
+| `portal_access` | Invited/activated/linked status and safe resend/revoke actions | Exact organization enrollment/invite/booking ownership | Issuer and lifecycle actor are audit provenance, not clinical authors | `operational_security`; represented by `operational` plus a narrower action capability | Status/actions only when delegated; token, credential and cross-organization identity data never appear |
+| `appointment` | Past/future appointments, calendar linkage, service, location and appointment status | Exact organization appointment linked to the enrollment | Creator is audit actor; destination specialist remains immutable attribution | `operational` for permitted roster/schedule use; related specialist relation is server-derived | May read/change only with explicit booking-operation capability; this does not grant clinical history |
+| `clinical_visit` | Visit facts and clinical visit/protocol content, complaints, anamnesis, findings, diagnoses, conclusion, recommendations | Exact organization visit through appointment/enrollment or another reviewed clinical parent | Original author fixed from authenticated specialist binding; destination/performing specialist stored separately when different | `authored_or_assigned` by default; `shared_clinical` only by explicit reviewed classification; `restricted` never inferred | No read/count/search/export/write without a valid specialist binding and clinical capability |
+| `clinical_note` | Existing Notes and prepared/follow-up visit notes | Exact organization enrollment or clinical parent | Original author fixed from binding; assignee optional but never substituted for author | `authored_or_assigned` by default; explicit `shared_clinical` or `restricted` only | No clinical access by management role alone |
+| `care_task` | Existing Tasks, reminders and patient-specific follow-up work | Exact organization enrollment plus assigned specialist/work owner | Creator and assignee are distinct immutable facts | `authored_or_assigned`; a task containing patient context is not broad operational data | No patient-task content without specialist binding; management may see only separate aggregate operations if later approved |
+| `symptom_observation` | Dynamics, patient check-ins, measurements and symptom timeline | Exact organization enrollment/program/visit parent | Patient or authenticated specialist is immutable author; responsible specialist is separate attribution | `authored_or_assigned`; explicit shared/restricted classification governs broader access | No values, presence indicators or counts by management role alone |
+| `program_assignment` | Assigned program, care-plan state and specialist instructions | Exact organization enrollment plus organization-owned program assignment | Assigning specialist is immutable attribution; later editor is amendment actor | `authored_or_assigned`; explicit shared/restricted classification required for broader clinic access | No program content or existence signal without specialist binding |
+| `program_progress` | Exercise completion calendar, patient reports and discussion attached to an assignment | Inherits exact organization and patient from the program assignment | Patient/specialist author retained per event; assigned specialist remains separate | `inherited` from assignment, narrowed by an explicit restricted child but never broadened by a child | No progress, discussion or aggregate counts without specialist binding |
+| `care_communication` | Patient chat/message/comment content and delivery-visible thread metadata | Exact organization conversation/assignment and verified participants | Sender immutable; responsible/recipient specialist is separate from sender | `restricted` to verified participants/assigned care relation by default; not organization-shared merely because chat is in the card | No content, snippets, unread counts, search or export by management role alone |
+| `patient_file` | Patient files, visit attachments, program media and downloadable originals | Exact organization parent; standalone file must have an explicit reviewed enrollment parent | Uploader immutable; clinical author comes from parent when applicable | `inherited`; may narrow to `restricted`, never broaden parent visibility | Only operational files with explicit operational parent/capability; clinical-file metadata is hidden with content |
+| `membership_benefit` | Membership list/history, benefits, balance, write-off and recalculation actions | Exact organization membership/subscription owned by the enrollment | Creator/operator is audit actor; no clinical author | `operational_financial`; represented by `operational` plus financial capability | Permitted read/actions with explicit billing/benefit capability; no clinical access follows |
+| `payment_ledger` | Payments, refunds, invoices and patient financial history | Exact organization payment/customer/enrollment ownership | Initiator/operator retained for audit; no specialist attribution implied | `operational_financial`; represented by `operational` plus financial capability | Permitted financial projection/actions only; exports remain organization-scoped and capability-gated |
+| `record_amendment` | Correction/version/tombstone metadata for any card record | Inherits exact organization and subject from the amended record | Original author never changes; amendment actor, time and reason are appended | `inherited` from the amended record and never more visible than it | Visible only when the base record and amendment metadata action are permitted |
+
+`operational_security` and `operational_financial` above are section qualifiers, not extra visibility values: they
+require narrower capabilities in addition to `operational`. They must never be collapsed into a generic
+“organization staff can read” rule.
+
+### Visibility vocabulary and inheritance
+
+| Visibility | Minimum allow rule | Explicitly does not mean |
+|---|---|---|
+| `operational` | Exact organization ownership + actor membership + explicit section/action capability | All staff, all fields, clinical data, or cross-organization identity access |
+| `authored_or_assigned` | Bound specialist has the patient relation and is immutable author, attributed specialist or explicit assignee | A selected specialist filter, owner/admin role, or organization membership alone |
+| `shared_clinical` | Exact organization + patient relation + clinical section capability + `clinical_history.view_shared`-equivalent capability + record explicitly classified shareable | “All stored history”; entitlement or UI `Все` alone |
+| `restricted` | Exact organization + patient relation + explicit participant/recipient/episode grant for this record | General shared-history capability; counts or metadata disclosure to non-participants |
+| `inherited` | Resolve a reviewed parent and apply the parent's visibility, optionally narrowed by the child | Standalone access, guessing a parent, or broadening a restricted parent |
+
+No legacy row may be classified `shared_clinical` or downgraded from `restricted` by absence of a flag. An
+unclassified record, an inherited object with no unique parent, or an ownership conflict is `unknown` and therefore
+excluded from normal card reads, counts, search and export until deterministically resolved. `unknown` is a failure
+state, not a sixth usable visibility class.
+
+### Actor outcomes
+
+- **Solo specialist:** still requires exact organization, binding and patient relation. They receive their permitted
+  operational records and clinical records for which they are author/attributed/assignee, plus explicitly permitted
+  shared or restricted-participant records. The UI omits a redundant `Мои / Все` control; solo composition is not a
+  bypass around classification.
+- **Clinic specialist A:** the default dataset is A's authored/attributed/assigned records plus permitted operational
+  sections. Explicitly shareable history appears only with the shared-history capability. Restricted B records,
+  communications and inherited metadata remain absent unless A is an explicit participant.
+- **Clinic specialist B:** the symmetric rule applies. A visit relation can make the patient appear in B's roster but
+  does not retroactively share A's clinical records. An empty own dataset remains empty and never falls back to the
+  full organization history.
+- **Owner/admin with specialist binding:** management and clinical grants are evaluated independently. Clinical
+  access and authorship come only from the active specialist binding; management role never widens the clinical
+  result.
+- **Owner/admin without specialist binding:** may receive only the explicitly delegated `patient_profile`,
+  `contact_channel`, `portal_access`, `appointment`, `membership_benefit` and `payment_ledger` projections. All
+  clinical, program, symptom, patient-care communication, clinical-file and derived count/search/export paths deny
+  without revealing whether records exist.
+- **Global admin/support and absent assistant role:** have no ordinary patient-card path. Existing aggregate platform
+  diagnostics and any future clinic role remain separate contracts and cannot be projected through U5B.
+
+### Operation parity contract
+
+One policy decision must be reusable by every path; filtering an already over-broad repository result is invalid.
+
+| Operation | Required behavior |
+|---|---|
+| List/timeline/tab | Authorize organization, patient relation, section and record visibility before returning rows; pagination cursors must not encode hidden records |
+| Direct read/deep link | Resolve the object and exact organization, then apply the same class predicate; foreign/hidden/missing returns one neutral outcome without metadata |
+| Count/KPI/has-data | Aggregate only the permitted dataset; zero must not distinguish “hidden exists” from “none exists” |
+| Search/autocomplete | Apply the permission predicate inside the query/index projection before matching or ranking; no hidden snippets, names, IDs or hit counts |
+| Export/download | Use the same authorized query and attachment inheritance as the screen; if no parity-safe export exists, the operation is unavailable rather than implemented through a broader path |
+| Write/create | Authorize exact organization, patient relation, writable class and action; server fixes author from the authenticated binding and validates attributed specialist/parent separately |
+| Amend/delete-like action | Preserve original author and prior content/version; append actor/time/reason and use a policy-aware tombstone where removal is allowed; never rewrite history in place to impersonate another specialist |
+
+The selected specialist, tab, date range or `Мои / Вся доступная` control is applied only after this permitted
+dataset exists. Cache keys, server-rendered payloads and background/export jobs must carry the same trusted
+organization and policy version; a stale or missing context fails closed rather than returning a previous scope.
+
+### Legacy classification and rollback contract
+
+A later U5B data stage must produce a PII-free census by contract class and choose exactly one outcome per legacy
+shape:
+
+- **Deterministic backfill:** allowed only when exact organization, patient/enrollment parent, record class,
+  author/attributed specialist or operational action source, and inheritance parent can be proven from stable keys.
+  Clinical rows with a proven author/assignee default to `authored_or_assigned`; they are never guessed shared.
+- **Deterministic inheritance:** attachments/progress/amendments may inherit only from one reviewed parent whose
+  organization and visibility agree. A child may be narrowed but not broadened.
+- **Ambiguous queue:** missing/conflicting organization, orphaned parent, absent clinical author/assignee, multiple
+  possible parents, standalone files, or legacy “visible to everyone” behavior without provenance remain `unknown`.
+  They are excluded from shared/all views and parity operations; the report contains counts/reason codes and stable
+  non-PII identifiers, not record contents.
+
+Backfill and rollback must preserve original IDs, organization ownership, author/specialist facts and timestamps.
+Each changed row needs a durable before/after classification mapping and run identity. Rollback restores the previous
+classification projection; it must not delete the underlying clinical history or erase amendments. No live database
+apply is authorized by this contract.
+
+### U5B-0 contract acceptance
+
+- Every registry row has one ownership path, provenance rule, visibility baseline and owner/admin outcome.
+- Solo, specialist A/B and owner/admin with/without binding produce deterministic results without role shortcuts.
+- List, direct, count, search, export, write and amendment paths use one policy; hidden records leak no existence fact.
+- Unknown and ambiguous legacy rows fail closed; deterministic backfill never guesses shared/private intent.
+- Original author/specialist attribution remains immutable and every correction has a separate amendment actor.
+- U5B application/schema/UI work remains gated on independent high-risk review of this contract and the remaining
+  U5A runtime seals; U3B and U4 are not added as DAG dependencies.
 
 ## 7. Visit-based specialist relation; rejected transfer model
 

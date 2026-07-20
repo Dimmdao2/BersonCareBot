@@ -1,6 +1,6 @@
 # UX-03 — Role × screen × capability matrix
 
-**Статус:** latest owner clarifications integrated; awaiting full independent audit.
+**Статус:** U5B-0 record/section policy matrix drafted; awaiting independent high-risk audit.
 **Authority:** производная matrix; `OWNER_RULINGS_2026-07-16.md` имеет приоритет над прежними capability candidates.
 **Правило:** product outcomes имеют только dated classifications из `OWNER_RULINGS_2026-07-16.md`. Статусы
 `implementation_policy` и `implementation_contract` ниже обозначают engineering/security work, а не новый owner
@@ -112,6 +112,66 @@ implicit permission grant.
 - Global-admin support is limited by owner ruling to aggregate/org/platform diagnostics and reports. No patient
   support session or patient-record repair contract should be implemented.
 
+### 2.3 U5B record-class policy key
+
+The exhaustive class registry, ownership paths, provenance and legacy rules are normative in
+[`OPERATING_MODEL.md` §6](./OPERATING_MODEL.md#6-patient-card-and-clinic-history). This matrix uses the following
+groups only to keep role traces compact; a group cannot erase the per-class rules:
+
+| Matrix group | Contract classes | Visibility baseline |
+|---|---|---|
+| Operational profile | `patient_profile`, `contact_channel` | `operational` with exact field/action capability |
+| Operational security | `portal_access` | `operational` plus narrower security action capability; no token/credential projection |
+| Operational scheduling | `appointment` | `operational` plus visit relation and/or explicit booking-operation capability |
+| Clinical authored/assigned | `clinical_visit`, `clinical_note`, `care_task`, `symptom_observation`, `program_assignment` | `authored_or_assigned` unless explicitly and validly classified otherwise |
+| Clinical derived | `program_progress`, `record_amendment` | `inherited`; may narrow, never broaden the parent |
+| Care communication | `care_communication` | `restricted` to verified participants/assigned care relation by default |
+| Files | `patient_file` | `inherited`; standalone/unresolved parent is unknown and fails closed |
+| Financial/benefit | `membership_benefit`, `payment_ledger` | `operational` plus narrower financial capability |
+
+The only usable visibility values are `operational`, `authored_or_assigned`, `shared_clinical`, `restricted` and
+`inherited`. `Unknown` is an error state: it is absent from list/direct/count/search/export and cannot be used as a
+writable target until classified. Operational security/financial labels are capability qualifiers, not broad staff
+visibility.
+
+### 2.4 U5B actor × record-class outcome
+
+Every `allow` below additionally requires exact organization ownership, the patient relation required by the row,
+and the action capability. `Deny` means no row, metadata, count, search hit or export evidence; it does not mean a
+hidden UI control over a broader API result.
+
+| Actor/context | Operational profile/security/scheduling | Own/assigned clinical + derived | Explicit shared clinical | Restricted/communication/files | Financial/benefit | Required result |
+|---|---|---|---|---|---|---|
+| Solo specialist with binding and visit relation | Allow only permitted fields/actions | Allow when author/attributed/assigned; inherited children follow parent | Allow only when record and capability explicitly permit it | Allow only as participant or through a visible parent | Allow only with financial capability | Same policy as clinic; omit redundant `Мои/Все`, never bypass class checks |
+| Clinic specialist A with visit relation | Allow permitted operational scope | Allow A-authored/attributed/assigned records | Allow with shared-history capability and explicit shareable classification | Deny B-restricted facts; allow only when A is participant or parent is visible | Deny unless a separate financial capability permits it | Default `Мои`; empty result never expands to organization history |
+| Clinic specialist B with visit relation | Symmetric to A | Allow B-authored/attributed/assigned records | Same explicit shared rule | Deny A-restricted facts unless B is explicit participant | Same separate capability rule | A's historical authorship and visibility do not change because B now has a visit |
+| Owner/admin with valid specialist binding | Management grants and clinical binding evaluated independently | Same as the bound specialist, never broader because of owner/admin role | Same explicit shared rule | Same participant/inheritance rule | Allow through independent management capability | Clinical author is the authenticated specialist binding, not selected filter or management role |
+| Owner/admin without specialist binding | Allow only explicitly delegated operational fields/actions | Deny | Deny | Deny clinical/communication/file content and existence facts | Allow only explicit financial/benefit scope | No clinical tabs, direct reads, counts, search or exports by role alone |
+| Global admin/support | No ordinary patient-card projection | Deny | Deny | Deny | No patient ledger through card | Aggregate/org/platform diagnostics remain a separate audited surface |
+| Assistant/future clinic role | No launch capability | Deny | Deny | Deny | Deny | Role and surface absent from initial release |
+
+A patient-facing self-service route remains governed by active enrollment and its existing patient policy. U5B does
+not turn staff visibility into patient visibility or combine records from two organization enrollments.
+
+### 2.5 U5B operation parity matrix
+
+The same resolved organization, actor relation, section capability, record class and visibility predicate is
+mandatory for every operation:
+
+| Path | Gate that must be proven before data access | Fail-closed outcome |
+|---|---|---|
+| Card/list/timeline | Predicate is inside the repository/query before pagination | Empty permitted result; no full-org fallback |
+| Direct object/deep link | Object ownership then identical class predicate | Neutral missing/denied result with no foreign metadata |
+| KPI/count/has-data | Aggregate over the identical permitted dataset | `0`/absent without revealing hidden existence |
+| Search/autocomplete | Permission predicate precedes match/rank/snippet | No hit, snippet, ID or hidden total |
+| Export/download/background job | Re-resolve trusted actor/org and use the identical dataset plus file inheritance | Operation unavailable/denied; never a broader compatibility export |
+| Create/write | Exact org + patient relation + writable class; server-derived author and separately validated attribution | No write, no selected-specialist impersonation |
+| Amend/tombstone | Base-record visibility/write capability; immutable original author and append-only amendment actor/time/reason | No in-place history rewrite or metadata-only leak |
+
+Cache, SSR and queued/export work are not exceptions. A missing organization context, policy version, record class or
+unique inheritance parent fails closed. Presentation filters are applied only after this matrix produces the
+permitted dataset.
+
 ## 3. Screen composition summary
 
 | Screen group | Global admin | Owner/admin non-clinical | Owner/admin + specialist | Specialist | Assistant | Patient | Public |
@@ -120,7 +180,7 @@ implicit permission grant.
 | Organization management | No ordinary org membership | Yes | Yes, management mode | No | Not in initial release | No | No |
 | Clinical home | No | No | Yes, clinical mode | Yes | No | Own care home | No |
 | Future clinic coordination | No patient workflow | Reserved future scope | Reserved future scope | Reserved future scope | Not in initial release | No hierarchy concept | No |
-| Patient card/history | No patient browsing/repair | Operational sections TBD | Clinical scope via binding, not owner role | Authorized scope | Not launch scope | Own org-scoped data | No |
+| Patient card/history | No patient browsing/repair | Explicitly permitted profile/contact/portal/appointment/financial sections only | Clinical scope via binding, not owner role | Authorized scope | Not launch scope | Own org-scoped data | No |
 | Account/security/install | Platform account | Yes | Yes | Yes | Not in initial release | Yes | Login/join entry only |
 | Public landing/org/booking | Manage platform projection | Configure org projection if capable | Same in management mode | No management by default | Not in initial release | Consume published flow | Yes |
 
