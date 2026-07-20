@@ -40,6 +40,27 @@ const canonicalOrder = [
   "deploy/postgres/e1-webapp-runtime-config.sql",
 ];
 
+const exactProtectedOverlaySignatures = [
+  "app.get_web_push_vapid_public_key()",
+  "app.resolve_public_booking_organization(uuid,uuid,uuid)",
+  "app.resolve_public_organization_by_slug(text)",
+];
+
+function assertExactOwnerHandoffCoverage(source) {
+  const targetBlocks = [...source.matchAll(/WITH exact_targets\(signature\) AS \(\n  VALUES\n([\s\S]*?)\n\)/gu)];
+  assert.equal(targetBlocks.length, 3, "expected presence, source-owner, and postcheck exact sets");
+  for (const block of targetBlocks) {
+    const signatures = [...block[1].matchAll(/\('([^']+)'\)/gu)].map((match) => match[1]);
+    assert.deepEqual(signatures, exactProtectedOverlaySignatures);
+  }
+  assert.match(source, /LEFT JOIN pg_proc AS procedure/u);
+  assert.match(source, /count\(target\.signature\) = 3/u);
+  assert.match(source, /count\(procedure\.oid\) = 3/u);
+  assert.match(source, /runtime_overlay_app_owner_handoff_targets_present/u);
+  assert.match(source, /runtime_overlay_app_owner_handoff_missing_target_abort/u);
+  assert.doesNotMatch(source, /ALTER FUNCTION IF EXISTS/iu);
+}
+
 test("shared runtime-overlay library owns one exact protected closure order", () => {
   const source = readFileSync(libraryPath, "utf8");
   let cursor = 0;
@@ -57,6 +78,7 @@ test("shared runtime-overlay library owns one exact protected closure order", ()
 
 test("protected overlays hand off every SET ROLE app_owner replacement before creation", () => {
   const handoff = readFileSync(appOwnerHandoffPath, "utf8");
+  assertExactOwnerHandoffCoverage(handoff);
   const protectedReplacements = [
     {
       relativePath: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
@@ -109,7 +131,7 @@ test("protected overlays hand off every SET ROLE app_owner replacement before cr
     );
     const spacedSignature = replacement.signature.replaceAll(",", ", ");
     assert.ok(
-      handoff.includes(`ALTER FUNCTION IF EXISTS ${spacedSignature} OWNER TO app_owner;`),
+      handoff.includes(`ALTER FUNCTION ${spacedSignature} OWNER TO app_owner;`),
       `missing exact owner handoff for ${replacement.signature}`,
     );
   }
@@ -120,7 +142,19 @@ test("protected overlays hand off every SET ROLE app_owner replacement before cr
   assert.match(handoff, /rolcanlogin = false/u);
   assert.match(handoff, /rolbypassrls = true/u);
   assert.doesNotMatch(handoff, /REASSIGN\s+OWNED|DROP\s+OWNED/iu);
-  assert.equal((handoff.match(/ALTER FUNCTION IF EXISTS/gu) ?? []).length, 3);
+  assert.equal((handoff.match(/ALTER FUNCTION app\./gu) ?? []).length, 3);
+});
+
+test("protected owner handoff coverage rejects an omitted exact target", () => {
+  const handoff = readFileSync(appOwnerHandoffPath, "utf8");
+  const omitted = handoff.replaceAll(
+    "    ('app.get_web_push_vapid_public_key()'),\n",
+    "",
+  );
+  assert.throws(
+    () => assertExactOwnerHandoffCoverage(omitted),
+    /Expected values to be strictly deep-equal/u,
+  );
 });
 
 test("shared closure executes the canonical list and forwards the E1 runtime role", () => {

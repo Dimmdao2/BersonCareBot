@@ -241,8 +241,9 @@ Immediately after the migration cleanup/schema assertions and before any TEST se
   `deploy/postgres/runtime-overlay-app-owner-handoff.sql`. A `--no-owner` restore can leave the existing Web Push
   accessor and both public-booking resolver functions owned by the current database owner, while their reviewed
   overlays replace them under `SET ROLE app_owner`. The artifact may transfer only those three exact signatures,
-  accepts only the current database owner or existing `app_owner` as the source owner, and fails closed on any other
-  owner. It does not rewrite a schema and does not provision or change cluster-global roles;
+  requires all three functions to exist, accepts only the current database owner or existing `app_owner` as the
+  source owner, and fails closed on a missing function or any other owner. It does not rewrite a schema and does not
+  provision or change cluster-global roles;
 - after any optional P2-B replacement, rehydrate the dedicated runtime overlays from
   `deploy/postgres/organization-member-invites-rls.sql`,
   `deploy/postgres/store-p0-entitlements-rls.sql`,

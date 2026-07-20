@@ -33,6 +33,26 @@ WITH exact_targets(signature) AS (
     ('app.get_web_push_vapid_public_key()'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)')
+)
+SELECT (
+  count(target.signature) = 3
+  AND count(procedure.oid) = 3
+) AS runtime_overlay_app_owner_handoff_targets_present
+FROM exact_targets AS target
+LEFT JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
+\gset
+
+\if :runtime_overlay_app_owner_handoff_targets_present
+\else
+\echo 'FATAL: an exact protected runtime-overlay function is missing.'
+SELECT 1 / 0 AS runtime_overlay_app_owner_handoff_missing_target_abort;
+\endif
+
+WITH exact_targets(signature) AS (
+  VALUES
+    ('app.get_web_push_vapid_public_key()'),
+    ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+    ('app.resolve_public_organization_by_slug(text)')
 ), database_owner AS (
   SELECT datdba
   FROM pg_database
@@ -56,9 +76,9 @@ SELECT NOT EXISTS (
 SELECT 1 / 0 AS runtime_overlay_app_owner_handoff_source_abort;
 \endif
 
-ALTER FUNCTION IF EXISTS app.get_web_push_vapid_public_key() OWNER TO app_owner;
-ALTER FUNCTION IF EXISTS app.resolve_public_booking_organization(uuid, uuid, uuid) OWNER TO app_owner;
-ALTER FUNCTION IF EXISTS app.resolve_public_organization_by_slug(text) OWNER TO app_owner;
+ALTER FUNCTION app.get_web_push_vapid_public_key() OWNER TO app_owner;
+ALTER FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) OWNER TO app_owner;
+ALTER FUNCTION app.resolve_public_organization_by_slug(text) OWNER TO app_owner;
 
 WITH exact_targets(signature) AS (
   VALUES
@@ -66,12 +86,15 @@ WITH exact_targets(signature) AS (
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)')
 )
-SELECT NOT EXISTS (
-  SELECT 1
-  FROM exact_targets AS target
-  JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
-  WHERE procedure.proowner <> (SELECT oid FROM pg_roles WHERE rolname = 'app_owner')
+SELECT (
+  count(target.signature) = 3
+  AND count(procedure.oid) = 3
+  AND count(*) FILTER (
+    WHERE procedure.proowner = (SELECT oid FROM pg_roles WHERE rolname = 'app_owner')
+  ) = 3
 ) AS runtime_overlay_app_owner_handoff_complete
+FROM exact_targets AS target
+LEFT JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
 \gset
 
 \if :runtime_overlay_app_owner_handoff_complete
