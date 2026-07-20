@@ -431,7 +431,8 @@ card; запрещено строить временный resolver, второ�
   делится на cosmetics, broadcast IA и composer/backend; UI-4 presentation не смешивается с backend metrics.
 - **UI-P shared presentation delta (owner 2026-07-20):** taskdb `#925`; doctor workspace получает единый
   shared-primitives pass для gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
-  белого input, порядка KPI label→value и более крупного/лёгкого основного list text. Поиск «Клиентов» переносится
+  padding основных блоков `18px`, белого input, порядка KPI label→value и более крупного/лёгкого основного list
+  text. List rows получают серый divider `1px` и horizontal padding `24px`. Поиск «Клиентов» переносится
   в правую половину page header на одну линию с title. Это не patient/public UI и не изменение data/metric semantics.
 - **Order after presentation:** UI-5 является U5B и стартует после U5A + record-class policy; затем остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
