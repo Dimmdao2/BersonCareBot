@@ -181,7 +181,7 @@ Targeted checks presentation workers могут идти независимо; l
 
 | Scope | Existing authority/task | Действие |
 |---|---|---|
-| UI-0 booking funnel | точной цельной карточки пока нет; manual patient/walk-in — `#801` | первым шагом выполнить dedup; привязать к точной существующей карте либо создать одну UI-0 карту, не форкая `#801` |
+| UI-0 booking funnel | `#923`; manual patient/walk-in — `#801` | `#923` — единый UI-0 stage; `#801` остаётся отдельным authority для полного manual patient/walk-in scope и не форкается |
 | Manual patient/walk-in | U3B / `#801` | переиспользовать; не считать authority для UI-0 trace |
 | UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
 | SCH-G5 | `#848` | owner-waiting, без реализации |

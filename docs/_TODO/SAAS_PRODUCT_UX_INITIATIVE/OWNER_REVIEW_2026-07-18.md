@@ -869,7 +869,7 @@ client/subscriber category по умолчанию и не требует это
 
 | Область | Рекомендация |
 |---|---|
-| Запись клиента | DOM/render, parameter mismatch и write/read mismatch — только гипотезы до DEV trace. Canonical service relevance `location assignment OR specialist assignment` сохраняется, пока trace не докажет конкретный дефект. |
+| Запись клиента | **Устарело после owner ruling 2026-07-20:** прежний временный safe default `location assignment OR specialist assignment` заменён точным правилом из таблицы решений выше. DOM/render и parameter/write-read mismatch остаются только диагностическими гипотезами, а не продуктовым контрактом. |
 | Composer | Общий composer может уменьшить дублирование, но extraction допускается только внутри отдельного bounded scope с доказанными consumers. |
 | Метрики клиентов | All-time cancellations/reschedules, active-only и expired membership требуют contract evidence до выбора полей/API. |
 | Индивидуальные упражнения | `#565` — design evidence и рекомендуемая основа (personal scope, editor creation, owned media, immutable assigned video); точные field names и draft semantics остаются инженерными решениями внутри принятого scope `#564`. |

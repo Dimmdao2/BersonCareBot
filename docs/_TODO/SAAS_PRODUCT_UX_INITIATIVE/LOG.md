@@ -14,8 +14,9 @@
 planning commit `f48f35a56` was reconciled into the current authority chain without wholesale merging the stale
 planning-branch base. `OWNER_REVIEW_2026-07-18.md` §16a remains product authority;
 `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` is its execution artifact, not a second roadmap. Repo safeguards remain:
-no TEST journal/DB/deploy authority, no new online schema by assumption, and no canonical service-assignment
-`OR→AND` change until DEV trace proves the actual write/read defect.
+no TEST journal/DB/deploy authority and no new online schema by assumption. **Superseded later the same day:** the
+temporary service-assignment `OR` safe default in this planning checkpoint was replaced by the owner ruling recorded
+above.
 
 **Owner decisions and DAG.** G1–G5 are closed: individual exercises `#564` are approved after C4D exact-org
 isolation; voice/STT is post-production `#922`; feature toggles are organization/clinic-only; Communications uses
@@ -30,9 +31,9 @@ shared root cause. After it, UI-1/UI-3/UI-4/UI-6 run on disjoint file scopes in 
 and audited UI-4a/UI-6a baseline slices are not rerun, only current owner deltas/residuals are scheduled. UI-5 then
 follows its U5A/record-policy dependencies; UI-2/UI-7/UI-8/UI-9 follow their own gates. Existing cards remain
 authoritative: C1 `#850/#851/#852`, manual patient/walk-in `#801`, extended online flow `#215`, mechanics/reminders
-C4D/C5 + `#191`, `#564/#565`, `#888`, `#922`, and cancelled Doctor DNA `#885`. UI-0 still needs one exact taskdb
-mapping/dedup action before `doing`; no duplicate task, code worker, TEST/PROD action, DB action, deploy or CI was
-started in this docs-only convergence pass.
+C4D/C5 + `#191`, `#564/#565`, `#888`, `#922`, and cancelled Doctor DNA `#885`. **Superseded later the same day:**
+UI-0 is mapped to `#923`, entered execution and was integrated through `24643d032`; its live DEV acceptance remains
+the completion gate. No TEST/PROD deploy or production action followed from this earlier docs-only checkpoint.
 
 ## 2026-07-20 — U5A patient organization context launch (`#796`)
 
