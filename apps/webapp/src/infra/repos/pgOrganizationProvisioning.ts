@@ -43,9 +43,8 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     async createSpecialistSignupIntent(input) {
       await runWebappTransaction(async (tx) => {
         await runWebappPgText(
-          `SELECT app.create_specialist_signup_intent($1::uuid, $2::uuid, $3, $4, $5)`,
+          `SELECT app.create_specialist_signup_intent($1::uuid, $2, $3, $4)`,
           [
-            input.userId,
             input.challengeId,
             input.emailNormalized,
             input.organizationTitle,
@@ -126,7 +125,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
       });
     },
 
-    async provisionSpecialistOwner({ userId, challengeId }) {
+    async provisionSpecialistOwner({ challengeId }) {
       return runWebappTransaction(async (tx) => {
         const result = await runWebappPgText<{
           ok: boolean;
@@ -134,7 +133,7 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
           organization_id: string | null;
           specialist_id: string | null;
           membership_id: string | null;
-        }>("SELECT * FROM app.provision_specialist_owner($1, $2)", [userId, challengeId], tx);
+        }>("SELECT * FROM app.provision_specialist_owner($1::uuid)", [challengeId], tx);
         const row = result.rows[0];
         if (!row) {
           throw new Error("specialist_signup_provision_insert_failed");

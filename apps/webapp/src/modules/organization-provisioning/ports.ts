@@ -1,5 +1,4 @@
 export type SpecialistSignupIntentInput = {
-  userId: string;
   challengeId: string;
   emailNormalized: string;
   organizationTitle: string;
@@ -8,6 +7,7 @@ export type SpecialistSignupIntentInput = {
 
 export type SpecialistSignupIntent = SpecialistSignupIntentInput & {
   id: string;
+  userId: string;
   status: "pending" | "provisioned";
   provisionedOrganizationId: string | null;
   provisionedSpecialistId: string | null;
@@ -15,7 +15,6 @@ export type SpecialistSignupIntent = SpecialistSignupIntentInput & {
 };
 
 export type SpecialistOwnerProvisioningInput = {
-  userId: string;
   challengeId: string;
 };
 

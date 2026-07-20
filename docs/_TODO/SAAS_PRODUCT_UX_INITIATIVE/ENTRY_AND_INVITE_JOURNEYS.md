@@ -152,7 +152,9 @@ user; terminal token сам по себе не выбирает workspace.
   to factor replacement, increments the session generation and cannot reach clinical/high-risk owner actions.
   Recovery and recovery-confirmation sessions cannot use general account/email/timezone, organization, clinical or
   unrelated API surfaces; the account page renders only the factor-replacement flow until recovery codes are
-  acknowledged. TOTP secrets and recovery/login challenge hashes use a dedicated versioned infrastructure keyring
+  acknowledged. Recovery acknowledgement is DB truth: logging out before acknowledgement and completing a later
+  password + TOTP login returns to `recovery_confirmation`, never to a verified workspace session. TOTP secrets and
+  recovery/login challenge hashes use a dedicated versioned infrastructure keyring
   with an active write key id and retained read keys; they never derive from `SESSION_COOKIE_SECRET`.
   Existing staff accounts are not silently enrolled merely by viewing Account security. Exact future factor choices
   remain security architecture rather than another UX08 product gate.
@@ -165,6 +167,11 @@ confirm it provisions organization + owner membership and creates a restricted f
 verified staff principal exists. The binding continuation resolves organization, membership and actor only from the
 server session, checks owner + completed factor/recovery, is idempotent under the membership row lock and records an
 owner audit event. First useful clinical Today remains unavailable until that binding succeeds.
+
+Signup-intent creation and owner provisioning are signed identity-self capabilities: their runtime APIs accept the
+challenge and form data but no target user id. Provisioning binds the challenge to the protected principal, preserves
+idempotent replay of the already provisioned intent, locks the canonical user and rejects a pending attempt when that
+identity already has any active staff membership, before a second organization can be inserted.
 
 The former confirm-retry gap is closed in the U3S candidate: after the email challenge is consumed, `challengeId`
 alone cannot reissue a session. Retry requires the already-established restricted session for the same canonical
@@ -223,6 +230,9 @@ staff later grows the same organization.
   identity-self scoped through the signed protected principal and accepts no target user id; `app_staff` receives no
   security-profile accessor grant. Runtime repositories do not receive or use broad table DML; the canonical
   specialist bootstrap overlay reasserts exact function owners and grants after DB-role hardening.
+- `create_specialist_signup_intent` and `provision_specialist_owner` likewise expose no caller-selected identity;
+  the former UUID overloads are explicitly retired by their overlays. The provisioning transaction rejects
+  `specialist_signup_active_membership_exists` before organization insertion while retaining same-intent replay.
 - `STAFF_SECURITY_KEYRING_JSON` is infrastructure key custody, not integration configuration. Its typed format is
   `{ "activeKeyId": "<non-secret-id>", "keys": { "<id>": "<base64-32-byte-key>" } }`. Rotation adds the new
   active key while retaining every old read key until all envelopes and keyed hashes using it have been retired;

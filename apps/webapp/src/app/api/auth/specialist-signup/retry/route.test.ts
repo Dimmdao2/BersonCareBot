@@ -35,10 +35,10 @@ describe("POST /api/auth/specialist-signup/retry", () => {
     expect(provisionOwnerMock).not.toHaveBeenCalled();
   });
 
-  it("retries only the authenticated user's latest intent from a restricted enrollment session", async () => {
+  it("retries only the authenticated user's latest intent after factor and recovery acknowledgement", async () => {
     getCurrentSessionMock.mockResolvedValue({
       user: { userId, role: "doctor" },
-      staffSecurity: { assurance: "pending_enrollment" },
+      staffSecurity: { assurance: "factor_verified" },
     });
     getLatestIntentMock.mockResolvedValue({
       userId,
@@ -53,8 +53,23 @@ describe("POST /api/auth/specialist-signup/retry", () => {
     expect(response.status).toBe(200);
     expect(getLatestIntentMock).toHaveBeenCalledWith();
     expect(provisionOwnerMock).toHaveBeenCalledWith({
-      userId,
       challengeId: "22222222-2222-4222-8222-222222222222",
     });
   });
+
+  it.each(["pending_enrollment", "recovery", "recovery_confirmation"] as const)(
+    "rejects %s before reading or provisioning the signup intent",
+    async (assurance) => {
+      getCurrentSessionMock.mockResolvedValue({
+        user: { userId, role: "doctor" },
+        staffSecurity: { assurance },
+      });
+
+      const response = await POST();
+
+      expect(response.status).toBe(403);
+      expect(getLatestIntentMock).not.toHaveBeenCalled();
+      expect(provisionOwnerMock).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -41,16 +41,21 @@ export async function POST(request: Request) {
   }
   const user = await deps.userByPhone.findByUserId(continuation.userId);
   if (!user) return NextResponse.json({ ok: false, error: "invalid_credentials" }, { status: 401 });
+  const assurance = result.recoveryMode
+    ? "recovery" as const
+    : result.recoveryConfirmed
+      ? "factor_verified" as const
+      : "recovery_confirmation" as const;
   await setSessionFromUser(user, {
     staffSecurity: {
-      assurance: result.recoveryMode ? "recovery" : "factor_verified",
+      assurance,
       verifiedAt: Math.floor(Date.now() / 1000),
     },
   });
   await clearStaffLoginContinuation();
   return NextResponse.json({
     ok: true,
-    redirectTo: result.recoveryMode ? "/app/account?tab=security" : getRedirectPathForRole(user.role),
+    redirectTo: assurance === "factor_verified" ? getRedirectPathForRole(user.role) : "/app/account?tab=security",
     recoveryMode: result.recoveryMode,
   });
 }

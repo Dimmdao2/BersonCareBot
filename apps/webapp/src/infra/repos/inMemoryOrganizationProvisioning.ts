@@ -10,11 +10,14 @@ export function resetInMemoryOrganizationProvisioningForTests(): void {
   intents.length = 0;
 }
 
-export function createInMemoryOrganizationProvisioningPort(): OrganizationProvisioningPort {
+export function createInMemoryOrganizationProvisioningPort(
+  selfUserId = "11111111-1111-4111-8111-111111111111",
+): OrganizationProvisioningPort {
   return {
     async createSpecialistSignupIntent(input) {
       intents.push({
         ...input,
+        userId: selfUserId,
         id: randomUUID(),
         status: "pending",
         provisionedOrganizationId: null,
@@ -47,10 +50,10 @@ export function createInMemoryOrganizationProvisioningPort(): OrganizationProvis
       return true;
     },
 
-    async provisionSpecialistOwner({ userId, challengeId }) {
+    async provisionSpecialistOwner({ challengeId }) {
       const intent = intents.find(
         (candidate) =>
-          candidate.userId === userId &&
+          candidate.userId === selfUserId &&
           candidate.challengeId === challengeId &&
           (candidate.status === "pending" || candidate.status === "provisioned"),
       );

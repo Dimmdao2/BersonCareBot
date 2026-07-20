@@ -38,7 +38,6 @@ describe("createOrganizationProvisioningService", () => {
     const service = createOrganizationProvisioningService({ provisioningPort: port });
 
     await service.createSpecialistSignupIntent({
-      userId: "user-1",
       challengeId: "challenge-1",
       emailNormalized: "doctor@example.com",
       organizationTitle: "  Clinic   One ",
@@ -59,10 +58,9 @@ describe("createOrganizationProvisioningService", () => {
     const service = createOrganizationProvisioningService({ provisioningPort: port });
 
     await expect(
-      service.provisionSpecialistOwner({ userId: "user-1", challengeId: "challenge-1" }),
+      service.provisionSpecialistOwner({ challengeId: "challenge-1" }),
     ).rejects.toThrow("specialist_signup_intent_not_found");
     expect(port.provisionSpecialistOwner).toHaveBeenCalledWith({
-      userId: "user-1",
       challengeId: "challenge-1",
     });
   });
@@ -72,14 +70,13 @@ describe("createOrganizationProvisioningService", () => {
     const service = createOrganizationProvisioningService({ provisioningPort: port });
 
     await expect(
-      service.provisionSpecialistOwner({ userId: "user-1", challengeId: "challenge-1" }),
+      service.provisionSpecialistOwner({ challengeId: "challenge-1" }),
     ).resolves.toEqual({
       organizationId: "org-1",
       specialistId: null,
       membershipId: "membership-1",
     });
     expect(port.provisionSpecialistOwner).toHaveBeenCalledWith({
-      userId: "user-1",
       challengeId: "challenge-1",
     });
   });

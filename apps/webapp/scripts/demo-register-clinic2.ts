@@ -23,6 +23,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
+import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
 import { createOrganizationProvisioningService } from "@/modules/organization-provisioning/service";
 import {
@@ -111,10 +112,10 @@ async function main() {
   // 3. Drive the REAL provisioning service/port — same code the specialist-signup confirm route uses.
   const provisioningPort = createPgOrganizationProvisioningPort();
   const service = createOrganizationProvisioningService({ provisioningPort });
+  enterStaffSecuritySelfPrincipal(userId, "scripts/demo-register-clinic2:self");
 
   const challengeId = randomUUID();
   await service.createSpecialistSignupIntent({
-    userId,
     challengeId,
     emailNormalized: EMAIL_NORMALIZED,
     organizationTitle: ORG_TITLE,
@@ -122,7 +123,7 @@ async function main() {
   });
   console.log(`[demo2] created specialist_signup_intents row (challengeId=${challengeId})`);
 
-  const result = await service.provisionSpecialistOwner({ userId, challengeId });
+  const result = await service.provisionSpecialistOwner({ challengeId });
   console.log("[demo2] provisioned:", JSON.stringify(result, null, 2));
   console.log(
     `[demo2] DONE. organizationId=${result.organizationId} specialistId=${result.specialistId} membershipId=${result.membershipId} platformUserId=${userId} phone=${PHONE_NORMALIZED} email=${EMAIL}`,

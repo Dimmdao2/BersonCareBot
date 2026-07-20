@@ -52,6 +52,22 @@ describe("staff security state machine", () => {
     })).rejects.toThrow("staff_security_enrollment_conflict");
   });
 
+  it("carries recovery acknowledgement from the stored profile into every TOTP login", async () => {
+    const { service } = await enrolledFixture();
+    const beforeAcknowledgement = await service.beginLogin();
+    if (!beforeAcknowledgement.required) throw new Error("factor challenge missing");
+    await expect(
+      service.completeLogin({ token: beforeAcknowledgement.token, code: RFC_CODE }),
+    ).resolves.toMatchObject({ ok: true, recoveryMode: false, recoveryConfirmed: false });
+
+    await service.confirmRecoveryCodes();
+    const afterAcknowledgement = await service.beginLogin();
+    if (!afterAcknowledgement.required) throw new Error("factor challenge missing");
+    await expect(
+      service.completeLogin({ token: afterAcknowledgement.token, code: RFC_CODE }),
+    ).resolves.toMatchObject({ ok: true, recoveryMode: false, recoveryConfirmed: true });
+  });
+
   it("locks repeated bad factor attempts and does not accept a correct code while locked", async () => {
     const { service } = await enrolledFixture();
     const challenge = await service.beginLogin();

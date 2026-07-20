@@ -10,11 +10,7 @@ export async function POST() {
   if (!session || session.user.role !== "doctor") {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  if (
-    session.staffSecurity?.assurance !== "pending_enrollment" &&
-    session.staffSecurity?.assurance !== "factor_verified" &&
-    session.staffSecurity?.assurance !== "recovery"
-  ) {
+  if (session.staffSecurity?.assurance !== "factor_verified") {
     return NextResponse.json({ ok: false, error: "security_session_required" }, { status: 403 });
   }
   const deps = buildAppDeps();
@@ -23,7 +19,6 @@ export async function POST() {
   if (!intent) return NextResponse.json({ ok: false, error: "signup_intent_not_found" }, { status: 404 });
   try {
     const provisioned = await deps.organizationProvisioning.provisionSpecialistOwner({
-      userId: session.user.userId,
       challengeId: intent.challengeId,
     });
     return NextResponse.json({

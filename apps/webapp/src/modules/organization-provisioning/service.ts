@@ -45,10 +45,7 @@ export function createOrganizationProvisioningService(deps: {
       return deps.provisioningPort.replacePendingSpecialistSignupChallenge(input);
     },
 
-    async provisionSpecialistOwner(input: {
-      userId: string;
-      challengeId: string;
-    }): Promise<SpecialistOwnerProvisioningResult> {
+    async provisionSpecialistOwner(input: { challengeId: string }): Promise<SpecialistOwnerProvisioningResult> {
       return deps.provisioningPort.provisionSpecialistOwner(input);
     },
 

@@ -117,7 +117,12 @@ export function createStaffSecurityService(port: StaffSecurityPort, crypto: Staf
       if (!(await port.consumeTotpLogin({ challengeHash: profile.loginChallengeHash }))) {
         return { ok: false as const, error: "login_challenge_expired" as const };
       }
-      return { ok: true as const, recoveryMode: false, sessionVersion: profile.sessionVersion };
+      return {
+        ok: true as const,
+        recoveryMode: false,
+        recoveryConfirmed: profile.recoveryCodesConfirmedAt !== null,
+        sessionVersion: profile.sessionVersion,
+      };
     },
 
     revokeSessions() {

@@ -32,7 +32,7 @@ SELECT quote_ident(:'specialist_owner_provisioning_owner') AS specialist_owner_p
 BEGIN;
 
 \if :specialist_owner_provisioning_down
-DROP FUNCTION IF EXISTS app.provision_specialist_owner(uuid, uuid);
+DROP FUNCTION IF EXISTS app.provision_specialist_owner(uuid);
 \else
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
@@ -43,6 +43,12 @@ SELECT (
   AND to_regclass('public.be_organization_members') IS NOT NULL
   AND to_regclass('public.reference_catalog_baselines') IS NOT NULL
   AND to_regprocedure('app.seed_reference_catalog_snapshot(uuid)') IS NOT NULL
+  AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
+  AND has_function_privilege(
+    :'specialist_owner_provisioning_owner',
+    'app.require_staff_security_self_user_id()',
+    'EXECUTE'
+  )
 )::int AS specialist_owner_provisioning_preflight_ok \gset
 
 \if :specialist_owner_provisioning_preflight_ok
@@ -51,10 +57,10 @@ SELECT (
 SELECT 1 / 0 AS specialist_owner_provisioning_abort;
 \endif
 
-CREATE OR REPLACE FUNCTION app.provision_specialist_owner(
-  p_platform_user_id uuid,
-  p_challenge_id uuid
-)
+-- Retire the former caller-targeted overload before exposing the self-scoped replacement.
+DROP FUNCTION IF EXISTS app.provision_specialist_owner(uuid, uuid);
+
+CREATE OR REPLACE FUNCTION app.provision_specialist_owner(p_challenge_id uuid)
 RETURNS TABLE (
   ok boolean,
   code text,
@@ -71,13 +77,16 @@ AS $$
 DECLARE
   v_intent record;
   v_user record;
+  v_platform_user_id uuid;
   v_organization_id uuid;
   v_membership_id uuid;
 BEGIN
+  v_platform_user_id := app.require_staff_security_self_user_id();
+
   SELECT i.*
   INTO v_intent
   FROM public.specialist_signup_intents AS i
-  WHERE i.user_id = p_platform_user_id
+  WHERE i.user_id = v_platform_user_id
     AND i.challenge_id = p_challenge_id
     AND i.status = 'pending'
   LIMIT 1
@@ -87,7 +96,7 @@ BEGIN
     SELECT i.*
     INTO v_intent
     FROM public.specialist_signup_intents AS i
-    WHERE i.user_id = p_platform_user_id
+    WHERE i.user_id = v_platform_user_id
       AND i.challenge_id = p_challenge_id
       AND i.status = 'provisioned'
     LIMIT 1
@@ -112,7 +121,7 @@ BEGIN
   SELECT u.id
   INTO v_user
   FROM public.platform_users AS u
-  WHERE u.id = p_platform_user_id
+  WHERE u.id = v_platform_user_id
     AND u.merged_into_id IS NULL
     AND u.email_verified_at IS NOT NULL
   LIMIT 1
@@ -120,6 +129,20 @@ BEGIN
 
   IF NOT FOUND THEN
     RETURN QUERY SELECT false, 'specialist_signup_user_not_verified'::text, NULL::uuid, NULL::uuid, NULL::uuid;
+    RETURN;
+  END IF;
+
+  -- Lock the canonical identity before checking memberships so concurrent self-provision attempts
+  -- cannot both observe an empty membership set and create two owner organizations.
+  PERFORM 1
+  FROM public.be_organization_members AS m
+  WHERE m.platform_user_id = v_user.id
+    AND m.status = 'active'
+  LIMIT 1
+  FOR UPDATE;
+
+  IF FOUND THEN
+    RETURN QUERY SELECT false, 'specialist_signup_active_membership_exists'::text, NULL::uuid, NULL::uuid, NULL::uuid;
     RETURN;
   END IF;
 
@@ -184,16 +207,16 @@ BEGIN
 END
 $$;
 
-COMMENT ON FUNCTION app.provision_specialist_owner(uuid, uuid) IS
-  'Narrow SECURITY DEFINER specialist owner provisioning for pre-session signup. Creates organization and owner membership only; be_specialists is deferred to a real staff principal.';
+COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
+  'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and defers be_specialists to a real staff principal.';
 
-ALTER FUNCTION app.provision_specialist_owner(uuid, uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
+ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
 ALTER FUNCTION app.seed_reference_catalog_snapshot(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
 GRANT SELECT ON TABLE public.reference_catalog_baselines TO :specialist_owner_provisioning_owner_ident;
 
-REVOKE ALL ON FUNCTION app.provision_specialist_owner(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.provision_specialist_owner(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.seed_reference_catalog_snapshot(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid, uuid) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO app_patient;
 \endif
 
 COMMIT;

@@ -31,7 +31,7 @@ SELECT 1 / (
 )::int AS reference_catalog_rls_preflight_ok;
 
 SELECT COALESCE(
-  (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = to_regprocedure('app.provision_specialist_owner(uuid,uuid)')),
+  (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = to_regprocedure('app.provision_specialist_owner(uuid)')),
   (SELECT pg_get_userbyid(p.proowner) FROM pg_proc p WHERE p.oid = 'app.seed_reference_catalog_snapshot(uuid)'::regprocedure)
 ) AS provisioning_owner
 \gset

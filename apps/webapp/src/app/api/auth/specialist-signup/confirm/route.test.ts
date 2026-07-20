@@ -107,7 +107,6 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
 
     expect(res.status).toBe(200);
     expect(provisionSpecialistOwnerMock).toHaveBeenCalledWith({
-      userId: "11111111-1111-4111-8111-111111111111",
       challengeId: "22222222-2222-4222-8222-222222222222",
     });
     expect(setSessionFromUserMock).toHaveBeenCalledWith(
@@ -211,7 +210,6 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     expect(res.status).toBe(200);
     expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
     expect(provisionSpecialistOwnerMock).toHaveBeenCalledWith({
-      userId: "11111111-1111-4111-8111-111111111111",
       challengeId: "22222222-2222-4222-8222-222222222222",
     });
   });

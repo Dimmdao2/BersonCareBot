@@ -109,7 +109,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "expired_code" }, { status: 400 });
     }
     provisioned = await deps.organizationProvisioning.provisionSpecialistOwner({
-      userId: provisionUserId,
       challengeId: parsed.data.challengeId,
     });
   } catch (error: unknown) {

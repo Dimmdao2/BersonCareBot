@@ -89,8 +89,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    enterStaffSecuritySelfPrincipal(reg.userId, "api/auth/specialist-signup/start:new-self");
     await deps.organizationProvisioning.createSpecialistSignupIntent({
-      userId: reg.userId,
       challengeId: challenge.challengeId,
       emailNormalized: emailNorm,
       organizationTitle,

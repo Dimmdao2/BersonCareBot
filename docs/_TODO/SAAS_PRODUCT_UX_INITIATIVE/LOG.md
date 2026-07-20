@@ -22,6 +22,27 @@ DB-role negatives, typecheck/scoped lint/build and serialized live DEV evidence 
 audit; no full CI runs before the next accumulated milestone. More than two correction rounds or a finding without
 owner/roadmap authority stops as an owner question.
 
+## 2026-07-20 — U3S `#919` final scoped security correction candidate
+
+The full-stage re-audit found three remaining U3S deltas; this final correction keeps them in the approved stage.
+Specialist provisioning retry now requires `factor_verified` and rejects pending-enrollment, recovery and
+recovery-confirmation sessions before reading the intent. A password + TOTP login derives recovery acknowledgement
+from the stored security profile: logout/relogin before acknowledgement remains `recovery_confirmation`, so all
+management and clinical guards stay closed. Signup-intent creation and owner provisioning accept no target user id;
+both resolve the signed identity-self principal, retain challenge binding/idempotent replay, and provisioning locks
+the canonical identity and rejects an existing active staff membership before inserting a second organization.
+
+Focused runtime/source validation is green; the lead-owned live apply gate remains explicit. The existing Phase 3
+signup scratch smoke is synthetic and runs as its owning disposable role rather than the real locked `app_patient`
+capability, so it was not misreported as real-role evidence and no persistent DEV/TEST database was touched. A later
+authorized disposable locked-role apply must still prove that a foreign challenge/UUID cannot target another user
+and that self-provisioning with an existing active membership returns the rejection without another organization.
+OAuth/Telegram continuation remains the documented P2 residual and is not added to U3S. Correction checks: focused
+U3S suite `20` files / `157` tests PASS; webapp typecheck and scoped lint PASS; hard-migration protocol, Drizzle
+journal, frozen-migration and diff checks PASS; the D3.4 overlay checker parses and its self-test passes. Its direct
+repo run still stops on the unchanged pre-existing `deploy/postgres/p0-5b-grants.sql` forbidden
+`public.app_runtime_settings` finding, outside this U3S diff; it is not reported green.
+
 ## 2026-07-20 — U3S `#919` independent-audit correction candidate
 
 The first security audit did not accept the worker candidate. Its three in-scope findings are corrected as one

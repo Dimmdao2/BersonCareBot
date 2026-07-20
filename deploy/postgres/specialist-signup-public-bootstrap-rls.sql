@@ -36,10 +36,14 @@ WHERE n.nspname = 'public' AND c.relname = 'user_oauth_bindings' AND c.relkind I
 SELECT pg_get_userbyid(c.relowner) AS specialist_signup_staff_security_owner
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public' AND c.relname = 'staff_security_profiles' AND c.relkind IN ('r', 'p') \gset
+SELECT pg_get_userbyid(c.relowner) AS specialist_signup_intents_owner
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'specialist_signup_intents' AND c.relkind IN ('r', 'p') \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_system_settings_owner', 'postgres')) AS specialist_signup_system_settings_owner_ident \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_password_credentials_owner', 'postgres')) AS specialist_signup_password_credentials_owner_ident \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_oauth_bindings_owner', 'postgres')) AS specialist_signup_oauth_bindings_owner_ident \gset
 SELECT quote_ident(COALESCE(:'specialist_signup_staff_security_owner', 'postgres')) AS specialist_signup_staff_security_owner_ident \gset
+SELECT quote_ident(COALESCE(:'specialist_signup_intents_owner', 'postgres')) AS specialist_signup_intents_owner_ident \gset
 SELECT (to_regprocedure('app.current_org_id()') IS NOT NULL)::int AS specialist_signup_has_current_org_id \gset
 \if :specialist_signup_has_current_org_id
 REVOKE EXECUTE ON FUNCTION app.current_org_id() FROM :specialist_signup_system_settings_owner_ident;
@@ -50,9 +54,13 @@ REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_oauth_bindings_owner_ident;
 REVOKE EXECUTE ON FUNCTION app.current_patient_user_id() FROM :specialist_signup_staff_security_owner_ident;
 \endif
+SELECT (to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL)::int AS specialist_signup_has_self_helper \gset
+\if :specialist_signup_has_self_helper
+REVOKE EXECUTE ON FUNCTION app.require_staff_security_self_user_id() FROM :specialist_signup_intents_owner_ident;
+\endif
 DROP FUNCTION IF EXISTS app.get_specialist_signup_intent_by_challenge(uuid);
 DROP FUNCTION IF EXISTS app.get_pending_specialist_signup_intent(uuid, uuid);
-DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
+DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, text, text, text);
 DROP FUNCTION IF EXISTS app.get_latest_specialist_signup_intent_for_user();
 DROP FUNCTION IF EXISTS app.replace_pending_specialist_signup_challenge(uuid);
 DROP FUNCTION IF EXISTS app.revoke_staff_sessions();
@@ -432,8 +440,10 @@ COMMENT ON FUNCTION app.email_password_find_login_candidate(text) IS
 
 ALTER FUNCTION app.email_password_find_login_candidate(text) OWNER TO :specialist_signup_password_credentials_owner_ident;
 
+-- Retire the former caller-targeted overload before exposing the self-scoped replacement.
+DROP FUNCTION IF EXISTS app.create_specialist_signup_intent(uuid, uuid, text, text, text);
+
 CREATE OR REPLACE FUNCTION app.create_specialist_signup_intent(
-  p_user_id uuid,
   p_challenge_id uuid,
   p_email_normalized text,
   p_organization_title text,
@@ -453,7 +463,7 @@ AS $$
     specialist_full_name
   )
   VALUES (
-    p_user_id,
+    app.require_staff_security_self_user_id(),
     p_challenge_id,
     lower(btrim(p_email_normalized)),
     btrim(p_organization_title),
@@ -462,10 +472,10 @@ AS $$
   RETURNING id
 $$;
 
-COMMENT ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) IS
-  'Narrow SECURITY DEFINER for public specialist signup START intent creation under app_patient.';
+COMMENT ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) IS
+  'Identity-self SECURITY DEFINER for specialist signup START intent creation under a signed app_patient principal.';
 
-ALTER FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) OWNER TO :specialist_signup_intents_owner_ident;
+ALTER FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) OWNER TO :specialist_signup_intents_owner_ident;
 
 CREATE OR REPLACE FUNCTION app.get_pending_specialist_signup_intent(
   p_user_id uuid,
@@ -591,7 +601,7 @@ REVOKE ALL ON FUNCTION app.email_password_register_pending(text, text, text, tex
 REVOKE ALL ON FUNCTION app.email_password_delete_unverified_registration(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_password_find_login_candidate(text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) FROM PUBLIC;
@@ -618,7 +628,7 @@ GRANT EXECUTE ON FUNCTION app.email_password_register_pending(text, text, text, 
 GRANT EXECUTE ON FUNCTION app.email_password_delete_unverified_registration(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_user_id_by_email_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_password_find_login_candidate(text) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, uuid, text, text, text) TO app_patient;
+GRANT EXECUTE ON FUNCTION app.create_specialist_signup_intent(uuid, text, text, text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_pending_specialist_signup_intent(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.get_specialist_signup_intent_by_challenge(uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.replace_pending_specialist_signup_challenge(uuid) TO app_patient;
@@ -650,6 +660,7 @@ GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_pa
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_oauth_bindings_owner_ident;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO :specialist_signup_staff_security_owner_ident;
 \endif
+GRANT EXECUTE ON FUNCTION app.require_staff_security_self_user_id() TO :specialist_signup_intents_owner_ident;
 \endif
 
 COMMIT;

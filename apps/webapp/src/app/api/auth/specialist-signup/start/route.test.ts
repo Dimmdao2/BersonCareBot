@@ -40,6 +40,8 @@ vi.mock("@/modules/auth/emailAuth", async () => {
 
 import { POST } from "./route";
 
+const SELF_ID = "11111111-1111-4111-8111-111111111111";
+
 describe("POST /api/auth/specialist-signup/start", () => {
   beforeEach(() => {
     registerPendingSpecialistVerificationMock.mockReset();
@@ -78,7 +80,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
   });
 
   it("creates pending specialist registration, email challenge, and signup intent", async () => {
-    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: true, userId: "user-1" });
+    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: true, userId: SELF_ID });
     startEmailChallengeMock.mockResolvedValueOnce({
       ok: true,
       challengeId: "22222222-2222-4222-8222-222222222222",
@@ -110,7 +112,6 @@ describe("POST /api/auth/specialist-signup/start", () => {
       patronymic: "Ivanovich",
     });
     expect(createSpecialistSignupIntentMock).toHaveBeenCalledWith({
-      userId: "user-1",
       challengeId: "22222222-2222-4222-8222-222222222222",
       emailNormalized: "doctor@example.com",
       organizationTitle: "Clinic One",
@@ -123,7 +124,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
   });
 
   it("rolls back the pending user when challenge send fails", async () => {
-    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: true, userId: "user-1" });
+    registerPendingSpecialistVerificationMock.mockResolvedValueOnce({ ok: true, userId: SELF_ID });
     startEmailChallengeMock.mockResolvedValueOnce({ ok: false, code: "email_send_failed" });
 
     const res = await POST(
@@ -141,7 +142,7 @@ describe("POST /api/auth/specialist-signup/start", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(deleteUnverifiedEmailPasswordRegistrationMock).toHaveBeenCalledWith("user-1");
+    expect(deleteUnverifiedEmailPasswordRegistrationMock).toHaveBeenCalledWith(SELF_ID);
     expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();
   });
 
