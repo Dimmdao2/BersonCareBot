@@ -1,10 +1,13 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { DrizzleDb } from "@/app-layer/db/drizzle";
+import { formatDoctorFio, normalizeFioPart } from "@/shared/lib/fio";
 import { platformUsers, userPhoneHistory } from "../../../db/schema/schema";
 
 export type ResolveOrCreateDoctorClientByPhoneInput = {
   phoneNormalized: string;
-  displayName: string;
+  lastName: string;
+  firstName: string;
+  patronymic: string | null;
   emailRaw: string | null;
   emailNormalized: string | null;
 };
@@ -12,6 +15,9 @@ export type ResolveOrCreateDoctorClientByPhoneInput = {
 export type ResolveOrCreateDoctorClientByPhoneResult = {
   userId: string;
   displayName: string;
+  lastName: string | null;
+  firstName: string | null;
+  patronymic: string | null;
   phoneNormalized: string;
   created: boolean;
 };
@@ -28,12 +34,23 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   organizationId: string,
   input: ResolveOrCreateDoctorClientByPhoneInput,
 ): Promise<ResolveOrCreateDoctorClientByPhoneResult> {
+  const lastName = normalizeFioPart(input.lastName);
+  const firstName = normalizeFioPart(input.firstName);
+  const patronymic = normalizeFioPart(input.patronymic);
+  if (!lastName || !firstName) {
+    throw new DoctorClientIdentityError("create_failed");
+  }
+  const displayName = formatDoctorFio({ lastName, firstName, patronymic });
+
   const findByPhone = async () => {
     const [row] = await tx
       .select({
         id: platformUsers.id,
         role: platformUsers.role,
         displayName: platformUsers.displayName,
+        lastName: platformUsers.lastName,
+        firstName: platformUsers.firstName,
+        patronymic: platformUsers.patronymic,
         phoneNormalized: platformUsers.phoneNormalized,
       })
       .from(platformUsers)
@@ -72,6 +89,9 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     return {
       userId: existing.id,
       displayName: existing.displayName,
+      lastName: existing.lastName,
+      firstName: existing.firstName,
+      patronymic: existing.patronymic,
       phoneNormalized: existing.phoneNormalized ?? input.phoneNormalized,
       created: false,
     };
@@ -81,14 +101,23 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     .insert(platformUsers)
     .values({
       phoneNormalized: input.phoneNormalized,
-      displayName: input.displayName,
+      displayName,
+      lastName,
+      firstName,
+      patronymic,
       email: input.emailRaw,
       emailNormalized: input.emailNormalized,
       role: "client",
       patientPhoneTrustAt: new Date().toISOString(),
     })
     .onConflictDoNothing({ target: platformUsers.phoneNormalized })
-    .returning({ id: platformUsers.id, displayName: platformUsers.displayName });
+    .returning({
+      id: platformUsers.id,
+      displayName: platformUsers.displayName,
+      lastName: platformUsers.lastName,
+      firstName: platformUsers.firstName,
+      patronymic: platformUsers.patronymic,
+    });
 
   if (!inserted) {
     const concurrent = await findByPhone();
@@ -98,6 +127,9 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     return {
       userId: concurrent.id,
       displayName: concurrent.displayName,
+      lastName: concurrent.lastName,
+      firstName: concurrent.firstName,
+      patronymic: concurrent.patronymic,
       phoneNormalized: concurrent.phoneNormalized ?? input.phoneNormalized,
       created: false,
     };
@@ -113,6 +145,9 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   return {
     userId: inserted.id,
     displayName: inserted.displayName,
+    lastName: inserted.lastName,
+    firstName: inserted.firstName,
+    patronymic: inserted.patronymic,
     phoneNormalized: input.phoneNormalized,
     created: true,
   };

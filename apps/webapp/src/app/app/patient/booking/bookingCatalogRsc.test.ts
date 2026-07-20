@@ -164,6 +164,7 @@ describe("patient booking catalog RSC principal boundary", () => {
     const branchId = "33333333-3333-4333-8333-333333333333";
     const serviceId = "44444444-4444-4444-8444-444444444444";
     const branchServiceId = "55555555-5555-4555-8555-555555555555";
+    const specialistId = "66666666-6666-4666-8666-666666666666";
     listBranchesMock.mockResolvedValue([]);
     getBranchMock.mockResolvedValue({
       id: branchId,
@@ -188,14 +189,25 @@ describe("patient booking catalog RSC principal boundary", () => {
     listServiceLocationAvailabilityMock.mockResolvedValue([
       { id: "l1", organizationId: ORGANIZATION_ID, serviceId, branchId, isActive: true },
     ]);
-    listSpecialistServiceAvailabilityMock.mockResolvedValue([]);
-    listSpecialistsMock.mockResolvedValue([]);
+    listSpecialistServiceAvailabilityMock.mockResolvedValue([
+      {
+        id: branchServiceId,
+        organizationId: ORGANIZATION_ID,
+        specialistId,
+        serviceId,
+        branchId,
+        isActive: true,
+      },
+    ]);
+    listSpecialistsMock.mockResolvedValue([
+      { id: specialistId, organizationId: ORGANIZATION_ID, isActive: true },
+    ]);
     resolveLegacyBranchServiceIdMock.mockResolvedValue(branchServiceId);
     resolveInPersonContextMock.mockResolvedValue({
       organizationId: ORGANIZATION_ID,
       branchId,
       serviceId,
-      specialistId: "66666666-6666-4666-8666-666666666666",
+      specialistId,
       roomId: null,
       branchServiceId,
       legacyBranchServiceId: null,

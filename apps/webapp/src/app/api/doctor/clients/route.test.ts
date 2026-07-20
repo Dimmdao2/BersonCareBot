@@ -66,7 +66,10 @@ describe("POST /api/doctor/clients", () => {
     createDoctorClientMock.mockResolvedValue({
       ok: true,
       userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      displayName: "Иван Иванов",
+      displayName: "Иванов Иван Иванович",
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: "Иванович",
       phoneNormalized: "+79990000001",
       created: true,
       emailSetupEnqueued: false,
@@ -76,7 +79,12 @@ describe("POST /api/doctor/clients", () => {
       new Request("http://localhost/api/doctor/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: "Иван Иванов", phone: "+79990000001" }),
+        body: JSON.stringify({
+          lastName: "Иванов",
+          firstName: "Иван",
+          patronymic: "Иванович",
+          phone: "+79990000001",
+        }),
       }),
     );
 
@@ -90,7 +98,9 @@ describe("POST /api/doctor/clients", () => {
       {
         organizationId: gateContext.organizationId,
         createdByUserId: gateContext.session.user.userId,
-        displayName: "Иван Иванов",
+        lastName: "Иванов",
+        firstName: "Иван",
+        patronymic: "Иванович",
         phone: "+79990000001",
         email: undefined,
       },
@@ -100,7 +110,10 @@ describe("POST /api/doctor/clients", () => {
       ok: true,
       client: {
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-        displayName: "Иван Иванов",
+        displayName: "Иванов Иван Иванович",
+        lastName: "Иванов",
+        firstName: "Иван",
+        patronymic: "Иванович",
         phone: "+79990000001",
       },
     });
@@ -114,12 +127,27 @@ describe("POST /api/doctor/clients", () => {
       new Request("http://localhost/api/doctor/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: "+79990000001" }),
+        body: JSON.stringify({ lastName: "Иванов", firstName: "Иван", phone: "+79990000001" }),
       }),
     );
 
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ ok: false, error: "client_creation_unavailable" });
+    expect(createDoctorClientMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects the legacy displayName-only identity contract", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: gateContext });
+
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: "Иван Иванов", phone: "+79990000001" }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
     expect(createDoctorClientMock).not.toHaveBeenCalled();
   });
 });

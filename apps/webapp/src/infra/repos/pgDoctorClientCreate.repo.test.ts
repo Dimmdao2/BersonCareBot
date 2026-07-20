@@ -8,7 +8,9 @@ import {
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const input = {
   phoneNormalized: "+79991234567",
-  displayName: "Новый пациент",
+  lastName: "новый",
+  firstName: "пациент",
+  patronymic: null,
   emailRaw: null,
   emailNormalized: null,
 };
@@ -33,6 +35,9 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
             id: "existing-user",
             role: "client",
             displayName: "Существующий",
+            lastName: "Существующий",
+            firstName: "Пациент",
+            patronymic: null,
             phoneNormalized: input.phoneNormalized,
           },
         ],
@@ -45,6 +50,9 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
     ).resolves.toEqual({
       userId: "existing-user",
       displayName: "Существующий",
+      lastName: "Существующий",
+      firstName: "Пациент",
+      patronymic: null,
       phoneNormalized: input.phoneNormalized,
       created: false,
     });
@@ -74,7 +82,13 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
           return {
             onConflictDoNothing: () => ({
               returning: async () => [
-                { id: "new-user", displayName: "Новый пациент" },
+                {
+                  id: "new-user",
+                  displayName: "Новый Пациент",
+                  lastName: "Новый",
+                  firstName: "Пациент",
+                  patronymic: null,
+                },
               ],
             }),
           };
@@ -89,7 +103,14 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
       resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, input),
     ).resolves.toMatchObject({ userId: "new-user", created: true });
     expect(insertedValues).toEqual([
-      expect.objectContaining({ phoneNormalized: input.phoneNormalized, role: "client" }),
+      expect.objectContaining({
+        phoneNormalized: input.phoneNormalized,
+        role: "client",
+        displayName: "Новый Пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+      }),
       expect.objectContaining({
         platformUserId: "new-user",
         organizationId: ORG_ID,
@@ -107,6 +128,9 @@ describe("resolveOrCreateDoctorClientByPhoneInTransaction", () => {
           id: "concurrent-user",
           role: "client",
           displayName: "Уже создан",
+          lastName: "Уже",
+          firstName: "Создан",
+          patronymic: null,
           phoneNormalized: input.phoneNormalized,
         },
       ],

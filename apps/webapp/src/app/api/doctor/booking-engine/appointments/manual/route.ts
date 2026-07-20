@@ -49,24 +49,21 @@ export async function POST(request: Request) {
   // exclusion constraint (it only covers non-null), letting a booking land on
   // any occupied slot. ONLINE patient bookings legitimately use NULL, but they
   // never reach this route. (F2: null-specialist overlap escape.)
-  const resolvedSpecialistId =
-    parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
-  if (!resolvedSpecialistId) {
-    return NextResponse.json({ ok: false, error: "specialist_required" }, { status: 400 });
-  }
-
   try {
-    if (deps.bookingScheduling) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        organizationId: ctx.organizationId,
-        specialistId: resolvedSpecialistId,
-        roomId: parsed.data.roomId ?? null,
-        slotStart: parsed.data.startAt,
-        slotEnd: parsed.data.endAt,
-        durationMinutes: parsed.data.durationMinutes,
-      });
-    }
-    let appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", async () => {
+    const appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", async () => {
+      const resolvedSpecialistId =
+        parsed.data.specialistId ?? (await resolveDefaultSpecialistId(ctx));
+      if (!resolvedSpecialistId) throw new Error("specialist_required");
+      if (deps.bookingScheduling) {
+        await deps.bookingScheduling.assertSlotAvailable({
+          organizationId: ctx.organizationId,
+          specialistId: resolvedSpecialistId,
+          roomId: parsed.data.roomId ?? null,
+          slotStart: parsed.data.startAt,
+          slotEnd: parsed.data.endAt,
+          durationMinutes: parsed.data.durationMinutes,
+        });
+      }
       if (parsed.data.platformUserId) {
         const isSchedulableClient =
           await deps.patientOrganization?.hasSchedulableClientRelationship(
@@ -75,7 +72,7 @@ export async function POST(request: Request) {
         );
         if (!isSchedulableClient) throw new Error("patient_not_available");
       }
-      return ctx.service.createAppointment({
+      let created = await ctx.service.createAppointment({
         organizationId: ctx.organizationId,
         branchId: parsed.data.branchId ?? null,
         roomId: parsed.data.roomId ?? null,
@@ -90,60 +87,71 @@ export async function POST(request: Request) {
         phoneNormalized: parsed.data.phoneNormalized ?? null,
         actorId: ctx.session.user.userId,
       });
-    });
-
-    if (
-      parsed.data.platformUserId &&
-      parsed.data.serviceId &&
-      deps.memberships
-    ) {
-      const picked = await deps.memberships.pickAutoPackageForBooking(
-        parsed.data.platformUserId,
-        ctx.organizationId,
-        parsed.data.serviceId,
-      );
-      if (picked) {
-        await deps.memberships.reserveForAppointment({
-          organizationId: ctx.organizationId,
-          patientPackageId: picked.id,
-          serviceId: parsed.data.serviceId,
-          appointmentId: appointment.id,
-          platformUserId: parsed.data.platformUserId,
-        });
-        const fresh = await ctx.service.getAppointment(appointment.id);
-        if (fresh) appointment = fresh;
-        await emitPackageLinkedCalendarSync(syncPort, appointment);
+      try {
+        if (
+          parsed.data.platformUserId &&
+          parsed.data.serviceId &&
+          deps.memberships
+        ) {
+          const picked = await deps.memberships.pickAutoPackageForBooking(
+            parsed.data.platformUserId,
+            ctx.organizationId,
+            parsed.data.serviceId,
+          );
+          if (picked) {
+            await deps.memberships.reserveForAppointment({
+              organizationId: ctx.organizationId,
+              patientPackageId: picked.id,
+              serviceId: parsed.data.serviceId,
+              appointmentId: created.id,
+              platformUserId: parsed.data.platformUserId,
+            });
+            const fresh = await ctx.service.getAppointment(created.id);
+            if (fresh) created = fresh;
+            await emitPackageLinkedCalendarSync(syncPort, created);
+          }
+        }
+      } catch {
+        // The appointment is already committed; optional package enrichment cannot reverse the API result.
       }
-    }
-    const bookingRow = deps.patientBooking
-      ? await deps.patientBooking.getBookingByCanonicalAppointment(appointment.id)
-      : null;
-    try {
-      await syncPort.emitBookingEvent({
-        eventType: "booking.created",
-        idempotencyKey: `staff.booking.created:${appointment.id}:${appointment.startAt}`,
-        payload: {
-          organizationId: appointment.organizationId,
-          bookingId: bookingRow?.id ?? appointment.id,
-          userId: bookingRow?.userId ?? appointment.platformUserId ?? appointment.id,
-          rubitimeId: bookingRow?.rubitimeId ?? null,
-          bookingType: bookingRow?.bookingType ?? "in_person",
-          city: bookingRow?.city ?? undefined,
-          category: bookingRow?.category ?? "general",
-          slotStart: appointment.startAt,
-          slotEnd: appointment.endAt,
-          contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(appointment),
-          contactPhone: bookingRow?.contactPhone ?? appointment.phoneNormalized ?? "+70000000000",
-          contactEmail: bookingRow?.contactEmail ?? undefined,
-          branchServiceId: bookingRow?.branchServiceId ?? null,
-          cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-          serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(appointment, bookingRow),
-          canonicalAppointmentId: appointment.id,
-        },
-      });
-    } catch {
-      // Lifecycle event is best-effort for staff manual create.
-    }
+      let bookingRow: Awaited<
+        ReturnType<NonNullable<typeof deps.patientBooking>["getBookingByCanonicalAppointment"]>
+      > = null;
+      try {
+        bookingRow = deps.patientBooking
+          ? await deps.patientBooking.getBookingByCanonicalAppointment(created.id)
+          : null;
+      } catch {
+        // Optional compatibility projection read; the canonical appointment remains authoritative.
+      }
+      try {
+        await syncPort.emitBookingEvent({
+          eventType: "booking.created",
+          idempotencyKey: `staff.booking.created:${created.id}:${created.startAt}`,
+          payload: {
+            organizationId: created.organizationId,
+            bookingId: bookingRow?.id ?? created.id,
+            userId: bookingRow?.userId ?? created.platformUserId ?? created.id,
+            rubitimeId: bookingRow?.rubitimeId ?? null,
+            bookingType: bookingRow?.bookingType ?? "in_person",
+            city: bookingRow?.city ?? undefined,
+            category: bookingRow?.category ?? "general",
+            slotStart: created.startAt,
+            slotEnd: created.endAt,
+            contactName: bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created),
+            contactPhone: bookingRow?.contactPhone ?? created.phoneNormalized ?? "+70000000000",
+            contactEmail: bookingRow?.contactEmail ?? undefined,
+            branchServiceId: bookingRow?.branchServiceId ?? null,
+            cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+            serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(created, bookingRow),
+            canonicalAppointmentId: created.id,
+          },
+        });
+      } catch {
+        // Lifecycle event is best-effort for a committed staff manual create.
+      }
+      return created;
+    });
     return NextResponse.json({ ok: true, appointment });
   } catch (err) {
     const message = err instanceof Error ? err.message : "create_failed";

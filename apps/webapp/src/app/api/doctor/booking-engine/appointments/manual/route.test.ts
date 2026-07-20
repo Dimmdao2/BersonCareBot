@@ -76,6 +76,12 @@ describe("POST manual appointment", () => {
     principalState.inside = false;
     bridgeEnabledState.value = true;
     hasSchedulableClientRelationshipMock.mockResolvedValue(true);
+    assertSlotAvailableMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
+    emitBookingEventMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
   });
 
   it("creates the canonical appointment for a newly created patient despite legacy bridge enablement", async () => {
@@ -104,8 +110,6 @@ describe("POST manual appointment", () => {
       status: "confirmed",
       source: "admin_manual",
     });
-    assertSlotAvailableMock.mockResolvedValue(undefined);
-    emitBookingEventMock.mockResolvedValue(undefined);
 
     const res = await POST(
       new Request("http://localhost/manual", {
@@ -156,7 +160,6 @@ describe("POST manual appointment", () => {
       expect(principalState.inside).toBe(true);
       return false;
     });
-    assertSlotAvailableMock.mockResolvedValue(undefined);
 
     const res = await POST(
       new Request("http://localhost/manual", {
@@ -214,7 +217,7 @@ describe("POST manual appointment", () => {
     expect(json.error).toBe("specialist_required");
     expect(createAppointmentMock).not.toHaveBeenCalled();
     expect(assertSlotAvailableMock).not.toHaveBeenCalled();
-    expect(withDoctorWorkspacePrincipalMock).not.toHaveBeenCalled();
+    expect(withDoctorWorkspacePrincipalMock).toHaveBeenCalledOnce();
   });
 
   it("F2: in-person create with a resolvable specialist succeeds (uses default specialist)", async () => {
@@ -251,9 +254,6 @@ describe("POST manual appointment", () => {
         source: "admin_manual",
         specialistId: "33333333-3333-4333-8333-333333333333",
       };
-    });
-    assertSlotAvailableMock.mockImplementation(async () => {
-      expect(principalState.inside).toBe(false);
     });
     resolveLegacyBranchServiceIdMock.mockResolvedValue("branch-service-id");
     resolveBranchServiceMock.mockResolvedValue({

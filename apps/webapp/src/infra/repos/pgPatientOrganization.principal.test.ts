@@ -87,7 +87,13 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
           if (current === 1) {
             return {
               onConflictDoNothing: () => ({
-                returning: async () => [{ id: PATIENT_ID, displayName: "Новый пациент" }],
+                returning: async () => [{
+                  id: PATIENT_ID,
+                  displayName: "Новый Пациент",
+                  lastName: "Новый",
+                  firstName: "Пациент",
+                  patronymic: null,
+                }],
               }),
             };
           }
@@ -104,14 +110,19 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
       createPgPatientOrganizationPort().createManualOrganizationClient({
         organizationId: ORG_A,
         phoneNormalized: "+79990000001",
-        displayName: "Новый пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
         emailRaw: null,
         emailNormalized: null,
       }),
     ).resolves.toEqual({
       ok: true,
       userId: PATIENT_ID,
-      displayName: "Новый пациент",
+      displayName: "Новый Пациент",
+      lastName: "Новый",
+      firstName: "Пациент",
+      patronymic: null,
       phoneNormalized: "+79990000001",
       created: true,
     });
@@ -138,7 +149,9 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
       createPgPatientOrganizationPort().createManualOrganizationClient({
         organizationId: ORG_B,
         phoneNormalized: "+79990000001",
-        displayName: "Чужой пациент",
+        lastName: "Чужой",
+        firstName: "Пациент",
+        patronymic: null,
         emailRaw: null,
         emailNormalized: null,
       }),

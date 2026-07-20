@@ -327,6 +327,13 @@ function DoctorCalendarEventPanelInner({
               const endAt = new Date(
                 new Date(createStart).getTime() + createDurationMinutes * 60_000,
               ).toISOString();
+              if (
+                createPatient?.isNew === true &&
+                (!createPatient.lastName?.trim() || !createPatient.firstName?.trim())
+              ) {
+                setMessage("Укажите фамилию и имя пациента.");
+                return;
+              }
               startTransition(async () => {
                 const isNewPatient = createPatient?.isNew === true;
                 const res = await fetch(
@@ -338,8 +345,10 @@ function DoctorCalendarEventPanelInner({
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       ...(isNewPatient
-                        ? {
-                            displayName: createPatient.displayName,
+                          ? {
+                            lastName: createPatient.lastName,
+                            firstName: createPatient.firstName,
+                            patronymic: createPatient.patronymic ?? null,
                             phone: createPatient.phone,
                             email: createPatient.email ?? null,
                           }

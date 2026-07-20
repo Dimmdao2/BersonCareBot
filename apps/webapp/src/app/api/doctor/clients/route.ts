@@ -9,7 +9,9 @@ import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 
 const bodySchema = z.object({
-  displayName: z.string().max(500).nullable().optional(),
+  lastName: z.string().min(1).max(200),
+  firstName: z.string().min(1).max(200),
+  patronymic: z.string().max(200).nullable().optional(),
   phone: z.string().min(1).max(100),
   email: z.string().max(320).nullable().optional(),
 });
@@ -34,7 +36,9 @@ export async function POST(request: Request) {
       {
         organizationId: gate.ctx.organizationId,
         createdByUserId: gate.ctx.session.user.userId,
-        displayName: parsed.data.displayName,
+        lastName: parsed.data.lastName,
+        firstName: parsed.data.firstName,
+        patronymic: parsed.data.patronymic,
         phone: parsed.data.phone,
         email: parsed.data.email,
       },
@@ -56,9 +60,9 @@ export async function POST(request: Request) {
     client: {
       id: result.userId,
       displayName: result.displayName,
-      firstName: null,
-      lastName: null,
-      patronymic: null,
+      firstName: result.firstName,
+      lastName: result.lastName,
+      patronymic: result.patronymic,
       phone: result.phoneNormalized,
     },
     created: result.created,

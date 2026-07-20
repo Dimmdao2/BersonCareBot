@@ -6,7 +6,7 @@ export type InPersonServicesCatalogDeps = {
     catalog: Pick<OrganizationCatalogPort, "listBranches" | "getBranch" | "listSpecialists">;
     services: Pick<
       ServiceAvailabilityPort,
-      "listServices" | "listServiceLocationAvailability" | "listSpecialistServiceAvailability"
+      "listServices" | "listSpecialistServiceAvailability"
     >;
   } | null;
 };
@@ -74,42 +74,48 @@ export async function listInPersonServicesForBranch(
   deps: InPersonServicesCatalogDeps,
   organizationId: string,
   branchId: string,
+  specialistId?: string | null,
 ): Promise<{ branch: { id: string; title: string; cityCode: string }; services: InPersonServiceListItem[] } | null> {
   if (!deps.bookingEngine) return null;
   const branch = await deps.bookingEngine.catalog.getBranch(branchId);
   if (!branch || branch.organizationId !== organizationId || !branch.isActive) return null;
 
-  const [services, locationAvailability, specialistAvailability, specialists] = await Promise.all([
+  const [services, specialistAvailability, specialists] = await Promise.all([
     deps.bookingEngine.services.listServices(organizationId),
-    deps.bookingEngine.services.listServiceLocationAvailability(organizationId),
     deps.bookingEngine.services.listSpecialistServiceAvailability(organizationId),
     deps.bookingEngine.catalog.listSpecialists(organizationId),
   ]);
 
-  const defaultSpecialist = specialists.find((s) => s.isActive) ?? specialists[0] ?? null;
-  const locationServiceIds = new Set(
-    locationAvailability
-      .filter((r) => r.isActive && r.branchId === branchId)
-      .map((r) => r.serviceId),
+  const activeSpecialistIds = new Set(
+    specialists
+      .filter(
+        (specialist) =>
+          specialist.organizationId === organizationId &&
+          specialist.isActive &&
+          (!specialistId || specialist.id === specialistId),
+      )
+      .map((specialist) => specialist.id),
   );
-  const ssaServiceIds = new Set(
+  const assignedServiceIds = new Set(
     specialistAvailability
       .filter(
-        (r) =>
-          r.isActive &&
-          r.branchId === branchId &&
-          (!defaultSpecialist || r.specialistId === defaultSpecialist.id),
+        (availability) =>
+          availability.organizationId === organizationId &&
+          availability.isActive &&
+          availability.branchId === branchId &&
+          activeSpecialistIds.has(availability.specialistId),
       )
-      .map((r) => r.serviceId),
+      .map((availability) => availability.serviceId),
   );
 
   const items = services
     .filter(
       (s) =>
+        s.organizationId === organizationId &&
         s.isActive &&
         s.publicWidgetVisible &&
         !s.adminManualOnly &&
-        (locationServiceIds.has(s.id) || ssaServiceIds.has(s.id)),
+        assignedServiceIds.has(s.id),
     )
     .map((s) => ({
       id: s.id,

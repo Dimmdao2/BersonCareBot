@@ -17,6 +17,9 @@ vi.mock("./DoctorCalendarPatientSearch", () => ({
         onChange({
           id: null,
           displayName: "Новый пациент",
+          lastName: "Новый",
+          firstName: "Пациент",
+          patronymic: null,
           phone: "+7 999 000-00-00",
           email: "patient@example.com",
           isNew: true,
@@ -141,7 +144,9 @@ describe("DoctorCalendarEventPanel patient heading", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0] ?? [];
     expect(url).toBe("/api/doctor/booking-engine/appointments/manual-patient-visit");
     expect(JSON.parse(String(init?.body))).toMatchObject({
-      displayName: "Новый пациент",
+      lastName: "Новый",
+      firstName: "Пациент",
+      patronymic: null,
       phone: "+7 999 000-00-00",
       email: "patient@example.com",
       specialistId: "33333333-3333-4333-8333-333333333333",

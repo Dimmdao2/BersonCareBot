@@ -10,7 +10,9 @@ export type PatientOrganizationEnrollment = {
 export type CreateManualOrganizationClientInput = {
   organizationId: string;
   phoneNormalized: string;
-  displayName: string;
+  lastName: string;
+  firstName: string;
+  patronymic: string | null;
   emailRaw: string | null;
   emailNormalized: string | null;
 };
@@ -20,6 +22,9 @@ export type CreateManualOrganizationClientResult =
       ok: true;
       userId: string;
       displayName: string;
+      lastName: string | null;
+      firstName: string | null;
+      patronymic: string | null;
       phoneNormalized: string;
       created: boolean;
     }

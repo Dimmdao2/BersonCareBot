@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWebappTransaction } from "@/infra/db/runWebappSql";
@@ -136,7 +136,11 @@ async function insertAppointmentInTransaction(
   tx: DrizzleDb,
   input: CreateAppointmentInput,
   now: string,
+  catalogValidated = false,
 ): Promise<BeAppointment> {
+  if (input.source === "admin_manual" && !catalogValidated) {
+    await assertManualAppointmentCatalogSelection(tx, input);
+  }
   const status = input.status ?? "created";
   const inserted = await tx
     .insert(beAppointments)
@@ -191,6 +195,99 @@ async function insertAppointmentInTransaction(
     });
   }
   return appointment;
+}
+
+async function assertManualAppointmentCatalogSelection(
+  tx: DrizzleDb,
+  input: CreateAppointmentInput,
+): Promise<void> {
+  if (getCurrentDbPrincipalOrganizationId() !== input.organizationId) {
+    throw new Error("organization_principal_mismatch");
+  }
+  if (!input.specialistId) throw new Error("specialist_required");
+
+  const [specialist] = await tx
+    .select({ id: beSpecialists.id })
+    .from(beSpecialists)
+    .where(
+      and(
+        eq(beSpecialists.id, input.specialistId),
+        eq(beSpecialists.organizationId, input.organizationId),
+        eq(beSpecialists.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!specialist) throw new Error("specialist_not_found");
+
+  if (input.branchId) {
+    const [branch] = await tx
+      .select({ id: beBranches.id })
+      .from(beBranches)
+      .where(
+        and(
+          eq(beBranches.id, input.branchId),
+          eq(beBranches.organizationId, input.organizationId),
+          eq(beBranches.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!branch) throw new Error("branch_not_found");
+  }
+
+  if (input.roomId) {
+    if (!input.branchId) throw new Error("room_branch_mismatch");
+    const [room] = await tx
+      .select({ id: beRooms.id })
+      .from(beRooms)
+      .where(
+        and(
+          eq(beRooms.id, input.roomId),
+          eq(beRooms.organizationId, input.organizationId),
+          eq(beRooms.branchId, input.branchId),
+          eq(beRooms.isActive, true),
+        ),
+      )
+      .limit(1);
+    if (!room) throw new Error("room_not_found");
+  }
+
+  if (!input.serviceId) return;
+  const [service] = await tx
+    .select({ id: beClinicServices.id })
+    .from(beClinicServices)
+    .where(
+      and(
+        eq(beClinicServices.id, input.serviceId),
+        eq(beClinicServices.organizationId, input.organizationId),
+        eq(beClinicServices.isActive, true),
+      ),
+    )
+    .limit(1);
+  if (!service) throw new Error("service_not_found");
+
+  const availabilityConditions = [
+    eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
+    eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
+    eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
+    eq(beSpecialistServiceAvailability.isActive, true),
+    input.branchId
+      ? eq(beSpecialistServiceAvailability.branchId, input.branchId)
+      : isNull(beSpecialistServiceAvailability.branchId),
+  ];
+  if (input.roomId) {
+    availabilityConditions.push(
+      or(
+        isNull(beSpecialistServiceAvailability.roomId),
+        eq(beSpecialistServiceAvailability.roomId, input.roomId),
+      )!,
+    );
+  }
+  const [availability] = await tx
+    .select({ id: beSpecialistServiceAvailability.id })
+    .from(beSpecialistServiceAvailability)
+    .where(and(...availabilityConditions))
+    .limit(1);
+  if (!availability) throw new Error("service_not_available_for_specialist");
 }
 
 export function createPgBookingEnginePort(): BookingEngineCorePort {
@@ -977,6 +1074,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const now = new Date().toISOString();
       return db.transaction(async (rawTx) => {
         const tx = rawTx as DrizzleDb;
+        await assertManualAppointmentCatalogSelection(tx, {
+          ...input.appointment,
+          organizationId: input.organizationId,
+        });
         const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
           tx,
           input.organizationId,
@@ -996,6 +1097,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             phoneNormalized: patient.phoneNormalized,
           },
           now,
+          true,
         );
         return { patient, appointment };
       });

@@ -18,7 +18,9 @@ const emailSetupAccess = { requestContactEmailSetup: vi.fn() };
 const baseInput = {
   organizationId: "11111111-1111-4111-8111-111111111111",
   createdByUserId: "22222222-2222-4222-8222-222222222222",
-  displayName: " Новый пациент ",
+  lastName: " новый ",
+  firstName: " пациент ",
+  patronymic: null,
   phone: "+7 999 000-00-00",
   email: "NEW@Example.com",
   appointment: {
@@ -39,6 +41,9 @@ describe("createScheduledManualPatientVisit", () => {
       patient: {
         userId: "44444444-4444-4444-8444-444444444444",
         displayName: "Новый пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
         phoneNormalized: "+79990000000",
         created: true,
       },
@@ -54,7 +59,9 @@ describe("createScheduledManualPatientVisit", () => {
 
     expect(createManualPatientVisit).toHaveBeenCalledWith({
       organizationId: baseInput.organizationId,
-      displayName: "Новый пациент",
+      lastName: "Новый",
+      firstName: "Пациент",
+      patronymic: null,
       phoneNormalized: "+79990000000",
       emailRaw: "NEW@Example.com",
       emailNormalized: "new@example.com",

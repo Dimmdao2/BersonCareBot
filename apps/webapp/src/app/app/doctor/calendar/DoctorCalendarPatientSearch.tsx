@@ -56,7 +56,9 @@ export function DoctorCalendarPatientSearch({
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newPatronymic, setNewPatronymic] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -125,11 +127,13 @@ export function DoctorCalendarPatientSearch({
     const trimmed = query.trim();
     if (queryLooksLikePhone(trimmed)) {
       setNewPhone(trimmed);
-      setNewName("");
+      setNewLastName("");
     } else {
-      setNewName(trimmed);
+      setNewLastName(trimmed);
       setNewPhone("");
     }
+    setNewFirstName("");
+    setNewPatronymic("");
     setNewEmail("");
     setCreateError(null);
     setCreateOpen(true);
@@ -137,21 +141,33 @@ export function DoctorCalendarPatientSearch({
   };
 
   const submitNewPatient = async () => {
+    const lastName = newLastName.trim();
+    const firstName = newFirstName.trim();
     const phone = newPhone.trim();
+    if (!lastName || !firstName) {
+      setCreateError("Укажите фамилию и имя");
+      return;
+    }
     if (!phone) {
       setCreateError("Укажите телефон");
       return;
     }
     setCreateError(null);
     if (deferNewPatientCreation) {
+      const patronymic = newPatronymic.trim() || null;
       pick({
         id: null,
-        displayName: newName.trim() || phone,
+        displayName: formatDoctorFio({ lastName, firstName, patronymic }),
+        lastName,
+        firstName,
+        patronymic,
         phone,
         email: newEmail.trim() || null,
         isNew: true,
       });
-      setNewName("");
+      setNewLastName("");
+      setNewFirstName("");
+      setNewPatronymic("");
       setNewPhone("");
       setNewEmail("");
       return;
@@ -163,7 +179,9 @@ export function DoctorCalendarPatientSearch({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          displayName: newName.trim() || undefined,
+          lastName,
+          firstName,
+          patronymic: newPatronymic.trim() || null,
           phone,
           email: newEmail.trim() || null,
         }),
@@ -175,7 +193,8 @@ export function DoctorCalendarPatientSearch({
       };
       if (!response.ok || !data.ok || !data.client) {
         setCreateError(
-          data.error === "invalid_phone" ? "Неверный телефон"
+          data.error === "invalid_fio" ? "Укажите фамилию и имя"
+          : data.error === "invalid_phone" ? "Неверный телефон"
           : data.error === "invalid_email" ? "Неверный email"
           : data.error === "email_conflict" ? "Email уже занят"
           : "Не удалось создать",
@@ -183,7 +202,9 @@ export function DoctorCalendarPatientSearch({
         return;
       }
       pick(data.client);
-      setNewName("");
+      setNewLastName("");
+      setNewFirstName("");
+      setNewPatronymic("");
       setNewPhone("");
       setNewEmail("");
     } catch {
@@ -309,11 +330,25 @@ export function DoctorCalendarPatientSearch({
       {createOpen ? (
         <div className="space-y-2 rounded-md border border-border p-2">
           <Input
+            placeholder="Фамилия"
+            value={newLastName}
+            onChange={(e) => setNewLastName(e.target.value)}
+            disabled={disabled || creating}
+            aria-label="Фамилия пациента"
+          />
+          <Input
             placeholder="Имя"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            value={newFirstName}
+            onChange={(e) => setNewFirstName(e.target.value)}
             disabled={disabled || creating}
             aria-label="Имя пациента"
+          />
+          <Input
+            placeholder="Отчество (если есть)"
+            value={newPatronymic}
+            onChange={(e) => setNewPatronymic(e.target.value)}
+            disabled={disabled || creating}
+            aria-label="Отчество пациента"
           />
           <Input
             placeholder="Телефон"

@@ -8,6 +8,7 @@ import {
   trustedPatientPhoneWriteAnchor,
 } from "@/modules/platform-access/trustedPhonePolicy";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
+import { normalizeFioPart } from "@/shared/lib/fio";
 
 type BookingEngineManualPatientVisitService = Pick<
   ReturnType<typeof createBookingEngineService>,
@@ -17,7 +18,9 @@ type BookingEngineManualPatientVisitService = Pick<
 export type CreateScheduledManualPatientVisitInput = {
   organizationId: string;
   createdByUserId: string;
-  displayName?: string | null;
+  lastName: string;
+  firstName: string;
+  patronymic?: string | null;
   phone: string;
   email?: string | null;
   appointment: Omit<
@@ -47,10 +50,17 @@ export async function createScheduledManualPatientVisit(
     return { ok: false as const, error: "invalid_email" as const };
   }
 
-  const displayName = input.displayName?.trim().slice(0, 500) || phoneNormalized;
+  const lastName = normalizeFioPart(input.lastName);
+  const firstName = normalizeFioPart(input.firstName);
+  const patronymic = normalizeFioPart(input.patronymic);
+  if (!lastName || !firstName) {
+    return { ok: false as const, error: "invalid_fio" as const };
+  }
   const result = await deps.bookingEngine.createManualPatientVisit({
     organizationId: input.organizationId,
-    displayName,
+    lastName,
+    firstName,
+    patronymic,
     phoneNormalized,
     emailRaw,
     emailNormalized,

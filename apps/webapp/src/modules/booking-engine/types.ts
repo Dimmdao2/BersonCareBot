@@ -141,7 +141,9 @@ export type CreateAppointmentInput = {
 
 export type CreateManualPatientVisitInput = {
   organizationId: string;
-  displayName: string;
+  lastName: string;
+  firstName: string;
+  patronymic: string | null;
   phoneNormalized: string;
   emailRaw: string | null;
   emailNormalized: string | null;
@@ -156,6 +158,9 @@ export type CreateManualPatientVisitResult = {
   patient: {
     userId: string;
     displayName: string;
+    lastName: string | null;
+    firstName: string | null;
+    patronymic: string | null;
     phoneNormalized: string;
     created: boolean;
   };

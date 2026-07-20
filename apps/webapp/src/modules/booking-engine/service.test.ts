@@ -64,6 +64,9 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
       patient: {
         userId: "22222222-2222-4222-8222-222222222222",
         displayName: "Пациент",
+        lastName: "Пациент",
+        firstName: "Тестовый",
+        patronymic: null,
         phoneNormalized: "+79990000000",
         created: true,
       },

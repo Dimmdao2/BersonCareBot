@@ -4,6 +4,7 @@ const requireDoctorBookingEngineMock = vi.hoisted(() => vi.fn());
 const createManualPatientVisitMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
 const emitBookingEventMock = vi.hoisted(() => vi.fn());
+const getBookingByCanonicalAppointmentMock = vi.hoisted(() => vi.fn());
 const principalState = vi.hoisted(() => ({ inside: false }));
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
@@ -12,6 +13,7 @@ vi.mock("../../_requireDoctorBookingEngine", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     bookingScheduling: { assertSlotAvailable: assertSlotAvailableMock },
+    patientBooking: { getBookingByCanonicalAppointment: getBookingByCanonicalAppointmentMock },
     emailSetupAccess: { requestContactEmailSetup: vi.fn() },
   }),
 }));
@@ -32,7 +34,9 @@ vi.mock("@/modules/integrator/bookingM2mApi", () => ({
 import { POST } from "./route";
 
 const requestBody = {
-  displayName: "Новый пациент",
+  lastName: "Новый",
+  firstName: "Пациент",
+  patronymic: null,
   phone: "+79990000000",
   email: null,
   branchId: "11111111-1111-4111-8111-111111111111",
@@ -43,7 +47,7 @@ const requestBody = {
   durationMinutes: 60,
 };
 
-function request(body = requestBody) {
+function request(body: Record<string, unknown> = requestBody) {
   return new Request("http://localhost/manual-patient-visit", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -55,7 +59,16 @@ describe("POST manual patient visit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     principalState.inside = false;
-    assertSlotAvailableMock.mockResolvedValue(undefined);
+    assertSlotAvailableMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
+    getBookingByCanonicalAppointmentMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return null;
+    });
+    emitBookingEventMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+    });
     requireDoctorBookingEngineMock.mockResolvedValue({
       ok: true,
       ctx: {
@@ -72,7 +85,10 @@ describe("POST manual patient visit", () => {
       return {
         patient: {
           userId: "66666666-6666-4666-8666-666666666666",
-          displayName: input.displayName,
+          displayName: `${input.lastName} ${input.firstName}`,
+          lastName: input.lastName,
+          firstName: input.firstName,
+          patronymic: input.patronymic,
           phoneNormalized: input.phoneNormalized,
           created: true,
         },
@@ -92,6 +108,7 @@ describe("POST manual patient visit", () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(createManualPatientVisitMock).toHaveBeenCalledOnce();
+    expect(assertSlotAvailableMock).toHaveBeenCalledOnce();
     expect(createManualPatientVisitMock).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: "44444444-4444-4444-8444-444444444444",
@@ -105,11 +122,56 @@ describe("POST manual patient visit", () => {
     expect(emitBookingEventMock).toHaveBeenCalledOnce();
   });
 
+  it("keeps a committed visit successful when optional booking enrichment fails", async () => {
+    createManualPatientVisitMock.mockResolvedValue({
+      patient: {
+        userId: "66666666-6666-4666-8666-666666666666",
+        displayName: "Новый Пациент",
+        lastName: "Новый",
+        firstName: "Пациент",
+        patronymic: null,
+        phoneNormalized: "+79990000000",
+        created: true,
+      },
+      appointment: {
+        id: "77777777-7777-4777-8777-777777777777",
+        organizationId: "44444444-4444-4444-8444-444444444444",
+        startAt: requestBody.startAt,
+        endAt: requestBody.endAt,
+        platformUserId: "66666666-6666-4666-8666-666666666666",
+        phoneNormalized: "+79990000000",
+        serviceId: requestBody.serviceId,
+        attributionJson: {},
+      },
+    });
+    getBookingByCanonicalAppointmentMock.mockRejectedValue(new Error("projection_read_failed"));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(emitBookingEventMock).toHaveBeenCalledOnce();
+  });
+
   it("does not open the transaction for an invalid body", async () => {
     const response = await POST(request({ ...requestBody, specialistId: "not-a-uuid" }));
     expect(response.status).toBe(400);
     expect(createManualPatientVisitMock).not.toHaveBeenCalled();
     expect(assertSlotAvailableMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects the legacy displayName-only identity contract", async () => {
+    const response = await POST(
+      request({
+        ...requestBody,
+        lastName: undefined,
+        firstName: undefined,
+        displayName: "Новый пациент",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(createManualPatientVisitMock).not.toHaveBeenCalled();
   });
 
   it("returns a conflict when the atomic transaction reports an occupied slot", async () => {

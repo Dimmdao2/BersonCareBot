@@ -30,6 +30,8 @@ describe("createDoctorClient", () => {
     const result = await createDoctorClient(
       {
         phone: "bad",
+        lastName: "Иванов",
+        firstName: "Иван",
         createdByUserId: "doc-1",
         organizationId: "org-1",
       },
@@ -39,12 +41,31 @@ describe("createDoctorClient", () => {
     expect(createManualOrganizationClient).not.toHaveBeenCalled();
   });
 
+  it("rejects missing structured FIO before touching identity or enrollment", async () => {
+    const result = await createDoctorClient(
+      {
+        phone: "+79991234567",
+        lastName: " ",
+        firstName: "Иван",
+        createdByUserId: "doc-1",
+        organizationId: "org-1",
+      },
+      deps,
+    );
+
+    expect(result).toEqual({ ok: false, error: "invalid_fio" });
+    expect(createManualOrganizationClient).not.toHaveBeenCalled();
+  });
+
   it("creates the identity and exact-organization enrollment through one domain operation", async () => {
     createManualOrganizationClient.mockResolvedValue({
       ok: true,
       created: true,
       userId: "new-user",
       displayName: "New Client",
+      lastName: "Client",
+      firstName: "New",
+      patronymic: null,
       phoneNormalized: "+79991234567",
     });
 
@@ -52,7 +73,8 @@ describe("createDoctorClient", () => {
       {
         phone: "+7 999 123-45-67",
         email: "NEW@Example.com",
-        displayName: "  New Client  ",
+        lastName: "  client ",
+        firstName: " new ",
         createdByUserId: "doc-1",
         organizationId: "org-1",
       },
@@ -62,7 +84,9 @@ describe("createDoctorClient", () => {
     expect(createManualOrganizationClient).toHaveBeenCalledWith({
       organizationId: "org-1",
       phoneNormalized: "+79991234567",
-      displayName: "New Client",
+      lastName: "Client",
+      firstName: "New",
+      patronymic: null,
       emailRaw: "NEW@Example.com",
       emailNormalized: "new@example.com",
     });
@@ -70,6 +94,9 @@ describe("createDoctorClient", () => {
       ok: true,
       userId: "new-user",
       displayName: "New Client",
+      lastName: "Client",
+      firstName: "New",
+      patronymic: null,
       phoneNormalized: "+79991234567",
       created: true,
       emailSetupEnqueued: true,
@@ -100,6 +127,8 @@ describe("createDoctorClient", () => {
       createDoctorClient(
         {
           phone: "+79991234567",
+          lastName: "Иванов",
+          firstName: "Иван",
           createdByUserId: "doc-1",
           organizationId: "org-1",
         },
@@ -116,6 +145,8 @@ describe("createDoctorClient", () => {
       createDoctorClient(
         {
           phone: "+79991234567",
+          lastName: "Иванов",
+          firstName: "Иван",
           createdByUserId: "doc-1",
           organizationId: "org-1",
         },

@@ -11,7 +11,9 @@ import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { requireDoctorBookingEngine } from "../../_requireDoctorBookingEngine";
 
 const bodySchema = z.object({
-  displayName: z.string().max(500).nullable().optional(),
+  lastName: z.string().min(1).max(200),
+  firstName: z.string().min(1).max(200),
+  patronymic: z.string().max(200).nullable().optional(),
   phone: z.string().min(1).max(100),
   email: z.string().max(320).nullable().optional(),
   branchId: z.string().uuid().nullable().optional(),
@@ -43,26 +45,28 @@ export async function POST(request: Request) {
   const { ctx } = gate;
   const deps = buildAppDeps();
   try {
-    if (deps.bookingScheduling) {
-      await deps.bookingScheduling.assertSlotAvailable({
-        organizationId: ctx.organizationId,
-        specialistId: parsed.data.specialistId,
-        roomId: parsed.data.roomId ?? null,
-        slotStart: parsed.data.startAt,
-        slotEnd: parsed.data.endAt,
-        durationMinutes: parsed.data.durationMinutes,
-      });
-    }
-
     const result = await withDoctorWorkspacePrincipal(
       ctx,
       "doctor.booking-engine.appointments.manual-patient-visit",
-      () =>
-        createScheduledManualPatientVisit(
+      async () => {
+        if (deps.bookingScheduling) {
+          await deps.bookingScheduling.assertSlotAvailable({
+            organizationId: ctx.organizationId,
+            specialistId: parsed.data.specialistId,
+            roomId: parsed.data.roomId ?? null,
+            slotStart: parsed.data.startAt,
+            slotEnd: parsed.data.endAt,
+            durationMinutes: parsed.data.durationMinutes,
+          });
+        }
+
+        const created = await createScheduledManualPatientVisit(
           {
             organizationId: ctx.organizationId,
             createdByUserId: ctx.session.user.userId,
-            displayName: parsed.data.displayName,
+            lastName: parsed.data.lastName,
+            firstName: parsed.data.firstName,
+            patronymic: parsed.data.patronymic,
             phone: parsed.data.phone,
             email: parsed.data.email,
             appointment: {
@@ -79,44 +83,55 @@ export async function POST(request: Request) {
             },
           },
           { bookingEngine: ctx.service, emailSetupAccess: deps.emailSetupAccess },
-        ),
+        );
+        if (!created.ok) return created;
+
+        let bookingRow: Awaited<
+          ReturnType<NonNullable<typeof deps.patientBooking>["getBookingByCanonicalAppointment"]>
+        > = null;
+        try {
+          bookingRow = deps.patientBooking
+            ? await deps.patientBooking.getBookingByCanonicalAppointment(created.appointment.id)
+            : null;
+        } catch {
+          // The identity/relationship/appointment transaction already committed. Enrichment is optional.
+        }
+        try {
+          await createBookingSyncPort().emitBookingEvent({
+            eventType: "booking.created",
+            idempotencyKey: `staff.booking.created:${created.appointment.id}:${created.appointment.startAt}`,
+            payload: {
+              organizationId: created.appointment.organizationId,
+              bookingId: bookingRow?.id ?? created.appointment.id,
+              userId: bookingRow?.userId ?? created.patient.userId,
+              rubitimeId: bookingRow?.rubitimeId ?? null,
+              bookingType: bookingRow?.bookingType ?? "in_person",
+              city: bookingRow?.city ?? undefined,
+              category: bookingRow?.category ?? "general",
+              slotStart: created.appointment.startAt,
+              slotEnd: created.appointment.endAt,
+              contactName:
+                bookingRow?.contactName ?? staffBookingContactNameFromAppointment(created.appointment),
+              contactPhone: bookingRow?.contactPhone ?? created.patient.phoneNormalized,
+              contactEmail: bookingRow?.contactEmail ?? undefined,
+              branchServiceId: bookingRow?.branchServiceId ?? null,
+              cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
+              serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
+                created.appointment,
+                bookingRow,
+              ),
+              canonicalAppointmentId: created.appointment.id,
+            },
+          });
+        } catch {
+          // Lifecycle delivery is best-effort and cannot turn a committed visit into an API failure.
+        }
+        return created;
+      },
     );
 
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
-    }
-    const bookingRow = deps.patientBooking
-      ? await deps.patientBooking.getBookingByCanonicalAppointment(result.appointment.id)
-      : null;
-    try {
-      await createBookingSyncPort().emitBookingEvent({
-        eventType: "booking.created",
-        idempotencyKey: `staff.booking.created:${result.appointment.id}:${result.appointment.startAt}`,
-        payload: {
-          organizationId: result.appointment.organizationId,
-          bookingId: bookingRow?.id ?? result.appointment.id,
-          userId: bookingRow?.userId ?? result.patient.userId,
-          rubitimeId: bookingRow?.rubitimeId ?? null,
-          bookingType: bookingRow?.bookingType ?? "in_person",
-          city: bookingRow?.city ?? undefined,
-          category: bookingRow?.category ?? "general",
-          slotStart: result.appointment.startAt,
-          slotEnd: result.appointment.endAt,
-          contactName:
-            bookingRow?.contactName ?? staffBookingContactNameFromAppointment(result.appointment),
-          contactPhone: bookingRow?.contactPhone ?? result.patient.phoneNormalized,
-          contactEmail: bookingRow?.contactEmail ?? undefined,
-          branchServiceId: bookingRow?.branchServiceId ?? null,
-          cityCodeSnapshot: bookingRow?.cityCodeSnapshot ?? null,
-          serviceTitleSnapshot: staffBookingServiceTitleFromAppointment(
-            result.appointment,
-            bookingRow,
-          ),
-          canonicalAppointmentId: result.appointment.id,
-        },
-      });
-    } catch {
-      // Same contract as the existing manual route: lifecycle delivery is best-effort.
     }
     return NextResponse.json({
       ok: true,
@@ -124,6 +139,9 @@ export async function POST(request: Request) {
       client: {
         id: result.patient.userId,
         displayName: result.patient.displayName,
+        lastName: result.patient.lastName,
+        firstName: result.patient.firstName,
+        patronymic: result.patient.patronymic,
         phone: result.patient.phoneNormalized,
       },
     });

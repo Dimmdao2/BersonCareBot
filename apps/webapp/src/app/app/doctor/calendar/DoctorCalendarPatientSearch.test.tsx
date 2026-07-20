@@ -22,8 +22,11 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Новый пациент" }));
+    fireEvent.change(screen.getByLabelText("Фамилия пациента"), {
+      target: { value: "Иванов" },
+    });
     fireEvent.change(screen.getByLabelText("Имя пациента"), {
-      target: { value: "Иванов Иван" },
+      target: { value: "Иван" },
     });
     fireEvent.change(screen.getByLabelText("Телефон пациента"), {
       target: { value: "+7 999 000-00-00" },
@@ -36,6 +39,9 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
     expect(onChange).toHaveBeenCalledWith({
       id: null,
       displayName: "Иванов Иван",
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: null,
       phone: "+7 999 000-00-00",
       email: "patient@example.com",
       isNew: true,
@@ -52,6 +58,9 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
         client: {
           id: "11111111-1111-4111-8111-111111111111",
           displayName: "Иванов Иван",
+          lastName: "Иванов",
+          firstName: "Иван",
+          patronymic: null,
           phone: "+79990000000",
         },
       }),
@@ -60,8 +69,11 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
     render(<DoctorCalendarPatientSearch value={null} onChange={onChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Новый пациент" }));
+    fireEvent.change(screen.getByLabelText("Фамилия пациента"), {
+      target: { value: "Иванов" },
+    });
     fireEvent.change(screen.getByLabelText("Имя пациента"), {
-      target: { value: "Иванов Иван" },
+      target: { value: "Иван" },
     });
     fireEvent.change(screen.getByLabelText("Телефон пациента"), {
       target: { value: "+79990000000" },
@@ -70,6 +82,11 @@ describe("DoctorCalendarPatientSearch new-patient draft", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/doctor/clients");
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      lastName: "Иванов",
+      firstName: "Иван",
+      patronymic: null,
+    });
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
         expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),

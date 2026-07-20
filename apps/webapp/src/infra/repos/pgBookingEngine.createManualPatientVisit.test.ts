@@ -3,7 +3,12 @@ import {
   beAppointmentEvents,
   beAppointmentHistoryEvents,
   beAppointments,
+  beBranches,
+  beClinicServices,
   bePatientTimelineEvents,
+  beRooms,
+  beSpecialists,
+  beSpecialistServiceAvailability,
 } from "../../../db/schema/bookingEngine";
 
 const getDrizzleMock = vi.hoisted(() => vi.fn());
@@ -30,7 +35,9 @@ const APPOINTMENT_ID = "33333333-3333-4333-8333-333333333333";
 
 const input = {
   organizationId: ORG_ID,
-  displayName: "Новый пациент",
+  lastName: "Новый",
+  firstName: "Пациент",
+  patronymic: null,
   phoneNormalized: "+79990000000",
   emailRaw: null,
   emailNormalized: null,
@@ -72,13 +79,35 @@ function appointmentRow() {
   };
 }
 
+function catalogSelect(overrides: Partial<Record<string, unknown[]>> = {}) {
+  return vi.fn(() => ({
+    from: (table: unknown) => ({
+      where: () => ({
+        limit: vi.fn(async () => {
+          if (table === beSpecialists) return overrides.specialist ?? [{ id: input.appointment.specialistId }];
+          if (table === beBranches) return overrides.branch ?? [{ id: input.appointment.branchId }];
+          if (table === beRooms) return overrides.room ?? [{ id: "room-id" }];
+          if (table === beClinicServices) return overrides.service ?? [{ id: input.appointment.serviceId }];
+          if (table === beSpecialistServiceAvailability) {
+            return overrides.availability ?? [{ id: "availability-id" }];
+          }
+          return [];
+        }),
+      }),
+    }),
+  }));
+}
+
 describe("pgBookingEngine.createManualPatientVisit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_ID);
     resolveIdentityMock.mockResolvedValue({
       userId: PATIENT_ID,
-      displayName: input.displayName,
+      displayName: "Новый Пациент",
+      lastName: input.lastName,
+      firstName: input.firstName,
+      patronymic: input.patronymic,
       phoneNormalized: input.phoneNormalized,
       created: true,
     });
@@ -99,7 +128,7 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
         return Promise.resolve();
       }),
     }));
-    const tx = { insert };
+    const tx = { insert, select: catalogSelect() };
     const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
     getDrizzleMock.mockReturnValue({ transaction });
 
@@ -115,6 +144,7 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
   it("propagates appointment failure from the same callback so the outer transaction rolls back all prior writes", async () => {
     const appointmentFailure = new Error("slot_overlap");
     const tx = {
+      select: catalogSelect(),
       insert: vi.fn((table: unknown) => ({
         values: vi.fn(() => {
           if (table === beAppointments) throw appointmentFailure;
@@ -139,5 +169,28 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
       "organization_principal_mismatch",
     );
     expect(getDrizzleMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a catalog object outside the exact organization before creating identity", async () => {
+    const tx = { insert: vi.fn(), select: catalogSelect({ branch: [] }) };
+    const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
+    getDrizzleMock.mockReturnValue({ transaction });
+
+    await expect(createPgBookingEnginePort().createManualPatientVisit(input)).rejects.toThrow(
+      "branch_not_found",
+    );
+    expect(resolveIdentityMock).not.toHaveBeenCalled();
+    expect(ensureRelationshipMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a service that is not assigned to the selected specialist and branch", async () => {
+    const tx = { insert: vi.fn(), select: catalogSelect({ availability: [] }) };
+    const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
+    getDrizzleMock.mockReturnValue({ transaction });
+
+    await expect(createPgBookingEnginePort().createManualPatientVisit(input)).rejects.toThrow(
+      "service_not_available_for_specialist",
+    );
+    expect(resolveIdentityMock).not.toHaveBeenCalled();
   });
 });
