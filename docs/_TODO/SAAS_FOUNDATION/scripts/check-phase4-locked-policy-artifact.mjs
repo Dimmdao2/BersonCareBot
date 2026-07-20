@@ -8,6 +8,7 @@ import {
   phase4LockedPolicyArtifactPath,
   renderPhase4LockedPolicyArtifact,
 } from "./phase4-locked-policy-artifact.mjs";
+import { dormantCompatibilityPredicate } from "./rls-sql-renderer.mjs";
 
 const migrationsDir = "apps/webapp/db/drizzle-migrations";
 const forceCutoverSqlPath = "deploy/postgres/phase4-force-rls-cutover.sql";
@@ -134,6 +135,20 @@ for (const statement of createStatements) {
   if (!helperPattern.test(statement)) {
     fail(`Every phase4 replacement policy must use locked helper predicates; missing helper in: ${statement.slice(0, 180)}...`);
   }
+}
+
+const directoryTarget = generatedTargets.find(
+  ({ descriptor }) => descriptor.table === "public.clinic_public_directory_entries",
+);
+if (!directoryTarget || directoryTarget.descriptor.dormantMode !== "strict") {
+  fail("clinic_public_directory_entries must be explicitly strict in dormant phase4 overlays");
+}
+const directoryReplacement = artifact.slice(
+  artifact.indexOf("-- public.clinic_public_directory_entries (saas_org_dormant_p0_8_3)"),
+  artifact.indexOf("\n\n-- ", artifact.indexOf("-- public.clinic_public_directory_entries (saas_org_dormant_p0_8_3)")),
+);
+if (!directoryReplacement || directoryReplacement.includes(dormantCompatibilityPredicate)) {
+  fail("clinic_public_directory_entries phase4 replacement must never contain the missing-context dormant branch");
 }
 
 console.log("check-phase4-locked-policy-artifact: OK (166 policies, helper-based, no raw GUC context)");

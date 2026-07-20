@@ -14,4 +14,50 @@ export type ClinicDirectoryPort = {
    * uniform — callers must not distinguish these cases in the response).
    */
   resolveOrganizationIdBySlug(slug: string): Promise<string | null>;
+
+  /** Internal foundation resolver. Public callers must still require a published projection. */
+  resolveCanonicalSlug(slug: string): Promise<OrganizationSlugResolution | null>;
+
+  // Mutation repositories derive audit attribution from the trusted staff DB principal. The later
+  // route/application layer must additionally enforce the organization-owner role; callers cannot
+  // supply or override the audit actor through these inputs.
+  reserveSlug(input: ReserveOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
+  claimReservedSlug(input: ClaimOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
+  renameSlug(input: RenameOrganizationSlugInput): Promise<OrganizationSlugMutationResult>;
 };
+
+export type OrganizationSlugResolution = {
+  organizationId: string;
+  requestedSlug: string;
+  canonicalSlug: string;
+  disposition: 'current' | 'redirect';
+};
+
+export type ReserveOrganizationSlugInput = {
+  slug: string;
+  organizationId: string;
+};
+
+export type ClaimOrganizationSlugInput = {
+  slug: string;
+  organizationId: string;
+};
+
+export type RenameOrganizationSlugInput = {
+  organizationId: string;
+  reservedSlug: string;
+};
+
+export type OrganizationSlugMutationResult =
+  | { ok: true; slug: string }
+  | {
+      ok: false;
+      code:
+        | 'slug_unavailable'
+        | 'reservation_not_found'
+        | 'reservation_owner_mismatch'
+        | 'current_slug_not_found'
+        | 'current_slug_already_exists'
+        | 'invalid_slug'
+        | 'reserved_slug';
+    };

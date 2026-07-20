@@ -40,6 +40,7 @@ const requiredTables = [
 
 const requiredFunctions = [
   "app.resolve_public_booking_organization(uuid, uuid, uuid)",
+  "app.resolve_public_organization_slug(text)",
   "app.resolve_public_organization_by_slug(text)",
   "app.release_principal_context()",
   "app.current_org_id()",
@@ -186,6 +187,7 @@ function runChecks(overrides = {}) {
     "d3_4_bootstrap_base_role_exists",
     "d3_4_webapp_runtime_accessors_exist",
     "to_regprocedure('app.resolve_public_booking_organization(uuid,uuid,uuid)') IS NOT NULL",
+    "to_regprocedure('app.resolve_public_organization_slug(text)') IS NOT NULL",
     "to_regprocedure('app.resolve_public_organization_by_slug(text)') IS NOT NULL",
     "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
     "granted_role.rolname <> 'app_patient'",
@@ -208,9 +210,10 @@ function runChecks(overrides = {}) {
     "'app.read_public_runtime_setting(text,text)'::regprocedure",
     "'app.read_webapp_server_runtime_setting(text,text)'::regprocedure",
     "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "'app.resolve_public_organization_slug(text)'::regprocedure",
     "'app.resolve_public_organization_by_slug(text)'::regprocedure",
-    "AND 4 = (",
-    "AND 2 = (",
+    "AND 5 = (",
+    "AND 3 = (",
     "procedure.oid IN (",
     "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
     "NOT has_table_privilege(",
@@ -454,15 +457,21 @@ function runChecks(overrides = {}) {
     "GRANT EXECUTE ON FUNCTION app.get_web_push_vapid_public_key() TO app_patient;",
   ]);
   requireFragments(files.publicClinicSlugSql, loaded.publicClinicSlugSql, [
+    "CREATE OR REPLACE FUNCTION app.resolve_public_organization_slug(p_slug text)",
     "CREATE OR REPLACE FUNCTION app.resolve_public_organization_by_slug(",
     "SET search_path = pg_catalog",
+    "ALTER FUNCTION app.resolve_public_organization_slug(text) OWNER TO app_owner;",
     "ALTER FUNCTION app.resolve_public_organization_by_slug(text) OWNER TO app_owner;",
+    "REVOKE ALL ON FUNCTION app.resolve_public_organization_slug(text) FROM PUBLIC;",
     "REVOKE ALL ON FUNCTION app.resolve_public_organization_by_slug(text) FROM PUBLIC;",
+    "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO app_patient;",
     "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO app_patient;",
+    "NOT has_table_privilege('app_patient', 'public.organization_slug_claims', 'SELECT')",
     "NOT has_table_privilege('app_patient', 'public.clinic_public_directory_entries', 'SELECT')",
     "NOT has_table_privilege('app_patient', 'public.be_organizations', 'SELECT')",
   ]);
   forbidFragments(files.publicClinicSlugSql, loaded.publicClinicSlugSql, [
+    "GRANT SELECT ON TABLE public.organization_slug_claims TO app_patient",
     "GRANT SELECT ON TABLE public.clinic_public_directory_entries TO app_patient",
     "GRANT SELECT ON TABLE public.be_organizations TO app_patient",
   ]);
@@ -833,14 +842,20 @@ if (process.argv.includes("--self-test")) {
     },
     {
       grantSql: read(files.grantSql).replace(
+        "AND 5 = (",
         "AND 4 = (",
-        "AND 3 = (",
       ),
     },
     {
       grantSql: read(files.grantSql).replace(
         "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO :\"d3_4_bootstrap_base_role\";",
         "-- missing direct bootstrap resolver grant",
+      ),
+    },
+    {
+      grantSql: read(files.grantSql).replace(
+        "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO :\"d3_4_bootstrap_base_role\";",
+        "-- missing direct bootstrap canonical slug resolver grant",
       ),
     },
     {

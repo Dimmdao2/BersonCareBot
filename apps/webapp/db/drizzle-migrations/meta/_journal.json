@@ -1527,6 +1527,13 @@
       "when": 1793539200012,
       "tag": "0217_platform_lfk_ownership",
       "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1793539200013,
+      "tag": "0218_u6b_organization_slug_claims",
+      "breakpoints": true
     }
   ]
 }
