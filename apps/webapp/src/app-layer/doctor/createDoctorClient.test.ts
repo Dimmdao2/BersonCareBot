@@ -1,12 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const resolveOrCreateDoctorClientByPhoneMock = vi.hoisted(() => vi.fn());
 const fireAndForgetContactEmailSetupMock = vi.hoisted(() => vi.fn());
 const trustedPatientPhoneWriteAnchorMock = vi.hoisted(() => vi.fn());
-
-vi.mock("@/infra/repos/pgDoctorClientCreate", () => ({
-  resolveOrCreateDoctorClientByPhone: resolveOrCreateDoctorClientByPhoneMock,
-}));
 
 vi.mock("@/modules/auth/emailSetupAccess/enqueueContactEmailSetup", () => ({
   fireAndForgetContactEmailSetup: fireAndForgetContactEmailSetupMock,
@@ -19,29 +14,38 @@ vi.mock("@/modules/platform-access/trustedPhonePolicy", () => ({
 
 import { createDoctorClient } from "./createDoctorClient";
 
+const createManualOrganizationClient = vi.fn();
 const emailSetupAccess = { requestContactEmailSetup: vi.fn() };
+const deps = {
+  patientOrganization: { createManualOrganizationClient },
+  emailSetupAccess,
+};
 
 describe("createDoctorClient", () => {
   beforeEach(() => {
-    resolveOrCreateDoctorClientByPhoneMock.mockReset();
-    fireAndForgetContactEmailSetupMock.mockReset();
-    trustedPatientPhoneWriteAnchorMock.mockReset();
+    vi.clearAllMocks();
   });
 
-  it("fails closed for malformed input without touching global identity writers", async () => {
-    const result = await createDoctorClient({ phone: "bad", createdByUserId: "doc-1" }, emailSetupAccess);
-    expect(result).toEqual({ ok: false, error: "create_failed" });
-    expect(resolveOrCreateDoctorClientByPhoneMock).not.toHaveBeenCalled();
-    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
-    expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
+  it("rejects malformed phone before touching identity or enrollment", async () => {
+    const result = await createDoctorClient(
+      {
+        phone: "bad",
+        createdByUserId: "doc-1",
+        organizationId: "org-1",
+      },
+      deps,
+    );
+    expect(result).toEqual({ ok: false, error: "invalid_phone" });
+    expect(createManualOrganizationClient).not.toHaveBeenCalled();
   });
 
-  it("fails closed for valid input until organization enrollment creation is implemented", async () => {
-    resolveOrCreateDoctorClientByPhoneMock.mockResolvedValue({
+  it("creates the identity and exact-organization enrollment through one domain operation", async () => {
+    createManualOrganizationClient.mockResolvedValue({
       ok: true,
       created: true,
       userId: "new-user",
       displayName: "New Client",
+      phoneNormalized: "+79991234567",
     });
 
     const result = await createDoctorClient(
@@ -50,13 +54,73 @@ describe("createDoctorClient", () => {
         email: "NEW@Example.com",
         displayName: "  New Client  ",
         createdByUserId: "doc-1",
+        organizationId: "org-1",
       },
-      emailSetupAccess,
+      deps,
     );
 
-    expect(result).toEqual({ ok: false, error: "create_failed" });
-    expect(resolveOrCreateDoctorClientByPhoneMock).not.toHaveBeenCalled();
-    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
+    expect(createManualOrganizationClient).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      phoneNormalized: "+79991234567",
+      displayName: "New Client",
+      emailRaw: "NEW@Example.com",
+      emailNormalized: "new@example.com",
+    });
+    expect(result).toEqual({
+      ok: true,
+      userId: "new-user",
+      displayName: "New Client",
+      phoneNormalized: "+79991234567",
+      created: true,
+      emailSetupEnqueued: true,
+    });
+    expect(trustedPatientPhoneWriteAnchorMock).toHaveBeenCalledWith("doctor_staff_client_create");
+    expect(fireAndForgetContactEmailSetupMock).toHaveBeenCalledWith(
+      emailSetupAccess,
+      {
+        userId: "new-user",
+        emailNormalized: "new@example.com",
+        source: "doctor_profile",
+        createdByUserId: "doc-1",
+      },
+      { hook: "doctor.clients.create" },
+    );
+  });
+
+  it("is idempotent for an existing organization client and does not claim a new phone trust write", async () => {
+    createManualOrganizationClient.mockResolvedValue({
+      ok: true,
+      created: false,
+      userId: "existing-user",
+      displayName: "Existing Client",
+      phoneNormalized: "+79991234567",
+    });
+
+    await expect(
+      createDoctorClient(
+        {
+          phone: "+79991234567",
+          createdByUserId: "doc-1",
+          organizationId: "org-1",
+        },
+        deps,
+      ),
+    ).resolves.toMatchObject({ ok: true, created: false, userId: "existing-user" });
     expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
+    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves a neutral failure for identity/enrollment conflicts", async () => {
+    createManualOrganizationClient.mockResolvedValue({ ok: false, error: "inactive_enrollment" });
+    await expect(
+      createDoctorClient(
+        {
+          phone: "+79991234567",
+          createdByUserId: "doc-1",
+          organizationId: "org-1",
+        },
+        deps,
+      ),
+    ).resolves.toEqual({ ok: false, error: "create_failed" });
   });
 });

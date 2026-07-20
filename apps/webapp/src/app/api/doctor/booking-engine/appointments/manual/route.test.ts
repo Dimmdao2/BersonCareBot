@@ -24,6 +24,7 @@ const createRecordMock = vi.hoisted(() => vi.fn());
 const resolveLegacyBranchServiceIdMock = vi.hoisted(() => vi.fn());
 const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
 const assertSlotAvailableMock = vi.hoisted(() => vi.fn());
+const hasActiveEnrollmentMock = vi.hoisted(() => vi.fn());
 const bridgeEnabledState = vi.hoisted(() => ({ value: true }));
 
 vi.mock("../../_requireDoctorBookingEngine", () => ({
@@ -61,6 +62,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
     memberships: null,
     patientBooking: null,
+    patientOrganization: {
+      hasActiveEnrollment: hasActiveEnrollmentMock,
+    },
   }),
 }));
 
@@ -71,6 +75,7 @@ describe("POST manual appointment", () => {
     vi.clearAllMocks();
     principalState.inside = false;
     bridgeEnabledState.value = true;
+    hasActiveEnrollmentMock.mockResolvedValue(true);
   });
 
   it("creates the canonical appointment for a newly created patient despite legacy bridge enablement", async () => {
@@ -126,9 +131,51 @@ describe("POST manual appointment", () => {
     expect(createAppointmentMock).toHaveBeenCalledWith(
       expect.objectContaining({ platformUserId: "44444444-4444-4444-8444-444444444444" }),
     );
+    expect(hasActiveEnrollmentMock).toHaveBeenCalledWith(
+      "44444444-4444-4444-8444-444444444444",
+      "org-1",
+    );
     expect(deleteAppointmentHardMock).not.toHaveBeenCalled();
     expect(transitionAppointmentStatusMock).not.toHaveBeenCalled();
     expect(emitBookingEventMock).toHaveBeenCalled();
+  });
+
+  it("rejects a foreign or global platform user before inserting a manual appointment", async () => {
+    requireDoctorBookingEngineMock.mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: "org-1",
+        session: { user: { userId: "u1", role: "doctor" } },
+        service: {
+          createAppointment: createAppointmentMock,
+          catalog: { listSpecialists: vi.fn() },
+        },
+      },
+    });
+    hasActiveEnrollmentMock.mockImplementation(async () => {
+      expect(principalState.inside).toBe(true);
+      return false;
+    });
+    assertSlotAvailableMock.mockResolvedValue(undefined);
+
+    const res = await POST(
+      new Request("http://localhost/manual", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          specialistId: "33333333-3333-4333-8333-333333333333",
+          platformUserId: "44444444-4444-4444-8444-444444444444",
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: "2026-06-01T11:00:00.000Z",
+          durationMinutes: 60,
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ ok: false, error: "patient_not_available" });
+    expect(createAppointmentMock).not.toHaveBeenCalled();
+    expect(principalState.inside).toBe(false);
   });
 
   it("F2: rejects in-person create with no resolvable specialist (not inserted)", async () => {

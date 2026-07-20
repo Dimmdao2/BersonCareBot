@@ -115,6 +115,11 @@ export function createPatientOrganizationService(deps: { port: PatientOrganizati
     async hasActiveEnrollment(platformUserId: string, organizationId: string): Promise<boolean> {
       return deps.port.hasActiveEnrollment(platformUserId, organizationId);
     },
+    async createManualOrganizationClient(
+      input: Parameters<PatientOrganizationPort["createManualOrganizationClient"]>[0],
+    ) {
+      return deps.port.createManualOrganizationClient(input);
+    },
     resolveActiveOrganizationForPatient,
     async resolveTreatmentProgramOrganizationForPatient(
       platformUserId: string,

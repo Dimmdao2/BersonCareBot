@@ -383,7 +383,18 @@ function DoctorCalendarEventPanelInner({
     <div className={doctorClientOverviewPrimaryCardClass}>
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h2 className={doctorClientSectionTitleClass}>{selected.patientName ?? "Запись"}</h2>
+          <h2 className={doctorClientSectionTitleClass}>
+            {selected.platformUserId ? (
+              <Link
+                href={patientCardHref(selected.platformUserId)}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                {selected.patientName ?? "Запись"}
+              </Link>
+            ) : (
+              selected.patientName ?? "Запись"
+            )}
+          </h2>
           <p className="text-xs text-muted-foreground">{formatEventAt(selected.startAt, timeZone)}</p>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>

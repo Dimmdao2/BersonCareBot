@@ -33,7 +33,12 @@ export async function GET(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const clients = await withDoctorWorkspacePrincipal(gate.ctx, () => deps.doctorClients.listClients({ search: q }));
+  const clients = await withDoctorWorkspacePrincipal(gate.ctx, () =>
+    deps.doctorClients.listClients({
+      search: q,
+      organizationId: gate.ctx.organizationId,
+    }),
+  );
   return NextResponse.json({
     ok: true,
     clients: clients.slice(0, parsed.data.limit).map((c) => ({

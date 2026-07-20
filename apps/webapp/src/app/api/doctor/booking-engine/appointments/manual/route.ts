@@ -66,8 +66,15 @@ export async function POST(request: Request) {
         durationMinutes: parsed.data.durationMinutes,
       });
     }
-    let appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", () =>
-      ctx.service.createAppointment({
+    let appointment = await withDoctorWorkspacePrincipal(ctx, "doctor.booking-engine.appointments.manual-create", async () => {
+      if (parsed.data.platformUserId) {
+        const isActiveClient = await deps.patientOrganization?.hasActiveEnrollment(
+          parsed.data.platformUserId,
+          ctx.organizationId,
+        );
+        if (!isActiveClient) throw new Error("patient_not_available");
+      }
+      return ctx.service.createAppointment({
         organizationId: ctx.organizationId,
         branchId: parsed.data.branchId ?? null,
         roomId: parsed.data.roomId ?? null,
@@ -81,8 +88,8 @@ export async function POST(request: Request) {
         status: "confirmed",
         phoneNormalized: parsed.data.phoneNormalized ?? null,
         actorId: ctx.session.user.userId,
-      }),
-    );
+      });
+    });
 
     if (
       parsed.data.platformUserId &&
@@ -141,6 +148,9 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : "create_failed";
     if (message === "slot_overlap" || (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01")) {
       return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (message === "patient_not_available") {
+      return NextResponse.json({ ok: false, error: "patient_not_available" }, { status: 404 });
     }
     return NextResponse.json({ ok: false, error: message }, { status: 400 });
   }

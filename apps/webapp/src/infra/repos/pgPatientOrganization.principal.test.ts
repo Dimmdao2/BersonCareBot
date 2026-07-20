@@ -45,4 +45,88 @@ describe("pgPatientOrganization trusted organization enrollment check", () => {
     expect(where).toHaveBeenCalledOnce();
     expect(limit).toHaveBeenCalledWith(1);
   });
+
+  it("creates a canonical client and active exact-org enrollment in one transaction", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    const selectResults = [
+      [],
+      [],
+      [{ id: "enrollment-1" }],
+    ];
+    const select = vi.fn(() => ({
+      from: () => ({
+        where: () => ({
+          limit: vi.fn(async () => selectResults.shift() ?? []),
+        }),
+      }),
+    }));
+    let insertIndex = 0;
+    const insertValues: unknown[] = [];
+    const insert = vi.fn(() => {
+      insertIndex += 1;
+      const current = insertIndex;
+      return {
+        values: vi.fn((values: unknown) => {
+          insertValues.push(values);
+          if (current === 1) {
+            return {
+              onConflictDoNothing: () => ({
+                returning: async () => [{ id: PATIENT_ID, displayName: "Новый пациент" }],
+              }),
+            };
+          }
+          if (current === 2) return Promise.resolve();
+          return { onConflictDoNothing: () => Promise.resolve() };
+        }),
+      };
+    });
+    const tx = { select, insert, update: vi.fn() };
+    const transaction = vi.fn(async (fn: (value: typeof tx) => unknown) => fn(tx));
+    getDrizzleMock.mockReturnValue({ transaction });
+
+    await expect(
+      createPgPatientOrganizationPort().createManualOrganizationClient({
+        organizationId: ORG_A,
+        phoneNormalized: "+79990000001",
+        displayName: "Новый пациент",
+        emailRaw: null,
+        emailNormalized: null,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      userId: PATIENT_ID,
+      displayName: "Новый пациент",
+      phoneNormalized: "+79990000001",
+      created: true,
+    });
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(insert).toHaveBeenCalledTimes(3);
+    expect(insertValues).toEqual([
+      expect.objectContaining({ phoneNormalized: "+79990000001", role: "client" }),
+      expect.objectContaining({
+        platformUserId: PATIENT_ID,
+        organizationId: ORG_A,
+        source: "admin",
+      }),
+      expect.objectContaining({
+        platformUserId: PATIENT_ID,
+        organizationId: ORG_A,
+        status: "active",
+      }),
+    ]);
+  });
+
+  it("fails closed before a transaction when the writer organization differs from the principal", async () => {
+    getCurrentDbPrincipalOrganizationIdMock.mockReturnValue(ORG_A);
+    await expect(
+      createPgPatientOrganizationPort().createManualOrganizationClient({
+        organizationId: ORG_B,
+        phoneNormalized: "+79990000001",
+        displayName: "Чужой пациент",
+        emailRaw: null,
+        emailNormalized: null,
+      }),
+    ).rejects.toThrow("organization_principal_mismatch");
+    expect(getDrizzleMock).not.toHaveBeenCalled();
+  });
 });

@@ -21,6 +21,7 @@ function service(rows: PatientOrganizationEnrollment[]) {
   const port: PatientOrganizationPort = {
     listActiveEnrollmentsByPlatformUser: vi.fn().mockResolvedValue(rows),
     hasActiveEnrollment: vi.fn().mockResolvedValue(false),
+    createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
     findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue(null),
   };
   return createPatientOrganizationService({ port });
@@ -45,6 +46,7 @@ describe("patient organization resolver", () => {
     const port: PatientOrganizationPort = {
       listActiveEnrollmentsByPlatformUser: vi.fn().mockResolvedValue([]),
       hasActiveEnrollment,
+      createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
       findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue(null),
     };
     await expect(
@@ -130,6 +132,7 @@ describe("patient organization resolver", () => {
         enrollment("org-b", "Клиника Б"),
       ]),
       hasActiveEnrollment: vi.fn().mockResolvedValue(false),
+      createManualOrganizationClient: vi.fn().mockResolvedValue({ ok: false, error: "create_failed" }),
       findTreatmentProgramOrganizationForPatient: vi.fn().mockResolvedValue("org-b"),
     };
     const result = await createPatientOrganizationService({ port })
