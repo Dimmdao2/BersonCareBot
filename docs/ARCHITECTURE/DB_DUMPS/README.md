@@ -63,8 +63,9 @@ role/owner/ACL/runtime postchecks → снятие environment-specific locks т
 Внутри shared chain, непосредственно перед protected overlays, всегда выполняется exact
 `deploy/postgres/runtime-overlay-app-owner-handoff.sql`. Он исправляет только восстановленные под owner текущей БД
 Web Push accessor и два public-booking resolver, которые затем заменяются под `SET ROLE app_owner`; отсутствующая
-функция или неизвестный owner останавливают процесс. Это per-restore owner handoff, не повторная настройка глобальных
-ролей и не broad `ALTER OWNER`.
+функция допустима и создаётся её следующим exact overlay. Процесс останавливает только существующая exact функция с
+owner вне `{owner текущей БД, app_owner}`. Это per-restore owner handoff, не повторная настройка глобальных ролей и
+не broad `ALTER OWNER`.
 Одноразовые C0 login/password роли готовятся вручную по `LOCAL_DEV_AND_AGENT_TESTING.md` и при следующих restore/deploy
 не пересоздаются.
 

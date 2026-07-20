@@ -46,19 +46,65 @@ const exactProtectedOverlaySignatures = [
   "app.resolve_public_organization_by_slug(text)",
 ];
 
+const protectedReplacements = [
+  {
+    relativePath: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
+    path: fileURLToPath(
+      new URL("../postgres/patient-web-push-vapid-public-key-accessor.sql", import.meta.url),
+    ),
+    definitionPattern: /CREATE OR REPLACE FUNCTION app\.get_web_push_vapid_public_key\(\)/u,
+    signature: "app.get_web_push_vapid_public_key()",
+  },
+  {
+    relativePath: "deploy/postgres/public-booking-bootstrap-resolver.sql",
+    path: fileURLToPath(
+      new URL("../postgres/public-booking-bootstrap-resolver.sql", import.meta.url),
+    ),
+    definitionPattern:
+      /CREATE OR REPLACE FUNCTION app\.resolve_public_booking_organization\(\s*p_branch_id uuid,\s*p_service_id uuid,\s*p_branch_service_id uuid\s*\)/u,
+    signature: "app.resolve_public_booking_organization(uuid,uuid,uuid)",
+  },
+  {
+    relativePath: "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
+    path: fileURLToPath(
+      new URL("../postgres/public-clinic-slug-bootstrap-resolver.sql", import.meta.url),
+    ),
+    definitionPattern:
+      /CREATE OR REPLACE FUNCTION app\.resolve_public_organization_by_slug\(\s*p_slug text\s*\)/u,
+    signature: "app.resolve_public_organization_by_slug(text)",
+  },
+];
+
 function assertExactOwnerHandoffCoverage(source) {
   const targetBlocks = [...source.matchAll(/WITH exact_targets\(signature\) AS \(\n  VALUES\n([\s\S]*?)\n\)/gu)];
-  assert.equal(targetBlocks.length, 3, "expected presence, source-owner, and postcheck exact sets");
+  assert.equal(targetBlocks.length, 2, "expected source-owner and existing-target postcheck exact sets");
   for (const block of targetBlocks) {
     const signatures = [...block[1].matchAll(/\('([^']+)'\)/gu)].map((match) => match[1]);
     assert.deepEqual(signatures, exactProtectedOverlaySignatures);
   }
-  assert.match(source, /LEFT JOIN pg_proc AS procedure/u);
-  assert.match(source, /count\(target\.signature\) = 3/u);
-  assert.match(source, /count\(procedure\.oid\) = 3/u);
-  assert.match(source, /runtime_overlay_app_owner_handoff_targets_present/u);
-  assert.match(source, /runtime_overlay_app_owner_handoff_missing_target_abort/u);
-  assert.doesNotMatch(source, /ALTER FUNCTION IF EXISTS/iu);
+  assert.equal((source.match(/JOIN pg_proc AS procedure/gu) ?? []).length, 2);
+  assert.doesNotMatch(source, /LEFT JOIN pg_proc AS procedure/u);
+  assert.doesNotMatch(source, /count\(target\.signature\)|count\(procedure\.oid\)/u);
+  assert.doesNotMatch(source, /targets_present|missing_target_abort/u);
+  assert.match(source, /runtime_overlay_app_owner_handoff_existing_targets_owned/u);
+  assert.match(
+    source,
+    /WHERE procedure\.proowner <> \(SELECT oid FROM pg_roles WHERE rolname = 'app_owner'\)/u,
+  );
+  assert.equal((source.match(/ALTER FUNCTION IF EXISTS app\./gu) ?? []).length, 3);
+}
+
+function simulateExactOwnerHandoff(existingOwners, databaseOwner = "database_owner") {
+  const result = new Map(existingOwners);
+  for (const signature of exactProtectedOverlaySignatures) {
+    const owner = result.get(signature);
+    if (owner === undefined) continue;
+    if (owner !== databaseOwner && owner !== "app_owner") {
+      throw new Error(`unexpected owner for ${signature}`);
+    }
+    result.set(signature, "app_owner");
+  }
+  return result;
 }
 
 test("shared runtime-overlay library owns one exact protected closure order", () => {
@@ -76,35 +122,9 @@ test("shared runtime-overlay library owns one exact protected closure order", ()
   assert.match(source, /runtime_overlay_parse_database_identity/u);
 });
 
-test("protected overlays hand off every SET ROLE app_owner replacement before creation", () => {
+test("missing-capable handoff targets map exactly to later overlay creation and final app_owner", () => {
   const handoff = readFileSync(appOwnerHandoffPath, "utf8");
   assertExactOwnerHandoffCoverage(handoff);
-  const protectedReplacements = [
-    {
-      relativePath: "deploy/postgres/patient-web-push-vapid-public-key-accessor.sql",
-      path: fileURLToPath(
-        new URL("../postgres/patient-web-push-vapid-public-key-accessor.sql", import.meta.url),
-      ),
-      functionName: "get_web_push_vapid_public_key",
-      signature: "app.get_web_push_vapid_public_key()",
-    },
-    {
-      relativePath: "deploy/postgres/public-booking-bootstrap-resolver.sql",
-      path: fileURLToPath(
-        new URL("../postgres/public-booking-bootstrap-resolver.sql", import.meta.url),
-      ),
-      functionName: "resolve_public_booking_organization",
-      signature: "app.resolve_public_booking_organization(uuid,uuid,uuid)",
-    },
-    {
-      relativePath: "deploy/postgres/public-clinic-slug-bootstrap-resolver.sql",
-      path: fileURLToPath(
-        new URL("../postgres/public-clinic-slug-bootstrap-resolver.sql", import.meta.url),
-      ),
-      functionName: "resolve_public_organization_by_slug",
-      signature: "app.resolve_public_organization_by_slug(text)",
-    },
-  ];
 
   const detectedSetRoleReplacements = canonicalOrder.filter((relativePath) => {
     if (!relativePath.startsWith("deploy/postgres/") || relativePath === canonicalOrder.at(-1)) {
@@ -118,21 +138,24 @@ test("protected overlays hand off every SET ROLE app_owner replacement before cr
     protectedReplacements.map((replacement) => replacement.relativePath),
   );
 
+  const handoffIndex = canonicalOrder.indexOf("deploy/postgres/runtime-overlay-app-owner-handoff.sql");
   for (const replacement of protectedReplacements) {
     const overlay = readFileSync(replacement.path, "utf8");
+    assert.ok(canonicalOrder.indexOf(replacement.relativePath) > handoffIndex);
     assert.match(overlay, /SET ROLE app_owner;/u);
-    assert.match(
-      overlay,
-      new RegExp(`CREATE OR REPLACE FUNCTION app\\.${replacement.functionName}\\b`, "u"),
-    );
+    assert.match(overlay, replacement.definitionPattern);
     assert.ok(
       handoff.includes(`('${replacement.signature}')`),
       `missing safe-source gate for ${replacement.signature}`,
     );
     const spacedSignature = replacement.signature.replaceAll(",", ", ");
     assert.ok(
-      handoff.includes(`ALTER FUNCTION ${spacedSignature} OWNER TO app_owner;`),
+      handoff.includes(`ALTER FUNCTION IF EXISTS ${spacedSignature} OWNER TO app_owner;`),
       `missing exact owner handoff for ${replacement.signature}`,
+    );
+    assert.ok(
+      overlay.includes(`ALTER FUNCTION ${spacedSignature} OWNER TO app_owner;`),
+      `exact overlay must establish existence and final owner for ${replacement.signature}`,
     );
   }
 
@@ -142,18 +165,27 @@ test("protected overlays hand off every SET ROLE app_owner replacement before cr
   assert.match(handoff, /rolcanlogin = false/u);
   assert.match(handoff, /rolbypassrls = true/u);
   assert.doesNotMatch(handoff, /REASSIGN\s+OWNED|DROP\s+OWNED/iu);
-  assert.equal((handoff.match(/ALTER FUNCTION app\./gu) ?? []).length, 3);
+  assert.equal((handoff.match(/ALTER FUNCTION IF EXISTS app\./gu) ?? []).length, 3);
 });
 
-test("protected owner handoff coverage rejects an omitted exact target", () => {
+test("protected owner handoff allows two absent targets and rejects an existing unexpected owner", () => {
   const handoff = readFileSync(appOwnerHandoffPath, "utf8");
-  const omitted = handoff.replaceAll(
-    "    ('app.get_web_push_vapid_public_key()'),\n",
-    "",
+  assertExactOwnerHandoffCoverage(handoff);
+
+  const oneExisting = simulateExactOwnerHandoff(
+    new Map([["app.get_web_push_vapid_public_key()", "database_owner"]]),
   );
+  assert.deepEqual([...oneExisting], [["app.get_web_push_vapid_public_key()", "app_owner"]]);
+
   assert.throws(
-    () => assertExactOwnerHandoffCoverage(omitted),
-    /Expected values to be strictly deep-equal/u,
+    () =>
+      simulateExactOwnerHandoff(
+        new Map([
+          ["app.get_web_push_vapid_public_key()", "database_owner"],
+          ["app.resolve_public_booking_organization(uuid,uuid,uuid)", "unexpected_owner"],
+        ]),
+      ),
+    /unexpected owner for app\.resolve_public_booking_organization/u,
   );
 });
 
