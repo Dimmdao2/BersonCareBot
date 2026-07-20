@@ -489,8 +489,9 @@ function PatientsContent({
       <DoctorPageHeader
         id="doctor-patients-header"
         title={patientPluralLabel}
-        toolbar={
-          <div className="relative min-w-0">
+        tabsClassName="w-full"
+        tabs={
+          <div className="relative w-full min-w-0">
             <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
               <Search className="size-3.5" aria-hidden />
             </span>
@@ -529,10 +530,10 @@ function PatientsContent({
         }
         className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
         left={
-          <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card">
             {/* Sticky header: count + reversible sorting */}
             {/* On mobile the page scrolls naturally; sticky is only needed on lg+ where the section has overflow-hidden and its own scroll context */}
-            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-2 py-2">
+            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card px-[var(--doctor-block-padding,18px)] py-2">
               <p className="min-w-0 truncate text-xs text-muted-foreground">
                 {isAnyFilterActive ? (
                   <>
@@ -630,7 +631,7 @@ function PatientsContent({
         right={
           <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
             {/* Filter panel */}
-            <section className={cn("rounded-lg border border-border bg-card p-3")}>
+            <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
               <TooltipProvider delay={450}>
                 <DoctorMetricList className="grid-cols-3 gap-1.5 xl:grid-cols-3 2xl:grid-cols-3">

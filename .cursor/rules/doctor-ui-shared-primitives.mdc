@@ -23,7 +23,7 @@ alwaysApply: true
 
 - **Reuse-first:** перед новой секцией/списком/тулбаром проверить гайд §3–§8 и `doctorVisual` / `shared/ui/doctor/`.
 - **Не** добавлять локальные «самописные» карточки, заголовки и empty states, если покрывает `DoctorSection`, `DoctorEmptyState` или константы из `doctorVisual.ts`.
-- **Page-level секции:** `doctorSectionCardClass` (или `<DoctorSection>`) — `rounded-xl`, `p-3`, `gap-3`, **без** `shadow-sm` и **без** `rounded-2xl`.
+- **Page-level секции:** `doctorSectionCardClass` (или `<DoctorSection>`) — радиус `12px`, внутренний отступ `18px`, `gap-3`, **без** `shadow-sm` и **без** `rounded-2xl`.
 - **Заголовки:** `doctorSectionTitleClass` / `doctorPageTitleClass` / `doctorClientSectionTitleClass` — **запрещены** голые `<h2>` / `<h3>` без `className`.
 - **Карточка клиента:** только chrome из `doctorClientCardChrome.ts`; вкладки и overview — primary/secondary/stacked по гайду §9.
 - **Каталоги (split-layout):** эталон — `exercises/ExercisesPageClient.tsx`; стек `DoctorCatalogPageLayout` + `DoctorCatalogFiltersToolbar` + `CatalogSplitLayout`; primary action — `doctorCatalogToolbarPrimaryActionClassName`.
@@ -47,10 +47,11 @@ alwaysApply: true
 
 ## Единый визуальный язык и шкала (гайд §A–§C)
 
-- Фон кабинета белый; глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
-- Chrome-типографика — закрытый набор §B.1: page-title `text-base`, section `text-sm`, body `text-sm`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-2xl`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`.
-- Контролы: input/select-триггер/база кнопки — `h-8`/`h-[32px]` + `rounded-md`; поле и кнопка/select в одной строке совпадают.
-- Радиусы 4 уровня (§A.3): page `rounded-xl`, панель `rounded-lg`, строка/контрол `rounded-md`; `rounded-2xl` запрещён.
+- Межблочный фон кабинета — `#faf9f4`; page header с названием и основные поверхности — белые. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` — только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
+- Chrome-типографика — закрытый набор §B.1: page-title `text-base`, section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-2xl`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-3xl`.
+- Контролы doctor-zone: input/select-триггер/база кнопки — `h-8`/`h-[32px]` + радиус `24px`; фактическая поверхность input белая; поле и кнопка/select в одной строке совпадают.
+- Радиусы owner G6 (§A.3): page-block `12px`, KPI `8px`, doctor button/input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
+- Основные flat-list строки: горизонтальный отступ `18px`, между пунктами `1px` серая граница; первичная строка крупнее и легче (`text-base font-normal`).
 - active/hover/focus — словарь §A.4 (active = `bg-primary/15 text-primary`/`ring`, не жирная заливка и не хардкод-hex).
 - KPI-метрика — `doctorMetricValueClass` из `doctorVisual.ts`, не локальный `text-3xl`.
 

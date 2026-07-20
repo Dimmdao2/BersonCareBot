@@ -19,13 +19,13 @@ export function CatalogRightPane({ children, className, contentClassName }: Cata
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-card lg:overflow-visible",
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] bg-card lg:overflow-visible",
         className,
       )}
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6",
+          "flex min-h-0 flex-1 flex-col overflow-y-auto p-[var(--doctor-block-padding,18px)]",
           contentClassName,
         )}
       >

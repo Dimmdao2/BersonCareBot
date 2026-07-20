@@ -1,7 +1,18 @@
 /** Doctor product zone CSS — loaded from doctor and settings layouts. */
 
 #app-shell-doctor {
-  /* Doctor visual identity tokens (white background; depth via borders/soft surfaces). */
+  /* Owner G6: warm gaps between white doctor workspace surfaces. */
+  --doctor-page-gap-background: #faf9f4;
+  --doctor-page-header-background: #ffffff;
+  --doctor-page-block-radius: 12px;
+  --doctor-kpi-radius: 8px;
+  --doctor-control-radius: 24px;
+  --doctor-block-padding: 18px;
+  --doctor-list-inline-padding: 18px;
+
+  background-color: var(--doctor-page-gap-background);
+
+  /* Doctor visual identity tokens (depth via borders/soft surfaces). */
   --doctor-surface-subtle: var(--bc-rail, #FBFAF6);
   --doctor-border-soft: color-mix(in srgb, var(--border) 75%, transparent);
   --doctor-nav-active-bg: color-mix(in srgb, var(--primary) 12%, #ffffff);

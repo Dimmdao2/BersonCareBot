@@ -5,6 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 import { DoctorStatCard } from "./DoctorStatCard";
 
 describe("DoctorStatCard", () => {
+  it("keeps the shared KPI label above the value in the 8px card shell", () => {
+    render(<DoctorStatCard id="kpi-order" title="Записи" value={3} />);
+
+    const card = document.getElementById("kpi-order");
+    expect(card).toHaveClass("rounded-[var(--doctor-kpi-radius,8px)]");
+    expect(card?.children[0]).toHaveTextContent("Записи");
+    expect(card?.children[1]).toHaveTextContent("3");
+  });
+
   it("calls onClick when clicking the title area", () => {
     const onClick = vi.fn();
     render(<DoctorStatCard id="kpi-test" title="Записи" value={3} onClick={onClick} />);

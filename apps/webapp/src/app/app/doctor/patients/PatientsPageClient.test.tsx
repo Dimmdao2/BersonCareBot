@@ -106,7 +106,10 @@ describe("PatientsPageClient", () => {
     ]);
 
     const search = await screen.findByRole("searchbox", { name: "Поиск: клиенты" });
-    expect(search.closest("[data-doctor-page-header]")).not.toBeNull();
+    const pageHeader = search.closest("[data-doctor-page-header]");
+    expect(pageHeader).not.toBeNull();
+    expect(search.closest("[data-doctor-page-header-tabs]")).toHaveClass("w-full");
+    expect(pageHeader?.querySelector("[data-doctor-page-header-toolbar]")).toBeNull();
     expect(screen.queryByRole("group", { name: "Фильтр: пациенты или все" })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Категория клиентов" })).not.toBeInTheDocument();
     expect(screen.getByText("Подписчик")).toBeInTheDocument();
@@ -124,6 +127,11 @@ describe("PatientsPageClient", () => {
     expect(rightPanel).toBeVisible();
     const splitLayout = Array.from(document.querySelectorAll("div")).find((element) => element.className.includes("lg:grid-cols-2"));
     expect(splitLayout).toBeDefined();
+    expect(document.getElementById("doctor-patients-card-with-appointment-support")).toHaveClass(
+      "px-[var(--doctor-list-inline-padding,18px)]",
+      "text-base",
+      "font-normal",
+    );
 
     await user.click(screen.getByRole("button", { name: /С записями/i }));
 

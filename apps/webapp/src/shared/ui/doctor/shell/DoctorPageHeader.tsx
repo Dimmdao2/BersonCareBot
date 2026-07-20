@@ -18,6 +18,8 @@ export type DoctorPageHeaderProps = {
   info?: ReactNode;
   /** Вкладки раздела (право): для секций с табами (S2/S5/S6). */
   tabs?: ReactNode;
+  /** Classes for the tabs/right-slot wrapper (for example a full-width search surface). */
+  tabsClassName?: string;
   /**
    * Док-зона липких тулбаров (фильтры/период) сразу под шапкой.
    * Прилипает вместе с шапкой как единый блок.
@@ -46,6 +48,7 @@ export function DoctorPageHeader({
   subtitle,
   info,
   tabs,
+  tabsClassName,
   toolbar,
   className,
   id,
@@ -61,13 +64,13 @@ export function DoctorPageHeader({
       id={id}
       data-doctor-page-header=""
       className={cn(
-        "sticky z-30 -mx-3 -mt-3 flex flex-col bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/85",
+        "sticky z-30 -mx-3 -mt-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]",
         DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-3 py-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-[var(--doctor-block-padding,18px)] py-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {typeof title === "string" ? (
             <h1 className={doctorPageTitleClass}>{title}</h1>
           ) : (
@@ -76,14 +79,26 @@ export function DoctorPageHeader({
           {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
         {info || tabs ? (
-          <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+          <div className="flex min-w-0 basis-full flex-wrap items-center justify-end gap-x-3 gap-y-1.5 md:flex-1 md:basis-auto">
             {info ? <div className="flex min-w-0 items-center gap-2">{info}</div> : null}
-            {tabs ? <div className="flex min-w-0 items-center">{tabs}</div> : null}
+            {tabs ? (
+              <div
+                data-doctor-page-header-tabs=""
+                className={cn("flex min-w-0 items-center", tabsClassName)}
+              >
+                {tabs}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
       {toolbar ? (
-        <div className="border-b border-border/60 px-3 py-1.5">{toolbar}</div>
+        <div
+          data-doctor-page-header-toolbar=""
+          className="border-b border-border/60 bg-[var(--doctor-page-header-background,#fff)] px-[var(--doctor-block-padding,18px)] py-1.5"
+        >
+          {toolbar}
+        </div>
       ) : null}
     </header>
   );

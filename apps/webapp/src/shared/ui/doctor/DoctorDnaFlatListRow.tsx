@@ -8,12 +8,12 @@
 export const doctorDnaFlatListClass = "m-0 list-none p-0";
 
 export const doctorDnaFlatListRowClass =
-  "relative flex items-center gap-3 border-t border-border px-3 py-2.5 text-sm";
+  "relative flex items-center gap-3 border-t border-border px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-base font-normal first:border-t-0";
 
 export const doctorDnaFlatListClickableClass =
   "cursor-pointer no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
-export const doctorDnaFlatListPrimaryClass = "text-sm font-medium text-foreground";
+export const doctorDnaFlatListPrimaryClass = "text-base font-normal text-foreground";
 
 export const doctorDnaFlatListSelectedPrimaryClass = "font-semibold text-primary";
 

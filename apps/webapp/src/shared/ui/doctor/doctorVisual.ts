@@ -3,7 +3,8 @@ import { cn } from "@/lib/utils";
 // -- Sections -----------------------------------------------------------------
 
 /** Page-level section container for doctor pages. */
-export const doctorSectionCardClass = "rounded-xl border border-border bg-card p-3 flex flex-col gap-3";
+export const doctorSectionCardClass =
+  "rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] flex flex-col gap-3";
 
 /** Inner list row/card inside page-level sections. */
 export const doctorSectionItemClass = "rounded-lg border border-border/70 bg-background/40 p-3 text-sm";
@@ -31,7 +32,7 @@ export const doctorListItemOuterClass = "rounded-lg border border-border bg-card
 
 /** Shared row class for catalog master lists. */
 export const doctorCatalogRowClass =
-  "flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted";
+  "flex w-full items-center gap-2 border-b border-border px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-left text-base font-normal hover:bg-muted last:border-b-0";
 
 /** Active row class for catalog master lists. */
 export const doctorCatalogRowActiveClass =
@@ -45,7 +46,7 @@ export const doctorCatalogListEmptyTilesClass = "px-2 text-sm text-muted-foregro
 
 /** Standalone catalog editor page shell (new / [id] routes outside split-layout). */
 export const doctorCatalogEditorSectionClass =
-  "flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm";
+  "flex flex-col gap-3 rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)] shadow-sm";
 
 /** Compact history/event row inside panels. */
 export const doctorHistoryRowClass = "rounded-md border border-border/60 bg-muted/10 px-2 py-1.5";
@@ -66,10 +67,11 @@ export const doctorMetricLabelClass =
   "text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-3";
 
 /** Shell for KPI stat cards (`DoctorStatCard`). */
-export const doctorStatCardShellClass = "rounded-lg border border-border/60 bg-card p-2.5 min-w-0";
+export const doctorStatCardShellClass =
+  "rounded-[var(--doctor-kpi-radius,8px)] border border-border/60 bg-card p-2.5 min-w-0";
 
 export const doctorStatCardShellWarningClass =
-  "rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 min-w-0";
+  "rounded-[var(--doctor-kpi-radius,8px)] border border-destructive/40 bg-destructive/5 p-2.5 min-w-0";
 
 /** Whole-card click/hover for KPI stat cards (analytics, today). */
 export const doctorStatCardInteractiveClass =
