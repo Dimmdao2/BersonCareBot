@@ -198,6 +198,8 @@ Before `pnpm migrate`, the wrapper must:
 - discover the webapp migrator role from `webapp.test` `DATABASE_URL`;
 - fail if that role already has pre-existing owner membership residue;
 - grant runtime-owner membership to the migrator only when needed;
+- fail if the runtime owner already has pre-existing `app_owner` membership, then grant that membership only for
+  the migration window so pending Drizzle migrations can replace protected functions in schema `app`;
 - set `BYPASSRLS` on the runtime owner only for the migration window;
 - run the migration chain with `PGOPTIONS='-c role=bersoncarebot_test'`.
 
@@ -210,6 +212,7 @@ temporary BYPASSRLS. The temporary grant and BYPASSRLS flag must be revoked on s
 Cleanup is not best-effort. The wrapper must fail visibly if cleanup fails, and must assert after cleanup:
 
 - runtime owner has `rolbypassrls=false`;
+- runtime owner no longer has the temporary `app_owner` membership granted by this run;
 - migrator no longer has the temporary runtime-owner membership granted by this run;
 - required Drizzle migrations are present;
 - required organization columns exist.

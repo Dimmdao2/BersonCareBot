@@ -26,16 +26,23 @@ WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 DBROLE=bersoncarebot_test
+APP_OWNER_ROLE=app_owner
 STRICT_CLOSURE=deploy/host/deploy-test-saas.sh
 UNITS=(api worker scheduler webapp media-worker)
 MIGRATOR_ROLE=""
 MIGRATOR_MEMBERSHIP_ADDED=0
 MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN=0
+DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
+DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=0
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
 
 cleanup_elevation(){
   local cleanup_status=0
+  if [ "$DBROLE_APP_OWNER_MEMBERSHIP_ADDED" = "1" ]; then
+    sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$APP_OWNER_ROLE\" FROM \"$DBROLE\";" >/dev/null || cleanup_status=1
+    DBROLE_APP_OWNER_MEMBERSHIP_ADDED=0
+  fi
   if [ "$MIGRATOR_MEMBERSHIP_ADDED" = "1" ] && [ -n "$MIGRATOR_ROLE" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
     sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "REVOKE \"$DBROLE\" FROM \"$MIGRATOR_ROLE\";" >/dev/null || cleanup_status=1
     MIGRATOR_MEMBERSHIP_ADDED=0
@@ -44,6 +51,11 @@ cleanup_elevation(){
   local bypass_state
   bypass_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolbypassrls::text FROM pg_roles WHERE rolname = '$DBROLE';")" || cleanup_status=1
   [ "$bypass_state" = "false" ] || cleanup_status=1
+  if [ "$DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN" = "1" ]; then
+    local app_owner_membership_state
+    app_owner_membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")" || cleanup_status=1
+    [ "$app_owner_membership_state" = "f" ] || cleanup_status=1
+  fi
   if [ "$MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN" = "1" ] && [ -n "$MIGRATOR_ROLE" ] && [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
     local membership_state
     membership_state="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$MIGRATOR_ROLE', '$DBROLE', 'member');")" || cleanup_status=1
@@ -125,6 +137,13 @@ if [ "$MIGRATOR_ROLE" != "$DBROLE" ]; then
   MIGRATOR_MEMBERSHIP_ADDED=1
   MIGRATOR_MEMBERSHIP_GRANTED_THIS_RUN=1
 fi
+app_owner_attributes="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT rolsuper::text || '|' || rolcreaterole::text || '|' || rolcreatedb::text || '|' || rolcanlogin::text || '|' || rolbypassrls::text FROM pg_roles WHERE rolname = '$APP_OWNER_ROLE';")"
+[ "$app_owner_attributes" = "false|false|false|false|true" ] || { echo "FATAL: $APP_OWNER_ROLE must be NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN BYPASSRLS" >&2; exit 1; }
+app_owner_membership="$(sudo -u postgres psql -X -v ON_ERROR_STOP=1 -tAc "SELECT pg_has_role('$DBROLE', '$APP_OWNER_ROLE', 'member');")"
+[ "$app_owner_membership" = "f" ] || { echo "FATAL: pre-existing $DBROLE membership in $APP_OWNER_ROLE" >&2; exit 1; }
+sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "GRANT \"$APP_OWNER_ROLE\" TO \"$DBROLE\";" >/dev/null
+DBROLE_APP_OWNER_MEMBERSHIP_ADDED=1
+DBROLE_APP_OWNER_MEMBERSHIP_GRANTED_THIS_RUN=1
 sudo -u postgres psql -X -v ON_ERROR_STOP=1 -c "ALTER ROLE \"$DBROLE\" BYPASSRLS;" >/dev/null
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && \
   export PGOPTIONS='-c role=$DBROLE' && \
