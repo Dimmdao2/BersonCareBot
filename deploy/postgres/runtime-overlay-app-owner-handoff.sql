@@ -56,9 +56,17 @@ SELECT NOT EXISTS (
 SELECT 1 / 0 AS runtime_overlay_app_owner_handoff_source_abort;
 \endif
 
-ALTER FUNCTION IF EXISTS app.get_web_push_vapid_public_key() OWNER TO app_owner;
-ALTER FUNCTION IF EXISTS app.resolve_public_booking_organization(uuid, uuid, uuid) OWNER TO app_owner;
-ALTER FUNCTION IF EXISTS app.resolve_public_organization_by_slug(text) OWNER TO app_owner;
+WITH exact_targets(signature) AS (
+  VALUES
+    ('app.get_web_push_vapid_public_key()'),
+    ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+    ('app.resolve_public_organization_by_slug(text)')
+)
+SELECT format('ALTER FUNCTION %s OWNER TO app_owner', procedure.oid::regprocedure)
+FROM exact_targets AS target
+JOIN pg_proc AS procedure ON procedure.oid = to_regprocedure(target.signature)
+ORDER BY target.signature
+\gexec
 
 WITH exact_targets(signature) AS (
   VALUES

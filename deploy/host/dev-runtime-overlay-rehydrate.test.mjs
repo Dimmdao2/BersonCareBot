@@ -77,12 +77,16 @@ const protectedReplacements = [
 
 function assertExactOwnerHandoffCoverage(source) {
   const targetBlocks = [...source.matchAll(/WITH exact_targets\(signature\) AS \(\n  VALUES\n([\s\S]*?)\n\)/gu)];
-  assert.equal(targetBlocks.length, 2, "expected source-owner and existing-target postcheck exact sets");
+  assert.equal(
+    targetBlocks.length,
+    3,
+    "expected source-owner, catalog-driven handoff, and existing-target postcheck exact sets",
+  );
   for (const block of targetBlocks) {
     const signatures = [...block[1].matchAll(/\('([^']+)'\)/gu)].map((match) => match[1]);
     assert.deepEqual(signatures, exactProtectedOverlaySignatures);
   }
-  assert.equal((source.match(/JOIN pg_proc AS procedure/gu) ?? []).length, 2);
+  assert.equal((source.match(/JOIN pg_proc AS procedure/gu) ?? []).length, 3);
   assert.doesNotMatch(source, /LEFT JOIN pg_proc AS procedure/u);
   assert.doesNotMatch(source, /count\(target\.signature\)|count\(procedure\.oid\)/u);
   assert.doesNotMatch(source, /targets_present|missing_target_abort/u);
@@ -91,7 +95,11 @@ function assertExactOwnerHandoffCoverage(source) {
     source,
     /WHERE procedure\.proowner <> \(SELECT oid FROM pg_roles WHERE rolname = 'app_owner'\)/u,
   );
-  assert.equal((source.match(/ALTER FUNCTION IF EXISTS app\./gu) ?? []).length, 3);
+  assert.doesNotMatch(source, /ALTER FUNCTION IF EXISTS/u);
+  assert.match(
+    source,
+    /SELECT format\('ALTER FUNCTION %s OWNER TO app_owner', procedure\.oid::regprocedure\)[\s\S]*\\gexec/u,
+  );
 }
 
 function simulateExactOwnerHandoff(existingOwners, databaseOwner = "database_owner") {
@@ -150,10 +158,6 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
     );
     const spacedSignature = replacement.signature.replaceAll(",", ", ");
     assert.ok(
-      handoff.includes(`ALTER FUNCTION IF EXISTS ${spacedSignature} OWNER TO app_owner;`),
-      `missing exact owner handoff for ${replacement.signature}`,
-    );
-    assert.ok(
       overlay.includes(`ALTER FUNCTION ${spacedSignature} OWNER TO app_owner;`),
       `exact overlay must establish existence and final owner for ${replacement.signature}`,
     );
@@ -165,7 +169,9 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
   assert.match(handoff, /rolcanlogin = false/u);
   assert.match(handoff, /rolbypassrls = true/u);
   assert.doesNotMatch(handoff, /REASSIGN\s+OWNED|DROP\s+OWNED/iu);
-  assert.equal((handoff.match(/ALTER FUNCTION IF EXISTS app\./gu) ?? []).length, 3);
+  assert.doesNotMatch(handoff, /ALTER FUNCTION IF EXISTS/u);
+  assert.match(handoff, /procedure\.oid::regprocedure/u);
+  assert.match(handoff, /\\gexec/u);
 });
 
 test("protected owner handoff allows two absent targets and rejects an existing unexpected owner", () => {
