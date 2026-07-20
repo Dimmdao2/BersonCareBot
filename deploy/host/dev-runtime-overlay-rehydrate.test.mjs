@@ -106,7 +106,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /runtime_overlay_parse_database_identity/u);
   assert.ok(
     source.indexOf("dev_base_runtime_role_safe_before_overlay") <
-      source.indexOf('run_dev_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS"'),
+      source.indexOf('runtime_overlay_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS"'),
   );
   assert.match(source, /dev_database_owner_exact/u);
   assert.match(source, /dev_runtime_roles_safe/u);
@@ -129,6 +129,66 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /\/opt\/env\/bersoncarebot|bersoncarebot_test|bcb_webapp_prod|bersoncarebot_prod/iu,
   );
+});
+
+test("DEV admin callback streams one canonical SQL file and rejects unsafe file arguments", () => {
+  const source = readFileSync(wrapperPath, "utf8");
+  const callbackStart = source.indexOf("runtime_overlay_admin_psql() {");
+  const callbackEnd = source.indexOf("\n}\n\nowner_identity", callbackStart);
+  assert.ok(callbackStart >= 0 && callbackEnd > callbackStart);
+  const callbackSource = `${source.slice(callbackStart, callbackEnd)}\n}`;
+
+  const fakeRepo = mkdtempSync(join(tmpdir(), "bcb-dev-overlay-stdin-"));
+  const canonicalDir = join(fakeRepo, "deploy/postgres");
+  const canonicalFile = join(canonicalDir, "fixture.sql");
+  const secondFile = join(canonicalDir, "second.sql");
+  const outsideFile = join(fakeRepo, "outside.sql");
+  const symlinkFile = join(canonicalDir, "link.sql");
+  const calls = join(fakeRepo, "calls.txt");
+  const stdinCapture = join(fakeRepo, "stdin.sql");
+  mkdirSync(canonicalDir, { recursive: true });
+  writeFileSync(canonicalFile, "SELECT 'canonical';\n");
+  writeFileSync(secondFile, "SELECT 'second';\n");
+  writeFileSync(outsideFile, "SELECT 'outside';\n");
+  // Creation through the shell keeps this test compatible with the existing fs import surface.
+  const linkResult = spawnSync("ln", ["-s", canonicalFile, symlinkFile], { encoding: "utf8" });
+  assert.equal(linkResult.status, 0, linkResult.stderr);
+
+  const harness = `
+    set -Eeuo pipefail
+    REPO_ROOT=${JSON.stringify(fakeRepo)}
+    run_dev_admin_psql() {
+      printf '%s\\n' "$*" > ${JSON.stringify(calls)}
+      cat > ${JSON.stringify(stdinCapture)}
+    }
+    ${callbackSource}
+  `;
+  const runCallback = (args) =>
+    spawnSync(
+      "bash",
+      ["--noprofile", "--norc", "-c", `${harness}\nruntime_overlay_admin_psql "$@"`, "callback", ...args],
+      { encoding: "utf8" },
+    );
+
+  const accepted = runCallback(["-d", "bcb_webapp_dev", "-X", "-v", "ON_ERROR_STOP=1", "-f", canonicalFile]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.equal(readFileSync(calls, "utf8"), "-d bcb_webapp_dev -X -v ON_ERROR_STOP=1\n");
+  assert.equal(readFileSync(stdinCapture, "utf8"), "SELECT 'canonical';\n");
+
+  const rejectedCases = [
+    ["-d", "bcb_webapp_dev"],
+    ["-d", "bcb_webapp_dev", "-f"],
+    ["-d", "bcb_webapp_dev", `-f${canonicalFile}`],
+    ["-d", "bcb_webapp_dev", "--file", canonicalFile],
+    ["-d", "bcb_webapp_dev", "-f", canonicalFile, "-f", secondFile],
+    ["-d", "bcb_webapp_dev", "-f", outsideFile],
+    ["-d", "bcb_webapp_dev", "-f", symlinkFile],
+  ];
+  for (const args of rejectedCases) {
+    const rejected = runCallback(args);
+    assert.notEqual(rejected.status, 0, `unexpectedly accepted ${args.join(" ")}`);
+    assert.match(rejected.stderr, /FATAL: DEV runtime overlay/u);
+  }
 });
 
 test("TEST to DEV refresh runs rehydrate after migrations and before DEV unlock", () => {

@@ -100,7 +100,59 @@ run_dev_admin_psql() {
 }
 
 runtime_overlay_admin_psql() {
-  run_dev_admin_psql "$@"
+  local -a psql_args=()
+  local sql_file=""
+  local expect_sql_file=0
+  local arg
+
+  for arg in "$@"; do
+    if [[ "$expect_sql_file" -eq 1 ]]; then
+      if [[ -z "$arg" || "$arg" == -* ]]; then
+        echo "FATAL: DEV runtime overlay -f requires one SQL file" >&2
+        return 1
+      fi
+      sql_file="$arg"
+      expect_sql_file=0
+      continue
+    fi
+
+    case "$arg" in
+      -f)
+        if [[ -n "$sql_file" || "$expect_sql_file" -eq 1 ]]; then
+          echo "FATAL: DEV runtime overlay accepts exactly one SQL file" >&2
+          return 1
+        fi
+        expect_sql_file=1
+        ;;
+      -f*|--file|--file=*)
+        echo "FATAL: DEV runtime overlay accepts only separate -f <canonical SQL file>" >&2
+        return 1
+        ;;
+      *)
+        psql_args+=("$arg")
+        ;;
+    esac
+  done
+
+  if [[ "$expect_sql_file" -eq 1 || -z "$sql_file" ]]; then
+    echo "FATAL: DEV runtime overlay requires exactly one SQL file" >&2
+    return 1
+  fi
+  if [[
+    -L "$sql_file" ||
+    ! -f "$sql_file" ||
+    ! -r "$sql_file" ||
+    "$(dirname "$sql_file")" != "$REPO_ROOT/deploy/postgres" ||
+    "$sql_file" != "$REPO_ROOT/deploy/postgres/"*.sql ||
+    "$(realpath "$sql_file")" != "$sql_file"
+  ]]; then
+    echo "FATAL: DEV runtime overlay SQL file path guard failed" >&2
+    return 1
+  fi
+
+  # The repository owner opens the guarded file. The postgres OS user receives SQL only on stdin,
+  # so it never needs traversal permission for /home/dev or the checkout.
+  run_dev_admin_psql "${psql_args[@]}" < "$sql_file"
 }
 
 owner_identity="$(run_dev_owner_psql -Atc "SELECT current_user || '|' || current_database();" 2>/dev/null)"
@@ -235,7 +287,7 @@ SELECT 1 / (
 SQL
 
 echo "[dev-runtime-overlay] applying canonical per-database role grants"
-run_dev_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS" >/dev/null
+runtime_overlay_admin_psql -d "$TARGET_DB" -f "$P0_5B_GRANTS" >/dev/null
 
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
