@@ -3647,3 +3647,16 @@ Assignment-based clinic routing and shared-inbox topology remain deferred U5D.
 **Correction boundaries and residual gate.** Only the same four U5B-0 canonical documents changed; application,
 schema, migration, API, DB/runtime, UI and `#806` files remain protected. This handoff still requires the same
 independent auditor's full terminal re-audit; it does not mark U5B implementation or the policy merge gate complete.
+
+## 2026-07-21 — U5B-0 terminal independent re-audit PASS (`#928`)
+
+The full high-risk checklist passed `0 P0 / 0 P1 / 0 P2` after correction `8ef0721c8`. The auditor reconfirmed all
+21 record classes across both policy documents, the current standalone-card/API census, deterministic actor outcomes,
+all seven operation families, metadata/count/search/export non-disclosure, legacy ambiguity, immutable authorship,
+amendments and rollback. Communication now requires an explicit verified participant/recipient; visit relation,
+assignment, visible parent, `admin_scope`, `sender_role` and management role do not grant it, so U5D remains deferred.
+The cumulative scope is exactly these four documents, the normative DAG is byte-identical, links and diff-check pass.
+
+The reviewed record-policy prerequisite is complete. U5B application/schema/API/UI work remains closed only on the
+two outstanding U5A live seals: switching between two active organizations and recovery after the previously selected
+organization is revoked. No CI, server, DB, TEST/PROD, deploy or external delivery action occurred in U5B-0.

@@ -996,8 +996,8 @@ authorized consistently and authorship remains truthful.
 - **U5B-0 contract checkpoint (`#928`):** the candidate record/section registry, current standalone-card/API census,
   actor outcomes, operation parity, immutable provenance, explicit communication-participant rule and
   deterministic-versus-ambiguous legacy policy are recorded in `OPERATING_MODEL.md` §6 and
-  `ROLE_CAPABILITY_MATRIX.md` §§2.3–2.5. No schema/API/UI work is authorized by the draft; independent high-risk
-  review and the remaining U5A runtime seals keep the application merge gate closed.
+  `ROLE_CAPABILITY_MATRIX.md` §§2.3–2.5. The terminal full re-audit passed `0 P0 / 0 P1 / 0 P2`; the reviewed policy
+  prerequisite is complete. No schema/API/UI work starts until the remaining U5A runtime seals close.
 - **Completion:** [ ] owner ruling linked; [ ] visit-relation roster proven; [ ] parity green; [ ] authorship immutable; [ ] no duplicate
   card tree; [ ] private leakage zero; [ ] full audit PASS.
 - **Merge dependency:** U1/U5A plus reviewed record-class policy; UX08-01 itself is resolved and is not a blocker.

@@ -1,6 +1,6 @@
 # UX-03 — Role × screen × capability matrix
 
-**Статус:** U5B-0 record/section policy matrix drafted; awaiting independent high-risk audit.
+**Статус:** U5B-0 record/section policy matrix passed terminal independent high-risk audit; application work waits remaining U5A live seals.
 **Authority:** производная matrix; `OWNER_RULINGS_2026-07-16.md` имеет приоритет над прежними capability candidates.
 **Правило:** product outcomes имеют только dated classifications из `OWNER_RULINGS_2026-07-16.md`. Статусы
 `implementation_policy` и `implementation_contract` ниже обозначают engineering/security work, а не новый owner

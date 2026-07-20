@@ -1,6 +1,6 @@
 # UX-03 — Product operating model
 
-**Статус:** U5B-0 record/section visibility contract drafted; awaiting independent high-risk audit.
+**Статус:** U5B-0 record/section visibility contract passed terminal independent high-risk audit; application work waits remaining U5A live seals.
 **Authority:** производный contract; `OWNER_RULINGS_2026-07-16.md` побеждает старые candidates этого документа.
 **Дата:** 2026-07-15.
 **Scope:** actor/context model, solo/clinic composition, patient record/history, visit coordination и entitlement boundaries.
