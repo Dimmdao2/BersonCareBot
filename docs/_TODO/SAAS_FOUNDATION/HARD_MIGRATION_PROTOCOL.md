@@ -593,6 +593,12 @@ P2-B schema/tables/functions belong to `app_owner`, the three protected tables h
 the eight protected functions have only exact owner/staff/patient ACL, and the stored secret matches the private
 stdin `COPY` value before the atomic transaction commits and later overlays run.
 
+The same preflight also checks the reverse cluster-global membership direction: `app_owner` must have no incoming
+member at all, and every incoming `app_staff`/`app_patient` edge must match the explicit DEV topology plus the
+optional, separately managed TEST topology, including exact PostgreSQL 16 `ADMIN`/`INHERIT`/`SET` options and safe
+login attributes. An unknown member or option drift is a fail-closed incident; DEV recovery validates it but never
+revokes, grants or otherwise repairs cluster-global membership.
+
 The wrapper then reapplies per-database P0.5b grants and the shared helper/E1 closure and fails unless the targeted
 functions have exact `app_owner` ownership, closed ACLs, the separate DEV base login can read through the public
 runtime accessor, and an actual `SET LOCAL ROLE app_patient` call can execute the patient booking capability. An

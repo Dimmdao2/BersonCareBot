@@ -129,6 +129,27 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /dev_runtime_roles_safe/u);
   assert.match(source, /rolconnlimit = -1/u);
   assert.match(source, /member_role\.rolname IN \('app_owner', 'app_staff', 'app_patient'\)/u);
+  assert.match(source, /dev_runtime_incoming_memberships_exact/u);
+  assert.match(source, /actual\.granted_role = 'app_owner'/u);
+  assert.match(source, /SELECT \* FROM actual_protected_membership[\s\S]*EXCEPT[\s\S]*SELECT \* FROM active_expected/u);
+  assert.match(source, /SELECT \* FROM active_expected[\s\S]*EXCEPT[\s\S]*SELECT \* FROM actual_protected_membership/u);
+  for (const roleName of [
+    "bcb_dev_runtime_staff_login",
+    "bcb_dev_runtime_nonstaff_login",
+    "bcb_test_staff_login",
+    "bcb_test_integrator_login",
+    "bcb_test_nonstaff_login",
+  ]) {
+    assert.match(source, new RegExp(roleName, "u"));
+  }
+  assert.match(source, /'bcb_test_staff_login',\s+false, true,\s+true, true,\s+ARRAY\['search_path=public, integrator'\]/u);
+  assert.match(source, /member_role\.rolinherit <> expected\.member_inherit/u);
+  assert.match(source, /member_role\.rolconfig IS DISTINCT FROM expected\.member_config/u);
+  assert.match(source, /member_role\.rolsuper/u);
+  assert.match(source, /member_role\.rolcreatedb/u);
+  assert.match(source, /member_role\.rolcreaterole/u);
+  assert.match(source, /member_role\.rolreplication/u);
+  assert.match(source, /member_role\.rolbypassrls/u);
   assert.match(source, /dev_base_runtime_role_safe_before_overlay/u);
   assert.match(source, /dev_p2_b_exact_owner_handoff_preconditions/u);
   assert.match(source, /dev_p2_b_pgcrypto_move_precondition/u);

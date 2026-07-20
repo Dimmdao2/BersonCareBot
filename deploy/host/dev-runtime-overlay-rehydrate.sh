@@ -243,6 +243,79 @@ SELECT 1 / (
   AND NOT pg_has_role('app_patient', 'app_staff', 'MEMBER')
 )::int AS dev_runtime_roles_safe;
 
+-- The wall roles are cluster-global.  This DEV repair must therefore reject an
+-- unexpected role that can SET ROLE into a wall (and every app_owner member),
+-- while accepting the exact DEV topology and the optional, separately-managed
+-- TEST topology when those TEST login roles exist on the shared cluster.
+WITH expected_membership(
+  granted_role,
+  member_role,
+  admin_option,
+  inherit_option,
+  set_option,
+  member_inherit,
+  member_config,
+  required_for_dev
+) AS (
+  VALUES
+    ('app_staff',   'bcb_dev_runtime_staff_login',    false, false, true, false, NULL::text[], true),
+    ('app_patient', 'bcb_dev_runtime_nonstaff_login', false, false, true, false, NULL::text[], true),
+    ('app_staff',   'bcb_test_staff_login',           false, true,  true, true,  ARRAY['search_path=public, integrator']::text[], false),
+    ('app_staff',   'bcb_test_integrator_login',      false, false, true, false, ARRAY['search_path=public, integrator']::text[], false),
+    ('app_patient', 'bcb_test_integrator_login',      false, false, true, false, ARRAY['search_path=public, integrator']::text[], false),
+    ('app_patient', 'bcb_test_nonstaff_login',        false, false, true, false, ARRAY['search_path=public, integrator']::text[], false)
+), active_expected AS (
+  SELECT expected.*
+  FROM expected_membership expected
+  LEFT JOIN pg_roles member_role ON member_role.rolname = expected.member_role
+  WHERE expected.required_for_dev OR member_role.oid IS NOT NULL
+), actual_protected_membership AS (
+  SELECT
+    granted_role.rolname AS granted_role,
+    member_role.rolname AS member_role,
+    membership.admin_option,
+    membership.inherit_option,
+    membership.set_option,
+    member_role.rolinherit AS member_inherit,
+    member_role.rolconfig AS member_config,
+    (member_role.rolname LIKE 'bcb_dev_%') AS required_for_dev
+  FROM pg_auth_members membership
+  JOIN pg_roles granted_role ON granted_role.oid = membership.roleid
+  JOIN pg_roles member_role ON member_role.oid = membership.member
+  WHERE granted_role.rolname IN ('app_owner', 'app_staff', 'app_patient')
+)
+SELECT 1 / (
+  NOT EXISTS (
+    SELECT 1
+    FROM actual_protected_membership actual
+    WHERE actual.granted_role = 'app_owner'
+  )
+  AND NOT EXISTS (
+    (SELECT * FROM actual_protected_membership
+     EXCEPT
+     SELECT * FROM active_expected)
+    UNION ALL
+    (SELECT * FROM active_expected
+     EXCEPT
+     SELECT * FROM actual_protected_membership)
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM active_expected expected
+    LEFT JOIN pg_roles member_role ON member_role.rolname = expected.member_role
+    WHERE member_role.oid IS NULL
+       OR NOT member_role.rolcanlogin
+       OR member_role.rolinherit <> expected.member_inherit
+       OR member_role.rolsuper
+       OR member_role.rolcreatedb
+       OR member_role.rolcreaterole
+       OR member_role.rolreplication
+       OR member_role.rolbypassrls
+       OR member_role.rolconnlimit <> -1
+       OR member_role.rolconfig IS DISTINCT FROM expected.member_config
+  )
+)::int AS dev_runtime_incoming_memberships_exact;
+
 SELECT 1 / (
   :'expected_runtime_role' <> :'expected_owner_role'
   AND :'expected_runtime_role' NOT IN ('app_owner', 'app_staff', 'app_patient')

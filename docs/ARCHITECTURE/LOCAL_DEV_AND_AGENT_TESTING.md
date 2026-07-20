@@ -171,7 +171,10 @@ context нужно заново связать с тем же signing secret, к
 3. `dev-runtime-overlay-rehydrate.sh --execute`: exact DB/owner/runtime roles,
    `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked` и безопасный `DB_PRINCIPAL_SIGNING_SECRET` читаются одним
    descriptor-pinned snapshot канонического `.env.dev` без `source`; wrapper требует exact безопасные атрибуты
-   и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`;
+   и отсутствие исходящих membership у `app_owner`/`app_staff`/`app_patient`; входящих membership у `app_owner`
+   быть не может вообще, а входящие `app_staff`/`app_patient` сверяются с полным allowlist текущей общей
+   DEV+TEST topology и точными PostgreSQL 16 options. Неизвестный login или отличный `ADMIN/INHERIT/SET` останавливает
+   repair; wrapper ничего не отзывает и не перенастраивает в cluster-global ролях;
 4. wrapper проверяет `app`, exact existing P2-B tables/functions, migration-created `app.is_staff()` и pgcrypto
    move precondition; выдаёт `app_owner` только `USAGE` на `app_ext`, передаёт owner только для exact P2-B
    tables/functions (если они уже существуют), а schema `app` — через канонический P2-B artifact, затем
