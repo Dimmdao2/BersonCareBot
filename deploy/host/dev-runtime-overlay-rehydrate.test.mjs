@@ -97,7 +97,7 @@ const protectedReplacements = [
 ];
 
 function assertExactOwnerHandoffCoverage(source) {
-  const targetBlocks = [...source.matchAll(/WITH exact_targets\(signature\) AS \(\n  VALUES\n([\s\S]*?)\n\)/gu)];
+  const targetBlocks = [...source.matchAll(/WITH exact_targets\(signature\) AS \(\n {2}VALUES\n([\s\S]*?)\n\)/gu)];
   assert.equal(
     targetBlocks.length,
     3,

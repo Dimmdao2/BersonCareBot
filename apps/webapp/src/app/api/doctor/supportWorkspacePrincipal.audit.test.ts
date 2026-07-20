@@ -368,7 +368,7 @@ describe("doctor support/task workspace principal cutover", () => {
     expect(clientsRepo).toContain("appendSqlOrganizationEnrollment");
     expect(clientsRepo).toContain("dps.organization_id");
     expect(clientsRepo).toContain("tpi.organization_id");
-    expect(clientsRepo).toContain("pp.organization_id");
+    expect(clientsRepo).toContain("eq(bePatientPackages.organizationId, organizationId)");
     const supportRepo = readSource("src/infra/repos/pgSupportCommunication.ts");
     expect(supportRepo).toContain("sc.organization_id = $4::uuid");
     expect(supportRepo).toContain("c.organization_id = $1::uuid");

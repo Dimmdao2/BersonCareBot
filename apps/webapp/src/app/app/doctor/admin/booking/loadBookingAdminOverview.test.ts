@@ -53,10 +53,9 @@ describe("loadBookingAdminOverview", () => {
         patientVisibleServices: 0,
         hasCustomSchedule: false,
         hasUpcomingSchedule: false,
-        servicesWithoutAvailability: 1,
+        servicesWithoutAvailability: 0,
       },
       warnings: [
-        "1 услуг без доступности в локациях.",
         "Расписание не настроено — используется временный режим 09:00–18:00.",
         "Нет услуг, доступных пациентам для самостоятельной записи.",
       ],

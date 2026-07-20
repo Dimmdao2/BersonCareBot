@@ -22,11 +22,15 @@ const files = {
   mediaPoolProvider: "apps/media-worker/src/poolProvider.ts",
   webappAuthService: "apps/webapp/src/modules/auth/service.ts",
   webappRequireRole: "apps/webapp/src/app-layer/guards/requireRole.ts",
+  webappStaffSecuritySelfPrincipal:
+    "apps/webapp/src/app-layer/principal/staffSecuritySelfPrincipal.ts",
   webappBootstrapPrincipal: "apps/webapp/src/app-layer/principal/bootstrapPrincipal.ts",
   webappSessionPrincipal: "apps/webapp/src/app-layer/principal/sessionPrincipal.ts",
   webappIntegratorSignature: "apps/webapp/src/infra/webhooks/verifyIntegratorSignature.ts",
   webappPatientOrganizationService: "apps/webapp/src/modules/patient-organization/service.ts",
   webappPatientOrganizationRepo: "apps/webapp/src/infra/repos/pgPatientOrganization.ts",
+  webappPatientOrganizationContextMigration:
+    "apps/webapp/db/drizzle-migrations/0216_current_patient_organization_context.sql",
   webappAuthPhoneStartRoute: "apps/webapp/src/app/api/auth/phone/start/route.ts",
   webappPublicBookingCreateRoute: "apps/webapp/src/app/api/booking/public/create/route.ts",
   integratorPrincipal: "apps/integrator/src/infra/principal/organizationPrincipal.ts",
@@ -130,6 +134,7 @@ function collectScopedDbTouchingRoutesMissingPrincipalSource() {
     "requirePatientApiSessionWithPhone",
     "requirePatientBookingTrustedPhoneAccess",
     "requireClinicManagementApiContext",
+    "requireStaffSecurityApiSession",
     "requireAdminModeSession",
     "getCurrentSession",
     "stampBootstrapPrincipal",
@@ -260,12 +265,24 @@ function runChecks(overrides = {}) {
     "enterWithDbPatientPrincipal",
     "ensureDbPrincipalContext({ source: \"requireDoctorWorkspaceApiContext:pending\" })",
     "ensureDbPrincipalContext({ source: \"requirePatientApiBusinessAccess:pending\" })",
+    "ensureDbPrincipalContext({ source: \"requireStaffSecurityApiSession:pending\" })",
     "stampStaffPrincipal(resolved.ctx, \"requireDoctorWorkspaceApiContext\")",
     "stampStaffPrincipal(resolved.ctx, \"requireAdminWorkspaceApiContext\")",
+    "enterStaffSecuritySelfPrincipal(session.user.userId, \"requireStaffSecurityApiSession:self\")",
     "stampPatientPrincipalForApi(session)",
     "enterWithDbPatientPrincipal({",
     "platformUserId: session.user.userId",
   ]);
+
+  requireFragments(
+    files.webappStaffSecuritySelfPrincipal,
+    loaded.webappStaffSecuritySelfPrincipal,
+    [
+      "enterWithDbPatientPrincipal({ platformUserId: userId, source })",
+      "runWithDbPatientPrincipal({ platformUserId: userId, source }, fn)",
+      "staff_security_canonical_user_required",
+    ],
+  );
 
   requireFragments(files.webappBootstrapPrincipal, loaded.webappBootstrapPrincipal, [
     "enterWithDbBootstrapPrincipal",
@@ -301,8 +318,20 @@ function runChecks(overrides = {}) {
   requireFragments(files.webappPatientOrganizationRepo, loaded.webappPatientOrganizationRepo, [
     "orgEnrollments",
     "eq(orgEnrollments.status, \"active\")",
-    "orderBy(asc(orgEnrollments.createdAt), asc(orgEnrollments.organizationId))",
+    "SELECT * FROM app.read_current_patient_active_organizations()",
   ]);
+
+  requireFragments(
+    files.webappPatientOrganizationContextMigration,
+    loaded.webappPatientOrganizationContextMigration,
+    [
+      "CREATE OR REPLACE FUNCTION app.read_current_patient_active_organizations()",
+      "v_patient_user_id uuid := app.current_patient_user_id()",
+      "WHERE enrollment.platform_user_id = v_patient_user_id",
+      "AND enrollment.status = 'active'",
+      "ORDER BY enrollment.created_at, organization.id;",
+    ],
+  );
 
   for (const [label, text] of [
     [files.webappAuthPhoneStartRoute, loaded.webappAuthPhoneStartRoute],

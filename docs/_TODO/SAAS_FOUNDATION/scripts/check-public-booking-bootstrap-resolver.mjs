@@ -79,8 +79,11 @@ function runChecks(overrides = {}) {
     "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
     "AND privilege.grantee = bootstrap_role.oid",
     "AND NOT privilege.is_grantable",
-    "AND 3 = (",
-    "procedure.oid = 'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "AND 4 = (",
+    "AND 2 = (",
+    "accessor.oid IN (",
+    "'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure",
+    "'app.resolve_public_organization_by_slug(text)'::regprocedure",
     "privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = 'app_patient')",
   ]);
   forbidFragments(paths.d34, files.d34, [
@@ -137,7 +140,7 @@ if (process.argv.includes("--self-test")) {
       ),
     },
     {
-      d34: readFileSync(paths.d34, "utf8").replace("AND 3 = (", "AND 2 = ("),
+      d34: readFileSync(paths.d34, "utf8").replace("AND 4 = (", "AND 3 = ("),
     },
     {
       route: readFileSync(paths.route, "utf8").replace(
