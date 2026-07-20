@@ -128,9 +128,97 @@ test("snapshot CLI parses one env image and releases the secret only after GO", 
     encoding: "utf8",
     input: "ABORT\n",
   });
-  assert.notEqual(withheld.status, 0);
+  assert.equal(withheld.status, 0, withheld.stderr);
   assert.doesNotMatch(withheld.stdout, new RegExp(validSigningSecret, "u"));
   assert.doesNotMatch(withheld.stderr, new RegExp(validSigningSecret, "u"));
+});
+
+test("snapshot coprocess abort closes without waiting for a duplicated parent descriptor", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bcb-dev-env-coproc-abort-"));
+  const envPath = join(dir, "runtime.env");
+  writeFileSync(
+    envPath,
+    [
+      `DATABASE_URL=${validUrl}`,
+      `DATABASE_URL_NONSTAFF=${validNonstaffUrl}`,
+      "DB_PRINCIPAL_CONTEXT_MODE=locked",
+      `DB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}`,
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+
+  const harness = `
+    set -Eeuo pipefail
+    coproc SNAPSHOT { ${JSON.stringify(process.execPath)} ${JSON.stringify(scriptPath)} --snapshot-stream ${JSON.stringify(envPath)}; }
+    snapshot_pid="$SNAPSHOT_PID"
+    coproc_read_fd="\${SNAPSHOT[0]}"
+    coproc_write_fd="\${SNAPSHOT[1]}"
+    exec {read_fd}<&"$coproc_read_fd"
+    exec {write_fd}>&"$coproc_write_fd"
+    exec {coproc_read_fd}<&-
+    exec {coproc_write_fd}>&-
+    IFS= read -r _owner <&"$read_fd"
+    IFS= read -r _runtime <&"$read_fd"
+    IFS= read -r _mode <&"$read_fd"
+    printf 'ABORT\\n' >&"$write_fd"
+    exec {write_fd}>&-
+    exec {read_fd}<&-
+    wait "$snapshot_pid" 2>/dev/null || true
+  `;
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-c", harness], {
+    encoding: "utf8",
+    timeout: 2_000,
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, new RegExp(validSigningSecret, "u"));
+  assert.doesNotMatch(result.stderr, new RegExp(validSigningSecret, "u"));
+});
+
+test("duplicated snapshot descriptor reaches the execute GO pipeline without leaking the secret", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bcb-dev-env-coproc-go-"));
+  const envPath = join(dir, "runtime.env");
+  writeFileSync(
+    envPath,
+    [
+      `DATABASE_URL=${validUrl}`,
+      `DATABASE_URL_NONSTAFF=${validNonstaffUrl}`,
+      "DB_PRINCIPAL_CONTEXT_MODE=locked",
+      `DB_PRINCIPAL_SIGNING_SECRET=${validSigningSecret}`,
+      "",
+    ].join("\n"),
+    { mode: 0o600 },
+  );
+
+  const harness = `
+    set -Eeuo pipefail
+    coproc SNAPSHOT { ${JSON.stringify(process.execPath)} ${JSON.stringify(scriptPath)} --snapshot-stream ${JSON.stringify(envPath)}; }
+    snapshot_pid="$SNAPSHOT_PID"
+    coproc_read_fd="\${SNAPSHOT[0]}"
+    coproc_write_fd="\${SNAPSHOT[1]}"
+    exec {read_fd}<&"$coproc_read_fd"
+    exec {write_fd}>&"$coproc_write_fd"
+    exec {coproc_read_fd}<&-
+    exec {coproc_write_fd}>&-
+    IFS= read -r _owner <&"$read_fd"
+    IFS= read -r _runtime <&"$read_fd"
+    IFS= read -r _mode <&"$read_fd"
+    printf 'GO\\n' >&"$write_fd"
+    exec {write_fd}>&-
+    stream_secret() { cat <&"$read_fd"; }
+    stream_secret | { IFS= read -r released; [[ "$released" == ${JSON.stringify(validSigningSecret)} ]]; }
+    exec {read_fd}<&-
+    wait "$snapshot_pid"
+  `;
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-c", harness], {
+    encoding: "utf8",
+    timeout: 2_000,
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, new RegExp(validSigningSecret, "u"));
+  assert.doesNotMatch(result.stderr, new RegExp(validSigningSecret, "u"));
 });
 
 test("wrapper parses the fixed env as data and completes all guards before DROP", () => {

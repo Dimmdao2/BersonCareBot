@@ -113,6 +113,12 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
   assert.match(source, /P2_B_STAFF_ROLE="app_staff"/u);
   assert.match(source, /P2_B_PATIENT_ROLE="app_patient"/u);
   assert.equal(source.split('--snapshot-stream "$DEV_ENV"').length - 1, 1);
+  assert.match(source, /DEV_SNAPSHOT_COPROC_READ_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[0\]\}"/u);
+  assert.match(source, /DEV_SNAPSHOT_COPROC_WRITE_FD="\$\{DEV_ENV_SNAPSHOT_PROCESS\[1\]\}"/u);
+  assert.match(source, /exec \{DEV_SNAPSHOT_READ_FD\}<&"\$DEV_SNAPSHOT_COPROC_READ_FD"/u);
+  assert.match(source, /exec \{DEV_SNAPSHOT_WRITE_FD\}>&"\$DEV_SNAPSHOT_COPROC_WRITE_FD"/u);
+  assert.match(source, /exec \{DEV_SNAPSHOT_COPROC_READ_FD\}<&-/u);
+  assert.match(source, /exec \{DEV_SNAPSHOT_COPROC_WRITE_FD\}>&-/u);
   assert.doesNotMatch(source, /DEV_ENV_PARSER" --(?:nonstaff|context-mode|signing-secret)/u);
   assert.match(source, /descriptor-pinned env snapshot/u);
   assert.doesNotMatch(source, /\bsource\s+["']?\$DEV_ENV/u);

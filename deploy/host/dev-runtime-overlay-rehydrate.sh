@@ -82,8 +82,15 @@ SANITIZED_PATH="$NODE_TOOLCHAIN_BIN:/usr/local/bin:/usr/bin:/bin"
 # after an explicit GO over its private pipe; the shell never stores or expands that secret.
 coproc DEV_ENV_SNAPSHOT_PROCESS { "$NODE_BIN" "$DEV_ENV_PARSER" --snapshot-stream "$DEV_ENV"; }
 DEV_ENV_SNAPSHOT_PID_VALUE="$DEV_ENV_SNAPSHOT_PROCESS_PID"
-exec {DEV_SNAPSHOT_READ_FD}<&"${DEV_ENV_SNAPSHOT_PROCESS[0]}"
-exec {DEV_SNAPSHOT_WRITE_FD}>&"${DEV_ENV_SNAPSHOT_PROCESS[1]}"
+DEV_SNAPSHOT_COPROC_READ_FD="${DEV_ENV_SNAPSHOT_PROCESS[0]}"
+DEV_SNAPSHOT_COPROC_WRITE_FD="${DEV_ENV_SNAPSHOT_PROCESS[1]}"
+exec {DEV_SNAPSHOT_READ_FD}<&"$DEV_SNAPSHOT_COPROC_READ_FD"
+exec {DEV_SNAPSHOT_WRITE_FD}>&"$DEV_SNAPSHOT_COPROC_WRITE_FD"
+# Bash marks its original coproc descriptors specially and does not expose them to pipeline
+# subshells. Keep ordinary duplicates for the GO stream, then close the originals so ABORT
+# reaches EOF instead of waiting forever.
+exec {DEV_SNAPSHOT_COPROC_READ_FD}<&-
+exec {DEV_SNAPSHOT_COPROC_WRITE_FD}>&-
 
 if ! IFS= read -r DEV_OWNER_DATABASE_URL <&"$DEV_SNAPSHOT_READ_FD" ||
   ! IFS= read -r DEV_RUNTIME_DATABASE_URL <&"$DEV_SNAPSHOT_READ_FD" ||

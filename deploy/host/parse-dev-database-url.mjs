@@ -153,7 +153,9 @@ async function waitForSecretRelease() {
     input += chunk;
     if (input.length > 16) fail("invalid_snapshot_release");
   }
-  if (input !== "GO\n") fail("invalid_snapshot_release");
+  if (input === "GO\n") return true;
+  if (input === "ABORT\n") return false;
+  fail("invalid_snapshot_release");
 }
 
 async function streamDevRuntimeSnapshot(path) {
@@ -161,7 +163,7 @@ async function streamDevRuntimeSnapshot(path) {
   process.stdout.write(
     `${snapshot.ownerDatabaseUrl}\n${snapshot.runtimeDatabaseUrl}\n${snapshot.contextMode}\n`,
   );
-  await waitForSecretRelease();
+  if (!(await waitForSecretRelease())) return;
   process.stdout.write(`${snapshot.signingSecret}\n`);
 }
 
