@@ -4115,6 +4115,25 @@ after the declared final convergence boundary. No third automatic correction, in
 deploy or environment action was started. Task `#751` is blocked/owner-waiting on one exact choice: authorize one
 last convergence pass for both P1 classes or freeze the isolated candidate. S4 residual `#939` remains downstream.
 
+## 2026-07-21 — owner-authorized final C5A pass stops on provisioning-smoke integration (`#751`)
+
+The owner authorized one final convergence pass limited to the two P1 classes above. Candidate commit `8afec6853`
+now installs/reapplies U9A before the C5A runtime capability in the shared rehydrate chain, moves broadcast draft
+save and schedule-block delete to the mutation entitlement boundary, and preserves notification-template GET/preview
+as reads and PUT as a mutation. Focused lifecycle tests (`28`), rehydrate tests (`18`), core C5A tests (`48`), the
+checker self-test, U9A/D3.4 static checks, shell syntax and diff checks passed; prior valid private U9A, two-connection
+quota, `402` changed-test, typecheck and scoped-lint evidence was retained. The S4 checker still reports exactly the
+same twelve pre-base `#939` findings and no candidate-owned delta.
+
+The terminal full-stage audit nevertheless returned `FAIL, 0 P0 / 1 P1 / 0 P2`. The existing disposable
+`smoke-phase3-specialist-signup-provisioning.mjs` fixture does not install migration `0225` or the C5A platform trial
+capability before applying the updated specialist-owner provisioning SQL. It consequently exits on missing
+prerequisites before exercising the canonical owner requirement that a newly created organization atomically receives
+the selected trial tariff and duration. The requirement itself is clear; the unresolved issue is permission for one
+separate integration-proof repair after the declared final pass. No new correction was opened, no C5A commit was
+merged or pushed, and no working database, TEST/PROD, deploy or full CI action ran. Task `#751` is blocked and
+owner-waiting on that single process decision; its isolated clean worktree is retained as evidence.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round

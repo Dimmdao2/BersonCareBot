@@ -637,6 +637,17 @@ unchanged twelve pre-base direct-resolver findings remain separate `#939` debt. 
 no further correction, integration or milestone CI starts automatically. `#751` is owner-waiting on one process
 choice: authorize one final convergence pass for these two exact P1 classes, or freeze the isolated candidate.
 
+**Superseding C5A terminal status (`8afec6853`, owner-authorized final pass, 2026-07-21): blocked / not integrated.**
+The final pass closed both previously authorized P1 classes, preserved read-versus-mutation notification-template
+behavior, and passed the focused lifecycle, rehydrate, quota, U9A/D3.4 and changed-test gates. Its terminal audit
+returned `0 P0 / 1 P1 / 0 P2`: the canonical disposable specialist signup/provisioning smoke still installs the
+pre-C5A fixture set, while `specialist-owner-provisioning-rls.sql` now requires migration `0225` tables and the C5A
+platform trial capability. The smoke therefore stops at missing prerequisites before it can prove that a newly
+provisioned organization atomically receives the selected trial tariff and duration. This is an integration-proof
+regression against the existing owner checklist, not a new product requirement. No further correction, integration,
+milestone CI, DB apply or deploy starts without a new explicit owner authorization. The unchanged twelve pre-base
+direct-resolver findings remain separate downstream task `#939`.
+
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
 downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:
