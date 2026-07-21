@@ -4,6 +4,8 @@ export type AuthChannel = "email" | "sms" | "telegram" | "max";
 
 export type AuthChannelPolicy = Readonly<Record<AuthChannel, boolean>>;
 
+export const AUTH_CHANNEL_DISABLED_ERROR = "auth_channel_disabled" as const;
+
 const SETTING_BY_CHANNEL = {
   email: "auth_email_enabled",
   sms: "auth_sms_enabled",

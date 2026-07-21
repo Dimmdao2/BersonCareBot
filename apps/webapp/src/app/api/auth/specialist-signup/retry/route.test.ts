@@ -18,12 +18,28 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 const userId = "11111111-1111-4111-8111-111111111111";
 
 describe("POST /api/auth/specialist-signup/retry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("rejects a disabled email channel before reading the protected session or signup intent", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const response = await POST();
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(getCurrentSessionMock).not.toHaveBeenCalled();
+      expect(getLatestIntentMock).not.toHaveBeenCalled();
+      expect(provisionOwnerMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("rejects a doctor session that has no protected signup assurance", async () => {

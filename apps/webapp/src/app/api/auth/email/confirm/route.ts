@@ -1,6 +1,10 @@
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { getCurrentSession } from "@/modules/auth/service";
 import { confirmEmailChallenge } from "@/modules/auth/emailAuth";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
@@ -12,6 +16,12 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email/confirm:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });

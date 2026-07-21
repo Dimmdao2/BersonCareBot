@@ -31,6 +31,7 @@ vi.mock("@/modules/auth/service", () => ({
 import { POST as validatePost } from "./validate/route";
 import { POST as completePost } from "./complete/route";
 import { POST as resendPost } from "./resend/route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("email-setup API routes", () => {
   beforeEach(() => {
@@ -40,6 +41,65 @@ describe("email-setup API routes", () => {
     findByUserId.mockReset();
     updateRole.mockReset();
     setSessionFromUser.mockReset();
+  });
+
+  it("validate is neutral and does not read token/email when the email channel is disabled", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await validatePost(
+        new Request("http://localhost/api/auth/email-setup/validate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: "est_known" }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(validateTokenForForm).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
+  });
+
+  it("resend does not inspect or issue a setup link when the email channel is disabled", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await resendPost(
+        new Request("http://localhost/api/auth/email-setup/resend", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: "est_expired" }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(resendFromExpiredToken).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
+  });
+
+  it("complete does not consume a setup link or mutate credentials when email is disabled", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await completePost(
+        new Request("http://localhost/api/auth/email-setup/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: "est_known", password: "secret1234" }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(completeEmailSetup).not.toHaveBeenCalled();
+      expect(findByUserId).not.toHaveBeenCalled();
+      expect(setSessionFromUser).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("validate returns email for active token", async () => {

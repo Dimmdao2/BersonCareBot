@@ -39,6 +39,7 @@ vi.mock("@/modules/auth/emailAuth", async () => {
 });
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 const SELF_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -53,6 +54,34 @@ describe("POST /api/auth/specialist-signup/start", () => {
     replacePendingSpecialistSignupChallengeMock.mockReset();
     tryResendRegistrationChallengeMock.mockResolvedValue({ ok: false, reason: "duplicate_email" });
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
+  });
+
+  it("rejects a disabled email channel before signup rollout or pending-user work", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/specialist-signup/start", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "doctor@example.com",
+            password: "password12",
+            lastName: "Doctor",
+            firstName: "Owner",
+            organizationTitle: "Clinic One",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(getSpecialistSignupEnabledMock).not.toHaveBeenCalled();
+      expect(registerPendingSpecialistVerificationMock).not.toHaveBeenCalled();
+      expect(startEmailChallengeMock).not.toHaveBeenCalled();
+      expect(createSpecialistSignupIntentMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns disabled before creating any pending user or challenge", async () => {

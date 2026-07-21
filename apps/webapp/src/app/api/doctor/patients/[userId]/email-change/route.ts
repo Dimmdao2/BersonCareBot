@@ -17,6 +17,10 @@ import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
+import {
   startEmailChallenge,
   normalizeEmail,
   getPendingEmailChallenge,
@@ -39,6 +43,13 @@ export async function POST(
     return NextResponse.json(
       { ok: false, error: "forbidden", message: "Только администратор может менять email пациента" },
       { status: 403 },
+    );
+  }
+
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
     );
   }
 

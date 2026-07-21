@@ -13,6 +13,7 @@ vi.mock("@/modules/auth/emailOtpPublic", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 /** Distinct X-Real-Ip per test so the per-IP limiter buckets don't couple tests. */
 function makeStartRequest(body: unknown, ip: string): Request {
@@ -31,6 +32,22 @@ describe("POST /api/auth/email-otp/start", () => {
       challengeId: "ch-test-123",
       retryAfterSeconds: 60,
     });
+  });
+
+  it("rejects a disabled email channel before rate limit or challenge work", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(makeStartRequest({ email: "known@example.com" }, "10.0.0.10"));
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({
+        ok: false,
+        error: "auth_channel_disabled",
+      });
+      expect(startPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns 400 when email is missing", async () => {

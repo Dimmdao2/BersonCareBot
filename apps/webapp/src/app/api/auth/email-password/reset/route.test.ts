@@ -35,6 +35,7 @@ vi.mock("@/modules/auth/pinHash", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email-password/reset", () => {
   beforeEach(() => {
@@ -45,6 +46,32 @@ describe("POST /api/auth/email-password/reset", () => {
     getSecurityStatus.mockReset();
     revokeSessions.mockReset();
     getSecurityStatus.mockResolvedValue(null);
+  });
+
+  it("rejects a disabled email channel before lookup, consumption, or password mutation", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email-password/reset", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "known@example.com",
+            code: "123456",
+            newPassword: "newsecret12",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(findVerified).not.toHaveBeenCalled();
+      expect(consumeById).not.toHaveBeenCalled();
+      expect(consumeLatest).not.toHaveBeenCalled();
+      expect(updatePasswordHash).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("revokes every existing staff session before changing a protected account password", async () => {

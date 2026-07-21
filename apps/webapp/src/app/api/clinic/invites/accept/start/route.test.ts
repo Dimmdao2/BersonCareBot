@@ -16,6 +16,7 @@ vi.mock("@/modules/auth/emailAuth", async () => {
 });
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 function makeRequest(body: unknown): Request {
   return new Request("http://localhost/api/clinic/invites/accept/start", {
@@ -51,6 +52,20 @@ describe("clinic invite accept start route", () => {
       challengeId: "22222222-2222-4222-8222-222222222222",
       retryAfterSeconds: 60,
     });
+  });
+
+  it("rejects a disabled email channel before invite lookup or OTP creation", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(makeRequest({ token: "invite-token-with-length" }));
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(buildAppDepsMock).not.toHaveBeenCalled();
+      expect(startEmailChallengeMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("sends OTP to the invite email, not a client-chosen email", async () => {

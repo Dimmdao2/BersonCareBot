@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from '@/modules/auth/authChannelPolicy';
 import { readPatientInviteContinuationCookie } from '@/modules/patient-invites/continuationCookie';
 import { checkPatientInvitePublicRateLimit } from '@/modules/patient-invites/rateLimit';
 
@@ -18,6 +22,9 @@ function response(body: Record<string, unknown>, status = 200, retryAfter?: numb
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/join/email/start:POST');
+  if (!(await isAuthChannelEnabled('email'))) {
+    return response({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, 503);
+  }
   const continuation = await readPatientInviteContinuationCookie();
   if (!continuation) return response({ ok: false, error: 'invalid_continuation' }, 400);
   ensureAuthModulePortsBound();

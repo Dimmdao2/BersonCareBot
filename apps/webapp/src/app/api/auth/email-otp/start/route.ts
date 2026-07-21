@@ -4,6 +4,10 @@ import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isEmailOtpStartRateLimitedByKey } from "@/modules/auth/authRateLimits";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { startPublicEmailOtpChallenge } from "@/modules/auth/emailOtpPublic";
 import { formatOtpRetryAfterMessage } from "@/modules/auth/otpConstants";
 import { resolveRealIpRateLimitClientKey } from "@/modules/auth/realIpRateLimitClientKey";
@@ -24,6 +28,12 @@ const EMAIL_OTP_START_FALLBACK_CLIENT_KEY = "email_otp_start:missing_x_real_ip";
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-otp/start:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   ensureAuthModulePortsBound();
 
   // Per-IP limit (trusted X-Real-Ip only) — generic response, no enumeration signal.

@@ -2,6 +2,10 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { normalizeEmail, startEmailChallenge } from "@/modules/auth/emailAuth";
 import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 
@@ -26,6 +30,12 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/forgot:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

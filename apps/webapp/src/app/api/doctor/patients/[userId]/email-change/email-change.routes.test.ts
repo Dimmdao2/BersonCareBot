@@ -91,6 +91,7 @@ vi.mock("@bersoncare/db-principal", () => ({
 
 import { POST as adminPost, GET as adminGet } from "./route";
 import { POST as patientConfirmPost } from "@/app/api/patient/email-change/confirm/route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -184,6 +185,22 @@ describe("POST /api/doctor/patients/[userId]/email-change", () => {
     const body = (await res.json()) as { ok: boolean; error: string };
     expect(body.ok).toBe(false);
     expect(body.error).toBe("forbidden");
+  });
+
+  it("rejects a disabled email channel after authorization but before patient lookup or send", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await adminPost(makeAdminRequest({ email: "new@example.com" }), FAKE_PARAMS);
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(requireDoctorWorkspaceApiContextMock).toHaveBeenCalledOnce();
+      expect(buildAppDepsMock).not.toHaveBeenCalled();
+      expect(getClientIdentityForOrganizationMock).not.toHaveBeenCalled();
+      expect(startEmailChallengeMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns 400 for invalid email", async () => {
@@ -345,6 +362,21 @@ describe("POST /api/patient/email-change/confirm", () => {
     getCurrentSessionMock.mockResolvedValueOnce(null);
     const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
     expect(res.status).toBe(401);
+  });
+
+  it("rejects a disabled email channel before pending-code consumption or mutation", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    getCurrentSessionMock.mockResolvedValueOnce(PATIENT_SESSION);
+    try {
+      const res = await patientConfirmPost(makePatientConfirmRequest({ code: "123456" }));
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(confirmLatestEmailChallengeCodeForUserMock).not.toHaveBeenCalled();
+      expect(getCurrentDbPrincipalOrganizationIdMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns 400 when no pending challenge (expired_code)", async () => {

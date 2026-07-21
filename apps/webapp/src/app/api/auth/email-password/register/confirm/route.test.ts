@@ -43,6 +43,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email-password/register/confirm", () => {
   beforeEach(() => {
@@ -50,6 +51,30 @@ describe("POST /api/auth/email-password/register/confirm", () => {
     recordAuthRegistrationFailureMock.mockReset();
     confirmEmailChallengeMock.mockReset();
     setSessionFromUserMock.mockReset();
+  });
+
+  it("rejects a disabled email channel before challenge lookup or consumption", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email-password/register/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            challengeId: "22222222-2222-4222-8222-222222222222",
+            code: "123456",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+      expect(recordAuthRegistrationFailureMock).not.toHaveBeenCalled();
+      expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("records registration success after session is set", async () => {

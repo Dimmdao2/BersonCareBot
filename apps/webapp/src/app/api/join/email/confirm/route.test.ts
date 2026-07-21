@@ -38,6 +38,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 }));
 
 import { POST } from './route';
+import * as authChannelPolicy from '@/modules/auth/authChannelPolicy';
 
 const patientUserId = '20000000-0000-4000-8000-000000000003';
 const organizationId = '10000000-0000-4000-8000-000000000001';
@@ -66,6 +67,23 @@ describe('POST patient invite email confirm', () => {
     claimUnboundEmailProofMock.mockResolvedValue({ ok: true, organizationId, patientUserId });
     findByUserIdMock.mockResolvedValue({ userId: patientUserId, role: 'client' });
     setSessionFromUserMock.mockResolvedValue(undefined);
+  });
+
+  it('rejects a disabled email channel before proof lookup, consumption, or identity mutation', async () => {
+    const policy = vi.spyOn(authChannelPolicy, 'isAuthChannelEnabled').mockResolvedValue(false);
+    try {
+      const response = await POST(request());
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: 'auth_channel_disabled' });
+      expect(verifyEmailProofMock).not.toHaveBeenCalled();
+      expect(lookupContinuationMock).not.toHaveBeenCalled();
+      expect(claimUnboundEmailProofMock).not.toHaveBeenCalled();
+      expect(redeemEmailProofMock).not.toHaveBeenCalled();
+      expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it('claims the unbound invite without generic email lookup or registration', async () => {

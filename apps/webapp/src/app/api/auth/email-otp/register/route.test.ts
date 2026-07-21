@@ -8,6 +8,7 @@ vi.mock("@/modules/auth/emailOtpPublic", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 function request(body: unknown, ip = "10.2.0.1") {
   return new Request("http://localhost/api/auth/email-otp/register", {
@@ -19,6 +20,23 @@ describe("POST /api/auth/email-otp/register", () => {
   beforeEach(() => {
     startPublicEmailOtpRegistrationMock.mockReset();
     startPublicEmailOtpRegistrationMock.mockResolvedValue({ ok: true, challengeId: "registration-challenge", retryAfterSeconds: 60 });
+  });
+
+  it("rejects a disabled email channel before registration work", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const response = await POST(request({
+        email: "patient@example.com",
+        lastName: "Иванов",
+        firstName: "Иван",
+      }, "10.2.0.6"));
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(startPublicEmailOtpRegistrationMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("rejects missing or blank required FIO before the domain path", async () => {

@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { getCurrentSession } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
 export async function POST() {
   stampBootstrapPrincipal("api/auth/specialist-signup/retry:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const session = await getCurrentSession();
   if (!session || session.user.role !== "doctor") {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

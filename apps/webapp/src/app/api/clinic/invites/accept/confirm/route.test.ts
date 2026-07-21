@@ -17,6 +17,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 function makeRequest(body: unknown): Request {
   return new Request("http://localhost/api/clinic/invites/accept/confirm", {
@@ -63,6 +64,21 @@ describe("clinic invite accept confirm route", () => {
       ok: true,
       userId: "11111111-1111-4111-8111-111111111111",
     });
+  });
+
+  it("rejects a disabled email channel before invite lookup, OTP consumption, or acceptance", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(makeRequest({ token: "invite-token-with-length", code: "123456" }));
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(buildAppDepsMock).not.toHaveBeenCalled();
+      expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
+      expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("verifies OTP for the invite email and preserves the post-accept staff session role", async () => {

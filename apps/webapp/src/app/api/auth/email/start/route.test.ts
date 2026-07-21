@@ -12,8 +12,29 @@ vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email/start", () => {
+  it("rejects a disabled email channel before session lookup or send", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email/start", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: "user@example.com" }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(getCurrentSessionMock).not.toHaveBeenCalled();
+      expect(sendEmailCodeViaIntegratorMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
+  });
+
   it("returns 401 when session is missing", async () => {
     getCurrentSessionMock.mockResolvedValueOnce(null);
     const res = await POST(

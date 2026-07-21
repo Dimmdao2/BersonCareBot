@@ -14,6 +14,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { confirmLatestEmailChallengeCodeForUser } from "@/modules/auth/emailAuth";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 
@@ -27,6 +31,13 @@ export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
+  }
+
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
   }
 
   const json = (await request.json().catch(() => null)) as unknown;

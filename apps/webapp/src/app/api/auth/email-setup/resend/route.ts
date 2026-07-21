@@ -2,6 +2,10 @@ import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipa
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 
 const bodySchema = z.object({
   token: z.string().min(1).max(512),
@@ -10,6 +14,12 @@ const bodySchema = z.object({
 /** Новая setup-ссылка по истёкшему (но не использованному) token. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-setup/resend:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

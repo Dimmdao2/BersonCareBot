@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
+import {
   confirmEmailChallenge,
   consumeLatestEmailChallengeCodeForUser,
   normalizeEmail,
@@ -24,6 +28,12 @@ const bodySchema = z.object({
 /** Contact-only email setup by code: verify email, set password, create session. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/setup-code/complete:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

@@ -34,6 +34,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email-otp/confirm", () => {
   beforeEach(() => {
@@ -47,6 +48,27 @@ describe("POST /api/auth/email-otp/confirm", () => {
       ok: true as const,
       userId: testUser.userId,
     });
+  });
+
+  it("rejects a disabled email channel before challenge consumption or session work", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email-otp/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: "known@example.com", code: "123456" }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(confirmPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
+      expect(findByUserIdMock).not.toHaveBeenCalled();
+      expect(setSessionFromUserMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns 400 when email or code is missing", async () => {

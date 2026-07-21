@@ -4,6 +4,10 @@ import { z } from "zod";
 import { ensureAuthModulePortsBound } from "@/app-layer/di/bindAuthModulePorts";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isEmailOtpStartRateLimitedByKey } from "@/modules/auth/authRateLimits";
+import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
 import { startPublicEmailOtpRegistration } from "@/modules/auth/emailOtpPublic";
 import { formatOtpRetryAfterMessage } from "@/modules/auth/otpConstants";
 import { resolveRealIpRateLimitClientKey } from "@/modules/auth/realIpRateLimitClientKey";
@@ -20,6 +24,12 @@ const EMAIL_OTP_REGISTER_FALLBACK_CLIENT_KEY = "email_otp_register:missing_x_rea
 /** Public structured patient registration. It creates no organization or clinical relationship. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-otp/register:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   ensureAuthModulePortsBound();
 
   const identity = resolveRealIpRateLimitClientKey(request, {

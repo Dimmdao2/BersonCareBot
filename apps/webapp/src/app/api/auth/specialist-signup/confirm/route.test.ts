@@ -42,6 +42,7 @@ vi.mock("@/modules/auth/specialistSignupRollout", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/specialist-signup/confirm", () => {
   beforeEach(() => {
@@ -56,6 +57,31 @@ describe("POST /api/auth/specialist-signup/confirm", () => {
     ensureProfileMock.mockResolvedValue({ enrolled: false });
     getSpecialistSignupEnabledMock.mockReset();
     getSpecialistSignupEnabledMock.mockResolvedValue(true);
+  });
+
+  it("rejects a disabled email channel before challenge lookup or provisioning", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/specialist-signup/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            challengeId: "22222222-2222-4222-8222-222222222222",
+            code: "123456",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(getSpecialistSignupEnabledMock).not.toHaveBeenCalled();
+      expect(findUserIdByEmailChallengeIdMock).not.toHaveBeenCalled();
+      expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+      expect(provisionSpecialistOwnerMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns disabled before email challenge verification or provisioning", async () => {

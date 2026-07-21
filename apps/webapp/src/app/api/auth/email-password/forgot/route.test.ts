@@ -30,6 +30,7 @@ vi.mock("@/modules/auth/emailAuth", async () => {
 
 import { OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email-password/forgot", () => {
   beforeEach(() => {
@@ -37,6 +38,34 @@ describe("POST /api/auth/email-password/forgot", () => {
     startEmailChallenge.mockReset();
     resolveAuthState.mockReset();
     requestContactEmailSetup.mockReset();
+  });
+
+  it("returns one neutral disabled response before looking up any email", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const responses = await Promise.all([
+        POST(new Request("http://localhost/api/auth/email-password/forgot", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: "known@example.com" }),
+        })),
+        POST(new Request("http://localhost/api/auth/email-password/forgot", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: "unknown@example.com" }),
+        })),
+      ]);
+
+      for (const response of responses) {
+        expect(response.status).toBe(503);
+        await expect(response.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      }
+      expect(findVerified).not.toHaveBeenCalled();
+      expect(resolveAuthState).not.toHaveBeenCalled();
+      expect(startEmailChallenge).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns same response shape without challengeId for missing user and for successful send", async () => {

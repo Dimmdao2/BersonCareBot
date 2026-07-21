@@ -45,6 +45,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email-password/setup-code/complete", () => {
   beforeEach(() => {
@@ -55,6 +56,32 @@ describe("POST /api/auth/email-password/setup-code/complete", () => {
     confirmEmailChallenge.mockReset();
     consumeLatestEmailChallengeCodeForUser.mockReset();
     setSessionFromUser.mockReset();
+  });
+
+  it("rejects a disabled email channel before lookup, code consumption, or password mutation", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email-password/setup-code/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "patient@example.com",
+            code: "123456",
+            password: "secret1234",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(resolveAuthState).not.toHaveBeenCalled();
+      expect(confirmEmailChallenge).not.toHaveBeenCalled();
+      expect(consumeLatestEmailChallengeCodeForUser).not.toHaveBeenCalled();
+      expect(upsertPasswordHash).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("verifies setup code, stores password, and creates session", async () => {

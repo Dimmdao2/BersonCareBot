@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import {
+  AUTH_CHANNEL_DISABLED_ERROR,
+  isAuthChannelEnabled,
+} from "@/modules/auth/authChannelPolicy";
+import {
   recordAuthRegistrationFailure,
   recordAuthRegistrationSuccess,
 } from "@/app-layer/product-analytics/recordAuthRegistration";
@@ -30,6 +34,12 @@ const LOG_BASE = {
 /** Публичное подтверждение email после `POST .../email-password/register` (без сессии до успеха). */
 export async function POST(request: Request) {
   stampBootstrapPrincipal("api/auth/email-password/register/confirm:POST");
+  if (!(await isAuthChannelEnabled("email"))) {
+    return NextResponse.json(
+      { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },
+      { status: 503 },
+    );
+  }
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

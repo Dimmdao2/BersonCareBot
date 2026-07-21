@@ -17,6 +17,7 @@ vi.mock("@bersoncare/db-principal", () => ({
 }));
 
 import { POST } from "./route";
+import * as authChannelPolicy from "@/modules/auth/authChannelPolicy";
 
 describe("POST /api/auth/email/confirm", () => {
   beforeEach(() => {
@@ -24,6 +25,29 @@ describe("POST /api/auth/email/confirm", () => {
     confirmEmailChallengeMock.mockReset();
     getCurrentDbPrincipalOrganizationIdMock.mockReset();
     getCurrentDbPrincipalOrganizationIdMock.mockReturnValue("00000000-0000-4000-8000-000000000001");
+  });
+
+  it("rejects a disabled email channel before session or challenge work", async () => {
+    const policy = vi.spyOn(authChannelPolicy, "isAuthChannelEnabled").mockResolvedValue(false);
+    try {
+      const res = await POST(
+        new Request("http://localhost/api/auth/email/confirm", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            challengeId: "00000000-0000-4000-8000-000000000001",
+            code: "123456",
+          }),
+        }),
+      );
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
+      expect(getCurrentSessionMock).not.toHaveBeenCalled();
+      expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
+    } finally {
+      policy.mockRestore();
+    }
   });
 
   it("returns 401 when session is missing", async () => {
