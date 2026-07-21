@@ -3,6 +3,7 @@
  * Подпись — как relay-outbound.
  */
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 /** Окно идемпотентности: повторные нажатия в Mini App не шлют новое сообщение в чат до смены окна. */
@@ -47,6 +48,7 @@ export async function requestMessengerContactViaIntegrator(input: {
       "Content-Type": "application/json",
       "X-Bersoncare-Timestamp": timestamp,
       "X-Bersoncare-Signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body: rawBody,
   });

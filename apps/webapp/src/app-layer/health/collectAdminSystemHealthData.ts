@@ -1,4 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/app-layer/logging/logger";
 import {
@@ -366,7 +367,7 @@ async function probeIntegratorApi(): Promise<ProbeResult<{ status: "ok"; db?: Db
   try {
     const res = await fetch(`${base}/health`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...getCurrentCorrelationIdHeader() },
       cache: "no-store",
       signal: AbortSignal.timeout(INTEGRATOR_TIMEOUT_MS),
     });

@@ -18,7 +18,13 @@ import { telegramConfig } from './config.js';
 import { parseWebhookBody } from './schema.js';
 import { processTelegramUpdate, type TelegramWebhookDeps } from './webhook.js';
 import { setupTelegramMenuButton } from './setupMenuButton.js';
-import { getRequestLogger, newEventId, logger } from '../../infra/observability/logger.js';
+import {
+  getRequestLogger,
+  logger,
+  newCorrelationId,
+  newEventId,
+  runWithCorrelationContext,
+} from '../../infra/observability/logger.js';
 
 const GET_UPDATES_TIMEOUT_SEC = 30;
 const ERROR_BACKOFF_MS = 5_000;
@@ -83,19 +89,21 @@ async function runLoop(deps: TelegramWebhookDeps): Promise<void> {
 
     for (const update of updates) {
       offset = update.update_id + 1;
-      const correlationId = `lp-${update.update_id}`;
+      const correlationId = newCorrelationId();
       const eventId = newEventId('incoming');
       const reqLogger = getRequestLogger(correlationId, { correlationId, eventId });
       try {
-        const parsed = parseWebhookBody(update);
-        if (!parsed.success) {
-          reqLogger.warn(
-            { updateId: update.update_id },
-            'Telegram long-polling: update failed body validation (skipped)',
-          );
-          continue;
-        }
-        await processTelegramUpdate(parsed.data, deps, { correlationId, eventId, logger: reqLogger });
+        await runWithCorrelationContext(correlationId, async () => {
+          const parsed = parseWebhookBody(update);
+          if (!parsed.success) {
+            reqLogger.warn(
+              { updateId: update.update_id },
+              'Telegram long-polling: update failed body validation (skipped)',
+            );
+            return;
+          }
+          await processTelegramUpdate(parsed.data, deps, { correlationId, eventId, logger: reqLogger });
+        });
       } catch (err) {
         reqLogger.error({ err }, 'Telegram long-polling: update processing failed (skipped)');
       }

@@ -5,6 +5,7 @@ import { SESSION_COOKIE_NAME } from "@/modules/auth/sessionCookieNames";
 import { encodeSessionCookie, SESSION_SLIDING_TTL_SECONDS } from "@/modules/auth/sessionCookie";
 import type { AppSession } from "@/shared/types/session";
 import { MESSENGER_SURFACE_COOKIE_NAME, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { BC_CORRELATION_ID_HEADER } from "@bersoncare/db-principal";
 
 describe("proxy (Next convention)", () => {
   it("returns next without redirect for /app/patient without ctx", () => {
@@ -12,6 +13,24 @@ describe("proxy (Next convention)", () => {
     const res = proxy(req);
     expect(res.status).toBe(200);
     expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get(BC_CORRELATION_ID_HEADER)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("preserves a valid correlation UUID and replaces forged or oversized caller text", () => {
+    const valid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const accepted = proxy(new NextRequest("http://localhost/api/me", {
+      headers: { [BC_CORRELATION_ID_HEADER]: valid },
+    }));
+    expect(accepted.headers.get(BC_CORRELATION_ID_HEADER)).toBe(valid);
+
+    for (const forged of ["patient-name-or-token", "x".repeat(10_000)]) {
+      const replaced = proxy(new NextRequest("http://localhost/api/me", {
+        headers: { [BC_CORRELATION_ID_HEADER]: forged },
+      }));
+      const actual = replaced.headers.get(BC_CORRELATION_ID_HEADER);
+      expect(actual).toMatch(/^[0-9a-f-]{36}$/);
+      expect(actual).not.toBe(forged);
+    }
   });
 
   it("sets messenger cookies on /app/max entry without ctx", () => {

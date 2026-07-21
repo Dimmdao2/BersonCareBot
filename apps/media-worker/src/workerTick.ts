@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { runWithObservabilityContext } from "@bersoncare/db-principal";
 import type { ClaimedJob } from "./jobs/claim.js";
 import { claimNextJob, reclaimStaleProcessing } from "./jobs/claim.js";
 import type { Logger } from "./logger.js";
@@ -42,8 +43,13 @@ export async function runMediaWorkerTick(
       return "idle";
     }
 
-    ctx.log.info({ jobId: job.id, mediaId: job.mediaId, attempt: job.attempts }, "processing transcode job");
-    await processJob(ctx, job);
-    return "processed";
+    return runWithObservabilityContext(
+      { correlationId: job.id, organizationId: job.organizationId },
+      async () => {
+        ctx.log.info({ jobId: job.id, mediaId: job.mediaId, attempt: job.attempts }, "processing transcode job");
+        await processJob(ctx, job);
+        return "processed" as const;
+      },
+    );
   });
 }

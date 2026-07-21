@@ -1,5 +1,10 @@
 import Fastify from 'fastify';
-import { env } from '../config/env.js';
+import type { FastifyBaseLogger } from 'fastify';
+import { logger } from '../infra/observability/logger.js';
+import {
+  registerHttpCorrelationContext,
+  resolveHttpCorrelationId,
+} from '../infra/observability/httpCorrelation.js';
 import { integrationRegistry } from '../integrations/registry.js';
 import { buildDeps, type BuildDepsInput } from './di.js';
 import { registerRoutes } from './routes.js';
@@ -13,10 +18,10 @@ import { reportIntegratorIsolationFailure } from '../infra/observability/saasIso
  */
 export async function buildApp(input?: BuildDepsInput) {
   const app = Fastify({
-    logger: {
-      level: env.LOG_LEVEL,
-    },
+    loggerInstance: logger as FastifyBaseLogger,
+    genReqId: resolveHttpCorrelationId,
   });
+  registerHttpCorrelationContext(app);
 
   const deps = buildDeps(input);
   await registerRoutes(app, deps);

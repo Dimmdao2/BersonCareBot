@@ -1,4 +1,5 @@
 import pino from "pino";
+import { getCurrentObservabilityContext } from "@bersoncare/db-principal";
 import type { MediaWorkerEnv } from "./env.js";
 
 /**
@@ -54,6 +55,7 @@ export function serializeError(err: unknown): SerializedError {
 export function createLogger(env: Pick<MediaWorkerEnv, "LOG_LEVEL">) {
   return pino({
     level: env.LOG_LEVEL || "info",
+    mixin: getCurrentObservabilityContext,
     serializers: {
       err: serializeError,
       error: serializeError,

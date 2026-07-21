@@ -1,5 +1,10 @@
 import pino from 'pino';
 import { randomUUID } from 'node:crypto';
+import {
+  getCurrentObservabilityContext,
+  resolveCorrelationId,
+  runWithObservabilityContext,
+} from '@bersoncare/db-principal';
 import { env } from '../../config/env.js';
 
 /**
@@ -75,6 +80,7 @@ export const logger = pino({
   level: env.LOG_LEVEL,
   ...(transport ? { transport } : {}),
   base: { pid: process.pid },
+  mixin: getCurrentObservabilityContext,
   redact: {
     paths: [
       'headers.authorization',
@@ -100,6 +106,15 @@ export const logger = pino({
 /** Генерирует уникальный id события с указанным префиксом. */
 export function newEventId(prefix = 'evt'): string {
   return `${prefix}_${randomUUID()}`;
+}
+
+/** Infra-owned bridge so integration adapters do not depend on the principal package directly. */
+export function newCorrelationId(): string {
+  return resolveCorrelationId();
+}
+
+export function runWithCorrelationContext<T>(correlationId: string, fn: () => T): T {
+  return runWithObservabilityContext({ correlationId }, fn);
 }
 
 /** Возвращает child-логгер для HTTP-запроса. */

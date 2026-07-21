@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 const INTEGRATOR_M2M_TIMEOUT_MS = 10_000;
@@ -42,6 +43,7 @@ async function integratorM2mPostJson<T>(path: string, body: unknown): Promise<
       "Content-Type": "application/json",
       "x-bersoncare-timestamp": timestamp,
       "x-bersoncare-signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body: rawBody,
     signal: controller.signal,

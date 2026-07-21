@@ -1,4 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { loadAdminTranscodeHealthMetricsSafe } from "@/app-layer/media/adminTranscodeHealthMetrics";
 import { env } from "@/config/env";
 import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
@@ -56,7 +57,7 @@ async function probeIntegratorApi(): Promise<IntegratorApiStatus> {
   try {
     const res = await fetch(`${base}/health`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...getCurrentCorrelationIdHeader() },
       cache: "no-store",
       signal: AbortSignal.timeout(INTEGRATOR_TIMEOUT_MS),
     });

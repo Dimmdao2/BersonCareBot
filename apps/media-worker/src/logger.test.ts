@@ -76,4 +76,20 @@ describe("createLogger rendered output", () => {
     expect(rendered).toContain("23505");
     expect(rendered).toContain("main loop error");
   });
+
+  it("adds bounded trusted job context from the shared principal ALS", async () => {
+    const { runWithObservabilityContext } = await import("@bersoncare/db-principal");
+    const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const organizationId = "11111111-1111-4111-8111-111111111111";
+    const log = createLogger({ LOG_LEVEL: "info" });
+
+    await runWithObservabilityContext({ correlationId, organizationId }, () => {
+      log.info({ outcome: "done" }, "transcode completed");
+    });
+
+    const rendered = stdoutSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
+    expect(rendered).toContain(correlationId);
+    expect(rendered).toContain(organizationId);
+    expect(rendered).toContain("transcode completed");
+  });
 });

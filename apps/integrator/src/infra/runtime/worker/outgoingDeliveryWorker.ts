@@ -1,5 +1,9 @@
 import { sql } from 'drizzle-orm';
 import {
+  parseCorrelationId,
+  runWithObservabilityContext,
+} from '@bersoncare/db-principal';
+import {
   type DbPort,
   type DbWritePort,
   type DeliverySendResult,
@@ -59,6 +63,18 @@ export type OutgoingDeliveryWorkerDeps = {
   dispatchOutgoing: (intent: OutgoingIntent) => Promise<DeliverySendResult>;
   doctorBroadcastMenu?: DoctorBroadcastMenuWorkerDeps;
 };
+
+function outgoingDeliveryCorrelationId(row: OutgoingDeliveryQueueRow): string | undefined {
+  const intent = row.payloadJson.intent;
+  if (intent === null || typeof intent !== 'object') return undefined;
+  const meta = (intent as Record<string, unknown>).meta;
+  if (meta === null || typeof meta !== 'object') return undefined;
+  return parseCorrelationId((meta as Record<string, unknown>).correlationId);
+}
+
+function runWithOutgoingDeliveryCorrelation<T>(row: OutgoingDeliveryQueueRow, fn: () => T): T {
+  return runWithObservabilityContext({ correlationId: outgoingDeliveryCorrelationId(row) }, fn);
+}
 
 function runWithDeliveryQueueCapability<T>(fn: () => T): T {
   return runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, fn);
@@ -736,6 +752,13 @@ export async function processClaimedOutgoingDeliveryRow(
   row: OutgoingDeliveryQueueRow,
   deps: OutgoingDeliveryWorkerDeps,
 ): Promise<void> {
+  return runWithOutgoingDeliveryCorrelation(row, () => processClaimedOutgoingDeliveryRowInner(row, deps));
+}
+
+async function processClaimedOutgoingDeliveryRowInner(
+  row: OutgoingDeliveryQueueRow,
+  deps: OutgoingDeliveryWorkerDeps,
+): Promise<void> {
   const scope = await resolveOutgoingDeliveryScope(deps.db, row.id);
   if (scope.queueKind !== row.kind) {
     await queueMarkDead(deps.db, row.id, 'TENANT_SCOPE_QUEUE_KIND_MISMATCH');
@@ -782,20 +805,22 @@ async function runOutgoingDeliveryWorkerTickInner(input: {
   let processed = 0;
   let errors = 0;
   for (const row of rows) {
-    try {
-      await processClaimedOutgoingDeliveryRow(row, {
-        db: input.db,
-        writePort: input.writePort,
-        dispatchOutgoing: input.dispatchOutgoing,
-        ...(input.doctorBroadcastMenu !== undefined
-          ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
-          : {}),
-      });
-      processed += 1;
-    } catch (err) {
-      errors += 1;
-      logger.error({ err, rowId: row.id, eventId: row.eventId }, 'outgoing_delivery_worker_row_failed');
-    }
+    await runWithOutgoingDeliveryCorrelation(row, async () => {
+      try {
+        await processClaimedOutgoingDeliveryRowInner(row, {
+          db: input.db,
+          writePort: input.writePort,
+          dispatchOutgoing: input.dispatchOutgoing,
+          ...(input.doctorBroadcastMenu !== undefined
+            ? { doctorBroadcastMenu: input.doctorBroadcastMenu }
+            : {}),
+        });
+        processed += 1;
+      } catch (err) {
+        errors += 1;
+        logger.error({ err, rowId: row.id, eventId: row.eventId }, 'outgoing_delivery_worker_row_failed');
+      }
+    });
   }
   return { claimed: rows.length, processed, errors };
 }

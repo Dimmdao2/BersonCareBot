@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 
 const TIMEOUT_MS = 10_000;
@@ -16,7 +17,7 @@ export async function proxyIntegratorProjectionHealth(): Promise<NextResponse> {
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...getCurrentCorrelationIdHeader() },
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

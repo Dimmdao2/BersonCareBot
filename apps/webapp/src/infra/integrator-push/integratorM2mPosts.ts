@@ -3,6 +3,7 @@
  * Used for immediate delivery and for outbox worker retries.
  */
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
 import type { ReminderRule } from "@/modules/reminders/types";
@@ -46,6 +47,7 @@ export async function postSystemSettingsSyncToIntegrator(input: SystemSettingsSy
       "Content-Type": "application/json",
       "x-bersoncare-timestamp": timestamp,
       "x-bersoncare-signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body,
   });
@@ -113,6 +115,7 @@ export async function postReminderRuleUpsertToIntegrator(rule: ReminderRule): Pr
       "Content-Type": "application/json",
       "x-bersoncare-timestamp": timestamp,
       "x-bersoncare-signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body,
   });

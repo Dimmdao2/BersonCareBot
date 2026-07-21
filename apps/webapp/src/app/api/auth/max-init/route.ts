@@ -33,12 +33,12 @@ function maxInitDataLogFields(initData: string): { initDataLength: number; initD
   }
 }
 
-function requestDiagnostics(request: Request): {
+function requestDiagnostics(request: Request, correlationId: string | undefined): {
   requestUri: string;
   queryArgs: string;
   userAgent: string | null;
   authFlow: "max_initData";
-  correlationId: string | null;
+  correlationId: string | undefined;
 } {
   const u = new URL(request.url);
   const queryArgs = u.search.startsWith("?") ? u.search.slice(1) : u.search;
@@ -47,7 +47,7 @@ function requestDiagnostics(request: Request): {
     queryArgs,
     userAgent: request.headers.get("user-agent"),
     authFlow: "max_initData",
-    correlationId: request.headers.get("x-bc-auth-correlation-id"),
+    correlationId,
   };
 }
 
@@ -56,9 +56,12 @@ function requestDiagnostics(request: Request): {
  * Подпись: https://dev.max.ru/docs/webapps/validation ; ключ: `max_bot_api_key` в admin settings.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/max-init:POST");
+  const correlationId = stampBootstrapPrincipal(
+    "api/auth/max-init:POST",
+    request.headers.get("x-bc-correlation-id") ?? request.headers.get("x-bc-auth-correlation-id"),
+  );
   const startedAt = Date.now();
-  const diag = requestDiagnostics(request);
+  const diag = requestDiagnostics(request, correlationId);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

@@ -1,5 +1,5 @@
 import type { S3Client } from "@aws-sdk/client-s3";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { getCurrentDbPrincipal, getCurrentObservabilityContext } from "@bersoncare/db-principal";
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import type { ClaimedJob } from "./jobs/claim.js";
@@ -29,7 +29,7 @@ describe("runMediaWorkerTick principal scope", () => {
   it("runs pipeline read, stale reclaim, claim, and processing inside an infra principal scope", async () => {
     const principalKinds: Array<string | undefined> = [];
     const job: ClaimedJob = {
-      id: "job-1",
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       mediaId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       attempts: 1,
@@ -50,11 +50,16 @@ describe("runMediaWorkerTick principal scope", () => {
       }),
       processTranscodeJob: vi.fn(async () => {
         principalKinds.push(getCurrentDbPrincipal()?.kind);
+        expect(getCurrentObservabilityContext()).toEqual({
+          correlationId: job.id,
+          orgId: job.organizationId,
+        });
       }),
     });
 
     expect(result).toBe("processed");
     expect(principalKinds).toEqual(["infra", "infra", "infra", "infra"]);
     expect(getCurrentDbPrincipal()).toBeUndefined();
+    expect(getCurrentObservabilityContext()).toEqual({});
   });
 });

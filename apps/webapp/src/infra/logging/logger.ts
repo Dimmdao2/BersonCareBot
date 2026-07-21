@@ -1,5 +1,6 @@
 import pino from "pino";
 import { randomUUID } from "node:crypto";
+import { getCurrentObservabilityContext } from "@bersoncare/db-principal";
 import { env } from "@/config/env";
 
 /**
@@ -70,6 +71,7 @@ export const logger = pino({
   level: env.LOG_LEVEL ?? "info",
   ...(transport ? { transport } : {}),
   base: { service: "bersoncare-webapp", pid: process.pid },
+  mixin: getCurrentObservabilityContext,
   redact: {
     paths: [
       "headers.authorization",

@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import { getCurrentCorrelationId } from '@bersoncare/db-principal';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { OutgoingDeliveryKind } from '../../delivery/deliveryContract.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
@@ -27,6 +28,29 @@ export type EnqueueOutgoingDeliveryInput = {
   maxAttempts?: number;
 };
 
+/** Copies only the bounded ambient correlation UUID into the queue's existing intent metadata. */
+export function attachCurrentCorrelationToOutgoingPayload(
+  payloadJson: Record<string, unknown>,
+): Record<string, unknown> {
+  const correlationId = getCurrentCorrelationId();
+  if (correlationId === undefined) return payloadJson;
+  const intent = payloadJson.intent;
+  if (intent === null || typeof intent !== 'object') return payloadJson;
+  const intentRecord = intent as Record<string, unknown>;
+  const meta = intentRecord.meta;
+  if (meta === null || typeof meta !== 'object') return payloadJson;
+  return {
+    ...payloadJson,
+    intent: {
+      ...intentRecord,
+      meta: {
+        ...(meta as Record<string, unknown>),
+        correlationId,
+      },
+    },
+  };
+}
+
 /**
  * Вставка в очередь; при конфликте `event_id` — без ошибки (idempotency).
  * @returns true если вставлена новая строка
@@ -36,6 +60,7 @@ export async function enqueueOutgoingDeliveryIfAbsent(
   input: EnqueueOutgoingDeliveryInput,
 ): Promise<boolean> {
   const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
+  const payloadJson = attachCurrentCorrelationToOutgoingPayload(input.payloadJson);
   const res = await runIntegratorSql<{ inserted: boolean }>(
     db,
     sql`INSERT INTO public.outgoing_delivery_queue (
@@ -47,7 +72,7 @@ export async function enqueueOutgoingDeliveryIfAbsent(
        attempt_count,
        max_attempts,
        next_retry_at
-     ) VALUES (${input.eventId}, ${input.kind}, ${input.channel}, ${JSON.stringify(input.payloadJson)}::jsonb, 'pending', 0, ${maxAttempts}, now())
+     ) VALUES (${input.eventId}, ${input.kind}, ${input.channel}, ${JSON.stringify(payloadJson)}::jsonb, 'pending', 0, ${maxAttempts}, now())
      ON CONFLICT (event_id) DO NOTHING
      RETURNING true AS inserted`,
   );

@@ -5,6 +5,22 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const POSITIVE_INTEGER_RE = /^[1-9][0-9]*$/;
 const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n;
 
+export const BC_CORRELATION_ID_HEADER = "x-bc-correlation-id";
+
+declare const correlationIdBrand: unique symbol;
+export type CorrelationId = string & { readonly [correlationIdBrand]: true };
+
+export type ObservabilityContext = {
+  correlationId: CorrelationId;
+  orgId?: string;
+};
+
+export type ObservabilityContextInput = {
+  correlationId?: unknown;
+  /** Trusted organization ownership only; never populate this from a request header. */
+  organizationId?: string | null;
+};
+
 const APP_ORG_CONFIG_KEY = "app.org";
 const APP_PATIENT_USER_CONFIG_KEY = "app.patient_user_id";
 const APP_INTEGRATOR_USER_CONFIG_KEY = "app.integrator_user_id";
@@ -120,6 +136,8 @@ type DbPrincipalApplyScope = "transaction" | "connection";
 
 type DbPrincipalContextCell = {
   current: DbPrincipal | undefined;
+  correlationId?: CorrelationId;
+  observabilityOrganizationId?: string;
 };
 
 type DbPrincipalQueryable = {
@@ -352,6 +370,77 @@ export function getCurrentDbPrincipal(): DbPrincipal | undefined {
   return principalStorage.getStore()?.current;
 }
 
+/** Accepts only a canonical UUID. Arbitrary caller text is never copied into logs/headers. */
+export function parseCorrelationId(value: unknown): CorrelationId | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  return UUID_RE.test(normalized) ? (normalized as CorrelationId) : undefined;
+}
+
+/** Keeps a valid inbound UUID or replaces missing/forged/oversized input with a fresh UUID. */
+export function resolveCorrelationId(value?: unknown): CorrelationId {
+  return parseCorrelationId(value) ?? (randomUUID() as CorrelationId);
+}
+
+export function getCurrentCorrelationId(): CorrelationId | undefined {
+  return principalStorage.getStore()?.correlationId;
+}
+
+/**
+ * Installs a correlation id in the existing principal ALS cell. This is intentionally the same
+ * storage used by DB principal propagation: a second request/job AsyncLocalStorage would be able
+ * to drift or leak independently.
+ */
+export function ensureCorrelationId(value?: unknown): CorrelationId {
+  const cell = principalStorage.getStore();
+  if (cell?.correlationId) return cell.correlationId;
+  const correlationId = resolveCorrelationId(value);
+  if (cell) {
+    cell.correlationId = correlationId;
+  } else {
+    principalStorage.enterWith({ current: undefined, correlationId });
+  }
+  return correlationId;
+}
+
+/** Runs one request/job under bounded observability fields without changing its DB principal. */
+export function runWithObservabilityContext<T>(input: ObservabilityContextInput, fn: () => T): T {
+  const previous = principalStorage.getStore();
+  const correlationId = resolveCorrelationId(input.correlationId ?? previous?.correlationId);
+  const organizationId =
+    input.organizationId === undefined
+      ? previous?.observabilityOrganizationId
+      : input.organizationId === null
+        ? undefined
+        : normalizeDbPrincipalOrganizationId(input.organizationId);
+  return principalStorage.run(
+    {
+      current: previous?.current,
+      correlationId,
+      ...(organizationId === undefined ? {} : { observabilityOrganizationId: organizationId }),
+    },
+    fn,
+  );
+}
+
+/** Closed, low-cardinality-safe pino context. No user/body/error values are copied. */
+export function getCurrentObservabilityContext(): Partial<ObservabilityContext> {
+  const cell = principalStorage.getStore();
+  if (!cell) return {};
+  const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
+  const organizationId = principalOrganizationId ?? cell.observabilityOrganizationId;
+  return {
+    ...(cell.correlationId === undefined ? {} : { correlationId: cell.correlationId }),
+    ...(organizationId === undefined ? {} : { orgId: organizationId }),
+  };
+}
+
+/** Header fragment for an existing context; does not create ambient state outside a request/job. */
+export function getCurrentCorrelationIdHeader(): Record<typeof BC_CORRELATION_ID_HEADER, string> | Record<string, never> {
+  const correlationId = getCurrentCorrelationId();
+  return correlationId === undefined ? {} : { [BC_CORRELATION_ID_HEADER]: correlationId };
+}
+
 export function getCurrentDbPrincipalOrganizationId(): string | undefined {
   const principal = getCurrentDbPrincipal();
   // A patient identity may be organization-agnostic (multi-clinic overview) or carry the
@@ -380,7 +469,17 @@ export function getCurrentDbPrincipalIntegratorUserId(): string | undefined {
 }
 
 export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
-  return principalStorage.run({ current: normalizeDbPrincipal(principal) }, fn);
+  const previous = principalStorage.getStore();
+  return principalStorage.run(
+    {
+      current: normalizeDbPrincipal(principal),
+      ...(previous?.correlationId === undefined ? {} : { correlationId: previous.correlationId }),
+      ...(previous?.observabilityOrganizationId === undefined
+        ? {}
+        : { observabilityOrganizationId: previous.observabilityOrganizationId }),
+    },
+    fn,
+  );
 }
 
 /**
@@ -396,7 +495,17 @@ export function runWithDbPrincipal<T>(principal: DbPrincipal, fn: () => T): T {
  * reuse a single call's result across queries/requests; always capture a fresh snapshot per query.
  */
 export function runWithDbPrincipalSnapshot<T>(principal: DbPrincipal | undefined, fn: () => T): T {
-  return principalStorage.run({ current: principal }, fn);
+  const previous = principalStorage.getStore();
+  return principalStorage.run(
+    {
+      current: principal,
+      ...(previous?.correlationId === undefined ? {} : { correlationId: previous.correlationId }),
+      ...(previous?.observabilityOrganizationId === undefined
+        ? {}
+        : { observabilityOrganizationId: previous.observabilityOrganizationId }),
+    },
+    fn,
+  );
 }
 
 export function enterWithDbPrincipal(principal: DbPrincipal): void {

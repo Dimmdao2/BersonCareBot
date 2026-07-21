@@ -4,6 +4,7 @@
  */
 import { createHmac } from "node:crypto";
 import { randomBytes } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 import {
   assertPhoneCanStartChallenge,
@@ -98,6 +99,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
               "Content-Type": "application/json",
               "X-Bersoncare-Timestamp": timestamp,
               "X-Bersoncare-Signature": signature,
+              ...getCurrentCorrelationIdHeader(),
             },
             body,
           });
@@ -188,6 +190,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
               "Content-Type": "application/json",
               "X-Bersoncare-Timestamp": timestamp,
               "X-Bersoncare-Signature": signature,
+              ...getCurrentCorrelationIdHeader(),
             },
             body,
           });

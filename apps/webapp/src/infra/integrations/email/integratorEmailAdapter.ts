@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { env, integratorWebhookSecret } from "@/config/env";
 
 type SendEmailResult = { ok: true } | { ok: false; error: string };
@@ -35,6 +36,7 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
           "Content-Type": "application/json",
           "X-Bersoncare-Timestamp": timestamp,
           "X-Bersoncare-Signature": signature,
+          ...getCurrentCorrelationIdHeader(),
         },
         body,
       });

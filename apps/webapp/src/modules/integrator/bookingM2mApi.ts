@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 import type { BookingSlotsByDate } from "@/modules/patient-booking/types";
 import type {
@@ -28,6 +29,7 @@ async function postSigned(path: string, body: Record<string, unknown>): Promise<
       "Content-Type": "application/json",
       "X-Bersoncare-Timestamp": timestamp,
       "X-Bersoncare-Signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body: raw,
   });

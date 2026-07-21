@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 export async function postIntegratorSignedJson(
@@ -20,6 +21,7 @@ export async function postIntegratorSignedJson(
       "Content-Type": "application/json",
       "X-Bersoncare-Timestamp": timestamp,
       "X-Bersoncare-Signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body: raw,
   });

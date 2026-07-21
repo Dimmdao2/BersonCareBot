@@ -5,6 +5,7 @@
  * Idempotency key: `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}`.
  */
 import { createHmac } from "node:crypto";
+import { getCurrentCorrelationIdHeader } from "@bersoncare/db-principal";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 export type RelayResult =
@@ -89,6 +90,7 @@ async function attemptRelay(
       "Content-Type": "application/json",
       "X-Bersoncare-Timestamp": timestamp,
       "X-Bersoncare-Signature": signature,
+      ...getCurrentCorrelationIdHeader(),
     },
     body,
   });

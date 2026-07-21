@@ -26,7 +26,10 @@ const ROUTE = "auth/telegram-init";
  * Validates initData signature, checks ALLOWED_TELEGRAM_IDS / ADMIN_TELEGRAM_ID, creates session.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/telegram-init:POST");
+  const correlationId = stampBootstrapPrincipal(
+    "api/auth/telegram-init:POST",
+    request.headers.get("x-bc-correlation-id") ?? request.headers.get("x-bc-auth-correlation-id"),
+  );
   const startedAt = Date.now();
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -46,7 +49,7 @@ export async function POST(request: Request) {
         outcome: "invalid_body",
         messenger: "telegram",
         miniappAuthOutcome: "invalid_body",
-        correlationId: request.headers.get("x-bc-auth-correlation-id"),
+        correlationId,
       },
       "Telegram Mini App: запрос без валидного initData в JSON",
     );
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
         messenger: "telegram",
         requestUri: `${u.pathname}${u.search}`,
         userAgent: request.headers.get("user-agent"),
-        correlationId: request.headers.get("x-bc-auth-correlation-id"),
+        correlationId,
         initDataRawFull: initData,
       },
       "MINIAPP_AUTH_VERBOSE: полный initData (Telegram), см. journalctl webapp",
@@ -110,7 +113,7 @@ export async function POST(request: Request) {
         outcome: "access_denied",
         messenger: "telegram",
         miniappAuthOutcome: "denied",
-        correlationId: request.headers.get("x-bc-auth-correlation-id"),
+        correlationId,
       },
       "Telegram Mini App: initData отклонён",
     );
@@ -150,7 +153,7 @@ export async function POST(request: Request) {
       outcome: "ok",
       messenger: "telegram",
       miniappAuthOutcome: "session_ok",
-      correlationId: request.headers.get("x-bc-auth-correlation-id"),
+      correlationId,
       role: u.role,
       redirectTo: result.redirectTo,
     },

@@ -1,4 +1,8 @@
-import { getCurrentDbPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentObservabilityContext,
+  runWithDbInfraPrincipal,
+} from '@bersoncare/db-principal';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 
@@ -85,6 +89,7 @@ describe('claimed row tenant handoff', () => {
       organizationId,
     });
     const dispatchPrincipals: unknown[] = [];
+    const dispatchLogContexts: unknown[] = [];
     const queuePrincipals: unknown[] = [];
     vi.mocked(markOutgoingDeliverySent).mockImplementation(async () => {
       queuePrincipals.push(getCurrentDbPrincipal());
@@ -99,7 +104,12 @@ describe('claimed row tenant handoff', () => {
         logText: 'test',
         intent: {
           type: 'message.send',
-          meta: { eventId: 'event', occurredAt: '2026-07-16T10:00:00.000Z', source: 'max' },
+          meta: {
+            eventId: 'event',
+            occurredAt: '2026-07-16T10:00:00.000Z',
+            source: 'max',
+            correlationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          },
           payload: { recipient: { chatId: 200 } },
         },
       },
@@ -111,14 +121,70 @@ describe('claimed row tenant handoff', () => {
         writePort: { writeDb: vi.fn().mockResolvedValue(undefined) } as never,
         dispatchOutgoing: vi.fn(async () => {
           dispatchPrincipals.push(getCurrentDbPrincipal());
+          dispatchLogContexts.push(getCurrentObservabilityContext());
           return { maxMessageId: 'message-id' };
         }),
       }),
     );
 
     expect(dispatchPrincipals).toEqual([{ kind: 'organization', organizationId }]);
+    expect(dispatchLogContexts).toEqual([{
+      correlationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      orgId: organizationId,
+    }]);
     expect(queuePrincipals).toEqual([{ kind: 'infra', source: 'worker:outgoing-delivery-tick' }]);
   });
+
+  it.each([
+    { label: 'forged', input: 'forged-patient-value' },
+    { label: 'oversized', input: 'x'.repeat(10_000) },
+  ])(
+    'replaces $label persisted correlation before worker context',
+    async ({ input: forged }) => {
+      const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({
+        kind: 'tenant',
+        queueKind: 'reminder_dispatch',
+        organizationId,
+      });
+      let observed: ReturnType<typeof getCurrentObservabilityContext> = {};
+      await runWithDbInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, () =>
+        processClaimedOutgoingDeliveryRow(
+          baseRow({
+            id: '11111111-1111-4111-8111-111111111111',
+            payloadJson: {
+              occurrenceId: '22222222-2222-4222-8222-222222222222',
+              channel: 'max',
+              deliveryLogId: 'delivery-log',
+              externalId: '200',
+              logText: 'test',
+              intent: {
+                type: 'message.send',
+                meta: {
+                  eventId: 'event',
+                  occurredAt: '2026-07-16T10:00:00.000Z',
+                  source: 'max',
+                  correlationId: forged,
+                },
+                payload: { recipient: { chatId: 200 } },
+              },
+            },
+          }),
+          {
+            db: {} as DbPort,
+            writePort: { writeDb: vi.fn().mockResolvedValue(undefined) } as never,
+            dispatchOutgoing: vi.fn(async () => {
+              observed = getCurrentObservabilityContext();
+              return { maxMessageId: 'message-id' };
+            }),
+          },
+        ),
+      );
+      expect(observed.orgId).toBe(organizationId);
+      expect(observed.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(observed.correlationId).not.toBe(forged);
+    },
+  );
 
   it('quarantines unresolved tenant work before any external send', async () => {
     vi.mocked(resolveOutgoingDeliveryScope).mockResolvedValue({

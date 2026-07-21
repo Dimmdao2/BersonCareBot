@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { decodeBase64Url } from "@/shared/utils/base64url";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
@@ -48,7 +48,11 @@ import {
   normalizePatientOrganizationPreference,
   PATIENT_ORGANIZATION_PREFERENCE_COOKIE,
 } from "@/modules/patient-organization/preference";
-import { ensureDbPrincipalContext } from "@bersoncare/db-principal";
+import {
+  BC_CORRELATION_ID_HEADER,
+  ensureCorrelationId,
+  ensureDbPrincipalContext,
+} from "@bersoncare/db-principal";
 import { isDevAuthBypassEnabled } from "./devBypassPolicy";
 import type { DevBypassStaffWorkspaceKind } from "./devBypassClinicAdminWorkspaceReconciliation";
 
@@ -879,6 +883,13 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // the very first statement, makes every getCurrentSession() caller behave the same way whether
   // or not it goes through a guard.
   ensureDbPrincipalContext({ source: "getCurrentSession:pending" });
+  try {
+    const requestHeaders = await headers();
+    ensureCorrelationId(requestHeaders.get(BC_CORRELATION_ID_HEADER));
+  } catch {
+    // Unit surfaces may mock only cookies(); runtime still gets a fresh bounded id.
+    ensureCorrelationId();
+  }
   const cookieStore = await cookies();
   const patientOrganizationHint = normalizePatientOrganizationPreference(
     cookieStore.get(PATIENT_ORGANIZATION_PREFERENCE_COOKIE)?.value,

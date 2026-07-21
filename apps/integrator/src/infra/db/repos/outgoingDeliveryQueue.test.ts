@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { runWithObservabilityContext } from '@bersoncare/db-principal';
 import { drizzleSqlFragmentToApproximateSql } from '../drizzleSqlDebugText.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   claimDueOutgoingDeliveries,
+  attachCurrentCorrelationToOutgoingPayload,
   enqueueOutgoingDeliveryIfAbsent,
   markOutgoingDeliveryDead,
   markOutgoingDeliverySent,
@@ -41,6 +43,28 @@ describe('outgoingDeliveryQueue (Drizzle sql)', () => {
     expect(sqlText).toContain('public.outgoing_delivery_queue');
     expect(sqlText).toContain('ON CONFLICT (event_id) DO NOTHING');
     expect(sqlText).toContain('RETURNING true AS inserted');
+  });
+
+  it('copies only the trusted ambient correlation into existing intent metadata without mutating input', async () => {
+    const correlationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const input = {
+      intent: {
+        type: 'message.send',
+        meta: { eventId: 'event-1', correlationId: 'forged-free-form' },
+        payload: {},
+      },
+    };
+    const result = await runWithObservabilityContext({ correlationId }, () =>
+      attachCurrentCorrelationToOutgoingPayload(input),
+    );
+    expect(result).toEqual({
+      intent: {
+        type: 'message.send',
+        meta: { eventId: 'event-1', correlationId },
+        payload: {},
+      },
+    });
+    expect(input.intent.meta.correlationId).toBe('forged-free-form');
   });
 
   it('resetStaleOutgoingDeliveryProcessing only resets stale processing rows', async () => {

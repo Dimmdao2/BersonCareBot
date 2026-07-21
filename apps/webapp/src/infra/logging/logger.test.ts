@@ -90,4 +90,22 @@ describe("logger rendered output", () => {
     expect(rendered).toContain("23505");
     expect(rendered).toContain("handler failed");
   });
+
+  it("adds only trusted bounded correlation and organization context from the shared principal ALS", async () => {
+    const { runWithDbOrganizationPrincipal, runWithObservabilityContext } = await import("@bersoncare/db-principal");
+    const { logger: freshLogger } = await import("./logger");
+    const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const organizationId = "11111111-1111-4111-8111-111111111111";
+
+    await runWithObservabilityContext({ correlationId }, () =>
+      runWithDbOrganizationPrincipal(organizationId, () => {
+        freshLogger.error({ outcome: "ok" }, "request completed");
+      }),
+    );
+
+    const rendered = stdoutSpy.mock.calls.map((call: unknown[]) => String(call[0])).join("\n");
+    expect(rendered).toContain(correlationId);
+    expect(rendered).toContain(organizationId);
+    expect(rendered).toContain("request completed");
+  });
 });
