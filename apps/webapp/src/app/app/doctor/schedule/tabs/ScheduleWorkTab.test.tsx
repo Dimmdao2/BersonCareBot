@@ -253,6 +253,26 @@ describe("ScheduleWorkTab", () => {
     expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
   });
 
+  it("uses the canonical time-only picker without changing the selected work day", async () => {
+    await renderWorkTab({ month: "2026-06" });
+    await waitFor(() => expect(screen.getByTestId("month-grid")).toBeInTheDocument());
+
+    const cell = await screen.findByTestId("day-cell-2026-06-10");
+    fireEvent.click(cell);
+    await waitFor(() => expect(screen.getByTestId("hours-panel")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("panel-start"));
+    expect(await screen.findByRole("option", { name: "00:00" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "10:15" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-start")).toHaveTextContent("10:15");
+      expect(screen.queryByRole("listbox", { name: "Время" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("hours-panel")).toBeInTheDocument();
+    expect(cell).toHaveAttribute("aria-pressed", "true");
+  });
+
   // ── #829: city/location Select dropdown must not reset the in-progress
   //          weekday/day selection — its options render in a document.body
   //          portal (base-ui `Select`), which is NOT a DOM descendant of

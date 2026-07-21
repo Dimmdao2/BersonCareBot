@@ -3,14 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type MouseEvent } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/shared/ui/doctor/primitives/button";
-import { buttonVariants } from "@/shared/ui/doctor/primitives/button-variants";
 import { Input } from "@/shared/ui/doctor/primitives/input";
 import { Label } from "@/shared/ui/doctor/primitives/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/shared/ui/doctor/primitives/popover";
 import {
   Select,
   SelectContent,
@@ -28,7 +22,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from "@/shared/ui/doc
 import { DoctorSection } from "@/shared/ui/doctor/DoctorSection";
 import { DoctorEmptyState } from "@/shared/ui/doctor/DoctorEmptyState";
 import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from "@/shared/ui/doctor/doctorWorkspaceLayout";
-import { DoctorTimeColumn } from "@/shared/ui/doctor/DoctorTimeColumn";
+import { DoctorDateTimePicker } from "@/shared/ui/doctor/DoctorDateTimePicker";
 import { emitDoctorScheduleCalendarRefresh } from "../scheduleCalendarEvents";
 import { cn } from "@/lib/utils";
 import type { ScheduleTabProps } from "../scheduleTabRegistry";
@@ -373,54 +367,6 @@ function weekdayTemplateSummaries(
     .filter((summary, index, all) => all.indexOf(summary) === index);
 }
 
-type ScheduleTimePickerProps = {
-  id?: string;
-  value: string;
-  onChange: (value: string) => void;
-  ariaLabel: string;
-  testId: string;
-  className?: string;
-};
-
-/** Time-only shell over the shared doctor time-column contract. */
-function ScheduleTimePicker({ id, value, onChange, ariaLabel, testId, className }: ScheduleTimePickerProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        id={id}
-        type="button"
-        aria-label={ariaLabel}
-        className={cn(
-          buttonVariants({ variant: "outline", size: "sm" }),
-          "h-8 justify-center font-normal tabular-nums",
-          className,
-        )}
-        data-testid={testId}
-      >
-        {value}
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-24 p-1.5"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <DoctorTimeColumn
-          value={value}
-          startHour={0}
-          endHour={23}
-          stepMinutes={15}
-          onChange={(nextValue) => {
-            onChange(nextValue);
-            setOpen(false);
-          }}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Month grid cell (E2 — narrower, bigger time, shortTitle)
 // ---------------------------------------------------------------------------
@@ -566,7 +512,8 @@ function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
   return (
     <div className="flex items-center gap-1.5" data-testid={`break-row-${index}`}>
       <span className="text-xs text-muted-foreground min-w-[60px]">Перерыв {index + 1}</span>
-      <ScheduleTimePicker
+      <DoctorDateTimePicker
+        mode="time"
         className="h-7 w-24 text-xs"
         value={row.from}
         onChange={(value) => onChange(index, "from", value)}
@@ -574,7 +521,8 @@ function BreakRowField({ index, row, onChange, onRemove }: BreakRowFieldProps) {
         testId={`break-from-${index}`}
       />
       <span className="text-xs text-muted-foreground">–</span>
-      <ScheduleTimePicker
+      <DoctorDateTimePicker
+        mode="time"
         className="h-7 w-24 text-xs"
         value={row.to}
         onChange={(value) => onChange(index, "to", value)}
@@ -1359,7 +1307,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="panel-start" className="text-xs">Начало</Label>
-                    <ScheduleTimePicker
+                    <DoctorDateTimePicker
+                      mode="time"
                       id="panel-start"
                       className="w-26"
                       value={panelStart}
@@ -1370,7 +1319,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="panel-end" className="text-xs">Конец</Label>
-                    <ScheduleTimePicker
+                    <DoctorDateTimePicker
+                      mode="time"
                       id="panel-end"
                       className="w-26"
                       value={panelEnd}
@@ -1553,7 +1503,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             <div className="flex flex-wrap gap-3">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="tpl-start" className="text-xs">Начало</Label>
-                <ScheduleTimePicker
+                <DoctorDateTimePicker
+                  mode="time"
                   id="tpl-start"
                   className="w-28"
                   value={tplStart}
@@ -1564,7 +1515,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
               </div>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="tpl-end" className="text-xs">Конец</Label>
-                <ScheduleTimePicker
+                <DoctorDateTimePicker
+                  mode="time"
                   id="tpl-end"
                   className="w-28"
                   value={tplEnd}
