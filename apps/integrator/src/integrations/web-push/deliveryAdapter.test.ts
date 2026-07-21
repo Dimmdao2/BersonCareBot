@@ -55,7 +55,13 @@ const STUB_VAPID: VapidCredentials = {
 function makeWebPushIntent(overrides: Partial<Record<string, unknown>> = {}): OutgoingIntent {
   return {
     type: 'message.send',
-    meta: { eventId: `wp-test-${Math.random()}`, occurredAt: NOW, source: 'web_push' },
+    meta: {
+      eventId: `wp-test-${Math.random()}`,
+      occurredAt: NOW,
+      source: 'web_push',
+      outboundMessageClass: 'conversation_event',
+      outboundCapability: 'app_push',
+    },
     payload: {
       recipient: { pushUserId: 'user-123' },
       message: { text: 'You have a new message.' },

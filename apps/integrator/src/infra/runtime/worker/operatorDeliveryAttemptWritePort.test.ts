@@ -12,12 +12,14 @@ const intent: OutgoingIntent = {
   meta: {
     eventId: 'op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca',
     occurredAt: '2026-07-16T00:00:00.000Z',
-    source: 'telegram',
+    source: 'web_push',
+    outboundMessageClass: 'operator_security',
+    outboundCapability: 'app_push',
   },
   payload: {
-    recipient: { chatId: 9001 },
+    recipient: { pushUserId: 'operator-user-9001' },
     message: { text: 'sensitive operator alert text' },
-    delivery: { channels: ['telegram'], maxAttempts: 1 },
+    delivery: { channels: ['web_push'], maxAttempts: 1 },
   },
 };
 
@@ -59,7 +61,7 @@ describe('operator delivery attempt production wiring', () => {
     expect(harness.tenantWrite).not.toHaveBeenCalled();
     expect(harness.query).toHaveBeenCalledWith(
       'SELECT app.record_operator_delivery_attempt($1, $2, $3, $4, $5)',
-      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'success', 1, null],
+      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'web_push', 'success', 1, null],
     );
     const auditCall = JSON.stringify(harness.query.mock.calls);
     expect(auditCall).not.toContain('sensitive operator alert text');
@@ -78,7 +80,7 @@ describe('operator delivery attempt production wiring', () => {
     expect(harness.send).not.toHaveBeenCalled();
     expect(harness.tenantWrite).not.toHaveBeenCalled();
     expect(harness.query.mock.calls[0]?.[1]).toEqual([
-      'op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'success', 1, 'dev_redirect_suppressed',
+      'op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'web_push', 'success', 1, 'dev_redirect_suppressed',
     ]);
   });
 
@@ -94,7 +96,7 @@ describe('operator delivery attempt production wiring', () => {
 
     expect(harness.query).toHaveBeenCalledWith(
       'SELECT app.record_operator_delivery_attempt($1, $2, $3, $4, $5)',
-      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'telegram', 'failed', 1, 'provider_rejected'],
+      ['op-inc:test:4f01d16b4e2fbef75b951c80b24dbeca', 'web_push', 'failed', 1, 'provider_rejected'],
     );
     const auditCall = JSON.stringify(harness.query.mock.calls);
     expect(auditCall).not.toContain('9001');

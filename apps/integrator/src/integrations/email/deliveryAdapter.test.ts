@@ -64,7 +64,13 @@ function makeEmailIntent(overrides: Partial<{
   const { to = 'patient@example.com', subject, text, html, fromOverride } = overrides;
   return {
     type: 'message.send',
-    meta: { eventId: 'evt-email-test', occurredAt: '2026-06-17T00:00:00.000Z', source: 'email' },
+    meta: {
+      eventId: 'evt-email-test',
+      occurredAt: '2026-06-17T00:00:00.000Z',
+      source: 'email',
+      outboundMessageClass: 'auth_code',
+      outboundCapability: 'auth_code',
+    },
     payload: {
       recipient: { email: to },
       message: { text },

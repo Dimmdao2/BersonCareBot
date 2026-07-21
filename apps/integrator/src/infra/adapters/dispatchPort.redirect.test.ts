@@ -33,6 +33,15 @@ const EMAIL_TARGET = 'dimmdao@yandex.ru';
 const PUSH_TARGET = '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0';
 const NOW = '2026-06-17T00:00:00.000Z';
 
+function outboundPolicyMarker(channel: string): {
+  outboundMessageClass: 'auth_code' | 'conversation_event';
+  outboundCapability: 'auth_code' | 'app_push';
+} {
+  return channel === 'web_push'
+    ? { outboundMessageClass: 'conversation_event', outboundCapability: 'app_push' }
+    : { outboundMessageClass: 'auth_code', outboundCapability: 'auth_code' };
+}
+
 // ─── Adapter factories ─────────────────────────────────────────────────────────
 
 /** Capture adapter for one channel (matches delivery.channels[0]). */
@@ -127,7 +136,10 @@ const CHANNEL_CASES: ChannelCase[] = [
     description: 'telegram — real chatId → his telegram chat',
     intent: (eventId) => ({
       type: 'message.send',
-      meta: { eventId, occurredAt: NOW, source: 'telegram' },
+      meta: {
+        eventId, occurredAt: NOW, source: 'telegram',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
       payload: {
         recipient: { chatId: 999111222 },
         message: { text: 'Telegram message to real patient' },
@@ -144,7 +156,10 @@ const CHANNEL_CASES: ChannelCase[] = [
     description: 'max — real userId → his MAX id',
     intent: (eventId) => ({
       type: 'message.send',
-      meta: { eventId, occurredAt: NOW, source: 'max' },
+      meta: {
+        eventId, occurredAt: NOW, source: 'max',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
       payload: {
         recipient: { userId: 8877665544, chatId: 8877665544 },
         message: { text: 'MAX message to real patient' },
@@ -161,7 +176,10 @@ const CHANNEL_CASES: ChannelCase[] = [
     description: 'smsc — real phoneNormalized → his phone',
     intent: (eventId) => ({
       type: 'message.send',
-      meta: { eventId, occurredAt: NOW, source: 'smsc' },
+      meta: {
+        eventId, occurredAt: NOW, source: 'smsc',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
       payload: {
         recipient: { phoneNormalized: '+79991234567' },
         message: { text: 'SMS code: 123456' },
@@ -178,7 +196,10 @@ const CHANNEL_CASES: ChannelCase[] = [
     description: 'email — real recipient.email → his email',
     intent: (eventId) => ({
       type: 'message.send',
-      meta: { eventId, occurredAt: NOW, source: 'email' },
+      meta: {
+        eventId, occurredAt: NOW, source: 'email',
+        outboundMessageClass: 'auth_code', outboundCapability: 'auth_code',
+      },
       payload: {
         recipient: { email: 'real.patient@example.com' },
         subject: 'Appointment Reminder',
@@ -196,7 +217,10 @@ const CHANNEL_CASES: ChannelCase[] = [
     description: 'web_push — real pushUserId → his pushUserId',
     intent: (eventId) => ({
       type: 'message.send',
-      meta: { eventId, occurredAt: NOW, source: 'web_push' },
+      meta: {
+        eventId, occurredAt: NOW, source: 'web_push',
+        outboundMessageClass: 'conversation_event', outboundCapability: 'app_push',
+      },
       payload: {
         recipient: { pushUserId: 'real-webapp-user-id-42' },
         message: { text: 'You have a new message from your doctor.' },
@@ -297,7 +321,9 @@ describe('PER-CHANNEL PRE-FORK REDIRECT: each channel → Дмитрий, channe
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pc-d-email', occurredAt: NOW, source: 'email' },
+      meta: {
+        eventId: 'pc-d-email', occurredAt: NOW, source: 'email', ...outboundPolicyMarker('email'),
+      },
       payload: {
         recipient: { email: 'real.patient@clinic.example.com' },
         subject: 'S',
@@ -349,7 +375,7 @@ describe('SUPPRESS-D7: a channel with no binding never reaches an adapter', () =
     await expect(
       port.dispatchOutgoing({
         type: 'message.send',
-        meta: { eventId: `sup-${channel}`, occurredAt: NOW, source },
+        meta: { eventId: `sup-${channel}`, occurredAt: NOW, source, ...outboundPolicyMarker(channel) },
         payload: {
           recipient,
           message: { text: 'must be suppressed' },
@@ -381,7 +407,7 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'prod-email', occurredAt: NOW, source: 'email' },
+      meta: { eventId: 'prod-email', occurredAt: NOW, source: 'email', ...outboundPolicyMarker('email') },
       payload: {
         recipient: { email: 'prod.patient@example.com' },
         subject: 'Your appointment',
@@ -402,7 +428,9 @@ describe('PRODUCTION: redirect inactive — real recipients pass through to own 
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'prod-push', occurredAt: NOW, source: 'web_push' },
+      meta: {
+        eventId: 'prod-push', occurredAt: NOW, source: 'web_push', ...outboundPolicyMarker('web_push'),
+      },
       payload: {
         recipient: { pushUserId: 'prod-user-id-999' },
         message: { text: 'New message from doctor.' },
@@ -450,7 +478,7 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-tg', occurredAt: NOW, source: 'telegram' },
+      meta: { eventId: 'pass-tg', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram') },
       payload: {
         recipient: { chatId: ADMIN_TG },
         message: { text: 'Hello admin' },
@@ -480,7 +508,9 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-tg-client', occurredAt: NOW, source: 'telegram' },
+      meta: {
+        eventId: 'pass-tg-client', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram'),
+      },
       payload: {
         recipient: { chatId: 999111222 },
         message: { text: 'Hello real patient' },
@@ -498,7 +528,7 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-sms-ok', occurredAt: NOW, source: 'smsc' },
+      meta: { eventId: 'pass-sms-ok', occurredAt: NOW, source: 'smsc', ...outboundPolicyMarker('smsc') },
       payload: {
         recipient: { phoneNormalized: ADMIN_PHONE },
         message: { text: 'code 1' },
@@ -507,7 +537,9 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
     });
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-sms-client', occurredAt: NOW, source: 'smsc' },
+      meta: {
+        eventId: 'pass-sms-client', occurredAt: NOW, source: 'smsc', ...outboundPolicyMarker('smsc'),
+      },
       payload: {
         recipient: { phoneNormalized: '+79991234567' },
         message: { text: 'code 2' },
@@ -530,7 +562,7 @@ describe('PASSTHROUGH: allowlisted accounts bypass redirect; everyone else still
 
     await port.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: 'pass-empty', occurredAt: NOW, source: 'telegram' },
+      meta: { eventId: 'pass-empty', occurredAt: NOW, source: 'telegram', ...outboundPolicyMarker('telegram') },
       payload: {
         recipient: { chatId: ADMIN_TG },
         message: { text: 'Hello admin' },
