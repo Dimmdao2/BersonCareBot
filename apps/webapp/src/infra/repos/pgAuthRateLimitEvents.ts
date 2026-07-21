@@ -6,26 +6,55 @@ export type AuthRateLimitCheckParams = {
   key: string;
   windowMs: number;
   maxPerWindow: number;
-  scopeRetentionMs?: number;
+  scopePrune?: {
+    retentionMs: number;
+    batchSize: number;
+  };
 };
+
+export const AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH = 1_000;
 
 /** Returns `true` when the key is rate-limited (event not recorded). */
 export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitCheckParams): Promise<boolean> {
-  const { scope, key, windowMs, maxPerWindow, scopeRetentionMs } = params;
+  const { scope, key, windowMs, maxPerWindow, scopePrune } = params;
   const lockKey = `${scope}:${key}`;
 
   return runWebappTransaction(async (tx) => {
+    if (scopePrune) {
+      const pruneLockKey = `auth-rate-limit-scope-prune:${scope}`;
+      const lockResult = await runWebappPgText<{ acquired: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(hashtext($1::text)) AS acquired",
+        [pruneLockKey],
+        tx,
+      );
+      if (lockResult.rows[0]?.acquired) {
+        const retentionMs = Math.max(windowMs, scopePrune.retentionMs);
+        const retentionCutoff = new Date(Date.now() - retentionMs);
+        const batchSize = Math.max(
+          1,
+          Math.min(AUTH_RATE_LIMIT_SCOPE_PRUNE_MAX_BATCH, Math.floor(scopePrune.batchSize)),
+        );
+        await runWebappPgText(
+          `WITH stale AS (
+             SELECT ctid
+             FROM auth_rate_limit_events
+             WHERE scope = $1 AND occurred_at <= $2
+             ORDER BY occurred_at
+             LIMIT $3
+             FOR UPDATE SKIP LOCKED
+           )
+           DELETE FROM auth_rate_limit_events AS events
+           USING stale
+           WHERE events.ctid = stale.ctid`,
+          [scope, retentionCutoff, batchSize],
+          tx,
+        );
+      }
+    }
+
     await runWebappSql(tx, sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`);
 
     const windowStart = new Date(Date.now() - windowMs);
-    if (scopeRetentionMs) {
-      const retentionCutoff = new Date(Date.now() - scopeRetentionMs);
-      await runWebappPgText(
-        "DELETE FROM auth_rate_limit_events WHERE scope = $1 AND occurred_at <= $2",
-        [scope, retentionCutoff],
-        tx,
-      );
-    }
     await runWebappPgText(
       "DELETE FROM auth_rate_limit_events WHERE scope = $1 AND key = $2 AND occurred_at <= $3",
       [scope, key, windowStart],

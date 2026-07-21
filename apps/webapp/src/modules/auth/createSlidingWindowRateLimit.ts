@@ -6,8 +6,12 @@ export type SlidingWindowRateLimitConfig = {
   windowMs: number;
   maxPerWindow: number;
   db: AuthRateLimitDbPort;
-  /** Optional DB retention bound for all rows in this limiter scope. */
-  scopeRetentionMs?: number;
+  /** Optional in-process cadence plus DB-bounded cleanup for this limiter scope. */
+  scopePrune?: {
+    retentionMs: number;
+    intervalMs: number;
+    batchSize: number;
+  };
   /** Optional cap on in-memory bucket map size before prune. */
   pruneBucketThreshold?: number;
 };
@@ -18,6 +22,8 @@ export type SlidingWindowRateLimitConfig = {
 export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfig) {
   const buckets = new Map<string, number[]>();
   let dbUnavailable = false;
+  let scopePruneInFlight = false;
+  let nextScopePruneAt = 0;
   const pruneThreshold = config.pruneBucketThreshold ?? 2000;
 
   function pruneEmptyBuckets(windowStart: number): void {
@@ -45,17 +51,34 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
   }
 
   async function isLimitedDb(key: string): Promise<boolean> {
+    const now = Date.now();
+    const shouldPrune = Boolean(
+      config.scopePrune && !scopePruneInFlight && now >= nextScopePruneAt,
+    );
+    if (shouldPrune && config.scopePrune) {
+      scopePruneInFlight = true;
+      nextScopePruneAt = now + config.scopePrune.intervalMs;
+    }
     try {
       return await config.db.checkAndRecord({
         scope: config.scope,
         key,
         windowMs: config.windowMs,
         maxPerWindow: config.maxPerWindow,
-        ...(config.scopeRetentionMs ? { scopeRetentionMs: config.scopeRetentionMs } : {}),
+        ...(shouldPrune && config.scopePrune
+          ? {
+              scopePrune: {
+                retentionMs: config.scopePrune.retentionMs,
+                batchSize: config.scopePrune.batchSize,
+              },
+            }
+          : {}),
       });
     } catch {
       dbUnavailable = true;
       return isLimitedInMemory(key);
+    } finally {
+      if (shouldPrune) scopePruneInFlight = false;
     }
   }
 

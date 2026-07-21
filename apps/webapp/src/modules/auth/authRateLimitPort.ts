@@ -3,8 +3,11 @@ export type AuthRateLimitCheckParams = {
   key: string;
   windowMs: number;
   maxPerWindow: number;
-  /** Optional scope-wide retention bound; pruning does not depend on the same key returning. */
-  scopeRetentionMs?: number;
+  /** Optional amortized, bounded cleanup request for this exact scope. */
+  scopePrune?: {
+    retentionMs: number;
+    batchSize: number;
+  };
 };
 
 /** DB-backed sliding-window rate limit (returns `true` when limited). */

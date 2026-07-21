@@ -44,6 +44,8 @@ describe("unsupported-client F0 integration guards", () => {
     expect(limiter).toContain("createHmac");
     expect(limiter).toContain("patient-client-boot-rate-limit:v1");
     expect(limiterRegistry).toContain('scope: "patient.client_boot_report"');
-    expect(limiterRegistry).toContain("scopeRetentionMs: 60 * 60 * 1000");
+    expect(limiterRegistry).toContain("retentionMs: 60 * 60 * 1000");
+    expect(limiterRegistry).toContain("intervalMs: 5 * 60 * 1000");
+    expect(limiterRegistry).toContain("batchSize: 500");
   });
 });

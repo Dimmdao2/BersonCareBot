@@ -13,6 +13,8 @@ describe("unsupported-client fallback flag migration", () => {
     expect(migration).toContain("INSERT INTO public.system_settings");
     expect(migration).toContain("INSERT INTO public.app_runtime_settings");
     expect(migration).toContain("INSERT INTO integrator.system_settings");
+    expect(migration).toContain("idx_auth_rate_limit_events_scope_time");
+    expect(migration).toContain("ON public.auth_rate_limit_events (scope, occurred_at)");
     expect(migration).toContain("'public'");
     expect(migration.match(/organization_id IS NULL/g)?.length).toBeGreaterThanOrEqual(3);
     expect(migration).not.toMatch(/DELETE\s+FROM/i);

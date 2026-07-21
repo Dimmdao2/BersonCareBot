@@ -1,6 +1,11 @@
 -- F0 unsupported-client fallback: dormant global public rollout flag.
 -- The repository ships fail-closed; TEST/PROD activation remains an owner gate.
 
+-- Supports bounded ordered cleanup of the short-lived F0 rate-limit scope without
+-- scanning the existing (scope, key, occurred_at) index across every key.
+CREATE INDEX IF NOT EXISTS idx_auth_rate_limit_events_scope_time
+  ON public.auth_rate_limit_events (scope, occurred_at);
+
 INSERT INTO public.system_settings (
   key, scope, organization_id, value_json, updated_at, updated_by
 )
