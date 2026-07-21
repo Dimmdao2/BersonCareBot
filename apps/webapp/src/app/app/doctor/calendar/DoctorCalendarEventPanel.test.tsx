@@ -126,6 +126,7 @@ describe("DoctorCalendarEventPanel patient heading", () => {
     );
 
     expect(screen.getAllByRole("link", { name: "Иванов Иван" })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Иванов Иван" })).not.toHaveClass("truncate");
     expect(screen.getByRole("button", { name: "Чат" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Позвонить:/ })).toHaveAttribute(
       "href",

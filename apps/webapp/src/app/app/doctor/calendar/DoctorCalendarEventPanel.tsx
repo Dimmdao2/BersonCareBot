@@ -525,8 +525,8 @@ function DoctorCalendarEventPanelInner({
         )}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h2 className="min-w-36 flex-1 text-base font-semibold leading-snug text-foreground">
               {selected.platformUserId ? (
                 <Link
                   href={patientCardHref(selected.platformUserId)}
@@ -538,7 +538,7 @@ function DoctorCalendarEventPanelInner({
                 selected.patientName ?? "Запись"
               )}
             </h2>
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {selected.platformUserId ? (
                 <DoctorOpenChatButton
                   patientUserId={selected.platformUserId}
