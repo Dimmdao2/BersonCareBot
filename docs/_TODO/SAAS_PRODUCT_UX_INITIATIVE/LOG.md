@@ -4032,3 +4032,18 @@ The untracked `SESSION_HANDOFF_2026-07-17.md` was reconciled rather than treated
 in it is already an ancestor of the current feature branch and none of its agent worktrees remains. Its fresh-reset
 TEST instruction is superseded by the current code-only/migrate-vs-reset runbooks, so the file moved to archive with
 an explicit historical warning instead of remaining as a misleading active handoff.
+
+## 2026-07-21 — Hardening A1 launch manifest (`#937`)
+
+Base `eaa9deebe`; parent reconciliation `#935`. Existing `#770` owns the runtime DB-principal chokepoint and `#933`
+owns the repaired generic Vitest harness. A1 closes only the remaining real-PostgreSQL CI evidence: an ephemeral CI
+database receives current migrations and two synthetic organizations, then locked/FORCE assertions prove own-org
+access, cross-org denial, missing-principal fail-closed behavior and controlled principal-full access. It must reuse
+the existing signed-principal/role contracts and may not replace them or relax generic tests back from their current
+mode.
+
+Allowed scope is `.github` CI plus dedicated webapp test harness/config/scripts/tests required by this gate. Runtime
+application modules, working `bcb_webapp_dev`, TEST/PROD databases, deploy/host scripts, external delivery and
+production credentials are protected. No shared DEV server is needed. Worker evidence is targeted harness/static
+checks; one independent adversarial audit follows the whole stage. Full CI runs once at the accumulated Phase 0
+milestone, not after every A1 edit. A1 is independent of active N1B notification-template files.
