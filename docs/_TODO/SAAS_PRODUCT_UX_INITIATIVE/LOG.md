@@ -3818,6 +3818,16 @@ pending invite. Taskdb `#796` is therefore `blocked`, `owner_waiting=true`, on o
 per-enrollment discharge/reactivate flow or authorize a narrow reversible TEST-only lifecycle harness. U5B/UI-5
 remains gated on these seals, while independent roadmap stages continue.
 
+## 2026-07-21 — milestone typecheck debt integrated
+
+Commit `7d35332d2` restores strict typing in three treatment-program files: the shared slider now supplies its
+required field name, the individual-exercise repository fixture uses the existing port type, and Drizzle's
+`systemKind` value is narrowed to the two values already enforced by the database CHECK. Independent audit passed
+`0 P0 / 0 P1 / 0 P2`; focused tests were `17/17` and scoped lint/narrow typecheck were green. The root typecheck later
+reached only conflicting generated `.next/dev` and `.next/types` route declarations, so the running single DEV server
+and its cache were left intact rather than killed or deleted. The commit is integrated and pushed; its temporary
+worktree/branch were removed.
+
 ## 2026-07-21 — C5A terminal audit hard stop (`#751`)
 
 The three-commit C5A constructor/trial candidate was rebased after U3B so the migration journal is exact
@@ -3841,3 +3851,55 @@ working database, TEST/PROD, deploy or provider action occurred. Under the decla
 merged or pushed and no further correction starts automatically. Taskdb `#751` is `blocked`, `owner_waiting=true`,
 on permission for one additional coherent correction pass versus freezing the unmerged candidate. Downstream C5B/
 C5C/C6 and configured-pricing U6A residual remain dependency-blocked.
+
+## 2026-07-21 — C5A correction resumed after owner process clarification (`#751`)
+
+The previous terminal-audit stop was too mechanical. The owner's later process ruling limits a hard stop to a real
+non-converging loop in which repeated fixes recreate the same or new defects; it does not block a coherent pass over
+clear findings that map directly to the approved C5 checklist. Task `#751` returned to `doing` with no product
+decision invented. One correction owner receives the whole stage and all four findings together, followed by one
+independent critical full-stage re-audit. C5B/C5C/C6/U6A still do not consume the candidate before that gate passes.
+
+### Critical re-audit of `b8d00a6ca` and final convergence boundary
+
+The coherent correction closed two former P1/P2 classes completely: explicit `no_trial` no longer inherits legacy
+compatibility mechanics, and courses quota now has a self-cleaning private PostgreSQL two-connection final-slot proof
+plus a typed `below_warning` / `warning` / `reached` projection. The full independent audit nevertheless failed
+`0 P0 / 3 P1 / 0 P2`. It found one CMS mutation missing from the declared inventory while a legitimate patient-home
+read reused the mutation-only helper; a manual tariff assignment could end an active trial whose time-expired row was
+still labelled active in UI; and the full changed-test census exposed six stale mocks (`14` failing tests) after the
+new mutation adapters were introduced.
+
+These are concrete same-class C5 findings, not new product scope, and the stage made measurable progress. Under the
+owner's process correction, one final convergence owner receives all three together. It must make read versus write
+intent explicit at the public guard boundary, close the inventory hole, make trial assignment/status truthful and
+run every changed test file rather than a selected subset. This is the last correction pass: another terminal audit
+failure stops C5A and is reported without another implementation loop. No full CI, working database, TEST/PROD,
+deploy, dump/reset or provider action belongs to this pass.
+
+## 2026-07-21 — C5A terminal hard stop after final convergence (`#751`)
+
+The final convergence commit `469341c2c` closed the prior three P1s: the public guard surface now requires explicit
+read or mutation adapters, the known CMS/patient-home callsites are correctly split, trial/manual tariff projection
+and time-effective statuses are truthful, and all changed tests pass (`57` test files, `426/426`). The independent
+terminal audit `bcb-c5a-751-terminal-final-audit-20260721` nevertheless failed `0 P0 / 2 P1 / 0 P2` on the complete
+range `46241bfcb..469341c2c`.
+
+The first finding is a regression introduced by the final pass: the mutating built-in Online-location `PUT` now uses
+the read entitlement adapter and therefore can write during commercial `read_only`/`blocked`. The second finding is
+a non-closed mandatory S4 gate: the production checker exits with twelve direct-resolver findings already present on
+the pre-C5A base, while its new declared-action census still misses valid async `export const` actions. The named
+CMS mutation and patient-home recovery read are fixed, and no_trial, quota warning/race proof, platform operations,
+trial conversion/audit and no-second-system checks passed.
+
+Per the explicitly declared terminal boundary, no fourth correction, milestone CI, integration or push was started.
+Task `#751` is `blocked`, `owner_waiting=true`, asking whether to authorize one strictly bounded repair for only these
+two P1s or freeze the isolated candidate. The worktree and branch remain as evidence; no DB, DEV/TEST/PROD, deploy,
+dump/reset or provider action occurred.
+
+## 2026-07-21 — U6B stale execution status corrected (`#926`)
+
+Readiness reconnaissance found no worker, commit, audit or handoff for U6B despite task `#926` being marked `doing`.
+The canonical DAG requires `U4 + U2`, and U4 still waits for U3S/U3B/U5A; U5A retains its separate owner gate in
+`#796`. Task `#926` was therefore returned to `todo` with `owner_waiting=false`. Its approved slug/public profile/
+booking-widget specification is preserved unchanged, but no implementation is claimed before the dependency opens.
