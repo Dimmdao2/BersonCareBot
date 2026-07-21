@@ -15,7 +15,7 @@ const bodySchema = z.object({
  * Подтверждение PIN при активной сессии (для опасных действий, напр. удаление дневников).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/pin/verify:POST");
+  stampBootstrapPrincipal("api/auth/pin/verify:POST", request);
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const { session } = gate;

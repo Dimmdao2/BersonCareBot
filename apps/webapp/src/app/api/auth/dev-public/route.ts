@@ -14,7 +14,7 @@ const REGISTRATION_VIEWS = new Set([
 
 /** Dev-only switch to a clean unauthenticated public/login or combined specialist+clinic registration surface. */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal('api/auth/dev-public:GET');
+  stampBootstrapPrincipal('api/auth/dev-public:GET', request);
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request, requestUrl);
 

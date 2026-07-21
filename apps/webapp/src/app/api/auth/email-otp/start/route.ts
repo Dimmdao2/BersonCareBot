@@ -27,7 +27,7 @@ const EMAIL_OTP_START_FALLBACK_CLIENT_KEY = "email_otp_start:missing_x_real_ip";
  * Distinguishing errors: rate_limited (timing), invalid_email (format), email_send_failed (infra).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-otp/start:POST");
+  stampBootstrapPrincipal("api/auth/email-otp/start:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

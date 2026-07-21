@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  BC_CORRELATION_ID_HEADER,
+  getCurrentCorrelationId,
+  runWithDbBootstrapPrincipal,
+} from "@bersoncare/db-principal";
 
 const verifyGetMock = vi.hoisted(() => vi.fn());
 vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
@@ -34,14 +39,24 @@ describe("assertIntegratorGetRequest", () => {
 
   it("returns null when verify returns true", () => {
     verifyGetMock.mockReturnValue(true);
-    const res = assertIntegratorGetRequest(
-      new Request("http://localhost/path", {
-        headers: {
-          "x-bersoncare-timestamp": "1",
-          "x-bersoncare-signature": "ok",
-        },
-      })
+    const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const previousCorrelationId = getCurrentCorrelationId();
+    const context = runWithDbBootstrapPrincipal(
+      { source: "test:integrator-get" },
+      () => {
+        const res = assertIntegratorGetRequest(
+          new Request("http://localhost/path", {
+            headers: {
+              "x-bersoncare-timestamp": "1",
+              "x-bersoncare-signature": "ok",
+              [BC_CORRELATION_ID_HEADER]: correlationId,
+            },
+          }),
+        );
+        return { res, correlationId: getCurrentCorrelationId() };
+      },
     );
-    expect(res).toBeNull();
+    expect(context).toEqual({ res: null, correlationId });
+    expect(getCurrentCorrelationId()).toBe(previousCorrelationId);
   });
 });

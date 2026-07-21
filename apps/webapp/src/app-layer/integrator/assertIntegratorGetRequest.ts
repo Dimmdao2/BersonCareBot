@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stampBootstrapPrincipal } from "@/app-layer/principal/bootstrapPrincipal";
 import { verifyIntegratorGetSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 
 /**
@@ -6,6 +7,7 @@ import { verifyIntegratorGetSignature } from "@/infra/webhooks/verifyIntegratorS
  * @returns JSON error `NextResponse` with status 400 or 401, or `null` when the handler may proceed.
  */
 export function assertIntegratorGetRequest(request: Request): NextResponse | null {
+  stampBootstrapPrincipal("api/integrator:GET", request);
   const timestamp = request.headers.get("x-bersoncare-timestamp");
   const signature = request.headers.get("x-bersoncare-signature");
   if (!timestamp || !signature) {

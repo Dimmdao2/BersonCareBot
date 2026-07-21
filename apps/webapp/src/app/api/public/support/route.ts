@@ -74,7 +74,7 @@ function fitTelegramMessage(text: string): string {
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/public/support:POST");
+  stampBootstrapPrincipal("api/public/support:POST", request);
   const body = (await request.json().catch(() => null)) as {
     email?: string;
     message?: string;

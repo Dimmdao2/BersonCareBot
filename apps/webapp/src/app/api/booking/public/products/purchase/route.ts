@@ -12,7 +12,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/products/purchase:POST");
+  stampBootstrapPrincipal("api/booking/public/products/purchase:POST", request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });

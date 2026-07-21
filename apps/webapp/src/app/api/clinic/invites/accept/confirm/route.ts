@@ -32,7 +32,7 @@ function acceptErrorStatus(code: string): number {
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/clinic/invites/accept/confirm:POST");
+  stampBootstrapPrincipal("api/clinic/invites/accept/confirm:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

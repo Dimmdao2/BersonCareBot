@@ -14,7 +14,7 @@ const bodySchema = z.object({
 
 /** Повторная отправка setup-кода для contact-only / verified без пароля (явный запрос UI). */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/setup-access:POST");
+  stampBootstrapPrincipal("api/auth/email-password/setup-access:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

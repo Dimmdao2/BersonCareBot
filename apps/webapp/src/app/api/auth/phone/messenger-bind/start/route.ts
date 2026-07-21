@@ -29,7 +29,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/phone/messenger-bind/start:POST");
+  stampBootstrapPrincipal("api/auth/phone/messenger-bind/start:POST", request);
   ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;

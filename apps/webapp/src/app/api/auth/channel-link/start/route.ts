@@ -14,7 +14,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/channel-link/start:POST");
+  stampBootstrapPrincipal("api/auth/channel-link/start:POST", request);
   ensureAuthModulePortsBound();
 
   const session = await getCurrentSession();

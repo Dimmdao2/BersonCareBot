@@ -13,7 +13,7 @@ const bodySchema = z.object({
 
 /** Новая setup-ссылка по истёкшему (но не использованному) token. */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-setup/resend:POST");
+  stampBootstrapPrincipal("api/auth/email-setup/resend:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

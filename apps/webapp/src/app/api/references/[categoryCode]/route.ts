@@ -6,10 +6,10 @@ const PRIVATE_REFERENCE_CATEGORY_CODES = new Set(["visit_manipulation"]);
 
 /** Public read-only current baseline. Tenant-owned mutable snapshots are never exposed here. */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ categoryCode: string }> }
 ) {
-  stampBootstrapPrincipal("api/references/[categoryCode]:GET");
+  stampBootstrapPrincipal("api/references/[categoryCode]:GET", request);
   const { categoryCode } = await context.params;
   if (!categoryCode || categoryCode.trim() === "") {
     return NextResponse.json({ ok: false, error: "category_required" }, { status: 400 });

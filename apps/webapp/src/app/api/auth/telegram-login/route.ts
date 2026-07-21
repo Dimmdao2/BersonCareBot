@@ -13,7 +13,7 @@ const bodySchema = z.record(z.string(), z.unknown());
  * POST /api/auth/telegram-login — вход через Telegram Login Widget (JSON payload от callback виджета).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/telegram-login:POST");
+  stampBootstrapPrincipal("api/auth/telegram-login:POST", request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

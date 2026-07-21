@@ -8,7 +8,7 @@ import {
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/form-fields:GET");
+  stampBootstrapPrincipal("api/booking/public/form-fields:GET", request);
   const deps = buildAppDeps();
   if (!deps.bookingEngine || !deps.bookingForm) {
     return NextResponse.json({ ok: false, error: "booking_form_unavailable" }, { status: 503 });

@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/payment-status:GET");
+  stampBootstrapPrincipal("api/booking/public/payment-status:GET", request);
   const url = new URL(request.url);
   const bookingId = url.searchParams.get("bookingId")?.trim();
   const phone = url.searchParams.get("phone")?.trim();

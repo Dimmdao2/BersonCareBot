@@ -19,7 +19,7 @@ const bodySchema = z.object({
 
 /** Подтверждение email, установка пароля, consume token, сессия. */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-setup/complete:POST");
+  stampBootstrapPrincipal("api/auth/email-setup/complete:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

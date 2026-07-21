@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
   }
 
-  if (!verifyIntegratorSignature(timestamp, rawBody, signature)) {
+  if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
 

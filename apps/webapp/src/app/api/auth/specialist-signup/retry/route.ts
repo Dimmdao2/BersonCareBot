@@ -8,8 +8,8 @@ import {
 import { getCurrentSession } from "@/modules/auth/service";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 
-export async function POST() {
-  stampBootstrapPrincipal("api/auth/specialist-signup/retry:POST");
+export async function POST(request: Request) {
+  stampBootstrapPrincipal("api/auth/specialist-signup/retry:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

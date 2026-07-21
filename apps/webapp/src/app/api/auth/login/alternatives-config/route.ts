@@ -8,7 +8,7 @@ const ROUTE = "auth/login/alternatives-config";
 
 /** GET — публичный конфиг входа (Max-бот, VK URL и т.д.) для экрана входа, без секретов. */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/login/alternatives-config:GET");
+  stampBootstrapPrincipal("api/auth/login/alternatives-config:GET", request);
   const startedAt = Date.now();
   try {
     const [cfg, specialistSignupEnabled] = await Promise.all([

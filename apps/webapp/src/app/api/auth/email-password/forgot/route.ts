@@ -29,7 +29,7 @@ function forgotPasswordNeutralResponse(challengeRetryAfter?: number) {
  * setup-код через тот же email challenge; явный UI lookup уже перевёл пользователя в setup-password flow.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/forgot:POST");
+  stampBootstrapPrincipal("api/auth/email-password/forgot:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

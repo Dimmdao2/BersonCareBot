@@ -17,7 +17,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/specialist-signup/confirm:POST");
+  stampBootstrapPrincipal("api/auth/specialist-signup/confirm:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

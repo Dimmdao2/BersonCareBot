@@ -12,7 +12,7 @@ function loginRedirectUrl(request: NextRequest): URL {
 
 /** Выход: POST очищает сессию и редирект на экран входа (форма из меню/профиля). */
 export async function POST(request: NextRequest) {
-  stampBootstrapPrincipal("api/auth/logout:POST");
+  stampBootstrapPrincipal("api/auth/logout:POST", request);
   const deps = buildAppDeps();
   await deps.auth.clearSession();
   return NextResponse.redirect(loginRedirectUrl(request));
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
 /** GET также очищает сессию (закладка на URL не оставляет пользователя залогиненным). */
 export async function GET(request: NextRequest) {
-  stampBootstrapPrincipal("api/auth/logout:GET");
+  stampBootstrapPrincipal("api/auth/logout:GET", request);
   const deps = buildAppDeps();
   await deps.auth.clearSession();
   return NextResponse.redirect(loginRedirectUrl(request));

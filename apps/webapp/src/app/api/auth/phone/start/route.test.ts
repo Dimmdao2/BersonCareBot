@@ -12,7 +12,8 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 
 vi.mock("@/modules/auth/service", () => ({ getCurrentSession }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock("@bersoncare/db-principal", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@bersoncare/db-principal")>()),
   getCurrentDbPrincipalOrganizationId,
 }));
 

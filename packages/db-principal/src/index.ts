@@ -403,6 +403,18 @@ export function ensureCorrelationId(value?: unknown): CorrelationId {
   return correlationId;
 }
 
+/** Request/job ingress boundary: replaces any inherited id with this request's bounded id. */
+export function enterWithCorrelationId(value?: unknown): CorrelationId {
+  const correlationId = resolveCorrelationId(value);
+  const cell = principalStorage.getStore();
+  if (cell) {
+    cell.correlationId = correlationId;
+  } else {
+    principalStorage.enterWith({ current: undefined, correlationId });
+  }
+  return correlationId;
+}
+
 /** Runs one request/job under bounded observability fields without changing its DB principal. */
 export function runWithObservabilityContext<T>(input: ObservabilityContextInput, fn: () => T): T {
   const previous = principalStorage.getStore();

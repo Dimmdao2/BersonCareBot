@@ -20,7 +20,7 @@ import {
 } from "@/modules/patient-booking/inPersonBookingResolve";
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/create:POST");
+  stampBootstrapPrincipal("api/booking/public/create:POST", request);
   ensureAuthModulePortsBound();
 
   const rateKey = resolvePublicBookingRateLimitClientKey(request);

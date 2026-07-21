@@ -15,7 +15,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/login:POST");
+  stampBootstrapPrincipal("api/auth/email-password/login:POST", request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

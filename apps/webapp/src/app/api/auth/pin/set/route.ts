@@ -13,7 +13,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/pin/set:POST");
+  stampBootstrapPrincipal("api/auth/pin/set:POST", request);
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
   if (!gate.ok) return gate.response;
   const { session } = gate;

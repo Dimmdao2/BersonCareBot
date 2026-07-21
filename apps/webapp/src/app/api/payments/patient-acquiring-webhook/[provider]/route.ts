@@ -24,7 +24,7 @@ import type { PaymentProviderConfig } from "@/modules/payments/types";
 type RouteContext = { params: Promise<{ provider: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
-  stampBootstrapPrincipal("api/payments/patient-acquiring-webhook:POST:pre-routing");
+  stampBootstrapPrincipal("api/payments/patient-acquiring-webhook:POST:pre-routing", request);
   const { provider: providerId } = await context.params;
   const deps = buildAppDeps();
 

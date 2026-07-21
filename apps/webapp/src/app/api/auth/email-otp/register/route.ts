@@ -23,7 +23,7 @@ const EMAIL_OTP_REGISTER_FALLBACK_CLIENT_KEY = "email_otp_register:missing_x_rea
 
 /** Public structured patient registration. It creates no organization or clinical relationship. */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-otp/register:POST");
+  stampBootstrapPrincipal("api/auth/email-otp/register:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

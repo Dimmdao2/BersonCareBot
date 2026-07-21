@@ -27,7 +27,7 @@ const bodySchema = z.object({
 
 /** Contact-only email setup by code: verify email, set password, create session. */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/setup-code/complete:POST");
+  stampBootstrapPrincipal("api/auth/email-password/setup-code/complete:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

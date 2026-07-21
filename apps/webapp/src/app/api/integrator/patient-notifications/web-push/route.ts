@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
 import {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (!isKeyValid(idempotencyKey)) {
     return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
   }
-  if (!verifyIntegratorSignature(timestamp, rawBody, signature)) {
+  if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
 

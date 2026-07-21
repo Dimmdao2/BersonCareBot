@@ -13,7 +13,7 @@ const bodySchema = z.object({
 
 /** Публичная проверка setup-token → email для формы (в т.ч. expired для resend UI). */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-setup/validate:POST");
+  stampBootstrapPrincipal("api/auth/email-setup/validate:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

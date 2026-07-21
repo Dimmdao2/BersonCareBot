@@ -8,7 +8,7 @@ const ROUTE = "auth/telegram-login/config";
 
 /** Публичный конфиг для Telegram Login Widget: имя бота (без секретов). */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/telegram-login/config:GET");
+  stampBootstrapPrincipal("api/auth/telegram-login/config:GET", request);
   const startedAt = Date.now();
   const enabled = await isAuthChannelEnabled("telegram");
   const raw = enabled ? (await getTelegramLoginBotUsername()).trim() : "";

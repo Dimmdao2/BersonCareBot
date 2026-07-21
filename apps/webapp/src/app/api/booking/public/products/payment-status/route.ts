@@ -5,7 +5,7 @@ import { withExplicitOrganizationPrincipal } from "@/app-layer/principal/withOrg
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/products/payment-status:GET");
+  stampBootstrapPrincipal("api/booking/public/products/payment-status:GET", request);
   const params = new URL(request.url).searchParams;
   const purchaseId = params.get("purchaseId")?.trim();
   const contactPhone = params.get("phone")?.trim();

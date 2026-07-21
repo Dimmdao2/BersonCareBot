@@ -30,7 +30,7 @@ const bodySchema = z
  * OTP подтверждается на сервере по challenge из bind secret — пользователю не нужно вводить код в PWA.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/phone/messenger-bind/finish:POST");
+  stampBootstrapPrincipal("api/auth/phone/messenger-bind/finish:POST", request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

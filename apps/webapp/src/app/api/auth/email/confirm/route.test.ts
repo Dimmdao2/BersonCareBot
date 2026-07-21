@@ -18,7 +18,8 @@ vi.mock("@/modules/auth/emailAuth", () => ({
   confirmEmailChallenge: (...args: unknown[]) => confirmEmailChallengeMock(...args),
 }));
 
-vi.mock("@bersoncare/db-principal", () => ({
+vi.mock("@bersoncare/db-principal", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@bersoncare/db-principal")>()),
   getCurrentDbPrincipalOrganizationId: () => getCurrentDbPrincipalOrganizationIdMock(),
 }));
 

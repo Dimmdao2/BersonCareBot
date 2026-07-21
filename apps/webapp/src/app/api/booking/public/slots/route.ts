@@ -21,7 +21,7 @@ const onlineQuery = z.object({
 const querySchema = z.discriminatedUnion("type", [onlineQuery, inPersonSlotsQuerySchema]);
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/slots:GET");
+  stampBootstrapPrincipal("api/booking/public/slots:GET", request);
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     type: url.searchParams.get("type") ?? undefined,

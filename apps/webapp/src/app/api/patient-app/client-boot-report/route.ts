@@ -53,7 +53,7 @@ async function readBoundedUtf8Body(request: Request, maxBytes: number): Promise<
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/patient-app/client-boot-report:POST");
+  stampBootstrapPrincipal("api/patient-app/client-boot-report:POST", request);
   ensureAuthModulePortsBound();
 
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();

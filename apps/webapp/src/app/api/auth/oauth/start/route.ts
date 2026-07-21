@@ -88,7 +88,7 @@ async function logOAuthStartFailure(
  * Старт OAuth: Яндекс / Google / Apple при наличии ключей в `system_settings` (admin).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/oauth/start:POST");
+  stampBootstrapPrincipal("api/auth/oauth/start:POST", request);
   ensureAuthModulePortsBound();
 
   const identity = resolveOAuthStartRateLimitClientKey(request);

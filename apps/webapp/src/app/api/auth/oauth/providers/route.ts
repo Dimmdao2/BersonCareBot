@@ -9,7 +9,7 @@ import { getPublicRuntimeBool } from "@/modules/system-settings/configAdapter";
 const ROUTE = "auth/oauth/providers";
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/oauth/providers:GET");
+  stampBootstrapPrincipal("api/auth/oauth/providers:GET", request);
   const startedAt = Date.now();
   const [yandex, google, apple] = await Promise.all([
     getPublicRuntimeBool("oauth_yandex_enabled"),

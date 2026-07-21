@@ -6,6 +6,6 @@ import { handleYandexOAuthCallbackGet } from "@/modules/auth/yandexOAuthCallback
  * Предпочтительно указывать в кабинете Яндекса **`/api/auth/oauth/callback/yandex`**.
  */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/oauth/callback:GET");
+  stampBootstrapPrincipal("api/auth/oauth/callback:GET", request);
   return handleYandexOAuthCallbackGet(request);
 }

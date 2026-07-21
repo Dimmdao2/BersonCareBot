@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid idempotency key" }, { status: 400 });
   }
 
-  if (!verifyIntegratorSignature(timestamp, rawBody, signature)) {
+  if (!verifyIntegratorSignature(timestamp, rawBody, signature, request)) {
     logger.warn({ route: "integrator/messenger-phone/bind" }, "invalid integrator signature");
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }

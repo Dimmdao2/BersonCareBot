@@ -1,4 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import {
+  BC_CORRELATION_ID_HEADER,
+  getCurrentCorrelationIdHeader,
+} from "@bersoncare/db-principal";
 
 const startPublicEmailOtpChallengeMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
@@ -92,6 +96,30 @@ describe("POST /api/auth/email-otp/start", () => {
     expect(data.ok).toBe(true);
     expect(data.challengeId).toBe("ch-test-123");
     expect(data.retryAfterSeconds).toBe(60);
+  });
+
+  it("keeps the inbound UUID for the downstream email OTP operation", async () => {
+    const correlationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    let downstreamHeader: Record<string, string> = {};
+    startPublicEmailOtpChallengeMock.mockImplementationOnce(async () => {
+      downstreamHeader = getCurrentCorrelationIdHeader();
+      return {
+        ok: true as const,
+        challengeId: "ch-correlation",
+        retryAfterSeconds: 60,
+      };
+    });
+    const request = makeStartRequest(
+      { email: "correlation@example.com" },
+      "10.0.0.31",
+    );
+    request.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    request.headers.set("x-bc-auth-correlation-id", "patient-name-or-token");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(downstreamHeader).toEqual({ [BC_CORRELATION_ID_HEADER]: correlationId });
   });
 
   it("returns 429 when rate limited", async () => {

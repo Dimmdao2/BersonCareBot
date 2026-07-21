@@ -18,7 +18,7 @@ const bodySchema = z.object({
 const LOGIN_TTL_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/messenger/start:POST");
+  stampBootstrapPrincipal("api/auth/messenger/start:POST", request);
   ensureAuthModulePortsBound();
 
   const raw = (await request.json().catch(() => null)) as unknown;

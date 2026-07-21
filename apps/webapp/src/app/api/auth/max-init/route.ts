@@ -58,7 +58,7 @@ function requestDiagnostics(request: Request, correlationId: string | undefined)
 export async function POST(request: Request) {
   const correlationId = stampBootstrapPrincipal(
     "api/auth/max-init:POST",
-    request.headers.get("x-bc-correlation-id") ?? request.headers.get("x-bc-auth-correlation-id"),
+    request,
   );
   const startedAt = Date.now();
   const diag = requestDiagnostics(request, correlationId);

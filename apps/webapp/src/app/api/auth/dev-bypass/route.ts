@@ -13,7 +13,7 @@ function redirectToPath(path: string, origin: string): NextResponse {
 }
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/dev-bypass:GET");
+  stampBootstrapPrincipal("api/auth/dev-bypass:GET", request);
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request, requestUrl);
 

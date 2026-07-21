@@ -31,7 +31,7 @@ import {
  * POST /api/auth/oauth/callback/apple — Sign in with Apple (`response_mode=form_post`).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/oauth/callback/apple:POST");
+  stampBootstrapPrincipal("api/auth/oauth/callback/apple:POST", request);
   const appBase = await getAppBaseUrl();
   const ct = request.headers.get("content-type") ?? "";
   if (!ct.includes("application/x-www-form-urlencoded")) {

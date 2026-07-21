@@ -29,7 +29,7 @@ function resetNeutralFailureResponse() {
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/reset:POST");
+  stampBootstrapPrincipal("api/auth/email-password/reset:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

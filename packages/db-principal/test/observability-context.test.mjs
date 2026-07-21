@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   BC_CORRELATION_ID_HEADER,
+  enterWithCorrelationId,
   ensureCorrelationId,
   getCurrentCorrelationId,
   getCurrentCorrelationIdHeader,
@@ -47,6 +48,14 @@ test("one ALS cell preserves correlation while a trusted DB principal supplies o
     });
 
     assert.deepEqual(getCurrentObservabilityContext(), { correlationId: CORRELATION_A });
+  });
+  assert.equal(getCurrentCorrelationId(), undefined);
+});
+
+test("request ingress replaces an inherited correlation id", () => {
+  runWithObservabilityContext({ correlationId: CORRELATION_A }, () => {
+    assert.equal(enterWithCorrelationId(CORRELATION_B), CORRELATION_B);
+    assert.equal(getCurrentCorrelationId(), CORRELATION_B);
   });
   assert.equal(getCurrentCorrelationId(), undefined);
 });

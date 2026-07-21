@@ -28,7 +28,7 @@ const ROUTE = "auth/telegram-init";
 export async function POST(request: Request) {
   const correlationId = stampBootstrapPrincipal(
     "api/auth/telegram-init:POST",
-    request.headers.get("x-bc-correlation-id") ?? request.headers.get("x-bc-auth-correlation-id"),
+    request,
   );
   const startedAt = Date.now();
   const raw = (await request.json().catch(() => null)) as unknown;

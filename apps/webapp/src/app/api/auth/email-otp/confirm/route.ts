@@ -26,7 +26,7 @@ const bodySchema = z.object({
  * On success: sets session cookie, returns redirectTo + role (mirrors phone/confirm shape).
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-otp/confirm:POST");
+  stampBootstrapPrincipal("api/auth/email-otp/confirm:POST", request);
   if (!(await isAuthChannelEnabled("email"))) {
     return NextResponse.json(
       { ok: false, error: AUTH_CHANNEL_DISABLED_ERROR },

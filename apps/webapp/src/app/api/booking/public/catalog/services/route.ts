@@ -7,7 +7,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/booking/public/catalog/services:GET");
+  stampBootstrapPrincipal("api/booking/public/catalog/services:GET", request);
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({ cityCode: url.searchParams.get("cityCode") ?? "" });
   if (!parsed.success) {

@@ -37,7 +37,7 @@ const bodySchema = z.object({
  * deliveryChannel: telegram | max | email | sms — куда отправить OTP. Для channel=web значение sms запрещено.
  */
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/phone/start:POST");
+  stampBootstrapPrincipal("api/auth/phone/start:POST", request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {

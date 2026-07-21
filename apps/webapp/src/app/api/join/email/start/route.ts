@@ -21,7 +21,7 @@ function response(body: Record<string, unknown>, status = 200, retryAfter?: numb
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal('api/join/email/start:POST');
+  stampBootstrapPrincipal('api/join/email/start:POST', request);
   if (!(await isAuthChannelEnabled('email'))) {
     return response({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, 503);
   }

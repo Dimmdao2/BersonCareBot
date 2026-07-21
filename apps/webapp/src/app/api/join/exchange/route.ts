@@ -16,7 +16,7 @@ function safeResponse(body: Record<string, unknown>, status = 200): NextResponse
 }
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal('api/join/exchange:POST');
+  stampBootstrapPrincipal('api/join/exchange:POST', request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return safeResponse({ ok: false, error: 'invalid_token' }, 400);
   ensureAuthModulePortsBound();

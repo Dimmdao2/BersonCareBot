@@ -18,7 +18,7 @@ const bodySchema = z
   .refine((value) => Boolean(value.code) !== Boolean(value.recoveryCode));
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/email-password/login/factor:POST");
+  stampBootstrapPrincipal("api/auth/email-password/login/factor:POST", request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   const continuation = await readStaffLoginContinuation();

@@ -24,7 +24,7 @@ import {
  * GET /api/auth/oauth/callback/google — веб-логин Google (не календарь). Refresh token не сохраняем.
  */
 export async function GET(request: Request) {
-  stampBootstrapPrincipal("api/auth/oauth/callback/google:GET");
+  stampBootstrapPrincipal("api/auth/oauth/callback/google:GET", request);
   const appBase = await getAppBaseUrl();
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";

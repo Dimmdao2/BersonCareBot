@@ -26,7 +26,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  stampBootstrapPrincipal("api/auth/exchange:POST");
+  stampBootstrapPrincipal("api/auth/exchange:POST", request);
   const startedAt = Date.now();
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
