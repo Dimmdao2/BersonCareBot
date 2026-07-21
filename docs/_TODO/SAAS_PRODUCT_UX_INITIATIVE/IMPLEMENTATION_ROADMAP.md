@@ -748,6 +748,48 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 - [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) — subordinate incident-response
   stage `#950`: отказ email/SMS/provider становится красным open incident с независимым multi-channel alerting.
 
+#### Linked detailed-plan registry — current truth 2026-07-22
+
+Roadmap выбирает следующий dependency-ready stage, но **не является worker checklist**. Если stage ссылается на
+детальный plan/checklist, оркестратор до `doing` читает его целиком и переносит в self-contained brief все in-scope
+atomic checkboxes. Audit сравнивает результат с детальным checklist, а не с кратким абзацем roadmap. Parent stage
+нельзя закрыть по успешному partial slice; если plan не имеет атомарных checkboxes, сначала исправляется plan.
+Status детального plan, taskdb и этот registry обновляются в одном integration/docs pass.
+
+Текущий denominator: **20 leaf execution plans**. Ни один ещё не закрыт целиком со всеми своими gates: 2 имеют
+только завершённый partial slice, 6 имеют исполнимый сейчас остаток, 12 dependency/owner/legal/production-gated.
+Umbrella/index, Foundation helper-checklists и Rubitime production runbooks не прибавляются к этому denominator как
+равноправные stages: они проверяются вместе с owning leaf plan и не превращаются в отдельную очередь.
+
+| Leaf plan | Current class | Current truth / task mapping |
+|---|---|---|
+| [`SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md`](../SAAS_FOUNDATION/RUBITIME_RETIREMENT_EXECUTION_PLAN.md) | gated | R0–R4 имеют code/proof; R5–R7 требуют operational/owner gates. Полный checklist provenance дополнительно сверяется перед следующим Rubitime action. |
+| [`DOCTOR_UI_REWORK_2026-07-20/PLAN.md`](../DOCTOR_UI_REWORK_2026-07-20/PLAN.md) | open | Atomic tracker является authority; остатки `#958`, `#960–#964`, `#191`, `#848`; Voice `#922` post-production. |
+| [`.cursor/plans/fio_identity_cleanup.plan.md`](../../../.cursor/plans/fio_identity_cleanup.plan.md) | gated | Phases 0–8 закрыты; `#857` production backfill и `#858` parser audit/retirement остаются gated. |
+| [`STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md`](../STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md) | open | C1/D1/D2/E2/E3 открыты; A4/A2/E1 и post-launch residual идут только по собственным gates. |
+| [`UNSUPPORTED_CLIENT_FALLBACK_PLAN.md`](../UNSUPPORTED_CLIENT_FALLBACK_PLAN.md) | partial slice | Закрыт только Ф0 repository slice `#936`; Ф1/Ф2/guard не объявляются завершёнными. |
+| [`OUTBOUND_DELIVERY_ALERTING_PLAN.md`](../OUTBOUND_DELIVERY_ALERTING_PLAN.md) | open | P1 закрыт `b64692aeb`; P0/P2/P3/P4/P-guard остаются в `#950`. |
+| [`SECURITY_CI_STACK_PLAN.md`](../SECURITY_CI_STACK_PLAN.md) | gated | `#881` owner-waiting; dependency refresh не закрывает Security CI checklist. |
+| [`PR-00_SCOPE_LOCK.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-00_SCOPE_LOCK.md) | gated | Частичный registry готов; owner/legal inputs остаются в `#899`. |
+| [`PR-01_PROCESSING_REGISTER.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-01_PROCESSING_REGISTER.md) | gated | Factual register готов; ответственные/юрист/Selectel/РКН остаются owner/legal inputs `#899`. |
+| [`SEC-02_HOST_AND_SECRETS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-02_HOST_AND_SECRETS.md) | open | Repository/read-only preflight `#900` исполним; TEST/PROD mutations отдельно gated. |
+| [`DR-01_BACKUP_AND_RECOVERY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/DR-01_BACKUP_AND_RECOVERY.md) | partial slice | `#901` закрыл repository backup-safety; реальные keys/offsite/PITR/restore/RPO/RTO не закрыты. |
+| [`CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/CRYPTO-01_DATA_AND_KEY_ENCRYPTION.md) | open | ADR/ports/tests разрешены; application/migration ждут stable dependency/legal/owner gates. |
+| [`INFRA-01_ENCRYPTED_PROD_MIGRATION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/INFRA-01_ENCRYPTED_PROD_MIGRATION.md) | gated | Planning/dark-target/cutover под umbrella `#898/#900/#901`; production только owner window. |
+| [`NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/NTF-01_APP_PUSH_AND_MESSENGER_AUTH_ONLY.md) | open | N0/N1/N1A/N1B0 закрыты; N1B1 и последующий routing/native-push остаются `#913`. |
+| [`LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md) | gated | L0/L1 закрыты; L2 ждёт retention/NTF census в `#914`. |
+| [`PR-02_HEALTH_CONSENT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-02_HEALTH_CONSENT.md) | gated | `#907` ждёт D4/S5-7/legal text. |
+| [`PR-03_DATA_RIGHTS_AND_RETENTION.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-03_DATA_RIGHTS_AND_RETENTION.md) | gated | Закрыт только PR-03A0; broad `#905` ждёт PR-02, payment slice — billing freeze. |
+| [`SEC-03_CLINICAL_ACCESS_AUDIT.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-03_CLINICAL_ACCESS_AUDIT.md) | gated | `#908` ждёт D4. |
+| [`SEC-04_GOVERNANCE_AND_INCIDENTS.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/SEC-04_GOVERNANCE_AND_INCIDENTS.md) | gated | `#906` ждёт SEC-03 и DR/log/break-glass gates. |
+| [`PR-04_ISPDN_RELEASE_GATE.md`](../RU_PRIVACY_AND_PRODUCTION_READINESS/stages/PR-04_ISPDN_RELEASE_GATE.md) | gated | `#909`, финальный owner/external release gate. |
+
+Исторически доказанный completion/checklist shortcut: частичные Doctor UI slices были представлены как blanket
+baseline полного parent scope; это исправлено atomic tracker в `1987d0b9a`. Для Rubitime execution plan и DB cleanup sequence существуют code/proof artifacts, но LOG/taskdb не
+доказывают прохождение всего linked detailed checklist; перед следующим действием нужен provenance reconciliation,
+а не автоматический повтор кода. Для Hardening, FIO, privacy stages, unsupported-client и outbound taskdb/LOG прямо
+ссылаются на exact subordinate plan/stage; summary-only execution там не доказано.
+
 Порядок включения:
 
 1. **Reconciliation сейчас, без нового кода:** каждый finding hardening-плана сверяется с текущим кодом/taskdb и

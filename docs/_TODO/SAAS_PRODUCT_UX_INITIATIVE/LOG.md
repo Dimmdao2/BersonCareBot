@@ -19,6 +19,14 @@ every verifiable owner item is an individual checkbox, partial stages are split 
 and repository completion is explicitly separated from TEST/live owner acceptance. Future worker briefs may cite
 that checklist but may not compress it into a parent-stage summary.
 
+A recursive linked-plan census separated seven top-level entrypoints and twenty leaf execution plans. Umbrella,
+Foundation-helper and production-runbook documents remain subordinate to their owning leaf and are not counted as
+extra stages. None of the twenty leaf plans is fully closed: two have only a completed partial slice, six have
+executable residual and twelve are gated. Doctor UI has one proven completion/checklist shortcut; two Rubitime
+artifacts have incomplete checklist provenance and therefore require reconciliation before further action, not
+automatic code repetition. The main roadmap now contains the registry and the rule that roadmap ordering never
+replaces a linked detailed checklist.
+
 The factual matrix is no longer blanket-green: UI-0/2/9/UI-P and the patient mood residual are repository-complete;
 UI-1, UI-3, UI-4, UI-6 and UI-8 are partial (`#191` remains inside UI-8); UI-5 and UI-7 are not implemented. Exact
 residual taskdb cards are `#960`–`#964`, while `#958` was corrected to the preview + full-workspace routing behavior. Stale hardening, S4,
