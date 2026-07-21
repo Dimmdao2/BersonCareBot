@@ -262,6 +262,12 @@ Checks: wrong-org, multiple devices, token rotation, duplicate/retry, provider f
 
 ### N3 — migrate product families to in-app + push (`AI`, independent vertical slices)
 
+Owner correction 2026-07-21 for the booking slice: hard-coded `24h/2h` is only the current legacy default, not the
+target schedule model. Each specialist configures the reminder options/default proposed for appointments with that
+specialist; after confirmation the client may override or disable reminders for that exact appointment. The client
+per-appointment choice wins. N3 changes transport/cutover only and must preserve this target ownership for the later
+booking-reminder stage rather than freezing `24h/2h` into the new channel policy.
+
 Порядок с непересекающимися exact scopes:
 
 1. patient ↔ specialist chat and program notes;

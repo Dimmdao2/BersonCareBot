@@ -1,5 +1,16 @@
 # Execution log
 
+## 2026-07-21 — Owner correction: booking reminder defaults are not fixed `24h/2h`
+
+- `24h/2h` in the N0 census names the current legacy jobs only. Target ownership is now explicit: each specialist
+  configures the reminder choices/default proposed for their appointments; after confirmation the client may change
+  or disable reminders per concrete appointment, and that per-appointment choice wins.
+- N1 remains a transport-policy stage and does not change reminder scheduling. N3/booking cutover must not freeze
+  the legacy timing; the product authority is synchronized in `OWNER_REVIEW_2026-07-18.md` §15.
+- Current code already has `AppointmentReminderSettingsSection`, but its raw numeric offset input and `per_org`
+  setting are not the final UX/ownership. The later booking-reminder contract must reuse that surface, replace the
+  technical input with a human-readable selector and add the per-specialist/per-appointment ownership explicitly.
+
 ## 2026-07-21 — NTF-01/N1 central egress policy launch checkpoint (`#913`)
 
 - N0 integrated and pushed at `8d693b5d4`; the retained C5A evidence branch has no changed-file overlap with N1.

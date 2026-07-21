@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Owner correction: reminder preset ownership (`#190` / NTF booking)
+
+The fixed `24h/2h` booking reminders are legacy defaults, not the target model. Each specialist configures which
+reminder choices/default are proposed for their appointments; after confirmation the client may override or disable
+them for that concrete appointment, and the client selection wins. This replaces the earlier §15 statement that
+appointment reminder timing was configured once at organization level. Shared templates/transport are not duplicated
+per specialist. Current NTF N1 changes only the channel guard; scheduling belongs to the later booking-reminder slice.
+Current code already renders `AppointmentReminderSettingsSection`, but exposes raw numeric minute offsets such as
+`1440/120` and stores them through a `per_org` system-setting key. The existing screen is reused; the remaining work
+is a human-readable selector plus truthful per-specialist defaults and per-appointment client override, not a second
+reminder settings mechanism.
+
 ## 2026-07-20 — U5A organization-context convergence integrated (`#796`)
 
 **DEV runtime closure and live correction.** The prepared DEV database was advanced in place through the audited
