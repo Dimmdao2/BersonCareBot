@@ -90,7 +90,7 @@ JS-бандл (Next 16 / React 19) молча не выполнился на с�
 (просмотр по запросу), не уведомление; делаем только если по факту Ф0 это окажется полезно, иначе не тратим.
 
 ## Фазы (чек-лист; аудит по риску — presentation/механика = worker + ОДИН независимый аудит)
-- [ ] **Ф0 — Диагностика без UI.** Repository/DEV: watchdog + маячок, заглушка за флагом/выключена,
+- [x] **Ф0 — Диагностика без UI.** Repository/DEV: watchdog + маячок, заглушка за флагом/выключена,
       synthetic forced-failure proof. Реальный сбор несколько дней начинается только после отдельного
       owner-authorized TEST/production activation; отсутствие такого окна не разрешает скрыто включать сбор.
 - [ ] **Ф1 — Заглушка (точная + предположительная).** SSR, за фиче-флагом. Верификация на тест-сервере
@@ -125,6 +125,18 @@ JS-бандл (Next 16 / React 19) молча не выполнился на с�
 
 `Ф0` implementation may begin immediately in an isolated worktree. TEST/production activation, real telemetry window
 and `Ф1` owner live acceptance remain explicit later gates.
+
+### Ф0 repository status — closed 2026-07-21 (`#936`)
+
+Интеграционные коммиты `542b63815`, `82779e279`, `dcf397370` закрывают dormant default-false global flag,
+shared-entry SSR fallback/classic watchdog, bounded minimized ingress, purpose-separated IP pseudonymization и
+capacity-safe bounded rate-limit cleanup. Терминальный полный re-audit после двух correction-pass вернул
+`PASS, P0/P1/P2 = 0/0/0`; интеграционный набор затронутых тестов и typecheck зелёный. Попытка test-globalSetup
+применить миграцию `0224` к рабочей DEV-базе была fail-closed по правам (`42501`) и не является DB evidence.
+
+Флаг остаётся выключен; migration apply, TEST/production activation, реальное telemetry window и Ф1 live acceptance
+не выполнялись и требуют отдельного разрешения владельца. Ф1 остаётся открытым именно как TEST/live gate, даже
+несмотря на уже интегрированный SSR/UI foundation.
 
 ## Риски / верификация
 - Watchdog ES5-safe и без зависимостей (тест: принудительный фейл загрузки модуля).

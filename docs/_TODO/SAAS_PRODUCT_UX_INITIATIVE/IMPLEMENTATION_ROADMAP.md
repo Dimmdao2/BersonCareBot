@@ -712,6 +712,9 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
    TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только
    если Ф0 докажет пользу; уведомления остаются исключены решением владельца.
+   **Ф0 status (2026-07-21):** [x] `#936` repository slice интегрирован как `542b63815` + `82779e279` +
+   `dcf397370`; terminal re-audit `0/0/0`, targeted integration tests/typecheck PASS. Flag остаётся default-false;
+   migration apply, TEST/real telemetry и Ф1 owner live acceptance не выполнялись.
 5. **Hardening Phase 1 до C5B/C7:** A3 residual, payment atomicity B1, external-call timeouts B2, booking TOCTOU B3
    и self-hosted error-tracking code path. Production detection/host installation не включаются молча: repo/DEV
    implementation передаётся в `SEC-02`/`PR-04` для owner-gated activation.

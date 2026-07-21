@@ -4026,6 +4026,20 @@ A0 intentionally proves DDL/migration reproducibility only: A1/#937 must provisi
 exercise locked/FORCE isolation with non-owner principals; `bcb_a0_owner` is forbidden as RLS-conformance evidence.
 No working database write, TEST/PROD, deploy or full CI was performed. Full CI remains the Phase 0 milestone gate.
 
+## 2026-07-21 — Unsupported-client Ф0 repository slice closed (`#936`)
+
+The dormant fallback stack landed as `542b63815`, `82779e279` and `dcf397370`: one global public DB-backed
+default-false flag, shared `/app`/`/app/tg`/`/app/max` SSR fallback and classic watchdog, strict minimized ingress,
+purpose-separated HMAC IP key and capacity-safe rate-limit retention. Two correction passes closed the early
+unbounded-body/raw-IP findings and the cleanup hot-path regression. The terminal full re-audit returned PASS with
+`P0/P1/P2 = 0/0/0`; the integrated changed-test set passed `12 files / 80 tests` and webapp typecheck passed.
+
+Vitest globalSetup attempted the ordinary migration hook against the working DEV database, but migration `0224`
+failed closed with SQLSTATE `42501`; no migration evidence or authorized DB apply is claimed. The feature remains
+disabled. TEST/production activation, real telemetry collection and F1 old-client live acceptance remain explicit
+owner gates; no deploy, server run, notification, analytics persistence, operator-health or error-audit coupling was
+performed. Full CI waits for the accumulated milestone.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round
