@@ -64,30 +64,29 @@ describe("MiniAppShareContactGate", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  it("does not offer or initiate request-contact when the current messenger is disabled", async () => {
+  it("does not offer MAX bot fallback or initiate request-contact when MAX is disabled", async () => {
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    (window as unknown as { WebApp?: { initData: string; ready: () => void } }).WebApp = {
+      initData: "max-init-data",
+      ready: vi.fn(),
+    };
     globalThis.fetch = vi.fn(async (url: string | Request) => {
       const u = typeof url === "string" ? url : (url as Request).url;
       if (u.includes("/api/me")) {
         return new Response(
           JSON.stringify({
             ok: true,
-            user: { phone: "", bindings: { telegramId: "123" } },
+            user: { phone: "", bindings: { maxId: "max-123" } },
             platformAccess: { tier: "onboarding" },
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
-      if (u.includes("/api/auth/telegram-login/config")) {
-        return new Response(JSON.stringify({ ok: true, botUsername: null }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
       return new Response("", { status: 404 });
     }) as typeof fetch;
 
     render(
-      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: false, max: true }}>
+      <MiniAppShareContactGate channelPolicy={{ email: true, sms: false, telegram: true, max: false }}>
         <div data-testid="inner">Inside</div>
       </MiniAppShareContactGate>,
     );
@@ -96,6 +95,8 @@ describe("MiniAppShareContactGate", () => {
       expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     });
     expect(screen.queryByRole("button", { name: /Предоставить контакт/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Открыть бота/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Откройте чат с ботом/i)).not.toBeInTheDocument();
     expect(globalThis.fetch).not.toHaveBeenCalledWith(
       expect.stringContaining("/api/patient/messenger/request-contact"),
       expect.anything(),

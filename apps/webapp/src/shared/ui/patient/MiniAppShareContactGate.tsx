@@ -360,8 +360,29 @@ export function MiniAppShareContactGate({
   }
 
   const currentMessengerChannel = inferMessengerChannelForRequestContact();
+  const currentMessengerDisabled =
+    currentMessengerChannel != null && !channelPolicy[currentMessengerChannel];
   const canProvideContact =
     currentMessengerChannel != null && channelPolicy[currentMessengerChannel];
+
+  if (currentMessengerDisabled) {
+    return (
+      <div
+        id="mini-app-share-contact-gate"
+        className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background p-6 text-center"
+        role="alertdialog"
+        aria-labelledby="mini-app-contact-gate-title"
+        aria-describedby="mini-app-contact-gate-desc"
+      >
+        <h1 id="mini-app-contact-gate-title" className="text-lg font-semibold">
+          Подтверждение номера недоступно
+        </h1>
+        <p id="mini-app-contact-gate-desc" className="max-w-md text-sm text-muted-foreground">
+          Этот способ подтверждения временно отключён.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <PatientSharePhoneViaBotPanel
