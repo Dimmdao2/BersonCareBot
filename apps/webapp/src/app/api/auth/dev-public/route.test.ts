@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { clearSession, isEnabled } = vi.hoisted(() => ({
+const { clearSession, runtimeEnv } = vi.hoisted(() => ({
   clearSession: vi.fn(async () => undefined),
-  isEnabled: vi.fn(() => true),
+  runtimeEnv: {
+    NODE_ENV: 'development' as 'development' | 'test' | 'production',
+    ALLOW_DEV_AUTH_BYPASS: true,
+  },
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
@@ -14,11 +17,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 }));
 
 vi.mock('@/config/env', () => ({
-  env: { NODE_ENV: 'development', ALLOW_DEV_AUTH_BYPASS: true },
-}));
-
-vi.mock('@/modules/auth/devBypassPolicy', () => ({
-  isDevAuthBypassEnabled: () => isEnabled(),
+  env: runtimeEnv,
 }));
 
 import { GET } from './route';
@@ -26,8 +25,8 @@ import { GET } from './route';
 describe('GET /api/auth/dev-public', () => {
   beforeEach(() => {
     clearSession.mockClear();
-    isEnabled.mockReset();
-    isEnabled.mockReturnValue(true);
+    runtimeEnv.NODE_ENV = 'development';
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = true;
   });
 
   it.each(['registration', 'specialist-registration', 'clinic-registration'])(
@@ -62,8 +61,19 @@ describe('GET /api/auth/dev-public', () => {
     },
   );
 
-  it('does not clear a session when dev bypass policy is disabled', async () => {
-    isEnabled.mockReturnValue(false);
+  it('does not clear a session when the development flag is disabled', async () => {
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = false;
+
+    const response = await GET(new Request('https://example.test/api/auth/dev-public'));
+
+    expect(clearSession).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('https://example.test/app');
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('remains fail-closed in production even if the raw flag is true', async () => {
+    runtimeEnv.NODE_ENV = 'production';
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = true;
 
     const response = await GET(new Request('https://example.test/api/auth/dev-public'));
 

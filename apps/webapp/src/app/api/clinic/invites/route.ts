@@ -64,10 +64,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 
-  // A non-production environment is one that permits dev auth shortcuts (dev boxes and the
-  // IP-locked test/staging box, where ALLOW_DEV_AUTH_BYPASS=true and transactional email is
-  // redirected/stubbed). Real production has NODE_ENV=production AND no dev bypass.
-  const isNonProdEnv = env.NODE_ENV !== "production" || env.ALLOW_DEV_AUTH_BYPASS === true;
+  // Preview links are a non-production delivery aid. Never let a dev-auth flag reclassify a
+  // production process: production must require successful delivery and must not return the token.
+  const mayExposeInviteUrl = env.NODE_ENV !== "production";
 
   const baseUrl = await getAppBaseUrl();
   const inviteUrl = buildInviteUrl(baseUrl, token);
@@ -85,7 +84,7 @@ export async function POST(request: Request) {
   // can't receive the link → surface it so the admin can retry. In a non-prod env (dev/test,
   // where email is redirected/stubbed) don't hard-fail — return the invite + link so the flow
   // stays usable/verifiable without an inbox.
-  if (!emailResult.ok && !isNonProdEnv) {
+  if (!emailResult.ok && !mayExposeInviteUrl) {
     return NextResponse.json({ ok: false, error: "email_send_failed" }, { status: 503 });
   }
 
@@ -94,6 +93,6 @@ export async function POST(request: Request) {
     inviteId: result.invite.id,
     expiresAt: result.invite.expiresAt,
     emailDelivered: emailResult.ok,
-    ...(isNonProdEnv ? { inviteUrl } : {}),
+    ...(mayExposeInviteUrl ? { inviteUrl } : {}),
   });
 }

@@ -6,6 +6,10 @@ const requireClinicManagementApiContextMock = vi.hoisted(() => vi.fn());
 const requireEntitlementMock = vi.hoisted(() => vi.fn());
 const sendEmailSetupLinkViaIntegratorMock = vi.hoisted(() => vi.fn());
 const getAppBaseUrlMock = vi.hoisted(() => vi.fn());
+const runtimeEnv = vi.hoisted(() => ({
+  NODE_ENV: "development" as "development" | "test" | "production",
+  ALLOW_DEV_AUTH_BYPASS: true,
+}));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireClinicManagementApiContext: () => requireClinicManagementApiContextMock(),
@@ -26,6 +30,8 @@ vi.mock("@/infra/integrations/email/integratorEmailAdapter", () => ({
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getAppBaseUrl: () => getAppBaseUrlMock(),
 }));
+
+vi.mock("@/config/env", () => ({ env: runtimeEnv }));
 
 import { GET, POST } from "./route";
 
@@ -54,6 +60,8 @@ describe("clinic invites route", () => {
     getAppBaseUrlMock.mockResolvedValue("http://127.0.0.1:6300");
     sendEmailSetupLinkViaIntegratorMock.mockResolvedValue({ ok: true });
     requireEntitlementMock.mockResolvedValue({ ok: true });
+    runtimeEnv.NODE_ENV = "development";
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = true;
   });
 
   const defaultClinicSeats = {
@@ -182,5 +190,86 @@ describe("clinic invites route", () => {
       role: "doctor",
       createdByPlatformUserId: CREATOR_ID,
     });
+  });
+
+  it("preserves the TEST-only invite preview when delivery is stubbed", async () => {
+    runtimeEnv.NODE_ENV = "test";
+    const createInvite = vi.fn().mockResolvedValue({
+      ok: true,
+      token: "test-preview-token",
+      invite: {
+        id: "55555555-5555-4555-8555-555555555555",
+        invitedEmail: "test-preview@example.com",
+        invitedRole: "doctor",
+        expiresAt: "2026-07-27T00:00:00.000Z",
+        organizationTitle: "Clinic",
+      },
+    });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
+    });
+
+    const response = await POST(makeRequest({ email: "test-preview@example.com", role: "doctor" }));
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body.inviteUrl).toBe(
+      "http://127.0.0.1:6300/app/clinic/invites/accept?token=test-preview-token",
+    );
+  });
+
+  it("does not expose an invite token in production even if the dev flag is true", async () => {
+    runtimeEnv.NODE_ENV = "production";
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = true;
+    const createInvite = vi.fn().mockResolvedValue({
+      ok: true,
+      token: "must-not-leak",
+      invite: {
+        id: "66666666-6666-4666-8666-666666666666",
+        invitedEmail: "prod@example.com",
+        invitedRole: "doctor",
+        expiresAt: "2026-07-27T00:00:00.000Z",
+        organizationTitle: "Clinic",
+      },
+    });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
+    });
+
+    const response = await POST(makeRequest({ email: "prod@example.com", role: "doctor" }));
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body).not.toHaveProperty("inviteUrl");
+  });
+
+  it("does not suppress a production delivery failure when the dev flag is true", async () => {
+    runtimeEnv.NODE_ENV = "production";
+    runtimeEnv.ALLOW_DEV_AUTH_BYPASS = true;
+    sendEmailSetupLinkViaIntegratorMock.mockResolvedValueOnce({ ok: false });
+    const createInvite = vi.fn().mockResolvedValue({
+      ok: true,
+      token: "must-not-leak",
+      invite: {
+        id: "77777777-7777-4777-8777-777777777777",
+        invitedEmail: "prod-failed@example.com",
+        invitedRole: "doctor",
+        expiresAt: "2026-07-27T00:00:00.000Z",
+        organizationTitle: "Clinic",
+      },
+    });
+    buildAppDepsMock.mockReturnValue({
+      organizationInvites: { createInvite },
+      clinicSeats: defaultClinicSeats,
+    });
+
+    const response = await POST(
+      makeRequest({ email: "prod-failed@example.com", role: "doctor" }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "email_send_failed" });
   });
 });

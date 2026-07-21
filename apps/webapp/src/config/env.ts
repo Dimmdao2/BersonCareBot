@@ -1,5 +1,9 @@
 import "./loadEnv";
 import { z } from "zod";
+import {
+  assertDevAuthBypassConfiguration,
+  parseDevAuthBypassFlag,
+} from "@/modules/auth/devBypassPolicy";
 
 /** Repo-known defaults that must never be used in production or development. */
 const INSECURE_SECRET_BLACKLIST = [
@@ -78,7 +82,7 @@ const envSchema = z.object({
   ALLOW_DEV_AUTH_BYPASS: z
     .string()
     .optional()
-    .transform((value) => value === "true"),
+    .transform(parseDevAuthBypassFlag),
   /**
    * Opt-in dev aid: log the email-OTP code to the server console and tolerate
    * email send failure (no integrator running). Honored ONLY when
@@ -217,6 +221,11 @@ const parsed = envSchema.parse({
   LOG_LEVEL: process.env.LOG_LEVEL,
   FFMPEG_PATH: process.env.FFMPEG_PATH,
   MAGICK_PATH: process.env.MAGICK_PATH,
+});
+
+assertDevAuthBypassConfiguration({
+  nodeEnv: parsed.NODE_ENV,
+  allowDevAuthBypass: parsed.ALLOW_DEV_AUTH_BYPASS,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;
