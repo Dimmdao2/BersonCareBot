@@ -611,9 +611,12 @@ and its complete changed-test census passed `426/426`, but the terminal full-sta
 `0 P0 / 2 P1 / 0 P2`. The pass itself incorrectly converted mutating `PUT /api/admin/booking-engine/online-location`
 to the read entitlement boundary, permitting that write in `read_only`/`blocked`. The mandatory S4 checker also
 remains non-closed: its production command exits on twelve pre-base direct-resolver findings, while the newly expanded
-action census does not detect async `export const` actions. Per the declared terminal boundary, no fourth correction,
-milestone CI, integration or push starts silently. Task `#751` is `blocked`, `owner_waiting=true`, on one exact process
-decision: authorize a strictly bounded repair for only these two P1s or freeze the isolated candidate.
+action census does not detect async `export const` actions. The twelve direct-resolver findings are pre-C5A S4 debt,
+not a regression attributed to this candidate; only the incomplete new census is part of the C5A repair question.
+Per the declared terminal boundary, no fourth correction, milestone CI, integration or push starts silently. Task
+`#751` is `blocked`, `owner_waiting=true`, on one exact process decision: authorize a bounded repair of the two
+C5A-introduced regressions (Online mutation boundary + async-export census) while tracking the pre-base S4 debt
+separately, or freeze the isolated candidate.
 
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;

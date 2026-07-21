@@ -3892,10 +3892,18 @@ the pre-C5A base, while its new declared-action census still misses valid async 
 CMS mutation and patient-home recovery read are fixed, and no_trial, quota warning/race proof, platform operations,
 trial conversion/audit and no-second-system checks passed.
 
-Per the explicitly declared terminal boundary, no fourth correction, milestone CI, integration or push was started.
-Task `#751` is `blocked`, `owner_waiting=true`, asking whether to authorize one strictly bounded repair for only these
-two P1s or freeze the isolated candidate. The worktree and branch remain as evidence; no DB, DEV/TEST/PROD, deploy,
-dump/reset or provider action occurred.
+The twelve direct-resolver findings predate C5A and are tracked as separate S4 debt; only the new census's failure to
+recognize async `export const` belongs to this candidate's convergence scope. Per the explicitly declared terminal
+boundary, no fourth correction, milestone CI, integration or push was started. Task `#751` is `blocked`,
+`owner_waiting=true`, asking whether to authorize one bounded repair of the two C5A-introduced regressions
+(Online-location mutation boundary and async-export census) while keeping the pre-base debt separate, or freeze the
+isolated candidate. The worktree and branch remain as evidence; no DB, DEV/TEST/PROD, deploy, dump/reset or provider
+action occurred.
+
+The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
+the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
+the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round
+was created.
 
 ## 2026-07-21 — U6B stale execution status corrected (`#926`)
 
