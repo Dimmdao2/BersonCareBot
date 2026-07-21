@@ -7,6 +7,15 @@ export const MANAGED_NOTIF_TEMPLATE_VERSION = 1 as const;
 export const MANAGED_NOTIF_TEMPLATE_MAX_SUBJECT_LENGTH = 180;
 export const MANAGED_NOTIF_TEMPLATE_MAX_TITLE_LENGTH = 120;
 export const MANAGED_NOTIF_TEMPLATE_MAX_TEXT_LENGTH = 2_000;
+export const MANAGED_NOTIF_RENDER_LIMITS = Object.freeze({
+  emailSubject: 180,
+  emailPlainText: 6_000,
+  telegramText: 4_096,
+  maxText: 4_000,
+  smscText: 480,
+  webPushTitle: 120,
+  webPushText: 240,
+});
 
 export type ManagedNotifTemplateChannels = Readonly<{
   email: Readonly<{ subject: string; plainText: string }>;
@@ -39,13 +48,21 @@ export type ManagedNotifPresentation = Readonly<{
   avatarAssetId: null;
 }>;
 
-export type ManagedNotifEffectiveSource = "hardcoded" | "platform" | "organization";
+export type ManagedNotifEffectiveSource = "hardcoded" | "legacy" | "platform" | "organization";
 
 export type ManagedNotifTemplateMetadata = Readonly<{
   revision: number;
   effectiveSource: ManagedNotifEffectiveSource;
   updatedAt: string | null;
   updatedBy: string | null;
+  /** Exact target-row token used for compare-and-swap writes; null means the row does not exist yet. */
+  writeToken: string | null;
+}>;
+
+export type ManagedNotifLegacyCompatibility = Readonly<{
+  status: "compatible" | "incompatible";
+  preservedText: string;
+  forbiddenVariables: readonly string[];
 }>;
 
 export type ManagedNotifTemplateEntry = Readonly<{
@@ -53,6 +70,7 @@ export type ManagedNotifTemplateEntry = Readonly<{
   audience: NotifTemplateAudience;
   legacyText: string;
   legacyIsDefault: boolean;
+  legacyCompatibility: ManagedNotifLegacyCompatibility;
   managed: ManagedNotifTemplate;
   metadata: ManagedNotifTemplateMetadata;
 }>;
@@ -73,30 +91,53 @@ export const SYNTHETIC_NOTIF_TEMPLATE_VARIABLES = Object.freeze({
 
 type AllowedVariable = keyof typeof SYNTHETIC_NOTIF_TEMPLATE_VARIABLES;
 
-const BASE_PATIENT_VARIABLES = ["date", "type", "city", "organizationName"] as const;
-const BASE_DOCTOR_VARIABLES = ["date", "type", "city", "organizationName", "name", "phone"] as const;
+const BOOKING_DETAIL_VARIABLES = ["date", "type", "city", "organizationName"] as const;
+const BOOKING_CANCELLED_VARIABLES = ["date", "organizationName"] as const;
+const DEIDENTIFIED_EXTERNAL_VARIABLES = ["date", "organizationName"] as const;
 
-/** Server-owned allowlist; `reason` and arbitrary free-text variables are intentionally absent. */
+type ManagedNotifTemplatePolicy = Readonly<{
+  tier: "T1_transactional";
+  variables: readonly AllowedVariable[];
+}>;
+
+function eventPolicy(
+  bookingVariables: readonly AllowedVariable[],
+): Record<NotifTemplateAudience, Record<NotifTemplateChannel, ManagedNotifTemplatePolicy>> {
+  const external = { tier: "T1_transactional", variables: DEIDENTIFIED_EXTERNAL_VARIABLES } as const;
+  const email = { tier: "T1_transactional", variables: bookingVariables } as const;
+  const push = { tier: "T1_transactional", variables: bookingVariables } as const;
+  return {
+    patient: { email, telegram: external, max: external, smsc: external, web_push: push },
+    doctor: { email, telegram: external, max: external, smsc: external, web_push: push },
+  };
+}
+
+/**
+ * Exact N1B booking-lifecycle matrix. No row allows patient name, phone, free text or reason.
+ * Telegram/MAX/SMS remain deidentified even though N1 prevents their product adoption.
+ */
+export const MANAGED_NOTIF_TEMPLATE_POLICY: Record<
+  NotifTemplateEvent,
+  Record<NotifTemplateAudience, Record<NotifTemplateChannel, ManagedNotifTemplatePolicy>>
+> = {
+  created: eventPolicy(BOOKING_DETAIL_VARIABLES),
+  cancelled: eventPolicy(BOOKING_CANCELLED_VARIABLES),
+  rescheduled: eventPolicy(BOOKING_DETAIL_VARIABLES),
+};
+
 export function allowedNotifTemplateVariables(
   event: NotifTemplateEvent,
   audience: NotifTemplateAudience,
   channel: NotifTemplateChannel,
 ): readonly AllowedVariable[] {
-  const base = audience === "doctor" ? BASE_DOCTOR_VARIABLES : BASE_PATIENT_VARIABLES;
-  if (event === "cancelled") {
-    return base.filter((variable) => variable !== "type" && variable !== "city");
-  }
-  if (channel === "web_push") {
-    return base.filter((variable) => variable !== "phone");
-  }
-  return base;
+  return MANAGED_NOTIF_TEMPLATE_POLICY[event][audience][channel].variables;
 }
 
 const TOKEN_PATTERN = /{{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*}}/g;
 const ABSOLUTE_URL_PATTERN = /(?:https?:\/\/|\/\/)[^\s]+/i;
 
 export class ManagedNotifTemplateValidationError extends Error {
-  readonly reason: "empty" | "too_long" | "unknown_variable" | "unsafe_url" | "invalid_shape";
+  readonly reason: "empty" | "too_long" | "unknown_variable" | "unsafe_url" | "invalid_shape" | "unsafe_value";
 
   constructor(reason: ManagedNotifTemplateValidationError["reason"], message: string) {
     super(message);
@@ -142,6 +183,19 @@ function validateEmailSubject(value: string, allowedVariables: readonly AllowedV
   return subject;
 }
 
+const UNSAFE_CONTROL_PATTERN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+const LINE_BREAK_PATTERN = /[\r\n]/;
+
+function validateRenderedText(value: string, maxLength: number, singleLine = false): string {
+  if (value.length > maxLength) {
+    throw new ManagedNotifTemplateValidationError("too_long", "template_rendered_content_too_long");
+  }
+  if (UNSAFE_CONTROL_PATTERN.test(value) || (singleLine && LINE_BREAK_PATTERN.test(value))) {
+    throw new ManagedNotifTemplateValidationError("unsafe_value", "template_rendered_control_character_forbidden");
+  }
+  return value;
+}
+
 export function validateManagedNotifTemplateChannels(
   event: NotifTemplateEvent,
   audience: NotifTemplateAudience,
@@ -177,7 +231,7 @@ export function validateManagedNotifTemplateChannels(
       text: validateContent(
         channels.smsc.text,
         allowedNotifTemplateVariables(event, audience, "smsc"),
-        MANAGED_NOTIF_TEMPLATE_MAX_TEXT_LENGTH,
+        MANAGED_NOTIF_RENDER_LIMITS.smscText,
       ),
     },
     web_push: {
@@ -189,7 +243,7 @@ export function validateManagedNotifTemplateChannels(
       text: validateContent(
         channels.web_push.text,
         allowedNotifTemplateVariables(event, audience, "web_push"),
-        MANAGED_NOTIF_TEMPLATE_MAX_TEXT_LENGTH,
+        MANAGED_NOTIF_RENDER_LIMITS.webPushText,
       ),
     },
   };
@@ -205,23 +259,22 @@ function safeDefaultText(event: NotifTemplateEvent, audience: NotifTemplateAudie
   if (event === "created") {
     return audience === "patient"
       ? "Запись подтверждена: {{date}}\n{{type}}, {{city}}"
-      : "Новая запись: {{name}}, {{phone}}\nДата: {{date}}";
+      : "Появилась новая запись.\nДата: {{date}}\n{{type}}, {{city}}";
   }
   if (event === "cancelled") {
     return audience === "patient"
       ? "Запись на {{date}} отменена."
-      : "Отмена записи: {{name}}\nДата: {{date}}";
+      : "Запись отменена.\nДата: {{date}}";
   }
   return audience === "patient"
     ? "Запись перенесена на {{date}}\n{{type}}"
-    : "Перенос записи: {{name}}, {{phone}}\nНовая дата: {{date}}";
+    : "Запись перенесена.\nНовая дата: {{date}}\n{{type}}, {{city}}";
 }
 
-function safeDefaultPushText(event: NotifTemplateEvent, audience: NotifTemplateAudience): string {
-  if (audience === "patient") return safeDefaultText(event, audience);
-  if (event === "created") return "Новая запись: {{name}}\nДата: {{date}}";
-  if (event === "cancelled") return "Отмена записи: {{name}}\nДата: {{date}}";
-  return "Перенос записи: {{name}}\nНовая дата: {{date}}";
+function safeDefaultExternalText(event: NotifTemplateEvent): string {
+  if (event === "created") return "Запись подтверждена: {{date}}";
+  if (event === "cancelled") return "Запись отменена: {{date}}";
+  return "Запись перенесена: {{date}}";
 }
 
 export function createDefaultManagedNotifTemplate(
@@ -229,17 +282,81 @@ export function createDefaultManagedNotifTemplate(
   audience: NotifTemplateAudience,
 ): ManagedNotifTemplate {
   const text = safeDefaultText(event, audience);
+  const externalText = safeDefaultExternalText(event);
   return {
     version: MANAGED_NOTIF_TEMPLATE_VERSION,
     revision: 0,
     channels: {
       email: { subject: EVENT_SUBJECTS[event], plainText: text },
-      telegram: { text },
-      max: { text },
-      smsc: { text },
-      web_push: { title: EVENT_SUBJECTS[event], text: safeDefaultPushText(event, audience) },
+      telegram: { text: externalText },
+      max: { text: externalText },
+      smsc: { text: externalText },
+      web_push: { title: EVENT_SUBJECTS[event], text },
     },
   };
+}
+
+function tokenNames(value: string): { names: string[]; malformed: boolean } {
+  const names = [...value.matchAll(TOKEN_PATTERN)].map((match) => match[1]).filter((name): name is string => Boolean(name));
+  const withoutTokens = value.replace(TOKEN_PATTERN, "");
+  return { names, malformed: withoutTokens.includes("{{") || withoutTokens.includes("}}") };
+}
+
+/**
+ * One-time read adapter for the existing `{ value }` carrier. Compatible legacy copy is surfaced in every
+ * channel whose exact policy accepts its tokens; stricter channels retain their safe defaults. Unsafe legacy
+ * text stays in the same carrier and is returned as an explicit warning instead of being silently discarded.
+ */
+export function adaptLegacyNotifTemplate(
+  event: NotifTemplateEvent,
+  audience: NotifTemplateAudience,
+  legacyText: string,
+): { template: ManagedNotifTemplate; compatibility: ManagedNotifLegacyCompatibility } {
+  const preservedText = legacyText.trim();
+  const defaults = createDefaultManagedNotifTemplate(event, audience);
+  const parsed = tokenNames(preservedText);
+  const allowedAcrossPolicy = new Set(
+    NOTIF_TEMPLATE_CHANNELS.flatMap((channel) => allowedNotifTemplateVariables(event, audience, channel)),
+  );
+  const forbiddenVariables = [...new Set(parsed.names.filter((name) => !allowedAcrossPolicy.has(name as AllowedVariable)))];
+  if (!preservedText || parsed.malformed || ABSOLUTE_URL_PATTERN.test(preservedText) || forbiddenVariables.length > 0) {
+    return {
+      template: defaults,
+      compatibility: {
+        status: "incompatible",
+        preservedText,
+        forbiddenVariables: parsed.malformed
+          ? [...forbiddenVariables, "malformed_token"]
+          : ABSOLUTE_URL_PATTERN.test(preservedText)
+            ? [...forbiddenVariables, "unsafe_url"]
+            : forbiddenVariables,
+      },
+    };
+  }
+
+  function textFor(channel: NotifTemplateChannel, fallback: string): string {
+    const allowed = new Set(allowedNotifTemplateVariables(event, audience, channel));
+    return parsed.names.every((name) => allowed.has(name as AllowedVariable)) ? preservedText : fallback;
+  }
+
+  const channels: ManagedNotifTemplateChannels = {
+    email: { ...defaults.channels.email, plainText: textFor("email", defaults.channels.email.plainText) },
+    telegram: { text: textFor("telegram", defaults.channels.telegram.text) },
+    max: { text: textFor("max", defaults.channels.max.text) },
+    smsc: { text: textFor("smsc", defaults.channels.smsc.text) },
+    web_push: { ...defaults.channels.web_push, text: textFor("web_push", defaults.channels.web_push.text) },
+  };
+  try {
+    return {
+      template: { ...defaults, channels: validateManagedNotifTemplateChannels(event, audience, channels) },
+      compatibility: { status: "compatible", preservedText, forbiddenVariables: [] },
+    };
+  } catch {
+    return {
+      template: defaults,
+      compatibility: { status: "incompatible", preservedText, forbiddenVariables: ["unsafe_length"] },
+    };
+  }
 }
 
 export const DEFAULT_MANAGED_NOTIF_PRESENTATION: ManagedNotifPresentation = Object.freeze({
@@ -334,8 +451,14 @@ function replaceVariables(
       throw new ManagedNotifTemplateValidationError("unknown_variable", "template_variable_forbidden");
     }
     const value = values[variable as AllowedVariable];
-    if (typeof value !== "string" || ABSOLUTE_URL_PATTERN.test(value)) {
+    if (typeof value !== "string") {
+      throw new ManagedNotifTemplateValidationError("unsafe_value", "template_variable_value_missing");
+    }
+    if (ABSOLUTE_URL_PATTERN.test(value)) {
       throw new ManagedNotifTemplateValidationError("unsafe_url", "template_variable_value_forbidden");
+    }
+    if (UNSAFE_CONTROL_PATTERN.test(value) || LINE_BREAK_PATTERN.test(value)) {
+      throw new ManagedNotifTemplateValidationError("unsafe_value", "template_variable_control_character_forbidden");
     }
     return value;
   });
@@ -370,13 +493,20 @@ export function renderManagedNotifTemplate(input: {
   };
   const allowed = allowedNotifTemplateVariables(input.event, input.audience, input.channel);
   if (input.channel === "email") {
-    const subject = replaceVariables(validatedTemplate.channels.email.subject, input.variables, allowed);
+    const subject = validateRenderedText(
+      replaceVariables(validatedTemplate.channels.email.subject, input.variables, allowed),
+      MANAGED_NOTIF_RENDER_LIMITS.emailSubject,
+      true,
+    );
     const plainBody = replaceVariables(validatedTemplate.channels.email.plainText, input.variables, allowed);
     const useBranding = input.brandingEnabled && input.presentation.layout === "organization";
     const signature = useBranding ? input.presentation.signature : "";
     const contacts = useBranding ? input.presentation.contacts : "";
-    const plainText = [plainBody, signature, contacts].filter(Boolean).join("\n\n");
-    const identity = input.variables.organizationName ?? "";
+    const plainText = validateRenderedText(
+      [plainBody, signature, contacts].filter(Boolean).join("\n\n"),
+      MANAGED_NOTIF_RENDER_LIMITS.emailPlainText,
+    );
+    const identity = validateRenderedText(input.variables.organizationName ?? "", 200, true);
     if (ABSOLUTE_URL_PATTERN.test(identity)) {
       throw new ManagedNotifTemplateValidationError("unsafe_url", "template_identity_value_forbidden");
     }
@@ -397,8 +527,15 @@ export function renderManagedNotifTemplate(input: {
   if (input.channel === "web_push") {
     return {
       channel: "web_push",
-      title: replaceVariables(validatedTemplate.channels.web_push.title, input.variables, allowed),
-      text: replaceVariables(validatedTemplate.channels.web_push.text, input.variables, allowed),
+      title: validateRenderedText(
+        replaceVariables(validatedTemplate.channels.web_push.title, input.variables, allowed),
+        MANAGED_NOTIF_RENDER_LIMITS.webPushTitle,
+        true,
+      ),
+      text: validateRenderedText(
+        replaceVariables(validatedTemplate.channels.web_push.text, input.variables, allowed),
+        MANAGED_NOTIF_RENDER_LIMITS.webPushText,
+      ),
     };
   }
   const text = input.channel === "telegram"
@@ -406,8 +543,14 @@ export function renderManagedNotifTemplate(input: {
     : input.channel === "max"
       ? validatedTemplate.channels.max.text
       : validatedTemplate.channels.smsc.text;
+  const renderedText = replaceVariables(text, input.variables, allowed);
+  const maxLength = input.channel === "telegram"
+    ? MANAGED_NOTIF_RENDER_LIMITS.telegramText
+    : input.channel === "max"
+      ? MANAGED_NOTIF_RENDER_LIMITS.maxText
+      : MANAGED_NOTIF_RENDER_LIMITS.smscText;
   return {
     channel: input.channel,
-    text: replaceVariables(text, input.variables, allowed),
+    text: validateRenderedText(renderedText, maxLength),
   };
 }

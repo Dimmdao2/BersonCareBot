@@ -223,6 +223,48 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
     });
   }
 
+  async function compareAndSwapRow(
+    row: { key: SystemSettingKey; scope: SystemSettingScope; organizationId: string | null; valueJson: unknown; updatedBy: string | null },
+    expectedUpdatedAt: string | null,
+  ): Promise<SystemSetting | null> {
+    if (dependencies.writeUnitOfWork?.compareAndSwap) {
+      return dependencies.writeUnitOfWork.compareAndSwap({
+        legacyRow: row,
+        authoritativeRuntimeRows: runtimeWritesFor(
+          row.key, row.scope, row.organizationId, row.valueJson, row.updatedBy,
+        ),
+        expectedUpdatedAt,
+      });
+    }
+    if (!port.compareAndSwap) throw new Error("system_settings_compare_and_swap_unavailable");
+    return port.compareAndSwap(
+      row.key,
+      row.scope,
+      row.valueJson,
+      row.updatedBy,
+      expectedUpdatedAt,
+      { organizationId: row.organizationId },
+    );
+  }
+
+  async function valueForWrite(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    value: unknown,
+    options: SystemSettingsWriteOptions,
+  ): Promise<unknown> {
+    return key === "smtp_outbound" && scope === "admin"
+      ? mergeSmtpOutboundPasswordRetain(port, value, options)
+      : key === "web_push_vapid" && scope === "admin"
+        ? mergeWebPushVapidPrivateRetain(port, value, options)
+        : key === "booking_payment_providers" && scope === "admin"
+          ? mergeBookingPaymentProvidersSecretsRetain(
+              () => port.getByKey("booking_payment_providers", "admin", options).then((r) => r?.valueJson ?? null),
+              value,
+            )
+          : value;
+  }
+
   async function getSettingWithRuntimeFirst(
     key: SystemSettingKey,
     scope: SystemSettingScope,
@@ -295,20 +337,37 @@ export function createSystemSettingsService(port: SystemSettingsPort, dependenci
       if (!isAllowedKey(key)) {
         throw new Error(`unknown_setting_key: ${key}`);
       }
-      const valueToStore =
-        key === "smtp_outbound" && scope === "admin"
-          ? await mergeSmtpOutboundPasswordRetain(port, value, options)
-          : key === "web_push_vapid" && scope === "admin"
-            ? await mergeWebPushVapidPrivateRetain(port, value, options)
-            : key === "booking_payment_providers" && scope === "admin"
-              ? await mergeBookingPaymentProvidersSecretsRetain(
-                  () => port.getByKey("booking_payment_providers", "admin", options).then((r) => r?.valueJson ?? null),
-                  value,
-                )
-              : value;
+      const valueToStore = await valueForWrite(key, scope, value, options);
       const organizationId = resolveWriteOrganizationId(key, options);
       const [result] = await writeRows([{ key, scope, valueJson: valueToStore, updatedBy, organizationId }]);
       if (!result) throw new Error("system_settings_write_failed");
+      await syncSettingToIntegrator({
+        key,
+        scope,
+        organizationId: result.organizationId ?? null,
+        valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
+        updatedBy: result.updatedBy,
+      });
+      invalidateConfigKey(key);
+      return result;
+    },
+
+    async updateSettingIfUnchanged(
+      key: string,
+      scope: SystemSettingScope,
+      value: unknown,
+      updatedBy: string | null,
+      expectedUpdatedAt: string | null,
+      options: SystemSettingsWriteOptions = {},
+    ): Promise<SystemSetting | null> {
+      if (!isAllowedKey(key)) throw new Error(`unknown_setting_key: ${key}`);
+      const valueToStore = await valueForWrite(key, scope, value, options);
+      const organizationId = resolveWriteOrganizationId(key, options);
+      const result = await compareAndSwapRow(
+        { key, scope, valueJson: valueToStore, updatedBy, organizationId },
+        expectedUpdatedAt,
+      );
+      if (!result) return null;
       await syncSettingToIntegrator({
         key,
         scope,

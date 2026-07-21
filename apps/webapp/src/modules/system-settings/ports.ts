@@ -43,6 +43,15 @@ export type SystemSettingsPort = {
     updatedBy: string | null,
     options?: SystemSettingsWriteOptions
   ): Promise<SystemSetting>;
+  /** Exact-row optimistic write. `null` means the row changed since it was read. */
+  compareAndSwap?(
+    key: SystemSettingKey,
+    scope: SystemSettingScope,
+    valueJson: unknown,
+    updatedBy: string | null,
+    expectedUpdatedAt: string | null,
+    options?: SystemSettingsWriteOptions,
+  ): Promise<SystemSetting | null>;
   /** All rows committed atomically (single transaction on Postgres). */
   upsertManyInTransaction(rows: SystemSettingsUpsertRow[]): Promise<SystemSetting[]>;
 };
@@ -89,6 +98,12 @@ export type SettingsWriteUnitOfWork = {
     legacyRows: SystemSettingsUpsertRow[];
     authoritativeRuntimeRows: RuntimeWrite[];
   }): Promise<SystemSetting[]>;
+  /** Same dual-write transaction, but only when the exact legacy row still matches the read token. */
+  compareAndSwap?(input: {
+    legacyRow: SystemSettingsUpsertRow;
+    authoritativeRuntimeRows: RuntimeWrite[];
+    expectedUpdatedAt: string | null;
+  }): Promise<SystemSetting | null>;
 };
 
 export type RuntimeReadTelemetry = {

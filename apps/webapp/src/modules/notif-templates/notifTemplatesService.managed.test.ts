@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modules/system-settings/types";
 import {
   createDefaultManagedNotifTemplate,
+  parseManagedNotifTemplateFor,
   type ManagedNotifTemplateChannels,
 } from "./managedNotifTemplate";
-import { createNotifTemplatesService, notifTemplateSettingKey } from "./notifTemplatesService";
+import {
+  NotifTemplateConflictError,
+  createNotifTemplatesService,
+  notifTemplateSettingKey,
+} from "./notifTemplatesService";
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -15,6 +20,7 @@ function row(key: SystemSettingKey, organizationId: string | null, valueJson: un
 
 function createFakeSettings(initial: SystemSetting[]) {
   const rows = new Map(initial.map((setting) => [`${setting.key}:${setting.organizationId ?? "global"}`, setting]));
+  let writeSequence = 0;
   const updateSetting = vi.fn(async (
     key: string,
     scope: SystemSettingScope,
@@ -28,8 +34,28 @@ function createFakeSettings(initial: SystemSetting[]) {
     rows.set(`${key}:${organizationId ?? "global"}`, saved);
     return saved;
   });
+  const updateSettingIfUnchanged = vi.fn(async (
+    key: string,
+    scope: SystemSettingScope,
+    valueJson: unknown,
+    updatedBy: string | null,
+    expectedUpdatedAt: string | null,
+    options?: { organizationId?: string | null },
+  ) => {
+    const organizationId = options?.organizationId ?? null;
+    const identity = `${key}:${organizationId ?? "global"}`;
+    const current = rows.get(identity) ?? null;
+    if ((current?.updatedAt ?? null) !== expectedUpdatedAt) return null;
+    writeSequence += 1;
+    const saved = row(key as SystemSettingKey, organizationId, valueJson);
+    saved.updatedAt = `2026-07-21T10:00:${String(writeSequence).padStart(2, "0")}.000Z`;
+    saved.updatedBy = updatedBy;
+    rows.set(identity, saved);
+    return saved;
+  });
   return {
     updateSetting,
+    updateSettingIfUnchanged,
     getSetting: vi.fn(async (
       key: SystemSettingKey,
       _scope: SystemSettingScope,
@@ -74,7 +100,8 @@ describe("managed notification template resolution", () => {
     const service = createNotifTemplatesService(settings);
     const [entry] = await service.getManagedTemplates({ organizationId: ORG_A });
     expect(entry?.legacyText).toBe("Организационный legacy");
-    expect(entry?.metadata.effectiveSource).toBe("platform");
+    expect(entry?.metadata.effectiveSource).toBe("organization");
+    expect(entry?.managed.channels.email.plainText).toBe("Организационный legacy");
   });
 
   it("preserves legacy value and uses the bounded global-fallback write option", async () => {
@@ -82,12 +109,15 @@ describe("managed notification template resolution", () => {
     const settings = createFakeSettings([row(key, null, { value: "Не терять" })]);
     const service = createNotifTemplatesService(settings);
     const channels = createDefaultManagedNotifTemplate("created", "patient").channels;
-    await service.saveManagedTemplate("created", "patient", channels, "platform-user", { organizationId: null });
-    expect(settings.updateSetting).toHaveBeenCalledWith(
+    await service.saveManagedTemplate(
+      "created", "patient", channels, "platform-user", "2026-07-21T10:00:00Z", { organizationId: null },
+    );
+    expect(settings.updateSettingIfUnchanged).toHaveBeenCalledWith(
       key,
       "admin",
       expect.objectContaining({ value: "Не терять", managed: expect.objectContaining({ revision: 1 }) }),
       "platform-user",
+      "2026-07-21T10:00:00Z",
       { organizationId: null, allowPlatformGlobalFallbackWrite: true },
     );
   });
@@ -96,12 +126,13 @@ describe("managed notification template resolution", () => {
     const settings = createFakeSettings([]);
     const service = createNotifTemplatesService(settings);
     const channels = createDefaultManagedNotifTemplate("rescheduled", "doctor").channels;
-    await service.saveManagedTemplate("rescheduled", "doctor", channels, "owner-a", { organizationId: ORG_A });
-    expect(settings.updateSetting).toHaveBeenCalledWith(
+    await service.saveManagedTemplate("rescheduled", "doctor", channels, "owner-a", null, { organizationId: ORG_A });
+    expect(settings.updateSettingIfUnchanged).toHaveBeenCalledWith(
       notifTemplateSettingKey("rescheduled", "doctor"),
       "admin",
       expect.objectContaining({ managed: expect.any(Object) }),
       "owner-a",
+      null,
       { organizationId: ORG_A },
     );
   });
@@ -125,12 +156,101 @@ describe("managed notification template resolution", () => {
       }),
     ]);
     const service = createNotifTemplatesService(settings);
-    await service.saveManagedTemplate("created", "patient", platform.channels, "owner-a", {
+    await service.saveManagedTemplate("created", "patient", platform.channels, "owner-a", null, {
       organizationId: ORG_A,
     });
-    const written = settings.updateSetting.mock.calls[0]?.[2] as Record<string, unknown>;
+    const written = settings.updateSettingIfUnchanged.mock.calls[0]?.[2] as Record<string, unknown>;
     expect(written.value).toBe("Глобальный legacy");
     expect(written.managed).toBeDefined();
     expect(written.presentation).toBeUndefined();
+  });
+
+  it("surfaces an incompatible legacy template without deleting its original text", async () => {
+    const key = notifTemplateSettingKey("cancelled", "patient");
+    const legacy = "Запись отменена: {{reason}}";
+    const settings = createFakeSettings([row(key, ORG_A, { value: legacy })]);
+    const service = createNotifTemplatesService(settings);
+    const entries = await service.getManagedTemplates({ organizationId: ORG_A });
+    const entry = entries.find((candidate) => candidate.event === "cancelled" && candidate.audience === "patient");
+    expect(entry?.legacyCompatibility).toEqual({
+      status: "incompatible",
+      preservedText: legacy,
+      forbiddenVariables: ["reason"],
+    });
+    expect(entry?.managed.channels.email.plainText).not.toContain("{{reason}}");
+  });
+
+  it("rejects one of two stale concurrent channel saves instead of losing a neighboring edit", async () => {
+    const key = notifTemplateSettingKey("created", "patient");
+    const original = { ...createDefaultManagedNotifTemplate("created", "patient"), revision: 1 };
+    const settings = createFakeSettings([row(key, ORG_A, { value: "legacy", managed: original })]);
+    const service = createNotifTemplatesService(settings);
+    const initial = (await service.getManagedTemplates({ organizationId: ORG_A }))[0]!;
+    const emailEdit: ManagedNotifTemplateChannels = {
+      ...initial.managed.channels,
+      email: { ...initial.managed.channels.email, subject: "Email edit" },
+    };
+    const pushEdit: ManagedNotifTemplateChannels = {
+      ...initial.managed.channels,
+      web_push: { ...initial.managed.channels.web_push, title: "Push edit" },
+    };
+    const results = await Promise.allSettled([
+      service.saveManagedTemplate("created", "patient", emailEdit, "owner-a", initial.metadata.writeToken, {
+        organizationId: ORG_A,
+      }),
+      service.saveManagedTemplate("created", "patient", pushEdit, "owner-b", initial.metadata.writeToken, {
+        organizationId: ORG_A,
+      }),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    expect(rejected?.reason).toBeInstanceOf(NotifTemplateConflictError);
+    const stored = await settings.getSetting(key, "admin", { organizationId: ORG_A });
+    const persisted = parseManagedNotifTemplateFor("created", "patient", stored?.valueJson);
+    const emailWon = persisted?.channels.email.subject === "Email edit";
+    const pushWon = persisted?.channels.web_push.title === "Push edit";
+    expect(Number(emailWon) + Number(pushWon)).toBe(1);
+  });
+
+  it("rejects a stale presentation/template race and preserves both neighboring envelopes", async () => {
+    const key = notifTemplateSettingKey("created", "patient");
+    const original = { ...createDefaultManagedNotifTemplate("created", "patient"), revision: 1 };
+    const originalPresentation = {
+      version: 1 as const,
+      revision: 1,
+      layout: "neutral" as const,
+      signature: "Old signature",
+      contacts: "Old contacts",
+      logoAssetId: null,
+      avatarAssetId: null,
+    };
+    const settings = createFakeSettings([
+      row(key, ORG_A, { value: "legacy", managed: original, presentation: originalPresentation }),
+    ]);
+    const service = createNotifTemplatesService(settings);
+    const template = (await service.getManagedTemplates({ organizationId: ORG_A }))[0]!;
+    const presentation = await service.getManagedPresentation({ organizationId: ORG_A });
+    const editedChannels: ManagedNotifTemplateChannels = {
+      ...template.managed.channels,
+      email: { ...template.managed.channels.email, subject: "Changed template" },
+    };
+    const results = await Promise.allSettled([
+      service.saveManagedTemplate(
+        "created", "patient", editedChannels, "owner-a", template.metadata.writeToken, { organizationId: ORG_A },
+      ),
+      service.saveManagedPresentation(
+        { layout: "organization", signature: "New signature", contacts: "Contacts" },
+        "owner-b",
+        presentation.metadata.writeToken,
+        { organizationId: ORG_A },
+      ),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const stored = await settings.getSetting(key, "admin", { organizationId: ORG_A });
+    expect(stored?.valueJson).toEqual(expect.objectContaining({
+      managed: expect.any(Object),
+      presentation: expect.any(Object),
+    }));
   });
 });

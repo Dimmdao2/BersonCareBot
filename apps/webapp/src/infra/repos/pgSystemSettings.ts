@@ -212,6 +212,32 @@ async function upsertWithAudit(
   return r.rows[0]!;
 }
 
+async function exactRowUpdatedAtForCompareAndSwap(
+  key: string,
+  scope: string,
+  organizationId: string | null,
+  tx: WebappSqlExecutor,
+): Promise<string | null> {
+  const identity = `${organizationId ?? "global"}:${scope}:${key}`;
+  await runWebappPgText("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [identity], tx);
+  const current = organizationId
+    ? await runWebappPgText<{ updated_at: Date | string }>(
+        `SELECT updated_at FROM system_settings
+          WHERE key = $1 AND scope = $2 AND organization_id = $3::uuid
+          FOR UPDATE`,
+        [key, scope, organizationId],
+        tx,
+      )
+    : await runWebappPgText<{ updated_at: Date | string }>(
+        `SELECT updated_at FROM system_settings
+          WHERE key = $1 AND scope = $2 AND organization_id IS NULL
+          FOR UPDATE`,
+        [key, scope],
+        tx,
+      );
+  return current.rows[0] ? toIsoStringSafe(current.rows[0].updated_at) : null;
+}
+
 export function createPgSystemSettingsPort(): SystemSettingsPort {
   return {
     async getByKey(
@@ -297,6 +323,23 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
         const organizationId = options.organizationId?.trim() || null;
         const row = await upsertWithAudit(key, scope, organizationId, valueJson, updatedBy, tx);
         return rowToSetting(row);
+      });
+    },
+
+    async compareAndSwap(
+      key,
+      scope,
+      valueJson,
+      updatedBy,
+      expectedUpdatedAt,
+      options = {},
+    ) {
+      return runWebappTransaction(async (tx) => {
+        const organizationId = options.organizationId?.trim() || null;
+        const currentToken = await exactRowUpdatedAtForCompareAndSwap(key, scope, organizationId, tx);
+        if (currentToken !== expectedUpdatedAt) return null;
+        const persisted = await upsertWithAudit(key, scope, organizationId, valueJson, updatedBy, tx);
+        return rowToSetting(persisted);
       });
     },
 
@@ -391,6 +434,41 @@ export function createPgSystemSettingsWriteUnitOfWork(): SettingsWriteUnitOfWork
           await upsertRuntimeInTransaction(row, tx);
         }
         return saved;
+      });
+    },
+
+    async compareAndSwap(input) {
+      return runWebappTransaction(async (tx) => {
+        const legacyRow = input.legacyRow;
+        const organizationId = legacyRow.organizationId?.trim() || null;
+        const currentToken = await exactRowUpdatedAtForCompareAndSwap(
+          legacyRow.key,
+          legacyRow.scope,
+          organizationId,
+          tx,
+        );
+        if (currentToken !== input.expectedUpdatedAt) return null;
+
+        for (const runtimeRow of input.authoritativeRuntimeRows) {
+          await upsertRuntimeInTransaction(runtimeRow, tx);
+          await runWebappPgText(
+            "SELECT set_config('app.runtime_settings_explicit_dual_write', 'on', true)", [], tx,
+          );
+        }
+        const persisted = await upsertWithAudit(
+          legacyRow.key,
+          legacyRow.scope,
+          organizationId,
+          legacyRow.valueJson,
+          legacyRow.updatedBy,
+          tx,
+        );
+        if (input.authoritativeRuntimeRows.length > 0) {
+          await runWebappPgText(
+            "SELECT set_config('app.runtime_settings_explicit_dual_write', 'off', true)", [], tx,
+          );
+        }
+        return rowToSetting(persisted);
       });
     },
   };

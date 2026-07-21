@@ -3,6 +3,7 @@ import { createBoundedRuntimeReadTelemetry, createSystemSettingsService } from "
 import type {
   RuntimeReadTelemetry,
   RuntimeSettingsRepository,
+  RuntimeWrite,
   SettingsWriteUnitOfWork,
   SystemSettingsPort,
   SystemSettingsUpsertRow,
@@ -103,6 +104,55 @@ describe("SystemSettingsService", () => {
     const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
     await service.updateSetting("patient_program_discussion_ui_enabled", "admin", { value: true }, "u1");
     expect(events).toEqual(["commit", "sync"]);
+  });
+
+  it("uses the dual-write compare-and-swap boundary and syncs only a committed result", async () => {
+    const compareAndSwap = vi.fn(async (input: {
+      legacyRow: SystemSettingsUpsertRow;
+      authoritativeRuntimeRows: RuntimeWrite[];
+      expectedUpdatedAt: string | null;
+    }): Promise<SystemSetting | null> => ({
+      key: input.legacyRow.key,
+      scope: input.legacyRow.scope,
+      organizationId: input.legacyRow.organizationId ?? null,
+      valueJson: input.legacyRow.valueJson,
+      updatedAt: "2026-07-21T11:00:00.000Z",
+      updatedBy: input.legacyRow.updatedBy,
+    }));
+    const writeUnitOfWork: SettingsWriteUnitOfWork = {
+      write: vi.fn(),
+      compareAndSwap,
+    };
+    const service = createSystemSettingsService(makePort(), { writeUnitOfWork });
+    const result = await service.updateSettingIfUnchanged(
+      "notif_template:created:patient",
+      "admin",
+      { value: "safe" },
+      "owner-a",
+      "2026-07-21T10:00:00.000Z",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    );
+    expect(result?.updatedAt).toBe("2026-07-21T11:00:00.000Z");
+    expect(compareAndSwap).toHaveBeenCalledWith(expect.objectContaining({
+      expectedUpdatedAt: "2026-07-21T10:00:00.000Z",
+      authoritativeRuntimeRows: [expect.objectContaining({
+        key: "notif_template:created:patient",
+        organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      })],
+    }));
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(1);
+
+    compareAndSwap.mockResolvedValueOnce(null);
+    syncSettingToIntegratorMock.mockClear();
+    await expect(service.updateSettingIfUnchanged(
+      "notif_template:created:patient",
+      "admin",
+      { value: "stale" },
+      "owner-b",
+      "2026-07-21T10:00:00.000Z",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    )).resolves.toBeNull();
+    expect(syncSettingToIntegratorMock).not.toHaveBeenCalled();
   });
 
   it("keeps mixed payment credentials legacy-authoritative for the trigger-owned projection", async () => {

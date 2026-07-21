@@ -191,6 +191,25 @@ describe("createPgSystemSettingsPort (repo SQL parity)", () => {
     expect(row.organizationId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
+  it("compareAndSwap locks the exact row and rejects a stale updated-at token", async () => {
+    runWebappPgTextMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: "2026-07-21T10:00:00.000Z" }] });
+    const port = createPgSystemSettingsPort();
+    const result = await port.compareAndSwap!(
+      "notif_template:created:patient",
+      "admin",
+      { value: "new" },
+      "actor",
+      "2026-07-21T09:00:00.000Z",
+      { organizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    );
+    expect(result).toBeNull();
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain("pg_advisory_xact_lock");
+    expect(String(runWebappPgTextMock.mock.calls[1]?.[0] ?? "")).toContain("FOR UPDATE");
+    expect(runWebappPgTextMock).toHaveBeenCalledTimes(2);
+  });
+
   it("getByKey with organization context prefers org row before global fallback", async () => {
     runWebappPgTextMock.mockResolvedValueOnce({
       rows: [

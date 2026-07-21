@@ -65,10 +65,12 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
     return map;
   }, [templates]);
   const [values, setValues] = useState<Record<string, ManagedNotifTemplateChannels>>(initialChannels);
+  const [templateEntries, setTemplateEntries] = useState<ManagedNotifTemplateEntry[]>(templates);
   const [selectedChannel, setSelectedChannel] = useState<NotifTemplateChannel>("email");
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [previewByKey, setPreviewByKey] = useState<Record<string, RenderedManagedNotifTemplate | undefined>>({});
   const [presentationValue, setPresentationValue] = useState<ManagedNotifPresentation>(presentation.presentation);
+  const [presentationEntry, setPresentationEntry] = useState<ManagedNotifPresentationEntry>(presentation);
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   function updateChannels(key: string, update: (current: ManagedNotifTemplateChannels) => ManagedNotifTemplateChannels) {
@@ -126,7 +128,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
     const key = templateKey(entry.event, entry.audience);
     setSavingKey(key);
     try {
-      await apiJson(endpoint, {
+      const response = await apiJson<{ ok?: boolean; template: ManagedNotifTemplateEntry }>(endpoint, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -134,8 +136,21 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
           event: entry.event,
           audience: entry.audience,
           channels: values[key],
+          expectedUpdatedAt: entry.metadata.writeToken,
         }),
       });
+      setTemplateEntries((current) => current.map((candidate) =>
+        candidate.event === entry.event && candidate.audience === entry.audience
+          ? response.template
+          : candidate,
+      ));
+      setValues((current) => ({ ...current, [key]: cloneChannels(response.template.managed.channels) }));
+      if (entry.event === "created" && entry.audience === "patient") {
+        setPresentationEntry((current) => ({
+          ...current,
+          metadata: { ...current.metadata, writeToken: response.template.metadata.writeToken },
+        }));
+      }
       toast.success("Шаблон сохранён");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить шаблон");
@@ -171,7 +186,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
   async function savePresentation() {
     setSavingKey("presentation");
     try {
-      await apiJson(endpoint, {
+      const response = await apiJson<{ ok?: boolean; presentation: ManagedNotifPresentationEntry }>(endpoint, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -181,8 +196,19 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
             signature: presentationValue.signature,
             contacts: presentationValue.contacts,
           },
+          expectedUpdatedAt: presentationEntry.metadata.writeToken,
         }),
       });
+      setPresentationEntry(response.presentation);
+      setPresentationValue(response.presentation.presentation);
+      setTemplateEntries((current) => current.map((entry) =>
+        entry.event === "created" && entry.audience === "patient"
+          ? {
+              ...entry,
+              metadata: { ...entry.metadata, writeToken: response.presentation.metadata.writeToken },
+            }
+          : entry,
+      ));
       toast.success("Оформление сохранено");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить оформление");
@@ -237,7 +263,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
             {savingKey === "presentation" ? "Сохранение…" : "Сохранить оформление"}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Источник: {presentation.metadata.effectiveSource}, ревизия {presentation.metadata.revision}
+            Источник: {presentationEntry.metadata.effectiveSource}, ревизия {presentationEntry.metadata.revision}
           </span>
         </div>
       </section>
@@ -257,7 +283,7 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
       </div>
 
       {TEMPLATE_AUDIENCE_GROUPS.map(({ audience, title }) => {
-        const groupTemplates = templates.filter((entry) => entry.audience === audience);
+        const groupTemplates = templateEntries.filter((entry) => entry.audience === audience);
         return (
           <section key={audience} className={doctorSectionCardClass} aria-labelledby={`notification-templates-${audience}`}>
             <h2 id={`notification-templates-${audience}`} className={doctorSectionTitleClass}>{title}</h2>
@@ -279,6 +305,16 @@ export function NotificationTemplatesPageClient({ endpoint, templates, presentat
                       <CardTitle className="text-sm">{notifTemplateTitle(entry.event, entry.audience)}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {entry.legacyCompatibility.status === "incompatible" ? (
+                        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+                          <div className="font-medium">Старый шаблон сохранён, но содержит несовместимые поля</div>
+                          <div className="mt-1 whitespace-pre-wrap">{entry.legacyCompatibility.preservedText}</div>
+                          <div className="mt-1">
+                            Нужно вручную перенести смысл в безопасные поля. Несовместимые элементы:{" "}
+                            {entry.legacyCompatibility.forbiddenVariables.join(", ") || "неподдерживаемый формат"}.
+                          </div>
+                        </div>
+                      ) : null}
                       {fields.map(({ field, label, rows }) => {
                         const refKey = contentFieldKey(key, selectedChannel, field);
                         return (

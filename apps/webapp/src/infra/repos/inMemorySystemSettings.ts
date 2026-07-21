@@ -77,6 +77,30 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return setting;
     },
 
+    async compareAndSwap(
+      key,
+      scope,
+      valueJson,
+      updatedBy,
+      expectedUpdatedAt,
+      options = {},
+    ) {
+      const organizationId = normalizeOrganizationId(options.organizationId);
+      const identity = makeKey(key, scope, organizationId);
+      const current = store.get(identity) ?? null;
+      if ((current?.updatedAt ?? null) !== expectedUpdatedAt) return null;
+      const setting: SystemSetting = {
+        key,
+        scope,
+        organizationId,
+        valueJson,
+        updatedAt: new Date().toISOString(),
+        updatedBy,
+      };
+      store.set(identity, setting);
+      return setting;
+    },
+
     async upsertManyInTransaction(rows: SystemSettingsUpsertRow[]): Promise<SystemSetting[]> {
       const out: SystemSetting[] = [];
       for (const row of rows) {

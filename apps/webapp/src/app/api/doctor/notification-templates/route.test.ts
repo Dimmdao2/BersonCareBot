@@ -85,6 +85,7 @@ describe("organization notification templates API", () => {
       event: "rescheduled",
       audience: "doctor",
       channels,
+      expectedUpdatedAt: null,
       organizationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     }));
     expect(response.status).toBe(400);
@@ -99,6 +100,7 @@ describe("organization notification templates API", () => {
       event: "rescheduled",
       audience: "doctor",
       channels,
+      expectedUpdatedAt: null,
     }));
     expect(response.status).toBe(200);
     expect(saveTemplateMock).toHaveBeenCalledWith(
@@ -106,6 +108,7 @@ describe("organization notification templates API", () => {
       "doctor",
       channels,
       "owner-a",
+      null,
       { organizationId: ORG_A },
     );
   });

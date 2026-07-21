@@ -2,6 +2,7 @@ import type { SystemSetting, SystemSettingKey, SystemSettingScope } from "@/modu
 import {
   DEFAULT_MANAGED_NOTIF_PRESENTATION,
   MANAGED_NOTIF_TEMPLATE_VERSION,
+  adaptLegacyNotifTemplate,
   createDefaultManagedNotifTemplate,
   parseManagedNotifPresentation,
   parseManagedNotifTemplateFor,
@@ -76,7 +77,22 @@ type SystemSettingsLike = {
     updatedBy: string | null,
     options?: SystemSettingsWriteOptionsLike,
   ): Promise<SystemSetting>;
+  updateSettingIfUnchanged(
+    key: string,
+    scope: SystemSettingScope,
+    value: unknown,
+    updatedBy: string | null,
+    expectedUpdatedAt: string | null,
+    options?: SystemSettingsWriteOptionsLike,
+  ): Promise<SystemSetting | null>;
 };
+
+export class NotifTemplateConflictError extends Error {
+  constructor() {
+    super("notification_template_conflict");
+    this.name = "NotifTemplateConflictError";
+  }
+}
 
 /**
  * Notification templates (`notif_template:*`) are PER-ORG (see `orgScopedKeys.ts`) — each clinic edits
@@ -91,12 +107,14 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
     row: SystemSetting | null,
     source: ManagedNotifTemplateMetadata["effectiveSource"],
     revision: number,
+    targetRow: SystemSetting | null = row,
   ): ManagedNotifTemplateMetadata {
     return {
       revision,
       effectiveSource: source,
       updatedAt: row?.updatedAt || null,
       updatedBy: row?.updatedBy ?? null,
+      writeToken: targetRow?.updatedAt ?? null,
     };
   }
 
@@ -139,17 +157,39 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
     const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(key, options.organizationId);
     const orgManaged = exactOrgRow ? parseManagedNotifTemplateFor(event, audience, exactOrgRow.valueJson) : null;
     const platformManaged = parseManagedNotifTemplateFor(event, audience, globalRow?.valueJson ?? null);
-    const managed = orgManaged ?? platformManaged ?? createDefaultManagedNotifTemplate(event, audience);
-    const source = orgManaged ? "organization" : platformManaged ? "platform" : "hardcoded";
-    const sourceRow = orgManaged ? exactOrgRow : platformManaged ? globalRow : null;
+    const orgLegacyStored = extractTextFromValueJson(exactOrgRow?.valueJson ?? null);
+    const platformLegacyStored = extractTextFromValueJson(globalRow?.valueJson ?? null);
+    const legacyForAdaptation = orgLegacyStored ?? platformLegacyStored;
+    const adaptedLegacy = legacyForAdaptation
+      ? adaptLegacyNotifTemplate(event, audience, legacyForAdaptation)
+      : null;
+    const managed = orgManaged
+      ?? (orgLegacyStored ? adaptedLegacy?.template : null)
+      ?? platformManaged
+      ?? adaptedLegacy?.template
+      ?? createDefaultManagedNotifTemplate(event, audience);
+    const source: ManagedNotifTemplateMetadata["effectiveSource"] = orgManaged || orgLegacyStored
+      ? "organization"
+      : platformManaged
+        ? "platform"
+        : platformLegacyStored
+          ? "legacy"
+          : "hardcoded";
+    const sourceRow = orgManaged || orgLegacyStored ? exactOrgRow : platformManaged || platformLegacyStored ? globalRow : null;
     const legacyStored = extractTextFromValueJson(effectiveRow?.valueJson ?? null);
+    const legacyText = legacyStored ?? NOTIF_TEMPLATE_DEFAULTS[event][audience];
+    const legacyCompatibility = legacyStored
+      ? adaptLegacyNotifTemplate(event, audience, legacyStored).compatibility
+      : { status: "compatible" as const, preservedText: legacyText, forbiddenVariables: [] };
+    const targetRow = options.organizationId?.trim() ? exactOrgRow : globalRow;
     return {
       event,
       audience,
-      legacyText: legacyStored ?? NOTIF_TEMPLATE_DEFAULTS[event][audience],
+      legacyText,
       legacyIsDefault: legacyStored === null,
+      legacyCompatibility,
       managed,
-      metadata: metadataFor(sourceRow, source, managed.revision),
+      metadata: metadataFor(sourceRow, source, managed.revision, targetRow),
     };
   }
 
@@ -164,7 +204,12 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
     const sourceRow = orgPresentation ? exactOrgRow : platformPresentation ? globalRow : null;
     return {
       presentation,
-      metadata: metadataFor(sourceRow, source, presentation.revision),
+      metadata: metadataFor(
+        sourceRow,
+        source,
+        presentation.revision,
+        options.organizationId?.trim() ? exactOrgRow : globalRow,
+      ),
     };
   }
 
@@ -218,6 +263,7 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       audience: NotifTemplateAudience,
       channels: ManagedNotifTemplateChannels,
       userId: string,
+      expectedUpdatedAt: string | null,
       options: SystemSettingsWriteOptionsLike = {},
     ): Promise<ManagedNotifTemplateEntry> {
       const validatedChannels = validateManagedNotifTemplateChannels(event, audience, channels);
@@ -236,27 +282,32 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       const existingRecord = existingValue && typeof existingValue === "object" && !Array.isArray(existingValue)
         ? existingValue as Record<string, unknown>
         : {};
-      const saved = await systemSettings.updateSetting(
+      const saved = await systemSettings.updateSettingIfUnchanged(
         key,
         "admin",
         { ...existingRecord, value: legacyText, managed },
         userId,
+        expectedUpdatedAt,
         writeOptions(options),
       );
+      if (!saved) throw new NotifTemplateConflictError();
       const source = options.organizationId?.trim() ? "organization" : "platform";
+      const legacyCompatibility = adaptLegacyNotifTemplate(event, audience, legacyText).compatibility;
       return {
         event,
         audience,
         legacyText,
         legacyIsDefault: false,
+        legacyCompatibility,
         managed,
-        metadata: metadataFor(saved, source, managed.revision),
+        metadata: metadataFor(saved, source, managed.revision, saved),
       };
     },
 
     async saveManagedPresentation(
       input: Pick<ManagedNotifPresentation, "layout" | "signature" | "contacts">,
       userId: string,
+      expectedUpdatedAt: string | null,
       options: SystemSettingsWriteOptionsLike = {},
     ): Promise<ManagedNotifPresentationEntry> {
       const signature = input.signature.trim();
@@ -285,15 +336,17 @@ export function createNotifTemplatesService(systemSettings: SystemSettingsLike) 
       const existingRecord = existingValue && typeof existingValue === "object" && !Array.isArray(existingValue)
         ? existingValue as Record<string, unknown>
         : {};
-      const saved = await systemSettings.updateSetting(
+      const saved = await systemSettings.updateSettingIfUnchanged(
         presentationCarrierKey,
         "admin",
         { ...existingRecord, value: legacyText, presentation },
         userId,
+        expectedUpdatedAt,
         writeOptions(options),
       );
+      if (!saved) throw new NotifTemplateConflictError();
       const source = options.organizationId?.trim() ? "organization" : "platform";
-      return { presentation, metadata: metadataFor(saved, source, presentation.revision) };
+      return { presentation, metadata: metadataFor(saved, source, presentation.revision, saved) };
     },
   };
 }

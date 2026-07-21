@@ -6,6 +6,7 @@ import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRol
 import {
   NOTIF_TEMPLATE_AUDIENCES,
   NOTIF_TEMPLATE_EVENTS,
+  NotifTemplateConflictError,
 } from "@/modules/notif-templates/notifTemplatesService";
 import {
   NOTIF_TEMPLATE_CHANNELS,
@@ -32,8 +33,13 @@ const putSchema = z.discriminatedUnion("kind", [
     event: z.enum(NOTIF_TEMPLATE_EVENTS),
     audience: z.enum(NOTIF_TEMPLATE_AUDIENCES),
     channels: channelsSchema,
+    expectedUpdatedAt: z.string().min(1).nullable(),
   }).strict(),
-  z.object({ kind: z.literal("presentation"), presentation: presentationSchema }).strict(),
+  z.object({
+    kind: z.literal("presentation"),
+    presentation: presentationSchema,
+    expectedUpdatedAt: z.string().min(1).nullable(),
+  }).strict(),
 ]);
 const previewSchema = z.object({
   event: z.enum(NOTIF_TEMPLATE_EVENTS),
@@ -84,6 +90,7 @@ export async function PUT(request: Request) {
       const presentation = await deps.notifTemplates.saveManagedPresentation(
         parsed.data.presentation,
         gate.ctx.session.user.userId,
+        parsed.data.expectedUpdatedAt,
         options,
       );
       return NextResponse.json({ ok: true, presentation });
@@ -93,10 +100,14 @@ export async function PUT(request: Request) {
       parsed.data.audience,
       parsed.data.channels,
       gate.ctx.session.user.userId,
+      parsed.data.expectedUpdatedAt,
       options,
     );
     return NextResponse.json({ ok: true, template });
   } catch (error) {
+    if (error instanceof NotifTemplateConflictError) {
+      return NextResponse.json({ ok: false, error: "template_conflict" }, { status: 409 });
+    }
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
     throw error;
   }
