@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Tiptap checklist accepted as independent UI work; N1B boundary corrected (`#931/#930`)
+
+Owner provenance for `#931` is recorded in taskdb: replace every current markdown write-editor with one Tiptap
+WYSIWYG while preserving markdown storage and patient rendering. The new document is a subordinate task checklist,
+not a second product roadmap, and it does not block or supply the N1B template editor. Completion now requires a
+saved discovery-manifest, compatibility/golden roundtrip evidence and live verification of every discovered screen,
+not only the three currently known surfaces.
+
+N1B remains on the existing notification-template engine. Its email presentation uses a fixed server-owned
+email-safe envelope with typed branding fields and synthetic preview. Organizations never submit arbitrary HTML/CSS.
+This replaces the intermediate raw-HTML-editor wording and preserves the already chosen safe-layout default.
+
 ## 2026-07-21 — U9A bounded platform-settings spine required by N1A (`#929`)
 
 The current clinic settings API cannot be reused as a platform writer: it resolves one organization membership and

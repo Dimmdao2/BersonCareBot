@@ -1,5 +1,15 @@
 # Execution log
 
+## 2026-07-21 — N1B editor boundary synchronized with independent Tiptap task (`#930/#931`)
+
+- `#931` owns only current markdown write-surfaces and preserves markdown storage. It is independent and cannot
+  block N1B or replace the existing notification-template store/editor.
+- N1B keeps simple variable-based notification content plus platform/org resolution. Email presentation is rendered
+  through a fixed server-owned safe envelope; the organization changes typed branding fields/layout choice only.
+  Raw HTML/CSS, external resources and a visual email builder are not accepted inputs.
+- The prior intermediate wording that allowed editing HTML source was replaced. No runtime code, DB, provider,
+  deploy, TEST/PROD or real send changed in this documentation correction.
+
 ## 2026-07-21 — NTF-01/N1A launch checkpoint and U9 platform-settings dependency (`#929`)
 
 - Current code confirms `/api/admin/settings` is deliberately clinic-membership-scoped. Replacing its guard would
