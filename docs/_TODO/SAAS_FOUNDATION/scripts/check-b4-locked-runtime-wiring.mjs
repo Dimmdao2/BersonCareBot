@@ -276,7 +276,8 @@ function runChecks(overrides = {}) {
     "enterWithDbPatientPrincipal({",
     "hasLaunchCapability(capabilities, \"platform.operations\")",
     "isPlatformUserUuid(session.user.userId)",
-    "source: \"requirePlatformOperationsApiContext\"",
+    "PLATFORM_OPERATIONS_DB_SOURCE",
+    "source: PLATFORM_OPERATIONS_DB_SOURCE",
     "platformUserId: session.user.userId",
   ]);
 

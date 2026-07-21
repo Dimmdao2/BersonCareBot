@@ -14,9 +14,9 @@ const paths = {
 
 const expectedTierCounts = Object.freeze({
   BOOTSTRAP: 30,
-  INFRA: 25,
+  INFRA: 26,
   LEGACY: 16,
-  SCOPED: 161,
+  SCOPED: 162,
   TELEMETRY: 5,
 });
 
@@ -211,8 +211,8 @@ function runP0101Invariant({
     fail(`Unexpected tier(s): ${unexpectedTiers.join(", ")}`);
   }
 
-  if (scopedTables.length !== 161) {
-    fail(`Expected 161 SCOPED tables, got ${scopedTables.length}`);
+  if (scopedTables.length !== 162) {
+    fail(`Expected 162 SCOPED tables, got ${scopedTables.length}`);
   }
 
   if (scopedBeTables.length !== 44) {

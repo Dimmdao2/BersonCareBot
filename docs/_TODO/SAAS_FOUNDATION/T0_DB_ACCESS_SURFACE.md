@@ -145,6 +145,7 @@ Files using `runWithDbOrganizationPrincipal` in runtime code:
 - `apps/webapp/src/app/api/payments/webhook/[provider]/route.ts`
 - `apps/webapp/src/infra/repos/pgEmailAuth.ts`
 - `apps/webapp/src/infra/repos/pgPatientPayments.ts`
+- `apps/webapp/src/infra/repos/pgPaymentCaptureUnitOfWork.ts`
 - `apps/webapp/src/infra/repos/pgPayments.ts`
 - `apps/webapp/src/infra/repos/pgUserByPhone.ts`
 - `packages/db-principal/src/index.ts`

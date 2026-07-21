@@ -34,7 +34,7 @@ export const p09EnforceActions = new Set([
 ]);
 
 export const expectedP09EnforceActionCounts = Object.freeze({
-  scoped_org: 158,
+  scoped_org: 159,
   scoped_fk_path: 2,
   scoped_pending_default_deny: 1,
   bootstrap_hybrid: 3,
@@ -42,7 +42,7 @@ export const expectedP09EnforceActionCounts = Object.freeze({
   bootstrap_runtime_audience: 1,
   bootstrap_runtime_audit: 1,
   bootstrap_global_read: 23,
-  explicit_global: 30,
+  explicit_global: 31,
   legacy_frozen_deny: 16,
 });
 
@@ -240,8 +240,8 @@ export function assertP09EnforceDescriptors(descriptors) {
   const actualTables = descriptors.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 237) {
-    throw new Error(`Expected 237 P0.9 enforce descriptors, got ${actualTables.length}`);
+  if (actualTables.length !== 239) {
+    throw new Error(`Expected 239 P0.9 enforce descriptors, got ${actualTables.length}`);
   }
 
   if (actualSet.size !== actualTables.length) {

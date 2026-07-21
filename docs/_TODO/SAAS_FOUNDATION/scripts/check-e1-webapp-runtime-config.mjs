@@ -470,7 +470,7 @@ function runChecks(overrides = {}) {
     "stampPatientOrganizationRequestContext",
     'source: "app.patient.page"',
     "organizationId: patientContext.organizationId",
-    'requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")',
+    'requireEntitlementForReadAction({ organizationId: patientContext.organizationId }, "courses")',
   ]);
   forbidText(files.patientPage, loaded.patientPage, ["resolvePatientEnrollmentOrganizationId"]);
   requireText(files.patientHome, loaded.patientHome, [
