@@ -593,6 +593,17 @@ card; запрещено строить временный resolver, второ�
 - **Gate:** owner-review §§P1-P3; global operator vs organization payer vs ordinary specialist; webhook replay/
   amount/org negatives; audit, reconciliation, TEST provider-safe acceptance.
 
+**C5A status (2026-07-21, `#751`): HARD STOP / not integrated.** The rebased candidate `e4b71cc34` passed 249
+targeted tests, the operational-role matrix, scoped lint and all journal/frozen/RLS/Phase4/finalizer/D3.4 static
+gates, but its final independent audit failed `0 P0 / 2 P1 / 2 P2`. First, explicit `no_trial` still resolves to
+`active` with no tariff and therefore enables 12/15 mechanics through compatibility defaults, violating the
+fail-closed no-invented-default gate for a new organization. Second, lifecycle denial is optional on the caller:
+several real CMS and patient-home mutations omit the mutation intent and can write through post-trial `read_only` or
+`blocked`. The quota path also lacks an executable two-connection last-slot proof/consumable 80% projection, and
+commercial UI buttons disagree with trial/override lifecycle. The candidate remains isolated and unpushed; C5B,
+C5C, C6 and configured-pricing U6A residual do not consume it. Task `#751` waits for explicit permission for one
+additional coherent correction pass or a decision to freeze the unmerged candidate; no third loop starts silently.
+
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
 downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:

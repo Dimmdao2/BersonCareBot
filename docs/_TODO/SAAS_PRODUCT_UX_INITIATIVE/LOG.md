@@ -3817,3 +3817,27 @@ The doctor archive command explicitly returns `patient_archive_not_available`; d
 pending invite. Taskdb `#796` is therefore `blocked`, `owner_waiting=true`, on one precise choice: implement a product
 per-enrollment discharge/reactivate flow or authorize a narrow reversible TEST-only lifecycle harness. U5B/UI-5
 remains gated on these seals, while independent roadmap stages continue.
+
+## 2026-07-21 — C5A terminal audit hard stop (`#751`)
+
+The three-commit C5A constructor/trial candidate was rebased after U3B so the migration journal is exact
+`0222 → 0223`; one integration-only checker parity commit reconciled the final 168 Phase4 targets. The resulting
+isolated candidate is `e4b71cc34`. It keeps numeric/unlimited tariff configuration, removes the false pre-reservation
+counter, adds an INSERT-bound courses/items quota, isolates commercial DML behind the platform-operations principal,
+projects trial/lifecycle/override state and uses no hardcoded trial duration. Worker validation and the independent
+terminal audit both found the structural/security gates green.
+
+The terminal full-stage audit nevertheless failed `0 P0 / 2 P1 / 2 P2`. `no_trial` is recorded explicitly but the
+resolver then falls through to compatibility defaults, enabling 12 of 15 mechanics for a new organization with no
+tariff. Separately, lifecycle denial depends on an optional mutation intent and several actual CMS/patient-home
+write paths omit it, so `read_only`/`blocked` is not a complete write wall. The audit also found no executable
+two-connection last-slot quota proof or consumable 80% warning projection, and inconsistent commercial UI controls
+for starting/extending trials and saving/deleting overrides. These findings map directly to owner-review P1/P2 and
+are not audit-driven scope growth.
+
+Evidence passed: 24 changed Vitest files / 249 tests, operational DB-principal `5/5`, scoped changed-file ESLint,
+journal/frozen migration, RLS descriptors, P0.8.3, Phase4 artifact, strict-finalizer, D3.4 and diff-check. No full CI,
+working database, TEST/PROD, deploy or provider action occurred. Under the declared hard cap, the candidate is not
+merged or pushed and no further correction starts automatically. Taskdb `#751` is `blocked`, `owner_waiting=true`,
+on permission for one additional coherent correction pass versus freezing the unmerged candidate. Downstream C5B/
+C5C/C6 and configured-pricing U6A residual remain dependency-blocked.
