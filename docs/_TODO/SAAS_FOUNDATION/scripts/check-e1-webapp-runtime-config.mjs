@@ -64,6 +64,66 @@ const files = {
   patientUiRehearsal: "docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-current-patient-ui-capabilities.mjs",
 };
 
+const currentEntitlementPolicyDefinitions = [
+  `CREATE POLICY saas_organization_trials_current_patient_capability_read
+  ON public.saas_organization_trials
+  FOR SELECT
+  USING (
+    app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+    AND EXISTS (
+      SELECT 1 FROM public.org_enrollments AS enrollment
+      WHERE enrollment.organization_id = app.current_org_id()
+        AND enrollment.platform_user_id = app.current_patient_user_id()
+        AND enrollment.status = 'active'
+    )
+  );`,
+  `CREATE POLICY saas_tariffs_current_patient_capability_read ON public.saas_tariffs
+  FOR SELECT
+  USING (
+    app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND EXISTS (
+      SELECT 1
+      FROM public.be_organizations AS organization
+      INNER JOIN public.org_enrollments AS enrollment
+        ON enrollment.organization_id = organization.id
+       AND enrollment.platform_user_id = app.current_patient_user_id()
+       AND enrollment.status = 'active'
+      LEFT JOIN public.saas_organization_trials AS trial
+        ON trial.organization_id = organization.id
+       AND trial.status = 'active'
+      WHERE organization.id = app.current_org_id()
+        AND organization.is_active = true
+        AND saas_tariffs.id = CASE
+          WHEN trial.id IS NULL THEN organization.tariff_id
+          WHEN statement_timestamp() <= trial.grace_ends_at THEN trial.tariff_id
+          WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id
+          ELSE trial.tariff_id
+        END
+    )
+  );`,
+  `CREATE POLICY saas_org_entitlement_overrides_current_patient_capability_read
+  ON public.saas_org_entitlement_overrides
+  FOR SELECT
+  USING (
+    app.current_org_id() IS NOT NULL
+    AND app.current_patient_user_id() IS NOT NULL
+    AND organization_id = app.current_org_id()
+    AND EXISTS (
+      SELECT 1
+      FROM public.be_organizations AS organization
+      INNER JOIN public.org_enrollments AS enrollment
+        ON enrollment.organization_id = organization.id
+       AND enrollment.platform_user_id = app.current_patient_user_id()
+       AND enrollment.status = 'active'
+      WHERE organization.id = app.current_org_id()
+        AND organization.is_active = true
+    )
+  );`,
+];
+
 function read(path) { return readFileSync(path, "utf8"); }
 function fail(message) { throw new Error(message); }
 function requireText(label, text, fragments) {
@@ -245,6 +305,11 @@ function runChecks(overrides = {}) {
     "TO app_patient",
     "e1_current_patient_entitlements_signature_current",
   ]);
+  requireText(
+    files.currentPatientEntitlementsOverlay,
+    loaded.currentPatientEntitlementsOverlay,
+    currentEntitlementPolicyDefinitions,
+  );
   requireText(files.currentPatientEntitlementsMigration, loaded.currentPatientEntitlementsMigration, [
     "DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements()",
     "tariff_quotas jsonb", "override_quota jsonb", "override_expires_at timestamptz",
@@ -296,6 +361,9 @@ function runChecks(overrides = {}) {
     "TO PUBLIC, app_staff", "TO app_patient WITH GRANT OPTION",
     "NOT has_function_privilege('app_staff'",
     "NOT has_table_privilege('app_patient', 'public.saas_organization_trials', 'SELECT')",
+    "LEFT JOIN pg_policy AS policy",
+    "actual.polqual IS NOT NULL", "actual.polwithcheck IS NULL",
+    "unnest(actual.required_fragments)",
   ]);
   requireText(files.overlay, loaded.overlay, [
     "0193_e1_safe_runtime_config.sql", "0194_e1_patient_identity_exception.sql",
@@ -678,6 +746,7 @@ function runChecks(overrides = {}) {
 }
 
 if (process.argv.includes("--self-test")) {
+  runChecks();
   const cases = [
     ["patient system_settings grant", { overlay: read(files.overlay).replace("REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM app_patient", "-- removed") }],
     ["migration protected-owner coupling", { migration: `${read(files.migration)}\nALTER FUNCTION app.read_public_runtime_setting(text, text) OWNER TO app_owner;\n` }],
@@ -737,6 +806,7 @@ if (process.argv.includes("--self-test")) {
     ["patient capability owner membership path", { overlay: read(files.overlay).replace("AND NOT pg_has_role('app_patient', 'app_owner', 'MEMBER')", "") }],
     ["current entitlement overlay signature", { currentPatientEntitlementsOverlay: read(files.currentPatientEntitlementsOverlay).replaceAll("tariff_quotas jsonb", "tariff_quotas text") }],
     ["current entitlement overlay unsafe replace", { currentPatientEntitlementsOverlay: read(files.currentPatientEntitlementsOverlay).replace("CREATE FUNCTION app.read_current_patient_organization_entitlements()", "CREATE OR REPLACE FUNCTION app.read_current_patient_organization_entitlements()") }],
+    ["current entitlement policy USING true", { currentPatientEntitlementsOverlay: read(files.currentPatientEntitlementsOverlay).replace(currentEntitlementPolicyDefinitions[0], "CREATE POLICY saas_organization_trials_current_patient_capability_read ON public.saas_organization_trials FOR SELECT USING (true);") }],
     ["E1 frozen entitlement replay", { overlay: read(files.overlay).replace("e1-current-patient-organization-entitlements.sql", "../../apps/webapp/db/drizzle-migrations/0219_current_patient_organization_entitlements.sql") }],
     ["patient capability adversarial smoke", { smoke: read(files.smoke).replace("TO app_patient WITH GRANT OPTION", "TO app_patient") }],
     ["migration diagnostics allowlist", { migrateWrapper: `${read(files.migrateWrapper)}\nconsole.error(error);\n` }],

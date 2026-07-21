@@ -187,6 +187,65 @@ SELECT 1 / (
 )::int
 FROM pg_proc procedure
 WHERE procedure.oid = 'app.read_current_patient_organization_entitlements()'::regprocedure;
+
+WITH expected(policy_name, relation_name, required_fragments) AS (
+  VALUES
+    (
+      'saas_organization_trials_current_patient_capability_read',
+      'saas_organization_trials',
+      ARRAY[
+        'app.current_org_id()', 'app.current_patient_user_id()',
+        'organization_id = app.current_org_id()', 'org_enrollments'
+      ]::text[]
+    ),
+    (
+      'saas_tariffs_current_patient_capability_read',
+      'saas_tariffs',
+      ARRAY[
+        'app.current_org_id()', 'app.current_patient_user_id()',
+        'be_organizations', 'org_enrollments',
+        'saas_organization_trials', 'saas_tariffs.id',
+        'statement_timestamp()'
+      ]::text[]
+    ),
+    (
+      'saas_org_entitlement_overrides_current_patient_capability_read',
+      'saas_org_entitlement_overrides',
+      ARRAY[
+        'app.current_org_id()', 'app.current_patient_user_id()',
+        'organization_id = app.current_org_id()',
+        'be_organizations', 'org_enrollments'
+      ]::text[]
+    )
+), actual AS (
+  SELECT
+    expected.*,
+    policy.polcmd,
+    policy.polroles,
+    policy.polqual,
+    policy.polwithcheck,
+    pg_get_expr(policy.polqual, policy.polrelid) AS predicate
+  FROM expected
+  LEFT JOIN pg_class AS relation ON relation.relname = expected.relation_name
+    AND relation.relnamespace = 'public'::regnamespace
+  LEFT JOIN pg_policy AS policy ON policy.polrelid = relation.oid
+    AND policy.polname = expected.policy_name
+)
+SELECT 1 / (
+  count(*) = 3
+  AND bool_and(
+    actual.polcmd = 'r'
+    AND actual.polroles = ARRAY[0::oid]
+    AND actual.polqual IS NOT NULL
+    AND actual.polwithcheck IS NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM unnest(actual.required_fragments) AS required(fragment)
+      WHERE position(required.fragment IN actual.predicate) = 0
+    )
+  )
+)::int
+FROM actual;
 `,
   );
 
