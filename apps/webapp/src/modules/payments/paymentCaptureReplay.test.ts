@@ -101,6 +101,13 @@ function createCrashHarness(input: { productRef?: string | null; appointmentId?:
         throw error;
       }
     },
+    async runSerializedPostCommit<T>(
+      _organizationId: string,
+      _captureKey: string,
+      fn: () => Promise<T>,
+    ): Promise<T> {
+      return fn();
+    },
   };
   const service = createPaymentsService({
     port: port as never,

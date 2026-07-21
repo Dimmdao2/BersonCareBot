@@ -306,6 +306,8 @@ import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTa
 import { createPatientBookingService } from "@/modules/patient-booking/service";
 import { parseBookingSlotsReadSource } from "@/modules/patient-booking/slotsReadSource";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+import { createAppointmentPaymentConfirmedHandler } from "@/app-layer/booking/appointmentPaymentConfirmedHandler";
+import { loadBookingLifecycleNotificationsFromSystemSettings } from "@/modules/booking-notifications/settings";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 import { createPgPatientMaintenanceHistoryPort } from "@/infra/repos/pgPatientMaintenanceHistory";
@@ -734,6 +736,17 @@ const membershipsService =
 
 const paymentsPort = !inMemoryRepos ? createPgPaymentsPort() : null;
 const bookingSyncPortForPayments = createBookingSyncPort();
+const onAppointmentPaymentConfirmed = bookingEngineService
+  ? createAppointmentPaymentConfirmedHandler({
+      patientBookings: patientBookingsPort,
+      bookingEngine: bookingEngineService,
+      loadNotificationSettings: () =>
+        loadBookingLifecycleNotificationsFromSystemSettings((key, scope) =>
+          systemSettingsService.getSetting(key, scope),
+        ),
+      bookingSync: bookingSyncPortForPayments,
+    })
+  : undefined;
 const paymentsService =
   paymentsPort && bookingEngineService
     ? createPaymentsService({
@@ -765,52 +778,7 @@ const paymentsService =
             );
           }
         },
-        onAppointmentPaymentConfirmed: async ({ appointmentId, paymentId, platformUserId }) => {
-          const updated = await patientBookingsPort.markConfirmedByCanonicalAppointment(appointmentId, null);
-          const row = updated ?? await patientBookingsPort.getByCanonicalAppointmentId(appointmentId);
-          if (!row || row.status !== "confirmed") return;
-          try {
-            const appointment = await bookingEngineService.getAppointment(appointmentId);
-            if (!appointment) throw new Error("booking_payment_appointment_organization_required");
-            const { loadBookingLifecycleNotificationsFromSystemSettings, resolveBookingNotifyTargets } = await import(
-              "@/modules/booking-notifications/settings"
-            );
-            const notificationSettings = await loadBookingLifecycleNotificationsFromSystemSettings((key, scope) =>
-              systemSettingsService.getSetting(key, scope),
-            );
-            const paymentNotify = resolveBookingNotifyTargets(
-              "booking.payment_captured",
-              { notifyPatient: true, notifyStaff: true },
-              notificationSettings,
-            );
-            if (paymentNotify.notifyPatient || paymentNotify.notifyStaff) {
-              await bookingSyncPortForPayments.emitBookingEvent({
-                eventType: "booking.payment_captured",
-                idempotencyKey: `booking.payment_captured:${paymentId}:${appointmentId}`,
-                payload: {
-                  organizationId: appointment.organizationId,
-                  bookingId: row.id,
-                  userId: platformUserId ?? row.userId ?? row.id,
-                  rubitimeId: row.rubitimeId,
-                  bookingType: row.bookingType,
-                  city: row.city ?? undefined,
-                  category: row.category,
-                  slotStart: row.slotStart,
-                  slotEnd: row.slotEnd,
-                  contactName: row.contactName,
-                  contactPhone: row.contactPhone,
-                  contactEmail: row.contactEmail ?? undefined,
-                  branchServiceId: row.branchServiceId,
-                  cityCodeSnapshot: row.cityCodeSnapshot,
-                  serviceTitleSnapshot: row.serviceTitleSnapshot,
-                  canonicalAppointmentId: appointmentId,
-                },
-              });
-            }
-          } catch {
-            // Notifications are best-effort.
-          }
-        },
+        onAppointmentPaymentConfirmed,
         syncServicePrepaymentApplicable: async (serviceId, applicable) => {
           const svc = await bookingEngineService.services.getService(serviceId);
           if (!svc) return;

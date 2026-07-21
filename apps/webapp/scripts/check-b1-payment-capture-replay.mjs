@@ -5,8 +5,8 @@
  * Owns a private /tmp cluster and explicit synthetic data. It never reads application env or
  * connects to DEV/TEST/PROD. The proof exercises the same transaction shape as the capture UoW:
  * lock intent, create/find payment, append capture history, confirm appointment and activate
- * package/product markers, then commit. Provider-event completion and idempotent delivery happen
- * after that commit.
+ * package/product markers, then commit. A session advisory lock serializes provider-event
+ * completion and mandatory idempotent delivery after that commit.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
@@ -23,6 +23,7 @@ const intent = "20000000-0000-4000-8000-000000000001";
 const payment = "30000000-0000-4000-8000-000000000001";
 const appointment = "40000000-0000-4000-8000-000000000001";
 const event = "50000000-0000-4000-8000-000000000001";
+const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
 
 function fail(label) {
   throw new Error(`B1 #949 payment capture proof failed: ${label}`);
@@ -49,6 +50,8 @@ const captureParticipantSources = [
 function selfTest() {
   for (const fragment of [
     "captureUnitOfWork.run",
+    "runSerializedPostCommit",
+    "getProviderEventById",
     "lockIntentForCapture",
     "hasCapturedHistoryEvent",
     "onPackagePaymentCaptured",
@@ -65,11 +68,35 @@ function selfTest() {
   }
   if (!migrationSql.includes("duplicate_groups")) fail("migration lacks aggregate duplicate preflight");
   if (!migrationSql.includes("be_payment_history_capture_uidx")) fail("migration lacks capture unique index");
+  if (!migrationSql.includes("intent_ref")) fail("migration lacks canonical provider intent reference");
+}
+
+function baseRegressionProof() {
+  const base = spawnSync(
+    "git",
+    ["show", "a3badd17c:apps/webapp/src/modules/payments/service.ts"],
+    { cwd: root, encoding: "utf8", env: safeEnv },
+  );
+  if (base.status !== 0) fail("cannot read source-bound pre-fix base a3badd17c");
+  if (!base.stdout.includes("if (!stored.inserted)")) {
+    fail("pre-fix base does not contain the unprocessed-duplicate short circuit");
+  }
+  for (const fragment of ["stored.processedAt", "runSerializedPostCommit", "getProviderEventById"]) {
+    if (!serviceSource.includes(fragment)) fail(`current source lacks replay repair fragment ${fragment}`);
+  }
+  console.log(
+    "B1 #949 base regression proof: OK — base a3badd17c short-circuits an unprocessed duplicate; current source resumes its canonical stored event under the serialized post-commit gate",
+  );
 }
 
 if (process.argv.includes("--self-test")) {
   selfTest();
   console.log("B1 #949 payment capture proof self-test: OK");
+  process.exit(0);
+}
+
+if (process.argv.includes("--base-regression")) {
+  baseRegressionProof();
   process.exit(0);
 }
 
@@ -79,7 +106,6 @@ const data = path.join(dir, "data");
 const socket = path.join(dir, "socket");
 const log = path.join(dir, "postgres.log");
 const database = `bcb_b1_949_payment_capture_${stamp}`;
-const safeEnv = { LANG: "C", LC_ALL: "C", PATH: `${pgBin}:/usr/bin:/bin` };
 let serverStarted = false;
 let port;
 
@@ -151,6 +177,8 @@ async function installSchema() {
       organization_id uuid NOT NULL,
       provider_id text NOT NULL,
       idempotency_key text NOT NULL,
+      event_type text NOT NULL,
+      payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,
       processed_at timestamptz,
       UNIQUE (organization_id, provider_id, idempotency_key)
     );
@@ -175,7 +203,7 @@ async function seedCapture() {
       org,
     ]);
     await client.query(
-      "INSERT INTO be_payment_provider_events(id, organization_id, provider_id, idempotency_key) VALUES ($1, $2, 'mock', 'event-1')",
+      "INSERT INTO be_payment_provider_events(id, organization_id, provider_id, idempotency_key, event_type, intent_ref, payload_json) VALUES ($1, $2, 'mock', 'event-1', 'payment.succeeded', 'persisted-provider-ref', '{\"intentRef\":\"persisted-provider-ref\"}'::jsonb)",
       [event, org],
     );
   });
@@ -299,37 +327,78 @@ async function proveCrashReplay() {
   }
 }
 
+async function provePersistedProviderEventWinsChangedDuplicate() {
+  await seedCapture();
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO be_payment_provider_events(
+         id, organization_id, provider_id, idempotency_key, event_type, intent_ref, payload_json
+       ) VALUES (
+         '50000000-0000-4000-8000-000000000002', $1, 'mock', 'event-1',
+         'payment.refunded', 'fresh-changed-ref', '{"intentRef":"fresh-changed-ref"}'::jsonb
+       ) ON CONFLICT (organization_id, provider_id, idempotency_key) DO NOTHING`,
+      [org],
+    );
+    const persisted = await client.query(
+      "SELECT event_type, intent_ref, payload_json FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2",
+      [event, org],
+    );
+    const row = persisted.rows[0];
+    if (
+      row?.event_type !== "payment.succeeded" ||
+      row?.intent_ref !== "persisted-provider-ref" ||
+      row?.payload_json?.intentRef !== "persisted-provider-ref"
+    ) {
+      fail("changed duplicate body replaced the canonical stored provider event");
+    }
+  });
+}
+
+const deliveryLockKey = `payment_capture_delivery:${org}:intent:${intent}`;
+
+async function processProviderEventWithSerializedDelivery(lockClient, options = {}) {
+  const { holdDelivery = false, failDelivery = false } = options;
+  await lockClient.query("SELECT pg_advisory_lock(hashtext($1))", [deliveryLockKey]);
+  try {
+    const current = await lockClient.query(
+      "SELECT processed_at FROM be_payment_provider_events WHERE id = $1 AND organization_id = $2",
+      [event, org],
+    );
+    if (current.rows[0]?.processed_at) return "duplicate";
+
+    await withClient((captureClient) => capture(captureClient));
+    if (holdDelivery) await lockClient.query("SELECT pg_sleep(0.20)");
+    if (failDelivery) throw new Error("injected_delivery_failure");
+    await lockClient.query(
+      "INSERT INTO delivery_markers(idempotency_key) VALUES ('booking.payment_captured:payment-1:appointment-1') ON CONFLICT DO NOTHING",
+    );
+    await lockClient.query(
+      "UPDATE be_payment_provider_events SET processed_at = now() WHERE id = $1 AND organization_id = $2",
+      [event, org],
+    );
+    return "processed";
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(hashtext($1))", [deliveryLockKey]);
+  }
+}
+
 async function proveConcurrentReplayAndPostCommitDelivery() {
   await seedCapture();
   const first = newClient();
   const second = newClient();
   await Promise.all([first.connect(), second.connect()]);
   try {
-    await Promise.all([capture(first, { holdLock: true }), capture(second)]);
+    const results = await Promise.all([
+      processProviderEventWithSerializedDelivery(first, { holdDelivery: true }),
+      processProviderEventWithSerializedDelivery(second),
+    ]);
+    if (!results.includes("processed") || !results.includes("duplicate")) {
+      fail("session lock did not serialize provider completion through delivery");
+    }
   } finally {
     await Promise.all([first.end(), second.end()]);
   }
-  let result = await counts();
-  if (result.payments !== 1 || result.history !== 1 || result.markers !== 2 || result.processed) {
-    fail("concurrent duplicate capture was not exact-once before provider completion");
-  }
-
-  // Simulate a process death after core COMMIT but before delivery/event completion. Replay must
-  // not duplicate DB callbacks, and the post-commit delivery itself uses its durable key.
-  await withClient((client) => capture(client));
-  await withClient(async (client) => {
-    await client.query(
-      "INSERT INTO delivery_markers(idempotency_key) VALUES ('booking.payment_captured:payment-1:appointment-1') ON CONFLICT DO NOTHING",
-    );
-    await client.query(
-      "INSERT INTO delivery_markers(idempotency_key) VALUES ('booking.payment_captured:payment-1:appointment-1') ON CONFLICT DO NOTHING",
-    );
-    await client.query(
-      "UPDATE be_payment_provider_events SET processed_at = now() WHERE id = $1 AND organization_id = $2",
-      [event, org],
-    );
-  });
-  result = await counts();
+  const result = await counts();
   if (
     result.payments !== 1 ||
     result.history !== 1 ||
@@ -338,6 +407,25 @@ async function proveConcurrentReplayAndPostCommitDelivery() {
     !result.processed
   ) {
     fail("post-commit replay did not converge provider completion/delivery exactly once");
+  }
+}
+
+async function proveDeliveryFailureRemainsReplayable() {
+  await seedCapture();
+  await withClient((client) =>
+    processProviderEventWithSerializedDelivery(client, { failDelivery: true }),
+  ).then(
+    () => fail("injected mandatory delivery failure unexpectedly completed"),
+    () => undefined,
+  );
+  let result = await counts();
+  if (result.processed || result.deliveries !== 0 || result.payments !== 1) {
+    fail("delivery failure did not preserve an unprocessed replayable provider event");
+  }
+  await withClient((client) => processProviderEventWithSerializedDelivery(client));
+  result = await counts();
+  if (!result.processed || result.deliveries !== 1 || result.payments !== 1 || result.history !== 1) {
+    fail("delivery failure replay did not converge exactly once");
   }
 }
 
@@ -356,10 +444,12 @@ try {
   run(path.join(pgBin, "createdb"), ["-h", socket, "-p", String(port), database], "private database creation");
   await installSchema();
   await proveMigrationPreflight();
+  await provePersistedProviderEventWinsChangedDuplicate();
   await proveCrashReplay();
   await proveConcurrentReplayAndPostCommitDelivery();
+  await proveDeliveryFailureRemainsReplayable();
   console.log(
-    "B1 #949 payment capture proof: OK — aggregate migration preflight, six rollback boundaries, replay, concurrent duplicates, DB callbacks and post-commit delivery verified on private PostgreSQL 16",
+    "B1 #949 payment capture proof: OK — aggregate migration preflight, canonical stored duplicate body, six rollback boundaries, replay, session-serialized duplicates, mandatory delivery failure/retry and exact-once DB effects verified on private PostgreSQL 16",
   );
 } finally {
   if (serverStarted) {

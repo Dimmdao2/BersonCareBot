@@ -212,6 +212,7 @@ export const bePaymentProviderEvents = pgTable(
     providerId: text("provider_id").notNull(),
     idempotencyKey: text("idempotency_key").notNull(),
     eventType: text("event_type").notNull(),
+    intentRef: text("intent_ref"),
     payloadJson: jsonb("payload_json").default({}).notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true, mode: "string" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),

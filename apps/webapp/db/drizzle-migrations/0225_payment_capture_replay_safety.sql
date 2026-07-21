@@ -1,6 +1,9 @@
 -- B1: one durable capture history row per payment across crash/replay.
 -- Historical duplicates are never guessed, merged, or deleted by a migration. Fail closed with
 -- an aggregate-only diagnostic so an operator can inspect/remediate them under a separate gate.
+ALTER TABLE public.be_payment_provider_events
+  ADD COLUMN IF NOT EXISTS intent_ref text;
+
 DO $$
 DECLARE
   duplicate_groups bigint;

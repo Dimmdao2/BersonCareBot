@@ -3,12 +3,42 @@ import type { BookingEnginePort } from "@/modules/booking-engine/ports";
 import { getPaymentProviderAdapter } from "@/infra/payments/paymentProviderRegistry";
 import { parseBookingPaymentSettingsValue } from "./bookingPaymentSettings";
 import { quotePrepayment } from "./prepaymentCalculator";
-import type { PaymentCaptureUnitOfWork, PaymentsConfigReader, PaymentsPort } from "./ports";
+import type {
+  PaymentCaptureUnitOfWork,
+  PaymentsConfigReader,
+  PaymentsPort,
+  StoredPaymentProviderEvent,
+} from "./ports";
 import type { AppointmentPaymentSummary, BookingPaymentSettings, PrepaymentQuote } from "./types";
 import type { ResolvePrepaymentParams } from "./ports";
 import type { PrepaymentResolveContext } from "./prepaymentContextFromBooking";
 import { parsePatientPackageProductRef } from "@/modules/memberships/patientPackageProductRef";
 import { parseProductPurchaseProductRef } from "@/modules/products/productPurchaseProductRef";
+
+function persistedProviderIntentRef(event: StoredPaymentProviderEvent): string | null {
+  const explicit = event.intentRef?.trim();
+  if (explicit) return explicit;
+
+  const payload = event.payloadJson;
+  const direct = (key: string) => {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return null;
+  };
+  if (event.providerId === "cloudpayments") return direct("TransactionId");
+  if (event.providerId === "tinkoff") return direct("PaymentId");
+  if (event.providerId === "alfabank") return direct("mdOrder") ?? direct("orderId");
+  if (event.providerId === "yookassa") {
+    const object = payload.object;
+    if (object && typeof object === "object" && !Array.isArray(object)) {
+      const id = (object as Record<string, unknown>).id;
+      if (typeof id === "string" && id.trim()) return id.trim();
+      if (typeof id === "number" && Number.isFinite(id)) return String(id);
+    }
+  }
+  return direct("intentRef") ?? direct("intentId");
+}
 
 export function createPaymentsService(deps: {
   port: PaymentsPort;
@@ -164,6 +194,18 @@ export function createPaymentsService(deps: {
       }
     }
     return captured.result;
+  }
+
+  async function resolveStoredProviderEventIntent(event: StoredPaymentProviderEvent) {
+    const payloadIntentId = event.payloadJson.intentId;
+    if (typeof payloadIntentId === "string" && payloadIntentId.trim()) {
+      const intent = await deps.port.findIntentById(payloadIntentId.trim());
+      if (intent?.organizationId === event.organizationId) return intent;
+    }
+
+    const providerIntentRef = persistedProviderIntentRef(event);
+    if (!providerIntentRef) return null;
+    return deps.port.findIntentByProviderRef(event.organizationId, providerIntentRef);
   }
 
   return {
@@ -475,6 +517,7 @@ export function createPaymentsService(deps: {
         providerId: input.providerId,
         idempotencyKey: verified.idempotencyKey,
         eventType: verified.eventType,
+        intentRef: verified.intentRef?.trim() || null,
         payloadJson: verified.payload,
       });
       if (!stored.inserted && stored.processedAt) {
@@ -482,22 +525,28 @@ export function createPaymentsService(deps: {
       }
       if (!stored.id) throw new Error("provider_event_persist_failed");
 
-      if (verified.eventType === "payment.succeeded") {
-        const intentId =
-          typeof verified.payload.intentId === "string" ? verified.payload.intentId : null;
-        const intent =
-          (intentId ? await deps.port.findIntentById(intentId) : null) ??
-          (await deps.port.findIntentByProviderRef(
-            input.organizationId,
-            verified.intentRef ?? String(verified.payload.intentRef ?? ""),
-          ));
-        if (intent) {
-          await captureIntentSuccess(intent.id, input.organizationId);
-        }
-      }
+      const storedIntent = await resolveStoredProviderEventIntent(stored);
+      const captureKey = storedIntent ? `intent:${storedIntent.id}` : `event:${stored.id}`;
 
-      await deps.port.markProviderEventProcessed(stored.id, input.organizationId);
-      return { ok: true as const, duplicate: !stored.inserted };
+      return deps.captureUnitOfWork.runSerializedPostCommit(
+        input.organizationId,
+        captureKey,
+        async () => {
+          const current = await deps.port.getProviderEventById(stored.id, input.organizationId);
+          if (!current) throw new Error("provider_event_not_found");
+          if (current.processedAt) {
+            return { ok: true as const, duplicate: true as const };
+          }
+
+          if (current.eventType === "payment.succeeded") {
+            const intent = await resolveStoredProviderEventIntent(current);
+            if (intent) await captureIntentSuccess(intent.id, input.organizationId);
+          }
+
+          await deps.port.markProviderEventProcessed(current.id, input.organizationId);
+          return { ok: true as const, duplicate: !stored.inserted };
+        },
+      );
     },
 
     async applyCancelPaymentOutcome(input: {

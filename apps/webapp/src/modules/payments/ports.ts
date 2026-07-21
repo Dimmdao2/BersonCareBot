@@ -76,8 +76,10 @@ export type PaymentsPort = {
     providerId: string;
     idempotencyKey: string;
     eventType: string;
+    intentRef: string | null;
     payloadJson: Record<string, unknown>;
-  }): Promise<{ inserted: boolean; id: string; processedAt: string | null }>;
+  }): Promise<StoredPaymentProviderEvent>;
+  getProviderEventById(id: string, organizationId: string): Promise<StoredPaymentProviderEvent | null>;
   markProviderEventProcessed(id: string, organizationId: string): Promise<void>;
 
   hasCapturedHistoryEvent(paymentId: string, organizationId: string): Promise<boolean>;
@@ -103,8 +105,21 @@ export type PaymentsPort = {
   setAppointmentPaymentRef(appointmentId: string, paymentId: string, organizationId: string): Promise<void>;
 };
 
+export type StoredPaymentProviderEvent = {
+  inserted: boolean;
+  id: string;
+  organizationId: string;
+  providerId: string;
+  idempotencyKey: string;
+  eventType: string;
+  intentRef: string | null;
+  payloadJson: Record<string, unknown>;
+  processedAt: string | null;
+};
+
 export type PaymentCaptureUnitOfWork = {
   run<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
+  runSerializedPostCommit<T>(organizationId: string, captureKey: string, fn: () => Promise<T>): Promise<T>;
 };
 
 export type PaymentsConfigReader = {

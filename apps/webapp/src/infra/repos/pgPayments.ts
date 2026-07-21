@@ -14,7 +14,11 @@ import {
   beRefunds,
 } from "../../../db/schema/bookingPayments";
 import { beAppointments } from "../../../db/schema/bookingEngine";
-import type { PaymentsPort, UpsertPrepaymentPolicyInput } from "@/modules/payments/ports";
+import type {
+  PaymentsPort,
+  StoredPaymentProviderEvent,
+  UpsertPrepaymentPolicyInput,
+} from "@/modules/payments/ports";
 import type {
   PaymentHistoryEventRecord,
   PaymentIntentRecord,
@@ -83,6 +87,23 @@ function mapHistory(row: typeof bePaymentHistoryEvents.$inferSelect): PaymentHis
     purpose: row.purpose,
     comment: row.comment,
     occurredAt: row.occurredAt,
+  };
+}
+
+function mapProviderEvent(
+  row: typeof bePaymentProviderEvents.$inferSelect,
+  inserted: boolean,
+): StoredPaymentProviderEvent {
+  return {
+    inserted,
+    id: row.id,
+    organizationId: row.organizationId,
+    providerId: row.providerId,
+    idempotencyKey: row.idempotencyKey,
+    eventType: row.eventType,
+    intentRef: row.intentRef,
+    payloadJson: row.payloadJson as Record<string, unknown>,
+    processedAt: row.processedAt,
   };
 }
 
@@ -394,6 +415,7 @@ export function createPgPaymentsPort(): PaymentsPort {
             providerId: input.providerId,
             idempotencyKey: input.idempotencyKey,
             eventType: input.eventType,
+            intentRef: input.intentRef,
             payloadJson: input.payloadJson,
           })
           .onConflictDoNothing({
@@ -403,20 +425,14 @@ export function createPgPaymentsPort(): PaymentsPort {
               bePaymentProviderEvents.idempotencyKey,
             ],
           })
-          .returning({
-            id: bePaymentProviderEvents.id,
-            processedAt: bePaymentProviderEvents.processedAt,
-          }),
+          .returning(),
       );
       if (inserted[0]) {
-        return { inserted: true, id: inserted[0].id, processedAt: inserted[0].processedAt };
+        return mapProviderEvent(inserted[0], true);
       }
       const rows = await runPaymentMutation(input.organizationId, (tx) =>
         tx
-          .select({
-            id: bePaymentProviderEvents.id,
-            processedAt: bePaymentProviderEvents.processedAt,
-          })
+          .select()
           .from(bePaymentProviderEvents)
           .where(
             and(
@@ -427,11 +443,23 @@ export function createPgPaymentsPort(): PaymentsPort {
           )
           .limit(1),
       );
-      return {
-        inserted: false,
-        id: rows[0]?.id ?? "",
-        processedAt: rows[0]?.processedAt ?? null,
-      };
+      if (!rows[0]) throw new Error("provider_event_persist_failed");
+      return mapProviderEvent(rows[0], false);
+    },
+
+    async getProviderEventById(id, organizationId) {
+      const db = getDrizzleOrMutationTx();
+      const rows = await db
+        .select()
+        .from(bePaymentProviderEvents)
+        .where(
+          and(
+            eq(bePaymentProviderEvents.id, id),
+            eq(bePaymentProviderEvents.organizationId, organizationId),
+          ),
+        )
+        .limit(1);
+      return rows[0] ? mapProviderEvent(rows[0], false) : null;
     },
 
     async markProviderEventProcessed(id, organizationId) {
