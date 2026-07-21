@@ -1,5 +1,9 @@
 import type { PaymentProviderConfig } from "@/modules/payments/types";
 import type { PaymentProviderPort } from "@/modules/payments/providerPort";
+import {
+  fetchWithTimeout,
+  PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
+} from "@/shared/lib/externalFetch";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 function requireYookassaCredentials(config?: PaymentProviderConfig): { shopId: string; secretKey: string } {
@@ -29,23 +33,27 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           ? metadata.returnUrl.trim()
           : "https://yookassa.ru";
 
-      const res = await fetch("https://api.yookassa.ru/v3/payments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: basicAuth(shopId, secretKey),
-          "Idempotence-Key": idempotencyKey,
-        },
-        body: JSON.stringify({
-          amount: { value, currency },
-          capture: true,
-          confirmation: { type: "redirect", return_url: returnUrl },
-          metadata: {
-            idempotencyKey,
-            ...metadata,
+      const res = await fetchWithTimeout(
+        "https://api.yookassa.ru/v3/payments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: basicAuth(shopId, secretKey),
+            "Idempotence-Key": idempotencyKey,
           },
-        }),
-      });
+          body: JSON.stringify({
+            amount: { value, currency },
+            capture: true,
+            confirmation: { type: "redirect", return_url: returnUrl },
+            metadata: {
+              idempotencyKey,
+              ...metadata,
+            },
+          }),
+        },
+        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -67,18 +75,22 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
     async refund({ providerIntentRef, amountMinor, currency, idempotencyKey, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
       const value = (amountMinor / 100).toFixed(2);
-      const res = await fetch("https://api.yookassa.ru/v3/refunds", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: basicAuth(shopId, secretKey),
-          "Idempotence-Key": idempotencyKey,
+      const res = await fetchWithTimeout(
+        "https://api.yookassa.ru/v3/refunds",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: basicAuth(shopId, secretKey),
+            "Idempotence-Key": idempotencyKey,
+          },
+          body: JSON.stringify({
+            payment_id: providerIntentRef,
+            amount: { value, currency },
+          }),
         },
-        body: JSON.stringify({
-          payment_id: providerIntentRef,
-          amount: { value, currency },
-        }),
-      });
+        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+      );
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`yookassa_refund_failed:${res.status}:${text.slice(0, 200)}`);

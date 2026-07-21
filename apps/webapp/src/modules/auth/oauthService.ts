@@ -3,6 +3,8 @@
  * Google/Apple — отложено до этапа 5.5.
  */
 
+import { fetchWithTimeout, OAUTH_PROVIDER_FETCH_TIMEOUT_MS } from "@/shared/lib/externalFetch";
+
 export type YandexTokenResponse = {
   access_token: string;
   token_type: string;
@@ -40,11 +42,15 @@ export async function exchangeYandexCode(
 
   let res: Response;
   try {
-    res = await fetchFn("https://oauth.yandex.ru/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
+    res = await fetchWithTimeout(
+      "https://oauth.yandex.ru/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      },
+      { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS, fetchImpl: fetchFn },
+    );
   } catch (err) {
     throw new Error(`yandex_token_network_error: ${String(err)}`);
   }
@@ -65,9 +71,11 @@ export async function fetchYandexUserInfo(
 ): Promise<OAuthUserInfo> {
   let res: Response;
   try {
-    res = await fetchFn("https://login.yandex.ru/info?format=json", {
-      headers: { Authorization: `OAuth ${accessToken}` },
-    });
+    res = await fetchWithTimeout(
+      "https://login.yandex.ru/info?format=json",
+      { headers: { Authorization: `OAuth ${accessToken}` } },
+      { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS, fetchImpl: fetchFn },
+    );
   } catch (err) {
     throw new Error(`yandex_userinfo_network_error: ${String(err)}`);
   }

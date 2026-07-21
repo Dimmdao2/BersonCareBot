@@ -14,6 +14,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { PaymentProviderPort } from "@/modules/payments/providerPort";
 import type { PaymentProviderConfig } from "@/modules/payments/types";
+import {
+  fetchWithTimeout,
+  PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
+} from "@/shared/lib/externalFetch";
 
 function requireTinkoffCredentials(config?: PaymentProviderConfig): {
   terminalKey: string;
@@ -75,11 +79,15 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
       const token = computeTinkoffToken(params, password);
 
-      const res = await fetch("https://securepay.tinkoff.ru/v2/Init", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...params, Token: token }),
-      });
+      const res = await fetchWithTimeout(
+        "https://securepay.tinkoff.ru/v2/Init",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...params, Token: token }),
+        },
+        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -121,11 +129,15 @@ export function createTinkoffPaymentProvider(): PaymentProviderPort {
       };
       const token = computeTinkoffToken(params, password);
 
-      const res = await fetch("https://securepay.tinkoff.ru/v2/Cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...params, Token: token }),
-      });
+      const res = await fetchWithTimeout(
+        "https://securepay.tinkoff.ru/v2/Cancel",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...params, Token: token }),
+        },
+        { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+      );
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");

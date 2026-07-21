@@ -3,6 +3,8 @@
  * No framework dependency — testable with nock/mocked fetch.
  */
 
+import { fetchWithTimeout, OAUTH_PROVIDER_FETCH_TIMEOUT_MS } from "@/shared/lib/externalFetch";
+
 export type GoogleTokenResult = {
   accessToken: string;
   refreshToken: string | null;
@@ -18,17 +20,21 @@ export async function exchangeGoogleCode(
   code: string,
   opts: { clientId: string; clientSecret: string; redirectUri: string },
 ): Promise<GoogleTokenResult> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      code,
-      client_id: opts.clientId,
-      client_secret: opts.clientSecret,
-      redirect_uri: opts.redirectUri,
-      grant_type: "authorization_code",
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://oauth2.googleapis.com/token",
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code,
+        client_id: opts.clientId,
+        client_secret: opts.clientSecret,
+        redirect_uri: opts.redirectUri,
+        grant_type: "authorization_code",
+      }),
+    },
+    { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`google_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);
@@ -45,16 +51,20 @@ export async function refreshGoogleAccessToken(opts: {
   clientSecret: string;
   refreshToken: string;
 }): Promise<string> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: opts.clientId,
-      client_secret: opts.clientSecret,
-      refresh_token: opts.refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
+  const res = await fetchWithTimeout(
+    "https://oauth2.googleapis.com/token",
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: opts.clientId,
+        client_secret: opts.clientSecret,
+        refresh_token: opts.refreshToken,
+        grant_type: "refresh_token",
+      }),
+    },
+    { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`google_refresh_failed: ${res.status} ${text.slice(0, 200)}`);
@@ -68,9 +78,10 @@ export async function refreshGoogleAccessToken(opts: {
 export async function fetchGoogleCalendarList(
   accessToken: string,
 ): Promise<GoogleCalendarListItem[]> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     "https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer",
     { headers: { Authorization: `Bearer ${accessToken}` } },
+    { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
   );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -87,9 +98,11 @@ export async function fetchGoogleCalendarList(
 
 export async function fetchGoogleUserEmail(accessToken: string): Promise<string | null> {
   try {
-    const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await fetchWithTimeout(
+      "https://www.googleapis.com/oauth2/v2/userinfo",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    );
     if (!res.ok) return null;
     const json = (await res.json()) as Record<string, unknown>;
     return typeof json.email === "string" ? json.email : null;
@@ -108,9 +121,11 @@ export type GoogleUserProfile = {
 
 export async function fetchGoogleUserProfile(accessToken: string): Promise<GoogleUserProfile | null> {
   try {
-    const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await fetchWithTimeout(
+      "https://www.googleapis.com/oauth2/v2/userinfo",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+    );
     if (!res.ok) return null;
     const json = (await res.json()) as Record<string, unknown>;
     const sub = typeof json.id === "string" ? json.id : "";

@@ -4,6 +4,7 @@
  */
 
 import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from "jose";
+import { fetchWithTimeout, OAUTH_PROVIDER_FETCH_TIMEOUT_MS } from "@/shared/lib/externalFetch";
 
 const APPLE_JWKS = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 const APPLE_ISSUER = "https://appleid.apple.com";
@@ -47,11 +48,15 @@ export async function exchangeAppleAuthorizationCode(opts: {
     grant_type: "authorization_code",
     redirect_uri: opts.redirectUri,
   });
-  const res = await fetch("https://appleid.apple.com/auth/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const res = await fetchWithTimeout(
+    "https://appleid.apple.com/auth/token",
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+    },
+    { timeoutMs: OAUTH_PROVIDER_FETCH_TIMEOUT_MS },
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`apple_token_exchange_failed: ${res.status} ${text.slice(0, 200)}`);

@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { computeTinkoffToken, createTinkoffPaymentProvider } from "./tinkoffPaymentProvider";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("computeTinkoffToken", () => {
   it("produces SHA-256 of sorted values with Password appended", () => {
@@ -159,5 +163,59 @@ describe("createTinkoffPaymentProvider.verifyWebhook", () => {
       webhookSecret: password,
     });
     expect(result.idempotencyKey).toBe("pay-fallback");
+  });
+});
+
+describe("createTinkoffPaymentProvider outbound calls", () => {
+  it("preserves create and refund idempotency through bounded fetches", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ Success: true, PaymentId: "pay-tk-create", PaymentURL: "https://pay.test/tk" }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ Success: true, PaymentId: "pay-tk-create" }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createTinkoffPaymentProvider();
+    const providerConfig = {
+      id: "tinkoff",
+      label: "Tinkoff",
+      enabled: true,
+      terminalKey: "terminal-1",
+      apiKey: "password-1",
+    };
+
+    await expect(
+      provider.createIntent({
+        amountMinor: 2_500,
+        currency: "RUB",
+        idempotencyKey: "idem-create-2",
+        metadata: { purpose: "booking" },
+        providerConfig,
+      }),
+    ).resolves.toEqual({
+      providerIntentRef: "pay-tk-create",
+      checkoutUrl: "https://pay.test/tk",
+    });
+    await expect(
+      provider.refund({
+        providerIntentRef: "pay-tk-create",
+        amountMinor: 1_000,
+        currency: "RUB",
+        idempotencyKey: "idem-refund-2",
+        providerConfig,
+      }),
+    ).resolves.toEqual({
+      providerRefundRef: "tinkoff_cancel:pay-tk-create:idem-refund-2",
+    });
+
+    const createBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(createBody.OrderId).toBe("idem-create-2");
+    expect(typeof createBody.Token).toBe("string");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://securepay.tinkoff.ru/v2/Cancel");
   });
 });

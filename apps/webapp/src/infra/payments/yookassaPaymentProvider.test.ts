@@ -1,7 +1,52 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createYookassaPaymentProvider } from "./yookassaPaymentProvider";
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("createYookassaPaymentProvider", () => {
+  it("preserves create idempotency through the bounded fetch", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "pay-yk-create",
+          confirmation: { confirmation_url: "https://checkout.test/pay-yk-create" },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createYookassaPaymentProvider();
+
+    await expect(
+      provider.createIntent({
+        amountMinor: 1_250,
+        currency: "RUB",
+        idempotencyKey: "idem-create-1",
+        metadata: { purpose: "booking" },
+        providerConfig: {
+          id: "yookassa",
+          label: "YooKassa",
+          enabled: true,
+          shopId: "shop-1",
+          apiKey: "api-key-1",
+        },
+      }),
+    ).resolves.toEqual({
+      providerIntentRef: "pay-yk-create",
+      checkoutUrl: "https://checkout.test/pay-yk-create",
+    });
+
+    const call = fetchMock.mock.calls[0];
+    const init = call?.[1];
+    expect(call?.[0]).toBe("https://api.yookassa.ru/v3/payments");
+    expect(new Headers(init?.headers).get("Idempotence-Key")).toBe("idem-create-1");
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      metadata: { idempotencyKey: "idem-create-1", purpose: "booking" },
+    });
+  });
+
   it("verifyWebhook maps payment.succeeded to payment.succeeded", () => {
     const provider = createYookassaPaymentProvider();
     const body = JSON.stringify({
