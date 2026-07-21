@@ -128,8 +128,12 @@ RSS) как часть приёмки этапа.
 - [ ] **C2. `orgId` + сквозной correlation-id в стандартный контекст pino** (webapp→integrator→worker).
       Разблокирует трассировку и A3. Файлы: `apps/*/src/**/logger.ts`, request-middleware/proxy. Размер: **S-M** · Аудит: один.
 - [ ] **F1. dependabot/renovate + `shadcn` → devDependencies** (снимает 2 high из прод-дерева). Размер: **S** · Аудит: один.
-- [ ] **D3. Hard-guard `ALLOW_DEV_AUTH_BYPASS`** — throw при `NODE_ENV=production` на этапе парсинга env.
+- [x] **D3. Hard-guard `ALLOW_DEV_AUTH_BYPASS`** — throw при `NODE_ENV=production` на этапе парсинга env.
       Файлы: `apps/webapp/src/app/api/clinic/invites/route.ts:70`, `config/env`. Размер: **S** · Аудит: один.
+      **Закрыто 2026-07-21:** `a70b7ce4a`; exact boolean parser отклоняет неоднозначные значения, production с
+      включённым bypass падает на config/startup boundary, оба dev-auth route остаются fail-closed, а production
+      invite не раскрывает token и не смягчает delivery failure. Один независимый security-аудит — PASS `0/0/0`;
+      targeted tests, typecheck, scoped lint и реальный production config-import proof — PASS.
 
 ### Phase 1 — Максимальное снижение риска (параллельно, независимые file-scope)
 - [ ] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный

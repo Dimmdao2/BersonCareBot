@@ -720,6 +720,9 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    **A1 status (2026-07-21):** [x] `#937` интегрирован как `296ec6e33` + `14c9b7ca7`; отдельный CI-gate на
    приватном ephemeral PostgreSQL доказывает обе organization boundaries и буквальный missing-principal denial
    под canonical non-owner runtime roles. Полный независимый re-audit и итоговый verifier — PASS.
+   **D3 status (2026-07-21):** [x] `#941` интегрирован как `a70b7ce4a`; production+dev-bypass теперь является
+   startup/config error, неоднозначные значения флага отклоняются, а production clinic invite не раскрывает token
+   и не превращает delivery failure в успешный preview. Один независимый security-аудит — PASS `0/0/0`.
 4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded
    ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
    TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только

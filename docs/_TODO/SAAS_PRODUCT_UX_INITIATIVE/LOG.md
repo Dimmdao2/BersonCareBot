@@ -1,5 +1,16 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Hardening D3 production dev-bypass guard integrated (`#941`)
+
+Integrated `a70b7ce4a`. `ALLOW_DEV_AUTH_BYPASS` now accepts only exact optional boolean text and production with the
+flag enabled fails at typed config/startup boundaries. Both development-auth routes remain independently
+fail-closed in production. Clinic invitations no longer let the flag reclassify production: raw invitation URLs
+are never returned there and delivery failure remains a `503`.
+
+The single independent security audit passed `0 P0 / 0 P1 / 0 P2`. Focused tests, webapp typecheck, scoped lint,
+diff-check and a real production config-import refusal all passed. No database, server, environment, deploy or
+external delivery was touched; full CI remains the accumulated Phase 0 milestone gate.
+
 ## 2026-07-21 — Hardening A1 real-PostgreSQL tenant gate integrated (`#937`)
 
 Integrated `296ec6e33` + `14c9b7ca7`. The dedicated serialized CI gate restores the versioned A0 baseline into a
