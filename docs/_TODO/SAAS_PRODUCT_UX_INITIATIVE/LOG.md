@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Platform defaults for clinic-location colors (`#932`)
+
+Owner added a later platform setting for an ordered palette of default colors for newly created physical locations
+and a separate default for the built-in `Online` location. The clinic receives a default only at creation and can
+override it afterward; existing colors are preserved. If there are more physical locations than palette entries,
+the palette repeats cyclically; `Online` keeps its separate default and is excluded from that sequence. Current code still hardcodes `#2563eb` for the solo-location
+form and `#7c3aed` for lazy Online creation, while the branch model and clinic UI already persist/edit a color.
+
+The bounded implementation will reuse global DB-backed platform settings and the existing branch color field. It
+may use the native color input or an already-installed lightweight accessible picker, but will not add a heavy
+dependency or a second palette store. This addition is tracked as `#932` and does not expand active auth task `#929`.
+
 ## 2026-07-21 — U9A platform-settings prerequisite integrated (`#929`)
 
 The bounded global-settings spine is integrated as `7c9d94bea` + `f48c4b8af`: dedicated platform API guard and

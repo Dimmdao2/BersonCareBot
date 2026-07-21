@@ -1242,6 +1242,13 @@ terminal independent audit (`0 P0 / 0 P1 / 0 P2`), targeted tests, typecheck/lin
 PostgreSQL real-role matrix. The role artifact was not applied to DEV/TEST/PROD; the four auth-channel flags and
 their discovery/execution enforcement remain the following N1A work under `#929`.
 
+**Later bounded platform default (`#932`, owner 2026-07-21).** Platform admin configures an ordered default palette
+for new clinic locations (initially at least five values, extensible) and a separate default for the built-in
+`Online` location. Creation consumes the relevant default; clinic owner/admin may then override the stored branch
+color. When physical locations outnumber palette entries, assignment cycles (`N mod palette length`); `Online` is
+separate and does not consume a palette slot. Existing location colors are never rewritten. This replaces the current hardcoded creation defaults only
+after a DB-backed global setting and migration-safe fallback exist; it is not part of N1A `#929`.
+
 **Outcome:** platform operator manages organizations, commercial state, platform configuration/reliability and
 system identity diagnostics from a dedicated shell without patient browsing or patient-record repair.
 
