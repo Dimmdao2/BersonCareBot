@@ -4316,3 +4316,19 @@ minimal dependency-only `c6a8930c2`; frozen install and registry audit report no
 The owner explicitly authorized the next TEST deployment. It must preserve the prepared TEST database: no dump,
 restore, full reset or database recreation. Only the feature code and required ordinary non-destructive migrations
 may be applied, followed by exact deployed-SHA, health and live owner-scenario verification. PROD remains forbidden.
+
+## 2026-07-21 — code-only TEST checkpoint deployed (`#952/#953/#954`)
+
+The prepared TEST database was preserved: `deploy/host/deploy-test.sh feat/doctor-ui-rebuild` performed no dump,
+restore, full reset or database recreation. After three fail-closed preflight/runtime findings were corrected, the
+feature branch deployed at exact SHA `62b69b6a2`. The corrections keep E1 runtime overlays replay-safe, disable the
+DEV-only auth bypass in TEST, bind the public-booking smoke to the required clinic slug and allow `app_staff` to
+read only its signed organization's commercial entitlement snapshot without gaining commercial writes or cross-org
+visibility. Each security correction passed its targeted checks and independent audit; full CI was not rerun after
+the already-green accumulated milestone gate.
+
+All five TEST services are active, public health returns `{"ok":true,"db":"up"}`, nginx validation passed and the
+locked product smoke passed `22/22` plus the global-admin clinical-write denial. The diagnostic E1 post-runtime
+coverage gate reported an active unexplained event before coverage; on TEST this gate is intentionally warning-only,
+so the environment remains available for triage and owner live acceptance. No PROD action occurred. Repository stages
+`#931` and `#932` remain unaccepted until their live TEST scenarios are checked; `accepted` remains owner-only.
