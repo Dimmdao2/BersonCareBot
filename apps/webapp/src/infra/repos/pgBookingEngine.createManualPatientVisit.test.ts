@@ -12,6 +12,7 @@ import {
   orgEnrollments,
 } from "../../../db/schema/bookingEngine";
 import { clinicalVisit } from "../../../db/schema/patientClinical";
+import { manualPatientCommands } from "../../../db/schema/manualPatientCommands";
 import { platformUsers } from "../../../db/schema/schema";
 import type { CreateManualPatientVisitInput } from "@/modules/booking-engine/types";
 
@@ -100,6 +101,7 @@ function createHarness(
 ) {
   const appointments = new Map<string, Record<string, unknown>>();
   const visits = new Map<string, VisitRow>();
+  const commands = new Map<string, Record<string, unknown>>();
   const insertOrder: string[] = [];
   let activeCommandId: string | null = null;
   let activeOrganizationId: string | null = null;
@@ -117,6 +119,10 @@ function createHarness(
   });
 
   const rowsFor = (table: unknown, selection: unknown): unknown[] => {
+    if (table === manualPatientCommands) {
+      const row = activeCommandId ? commands.get(activeCommandId) : undefined;
+      return row && row.organizationId === activeOrganizationId ? [row] : [];
+    }
     if (table === beAppointments) {
       activeKind ??= "walk_in";
       const row = activeCommandId ? appointments.get(activeCommandId) : undefined;
@@ -213,6 +219,16 @@ function createHarness(
         insertOrder.push(`visit:${row.visitType}`);
         return { returning: async () => [{ id: row.id }] };
       }
+      if (table === manualPatientCommands) {
+        const commandId = String(values.commandId);
+        if (commands.has(commandId)) {
+          throw Object.assign(new Error("duplicate"), {
+            code: "23505",
+            constraint: "manual_patient_commands_pkey",
+          });
+        }
+        commands.set(commandId, values);
+      }
       if (table === beAppointmentEvents) insertOrder.push("event");
       if (table === beAppointmentHistoryEvents) insertOrder.push("history");
       if (table === bePatientTimelineEvents) insertOrder.push("timeline");
@@ -244,6 +260,7 @@ function createHarness(
   return {
     appointments,
     visits,
+    commands,
     insertOrder,
     transaction,
     execute,
@@ -429,7 +446,7 @@ describe("pgBookingEngine.createManualPatientVisit", () => {
     expect(results.map((result) => result.replayed).sort()).toEqual([false, true]);
     expect(harness.visits.size).toBe(1);
     expect(harness.execute).toHaveBeenCalledTimes(2);
-    expect(harness.relationshipLockCount).toBe(2);
+    expect(harness.relationshipLockCount).toBe(1);
   });
 
   it("classifies different commands as first then repeat under the relationship-lock unit harness", async () => {

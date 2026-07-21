@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
@@ -17,7 +17,17 @@ import {
   ensureInvitedOrganizationClientRelationship,
   OrganizationClientRelationshipDeniedError,
 } from "@/infra/repos/pgPatientOrganizationEnrollment";
-import { orgEnrollments } from "../../../db/schema/bookingEngine";
+import {
+  assertManualPatientCommandReplay,
+  findManualPatientCommand,
+  insertManualPatientCommand,
+  isManualPatientCommandUniqueViolation,
+  lockManualPatientCommand,
+  manualPatientCommandFingerprint,
+} from "@/infra/repos/pgManualPatientCommand";
+import { beAppointments, orgEnrollments } from "../../../db/schema/bookingEngine";
+import { clinicalVisit } from "../../../db/schema/patientClinical";
+import { platformUsers } from "../../../db/schema/schema";
 
 type ActiveOrganizationRow = {
   organization_id: string;
@@ -106,6 +116,71 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
 
       try {
         return await db.transaction(async (tx) => {
+          const isStandaloneNoContact =
+            input.phoneNormalized === null && input.emailRaw === null && input.emailNormalized === null;
+          const commandId = input.commandId?.trim();
+          const requestFingerprint = isStandaloneNoContact
+            ? manualPatientCommandFingerprint({
+                kind: "standalone_no_contact_card",
+                identity: {
+                  lastName: input.lastName,
+                  firstName: input.firstName,
+                  patronymic: input.patronymic,
+                  phoneNormalized: input.phoneNormalized,
+                  emailRaw: input.emailRaw,
+                  emailNormalized: input.emailNormalized,
+                },
+              })
+            : null;
+
+          if (isStandaloneNoContact) {
+            if (!commandId || !requestFingerprint) return { ok: false, error: "create_failed" };
+            await lockManualPatientCommand(tx, commandId);
+            const existingCommand = await findManualPatientCommand(tx, commandId);
+            if (existingCommand) {
+              assertManualPatientCommandReplay(existingCommand, {
+                organizationId: input.organizationId,
+                commandKind: "standalone_no_contact_card",
+                requestFingerprint,
+              });
+              const [patient] = await tx
+                .select({
+                  userId: platformUsers.id,
+                  displayName: platformUsers.displayName,
+                  lastName: platformUsers.lastName,
+                  firstName: platformUsers.firstName,
+                  patronymic: platformUsers.patronymic,
+                  phoneNormalized: platformUsers.phoneNormalized,
+                })
+                .from(platformUsers)
+                .where(and(eq(platformUsers.id, existingCommand.platformUserId), isNull(platformUsers.mergedIntoId)))
+                .limit(1);
+              const [enrollment] = await tx
+                .select({ status: orgEnrollments.status })
+                .from(orgEnrollments)
+                .where(and(
+                  eq(orgEnrollments.organizationId, input.organizationId),
+                  eq(orgEnrollments.platformUserId, existingCommand.platformUserId),
+                  inArray(orgEnrollments.status, ["invited", "active"]),
+                ))
+                .limit(1);
+              if (!patient || !enrollment) throw new Error("idempotency_replay_missing");
+              return { ok: true, ...patient, created: false };
+            }
+
+            const [legacyAppointment] = await tx
+              .select({ id: beAppointments.id })
+              .from(beAppointments)
+              .where(and(eq(beAppointments.id, commandId), eq(beAppointments.organizationId, input.organizationId)))
+              .limit(1);
+            const [legacyVisit] = await tx
+              .select({ id: clinicalVisit.id })
+              .from(clinicalVisit)
+              .where(and(eq(clinicalVisit.id, commandId), eq(clinicalVisit.organizationId, input.organizationId)))
+              .limit(1);
+            if (legacyAppointment || legacyVisit) throw new Error("idempotency_conflict");
+          }
+
           const identity = await resolveOrCreateDoctorClientByPhoneInTransaction(
             tx,
             input.organizationId,
@@ -116,6 +191,15 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
             input.organizationId,
             identity.userId,
           );
+          if (isStandaloneNoContact && commandId && requestFingerprint) {
+            await insertManualPatientCommand(tx, {
+              commandId,
+              organizationId: input.organizationId,
+              commandKind: "standalone_no_contact_card",
+              requestFingerprint,
+              platformUserId: identity.userId,
+            });
+          }
 
           return {
             ok: true,
@@ -128,6 +212,12 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
         }
         if (error instanceof OrganizationClientRelationshipDeniedError) {
           return { ok: false, error: "inactive_enrollment" };
+        }
+        if (
+          (error instanceof Error && error.message === "idempotency_conflict") ||
+          isManualPatientCommandUniqueViolation(error)
+        ) {
+          return { ok: false, error: "idempotency_conflict" };
         }
         const pg = pgConstraint(error);
         if (pg.code === "23505" && pg.constraint === "uq_platform_users_email_normalized_active") {

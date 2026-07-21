@@ -63,6 +63,8 @@ export function DoctorCalendarPatientSearch({
   const [newEmail, setNewEmail] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const createRequestIdRef = useRef(crypto.randomUUID());
+  const createInFlightRef = useRef(false);
 
   const displayValue = open ? query : value ? formatPatientLabel(value) : query;
 
@@ -124,6 +126,8 @@ export function DoctorCalendarPatientSearch({
   };
 
   const openCreate = () => {
+    createRequestIdRef.current = crypto.randomUUID();
+    createInFlightRef.current = false;
     const trimmed = query.trim();
     if (queryLooksLikePhone(trimmed)) {
       setNewPhone(trimmed);
@@ -141,6 +145,7 @@ export function DoctorCalendarPatientSearch({
   };
 
   const submitNewPatient = async () => {
+    if (createInFlightRef.current) return;
     const lastName = newLastName.trim();
     const firstName = newFirstName.trim();
     const phone = newPhone.trim();
@@ -173,12 +178,14 @@ export function DoctorCalendarPatientSearch({
       return;
     }
 
+    createInFlightRef.current = true;
     setCreating(true);
     try {
       const response = await fetch("/api/doctor/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: createRequestIdRef.current,
           lastName,
           firstName,
           patronymic: newPatronymic.trim() || null,
@@ -202,6 +209,7 @@ export function DoctorCalendarPatientSearch({
         return;
       }
       pick(data.client);
+      createRequestIdRef.current = crypto.randomUUID();
       setNewLastName("");
       setNewFirstName("");
       setNewPatronymic("");
@@ -210,6 +218,7 @@ export function DoctorCalendarPatientSearch({
     } catch {
       setCreateError("Ошибка сети");
     } finally {
+      createInFlightRef.current = false;
       setCreating(false);
     }
   };

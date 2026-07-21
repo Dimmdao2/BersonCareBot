@@ -10,6 +10,7 @@ import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import { normalizeFioPart } from "@/shared/lib/fio";
 
 export type CreateDoctorClientInput = {
+  requestId?: string;
   lastName: string;
   firstName: string;
   patronymic?: string | null;
@@ -31,7 +32,9 @@ export type CreateDoctorClientResult =
       created: boolean;
       emailSetupEnqueued: boolean;
     }
-  | { ok: false; error: "invalid_fio" | "invalid_phone" | "invalid_email" | "email_conflict" | "create_failed" };
+  | { ok: false; error: "invalid_fio" | "invalid_phone" | "invalid_email" | "invalid_request_id" | "email_conflict" | "idempotency_conflict" | "create_failed" };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function createDoctorClient(
   input: CreateDoctorClientInput,
@@ -57,6 +60,10 @@ export async function createDoctorClient(
   // Email-only identity creation has different dedup/proof semantics and is not part of #806.
   // The sanctioned contactless path carries neither contact until invite OTP claim.
   if (!phoneNormalized && emailNormalized) return { ok: false, error: "invalid_phone" };
+  const commandId = input.requestId?.trim();
+  if (!phoneNormalized && !emailNormalized && (!commandId || !UUID_RE.test(commandId))) {
+    return { ok: false, error: "invalid_request_id" };
+  }
 
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
@@ -64,6 +71,7 @@ export async function createDoctorClient(
   if (!lastName || !firstName) return { ok: false, error: "invalid_fio" };
   const registered = await deps.patientOrganization.createManualOrganizationClient({
     organizationId: input.organizationId,
+    commandId: phoneNormalized ? undefined : commandId,
     phoneNormalized,
     lastName,
     firstName,
@@ -72,8 +80,8 @@ export async function createDoctorClient(
     emailNormalized,
   });
   if (!registered.ok) {
-    if (registered.error === "email_conflict") {
-      return { ok: false, error: "email_conflict" };
+    if (registered.error === "email_conflict" || registered.error === "idempotency_conflict") {
+      return { ok: false, error: registered.error };
     }
     return { ok: false, error: "create_failed" };
   }

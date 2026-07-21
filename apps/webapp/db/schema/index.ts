@@ -25,6 +25,7 @@ export * from "./specialistSignupIntents";
 export * from "./staffSecurityProfiles";
 export * from "./organizationMemberInvites";
 export * from "./patientInvites";
+export * from "./manualPatientCommands";
 export * from "./broadcastAuditRecipients";
 export * from "./productAnalytics";
 export * from "./bookingEngine";

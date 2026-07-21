@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -52,6 +52,7 @@ const legacyStaff = "30000000-0000-4000-8000-000000000010";
 const legacyEnrollment = "40000000-0000-4000-8000-000000000010";
 const legacyInvite = "50000000-0000-4000-8000-000000000010";
 const proofSecret = randomBytes(32).toString("hex");
+const manualCardCommand = "60000000-0000-4000-8000-000000000001";
 
 let started = false;
 let cleaning = false;
@@ -95,13 +96,14 @@ async function main() {
       await proveRepeatedConflict(admin);
       await proveRegistrationRace();
       await proveConcurrentIssue();
+      await proveManualCardCommandReplay();
       await proveStaffCrossOrg(admin);
       await proveAclAndForce(admin);
       await proveRollback(admin);
     } finally {
       await admin.end();
     }
-    process.stdout.write("patient-invite-disposable-proof: PASS (0220→0221→legacy-bound fixture→0222, retry-safe claim, rollback guard, reissue, single-use, cross-org, concurrent redeem/claim/issue/registration)\n");
+    process.stdout.write("patient-invite-disposable-proof: PASS (0220→0221→legacy-bound fixture→0222, retry-safe no-contact card command, claim, rollback guard, reissue, single-use, cross-org, concurrent redeem/claim/issue/registration)\n");
   } finally {
     cleanup();
   }
@@ -196,6 +198,8 @@ CREATE TABLE public.be_organizations (
 );
 CREATE TABLE public.platform_users (
   id uuid PRIMARY KEY, role text NOT NULL, merged_into_id uuid,
+  phone_normalized text, display_name text NOT NULL DEFAULT '',
+  last_name text, first_name text, patronymic text,
   email text, email_normalized text, email_verified_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -204,7 +208,8 @@ CREATE UNIQUE INDEX uq_platform_users_email_normalized_active
   WHERE merged_into_id IS NULL AND email_normalized IS NOT NULL;
 CREATE TABLE public.org_enrollments (
   id uuid PRIMARY KEY, organization_id uuid NOT NULL REFERENCES public.be_organizations(id),
-  platform_user_id uuid NOT NULL REFERENCES public.platform_users(id), status text NOT NULL
+  platform_user_id uuid NOT NULL REFERENCES public.platform_users(id), status text NOT NULL,
+  UNIQUE (organization_id, platform_user_id)
 );
 CREATE TABLE public.patient_merge_candidates (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), organization_id uuid NOT NULL,
@@ -625,6 +630,51 @@ async function proveConcurrentIssue() {
   }
 }
 
+async function executeManualCardCommand(db, organizationId, fingerprint, kind = "standalone_no_contact_card") {
+  await db.query("BEGIN");
+  try {
+    await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))", [`doctor-manual-patient:${manualCardCommand}`]);
+    const existing = await db.query("SELECT organization_id,command_kind,request_fingerprint,platform_user_id FROM public.manual_patient_commands WHERE command_id=$1", [manualCardCommand]);
+    if (existing.rowCount) {
+      const row = existing.rows[0];
+      if (row.organization_id !== organizationId || row.command_kind !== kind || row.request_fingerprint !== fingerprint) throw new Error("idempotency_conflict");
+      await db.query("COMMIT");
+      return row.platform_user_id;
+    }
+    const patientId = randomUUID();
+    await db.query("INSERT INTO public.platform_users(id,role,display_name,last_name,first_name) VALUES($1,'client','Иванов Иван','Иванов','Иван')", [patientId]);
+    await db.query("INSERT INTO public.org_enrollments(id,organization_id,platform_user_id,status) VALUES($1,$2,$3,'invited')", [randomUUID(), organizationId, patientId]);
+    await db.query("INSERT INTO public.manual_patient_commands(command_id,organization_id,command_kind,request_fingerprint,platform_user_id) VALUES($1,$2,$3,$4,$5)", [manualCardCommand, organizationId, kind, fingerprint, patientId]);
+    await db.query("COMMIT");
+    return patientId;
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  }
+}
+
+async function proveManualCardCommandReplay() {
+  const fingerprint = createHash("sha256").update("standalone-no-contact-card-v1").digest("hex");
+  const changed = createHash("sha256").update("changed-fio").digest("hex");
+  const left = client(); const right = client();
+  await Promise.all([left.connect(), right.connect()]);
+  let ids;
+  try { ids = await Promise.all([executeManualCardCommand(left, orgA, fingerprint), executeManualCardCommand(right, orgA, fingerprint)]); }
+  finally { await Promise.all([left.end(), right.end()]); }
+  assert(ids[0] === ids[1], "concurrent no-contact command did not converge");
+  const db = client(); await db.connect();
+  try {
+    assert(await executeManualCardCommand(db, orgA, fingerprint) === ids[0], "exact replay returned another patient");
+    for (const args of [[orgA, changed], [orgB, fingerprint], [orgA, fingerprint, "walk_in"]]) {
+      let rejected = false;
+      try { await executeManualCardCommand(db, ...args); } catch (error) { rejected = error instanceof Error && error.message === "idempotency_conflict"; }
+      assert(rejected, "payload, organization, or kind collision was accepted");
+    }
+    const count = await db.query("SELECT count(*)::int commands,count(DISTINCT c.platform_user_id)::int users,count(DISTINCT e.id)::int enrollments FROM public.manual_patient_commands c JOIN public.org_enrollments e ON (e.organization_id,e.platform_user_id)=(c.organization_id,c.platform_user_id) WHERE c.command_id=$1", [manualCardCommand]);
+    assert(count.rows[0]?.commands === 1 && count.rows[0]?.users === 1 && count.rows[0]?.enrollments === 1, "replay duplicated user or enrollment");
+  } finally { await db.end(); }
+}
+
 async function proveStaffCrossOrg(db) {
   await db.query("BEGIN");
   try {
@@ -632,6 +682,9 @@ async function proveStaffCrossOrg(db) {
     await db.query("SELECT set_config('app.staff','1',true), set_config('app.org',$1,true)", [orgA]);
     const result = await db.query("SELECT count(*)::int AS count FROM public.patient_invites WHERE organization_id=$1", [orgB]);
     assert(result.rows[0]?.count === 0, "staff RLS exposed a foreign organization invite");
+    await db.query("SELECT set_config('app.org',$1,true)", [orgB]);
+    const manual = await db.query("SELECT count(*)::int AS count FROM public.manual_patient_commands WHERE organization_id=$1", [orgA]);
+    assert(manual.rows[0]?.count === 0, "staff RLS exposed a foreign manual command");
   } finally {
     await db.query("ROLLBACK");
   }
@@ -641,6 +694,8 @@ async function proveAclAndForce(db) {
   const result = await db.query(`
     SELECT c.relrowsecurity, c.relforcerowsecurity,
       has_table_privilege('app_patient','public.patient_invites','SELECT') AS patient_select,
+      has_table_privilege('app_patient','public.manual_patient_commands','SELECT') AS patient_manual_select,
+      (SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='public.manual_patient_commands'::regclass) AS manual_rls_force,
       has_function_privilege('app_patient','app.redeem_patient_invite_email(text)','EXECUTE') AS patient_redeem,
       has_function_privilege('app_patient','app.claim_unbound_patient_invite_email(text,text,text,bigint,text)','EXECUTE') AS patient_claim,
       pg_get_userbyid(p.proowner) AS function_owner,
@@ -653,8 +708,8 @@ async function proveAclAndForce(db) {
     WHERE c.oid='public.patient_invites'::regclass
   `);
   const row = result.rows[0];
-  assert(row?.relrowsecurity && row?.relforcerowsecurity, "RLS/FORCE is not active");
-  assert(row?.patient_select === false && row?.patient_redeem === true && row?.patient_claim === true,
+  assert(row?.relrowsecurity && row?.relforcerowsecurity && row?.manual_rls_force, "RLS/FORCE is not active");
+  assert(row?.patient_select === false && row?.patient_manual_select === false && row?.patient_redeem === true && row?.patient_claim === true,
     "patient ACL boundary is wrong");
   assert(row?.function_owner === "app_owner" && row?.claim_owner === "app_owner",
     "patient invite function owner is not app_owner");
@@ -692,6 +747,7 @@ async function proveRollback(db) {
     DROP FUNCTION app.verify_patient_invite_email_proof(text,text,text,text,bigint,text);
     DROP FUNCTION app.redeem_patient_invite_email(text);
     DROP TABLE public.patient_invites;
+    DROP TABLE public.manual_patient_commands;
     ALTER TABLE public.org_enrollments DROP CONSTRAINT org_enrollments_portal_activation_check;
     ALTER TABLE public.org_enrollments DROP COLUMN portal_activated_via, DROP COLUMN portal_activated_at;
     DROP INDEX public.idx_lfk_exercises_catalog_scope_owner;
@@ -700,12 +756,13 @@ async function proveRollback(db) {
   `);
   const result = await db.query(`
     SELECT to_regclass('public.patient_invites') IS NULL AS table_gone,
+      to_regclass('public.manual_patient_commands') IS NULL AS manual_commands_gone,
       NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema='public' AND table_name='org_enrollments' AND column_name='portal_activated_at'
       ) AS columns_gone
   `);
-  assert(result.rows[0]?.table_gone && result.rows[0]?.columns_gone, "rollback proof failed");
+  assert(result.rows[0]?.table_gone && result.rows[0]?.manual_commands_gone && result.rows[0]?.columns_gone, "rollback proof failed");
 }
 
 function assert(condition, message) {

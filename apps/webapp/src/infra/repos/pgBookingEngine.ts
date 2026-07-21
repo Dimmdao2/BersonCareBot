@@ -1,12 +1,18 @@
-import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingString } from "@/infra/repos/pgSystemSettings";
-import { stableStringifyForIdempotency } from "@/infra/idempotency/integratorEventSemanticHash";
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from "@/infra/repos/pgDoctorClientCreate";
 import { ensureInvitedOrganizationClientRelationship } from "@/infra/repos/pgPatientOrganizationEnrollment";
+import {
+  assertManualPatientCommandReplay,
+  findManualPatientCommand,
+  insertManualPatientCommand,
+  isManualPatientCommandUniqueViolation,
+  lockManualPatientCommand,
+  manualPatientCommandFingerprint,
+} from "@/infra/repos/pgManualPatientCommand";
 import { BE_DEFAULT_ORGANIZATION_ID } from "../../../db/schema/bookingEngine";
 import {
   beAppointmentEvents,
@@ -315,18 +321,23 @@ function scheduledManualPatientCommandFingerprint(
     emailNormalized: input.emailNormalized,
   };
   const semantic = { kind: input.kind, identity, appointment: input.appointment };
-  return createHash("sha256")
-    .update(stableStringifyForIdempotency(semantic))
-    .digest("hex");
+  return manualPatientCommandFingerprint(semantic);
 }
 
-async function lockManualCommand(
-  tx: DrizzleDb,
-  organizationId: string,
-  commandId: string,
-): Promise<void> {
-  const key = `doctor-manual-patient:${organizationId}:${commandId}`;
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}::text, 0))`);
+function walkInManualPatientCommandFingerprint(
+  input: Extract<CreateManualPatientVisitInput, { kind: "walk_in" }>,
+): string {
+  return manualPatientCommandFingerprint({
+    kind: input.kind,
+    identity: {
+      lastName: input.lastName,
+      firstName: input.firstName,
+      patronymic: input.patronymic,
+      phoneNormalized: input.phoneNormalized,
+      emailNormalized: input.emailNormalized,
+    },
+    walkIn: input.walkIn,
+  });
 }
 
 async function loadManualPatientForReplay(
@@ -1173,12 +1184,21 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       }
       const db = getDrizzle();
       const now = new Date().toISOString();
-      return db.transaction(async (rawTx) => {
-        const tx = rawTx as DrizzleDb;
-        await lockManualCommand(tx, input.organizationId, input.commandId);
+      try {
+        return await db.transaction(async (rawTx) => {
+          const tx = rawTx as DrizzleDb;
+          await lockManualPatientCommand(tx, input.commandId);
 
-        if (input.kind === "scheduled") {
-          const fingerprint = scheduledManualPatientCommandFingerprint(input);
+          if (input.kind === "scheduled") {
+            const fingerprint = scheduledManualPatientCommandFingerprint(input);
+            const command = await findManualPatientCommand(tx, input.commandId);
+            if (command) {
+              assertManualPatientCommandReplay(command, {
+                organizationId: input.organizationId,
+                commandKind: "scheduled",
+                requestFingerprint: fingerprint,
+              });
+            }
           const [oppositeVisit] = await tx
             .select({ id: clinicalVisit.id })
             .from(clinicalVisit)
@@ -1205,9 +1225,19 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             const appointment = mapAppointment(existingAppointmentRow);
             if (
               appointment.attributionJson.manualCommandFingerprint !== fingerprint ||
-              !appointment.platformUserId
+              !appointment.platformUserId ||
+              (command && command.platformUserId !== appointment.platformUserId)
             ) {
               throw new Error("idempotency_conflict");
+            }
+            if (!command) {
+              await insertManualPatientCommand(tx, {
+                commandId: input.commandId,
+                organizationId: input.organizationId,
+                commandKind: "scheduled",
+                requestFingerprint: fingerprint,
+                platformUserId: appointment.platformUserId,
+              });
             }
             const replay = await loadManualPatientForReplay(
               tx,
@@ -1222,6 +1252,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               ...replay,
             };
           }
+          if (command) throw new Error("idempotency_replay_missing");
 
           await assertManualAppointmentCatalogSelection(tx, {
             ...input.appointment,
@@ -1259,6 +1290,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             if (isCommandPrimaryKeyConflict(error)) throw new Error("idempotency_conflict");
             throw error;
           }
+          await insertManualPatientCommand(tx, {
+            commandId: input.commandId,
+            organizationId: input.organizationId,
+            commandKind: "scheduled",
+            requestFingerprint: fingerprint,
+            platformUserId: patient.userId,
+          });
           return {
             kind: "scheduled" as const,
             replayed: false,
@@ -1268,8 +1306,17 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             portalStatus:
               relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
           };
-        }
+          }
 
+        const fingerprint = walkInManualPatientCommandFingerprint(input);
+        const command = await findManualPatientCommand(tx, input.commandId);
+        if (command) {
+          assertManualPatientCommandReplay(command, {
+            organizationId: input.organizationId,
+            commandKind: "walk_in",
+            requestFingerprint: fingerprint,
+          });
+        }
         const [oppositeAppointment] = await tx
           .select({ id: beAppointments.id })
           .from(beAppointments)
@@ -1287,7 +1334,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           input.organizationId,
           input.walkIn.specialistId,
         );
-        if (input.phoneNormalized === null) {
+        if (input.phoneNormalized === null || command) {
           const [existingContactlessVisit] = await tx
             .select({
               id: clinicalVisit.id,
@@ -1307,9 +1354,19 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             if (
               new Date(existingContactlessVisit.visitedAt).getTime() !==
                 new Date(input.walkIn.visitedAt).getTime() ||
-              existingContactlessVisit.createdBy !== input.walkIn.actorId
+              existingContactlessVisit.createdBy !== input.walkIn.actorId ||
+              (command && command.platformUserId !== existingContactlessVisit.patientUserId)
             ) {
               throw new Error("idempotency_conflict");
+            }
+            if (!command) {
+              await insertManualPatientCommand(tx, {
+                commandId: input.commandId,
+                organizationId: input.organizationId,
+                commandKind: "walk_in",
+                requestFingerprint: fingerprint,
+                platformUserId: existingContactlessVisit.patientUserId,
+              });
             }
             const replay = await loadManualPatientForReplay(
               tx,
@@ -1324,6 +1381,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               ...replay,
             };
           }
+          if (command) throw new Error("idempotency_replay_missing");
         }
         const patient = await resolveOrCreateDoctorClientByPhoneInTransaction(
           tx,
@@ -1364,6 +1422,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           ) {
             throw new Error("idempotency_conflict");
           }
+          await insertManualPatientCommand(tx, {
+            commandId: input.commandId,
+            organizationId: input.organizationId,
+            commandKind: "walk_in",
+            requestFingerprint: fingerprint,
+            platformUserId: patient.userId,
+          });
           return {
             kind: "walk_in" as const,
             replayed: true,
@@ -1405,6 +1470,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           throw error;
         }
         if (!clinicalVisitId) throw new Error("clinical_visit_insert_failed");
+        await insertManualPatientCommand(tx, {
+          commandId: input.commandId,
+          organizationId: input.organizationId,
+          commandKind: "walk_in",
+          requestFingerprint: fingerprint,
+          platformUserId: patient.userId,
+        });
         return {
           kind: "walk_in" as const,
           replayed: false,
@@ -1414,7 +1486,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           portalStatus:
             relationshipStatus === "active" ? ("linked" as const) : ("not_activated" as const),
         };
-      });
+        });
+      } catch (error) {
+        if (isManualPatientCommandUniqueViolation(error)) {
+          throw new Error("idempotency_conflict");
+        }
+        throw error;
+      }
     },
 
     async createAppointmentChain(inputs) {

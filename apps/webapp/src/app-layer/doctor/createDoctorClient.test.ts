@@ -20,6 +20,7 @@ const deps = {
   patientOrganization: { createManualOrganizationClient },
   emailSetupAccess,
 };
+const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("createDoctorClient", () => {
   beforeEach(() => {
@@ -83,6 +84,7 @@ describe("createDoctorClient", () => {
 
     expect(createManualOrganizationClient).toHaveBeenCalledWith({
       organizationId: "org-1",
+      commandId: undefined,
       phoneNormalized: "+79991234567",
       lastName: "Client",
       firstName: "New",
@@ -129,6 +131,7 @@ describe("createDoctorClient", () => {
     await expect(
       createDoctorClient(
         {
+          requestId: REQUEST_ID,
           lastName: " иванов ",
           firstName: " иван ",
           patronymic: " иванович ",
@@ -147,6 +150,7 @@ describe("createDoctorClient", () => {
     });
     expect(createManualOrganizationClient).toHaveBeenCalledWith({
       organizationId: "org-1",
+      commandId: REQUEST_ID,
       phoneNormalized: null,
       lastName: "Иванов",
       firstName: "Иван",
@@ -154,6 +158,25 @@ describe("createDoctorClient", () => {
       emailRaw: null,
       emailNormalized: null,
     });
+    expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
+    expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
+  });
+
+  it("requires a durable request UUID for a standalone no-contact card", async () => {
+    await expect(createDoctorClient({
+      lastName: "Иванов", firstName: "Иван", phone: null, email: null,
+      createdByUserId: "doc-1", organizationId: "org-1",
+    }, deps)).resolves.toEqual({ ok: false, error: "invalid_request_id" });
+    expect(createManualOrganizationClient).not.toHaveBeenCalled();
+  });
+
+  it("returns the same no-contact card on exact replay without contact side effects", async () => {
+    createManualOrganizationClient
+      .mockResolvedValueOnce({ ok: true, created: true, userId: "contactless-user", displayName: "Иванов Иван", lastName: "Иванов", firstName: "Иван", patronymic: null, phoneNormalized: null })
+      .mockResolvedValueOnce({ ok: true, created: false, userId: "contactless-user", displayName: "Иванов Иван", lastName: "Иванов", firstName: "Иван", patronymic: null, phoneNormalized: null });
+    const input = { requestId: REQUEST_ID, lastName: "Иванов", firstName: "Иван", phone: null, email: null, createdByUserId: "doc-1", organizationId: "org-1" };
+    await expect(createDoctorClient(input, deps)).resolves.toMatchObject({ ok: true, userId: "contactless-user", created: true });
+    await expect(createDoctorClient(input, deps)).resolves.toMatchObject({ ok: true, userId: "contactless-user", created: false });
     expect(trustedPatientPhoneWriteAnchorMock).not.toHaveBeenCalled();
     expect(fireAndForgetContactEmailSetupMock).not.toHaveBeenCalled();
   });

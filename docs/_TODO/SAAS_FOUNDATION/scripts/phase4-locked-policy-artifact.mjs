@@ -71,9 +71,9 @@ export function getPhase4LockedPolicyTargets() {
   const uniqueKeys = new Set(keys);
   const uniqueTables = new Set(targets.map(({ descriptor }) => descriptor.table));
 
-  if (targets.length !== 166 || uniqueKeys.size !== targets.length || uniqueTables.size !== targets.length) {
+  if (targets.length !== 167 || uniqueKeys.size !== targets.length || uniqueTables.size !== targets.length) {
     throw new Error(
-      `Expected 166 unique phase4 locked policy targets, got targets=${targets.length}, uniquePolicyPairs=${uniqueKeys.size}, uniqueTables=${uniqueTables.size}`,
+      `Expected 167 unique phase4 locked policy targets, got targets=${targets.length}, uniquePolicyPairs=${uniqueKeys.size}, uniqueTables=${uniqueTables.size}`,
     );
   }
 

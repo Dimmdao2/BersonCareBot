@@ -1,5 +1,24 @@
 -- U3B #806: contactless patient invitations claim a newly verified email on the existing
 -- canonical placeholder. Existing bound-email invitations keep their 0220 semantics.
+-- One durable namespace extends the existing scheduled/walk-in command primitive to standalone cards.
+CREATE TABLE IF NOT EXISTS public.manual_patient_commands (
+  command_id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL,
+  command_kind text NOT NULL,
+  request_fingerprint text NOT NULL,
+  platform_user_id uuid NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT manual_patient_commands_enrollment_fkey
+    FOREIGN KEY (organization_id, platform_user_id)
+    REFERENCES public.org_enrollments(organization_id, platform_user_id),
+  CONSTRAINT manual_patient_commands_kind_check CHECK (
+    command_kind IN ('scheduled', 'walk_in', 'standalone_no_contact_card')
+  ),
+  CONSTRAINT manual_patient_commands_fingerprint_check CHECK (request_fingerprint ~ '^[0-9a-f]{64}$')
+);
+CREATE INDEX IF NOT EXISTS idx_manual_patient_commands_org_created
+  ON public.manual_patient_commands (organization_id, created_at DESC);
+
 ALTER TABLE public.patient_invites
   ADD COLUMN IF NOT EXISTS recipient_binding text NOT NULL DEFAULT 'bound_email';
 

@@ -241,6 +241,23 @@ describe('patient invite migration contract', () => {
     );
   });
 
+  it('adds one exact-org command namespace for all three manual patient command kinds', () => {
+    const commandSchema = readRepo('apps/webapp/db/schema/manualPatientCommands.ts');
+    const bookingRepo = readRepo('apps/webapp/src/infra/repos/pgBookingEngine.ts');
+    const organizationRepo = readRepo('apps/webapp/src/infra/repos/pgPatientOrganization.ts');
+    expect(claimMigration).toContain('CREATE TABLE IF NOT EXISTS public.manual_patient_commands');
+    expect(claimMigration).toContain('command_id uuid PRIMARY KEY');
+    expect(claimMigration).toContain("'scheduled', 'walk_in', 'standalone_no_contact_card'");
+    expect(claimMigration).toContain('manual_patient_commands_enrollment_fkey');
+    expect(claimMigration).toContain('idx_manual_patient_commands_org_created');
+    expect(commandSchema).toContain('manualPatientCommands');
+    expect(overlay).toContain('ALTER TABLE public.manual_patient_commands FORCE ROW LEVEL SECURITY');
+    expect(overlay).toContain('REVOKE ALL ON TABLE public.manual_patient_commands FROM app_patient');
+    expect(bookingRepo).toMatch(/commandKind: ['"]scheduled['"]/);
+    expect(bookingRepo).toMatch(/commandKind: ['"]walk_in['"]/);
+    expect(organizationRepo).toMatch(/commandKind: ['"]standalone_no_contact_card['"]/);
+  });
+
   it('keeps an accepted unbound claim retryable only with the same live proof', () => {
     const claimFunction = claimMigration.slice(
       claimMigration.indexOf('CREATE OR REPLACE FUNCTION app.claim_unbound_patient_invite_email'),

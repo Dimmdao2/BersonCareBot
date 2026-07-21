@@ -35,6 +35,7 @@ const gateContext = {
 };
 const patientOrganization = { createManualOrganizationClient: vi.fn() };
 const emailSetupAccess = { requestContactEmailSetup: vi.fn() };
+const REQUEST_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 describe("POST /api/doctor/clients", () => {
   beforeEach(() => {
@@ -97,6 +98,7 @@ describe("POST /api/doctor/clients", () => {
     expect(createDoctorClientMock).toHaveBeenCalledWith(
       {
         organizationId: gateContext.organizationId,
+        requestId: undefined,
         createdByUserId: gateContext.session.user.userId,
         lastName: "Иванов",
         firstName: "Иван",
@@ -137,7 +139,7 @@ describe("POST /api/doctor/clients", () => {
       new Request("http://localhost/api/doctor/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastName: "Иванов", firstName: "Иван" }),
+        body: JSON.stringify({ requestId: REQUEST_ID, lastName: "Иванов", firstName: "Иван" }),
       }),
     );
 
@@ -145,6 +147,7 @@ describe("POST /api/doctor/clients", () => {
     expect(createDoctorClientMock).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: gateContext.organizationId,
+        requestId: REQUEST_ID,
         lastName: "Иванов",
         firstName: "Иван",
         phone: undefined,
@@ -156,6 +159,26 @@ describe("POST /api/doctor/clients", () => {
       ok: true,
       client: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", phone: null },
     });
+  });
+
+  it("requires and replays one requestId for direct no-contact API calls", async () => {
+    requireDoctorWorkspaceApiContextMock.mockResolvedValue({ ok: true, ctx: gateContext });
+    createDoctorClientMock.mockResolvedValue({
+      ok: true, userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", displayName: "Иванов Иван",
+      lastName: "Иванов", firstName: "Иван", patronymic: null, phoneNormalized: null,
+      created: false, emailSetupEnqueued: false,
+    });
+    const missing = await POST(new Request("http://localhost/api/doctor/clients", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lastName: "Иванов", firstName: "Иван" }),
+    }));
+    expect(missing.status).toBe(400);
+    const body = JSON.stringify({ requestId: REQUEST_ID, lastName: "Иванов", firstName: "Иван" });
+    const first = await POST(new Request("http://localhost/api/doctor/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body }));
+    const replay = await POST(new Request("http://localhost/api/doctor/clients", { method: "POST", headers: { "Content-Type": "application/json" }, body }));
+    expect((await first.json()).client.id).toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    expect((await replay.json()).client.id).toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    expect(createDoctorClientMock.mock.calls.slice(-2).map((call) => call[0].requestId)).toEqual([REQUEST_ID, REQUEST_ID]);
   });
 
   it("does not fall back to a global identity writer when organization registration is unavailable", async () => {

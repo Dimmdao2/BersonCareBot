@@ -9,6 +9,8 @@ export type PatientOrganizationEnrollment = {
 
 export type CreateManualOrganizationClientInput = {
   organizationId: string;
+  /** Required only for a no-phone/no-email standalone card. */
+  commandId?: string;
   phoneNormalized: string | null;
   lastName: string;
   firstName: string;
@@ -30,7 +32,12 @@ export type CreateManualOrganizationClientResult =
     }
   | {
       ok: false;
-      error: "email_conflict" | "identity_conflict" | "inactive_enrollment" | "create_failed";
+      error:
+        | "email_conflict"
+        | "identity_conflict"
+        | "inactive_enrollment"
+        | "idempotency_conflict"
+        | "create_failed";
     };
 
 export type PatientOrganizationPort = {

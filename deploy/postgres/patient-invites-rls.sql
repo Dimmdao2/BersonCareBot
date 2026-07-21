@@ -9,6 +9,7 @@ SELECT (
   AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff')
   AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND rolbypassrls AND NOT rolcanlogin)
   AND to_regclass('public.patient_invites') IS NOT NULL
+  AND to_regclass('public.manual_patient_commands') IS NOT NULL
   AND to_regclass('public.patient_merge_candidates') IS NOT NULL
   AND to_regclass('public.org_enrollments') IS NOT NULL
   AND to_regclass('public.platform_users') IS NOT NULL
@@ -27,6 +28,16 @@ SELECT 1 / 0 AS patient_invites_preflight_abort;
 \endif
 
 BEGIN;
+
+ALTER TABLE public.manual_patient_commands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.manual_patient_commands FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS manual_patient_commands_exact_staff_org ON public.manual_patient_commands;
+CREATE POLICY manual_patient_commands_exact_staff_org ON public.manual_patient_commands
+  FOR ALL
+  USING (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id())
+  WITH CHECK (app.is_staff() AND app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id());
+GRANT SELECT, INSERT ON TABLE public.manual_patient_commands TO app_staff;
+REVOKE ALL ON TABLE public.manual_patient_commands FROM app_patient;
 
 ALTER TABLE public.patient_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.patient_invites FORCE ROW LEVEL SECURITY;

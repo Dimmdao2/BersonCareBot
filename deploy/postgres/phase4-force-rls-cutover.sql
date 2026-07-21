@@ -176,6 +176,7 @@ VALUES
   ('"public"."patient_diary_day_snapshots"'),
   ('"public"."patient_files"'),
   ('"public"."patient_home_blocks"'),
+  ('"public"."patient_invites"'),
   ('"public"."patient_lfk_assignments"'),
   ('"public"."patient_merge_candidates"'),
   ('"public"."patient_payment"'),
@@ -285,8 +286,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO v_expected_count FROM phase4_force_rls_targets;
 
-  IF v_expected_count <> 166 THEN
-    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 166, got %', v_expected_count;
+  IF v_expected_count <> 167 THEN
+    RAISE EXCEPTION 'phase4_force_target_count_mismatch: expected 167, got %', v_expected_count;
   END IF;
 
   SELECT count(*)

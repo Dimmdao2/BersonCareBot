@@ -81,8 +81,8 @@ const generatedPolicySet = new Set(generatedTargets.map(({ descriptor, policyNam
 })));
 const dormantPolicySet = readFinalDormantPolicySet();
 
-if (dormantPolicySet.size !== 164 || generatedPolicySet.size !== 166) {
-  fail(`Expected 164 historical dormant and 166 generated wall policies, got dormant=${dormantPolicySet.size}, generated=${generatedPolicySet.size}`);
+if (dormantPolicySet.size !== 164 || generatedPolicySet.size !== 167) {
+  fail(`Expected 164 historical dormant and 167 generated wall policies, got dormant=${dormantPolicySet.size}, generated=${generatedPolicySet.size}`);
 }
 
 const missingFromArtifact = [...dormantPolicySet.keys()].filter((key) => !generatedPolicySet.has(key)).sort();
@@ -91,6 +91,7 @@ const extraInArtifact = [...generatedPolicySet].filter((key) => !dormantPolicySe
 const expectedS5Extras = new Set([
   "public.app_runtime_settings\ts5_runtime_settings_isolation",
   "public.app_runtime_settings_audit\ts5_runtime_settings_audit_staff",
+  "public.patient_invites\tsaas_org_dormant_p0_8_3",
 ]);
 if (
   missingFromArtifact.length > 0 ||
@@ -123,12 +124,12 @@ if (JSON.stringify(cutoverSorted) !== JSON.stringify(generatedQuotedTargets)) {
 const createStatements = [...artifact.matchAll(/^CREATE POLICY [\s\S]*?;$/gm)].map((match) => match[0]);
 const dropStatements = [...artifact.matchAll(/^DROP POLICY IF EXISTS /gm)];
 
-if (createStatements.length !== 332) {
-  fail(`${phase4LockedPolicyArtifactPath} must contain 332 CREATE POLICY statements (strict + dormant branches), got ${createStatements.length}`);
+if (createStatements.length !== 334) {
+  fail(`${phase4LockedPolicyArtifactPath} must contain 334 CREATE POLICY statements (strict + dormant branches), got ${createStatements.length}`);
 }
 
-if (dropStatements.length !== 168) {
-  fail(`${phase4LockedPolicyArtifactPath} must contain 168 DROP POLICY statements (166 canonical + 2 replaced legacy runtime policies), got ${dropStatements.length}`);
+if (dropStatements.length !== 169) {
+  fail(`${phase4LockedPolicyArtifactPath} must contain 169 DROP POLICY statements (167 canonical + 2 replaced legacy runtime policies), got ${dropStatements.length}`);
 }
 
 for (const statement of createStatements) {
@@ -151,4 +152,4 @@ if (!directoryReplacement || directoryReplacement.includes(dormantCompatibilityP
   fail("clinic_public_directory_entries phase4 replacement must never contain the missing-context dormant branch");
 }
 
-console.log("check-phase4-locked-policy-artifact: OK (166 policies, helper-based, no raw GUC context)");
+console.log("check-phase4-locked-policy-artifact: OK (167 policies, helper-based, no raw GUC context)");
