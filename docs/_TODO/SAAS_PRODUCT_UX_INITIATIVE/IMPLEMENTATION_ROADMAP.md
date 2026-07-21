@@ -1189,6 +1189,14 @@ exchange/delivery vocabulary and reach guarded U2/U5A destinations without paral
 **Outcome:** specialist works from one coherent organization patient workbench while every visible section/event is
 authorized consistently and authorship remains truthful.
 
+**Owner clarification 2026-07-22 — layout predecessor `UI-5a/#958`.** Opening the already protected standalone
+doctor patient-card view inside the «Клиенты» content pane is not the full U5B implementation. It may proceed as a
+bounded layout/routing stage before U5A runtime closure only if it reuses the exact existing server-guarded view and
+data/API paths, preserves the standalone URL/reload/deep links and proves guard equivalence. It may not add or merge
+sections, broaden queries/counts/search/export, reclassify records, change authorship/ownership, introduce schema or
+create a duplicate card tree. Desktop is list + content; mobile shows one side at a time with return to the list.
+All data-policy and clinical-visibility work below remains U5A/U5B-gated.
+
 - **Screens/flows:** launch `CLIN-02`, `CLIN-03`, `CLIN-04`, `CLIN-08`; solo patient-card and manual-visit path.
 - **Reuse/gaps:** current patient workbench/card/program/visit components; missing entry visibility/private classes
   and parity policy.
@@ -1216,7 +1224,8 @@ authorized consistently and authorship remains truthful.
   actor outcomes, operation parity, immutable provenance, explicit communication-participant rule and
   deterministic-versus-ambiguous legacy policy are recorded in `OPERATING_MODEL.md` §6 and
   `ROLE_CAPABILITY_MATRIX.md` §§2.3–2.5. The terminal full re-audit passed `0 P0 / 0 P1 / 0 P2`; the reviewed policy
-  prerequisite is complete. No schema/API/UI work starts until the remaining U5A runtime seals close.
+  prerequisite is complete. No U5B schema/API/record-visibility UI work starts until the remaining U5A runtime seals
+  close; the exact-view layout predecessor `UI-5a/#958` above is the only explicit exception.
 - **Completion:** [ ] owner ruling linked; [ ] visit-relation roster proven; [ ] parity green; [ ] authorship immutable; [ ] no duplicate
   card tree; [ ] private leakage zero; [ ] full audit PASS.
 - **Merge dependency:** U1/U5A plus reviewed record-class policy; UX08-01 itself is resolved and is not a blocker.

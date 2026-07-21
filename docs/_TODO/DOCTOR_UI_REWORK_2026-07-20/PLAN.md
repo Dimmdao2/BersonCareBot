@@ -151,11 +151,19 @@ fields/API сначала доказываются; pending payment нельзя
 
 ### UI-5 — organization patient card
 
-UI-5 является реализацией U5B, а не продолжением косметики списка. Он стартует только после U5A и решения
-record-class visibility/export policy. Organization context, foreign-object denial и clinical record ownership
-имеют high-risk audit. Пока gate не закрыт, существующая standalone patient card остаётся канонической.
+**Уточнение владельца 2026-07-22 разделяет два этапа.** Непосредственный UX-outcome не требует переписывать
+карточку или ждать всей U5B-политики: существующая защищённая standalone patient card должна открываться как тот же
+view внутри content-pane раздела «Клиенты». Этот layout/routing-only этап **UI-5a / `#958`** сохраняет те же
+server guards, data/API calls, вкладки и прямой URL/reload; desktop показывает list + content, mobile — один экран
+за раз с возвратом к списку. Он не создаёт второй card tree, iframe или client-side обход авторизации и может идти
+до полного U5A/U5B только после trace и доказательства guard-equivalence текущего route/view.
 
-После readiness U5B сохраняет следующий owner outcome, но не начинает его раньше gate:
+Полный **UI-5b / U5B** остаётся большим high-risk этапом после U5A и принятой record-class visibility/export
+policy: только он может менять состав/объединение секций, историю, counts/search/export, authorship, clinical record
+ownership или доступ owner/admin/другого специалиста. До этого UI-5a лишь переносит существующее представление без
+изменения его данных и полномочий.
+
+UI-5a закрывает только первый layout outcome; остальные пункты начинают UI-5b после readiness:
 
 - карточка открывается в контейнере «Клиенты» без промежуточного preview; поиск активной карточки даёт dropdown;
 - compact sticky header: ФИО, полная «Дата рождения», edit affordance и правые deep links chat/phone/email/messenger;
@@ -229,7 +237,8 @@ draft semantics не являются owner rulings. Media access/presign и ten
 2. **UI-1 / UI-3 / UI-4 / UI-6 presentation cluster** — непересекающиеся file scopes параллельно, но не более
    трёх workers одновременно. Интегрированные и уже прошедшие принятый slice/audit пункты UI-4a/UI-6a не
    перезапускаются: worker получает только новый owner delta и фактический residual после code/live census.
-3. **UI-5** — после U5A и record-class visibility/export readiness.
+3. **UI-5a** — layout/routing reuse существующей защищённой карточки; **UI-5b** — только после U5A и
+   record-class visibility/export readiness.
 4. Остальные UI-2/UI-7/UI-8/UI-9 — только по их dependencies; UI-7b `#922` остаётся post-production.
 
 Targeted checks presentation workers могут идти независимо; lint/build/full CI и live DEV на единственном `:5200`
@@ -247,7 +256,8 @@ Targeted checks presentation workers могут идти независимо; l
 | UI-2 built-in Online location | базовый online-location scope отделить от расширенного `#215` | G5 закрыт; переиспользовать существующую модель и не объявлять закрытым расширенный flow `#215` |
 | UI-3 communications | C1 / `#852` | split на subscopes в meta/note, не новые дубли |
 | UI-4/UI-6 presentation | C1 / `#850` | принятые/integrated slices не повторять; новый owner delta и backend residual фиксировать отдельно в note/meta той же карты после census |
-| UI-5 organization patient card | U5B roadmap stage | task создаётся/расширяется только при readiness, не заранее |
+| UI-5a existing-card container reuse | `#958`; layout-only predecessor U5B | запускать после route/guard census; не менять data/API/visibility/schema |
+| UI-5b organization card/history policy | U5B roadmap stage / `#928` contract | U5A + record-class runtime readiness; не смешивать с `#958` |
 | UI-8 mechanics/reminders | C4D/C5 + `#191`, foundation `#888` accepted | только organization/clinic axis; не форкать entitlement/commercial систему |
 | UI-9 individual exercises | `#564`, design `#565` | owner-approved; запуск после C4D exact-org isolation |
 | UI-P doctor chrome/tokens | taskdb `#925` | shared doctor primitives + Clients header search; presentation-only, без patient/public UI |

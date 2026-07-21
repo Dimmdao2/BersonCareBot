@@ -4395,3 +4395,35 @@ not smuggled into P1. Repository/DEV-safe synthetic tests only: no real sends, n
 no broken-credential exercise, no PROD, deploy or full CI. Worker must prove sync send failure capture, dead-queue
 reuse, bounded aggregation/classification, successful-send/non-provider negatives and digest/critical compatibility;
 one independent observability audit follows. The live P0/P-guard stays an explicit later owner-authorized TEST gate.
+
+## 2026-07-22 — UI-1c and outbound P1 integrated; DEV migration path repaired (`#950/#951/#956/#957`)
+
+UI-1c integrated through `68eec658d`, `d65c73c23` and the live correction `cd9d5d06c`. Its single independent
+presentation audit found two owner-checklist defects — modal close overlap and a desktop phone number hidden until
+click — and the bounded correction closed both without another audit loop. Focused tests passed `9/9`, typecheck and
+scoped lint passed. Serialized DEV acceptance at `1440×900` and `390×844` proved the embedded confirmed clinic
+fixture, desktop visible/copy phone, mobile `tel:`, one close, semantic status/time, labelled details, centered visit
+CTA, blank-comment denial and hidden Rubitime/payment UI. The live pass also caught narrow-pane FIO clipping;
+`cd9d5d06c` keeps the full name readable and wraps actions to their own right-aligned row when needed. Other
+status/solo/no-phone/modal contracts remain covered by focused tests because the DEV fixture lacks every live state.
+
+The first live attempt exposed two unrelated bounded regressions. `2e51ea6f0` keeps dotenv/server env loading out of
+the browser instrumentation bundle while preserving production dev-bypass fail-fast. The existing DEV DB then proved
+to be behind current migrations, and the canonical non-destructive migrate preflight itself rejected the intentional
+U9A SET-only `app_platform_settings → app_staff` edge. `380a66604` reconciles that exact fail-closed allowlist; both
+preflights passed, then `migrate-dev.sh --execute` applied only pending migrations/runtime closure to the same DEV DB.
+No dump, restore, refresh, database recreation, TEST or PROD action occurred.
+
+Outbound alerting P1 integrated as `b64692aeb` after an independent `0 P0 / 0 P1 / 0 P2` audit. Existing
+`operator_incidents`, Drizzle/DI, critical classifier and digest now turn synchronous email/SMS provider failures and
+the existing dead delivery queue into one PII-free `outbound_delivery_provider` topic. SMSC `{ok:false}` is no longer
+treated as success and can follow the existing retry/dead path. P2 alert transport, P3 cadence, P4 red UI and the
+explicit live TEST guard remain later parts of `#950`; the task correctly stays `doing`.
+
+## 2026-07-22 — owner simplifies inline patient card to exact-view reuse (`#958`)
+
+The owner clarified that the immediate «Клиенты» outcome is not a second patient-card implementation. UI-5 is split:
+`UI-5a/#958` reuses the current protected standalone card view inside the Clients content pane, preserving the same
+guards, data/API, direct URL and mobile one-screen-at-a-time behavior; it may start after route/guard-equivalence
+census. Full U5B section/history/visibility/export policy remains separately gated by U5A and `#928`. This prevents a
+layout request from being inflated into premature clinical data-policy work.
