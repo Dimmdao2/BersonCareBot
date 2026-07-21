@@ -6,6 +6,15 @@ import {
 } from "../../../db/schema/bookingEngine";
 
 const insertOrder = vi.hoisted(() => [] as string[]);
+const listBookingBusyIntervals = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const txExecute = vi.hoisted(() =>
+  vi.fn(async () => {
+    insertOrder.push("lock");
+    return { rows: [] };
+  }),
+);
+
+vi.mock("@/infra/repos/pgBookingScheduling", () => ({ listBookingBusyIntervals }));
 
 const txInsert = vi.hoisted(() =>
   vi.fn((table: unknown) => {
@@ -44,7 +53,8 @@ const txInsert = vi.hoisted(() =>
 
 vi.mock("@/app-layer/db/drizzle", () => ({
   getDrizzle: vi.fn(() => ({
-    transaction: async (fn: (tx: { insert: typeof txInsert }) => unknown) => fn({ insert: txInsert }),
+    transaction: async (fn: (tx: { insert: typeof txInsert; execute: typeof txExecute }) => unknown) =>
+      fn({ insert: txInsert, execute: txExecute }),
     execute: vi.fn(async () => ({ rows: [] })),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -61,11 +71,15 @@ vi.mock("@/app-layer/db/drizzle", () => ({
 }));
 
 import { createPgBookingEnginePort } from "./pgBookingEngine";
+import { runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 
 describe("createPgBookingEnginePort.createAppointment", () => {
   beforeEach(() => {
     insertOrder.length = 0;
     txInsert.mockClear();
+    txExecute.mockClear();
+    listBookingBusyIntervals.mockReset();
+    listBookingBusyIntervals.mockResolvedValue([]);
   });
 
   it("writes appointment and history events atomically in one transaction", async () => {
@@ -79,5 +93,64 @@ describe("createPgBookingEnginePort.createAppointment", () => {
       status: "created",
     });
     expect(insertOrder).toEqual(["appointments", "events", "history"]);
+  });
+
+  it("locks every online chain slot, rechecks, then inserts in the same transaction", async () => {
+    const organizationId = "a0000000-0000-4000-8000-000000000001";
+    const port = createPgBookingEnginePort();
+    await runWithDbOrganizationPrincipal(organizationId, () =>
+      port.createOnlineAppointmentsIfAvailable([
+        {
+          organizationId,
+          startAt: "2026-06-01T10:00:00.000Z",
+          endAt: "2026-06-01T11:00:00.000Z",
+          durationMinutes: 60,
+          source: "native",
+          status: "created",
+        },
+        {
+          organizationId,
+          startAt: "2026-06-01T11:00:00.000Z",
+          endAt: "2026-06-01T12:00:00.000Z",
+          durationMinutes: 60,
+          source: "native",
+          status: "created",
+        },
+      ]),
+    );
+    expect(insertOrder).toEqual([
+      "lock",
+      "lock",
+      "appointments",
+      "events",
+      "history",
+      "appointments",
+      "events",
+      "history",
+    ]);
+    expect(listBookingBusyIntervals).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a busy online slot after the lock without inserting", async () => {
+    const organizationId = "a0000000-0000-4000-8000-000000000001";
+    listBookingBusyIntervals.mockResolvedValue([
+      { startAt: "2026-06-01T10:00:00.000Z", endAt: "2026-06-01T11:00:00.000Z" },
+    ]);
+    const port = createPgBookingEnginePort();
+    await expect(
+      runWithDbOrganizationPrincipal(organizationId, () =>
+        port.createOnlineAppointmentsIfAvailable([
+          {
+            organizationId,
+            startAt: "2026-06-01T10:00:00.000Z",
+            endAt: "2026-06-01T11:00:00.000Z",
+            durationMinutes: 60,
+            source: "native",
+            status: "created",
+          },
+        ]),
+      ),
+    ).rejects.toThrow("slot_overlap");
+    expect(insertOrder).toEqual(["lock"]);
   });
 });

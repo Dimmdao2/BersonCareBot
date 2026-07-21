@@ -37,6 +37,8 @@ import {
   legacyBranchServiceIdBySsaFromMappings,
   pickPreferredSsaId,
 } from "@/modules/booking-scheduling/ssaResolve";
+import { isChainFree } from "@/modules/booking-scheduling/computeSlots";
+import { listBookingBusyIntervals } from "@/infra/repos/pgBookingScheduling";
 import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
 import type {
   AppointmentStatus,
@@ -208,6 +210,45 @@ async function insertAppointmentInTransaction(
     });
   }
   return appointment;
+}
+
+async function lockOnlineAppointmentSlots(
+  tx: DrizzleDb,
+  organizationId: string,
+  slotStarts: readonly string[],
+): Promise<void> {
+  for (const slotStart of [...new Set(slotStarts)].sort()) {
+    const lockKey = `booking:online-slot:${organizationId}:${slotStart}`;
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}::text, 0))`);
+  }
+}
+
+async function insertOnlineAppointmentsIfAvailableInTransaction(
+  tx: DrizzleDb,
+  inputs: readonly CreateAppointmentInput[],
+  now: string,
+): Promise<BeAppointment[]> {
+  const first = inputs[0];
+  const last = inputs.at(-1);
+  if (!first || !last) throw new Error("appointment_chain_required");
+  const organizationId = first.organizationId;
+  if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
+    throw new Error("organization_principal_mismatch");
+  }
+  await lockOnlineAppointmentSlots(tx, organizationId, inputs.map((input) => input.startAt));
+  const busy = await listBookingBusyIntervals(tx, {
+    organizationId,
+    specialistId: null,
+    roomId: null,
+    rangeStart: first.startAt,
+    rangeEnd: last.endAt,
+  });
+  if (inputs.some((input) => !isChainFree(input.startAt, 1, input.durationMinutes, busy))) {
+    throw new Error("slot_overlap");
+  }
+  const appointments: BeAppointment[] = [];
+  for (const input of inputs) appointments.push(await insertAppointmentInTransaction(tx, input, now));
+  return appointments;
 }
 
 async function assertManualSpecialistSelection(
@@ -1175,6 +1216,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const now = new Date().toISOString();
       return db.transaction((tx) =>
         insertAppointmentInTransaction(tx as DrizzleDb, input, now),
+      );
+    },
+
+    async createOnlineAppointmentsIfAvailable(inputs) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction((tx) =>
+        insertOnlineAppointmentsIfAvailableInTransaction(tx as DrizzleDb, inputs, now),
       );
     },
 

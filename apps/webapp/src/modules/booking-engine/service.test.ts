@@ -57,6 +57,7 @@ function mockPort(overrides: Partial<BookingEngineBundlePort> = {}): BookingEngi
     getAppointment: vi.fn().mockResolvedValue(appointment),
     listAppointmentsByChainId: vi.fn().mockResolvedValue([]),
     createAppointmentChain: vi.fn().mockResolvedValue([appointment]),
+    createOnlineAppointmentsIfAvailable: vi.fn().mockResolvedValue([appointment]),
     getStatusBeforePackageCharge: vi.fn().mockResolvedValue(null),
     createAppointment: vi.fn().mockResolvedValue(appointment),
     createManualPatientVisit: vi.fn().mockResolvedValue({
@@ -112,6 +113,55 @@ describe("createBookingEngineService", () => {
     expect(port.createAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ status: "created" }),
     );
+  });
+
+  it("normalizes and forwards one consecutive online chain to the atomic port", async () => {
+    const port = mockPort();
+    const svc = createBookingEngineService(port);
+    await svc.createOnlineAppointmentsIfAvailable([
+      {
+        organizationId: "a0000000-0000-4000-8000-000000000001",
+        startAt: "2026-06-01T10:00:00Z",
+        endAt: "2026-06-01T11:00:00Z",
+        durationMinutes: 60,
+        source: "native",
+      },
+      {
+        organizationId: "a0000000-0000-4000-8000-000000000001",
+        startAt: "2026-06-01T11:00:00Z",
+        endAt: "2026-06-01T12:00:00Z",
+        durationMinutes: 60,
+        source: "native",
+      },
+    ]);
+    expect(port.createOnlineAppointmentsIfAvailable).toHaveBeenCalledWith([
+      expect.objectContaining({ startAt: "2026-06-01T10:00:00.000Z", status: "created" }),
+      expect.objectContaining({ startAt: "2026-06-01T11:00:00.000Z", status: "created" }),
+    ]);
+  });
+
+  it("rejects an online chain with a gap before reaching the port", async () => {
+    const port = mockPort();
+    const svc = createBookingEngineService(port);
+    await expect(
+      svc.createOnlineAppointmentsIfAvailable([
+        {
+          organizationId: "a0000000-0000-4000-8000-000000000001",
+          startAt: "2026-06-01T10:00:00Z",
+          endAt: "2026-06-01T11:00:00Z",
+          durationMinutes: 60,
+          source: "native",
+        },
+        {
+          organizationId: "a0000000-0000-4000-8000-000000000001",
+          startAt: "2026-06-01T12:00:00Z",
+          endAt: "2026-06-01T13:00:00Z",
+          durationMinutes: 60,
+          source: "native",
+        },
+      ]),
+    ).rejects.toThrow("appointment_chain_not_consecutive");
+    expect(port.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
   it("transitionAppointmentStatus rejects invalid FSM", async () => {
