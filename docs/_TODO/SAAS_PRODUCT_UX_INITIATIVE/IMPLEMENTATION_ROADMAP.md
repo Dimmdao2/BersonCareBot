@@ -628,6 +628,15 @@ matrix with targeted tests, typecheck/scoped lint and one independent audit. It 
 A1 after C5A; it closes before C5B/C7 and joins the next accumulated milestone CI rather than starting its own full
 CI loop.
 
+**Latest C5A terminal status (`e08ec320c`, post-F0 base `2b5fe23a6`): blocked / not integrated.** The bounded Online
+mutation and async-`export const` census repair, 0225 migration ordering, quota proof and all changed tests passed,
+but the terminal full-stage audit returned `0 P0 / 2 P1 / 0 P2`. The restore/rehydration chain invokes C5A before
+installing/reapplying canonical `app_platform_settings` role/ACL/policies, and two declared exemptions still allow
+protected mutations during commercial `read_only`/`blocked`: broadcast draft save and schedule-block delete. The
+unchanged twelve pre-base direct-resolver findings remain separate `#939` debt. Per the declared terminal boundary,
+no further correction, integration or milestone CI starts automatically. `#751` is owner-waiting on one process
+choice: authorize one final convergence pass for these two exact P1 classes, or freeze the isolated candidate.
+
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
 downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:

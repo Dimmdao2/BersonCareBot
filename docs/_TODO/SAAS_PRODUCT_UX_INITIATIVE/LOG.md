@@ -4040,6 +4040,23 @@ disabled. TEST/production activation, real telemetry collection and F1 old-clien
 owner gates; no deploy, server run, notification, analytics persistence, operator-health or error-audit coupling was
 performed. Full CI waits for the accumulated milestone.
 
+## 2026-07-21 — C5A post-F0 terminal audit remains red (`#751`)
+
+The six-commit C5A candidate plus bounded repair was semantically rebased onto post-F0 feature base `2b5fe23a6` as
+`e08ec320c`. F0 migration `0224` remains canonical and C5A is exactly `0225`; the Online-location mutation wall,
+async-`export const` census, current platform-principal routing, quota race/warning projection and complete changed
+test census passed. The production S4 checker still reports exactly the same twelve pre-base IDs with unchanged
+sorted hash `ac4d61dc0ec2dd3b51ca0499d88cbecec191a5ec91ed2aa01bd3d91de9029565` and no candidate delta.
+
+The terminal independent audit nevertheless returned `FAIL, 0 P0 / 2 P1 / 0 P2`. First, the canonical rehydration
+order runs C5A SQL without first installing/reapplying `u9a-platform-settings-role.sql`, so a fresh cluster can fail
+on the absent role and a rebuilt database can retain the role but lose its DB-local settings ACL/policies. Second,
+broadcast draft save and schedule-block delete remain explicit checker exemptions and can mutate protected data in
+commercial `read_only`/`blocked`. These map to the supplied C5A acceptance, but they are a new terminal finding set
+after the declared final convergence boundary. No third automatic correction, integration, full CI, DB apply,
+deploy or environment action was started. Task `#751` is blocked/owner-waiting on one exact choice: authorize one
+last convergence pass for both P1 classes or freeze the isolated candidate. S4 residual `#939` remains downstream.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round
