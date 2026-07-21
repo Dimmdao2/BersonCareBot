@@ -43,35 +43,37 @@ production activation остаются отдельными owner gates.
 taskdb-карта создаётся только для доказанного `residual_gap` с точным file scope; существующие карты не дублируются.
 В частности, A1/A3/A4/F1 не запускаются как «переписать заново» до этой сверки.
 
-### Reconciliation result — current branch, 2026-07-21
+### Reconciliation result — current branch, reconciled 2026-07-22
+
+Эта таблица является текущим launch selector, а не исходным снимком до исполнения. Закрытые пункты нельзя брать
+повторно из старого `residual_gap/dependency_waiting`; точные evidence ниже и в фазах являются authority.
 
 | Item | Status | Current truth / exact residual |
 |---|---|---|
 | A0 | `covered` | `#938` закрыт интеграционными коммитами `dd4241f65` + `b6222cd40`: versioned PII-free schema baseline, repo-bound ledger manifest, synthetic `.test` seed, disposable restore/pending-migration proof и fail-closed signal cleanup прошли полный независимый re-audit. A0 доказывает DDL/migration reproducibility, не RLS от owner-role. |
-| A1 | `residual_gap` | `#770/#933` закрывают runtime chokepoint и generic harness; после закрытого A0 следующий исполнимый residual — CI PostgreSQL с canonical ACL/runtime roles и locked/FORCE two-org/no-principal/principal-full route proof только от non-owner principals. Synthetic minimal schema и `bcb_a0_owner` как RLS evidence запрещены. |
-| C2 | `residual_gap` | Logger APIs существуют, но нет единого ALS/header correlation + organization context webapp→integrator→worker. Нужен typed low-cardinality context без DB/network hot-path. |
-| F1 | `residual_gap` | `#934` закрыл текущие advisories; updater automation отсутствует, `shadcn` остаётся runtime dependency. Не дублировать `#881/#934`. |
-| D3 | `residual_gap` | Dev bypass обычно fail-closed в PROD, но env parser не отвергает саму комбинацию `production + flag`, а clinic-invite callsite сохраняет неоднозначную ветку. Нужен startup hard guard + tests. |
-| A3 | `dependency_waiting` | `#797` уже дал tenant diagnostics; residual — включить существующие isolation/missing-principal signals и bounded went-dark canary в critical health, не строить вторую диагностику. |
-| B1 | `dependency_waiting` | Payment event record → capture → processed имеет crash window, а duplicate может не довести capture. Сначала executable proof, затем transaction/replay-safe UoW. |
-| B2 | `dependency_waiting` | Payment/OAuth calls не имеют общего timeout boundary. Нужен shared timeout + error mapping, без расширения retry policy. |
-| B3 | `dependency_waiting` | Online availability check отделён от appointment insert; очный exclusion constraint не закрывает online/null-capacity. Нужны lock/constraint и двухсоединительный proof. |
-| C1 | `dependency_waiting` | Error tracker/release adapter отсутствует. Repository/DEV self-hosted path ждёт Phase 0 + `LOG-01`; host activation остаётся `SEC-02/PR-04` owner gate. |
-| D1 | `dependency_waiting` | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Residual — короткий doctor TTL и revocation без per-request DB round-trip с p95 proof. |
-| D2 | `dependency_waiting` | Центрального Origin/Sec-Fetch-Site CSRF guard нет; нужны точные M2M/webhook/public-auth exemptions и negatives. |
-| E2 | `dependency_waiting` | Общего server response/error mapper нет. Внедрять только helper + launch-risk routes, не массовую косметическую миграцию. |
-| E3 | `dependency_waiting` | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах. |
+| A1 | `covered` | `#937`, `296ec6e33` + `14c9b7ca7`: canonical non-owner runtime roles и locked/FORCE two-org/no-principal/principal-full PostgreSQL proof; full re-audit PASS. |
+| C2 | `covered` | `#940`, `693c10d98` + `7055287ba`: bounded correlation + trusted organization context webapp→integrator→worker; terminal audit PASS. |
+| F1 | `covered` | `#942`, `03c1dfac1`: bounded Dependabot updater, `shadcn` dev-only, production graph proof; audit PASS. Fresh later advisories закрыты отдельно `#955`. |
+| D3 | `covered` | `#941`, `a70b7ce4a`: production+dev-bypass startup hard guard и invite-path negatives; audit PASS. |
+| A3 | `covered` | `#946`, `3f684d135` + `7bc938e03`: existing isolation signals и bounded went-dark canary подключены к current critical tick; audit PASS. |
+| B1 | `covered` | `#949`, integration through `ba6a9242b`: least-privilege bootstrap lookup и atomic/replay-safe payment UoW; private PostgreSQL proofs and audit PASS. |
+| B2 | `covered` | `#947`, `ff11d416a` + `3f484ea60`: bounded payment/OAuth request and body-consumption deadlines; audit PASS. |
+| B3 | `covered` | `#948`, `fdbea3b0e` + `d640d93b9`: full-range ordered advisory locks and atomic online slot recheck/insert; concurrency proof and audit PASS. |
+| C1 | `residual_gap` | Repository/DEV self-hosted error tracker + release tags остаются не начаты; host/production activation — отдельный `SEC-02/PR-04` owner gate. |
+| D1 | `residual_gap` | `#919`/migration `0215` уже дают staff `session_version`, но doctor TTL остаётся 90 дней. Нужны короткий doctor TTL и revocation без per-request DB round-trip с p95 proof. |
+| D2 | `residual_gap` | Центрального Origin/Sec-Fetch-Site CSRF guard нет; нужны точные M2M/webhook/public-auth exemptions и negatives. |
+| E2 | `residual_gap` | Общего server response/error mapper нет. Внедрять только helper + launch-risk routes, не массовую косметическую миграцию. |
+| E3 | `residual_gap` | Integrator↔webapp event contract продублирован вручную и JSON artifact расходится. Нужен один shared Zod SSOT и runtime validation на обоих концах. |
 | A4 | `dependency_waiting` | Большой chokepoint уже в основном закрыт `#770/#797`; после ранних фаз выводится только exact launch-critical exception/manual-NULL matrix. Старое число файлов не является автоматическим scope. |
 | A2 | `dependency_waiting` | `#652` и существующие real-policy proofs репрезентативны, но не покрывают каждый чувствительный домен через live RLS route. Ждёт A1/A4 matrix. |
 | C3 | `post_launch` | Prometheus exporter отсутствует; раньше запуска допускается только точный low-cardinality signal, если его требует C6/release gate. |
 | F2 | `post_launch` | God-components остаются, но их structural split идёт после UX stabilization. |
 | F3 | `post_launch` | Booking/notifications фрагментированы; сначала ownership map, без pre-launch behavioral rewrite. |
 
-Первый исполнимый порядок: **A0/#938 целиком** → **A1/#937 целиком** → independent adversarial audit → **C2/F1/D3** в трёх непересекающихся
-worktree после стабилизации A1 contract (допустимо начать, пока идёт независимый A1 audit) → один общий Phase 0
-full-CI milestone. Dependency install/audit, heavy lint/CI и единственный DEV server сериализуются. Только после этого
-открываются Phase 1 A3/B1/B2/B3/C1. Reconciliation не создаёт дочерние taskdb-карты заранее: exact stage card
-появляется перед worker после file-scope launch manifest.
+**Текущий исполнимый порядок после закрытых Phase 0 и A3/B1/B2/B3:** C1 error tracking и Phase 2 D1/D2/E2/E3
+открыты как независимые stages; запускаются не более трёх одновременно после exact file-scope manifest. D1 и E3
+получают high-risk audit, D2/E2 — один risk-sized audit. Dependency install/audit, heavy lint/CI и единственный DEV
+server сериализуются. A4/A2/E1 остаются Phase 3 и не стартуют до Phase 2 и exact residual reconciliation.
 
 ---
 

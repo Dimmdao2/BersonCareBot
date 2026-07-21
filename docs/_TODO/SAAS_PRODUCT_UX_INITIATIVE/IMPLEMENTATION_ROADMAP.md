@@ -440,9 +440,16 @@ card; запрещено строить временный resolver, второ�
 - **UI-P shared presentation delta (owner 2026-07-20):** taskdb `#925`; doctor workspace получает единый
   shared-primitives pass для gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
   padding основных блоков `18px`, белого input, порядка KPI label→value и более крупного/лёгкого основного list
-  text. List rows получают серый divider `1px` и horizontal padding `18px`, сохраняя выравнивание с header. Поиск «Клиентов» переносится
-  в правую половину page header на одну линию с title. Это не patient/public UI и не изменение data/metric semantics.
-- **Order after presentation:** UI-5 является U5B и стартует после U5A + record-class policy; затем остальные
+  text. Поздняя live-коррекция 2026-07-21 заменяет буквальное копирование padding эталоном строк «На сопровождении»:
+  inset divider, спокойное выравнивание текста/иконок и selected state без отдельной карточки. Поиск «Клиентов»
+  переносится в правую половину page header на одну линию с title. Это не patient/public UI и не изменение
+  data/metric semantics.
+- **Order after presentation:** UI-5 разделён на layout/routing predecessor UI-5a `#958` и полный UI-5b/U5B.
+  Последнее решение владельца 2026-07-22 заменяет `desktop list+content`: обычный экран «Клиенты» сохраняет
+  `list + filters + functional preview`, а выбранная полная карточка заменяет весь рабочий content container,
+  сохраняя sidebar, direct URL/reload/back-forward и восстановление list state при возврате. UI-5a переиспользует
+  exact existing protected view/guards/data и не меняет composition/visibility/schema. Полный UI-5b стартует после
+  U5A + record-class policy и исполняет без сокращения exact composition из Doctor UI plan. Затем идут остальные
   dependency-ready UI stages. UI-8 строится только на уже принятом S4 engine `#888` внутри C4D/C5 и не создаёт
   parallel registry/polarity/seed/keys; только organization/clinic axis. UI-9 `#564` после закрытого C4D exact-org
   isolation интегрирован в `feat/doctor-ui-rebuild`: personal exercise остаётся instance-scoped по умолчанию,
@@ -455,7 +462,11 @@ card; запрещено строить временный resolver, второ�
   требуется только встроенная toggleable location; G6 — UI-P shared doctor chrome из предыдущего пункта.
   Независимый SCH-G5 остаётся owner-waiting `#848`.
   `#191`: default новых разминок `12:00`/`15:00` в рабочие дни, существующих клиентов не менять.
-- **Task mapping:** C1 `#850/#851/#852`; новый UI-1c detail delta — `#951`; bounded built-in Online location переиспользует `#197`, а expanded online
+- **Task mapping:** C1 `#850/#851/#852`; новый UI-1c detail delta — `#951`; exact residuals после сверки
+  полного owner scope: schedule picker `#960`, communications gradient/broadcast IA `#961`, shared composer
+  `#962`, configurable Today `#963`, scheduled messages `#964`. UI-4 normal-mode preview и UI-5a full-workspace
+  reuse объединены в `#958`, полный composition/visibility — U5B с contract `#928`; Patient Today mood residual —
+  `#924`; bounded built-in Online location переиспользует `#197`, а expanded online
   booking остаётся blocked в `#215`; UI-P `#925`; manual patient/walk-in `#801`; mechanics/reminders C4D/C5 +
   `#191`; individual exercises `#564` + design `#565`; voice post-production `#922`; S4 engine `#888`; superseded
   Doctor DNA `#885`. Новые duplicate cards не
@@ -1189,13 +1200,15 @@ exchange/delivery vocabulary and reach guarded U2/U5A destinations without paral
 **Outcome:** specialist works from one coherent organization patient workbench while every visible section/event is
 authorized consistently and authorship remains truthful.
 
-**Owner clarification 2026-07-22 — layout predecessor `UI-5a/#958`.** Opening the already protected standalone
-doctor patient-card view inside the «Клиенты» content pane is not the full U5B implementation. It may proceed as a
-bounded layout/routing stage before U5A runtime closure only if it reuses the exact existing server-guarded view and
-data/API paths, preserves the standalone URL/reload/deep links and proves guard equivalence. It may not add or merge
-sections, broaden queries/counts/search/export, reclassify records, change authorship/ownership, introduce schema or
-create a duplicate card tree. Desktop is list + content; mobile shows one side at a time with return to the list.
-All data-policy and clinical-visibility work below remains U5A/U5B-gated.
+**Owner clarification 2026-07-22 — layout predecessor `UI-5a/#958`.** The normal «Клиенты» screen keeps its
+`list + filters + functional preview`. Opening the already protected standalone doctor patient-card replaces the
+entire doctor content container rather than occupying the right split pane; the doctor sidebar remains. Returning
+restores search/sort/filters/preview/scroll, and standalone URL/reload/back-forward compatibility remains. This may
+proceed before U5A runtime closure only if it reuses the exact existing server-guarded view and data/API paths and
+proves guard equivalence. It may not add or merge sections, broaden queries/counts/search/export, reclassify records,
+change authorship/ownership, introduce schema or create a duplicate card tree. All data-policy, exact owner
+composition and clinical-visibility work below remains U5A/U5B-gated and is specified without abbreviation in the
+Doctor UI execution artifact.
 
 - **Screens/flows:** launch `CLIN-02`, `CLIN-03`, `CLIN-04`, `CLIN-08`; solo patient-card and manual-visit path.
 - **Reuse/gaps:** current patient workbench/card/program/visit components; missing entry visibility/private classes

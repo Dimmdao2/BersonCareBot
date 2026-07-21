@@ -62,7 +62,12 @@ store исполняется только после отдельной акти
   [`.cursor/rules/system-settings-integrator-mirror.mdc`](../../../.cursor/rules/system-settings-integrator-mirror.mdc);
 - этапный worker/audit/fixer loop и доказательства: [`ORCHESTRATION_BINDINGS.md`](../../ORCHESTRATION_BINDINGS.md).
 
-## 2. Reality lock на 2026-07-15
+## 2. Reality lock на 2026-07-15 — исторический снимок
+
+> **Не использовать как current execution selector.** После этого снимка S4-0/S4-1 закрыты `#888`, S4-2/C5A —
+> `#751`, а двенадцать residual entitlement bypass — `#939`. Текущие статусы находятся в чек-листах ниже и в
+> единственном product DAG `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md`; открытыми остаются только явно
+> незакрытые S4-4/C5B, C5C/C5D, S4-5/C6 и TEST/C7 ветви.
 
 | Область | Уже есть | Что нужно достроить |
 |---|---|---|
@@ -144,31 +149,34 @@ launch dependencies из-за наличия checklist ниже.
 
 ## 5. S4-0 — mechanic, ownership и payment-contract inventory
 
+**Статус 2026-07-22: [x] закрыто `#888`, accepted; integration `4ae94a0a2` + `b0703b605`, поздний residual
+coverage `#939` закрыт `84bf193ac`. Повторно не исполнять.**
+
 **Стартовые точки:** [`org-entitlements/types.ts:6-23`](../../../apps/webapp/src/modules/org-entitlements/types.ts),
 [`org-entitlements/service.ts:10-36`](../../../apps/webapp/src/modules/org-entitlements/service.ts),
 [`providerPort.ts:11-33`](../../../apps/webapp/src/modules/payments/providerPort.ts),
 [`bookingPayments.ts:93-231`](../../../apps/webapp/db/schema/bookingPayments.ts),
 [`content_access_grants_webapp:370-395`](../../../apps/webapp/db/schema/schema.ts).
 
-- [ ] Построить method-level матрицу `mechanic → entrypoint/action → auth/context source → requireEntitlement →
+- [x] Построить method-level матрицу `mechanic → entrypoint/action → auth/context source → requireEntitlement →
   service/port` с `file:line` для каждого реального action. Доказательство: checker сопоставляет export/action symbols,
   а не каталоги routes; неизвестный или двойной mapping даёт non-zero.
-- [ ] Сверить все ключи `MECHANICS` с реальными поверхностями. Отсутствующая поверхность получает
+- [x] Сверить все ключи `MECHANICS` с реальными поверхностями. Отсутствующая поверхность получает
   `declared_no_surface` + code-search evidence; route ради флага не создаётся.
-- [ ] Зафиксировать единую typed registry с ключом и русской подписью; constructor, chokepoint и checker импортируют
+- [x] Зафиксировать единую typed registry с ключом и русской подписью; constructor, chokepoint и checker импортируют
   её, локальных массивов mechanic keys нет.
-- [ ] Зафиксировать инженерный compatibility path для клиники без тарифа: до назначения всем существующим test-org
+- [x] Зафиксировать инженерный compatibility path для клиники без тарифа: до назначения всем существующим test-org
   явного тарифа сохраняется текущий resolver result; после заполнения fixture/data gate implicit default не используется
   для новых test-org. Доказательство: migration/fixture report `unassigned org = 0` и resolver tests на assigned,
   override и intentionally-unassigned cases.
-- [ ] Описать ownership новых сущностей до DDL: platform package/tariff = global catalog; subscription/invoice/order/
+- [x] Описать ownership новых сущностей до DDL: platform package/tariff = global catalog; subscription/invoice/order/
   grant = direct org или scoped parent; analytics aggregate = org bucket без person identity.
-- [ ] Провести provider contract inventory по всем четырём real adapters: checkout URL, provider intent ref,
+- [x] Провести provider contract inventory по всем четырём real adapters: checkout URL, provider intent ref,
   idempotency, success/refund event, amount/currency verification и signature/status verification. Доказательство:
   таблица по adapters + contract tests; неподтверждённый callback не может активировать subscription/grant.
-- [ ] Зафиксировать отдельные config identities: existing per-org booking merchant и new global SaaS merchant.
+- [x] Зафиксировать отдельные config identities: existing per-org booking merchant и new global SaaS merchant.
   Доказательство: разные typed accessors/settings keys и тест отсутствия fallback между ними.
-- [ ] Зафиксировать один source-aware tariff access contract: временно существующий `be_organizations.tariff_id`
+- [x] Зафиксировать один source-aware tariff access contract: временно существующий `be_organizations.tariff_id`
   остаётся compatibility projection; конечный resolver различает manual assignment и active paid subscription,
   не держит две расходящиеся истины и не снимает доступ одного source при завершении другого.
 
@@ -178,22 +186,25 @@ launch dependencies из-за наличия checklist ниже.
 
 ## 6. S4-1 — один requireEntitlement() chokepoint
 
+**Статус 2026-07-22: [x] закрыто `#888`, accepted; method/action residual закрыт `#939` / `84bf193ac`.
+Повторно не исполнять.**
+
 **Стартовые точки:** [`requireEntitlement.ts:7-23`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.ts),
 [`requireEntitlement.test.ts:1-79`](../../../apps/webapp/src/app-layer/guards/requireEntitlement.test.ts),
 [`courses/route.ts:49-77`](../../../apps/webapp/src/app/api/doctor/courses/route.ts),
 [`buildAppDeps.ts:1583-1585`](../../../apps/webapp/src/app-layer/di/buildAppDeps.ts).
 
-- [ ] Привести guard к typed контракту `requireEntitlement(ctx, mechanic)`: context уже авторизован и содержит
+- [x] Привести guard к typed контракту `requireEntitlement(ctx, mechanic)`: context уже авторизован и содержит
   server-derived org; guard обращается только к `orgEntitlements` и возвращает единый 403
   `entitlement_required` с mechanic key.
-- [ ] Убрать повторный auth call из существующего courses slice. Доказательство: одна auth/context resolution на
+- [x] Убрать повторный auth call из существующего courses slice. Доказательство: одна auth/context resolution на
   request; service не вызывается после 401/403.
-- [ ] Применить S4-0 mapping ко всем `protected` actions. Для feature с несколькими aliases gate стоит на общем
+- [x] Применить S4-0 mapping ко всем `protected` actions. Для feature с несколькими aliases gate стоит на общем
   application command/feature boundary, а не копируется по routes.
-- [ ] Доказать ordering `auth → tenant/principal → entitlement → service`: unauthenticated, wrong role/org,
+- [x] Доказать ordering `auth → tenant/principal → entitlement → service`: unauthenticated, wrong role/org,
   disabled mechanic и success имеют разные ожидаемые результаты.
-- [ ] Доказать org isolation: override/tariff A не меняет B; forged org ID не меняет target resolver.
-- [ ] Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне
+- [x] Доказать org isolation: override/tariff A не меняет B; forged org ID не меняет target resolver.
+- [x] Добавить static guard: прямые `isMechanicEnabled` и чтения tariff/override из feature routes/services вне
   единственного boundary дают non-zero.
 
 **Проверка:** guard tests; по одному contract test на action family; static checker + self-test; webapp lint/typecheck.
@@ -202,33 +213,36 @@ launch dependencies из-за наличия checklist ниже.
 
 ## 7. S4-2 — global_admin-конструктор тарифов и overrides
 
+**Статус 2026-07-22: [x] закрыто C5A `#751`, integration through `a678d043d`; accumulated milestone
+`c6a8930c2` green. S4-4/C5B billing и C5C seat commerce этим не закрыты.**
+
 **Стартовые точки:** [`saasEntitlements.ts:24-59`](../../../apps/webapp/db/schema/saasEntitlements.ts),
 [`pgOrgEntitlements.ts:16-43`](../../../apps/webapp/src/infra/repos/pgOrgEntitlements.ts),
 [`doctorNavLinks.ts:36-52`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts),
 [`doctorNavLinks.ts:105-135`](../../../apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts).
 
-- [ ] Расширить существующий `modules/org-entitlements` typed CRUD: tariff list/get/create/update/deactivate,
+- [x] Расширить существующий `modules/org-entitlements` typed CRUD: tariff list/get/create/update/deactivate,
   assign/unassign, override list/upsert/delete. Новый соседний tariffs module не создаётся.
-- [ ] Хранить name, description, `priceMinor`, currency, billing period и полный mechanic map как DB data.
+- [x] Хранить name, description, `priceMinor`, currency, billing period и полный mechanic map как DB data.
   Hardcoded tier names/prices/compositions отсутствуют.
-- [ ] Registry различает boolean entitlement и numeric/unlimited quota. Для каждой quota до enforcement записаны
+- [x] Registry различает boolean entitlement и numeric/unlimited quota. Для каждой quota до enforcement записаны
   unit, reset/period, soft/hard behavior, upgrade/downgrade/overage semantics и source of usage; `null`, `0` и
   `unlimited` не смешиваются.
-- [ ] Добавить global trial-policy: ссылка на существующий active tariff, duration и start event. `Light/Pro`, 14/30
+- [x] Добавить global trial-policy: ссылка на существующий active tariff, duration и start event. `Light/Pro`, 14/30
   дней и фиксированный стартовый состав отсутствуют. Post-trial/grace и судьба созданных данных реализуются только
   после decision gate §13.
-- [ ] Clinic entitlement хранит included specialist seats и/или per-seat add-on policy. Team UI/API показывают
+- [x] Clinic entitlement хранит included specialist seats и/или per-seat add-on policy. Team UI/API показывают
   used/available seats; invitation проверяет limit server-side. Downgrade/overage не удаляет membership молча.
-- [ ] Валидировать mechanics только по registry S4-0; отсутствующий UI-toggle не может тихо потерять mechanic key.
-- [ ] Реализовать узкий platform write port для manual tariff assignment. До S4-4 он транзакционно меняет только
+- [x] Валидировать mechanics только по registry S4-0; отсутствующий UI-toggle не может тихо потерять mechanic key.
+- [x] Реализовать узкий platform write port для manual tariff assignment. До S4-4 он транзакционно меняет только
   compatibility `be_organizations.tariff_id`; S4-4 мигрирует такие назначения в source=`manual` и оставляет колонку
   только согласованной projection, не универсальным editor организации.
-- [ ] Override identity остаётся `(organization_id, mechanic)`; delete возвращает tariff default, а не сохраняет
+- [x] Override identity остаётся `(organization_id, mechanic)`; delete возвращает tariff default, а не сохраняет
   копию этого default.
-- [ ] Global_admin page содержит tariff list/editor, цену/период, grid всех mechanics, clinic assignment и override.
+- [x] Global_admin page содержит tariff list/editor, цену/период, grid всех mechanics, clinic assignment и override.
   `clinic_admin`/doctor не видят nav item и получают 403 на API.
-- [ ] Audit event содержит actor, target org, tariff, before/after mechanic map и reason без secret/PII.
-- [ ] E2E contract: tariff с mechanic=false → A denied; B unchanged; override A=true → allowed; delete override →
+- [x] Audit event содержит actor, target org, tariff, before/after mechanic map и reason без secret/PII.
+- [x] E2E contract: tariff с mechanic=false → A denied; B unchanged; override A=true → allowed; delete override →
   denied; смена тарифа меняет доступ через тот же chokepoint.
 
 **Проверка:** module/PG/API tests; authz A/B matrix; constructor RTL; desktop/mobile visual acceptance.

@@ -130,9 +130,17 @@ invoice/pay-link/QR или новый provider-readiness contract выносит
 modal и comments; имя в шапке как единственная card navigation; убрать лишнюю верхнюю фразу broadcasts; выбранная
 рассылка раскрывается без перекрытий с summary/delivery/error data; в левом списке заявок не дублировать ссылку на
 имя, если она есть в detail. 45/55 явно заменяет прежние 40/60; fallback — 50/50. Существующую принятую
-chat-card navigation нельзя
-молча заменить новой: route и доступность должны сохраниться. Shared composer — рекомендация по reuse, а не
-разрешение переписать четыре consumers. Voice/STT — deferred UI-7b, не часть общего composer refactor.
+chat-card navigation нельзя молча заменить новой: route и доступность должны сохраниться.
+
+**UI-3b exact broadcast IA из owner dump `f48f35a56`:** клик по строке рассылки открывает её просмотр в левой
+части split: заголовок, текст и метрики «кому / куда / ошибки / недоставка». Действие «Лог ошибок» открывает детали
+в правой части. Просмотр использует стандартную верхнюю панель с одним закрытием и не перекрывает summary,
+delivery/error data или соседние строки.
+
+**UI-3c exact foundation:** один shared composer должен покрыть четыре доказанных consumers — doctor chat/modal,
+patient chat, doctor comments и patient comments — до scheduled-message расширения. Это owner requirement исходного
+плана, а не необязательная рекомендация. Extraction выполняется отдельным bounded scope с parity-тестами и не
+разрешает переписать consumers или включить deferred Voice/STT.
 
 ### UI-4 — список клиентов
 
@@ -140,7 +148,9 @@ chat-card navigation нельзя
   launch manifest — §4.
 - **UI-4b metrics/backend:** all-time cancellations/reschedules, active-only и expired membership semantics —
   отдельный contract stage с repository/API evidence. Presentation не должна выдумывать недоступные цифры.
-- 50/50 и удаление preview нельзя считать разрешением на архитектурную inline-карточку: это UI-5.
+- В обычном режиме страница сохраняет `list + filters + functional preview` в split 50/50. Выбор полной карточки
+  переключает весь рабочий контейнер в UI-5a card mode; это не удаление preview и не попытка втиснуть карточку в
+  правую половину.
 
 **UI-4a exact presentation:** поиск переезжает в page header, а количество и сортировка остаются в шапке списка;
 KPI показываются по три в ряд, filtered value — отдельной меньшей цифрой без slash с filter icon; tooltip появляется
@@ -149,41 +159,58 @@ membership → program-or-supervision → appointment без фоновых ко
 reschedules — all-time, membership KPI — только active, expired memberships — отдельная метрика. Точные repository
 fields/API сначала доказываются; pending payment нельзя молча считать active.
 
-### UI-5 — organization patient card
+### UI-5 — страница клиента
 
-**Уточнение владельца 2026-07-22 разделяет два этапа.** Непосредственный UX-outcome не требует переписывать
-карточку или ждать всей U5B-политики: существующая защищённая standalone patient card должна открываться как тот же
-view внутри content-pane раздела «Клиенты». Этот layout/routing-only этап **UI-5a / `#958`** сохраняет те же
-server guards, data/API calls, вкладки и прямой URL/reload; desktop показывает list + content, mobile — один экран
-за раз с возвратом к списку. Он не создаёт второй card tree, iframe или client-side обход авторизации и может идти
-до полного U5A/U5B только после trace и доказательства guard-equivalence текущего route/view.
+**Последнее решение владельца 2026-07-22 заменяет layout из planning commit `1c77c207d`.** В обычном режиме
+«Клиенты» остаются страницей `list + filters + functional preview`. По команде открыть полную карточку она заменяет
+**весь рабочий content container раздела**, а не содержимое правой колонки: список и фильтры временно не видны,
+боковая навигация кабинета остаётся. Возврат «К клиентам» восстанавливает поиск, сортировку, фильтры, выбранный preview
+и позицию прокрутки. Прямой URL, reload и browser back/forward открывают тот же card/list mode.
 
-Полный **UI-5b / U5B** остаётся большим high-risk этапом после U5A и принятой record-class visibility/export
-policy: только он может менять состав/объединение секций, историю, counts/search/export, authorship, clinical record
-ownership или доступ owner/admin/другого специалиста. До этого UI-5a лишь переносит существующее представление без
-изменения его данных и полномочий.
+#### UI-5a / `#958` — routing/layout reuse
 
-UI-5a закрывает только первый layout outcome; остальные пункты начинают UI-5b после readiness:
+Первый bounded этап переиспользует существующий защищённый standalone patient-card view на всю ширину content
+container. Он сохраняет тот же server loader, guards, data/API paths и deep URL; не создаёт второй card tree, iframe
+или client-side обход авторизации. UI-5a не меняет состав вкладок, клиническую видимость, ownership, authorship,
+counts/search/export, schema или record classes и может идти до полного U5A/U5B только после доказательства
+guard-equivalence. Это полноценное открытие уже существующей карточки, но не реализация нового состава ниже.
 
-- карточка открывается в контейнере «Клиенты» без промежуточного preview; поиск активной карточки даёт dropdown;
-- compact sticky header: ФИО, полная «Дата рождения», edit affordance и правые deep links chat/phone/email/messenger;
-- tabs под header, внутренний 50/50 layout; mobile показывает одну часть за раз;
-- Communications и Overview не остаются дублирующими tabs: существующие Notes, Tasks, symptom dynamics, assigned
-  program и exercise-completion calendar переносятся, а не переписываются;
-- KPI Visits/Future appointments/Memberships открывают соответствующий left content; prepared visit открывает notes;
-- membership list/history сохраняет Add, Write off и Recalculate flows; online payment остаётся отдельной `#819`;
-- убрать пустые/объяснительные подписи, «Актуальный» и отдельный preliminary diagnosis bucket; переиспользовать
-  существующую symptom color logic.
+#### UI-5b / U5B — полный owner composition после U5A
 
-Ни один из этих пунктов не разрешает обход organization context, объединение record classes или потерю standalone
-deep-link compatibility до принятого U5B routing contract.
+Полный этап сохраняет исходный подробный checklist `f48f35a56`, а не его прежнюю сокращённую выжимку:
+
+- при активной карточке поиск остаётся доступным; совпадения показываются dropdown под полем;
+- compact sticky header содержит только ФИО, полную подпись «Дата рождения», edit affordance с достаточным отступом
+  и правые deep links chat/phone/email/messenger; пол, рост, вес, chips и mini-stats из header убираются;
+- tabs находятся под header; header и tabs sticky. Внутри рабочих tabs используется 50/50 master/detail, на mobile
+  видна одна часть за раз;
+- отдельные `Overview`, `Communications` и `Visits` не дублируют данные: их существующие блоки переносятся, а не
+  переписываются. Чат использует тот же существующий messaging path;
+- в правой части `Карточки` выбранная запись о визите по умолчанию скрыта. Сверху идёт KPI-строка `Визиты /
+  Будущие записи / Абонементы`; клик открывает соответствующие данные в левой части над диагнозом;
+- ниже справа идут `Заметки`, `Задачи`, `Динамика симптомов`, `Назначенная программа` и календарь `Выполнение
+  упражнений`. Пустые Notes/Tasks показывают только действие добавления, без текста «нет ...»;
+- summary назначенной программы содержит только название, дату контроля и этапы с подсветкой активного, без состава
+  упражнений; клик по названию открывает саму программу;
+- в левом списке визитов оформленная запись предлагает `Открыть заметки`, а не создать визит повторно;
+- абонементы в левой части сохраняют список и историю, `Списать`, `Пересчитать` и верхнее `Добавить абонемент`.
+  Добавление открывает справа конфигурацию, выбор и оплату; реальная online payment остаётся отдельной `#819`;
+- убрать поясняющие пустые подписи про приоритет/выраженность, отсутствие диагнозов, сопутствующих состояний и травм,
+  а также тексты «по клику ...»;
+- диагноз не называется `Актуальный`; preliminary diagnoses не выделяются отдельным bucket, а входят в единый
+  список. Цвета симптомов переиспользуют существующую Overview color logic.
+
+Только UI-5b может менять section composition, history, visibility parity, authorship/ownership и доступ
+owner/admin/другого специалиста. Ни один layout-пункт не разрешает cross-organization доступ, раскрытие private
+counts/metadata или потерю standalone deep-link compatibility.
 
 ### UI-6 — Сегодня
 
 - **UI-6a presentation:** компактные KPI, перестановка даты/ссылки календаря и удаление дублирующих подписей;
   launch manifest — §4.
 - Настраиваемые owner signals, переключатель «на сопровождении»/«недавние с визитами», «самые активные», новые
-  counters и скрытие клиентов — рекомендация для отдельной product/behavior работы, не косметика UI-6a.
+  counters и скрытие клиентов не входят в косметику UI-6a, но остаются отдельным owner-requested product/behavior
+  этапом. Их нельзя понижать до рекомендации или считать закрытыми вместе с compact presentation.
 
 ### UI-P — общий Doctor UI presentation-token pass
 
@@ -205,9 +232,11 @@ deep-link compatibility до принятого U5B routing contract.
 
 ### UI-7 — коммуникационные возможности
 
-- **UI-7a scheduled messages:** только после отдельного backend contract для queue, retry, cancellation, org scope
-  и delivery; owner outcome — schedule button рядом с Send, date/time picker, «Запланировать» и pending clock state
-  у sender; не прячется внутри presentation UI-3 и не копирует broadcast storage без contract review.
+- **UI-7a scheduled messages:** exact scope — doctor/patient chat и doctor/patient comments. Schedule button рядом
+  с Send открывает date/time picker; основное действие становится «Запланировать»; до отправки сообщение видно у
+  отправителя с clock-state вместо delivery checks. Нужны per-message `scheduled_at` + durable status и worker
+  dispatch поверх отдельно проверенных queue/retry/cancel/org-scope contracts. Этап не прячется внутри presentation
+  UI-3 и не копирует broadcast storage без contract review.
 - **UI-7b voice/STT:** решением G2 отложено до post-production, taskdb `#922`; в текущий заход не входит.
 
 ### UI-8 — capability/commercial projection
@@ -231,15 +260,39 @@ draft semantics не являются owner rulings. Media access/presign и ten
 Пустой mood chart на patient «Сегодня» скрывается до первой emoji/check-in отметки. Это точечная presentation-задача,
 не расширяет Doctor UI stage и получает отдельный exact file manifest перед запуском.
 
-### Обязательный порядок исполнения
+### Current implementation truth — reconciliation 2026-07-22
 
-1. **UI-0** — P0 booking funnel целиком.
-2. **UI-1 / UI-3 / UI-4 / UI-6 presentation cluster** — непересекающиеся file scopes параллельно, но не более
-   трёх workers одновременно. Интегрированные и уже прошедшие принятый slice/audit пункты UI-4a/UI-6a не
-   перезапускаются: worker получает только новый owner delta и фактический residual после code/live census.
-3. **UI-5a** — layout/routing reuse существующей защищённой карточки; **UI-5b** — только после U5A и
-   record-class visibility/export readiness.
-4. Остальные UI-2/UI-7/UI-8/UI-9 — только по их dependencies; UI-7b `#922` остаётся post-production.
+Статус ниже проверен против полного `f48f35a56`, current HEAD `1c77c207d`, code/tests/LOG и TEST SHA `62b69b6a2`.
+`DONE` здесь означает repository implementation evidence; owner acceptance остаётся отдельным taskdb-layer.
+
+| Scope | Статус | Точный остаток |
+|---|---|---|
+| UI-0 | `DONE` | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke. |
+| UI-1 | `PARTIAL` | Colors/header/multiselect/label/grid готовы, но Schedule использует локальный `ScheduleTimePicker`, а не требуемый reuse `DoctorDateTimePicker`. UI-1c готов на feature, но отсутствует на текущем TEST SHA. |
+| UI-2 | `DONE code / live gated` | Built-in Online и gating готовы; public live требует sanctioned published slug/U6B. |
+| UI-3 | `PARTIAL` | 45/55, name navigation, intake cleanup и no-overlap готовы. Не сделаны owner gradient, exact left-pane broadcast detail IA и shared composer четырёх consumers. |
+| UI-4 | `PARTIAL` | Presentation и metric semantics готовы; normal-mode functional preview отсутствует, хотя существующий `PatientPreviewPane` сохранён. |
+| UI-5 | `NOT DONE` | Ни full-workspace UI-5a/list-state restoration, ни full UI-5b composition не реализованы. UI-5b законно ждёт U5A/record-class gate. |
+| UI-6 | `PARTIAL` | Compact UI-6a готов; configurable signals/switch/counters остаются отдельным owner-requested этапом. |
+| UI-7 | `NOT DONE` | Scheduled messages и worker contract отсутствуют; Voice/STT корректно post-production. |
+| UI-8 | `DONE` | Выполнен внутри единого S4/C5 organization-only commercial contour. |
+| UI-9 | `DONE` | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно. |
+| Client mood residual | `DONE` | Empty chart скрывается, mood controls остаются. |
+| UI-P | `DONE` | Shared tokens/chrome/list rhythm реализованы; late list-row reference учтён. |
+
+Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
+повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
+
+### Обязательный порядок исполнения — current selector 2026-07-22
+
+1. Закрытые UI-0, UI-2, UI-8, UI-9, UI-P и Patient mood residual повторно не запускаются. UI-1/UI-3/UI-4/UI-6
+   также не переоткрываются целиком: workers получают только exact residual из current-truth table.
+2. Первый независимый residual cluster: UI-1 picker `#960`, UI-3a/b gradient+broadcast IA `#961` и UI-4 preview +
+   UI-5a full-workspace reuse `#958`; не более трёх workers, точные file scopes подтверждаются до запуска.
+3. UI-3c shared composer `#962` идёт после UI-3a/b из-за пересечения communications consumers. UI-6b `#963`
+   стартует только после отдельного data/settings contract manifest и не смешивается с уже закрытой косметикой.
+4. Полный UI-5b остаётся после U5A и record-class visibility/export readiness. UI-7a `#964` — отдельный high-risk
+   backend/worker stage; UI-7b Voice/STT `#922` остаётся post-production.
 
 Targeted checks presentation workers могут идти независимо; lint/build/full CI и live DEV на единственном `:5200`
 сериализуются. Полный CI запускается на milestone, а не после каждого slice.
@@ -250,16 +303,18 @@ Targeted checks presentation workers могут идти независимо; l
 |---|---|---|
 | UI-0 booking funnel | `#923`; manual patient/walk-in — `#801` | `#923` — единый UI-0 stage; `#801` остаётся отдельным authority для полного manual patient/walk-in scope и не форкается |
 | Manual patient/walk-in | U3B / `#801` | переиспользовать; не считать authority для UI-0 trace |
-| UI-1 presentation/behavior | C1 / `#851` | обновить scope существующей задачи при запуске |
+| UI-1 presentation/behavior | historical C1 / `#851`; exact picker residual `#960` | не переоткрывать весь C1; `#960` заменяет локальный picker canonical reuse |
 | UI-1c appointment detail card | `#951`, sibling закрытого C1 `#851` | новый owner delta; запускать отдельно, не переоткрывать и не повторять весь C1 |
 | SCH-G5 | `#848` | owner-waiting, без реализации |
 | UI-2 built-in Online location | базовый online-location scope отделить от расширенного `#215` | G5 закрыт; переиспользовать существующую модель и не объявлять закрытым расширенный flow `#215` |
-| UI-3 communications | C1 / `#852` | split на subscopes в meta/note, не новые дубли |
-| UI-4/UI-6 presentation | C1 / `#850` | принятые/integrated slices не повторять; новый owner delta и backend residual фиксировать отдельно в note/meta той же карты после census |
-| UI-5a existing-card container reuse | `#958`; layout-only predecessor U5B | запускать после route/guard census; не менять data/API/visibility/schema |
+| UI-3 communications | historical C1 / `#852`; residual `#961` + `#962` | `#961` gradient+broadcast IA; `#962` shared composer; закрытую 45/55 часть не повторять |
+| UI-4/UI-6 presentation | historical C1 / `#850`; UI-4 preview входит в `#958`; UI-6b `#963` | закрытые presentation/metrics не повторять; preview и configurable Today не считать закрытыми baseline |
+| UI-5a existing-card full-workspace reuse | `#958`; layout-only predecessor U5B | selected card заменяет весь content container; возврат восстанавливает list state; после route/guard census, без data/API/visibility/schema changes |
 | UI-5b organization card/history policy | U5B roadmap stage / `#928` contract | U5A + record-class runtime readiness; не смешивать с `#958` |
 | UI-8 mechanics/reminders | C4D/C5 + `#191`, foundation `#888` accepted | только organization/clinic axis; не форкать entitlement/commercial систему |
 | UI-9 individual exercises | `#564`, design `#565` | owner-approved; запуск после C4D exact-org isolation |
+| Patient Today mood residual | `#924` | repository stage завершён; live owner acceptance не подменять audit seal |
+| UI-7a scheduled messages | `#964` | high-risk backend/worker stage после exact contract; Voice/STT `#922` исключён |
 | UI-P doctor chrome/tokens | taskdb `#925` | shared doctor primitives + Clients header search; presentation-only, без patient/public UI |
 | Full Doctor DNA migration | `#885` | owner-cancelled/superseded; сохранить blocked historical record без stale question |
 
@@ -335,10 +390,11 @@ audit. TEST/deploy/full CI не входят — stage присоединяет�
 - `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.tsx`
 - `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.test.tsx`
 
-**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/patients`, `dev:doctor`; `1440×900` и `390×844`. Layout 50/50
-на desktop и упражнения-подобный master/detail на mobile; поиск в page header; KPI по три в ряд, имеют единый active
-state и короткие delayed tooltips; терминология берётся из patient label; информационные иконки имеют стабильные
-слоты. Не менять metric queries/semantics и не строить inline patient card.
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/patients`, `dev:doctor`; `1440×900` и `390×844`. Обычный режим
+сохраняет 50/50 `list + filters/preview`; поиск находится в page header; KPI по три в ряд, имеют единый active state
+и короткие delayed tooltips; терминология берётся из patient label; информационные иконки имеют стабильные слоты.
+Не менять metric queries/semantics. Полная карточка относится к отдельному UI-5 card mode и не рендерится внутри
+правой половины.
 
 Для каждого scope: focused tests + scoped typecheck/lint по политике, один живой DEV evidence pass (сериализован на
 `:5200`), затем один независимый audit по точным acceptance. TEST deploy и full CI не входят; full CI идёт только на
@@ -346,8 +402,9 @@ state и короткие delayed tooltips; терминология берёт�
 
 ### UI-3 presentation/interaction delta — Коммуникации
 
-**Current fact:** baseline taskdb `#852` завершён для прежнего 40/60 acceptance. Новый owner delta явно заменяет
-только соответствующие presentation/interaction пункты; старый stage целиком не повторять.
+**Current fact:** исторический taskdb `#852` стартовал с 40/60, но поздний owner delta и текущий live baseline уже
+45/55 с fallback 50/50. Acceptance карточки и этого плана используют только позднюю пропорцию; старый stage целиком
+не повторяется, проверяется только полный непокрытый residual ниже.
 
 **Initial file census (уточнить code-search перед launch):**
 
@@ -370,7 +427,8 @@ link detail. Shared composer/backend/scheduled-message работу не сме�
 - Existing independent multi-select pattern → UI-1b, после trace текущего state contract.
 - Standard doctor `Badge`, `DoctorOpenChatButton`, `phoneToTelHref` и canonical `patientCardHref` → UI-1c; новый
   chat/phone/payment механизм не создавать.
-- `CatalogSplitLayout`/действующий doctor split primitive → UI-3/UI-4/UI-5; новый layout primitive не создавать.
+- `CatalogSplitLayout`/действующий doctor split primitive → обычный UI-3/UI-4 split. UI-5 full-workspace card mode
+  не втискивается в этот primitive и переиспользует существующий patient-card route/view.
 - `ChatView` и текущие discussion renderers → UI-3 background и поздний UI-7 message status.
 - Existing Overview/Visits blocks и `MembershipPanel` → перенос в UI-5, не переписывание.
 - Accepted S4 `MECHANIC_REGISTRY`/resolver/chokepoint `#888` → UI-8.

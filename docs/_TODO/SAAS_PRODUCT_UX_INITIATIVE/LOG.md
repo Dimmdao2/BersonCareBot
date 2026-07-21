@@ -1,5 +1,25 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-22 — owner roadmap reconciled against full Doctor UI brief (`#959`)
+
+Owner stopped further implementation after the active plan had compressed part of the detailed Doctor UI brief.
+Code workers were stopped before changes, and the original plan commit `f48f35a56`, current implementation,
+OWNER_REVIEW, roadmap, active subordinate plans and taskdb were compared in three independent read-only passes.
+
+The existing canon now restores the exact requirements that had been lost or downgraded: broadcast detail opens in
+the left communications pane with its error log on the right; one shared composer covers doctor/patient chat and
+doctor/patient comments; the normal «Клиенты» screen retains filters plus a functional preview; opening the full
+patient card replaces the whole doctor content workspace and restores list state on return; the complete patient-card
+composition is preserved without abbreviation; configurable Today signals remain an owner-requested stage; scheduled
+messages cover all four chat/comment consumers with durable status and worker delivery. No parallel roadmap was
+created.
+
+The factual matrix is no longer blanket-green: UI-0/2/8/9/UI-P and the patient mood residual are repository-complete;
+UI-1, UI-3, UI-4 and UI-6 are partial; UI-5 and UI-7 are not implemented. Exact residual taskdb cards are `#960`–
+`#964`, while `#958` was corrected to the preview + full-workspace routing behavior. Stale hardening, S4,
+outbound-alerting, dependency/editor and initiative-registry statuses were reconciled without rewriting historical
+log entries. No source code, DB, environment, deploy or CI action was performed in this docs-only stage.
+
 ## 2026-07-21 — appointment detail UI owner delta queued (`UI-1c`, `#951`)
 
 Owner supplied a focused correction for the appointment card opened from Schedule/Today. The delta is now bound to
