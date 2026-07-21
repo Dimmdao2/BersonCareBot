@@ -110,7 +110,7 @@ export function DoctorTodayDashboard({
       {/* Двухколоночная раскладка: левое полотно | правое полотно */}
       <div
         id="doctor-today-two-panes"
-        className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:items-start"
+        className="grid gap-3 md:grid-cols-2 md:items-start"
       >
         {/* ───── Левое полотно: входящий рабочий поток ───── */}
         <div id="doctor-today-left-pane" className="flex flex-col gap-3">

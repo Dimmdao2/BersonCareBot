@@ -124,10 +124,13 @@ describe('DoctorTodayMiniCalendar', () => {
       );
       expect(screen.getByRole('heading', { name: 'пн, 9 июня' })).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: 'Расписание на сегодня' })).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Открыть календарь' })).toHaveAttribute(
+      const scheduleLink = screen.getByRole('link', { name: 'Открыть расписание' });
+      expect(scheduleLink).toHaveAttribute(
         'href',
         '/app/doctor/schedule?tab=calendar',
       );
+      expect(scheduleLink).toHaveClass('h-8');
+      expect(scheduleLink).toHaveClass('rounded-[var(--doctor-control-radius,24px)]');
     });
 
     it('renders FullCalendar component', () => {
@@ -156,7 +159,7 @@ describe('DoctorTodayMiniCalendar', () => {
       );
       // R1: подсказка «нет записей»
       expect(screen.getByText(/Записей на сегодня нет/)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Открыть календарь' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Открыть расписание' })).toHaveAttribute(
         'href',
         '/app/doctor/schedule?tab=calendar',
       );
@@ -373,6 +376,38 @@ describe('DoctorTodayMiniCalendar', () => {
       expect(screen.getByTestId('fullcalendar')).toBeInTheDocument();
       // Appointment is in sr-only list
       expect(screen.getByRole('link', { name: 'Пациент' })).toBeInTheDocument();
+      expect(lastFullCalendarProps?.slotMinTime).toBe('06:30:00');
+      expect(lastFullCalendarProps?.slotMaxTime).toBe('19:00:00');
+    });
+
+    it('starts exactly one hour before the first appointment without double-padding working bounds', () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[makeAppt('a1', '08:00')]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 7 * 60, endMinute: 18 * 60 }}
+        />,
+      );
+
+      expect(lastFullCalendarProps?.slotMinTime).toBe('07:00:00');
+      expect(lastFullCalendarProps?.slotMaxTime).toBe('19:00:00');
+    });
+
+    it('expands from the 09:00-19:00 default to exact working bounds', () => {
+      render(
+        <DoctorTodayMiniCalendar
+          appointments={[]}
+          nowMinutes={600}
+          todayDateLabel="ср, 11 июня"
+          displayIana={DEFAULT_IANA}
+          workingBounds={{ startMinute: 8 * 60, endMinute: 21 * 60 }}
+        />,
+      );
+
+      expect(lastFullCalendarProps?.slotMinTime).toBe('08:00:00');
+      expect(lastFullCalendarProps?.slotMaxTime).toBe('21:00:00');
     });
   });
 });

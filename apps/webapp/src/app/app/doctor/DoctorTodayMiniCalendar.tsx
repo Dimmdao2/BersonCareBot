@@ -8,7 +8,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import luxonPlugin from "@fullcalendar/luxon3";
 import ruLocale from "@fullcalendar/core/locales/ru";
 import { DoctorSection, DoctorSectionTitle } from "@/shared/ui/doctor/DoctorSection";
-import { doctorInlineLinkClass } from "@/shared/ui/doctor/doctorVisual";
+import { buttonVariants } from "@/shared/ui/doctor/primitives/button";
 import type { TodayAppointmentItem } from "./loadDoctorTodayDashboard";
 import type { CalendarAppointmentEvent } from "@/modules/booking-calendar/types";
 import { isCancelledAppointmentStatus } from "@/modules/booking-calendar/appointmentStatusLabels";
@@ -148,12 +148,16 @@ export function DoctorTodayMiniCalendar({
                 .toISO() ?? startAt,
             };
           });
+    // `workingBounds` are the exact wall-clock bounds from deriveWorkingBounds.
+    // Keep them exact here: the shared visible-window helper already owns the
+    // one-hour appointment buffer. Pre-padding both inputs made the Today grid
+    // start two hours before the first appointment in an early-shift case.
     const bounds =
       workingBounds == null
         ? null
         : {
-            minMinute: Math.max(0, workingBounds.startMinute - 60),
-            maxMinute: Math.min(24 * 60, workingBounds.endMinute + 60),
+            minMinute: workingBounds.startMinute,
+            maxMinute: workingBounds.endMinute,
           };
     const result = deriveCalendarVisibleTimeWindow(bounds, visibleEvents, displayIana, {
       startMinute: DEFAULT_CALENDAR_WINDOW_MIN,
@@ -224,8 +228,11 @@ export function DoctorTodayMiniCalendar({
     <DoctorSection id="doctor-today-mini-calendar">
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
-        <Link href="/app/doctor/schedule?tab=calendar" className={doctorInlineLinkClass}>
-          Открыть календарь
+        <Link
+          href="/app/doctor/schedule?tab=calendar"
+          className={buttonVariants({ size: "sm" })}
+        >
+          Открыть расписание
         </Link>
       </div>
 
