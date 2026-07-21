@@ -6,6 +6,7 @@ const getCurrentDbPrincipalOrganizationIdMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
 }));
 
@@ -115,7 +116,7 @@ describe("POST /api/auth/email/confirm", () => {
       }),
     );
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(503);
     expect(confirmEmailChallengeMock).not.toHaveBeenCalled();
   });
 });

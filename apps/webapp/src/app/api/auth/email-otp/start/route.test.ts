@@ -4,6 +4,7 @@ const startPublicEmailOtpChallengeMock = vi.fn();
 const isAuthChannelEnabledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/auth/authChannelPolicy", () => ({
+  AUTH_CHANNEL_DISABLED_ERROR: "auth_channel_disabled",
   isAuthChannelEnabled: (...args: unknown[]) => isAuthChannelEnabledMock(...args),
 }));
 
@@ -70,7 +71,7 @@ describe("POST /api/auth/email-otp/start", () => {
 
     const res = await POST(makeStartRequest({ email: "user@example.com" }, "10.0.0.10"));
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(503);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "auth_channel_disabled" });
     expect(startPublicEmailOtpChallengeMock).not.toHaveBeenCalled();
   });
