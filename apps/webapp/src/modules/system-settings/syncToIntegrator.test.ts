@@ -15,7 +15,10 @@ vi.mock("@/infra/integrator-push/integratorPushOutbox", () => ({
   enqueueIntegratorPush: enqueueIntegratorPushMock,
   enqueuePlatformSystemSettingsPush: enqueuePlatformSystemSettingsPushMock,
 }));
-vi.mock("@bersoncare/db-principal", () => ({ getCurrentDbPrincipal: getCurrentDbPrincipalMock }));
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentCorrelationIdHeader: vi.fn(() => ({})),
+  getCurrentDbPrincipal: getCurrentDbPrincipalMock,
+}));
 
 import { normalizeStoredValueJsonForIntegratorSync, syncSettingToIntegrator } from "./syncToIntegrator";
 

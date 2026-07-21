@@ -86,6 +86,7 @@ vi.mock("@/app-layer/di/bindAuthModulePorts", () => ({
 }));
 
 vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentObservabilityContext: vi.fn(() => ({})),
   getCurrentDbPrincipalOrganizationId: () => getCurrentDbPrincipalOrganizationIdMock(),
 }));
 

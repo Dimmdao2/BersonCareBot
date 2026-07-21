@@ -27,7 +27,7 @@ describe("integrator reminder M2M organization principal ordering", () => {
 
   it("verifies and validates notify payload before principal, enrollment, and idempotency DB access", () => {
     expectOrdered(source("./patient-reminders/notify-channels/route.ts"), [
-      "verifyIntegratorSignature(timestamp, rawBody, signature)",
+      "verifyIntegratorSignature(timestamp, rawBody, signature, request)",
       "integratorPatientReminderNotifyBodySchema.safeParse(parsedJson)",
       "enterVerifiedIntegratorOrganizationPrincipal(",
       "hasActiveEnrollment(",

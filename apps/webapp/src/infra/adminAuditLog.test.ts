@@ -10,6 +10,7 @@ vi.mock("@/infra/db/runWebappSql", () => ({
 }));
 
 vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentObservabilityContext: vi.fn(() => ({})),
   getCurrentDbPrincipal: vi.fn(() => undefined),
   getCurrentDbPrincipalOrganizationId: getCurrentDbPrincipalOrganizationIdMock,
   applyDbPrincipalToConnection: vi.fn(async () => false),
