@@ -319,10 +319,7 @@ import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemory
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
 import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
 import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
-import {
-  createPgOrganizationTrialProvisioningPort,
-  createPgPlatformEntitlementsPort,
-} from "@/infra/repos/pgPlatformEntitlements";
+import { createPgPlatformEntitlementsPort } from "@/infra/repos/pgPlatformEntitlements";
 import { createInMemoryPlatformEntitlementsPort } from "@/infra/repos/inMemoryPlatformEntitlements";
 import { createPlatformEntitlementsService, isMechanicEnabled } from "@/modules/org-entitlements/service";
 import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
@@ -526,9 +523,6 @@ const orgEntitlementsPort = !inMemoryRepos
 const platformEntitlementsService = createPlatformEntitlementsService(
   !inMemoryRepos ? createPgPlatformEntitlementsPort() : createInMemoryPlatformEntitlementsPort(),
 );
-const organizationTrialProvisioningPort = !inMemoryRepos
-  ? createPgOrganizationTrialProvisioningPort()
-  : null;
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
@@ -537,9 +531,6 @@ const organizationProvisioningPort = !inMemoryRepos
   : createInMemoryOrganizationProvisioningPort();
 const organizationProvisioningService = createOrganizationProvisioningService({
   provisioningPort: organizationProvisioningPort,
-  startConfiguredTrial: organizationTrialProvisioningPort
-    ? (organizationId) => organizationTrialProvisioningPort.startConfiguredTrial(organizationId)
-    : undefined,
 });
 const staffSecurityService = createStaffSecurityService(
   !inMemoryRepos ? createPgStaffSecurityPort() : createInMemoryStaffSecurityPort(),

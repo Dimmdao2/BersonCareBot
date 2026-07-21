@@ -81,13 +81,4 @@ describe("createOrganizationProvisioningService", () => {
     });
   });
 
-  it("applies the configured organization-provisioned trial idempotently after provisioning", async () => {
-    const port = createPort();
-    const startConfiguredTrial = vi.fn(async () => undefined);
-    const service = createOrganizationProvisioningService({ provisioningPort: port, startConfiguredTrial });
-
-    await service.provisionSpecialistOwner({ challengeId: "challenge-1" });
-
-    expect(startConfiguredTrial).toHaveBeenCalledWith("org-1");
-  });
 });

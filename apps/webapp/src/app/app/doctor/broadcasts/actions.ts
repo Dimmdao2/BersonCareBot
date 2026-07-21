@@ -65,8 +65,6 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, "actorId">
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "mailings");
-  if (!entitlement.ok) throw new Error(`entitlement_required:${entitlement.mechanic}`);
   const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
     {
@@ -75,6 +73,13 @@ export async function executeBroadcastAction(
     },
     {
       organizationId: workspace.organizationId,
+      reserveAudienceGrowth: async (audienceSize) => {
+        const entitlement = await requireEntitlementForAction(workspace, "mailings", {
+          kind: "mutation",
+          ...(audienceSize > 0 ? { growthByUnit: { messages: audienceSize } } : {}),
+        });
+        if (!entitlement.ok) throw new Error(`${entitlement.reason}:${entitlement.mechanic}`);
+      },
       runDeliveryCommit: (fn) =>
         withDoctorWorkspacePrincipal(workspace, "doctor.broadcasts.execute", fn),
     },

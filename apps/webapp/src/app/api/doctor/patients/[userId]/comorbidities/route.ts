@@ -103,7 +103,7 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
   const patientUserId = identity.userId;
-  const entitlement = await requireEntitlement(gate.ctx, "patient_card");
+  const entitlement = await requireEntitlement(gate.ctx, "patient_card", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   try {

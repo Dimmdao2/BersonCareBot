@@ -41,6 +41,9 @@ SELECT (
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('public.be_organizations') IS NOT NULL
   AND to_regclass('public.be_organization_members') IS NOT NULL
+  AND to_regclass('public.saas_tariffs') IS NOT NULL
+  AND to_regclass('public.saas_trial_policy') IS NOT NULL
+  AND to_regclass('public.saas_organization_trials') IS NOT NULL
   AND to_regclass('public.reference_catalog_baselines') IS NOT NULL
   AND to_regprocedure('app.seed_reference_catalog_snapshot(uuid)') IS NOT NULL
   AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
@@ -80,6 +83,10 @@ DECLARE
   v_platform_user_id uuid;
   v_organization_id uuid;
   v_membership_id uuid;
+  v_trial_policy record;
+  v_trial_started_at timestamptz;
+  v_has_trial_policy boolean := false;
+  v_start_trial boolean := false;
 BEGIN
   v_platform_user_id := app.require_staff_security_self_user_id();
 
@@ -146,6 +153,24 @@ BEGIN
     RETURN;
   END IF;
 
+  -- The active policy is selected inside the same SECURITY DEFINER transaction as organization
+  -- creation. Only organization_provisioned starts here; email_verified/manual remain truthful
+  -- deferred states. No active policy means no trial, never a fabricated default or an outage.
+  SELECT policy.*
+  INTO v_trial_policy
+  FROM public.saas_trial_policy AS policy
+  JOIN public.saas_tariffs AS tariff
+    ON tariff.id = policy.tariff_id
+   AND tariff.is_active
+  WHERE policy.key = 'global'
+    AND policy.is_active
+  LIMIT 1
+  FOR UPDATE OF policy;
+  v_has_trial_policy := FOUND;
+  IF v_has_trial_policy THEN
+    v_start_trial := v_trial_policy.start_event = 'organization_provisioned';
+  END IF;
+
   UPDATE public.platform_users AS u
   SET role = 'doctor',
       display_name = v_intent.specialist_full_name,
@@ -159,6 +184,8 @@ BEGIN
     title,
     is_active,
     sort_order,
+    tariff_id,
+    commercial_access_state,
     created_at,
     updated_at
   )
@@ -167,9 +194,67 @@ BEGIN
     v_intent.organization_title,
     true,
     0,
+    CASE WHEN v_start_trial THEN v_trial_policy.tariff_id ELSE NULL END,
+    CASE
+      WHEN v_start_trial THEN 'active'
+      WHEN v_has_trial_policy THEN 'trial_pending'
+      ELSE 'no_trial'
+    END,
     now(),
     now()
   );
+
+  IF v_start_trial THEN
+    v_trial_started_at := clock_timestamp();
+    INSERT INTO public.saas_organization_trials (
+    organization_id,
+    tariff_id,
+    started_at,
+    ends_at,
+    grace_ends_at,
+    post_trial_behavior,
+    post_trial_tariff_id,
+    status,
+    created_by
+  ) VALUES (
+    v_organization_id,
+    v_trial_policy.tariff_id,
+    v_trial_started_at,
+    v_trial_started_at + make_interval(days => v_trial_policy.duration_days),
+    v_trial_started_at + make_interval(days => v_trial_policy.duration_days + v_trial_policy.grace_days),
+    v_trial_policy.post_trial_behavior,
+    v_trial_policy.post_trial_tariff_id,
+    'active',
+    v_user.id
+    );
+
+    INSERT INTO public.admin_audit_log (
+    organization_id,
+    actor_id,
+    action,
+    target_id,
+    details,
+    status
+  ) VALUES (
+    v_organization_id,
+    v_user.id,
+    'saas_trial_start',
+    v_organization_id::text,
+    jsonb_build_object(
+      'reason', 'automatic organization provisioning trial',
+      'before', NULL,
+      'after', jsonb_build_object(
+        'tariffId', v_trial_policy.tariff_id,
+        'durationDays', v_trial_policy.duration_days,
+        'graceDays', v_trial_policy.grace_days,
+        'startEvent', v_trial_policy.start_event,
+        'postTrialBehavior', v_trial_policy.post_trial_behavior,
+        'postTrialTariffId', v_trial_policy.post_trial_tariff_id
+      )
+    ),
+    'ok'
+    );
+  END IF;
 
   INSERT INTO public.be_organization_members (
     organization_id,

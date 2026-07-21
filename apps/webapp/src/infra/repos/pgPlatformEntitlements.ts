@@ -1,12 +1,17 @@
 import { and, eq, or, sql } from "drizzle-orm";
-import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
+import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import type {
   PlatformEntitlementsPort,
   PlatformMutationAudit,
-  OrganizationTrialProvisioningPort,
 } from "@/modules/org-entitlements/ports";
-import type { Tariff, TariffQuota, TariffQuotaMap, TrialPolicy } from "@/modules/org-entitlements/types";
+import type {
+  OrgCommercialAccessState,
+  Tariff,
+  TariffQuota,
+  TariffQuotaMap,
+  TrialPolicy,
+} from "@/modules/org-entitlements/types";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
 import {
   saasOrganizationTrials,
@@ -46,13 +51,13 @@ async function appendAudit(
     audit: PlatformMutationAudit;
     action: string;
     targetId: string;
-    organizationId?: string | null;
+    organizationId: string | null;
     before: unknown;
     after: unknown;
   },
 ): Promise<void> {
   await tx.insert(adminAuditLog).values({
-    organizationId: input.organizationId ?? null,
+    organizationId: input.organizationId,
     actorId: input.audit.actorId,
     action: input.action,
     targetId: input.targetId,
@@ -109,28 +114,55 @@ function assertPlatformOperationsPrincipal(): void {
 async function startTrialForOrganization(
   organizationId: string,
   audit: PlatformMutationAudit,
-  requiredStartEvent?: "organization_provisioned",
 ): Promise<{ created: boolean; endsAt: string } | null> {
-  return runWithDbOrganizationPrincipal(organizationId, () =>
-    getDrizzle().transaction(async (tx) => {
-      const [policyRow] = await tx.select().from(saasTrialPolicy).where(and(eq(saasTrialPolicy.key, "global"), eq(saasTrialPolicy.isActive, true))).limit(1);
-      if (!policyRow) return null;
-      if (requiredStartEvent && policyRow.startEvent !== requiredStartEvent) return null;
-      await requireActiveTariff(tx, policyRow.tariffId);
-      const startedAt = new Date();
-      const endsAt = new Date(startedAt.getTime() + policyRow.durationDays * 86_400_000);
-      const graceEndsAt = new Date(endsAt.getTime() + policyRow.graceDays * 86_400_000);
-      const [created] = await tx.insert(saasOrganizationTrials).values({ organizationId, tariffId: policyRow.tariffId, startedAt: startedAt.toISOString(), endsAt: endsAt.toISOString(), graceEndsAt: graceEndsAt.toISOString(), postTrialBehavior: policyRow.postTrialBehavior, postTrialTariffId: policyRow.postTrialTariffId, createdBy: audit.actorId }).onConflictDoNothing({ target: saasOrganizationTrials.organizationId }).returning();
-      if (!created) {
-        const [existing] = await tx.select({ endsAt: saasOrganizationTrials.endsAt }).from(saasOrganizationTrials).where(eq(saasOrganizationTrials.organizationId, organizationId)).limit(1);
-        if (!existing) throw new Error("trial_start_conflict");
-        return { created: false, endsAt: existing.endsAt };
-      }
-      await tx.update(beOrganizations).set({ tariffId: policyRow.tariffId }).where(eq(beOrganizations.id, organizationId));
-      await appendAudit(tx, { audit, action: "saas_trial_start", targetId: created.id, organizationId, before: null, after: created });
-      return { created: true, endsAt: created.endsAt };
-    }),
-  );
+  return getDrizzle().transaction(async (tx) => {
+    const [policyRow] = await tx
+      .select()
+      .from(saasTrialPolicy)
+      .where(and(eq(saasTrialPolicy.key, "global"), eq(saasTrialPolicy.isActive, true)))
+      .limit(1);
+    if (!policyRow) return null;
+    await requireActiveTariff(tx, policyRow.tariffId);
+    const startedAt = new Date();
+    const endsAt = new Date(startedAt.getTime() + policyRow.durationDays * 86_400_000);
+    const graceEndsAt = new Date(endsAt.getTime() + policyRow.graceDays * 86_400_000);
+    const [created] = await tx
+      .insert(saasOrganizationTrials)
+      .values({
+        organizationId,
+        tariffId: policyRow.tariffId,
+        startedAt: startedAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        graceEndsAt: graceEndsAt.toISOString(),
+        postTrialBehavior: policyRow.postTrialBehavior,
+        postTrialTariffId: policyRow.postTrialTariffId,
+        createdBy: audit.actorId,
+      })
+      .onConflictDoNothing({ target: saasOrganizationTrials.organizationId })
+      .returning();
+    if (!created) {
+      const [existing] = await tx
+        .select({ endsAt: saasOrganizationTrials.endsAt })
+        .from(saasOrganizationTrials)
+        .where(eq(saasOrganizationTrials.organizationId, organizationId))
+        .limit(1);
+      if (!existing) throw new Error("trial_start_conflict");
+      return { created: false, endsAt: existing.endsAt };
+    }
+    await tx
+      .update(beOrganizations)
+      .set({ tariffId: policyRow.tariffId, commercialAccessState: "active" })
+      .where(eq(beOrganizations.id, organizationId));
+    await appendAudit(tx, {
+      audit,
+      action: "saas_trial_start",
+      targetId: created.id,
+      organizationId,
+      before: null,
+      after: created,
+    });
+    return { created: true, endsAt: created.endsAt };
+  });
 }
 
 export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
@@ -143,10 +175,14 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
 
     async listOrganizations() {
       assertPlatformOperationsPrincipal();
-      return getDrizzle()
-        .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive })
+      const rows = await getDrizzle()
+        .select({ id: beOrganizations.id, title: beOrganizations.title, tariffId: beOrganizations.tariffId, isActive: beOrganizations.isActive, commercialAccessState: beOrganizations.commercialAccessState })
         .from(beOrganizations)
         .orderBy(beOrganizations.title);
+      return rows.map((row) => ({
+        ...row,
+        commercialAccessState: row.commercialAccessState as OrgCommercialAccessState,
+      }));
     },
 
     async getTrialPolicy() {
@@ -160,7 +196,7 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
       return getDrizzle().transaction(async (tx) => {
         const [row] = await tx.insert(saasTariffs).values(tariffValues(input)).returning();
         if (!row) throw new Error("tariff_create_failed");
-        await appendAudit(tx, { audit, action: "saas_tariff_create", targetId: row.id, before: null, after: row });
+        await appendAudit(tx, { audit, action: "saas_tariff_create", targetId: row.id, organizationId: null, before: null, after: row });
         return toTariff(row);
       });
     },
@@ -173,7 +209,7 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
         if (before.isActive && !input.isActive) await assertTariffNotUsedByActiveTrialPolicy(tx, id);
         const [row] = await tx.update(saasTariffs).set(tariffValues(input)).where(eq(saasTariffs.id, id)).returning();
         if (!row) throw new Error("tariff_update_failed");
-        await appendAudit(tx, { audit, action: "saas_tariff_update", targetId: id, before, after: row });
+        await appendAudit(tx, { audit, action: "saas_tariff_update", targetId: id, organizationId: null, before, after: row });
         return toTariff(row);
       });
     },
@@ -185,44 +221,38 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
         if (!before) throw new Error("tariff_not_found");
         await assertTariffNotUsedByActiveTrialPolicy(tx, id);
         const [after] = await tx.update(saasTariffs).set({ isActive: false, updatedAt: new Date().toISOString() }).where(eq(saasTariffs.id, id)).returning();
-        await appendAudit(tx, { audit, action: "saas_tariff_deactivate", targetId: id, before, after });
+        await appendAudit(tx, { audit, action: "saas_tariff_deactivate", targetId: id, organizationId: null, before, after });
       });
     },
 
     async assignTariff(organizationId, tariffId, audit) {
       assertPlatformOperationsPrincipal();
-      await runWithDbOrganizationPrincipal(organizationId, () =>
-        getDrizzle().transaction(async (tx) => {
+      await getDrizzle().transaction(async (tx) => {
           if (tariffId) await requireActiveTariff(tx, tariffId);
-          const [before] = await tx.select({ tariffId: beOrganizations.tariffId }).from(beOrganizations).where(eq(beOrganizations.id, organizationId)).limit(1);
+          const [before] = await tx.select({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState }).from(beOrganizations).where(eq(beOrganizations.id, organizationId)).limit(1);
           if (!before) throw new Error("organization_not_found");
-          await tx.update(beOrganizations).set({ tariffId }).where(eq(beOrganizations.id, organizationId));
+          const [after] = await tx.update(beOrganizations).set({ tariffId, commercialAccessState: tariffId ? "active" : "no_trial" }).where(eq(beOrganizations.id, organizationId)).returning({ tariffId: beOrganizations.tariffId, commercialAccessState: beOrganizations.commercialAccessState });
           await tx.update(saasOrganizationTrials).set({ status: "ended", updatedAt: new Date().toISOString() }).where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")));
-          await appendAudit(tx, { audit, action: tariffId ? "saas_tariff_assign" : "saas_tariff_unassign", targetId: organizationId, organizationId, before, after: { tariffId } });
-        }),
-      );
+          await appendAudit(tx, { audit, action: tariffId ? "saas_tariff_assign" : "saas_tariff_unassign", targetId: organizationId, organizationId, before, after });
+        });
     },
 
     async upsertOverride(input, audit) {
       assertPlatformOperationsPrincipal();
-      await runWithDbOrganizationPrincipal(input.organizationId, () =>
-        getDrizzle().transaction(async (tx) => {
+      await getDrizzle().transaction(async (tx) => {
           const [before] = await tx.select().from(saasOrgEntitlementOverrides).where(and(eq(saasOrgEntitlementOverrides.organizationId, input.organizationId), eq(saasOrgEntitlementOverrides.mechanic, input.mechanic))).limit(1);
           const values = { organizationId: input.organizationId, mechanic: input.mechanic, enabled: input.enabled, quota: input.quota as TariffQuota | null, expiresAt: input.expiresAt, updatedAt: new Date().toISOString() };
           const [after] = await tx.insert(saasOrgEntitlementOverrides).values(values).onConflictDoUpdate({ target: [saasOrgEntitlementOverrides.organizationId, saasOrgEntitlementOverrides.mechanic], set: values }).returning();
           await appendAudit(tx, { audit, action: "saas_entitlement_override_upsert", targetId: `${input.organizationId}:${input.mechanic}`, organizationId: input.organizationId, before: before ?? null, after });
-        }),
-      );
+        });
     },
 
     async deleteOverride(organizationId, mechanic, audit) {
       assertPlatformOperationsPrincipal();
-      await runWithDbOrganizationPrincipal(organizationId, () =>
-        getDrizzle().transaction(async (tx) => {
+      await getDrizzle().transaction(async (tx) => {
           const [before] = await tx.delete(saasOrgEntitlementOverrides).where(and(eq(saasOrgEntitlementOverrides.organizationId, organizationId), eq(saasOrgEntitlementOverrides.mechanic, mechanic))).returning();
           await appendAudit(tx, { audit, action: "saas_entitlement_override_delete", targetId: `${organizationId}:${mechanic}`, organizationId, before: before ?? null, after: null });
-        }),
-      );
+        });
     },
 
     async setTrialPolicy(policy, audit) {
@@ -233,7 +263,7 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
         const [before] = await tx.select().from(saasTrialPolicy).where(eq(saasTrialPolicy.key, "global")).limit(1);
         const values = { ...policy, key: "global", updatedBy: audit.actorId, updatedAt: new Date().toISOString() };
         const [after] = await tx.insert(saasTrialPolicy).values(values).onConflictDoUpdate({ target: saasTrialPolicy.key, set: values }).returning();
-        await appendAudit(tx, { audit, action: "saas_trial_policy_update", targetId: "global", before: before ?? null, after });
+        await appendAudit(tx, { audit, action: "saas_trial_policy_update", targetId: "global", organizationId: null, before: before ?? null, after });
       });
     },
 
@@ -244,28 +274,14 @@ export function createPgPlatformEntitlementsPort(): PlatformEntitlementsPort {
 
     async extendTrial(organizationId, days, audit) {
       assertPlatformOperationsPrincipal();
-      return runWithDbOrganizationPrincipal(organizationId, () =>
-        getDrizzle().transaction(async (tx) => {
+      return getDrizzle().transaction(async (tx) => {
           const [before] = await tx.select().from(saasOrganizationTrials).where(eq(saasOrganizationTrials.organizationId, organizationId)).limit(1);
           if (!before) throw new Error("organization_trial_not_found");
           const [after] = await tx.update(saasOrganizationTrials).set({ endsAt: sql`${saasOrganizationTrials.endsAt} + (${days} * interval '1 day')`, graceEndsAt: sql`${saasOrganizationTrials.graceEndsAt} + (${days} * interval '1 day')`, extensionCount: sql`${saasOrganizationTrials.extensionCount} + 1`, updatedAt: new Date().toISOString() }).where(eq(saasOrganizationTrials.organizationId, organizationId)).returning();
           if (!after) throw new Error("trial_extension_failed");
           await appendAudit(tx, { audit, action: "saas_trial_extend", targetId: after.id, organizationId, before, after });
           return { endsAt: after.endsAt };
-        }),
-      );
-    },
-  };
-}
-
-export function createPgOrganizationTrialProvisioningPort(): OrganizationTrialProvisioningPort {
-  return {
-    async startConfiguredTrial(organizationId) {
-      await startTrialForOrganization(
-        organizationId,
-        { actorId: null, reason: "automatic organization provisioning trial" },
-        "organization_provisioned",
-      );
+        });
     },
   };
 }

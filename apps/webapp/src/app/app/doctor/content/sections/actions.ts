@@ -25,8 +25,6 @@ export async function saveContentSection(
   formData: FormData,
 ): Promise<SaveContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   const slug = (formData.get("slug") as string)?.trim() || "";
@@ -94,6 +92,12 @@ export async function saveContentSection(
     return { ok: false, error: "Некорректное сочетание типа раздела и папки CMS" };
   }
 
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", {
+    kind: "mutation",
+    ...(existing ? {} : { growthByUnit: { items: 1 } }),
+  });
+  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
+
   try {
     await withDoctorWorkspacePrincipal(workspace, () =>
       deps.contentSections.upsert({
@@ -132,7 +136,7 @@ export async function attachArticleSectionToSystemFolder(
   formData: FormData,
 ): Promise<AttachArticleSectionToFolderState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
@@ -198,7 +202,7 @@ export async function renameContentSectionSlug(
   formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
@@ -244,7 +248,7 @@ export async function deleteContentSection(
   formData: FormData,
 ): Promise<DeleteContentSectionState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 

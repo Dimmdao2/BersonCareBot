@@ -35,6 +35,16 @@ type CommercialState = {
   trialPolicy: TrialPolicy | null;
 };
 
+const COMMERCIAL_ACCESS_LABELS: Record<
+  PlatformOrganizationSummary['commercialAccessState'],
+  string
+> = {
+  compatibility: 'Совместимость без коммерческого ограничения',
+  no_trial: 'Триал не назначен',
+  trial_pending: 'Триал ожидает настроенного события старта',
+  active: 'Коммерческий доступ активен',
+};
+
 type TariffDraft = {
   id: string | null;
   name: string;
@@ -531,6 +541,11 @@ export function CommercialConstructorClient() {
               </SelectContent>
             </Select>
           </div>
+          {selectedOrganization ? (
+            <p className="text-sm text-muted-foreground">
+              Состояние: {COMMERCIAL_ACCESS_LABELS[selectedOrganization.commercialAccessState]}
+            </p>
+          ) : null}
           <div className="space-y-1">
             <Label htmlFor="organization-reason">Причина</Label>
             <Input

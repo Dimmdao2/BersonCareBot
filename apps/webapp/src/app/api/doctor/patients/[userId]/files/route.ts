@@ -106,8 +106,6 @@ export async function POST(
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "files");
-  if (!entitlement.ok) return entitlement.response;
 
   const { userId } = await params;
   if (!z.string().uuid().safeParse(userId).success) {
@@ -140,6 +138,12 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
   const patientUserId = identity.userId;
+
+  const entitlement = await requireEntitlement(gate.ctx, "files", {
+    kind: "mutation",
+    growthByUnit: { bytes: sizeBytes, items: 1 },
+  });
+  if (!entitlement.ok) return entitlement.response;
 
   // Get/create the patient's «Пациенты»/<ФИО> media library folder (PFI rule 4).
   const patientFolder = await withDoctorWorkspacePrincipal(gate.ctx, () =>

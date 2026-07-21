@@ -372,7 +372,7 @@ export async function PATCH(request: Request) {
     );
   }
   if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key)) {
-    const entitlement = await requireEntitlement(gate.ctx, "payments");
+    const entitlement = await requireEntitlement(gate.ctx, "payments", { kind: "mutation" });
     if (!entitlement.ok) return entitlement.response;
   }
   if (

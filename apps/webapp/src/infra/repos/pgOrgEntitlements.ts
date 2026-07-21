@@ -1,17 +1,20 @@
-import { and, eq } from "drizzle-orm";
-import { getCurrentDbPrincipal } from "@bersoncare/db-principal";
+import { and, eq, sql } from "drizzle-orm";
+import { getCurrentDbPrincipal, runWithDbOrganizationPrincipal } from "@bersoncare/db-principal";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { runWithWebappDbOperationFamily } from "@/infra/db/saasIsolationOperationContext";
 import { runWebappPgText } from "@/infra/db/runWebappSql";
 import type { OrgEntitlementsPort } from "@/modules/org-entitlements/ports";
 import { beOrganizations } from "../../../db/schema/bookingEngine";
 import {
-  saasOrganizationQuotaUsage,
   saasOrganizationTrials,
   saasOrgEntitlementOverrides,
   saasTariffs,
 } from "../../../db/schema/saasEntitlements";
-import { MECHANICS, type TariffQuota, type TariffQuotaMap } from "@/modules/org-entitlements/types";
+import type {
+  QuotaReservationDecision,
+  TariffQuota,
+  TariffQuotaMap,
+} from "@/modules/org-entitlements/types";
 
 type CurrentPatientEntitlementRow = {
   tariff_mechanics: Record<string, boolean> | null;
@@ -74,18 +77,12 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
           postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
         })
         .from(saasOrganizationTrials)
-        .where(eq(saasOrganizationTrials.organizationId, organizationId))
+        .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")))
         .limit(1);
       const trial = trials[0];
       if (trial && new Date(trial.graceEndsAt).getTime() < Date.now()) {
         if (trial.postTrialBehavior === "tariff") {
           tariffId = trial.postTrialTariffId;
-        } else {
-          return {
-            mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-            quotas: {},
-            includedSeats: 0,
-          };
         }
       }
       if (!tariffId) return null;
@@ -129,20 +126,104 @@ export function createPgOrgEntitlementsPort(): OrgEntitlementsPort {
       return rows.map((row) => ({ ...row, quota: row.quota as TariffQuota | null }));
     },
 
-    async getQuotaUsage(organizationId, mechanic, periodKey) {
+    async getEffectiveCommercialAccess(organizationId) {
+      const principal = getCurrentDbPrincipal();
+      if (principal?.kind === "patient") {
+        return { lifecycle: "active", tariffId: null, source: "compatibility" };
+      }
       const db = getDrizzle();
+      const organizations = await db
+        .select({
+          tariffId: beOrganizations.tariffId,
+          commercialAccessState: beOrganizations.commercialAccessState,
+        })
+        .from(beOrganizations)
+        .where(eq(beOrganizations.id, organizationId))
+        .limit(1);
+      const organization = organizations[0];
+      if (!organization) throw new Error("organization_not_found");
       const rows = await db
-        .select({ used: saasOrganizationQuotaUsage.used })
-        .from(saasOrganizationQuotaUsage)
-        .where(
-          and(
-            eq(saasOrganizationQuotaUsage.organizationId, organizationId),
-            eq(saasOrganizationQuotaUsage.mechanic, mechanic),
-            eq(saasOrganizationQuotaUsage.periodKey, periodKey),
-          ),
-        );
-      const row = rows[0];
-      return row?.used ?? 0;
+        .select({
+          tariffId: saasOrganizationTrials.tariffId,
+          endsAt: saasOrganizationTrials.endsAt,
+          graceEndsAt: saasOrganizationTrials.graceEndsAt,
+          postTrialBehavior: saasOrganizationTrials.postTrialBehavior,
+          postTrialTariffId: saasOrganizationTrials.postTrialTariffId,
+        })
+        .from(saasOrganizationTrials)
+        .where(and(eq(saasOrganizationTrials.organizationId, organizationId), eq(saasOrganizationTrials.status, "active")))
+        .limit(1);
+      const trial = rows[0];
+      if (!trial) {
+        return {
+          lifecycle: "active",
+          tariffId: organization.tariffId,
+          source:
+            organization.commercialAccessState === "compatibility"
+              ? "compatibility"
+              : organization.commercialAccessState === "no_trial"
+                ? "no_trial"
+                : "assignment",
+        };
+      }
+      const now = Date.now();
+      if (now <= new Date(trial.endsAt).getTime()) {
+        return { lifecycle: "active", tariffId: trial.tariffId, source: "trial" };
+      }
+      if (now <= new Date(trial.graceEndsAt).getTime()) {
+        return { lifecycle: "grace", tariffId: trial.tariffId, source: "trial" };
+      }
+      if (trial.postTrialBehavior === "tariff") {
+        return {
+          lifecycle: "active",
+          tariffId: trial.postTrialTariffId,
+          source: "post_trial_tariff",
+        };
+      }
+      return {
+        lifecycle: trial.postTrialBehavior as "read_only" | "blocked",
+        tariffId: trial.tariffId,
+        source: "trial",
+      };
+    },
+
+    async reserveQuotaGrowth(organizationId, mechanic, growthByUnit) {
+      const result = await runWithDbOrganizationPrincipal(organizationId, () =>
+        getDrizzle().execute(sql`
+          SELECT *
+          FROM app.reserve_saas_quota_growth(
+            ${organizationId}::uuid,
+            ${mechanic}::text,
+            ${JSON.stringify(growthByUnit)}::jsonb
+          )
+        `),
+      );
+      const row = result.rows[0] as
+        | {
+            allowed: boolean;
+            warning: boolean;
+            used: string | number;
+            projected: string | number;
+            quota_limit: string | number | null;
+            utilization_percent: number | null;
+            reason: QuotaReservationDecision["reason"];
+            period_key: string | null;
+            reserved: string | number;
+          }
+        | undefined;
+      if (!row) throw new Error("quota_reservation_result_missing");
+      return {
+        allowed: row.allowed,
+        warning: row.warning,
+        used: Number(row.used),
+        projected: Number(row.projected),
+        limit: row.quota_limit === null ? null : Number(row.quota_limit),
+        utilizationPercent: row.utilization_percent,
+        reason: row.reason,
+        mechanic,
+        periodKey: row.period_key,
+        reserved: Number(row.reserved),
+      };
     },
   };
 }

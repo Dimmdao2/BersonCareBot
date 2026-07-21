@@ -11,7 +11,7 @@ export type LifecycleState = { ok: boolean; error?: string };
 
 export async function applyContentLifecycle(_prev: LifecycleState | null, formData: FormData): Promise<LifecycleState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForAction(workspace, "cms_pages", { kind: "mutation" });
   if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const id = (formData.get("id") as string)?.trim();
   const op = (formData.get("op") as string)?.trim();

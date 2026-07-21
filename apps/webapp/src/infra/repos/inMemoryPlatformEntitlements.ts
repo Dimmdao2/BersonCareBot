@@ -9,7 +9,7 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
 
   return {
     async listTariffs() { return [...tariffs.values()]; },
-    async listOrganizations() { return [...organizationTariffs].map(([id, tariffId]) => ({ id, title: id, tariffId, isActive: true })); },
+    async listOrganizations() { return [...organizationTariffs].map(([id, tariffId]) => ({ id, title: id, tariffId, isActive: true, commercialAccessState: tariffId ? "active" as const : "no_trial" as const })); },
     async getTrialPolicy() { return policy; },
     async createTariff(input) {
       const now = new Date().toISOString();

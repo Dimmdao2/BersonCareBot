@@ -35,7 +35,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlement(gate.ctx, "clinic_team", {
+    kind: "mutation",
+    growthByUnit: { seats: 1 },
+  });
   if (!entitlement.ok) return entitlement.response;
 
   const raw = (await request.json().catch(() => null)) as unknown;

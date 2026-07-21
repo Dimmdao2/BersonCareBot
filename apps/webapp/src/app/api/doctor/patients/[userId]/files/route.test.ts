@@ -152,7 +152,9 @@ describe("doctor patient files collection route", () => {
   });
 
   it("returns files entitlement denial after auth without creating folder or metadata", async () => {
-    const getClientIdentityForOrganization = vi.fn();
+    const getClientIdentityForOrganization = vi.fn().mockResolvedValue({
+      userId: CANONICAL_PATIENT_ID,
+    });
     const createFile = vi.fn();
     buildAppDepsMock.mockReturnValue({ doctorClientsPort: { getClientIdentityForOrganization }, patientFiles: { createFile } });
     requireEntitlementMock.mockResolvedValueOnce({
@@ -170,7 +172,7 @@ describe("doctor patient files collection route", () => {
     );
 
     expect(res.status).toBe(403);
-    expect(getClientIdentityForOrganization).not.toHaveBeenCalled();
+    expect(getClientIdentityForOrganization).toHaveBeenCalledWith(PATIENT_ID, ORG_ID);
     expect(pgEnsureClientPatientFolderMock).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
     expect(requireDoctorWorkspaceApiContextMock.mock.invocationCallOrder[0]).toBeLessThan(

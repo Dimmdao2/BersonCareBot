@@ -72,7 +72,24 @@ function makeService(params: {
       mechanics: { clinic_team: params.clinicTeamEnabled ?? true },
       includedSeats: params.seatLimit ?? null,
     }),
-    listOverrides: async () => [],
+        listOverrides: async () => [],
+        getEffectiveCommercialAccess: async () => ({
+          lifecycle: "active",
+          tariffId: null,
+          source: "compatibility",
+        }),
+        reserveQuotaGrowth: async (_organizationId, mechanic) => ({
+          allowed: true,
+          warning: false,
+          used: 0,
+          projected: 0,
+          limit: null,
+          utilizationPercent: null,
+          reason: "allowed",
+          mechanic,
+          periodKey: null,
+          reserved: 0,
+        }),
   };
   return createClinicSeatsService({ membershipPort, invitesPort, orgEntitlementsPort });
 }

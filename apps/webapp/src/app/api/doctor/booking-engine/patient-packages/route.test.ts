@@ -173,7 +173,12 @@ describe("/api/doctor/booking-engine/patient-packages POST", () => {
       new Request("http://localhost", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "manual", platformUserId: "550e8400-e29b-41d4-a716-446655440001", priceMinor: 1, items: [] }),
+        body: JSON.stringify({
+          kind: "manual",
+          platformUserId: "550e8400-e29b-41d4-a716-446655440001",
+          priceMinor: 1,
+          items: [{ serviceId: "550e8400-e29b-41d4-a716-446655440003", quantity: 1 }],
+        }),
       }),
     );
 

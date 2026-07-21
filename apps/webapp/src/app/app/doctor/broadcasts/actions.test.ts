@@ -166,6 +166,8 @@ describe("executeBroadcastAction", () => {
       options: DoctorBroadcastExecutionOptions,
     ) => {
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+      expect(options.reserveAudienceGrowth).toBeDefined();
+      await options.reserveAudienceGrowth!(30);
       expect(options.runDeliveryCommit).toBeDefined();
       await options.runDeliveryCommit!(async () => {
         observedCommitPrincipals.push(getCurrentDbPrincipalOrganizationId());
@@ -178,7 +180,11 @@ describe("executeBroadcastAction", () => {
 
     expect(executeMock).toHaveBeenCalledWith(
       { ...baseCommand, actorId: DOCTOR_USER_ID },
-      { organizationId: ORGANIZATION_ID, runDeliveryCommit: expect.any(Function) },
+      {
+        organizationId: ORGANIZATION_ID,
+        reserveAudienceGrowth: expect.any(Function),
+        runDeliveryCommit: expect.any(Function),
+      },
     );
     expect(observedCommitPrincipals).toEqual([ORGANIZATION_ID]);
     expect(result.auditEntry).toEqual(auditEntry);
@@ -189,11 +195,21 @@ describe("executeBroadcastAction", () => {
   });
 
   it("checks entitlement after workspace auth and does not execute a disabled mailing", async () => {
-    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "mailings" });
+    requireEntitlementForActionMock.mockResolvedValueOnce({
+      ok: false,
+      mechanic: "mailings",
+      reason: "entitlement_required",
+    });
+    executeMock.mockImplementationOnce(async (
+      _command: BroadcastCommand,
+      options: DoctorBroadcastExecutionOptions,
+    ) => {
+      await options.reserveAudienceGrowth!(1);
+    });
 
     await expect(executeBroadcastAction(baseCommand)).rejects.toThrow("entitlement_required:mailings");
 
-    expect(executeMock).not.toHaveBeenCalled();
+    expect(executeMock).toHaveBeenCalledOnce();
     expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
       requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
     );

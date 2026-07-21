@@ -154,17 +154,22 @@ describe("doctor-broadcasts service", () => {
   });
 
   it("execute commits audit and queue jobs with delivery totals", async () => {
-    const { auditEntry } = await service.execute({
-      category: "important_notice",
-      audienceFilter: "all",
-      message: {
-        title: "Важно",
-        body: "Текст длиннее десяти символов",
-        mediaUrl: "https://x/y.jpg",
+    const reserveAudienceGrowth = vi.fn(async () => undefined);
+    const { auditEntry } = await service.execute(
+      {
+        category: "important_notice",
+        audienceFilter: "all",
+        message: {
+          title: "Важно",
+          body: "Текст длиннее десяти символов",
+          mediaUrl: "https://x/y.jpg",
+        },
+        actorId: "doctor-123",
+        channels: ["bot_message"],
       },
-      actorId: "doctor-123",
-      channels: ["bot_message"],
-    });
+      { reserveAudienceGrowth },
+    );
+    expect(reserveAudienceGrowth).toHaveBeenCalledWith(2);
     expect(auditEntry.actorId).toBe("doctor-123");
     expect(auditEntry.deliveryJobsTotal).toBe(2);
     expect(auditEntry.messageBody).toContain("Важно");

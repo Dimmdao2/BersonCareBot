@@ -14,7 +14,7 @@ export async function DELETE(
 ) {
   const gate = await requireClinicManagementApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "clinic_team");
+  const entitlement = await requireEntitlement(gate.ctx, "clinic_team", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   const parsed = paramsSchema.safeParse(await params);

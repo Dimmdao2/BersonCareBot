@@ -194,7 +194,11 @@ describe("doctor patient file item route", () => {
 
     expect(res.status).toBe(403);
     expect(order).toEqual(["identity", "file", "entitlement"]);
-    expect(requireEntitlementMock).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORG_ID }), "files");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "files",
+      { kind: "mutation" },
+    );
     expect(linkFileToVisit).not.toHaveBeenCalled();
     expect(renameFile).not.toHaveBeenCalled();
   });

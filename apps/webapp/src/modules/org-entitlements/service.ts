@@ -4,8 +4,11 @@ import {
   MECHANIC_REGISTRY,
   MECHANICS,
   type OrgEntitlements,
+  type EffectiveOrgCommercialAccess,
   type OrgMechanic,
+  type QuotaGrowthByUnit,
   type QuotaAccessDecision,
+  type QuotaReservationDecision,
   type Tariff,
   type TariffQuota,
   type TariffQuotaMap,
@@ -188,23 +191,20 @@ export async function resolveQuotaGrowthAccess(input: {
   port: OrgEntitlementsPort;
   organizationId: string;
   mechanic: OrgMechanic;
-  periodKey: string;
-  growth: number;
-}): Promise<QuotaAccessDecision> {
-  const [tariff, overrides] = await Promise.all([
-    input.port.getTariffForOrg(input.organizationId),
-    input.port.listOverrides(input.organizationId),
-  ]);
-  const activeOverride = overrides.find(
-    (entry) =>
-      entry.mechanic === input.mechanic &&
-      isOverrideActive(entry.expiresAt),
+  growthByUnit: QuotaGrowthByUnit;
+}): Promise<QuotaReservationDecision> {
+  return input.port.reserveQuotaGrowth(
+    input.organizationId,
+    input.mechanic,
+    input.growthByUnit,
   );
-  const quota = activeOverride?.quota ?? tariff?.quotas?.[input.mechanic] ?? null;
-  const used = input.port.getQuotaUsage
-    ? await input.port.getQuotaUsage(input.organizationId, input.mechanic, input.periodKey)
-    : 0;
-  return evaluateQuotaGrowth({ quota, used, growth: input.growth });
+}
+
+export async function resolveEffectiveCommercialAccess(
+  port: OrgEntitlementsPort,
+  organizationId: string,
+): Promise<EffectiveOrgCommercialAccess> {
+  return port.getEffectiveCommercialAccess(organizationId);
 }
 
 /** Dedicated application boundary for platform commercial operations. Routes must capability-gate before use. */

@@ -116,7 +116,11 @@ describe("saveContentPage", () => {
   });
 
   it("returns cms_pages denial after auth without calling page service", async () => {
-    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+    requireEntitlementForActionMock.mockResolvedValueOnce({
+      ok: false,
+      mechanic: "cms_pages",
+      reason: "entitlement_required",
+    });
 
     const res = await saveContentPage(null, formWith({ section: "lessons", slug: "test-page", title: "T" }));
 
@@ -512,7 +516,11 @@ describe("saveContentPage", () => {
   it("denies a course reference when courses is off, after CMS authorization and before any course/page write", async () => {
     requireEntitlementForActionMock
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({ ok: false, mechanic: "courses" });
+      .mockResolvedValueOnce({
+        ok: false,
+        mechanic: "courses",
+        reason: "entitlement_required",
+      });
 
     const res = await saveContentPage(null, formWith({
       section: "lessons",

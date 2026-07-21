@@ -127,7 +127,11 @@ describe("POST /api/patient/courses/[courseId]/enroll", () => {
       params: Promise.resolve({ courseId: COURSE_ID }),
     });
     expect(res.status).toBe(403);
-    expect(requireEntitlementMock).toHaveBeenCalledWith({ organizationId: "org-a" }, "courses");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      { organizationId: "org-a" },
+      "courses",
+      { kind: "mutation" },
+    );
     expect(enrollPatientMock).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,11 @@ function portFor(
   tariff: { mechanics: Record<string, boolean>; includedSeats?: number | null } | null,
   overrides: { mechanic: string; enabled: boolean; seatLimitOverride?: number | null; expiresAt?: string | null }[],
 ): OrgEntitlementsPort {
+  const totalGrowth = (growthByUnit: Parameters<OrgEntitlementsPort["reserveQuotaGrowth"]>[2]) => {
+    let total = 0;
+    for (const value of Object.values(growthByUnit)) total += value ?? 0;
+    return total;
+  };
   return {
     getTariffForOrg: vi.fn(async () =>
       tariff ? { mechanics: tariff.mechanics, includedSeats: tariff.includedSeats ?? null } : null,
@@ -20,6 +25,23 @@ function portFor(
     listOverrides: vi.fn(async () =>
       overrides.map((override) => ({ ...override, seatLimitOverride: override.seatLimitOverride ?? null })),
     ),
+    getEffectiveCommercialAccess: vi.fn(async () => ({
+      lifecycle: "active" as const,
+      tariffId: null,
+      source: "compatibility" as const,
+    })),
+    reserveQuotaGrowth: vi.fn(async (_organizationId, mechanic, growthByUnit) => ({
+      allowed: true,
+      warning: false,
+      used: 0,
+      projected: totalGrowth(growthByUnit),
+      limit: null,
+      utilizationPercent: null,
+      reason: "allowed" as const,
+      mechanic,
+      periodKey: null,
+      reserved: totalGrowth(growthByUnit),
+    })),
   };
 }
 
@@ -85,6 +107,8 @@ describe("resolveOrgEntitlements", () => {
     const scopedPort: OrgEntitlementsPort = {
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
+      getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
+      reserveQuotaGrowth: (organizationId, mechanic, growthByUnit) => ports.get(organizationId)!.reserveQuotaGrowth(organizationId, mechanic, growthByUnit),
     };
     await expect(isMechanicEnabled(scopedPort, "org-a", "courses")).resolves.toBe(true);
     await expect(isMechanicEnabled(scopedPort, "org-b", "courses")).resolves.toBe(false);
@@ -151,6 +175,8 @@ describe("resolveClinicSeatLimit", () => {
     const scopedPort: OrgEntitlementsPort = {
       getTariffForOrg: (organizationId) => ports.get(organizationId)!.getTariffForOrg(organizationId),
       listOverrides: (organizationId) => ports.get(organizationId)!.listOverrides(organizationId),
+      getEffectiveCommercialAccess: (organizationId) => ports.get(organizationId)!.getEffectiveCommercialAccess(organizationId),
+      reserveQuotaGrowth: (organizationId, mechanic, growthByUnit) => ports.get(organizationId)!.reserveQuotaGrowth(organizationId, mechanic, growthByUnit),
     };
     await expect(resolveClinicSeatLimit(scopedPort, "org-a")).resolves.toBe(5);
     await expect(resolveClinicSeatLimit(scopedPort, "org-b")).resolves.toBe(0);

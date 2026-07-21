@@ -56,7 +56,7 @@ export async function PATCH(
 ) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  const entitlement = await requireEntitlement(auth.ctx, "courses", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
   const { ctx: workspace } = auth;
 

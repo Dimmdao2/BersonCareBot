@@ -320,6 +320,7 @@ describe("PATCH /api/admin/settings", () => {
     expect(requireEntitlementMock).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
       "payments",
+      { kind: "mutation" },
     );
     expect(updateSettingMock).not.toHaveBeenCalled();
   });

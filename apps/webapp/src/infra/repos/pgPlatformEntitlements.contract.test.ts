@@ -1,38 +1,74 @@
 /** @vitest-environment node */
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PLATFORM_OPERATIONS_DB_SOURCE } from "@/shared/security/platformOperationsPrincipal";
 
-const repo = readFileSync(new URL("./pgPlatformEntitlements.ts", import.meta.url), "utf8");
-const migration = readFileSync(
-  new URL("../../../db/drizzle-migrations/0224_saas_tariff_quotas_trial.sql", import.meta.url),
-  "utf8",
-);
+const getCurrentDbPrincipalMock = vi.hoisted(() => vi.fn());
+const getDrizzleMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@bersoncare/db-principal", () => ({
+  getCurrentDbPrincipal: getCurrentDbPrincipalMock,
+}));
+vi.mock("@/app-layer/db/drizzle", () => ({ getDrizzle: getDrizzleMock }));
+
+import { createPgPlatformEntitlementsPort } from "./pgPlatformEntitlements";
 
 describe("platform commercial persistence boundary", () => {
-  it("uses the single Drizzle chokepoint and exact-org principals for org mutations", () => {
-    expect(repo).toContain('import { getDrizzle } from "@/app-layer/db/drizzle"');
-    expect(repo).toContain("runWithDbOrganizationPrincipal(organizationId");
-    expect(repo).toContain("runWithDbOrganizationPrincipal(input.organizationId");
-    expect(repo).not.toMatch(/\bpg\b.*Pool|runWebappPgText|\.execute\(sql\.raw/);
-    expect(repo).toContain("principal?.kind !== \"bootstrap\"");
-    expect(repo).toContain('principal?.kind !== "platform"');
-    expect(repo).toContain("principal.source !== PLATFORM_OPERATIONS_DB_SOURCE");
-    expect(repo).toContain("createPgOrganizationTrialProvisioningPort");
+  beforeEach(() => {
+    getCurrentDbPrincipalMock.mockReset();
+    getDrizzleMock.mockReset();
+    getCurrentDbPrincipalMock.mockReturnValue({
+      kind: "platform",
+      platformUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      source: PLATFORM_OPERATIONS_DB_SOURCE,
+    });
   });
 
-  it("appends immutable before/after/reason audit entries for platform changes", () => {
-    expect(repo).toContain("tx.insert(adminAuditLog)");
-    expect(repo).toContain("reason: input.audit.reason, before: input.before, after: input.after");
-    expect(repo).toContain('action: "saas_trial_extend"');
-    expect(repo).toContain('action: "saas_entitlement_override_upsert"');
+  it("returns the persisted typed organization commercial state through the capability", async () => {
+    const rows = [{
+      id: "11111111-1111-4111-8111-111111111111",
+      title: "Клиника",
+      tariffId: null,
+      isActive: true,
+      commercialAccessState: "no_trial",
+    }];
+    const orderBy = vi.fn().mockResolvedValue(rows);
+    const from = vi.fn(() => ({ orderBy }));
+    const select = vi.fn(() => ({ from }));
+    getDrizzleMock.mockReturnValue({ select });
+
+    await expect(createPgPlatformEntitlementsPort().listOrganizations()).resolves.toEqual(rows);
+    expect(select).toHaveBeenCalledOnce();
+    expect(from).toHaveBeenCalledOnce();
+    expect(orderBy).toHaveBeenCalledOnce();
   });
 
-  it("makes trials unique per organization and protects hot org/time columns", () => {
-    expect(migration).toContain('CONSTRAINT "saas_organization_trials_organization_uidx" UNIQUE ("organization_id")');
-    expect(migration).toContain('"idx_saas_organization_trials_lifecycle"');
-    expect(migration).toContain('"idx_saas_organization_quota_usage_org_updated"');
-    expect(migration).toContain('"idx_saas_org_entitlement_overrides_org_expiry"');
-    expect(migration).toContain("app.current_org_id()");
-    expect(migration).toContain("FORCE ROW LEVEL SECURITY");
+  it("maps arbitrary persisted tariff mechanics and typed quotas without a product default", async () => {
+    const persisted = {
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "Custom",
+      description: "",
+      priceMinor: null,
+      currency: null,
+      billingPeriod: "year",
+      mechanics: { files: true, courses: false },
+      quotas: {
+        files: {
+          kind: "numeric",
+          limit: 4096,
+          unit: "bytes",
+          period: "month",
+          usagePolicy: "consumption",
+        },
+      },
+      includedSeats: null,
+      isActive: true,
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    };
+    const orderBy = vi.fn().mockResolvedValue([persisted]);
+    const from = vi.fn(() => ({ orderBy }));
+    getDrizzleMock.mockReturnValue({ select: vi.fn(() => ({ from })) });
+
+    await expect(createPgPlatformEntitlementsPort().listTariffs()).resolves.toEqual([persisted]);
   });
 });

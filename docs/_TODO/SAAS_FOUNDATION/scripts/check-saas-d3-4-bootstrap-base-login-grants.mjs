@@ -9,6 +9,7 @@ const files = {
   p05bGrantSql: "deploy/postgres/p0-5b-grants.sql",
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
   storeEntitlementsSql: "deploy/postgres/store-p0-entitlements-rls.sql",
+  c5aMigrationSql: "apps/webapp/db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql",
   patientCourseWallSql: "deploy/postgres/patient-course-assignment-wall.sql",
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   specialistOwnerProvisioningSql: "deploy/postgres/specialist-owner-provisioning-rls.sql",
@@ -84,7 +85,10 @@ const requiredFunctions = [
 const overlayManagedAppStaffTables = [
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
+  "public.saas_organization_quota_usage",
+  "public.saas_organization_trials",
   "public.saas_tariffs",
+  "public.saas_trial_policy",
   "public.specialist_signup_intents",
   "public.staff_security_profiles",
   "public.app_runtime_settings",
@@ -441,6 +445,12 @@ function runChecks(overrides = {}) {
     "Store P0 — entitlement foundation (dormant)",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs TO app_staff;",
     "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_staff;",
+  ]);
+  requireFragments(files.c5aMigrationSql, loaded.c5aMigrationSql, [
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_trial_policy\" TO app_staff;",
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_organization_trials\" TO app_staff;",
+    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE \"saas_organization_quota_usage\" TO app_staff;",
+    "GRANT EXECUTE ON FUNCTION app.reserve_saas_quota_growth(uuid, text, jsonb) TO app_staff;",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",

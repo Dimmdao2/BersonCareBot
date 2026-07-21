@@ -121,7 +121,11 @@ describe("PATCH /api/doctor/patients/[userId]/visits/[visitId]", () => {
 
     expect(res.status).toBe(403);
     expect(order).toEqual(["identity", "entitlement"]);
-    expect(requireEntitlementMock).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORG_ID }), "patient_card");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "patient_card",
+      { kind: "mutation" },
+    );
     expect(updateVisitFields).not.toHaveBeenCalled();
   });
 });

@@ -31,6 +31,9 @@ export type OrgMechanic = keyof typeof MECHANIC_REGISTRY;
 /** Compatibility iterator for resolver and data contracts; keys come only from the registry above. */
 export const MECHANICS = Object.keys(MECHANIC_REGISTRY) as OrgMechanic[];
 
+export type TariffQuotaUnit =
+  (typeof MECHANIC_REGISTRY)[OrgMechanic]["quotaUnits"][number];
+
 export const QUOTA_PERIODS = ["snapshot", "day", "month", "year"] as const;
 export type QuotaPeriod = (typeof QUOTA_PERIODS)[number];
 export const QUOTA_USAGE_POLICIES = ["snapshot", "consumption"] as const;
@@ -128,4 +131,26 @@ export type QuotaAccessDecision = {
   limit: number | null;
   utilizationPercent: number | null;
   reason: "allowed" | "warning_80" | "quota_reached";
+};
+
+export type OrgCommercialLifecycleState = "active" | "grace" | "read_only" | "blocked";
+
+export type OrgCommercialAccessState =
+  | "compatibility"
+  | "no_trial"
+  | "trial_pending"
+  | "active";
+
+export type QuotaGrowthByUnit = Partial<Record<TariffQuotaUnit, number>>;
+
+export type QuotaReservationDecision = QuotaAccessDecision & {
+  mechanic: OrgMechanic;
+  periodKey: string | null;
+  reserved: number;
+};
+
+export type EffectiveOrgCommercialAccess = {
+  lifecycle: OrgCommercialLifecycleState;
+  tariffId: string | null;
+  source: "compatibility" | "assignment" | "trial" | "post_trial_tariff" | "no_trial";
 };

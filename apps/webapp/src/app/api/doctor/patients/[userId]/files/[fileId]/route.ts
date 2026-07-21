@@ -116,7 +116,7 @@ export async function PATCH(
   if (!existing || existing.patientUserId !== patientUserId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  const entitlement = await requireEntitlement(gate.ctx, "files");
+  const entitlement = await requireEntitlement(gate.ctx, "files", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   let updated: Awaited<ReturnType<typeof deps.patientFiles.getFile>> = existing;

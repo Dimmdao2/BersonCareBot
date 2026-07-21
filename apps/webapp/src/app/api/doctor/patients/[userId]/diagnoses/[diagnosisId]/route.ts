@@ -27,7 +27,7 @@ export async function PATCH(
 ) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "patient_card");
+  const entitlement = await requireEntitlement(gate.ctx, "patient_card", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
 
   const { userId, diagnosisId } = await params;

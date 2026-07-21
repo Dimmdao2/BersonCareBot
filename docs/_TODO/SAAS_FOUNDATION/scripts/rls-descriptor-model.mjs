@@ -55,6 +55,8 @@ const bootstrapRuntimeAuditTables = new Set([
 export const preScopedDirectOrgTables = new Set([
   "public.clinic_public_directory_entries",
   "public.patient_invites",
+  "public.saas_organization_quota_usage",
+  "public.saas_organization_trials",
 ]);
 
 // Tables whose later foundation migration deliberately removes the historical

@@ -48,8 +48,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
-  if (!entitlement.ok) return entitlement.response;
   const workspace = auth.ctx;
 
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -57,6 +55,11 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
+  const entitlement = await requireEntitlement(auth.ctx, "courses", {
+    kind: "mutation",
+    growthByUnit: { items: 1 },
+  });
+  if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
   try {

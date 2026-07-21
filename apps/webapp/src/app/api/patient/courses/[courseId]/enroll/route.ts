@@ -27,7 +27,11 @@ export async function POST(
   const deps = buildAppDeps();
   const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
   if (!patientOrganization.ok) return patientOrganization.response;
-  const entitlement = await requireEntitlement({ organizationId: patientOrganization.organizationId }, "courses");
+  const entitlement = await requireEntitlement(
+    { organizationId: patientOrganization.organizationId },
+    "courses",
+    { kind: "mutation" },
+  );
   if (!entitlement.ok) return entitlement.response;
   try {
     const instance = await withPatientOrganizationPrincipal(

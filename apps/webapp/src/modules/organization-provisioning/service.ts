@@ -15,7 +15,6 @@ function normalizeTitle(value: string): string {
 
 export function createOrganizationProvisioningService(deps: {
   provisioningPort: OrganizationProvisioningPort;
-  startConfiguredTrial?: (organizationId: string) => Promise<void>;
 }) {
   return {
     async createSpecialistSignupIntent(input: SpecialistSignupIntentInput): Promise<void> {
@@ -47,9 +46,7 @@ export function createOrganizationProvisioningService(deps: {
     },
 
     async provisionSpecialistOwner(input: { challengeId: string }): Promise<SpecialistOwnerProvisioningResult> {
-      const provisioned = await deps.provisioningPort.provisionSpecialistOwner(input);
-      await deps.startConfiguredTrial?.(provisioned.organizationId);
-      return provisioned;
+      return deps.provisioningPort.provisionSpecialistOwner(input);
     },
 
     async ensureOwnBookableSpecialist(

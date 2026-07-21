@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const gate = await requireAdminBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "booking");
+  const entitlement = await requireEntitlement(gate.ctx, "booking", { kind: "mutation" });
   if (!entitlement.ok) return entitlement.response;
   const parsed = createBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
