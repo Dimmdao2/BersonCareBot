@@ -615,6 +615,7 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
               <DoctorDifficulty1to10Slider
                 id="tp-individual-difficulty"
+                name="difficulty1_10"
                 value={individualDifficulty}
                 onChange={setIndividualDifficulty}
                 label="Сложность:"

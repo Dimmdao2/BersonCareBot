@@ -940,7 +940,11 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
         ) {
           return null;
         }
-        assertTreatmentProgramStageItemFitsSystemGroup(group, "exercise");
+        const systemKind =
+          group.systemKind === "recommendations" || group.systemKind === "tests"
+            ? group.systemKind
+            : null;
+        assertTreatmentProgramStageItemFitsSystemGroup({ systemKind }, "exercise");
 
         if (input.difficulty1_10 != null && (input.difficulty1_10 < 1 || input.difficulty1_10 > 10)) {
           throw new Error("Сложность: целое число от 1 до 10");

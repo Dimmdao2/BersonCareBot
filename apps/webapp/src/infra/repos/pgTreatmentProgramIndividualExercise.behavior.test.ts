@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TreatmentProgramInstancePort } from "@/modules/treatment-program/ports";
 
 const getOrganizationIdMock = vi.hoisted(() => vi.fn<() => string | undefined>());
 const runMutationMock = vi.hoisted(() => vi.fn());
@@ -72,7 +73,9 @@ function buildTx(params: {
   return { tx: { select, insert, update }, insert, insertedValues };
 }
 
-const baseInput = {
+const baseInput: Parameters<
+  TreatmentProgramInstancePort["createIndividualExerciseAndStageItem"]
+>[0] = {
   instanceId: INSTANCE_ID,
   stageId: STAGE_ID,
   groupId: GROUP_ID,
@@ -88,7 +91,7 @@ const baseInput = {
   createdBy: null,
   settings: null,
   localComment: null,
-} as const;
+};
 
 const exactInstance = { id: INSTANCE_ID, organizationId: ORG_A, patientUserId: PATIENT_ID };
 const exactStage = { id: STAGE_ID, instanceId: INSTANCE_ID, organizationId: ORG_A, sortOrder: 1 };
