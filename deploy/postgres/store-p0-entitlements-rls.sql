@@ -8,8 +8,8 @@
 -- DORMANT by design: creates the tariff catalog + per-org entitlement overrides + be_organizations.tariff_id.
 -- Nothing is GATED here (that is P1 requireEntitlement). No BYPASSRLS. Idempotent (IF NOT EXISTS / DROP POLICY IF
 -- EXISTS). saas_org_entitlement_overrides is FORCE-RLS org-scoped (same idiom as be_specialists / courses).
--- saas_tariffs is a platform-global reference catalog: RLS restricts to staff sessions; writes are app-layer gated
--- to the global admin (P2). No connection strings in this file.
+-- saas_tariffs is a platform-global reference catalog: ordinary staff may read it, while all
+-- commercial writes belong exclusively to the dedicated app_platform_settings principal.
 
 \set ON_ERROR_STOP on
 \pset pager off
@@ -83,27 +83,29 @@ CREATE INDEX IF NOT EXISTS idx_saas_org_entitlement_overrides_org
   ON public.saas_org_entitlement_overrides USING btree (organization_id);
 
 -- ---- RLS ----
--- saas_tariffs: global reference; any staff session may read; writes app-gated to global admin (P2).
+-- saas_tariffs: global reference; any staff session may read; ordinary staff never writes.
 ALTER TABLE public.saas_tariffs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_tariffs FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_tariffs_staff_read_write" ON public.saas_tariffs;
-CREATE POLICY "saas_tariffs_staff_read_write" ON public.saas_tariffs
-  FOR ALL
-  USING (app.is_staff())
-  WITH CHECK (app.is_staff());
+DROP POLICY IF EXISTS "saas_tariffs_staff_read" ON public.saas_tariffs;
+CREATE POLICY "saas_tariffs_staff_read" ON public.saas_tariffs
+  FOR SELECT
+  USING (app.is_staff());
 
 -- saas_org_entitlement_overrides: org-scoped, same idiom as be_specialists/courses.
 ALTER TABLE public.saas_org_entitlement_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.saas_org_entitlement_overrides FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_entitlement_overrides_org_wall" ON public.saas_org_entitlement_overrides;
-CREATE POLICY "saas_org_entitlement_overrides_org_wall" ON public.saas_org_entitlement_overrides
-  FOR ALL
-  USING (app.is_staff() AND (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()))
-  WITH CHECK (app.is_staff() AND (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()));
+DROP POLICY IF EXISTS "saas_org_entitlement_overrides_org_read" ON public.saas_org_entitlement_overrides;
+CREATE POLICY "saas_org_entitlement_overrides_org_read" ON public.saas_org_entitlement_overrides
+  FOR SELECT
+  USING (app.is_staff() AND (app.current_org_id() IS NOT NULL AND organization_id = app.current_org_id()));
 
 -- ---- Grants (least privilege; no BYPASSRLS) ----
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs TO app_staff;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_staff;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs FROM app_staff;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;
+GRANT SELECT ON TABLE public.saas_tariffs TO app_staff;
+GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_staff;
 
 \echo 'store-p0-entitlements UP complete (dormant; nothing gated).'
 \endif

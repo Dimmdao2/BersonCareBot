@@ -13,15 +13,15 @@ Admin keys (`system_settings`, scope `admin`):
 |------|----------------|
 | Patient/public slots | `booking-scheduling` canonical slots |
 | Patient/public create | native `be_appointments` via booking engine |
-| Create overlap guard | `booking-scheduling.assertSlotAvailable` + DB exclusion constraints |
+| Create overlap guard | `assertSlotAvailable` preflight + atomic canonical insert guard |
 | Rubitime create/slots M2M | retired from normal runtime; branch-only rollback code until R6/R7 removal |
 
 Код: `canonicalCreate.ts`, `slotsReadSource.ts`, `doctorAppointmentsReadSwitch.ts`, `bookingCalendarReadSwitch.ts`.
 
 ## Поток создания (этап 2)
 
-1. Валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`).
-2. `be_appointments` со статусом `confirmed` или `awaiting_payment` при обязательной предоплате (exclusion constraint на специалиста).
+1. Быстрая валидация слота (`booking-scheduling.assertSlotAvailable`) и обязательных полей (`booking-form`).
+2. `be_appointments` со статусом `confirmed` или `awaiting_payment`. Для очной записи действует exclusion constraint на специалиста; legacy online/null-capacity путь блокирует все минутные ключи полуинтервала `(organization, [start, end))`, повторно проверяет занятость и вставляет цепочку в одной транзакции.
 3. `patient_bookings` (pending → confirmed), связь `canonical_appointment_id`.
 4. Rubitime create/slots не вызывается в normal runtime.
 5. Проекция в `appointment_records` (`integrator_record_id` = `be:{appointmentId}`) для кабинета врача при canonical cutover / native path.

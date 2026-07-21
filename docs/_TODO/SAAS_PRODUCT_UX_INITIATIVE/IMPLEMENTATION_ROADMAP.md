@@ -637,6 +637,17 @@ unchanged twelve pre-base direct-resolver findings remain separate `#939` debt. 
 no further correction, integration or milestone CI starts automatically. `#751` is owner-waiting on one process
 choice: authorize one final convergence pass for these two exact P1 classes, or freeze the isolated candidate.
 
+**Superseding C5A terminal status (`8afec6853`, owner-authorized final pass, 2026-07-21): blocked / not integrated.**
+The final pass closed both previously authorized P1 classes, preserved read-versus-mutation notification-template
+behavior, and passed the focused lifecycle, rehydrate, quota, U9A/D3.4 and changed-test gates. Its terminal audit
+returned `0 P0 / 1 P1 / 0 P2`: the canonical disposable specialist signup/provisioning smoke still installs the
+pre-C5A fixture set, while `specialist-owner-provisioning-rls.sql` now requires migration `0225` tables and the C5A
+platform trial capability. The smoke therefore stops at missing prerequisites before it can prove that a newly
+provisioned organization atomically receives the selected trial tariff and duration. This is an integration-proof
+regression against the existing owner checklist, not a new product requirement. No further correction, integration,
+milestone CI, DB apply or deploy starts without a new explicit owner authorization. The unchanged twelve pre-base
+direct-resolver findings remain separate downstream task `#939`.
+
 **C5C implementation checklist (owner policy resolved):** active specialist binding и pending invite потребляют/
 резервируют seat, non-clinical admin — нет; included count и per-seat price/purchase moment остаются tariff data;
 downgrade/over-limit сохраняют memberships и блокируют новый growth. Исполнитель:
@@ -748,6 +759,24 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    payment/OAuth вызовов имеют единый finite deadline до полного body-consumption. Один matching-plan P1 первого
    аудита закрыт одним correction-pass; terminal re-audit `0/0`, targeted tests/typecheck/lint — PASS. Integrator
    Google Calendar delivery timeout остаётся P2 owner recommendation вне B2, без audit-driven task growth.
+   **A3 status (2026-07-21):** [x] `#946` интегрирован как `3f684d135` + `7bc938e03`; existing isolation counters,
+   persisted diagnostics и bounded went-dark canary замкнуты на существующий 5-минутный critical tick без новых
+   request-path DB reads, scheduler или high-cardinality payload. Один correction-pass закрыл два matching P1
+   первого аудита; terminal re-audit `0/0/0`, targeted tests/typecheck/lint — PASS. Host/production activation
+   остаётся отдельным owner gate.
+   **B3 status (2026-07-21):** [x] `#948` интегрирован как `fdbea3b0e` + `d640d93b9`; online/null-capacity booking
+   recheck и chain insert атомарны под ordered full-range advisory locks в одной Drizzle-транзакции. Один
+   matching-plan distinct-start P1 первого аудита закрыт одним correction-pass; terminal re-audit `0/0/0`, private
+   PostgreSQL concurrency matrix, `31/31` targeted tests, typecheck/lint — PASS. Schedule-block semantics не
+   расширялись из audit recommendation.
+   **B1 status (2026-07-21):** [ ] `#949` blocked / not integrated after the second and final correction-pass.
+   Candidate `1a07bc2e3` passes executable old-base crash/replay, private PostgreSQL lifecycle/UoW/concurrency,
+   `85` targeted tests, typecheck/lint and migration gates, and closes every earlier audit finding. The terminal
+   audit returned `0 P0 / 1 P1`: canonical locked roles deny the bootstrap webhook principal both table privilege
+   and pre-organization RLS visibility for the authority lookup now required before exact-org signature verification.
+   No third correction, full CI, merge, DB apply or deploy starts automatically. A narrow least-privilege authority
+   capability may be designed only after a new explicit owner authorization; general bootstrap payment-table access
+   is not an acceptable fallback.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.

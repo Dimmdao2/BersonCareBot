@@ -14,7 +14,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
+  requireEntitlementForMutation: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -121,7 +121,10 @@ describe("PATCH /api/doctor/patients/[userId]/visits/[visitId]", () => {
 
     expect(res.status).toBe(403);
     expect(order).toEqual(["identity", "entitlement"]);
-    expect(requireEntitlementMock).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORG_ID }), "patient_card");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "patient_card",
+    );
     expect(updateVisitFields).not.toHaveBeenCalled();
   });
 });

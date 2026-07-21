@@ -13,7 +13,7 @@ vi.mock("../_requireAdminBookingEngine", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: requireEntitlementMock,
+  requireEntitlementForMutation: requireEntitlementMock,
 }));
 
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({

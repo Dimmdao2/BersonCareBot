@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireEntitlementForActionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: requireEntitlementForActionMock,
+  requireEntitlementForMutationAction: requireEntitlementForActionMock,
 }));
 
 const upsertMock = vi.fn();
@@ -254,7 +254,11 @@ describe("saveContentSection", () => {
     ["rename", () => renameContentSectionSlug(null, formWith({ old_slug: "old", new_slug: "new", confirm_rename: "on" })), renameSectionSlugMock],
     ["delete", () => deleteContentSection(null, formWith({ section_slug: "old", confirm_delete: "on" })), deleteSectionWithPageReassignMock],
   ])("returns typed cms_pages denial before %s service", async (_name, invoke, service) => {
-    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+    requireEntitlementForActionMock.mockResolvedValueOnce({
+      ok: false,
+      mechanic: "cms_pages",
+      reason: "entitlement_required",
+    });
 
     const result = await invoke();
 

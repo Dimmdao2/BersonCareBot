@@ -73,6 +73,24 @@ export type WebhookBurstRow = {
   count: number;
 };
 
+export const TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS = 4_096;
+
+/**
+ * Low-frequency tenant canary input. Organization ids stay inside the health
+ * state machine and are never included in logs, alerts or metric labels.
+ */
+export type TenantIsolationCanaryOrganizationRow = {
+  organizationId: string;
+  isActive: boolean;
+  memberRowCount: number;
+};
+
+export type TenantIsolationCanarySnapshot = {
+  organizations: TenantIsolationCanaryOrganizationRow[];
+  /** The bounded read cannot prove full coverage when this is true. */
+  truncated: boolean;
+};
+
 export type OperatorHealthReadPort = {
   listOpenIncidents(limit: number): Promise<OperatorIncidentOpenRow[]>;
   /** Строки `operator_job_status` с `job_family = backup` (ключи `backup.hourly`, …). */
@@ -87,6 +105,8 @@ export type OperatorHealthReadPort = {
   getOutgoingDeliveryQueueHealth(): Promise<OutgoingDeliveryQueueHealthSnapshot>;
   /** Метрики `public.integrator_push_outbox` (ретраи signed POST в integrator). */
   getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot>;
+  /** Bounded active-organization/member sentinel for the five-minute isolation detector. */
+  getTenantIsolationCanarySnapshot(): Promise<TenantIsolationCanarySnapshot>;
 };
 
 export type OperatorJobTickWriteInput = {

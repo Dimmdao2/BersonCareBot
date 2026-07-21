@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Clock3 } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
@@ -94,7 +94,7 @@ export async function PatientContentSlugArticle({
   let courseCta: { courseTitle: string; href: string } | null = null;
   if (dbRow?.linkedCourseId && session) {
     const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, session.user.userId);
-    if (patientOrganization.ok && (await requireEntitlementForAction(patientOrganization, "courses")).ok) {
+    if (patientOrganization.ok && (await requireEntitlementForReadAction(patientOrganization, "courses")).ok) {
       courseCta = await withPatientOrganizationPrincipal(
         {
           organizationId: patientOrganization.organizationId,

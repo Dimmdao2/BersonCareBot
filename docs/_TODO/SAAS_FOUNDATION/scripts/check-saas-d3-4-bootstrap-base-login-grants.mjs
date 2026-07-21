@@ -9,6 +9,8 @@ const files = {
   p05bGrantSql: "deploy/postgres/p0-5b-grants.sql",
   organizationMemberInvitesSql: "deploy/postgres/organization-member-invites-rls.sql",
   storeEntitlementsSql: "deploy/postgres/store-p0-entitlements-rls.sql",
+  c5aMigrationSql: "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+  c5aRuntimeSql: "deploy/postgres/c5a-platform-operations-runtime.sql",
   patientCourseWallSql: "deploy/postgres/patient-course-assignment-wall.sql",
   publicBootstrapSql: "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   specialistOwnerProvisioningSql: "deploy/postgres/specialist-owner-provisioning-rls.sql",
@@ -84,7 +86,9 @@ const requiredFunctions = [
 const overlayManagedAppStaffTables = [
   "public.organization_member_invites",
   "public.saas_org_entitlement_overrides",
+  "public.saas_organization_trials",
   "public.saas_tariffs",
+  "public.saas_trial_policy",
   "public.specialist_signup_intents",
   "public.staff_security_profiles",
   "public.app_runtime_settings",
@@ -439,8 +443,36 @@ function runChecks(overrides = {}) {
   ]);
   requireFragments(files.storeEntitlementsSql, loaded.storeEntitlementsSql, [
     "Store P0 — entitlement foundation (dormant)",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs TO app_staff;",
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides TO app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;",
+    "GRANT SELECT ON TABLE public.saas_tariffs TO app_staff;",
+    "GRANT SELECT ON TABLE public.saas_org_entitlement_overrides TO app_staff;",
+  ]);
+  requireFragments(files.c5aMigrationSql, loaded.c5aMigrationSql, [
+    "REVOKE ALL PRIVILEGES ON TABLE \"saas_trial_policy\", \"saas_organization_trials\" FROM app_staff;",
+    "GRANT SELECT ON TABLE \"saas_organization_trials\" TO app_staff;",
+    "platform_commercial_capability_required",
+  ]);
+  forbidFragments(files.c5aMigrationSql, loaded.c5aMigrationSql, [
+    "reserve_saas_quota_growth",
+    "saas_organization_quota_usage",
+  ]);
+  requireFragments(files.c5aRuntimeSql, loaded.c5aRuntimeSql, [
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_tariffs FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_trial_policy FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_organization_trials FROM app_staff;",
+    "REVOKE INSERT, UPDATE, DELETE ON TABLE public.saas_org_entitlement_overrides FROM app_staff;",
+    "GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_tariffs TO app_platform_settings;",
+    "GRANT SELECT, INSERT, UPDATE ON TABLE public.saas_trial_policy TO app_platform_settings;",
+    "ALTER FUNCTION app.start_provisioned_organization_trial() OWNER TO app_platform_settings;",
+    "NOT has_table_privilege('app_staff', 'public.saas_tariffs', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_trial_policy', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_organization_trials', 'UPDATE')",
+    "NOT has_table_privilege('app_staff', 'public.saas_org_entitlement_overrides', 'UPDATE')",
+    "NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'SELECT')",
+    "NOT has_table_privilege('app_platform_settings', 'public.platform_users', 'UPDATE')",
+    "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_org_entitlement_overrides;",
+    "DROP POLICY IF EXISTS saas_org_dormant_p0_8_3 ON public.saas_organization_trials;",
   ]);
   requireFragments(files.patientCourseWallSql, loaded.patientCourseWallSql, [
     "patient-course-assignment-wall UP complete",
@@ -685,6 +717,8 @@ function runChecks(overrides = {}) {
     "deploy/postgres/patient-course-assignment-wall.sql",
     "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
     "deploy/postgres/specialist-owner-provisioning-rls.sql",
+    "deploy/postgres/u9a-platform-settings-role.sql",
+    "deploy/postgres/c5a-platform-operations-runtime.sql",
     "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
     "deploy/postgres/reference-catalog-rls.sql",
     "deploy/postgres/patient-visible-catalog-rls.sql",

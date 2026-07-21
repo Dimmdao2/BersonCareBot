@@ -4,7 +4,7 @@ import { getCurrentDbPrincipalOrganizationId } from "@bersoncare/db-principal";
 const updateLifecycle = vi.fn();
 const getById = vi.fn();
 const requireDoctorWorkspaceContext = vi.fn();
-const requireEntitlementForAction = vi.fn();
+const requireEntitlementForMutationAction = vi.fn();
 const revalidatePath = vi.fn();
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -14,7 +14,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForAction(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForMutationAction(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -36,8 +36,8 @@ describe("setContentPageRequiresAuth", () => {
     getById.mockReset();
     revalidatePath.mockReset();
     requireDoctorWorkspaceContext.mockReset();
-    requireEntitlementForAction.mockReset();
-    requireEntitlementForAction.mockResolvedValue({ ok: true });
+    requireEntitlementForMutationAction.mockReset();
+    requireEntitlementForMutationAction.mockResolvedValue({ ok: true });
     requireDoctorWorkspaceContext.mockResolvedValue({
       session: { user: { userId: "11111111-1111-4111-8111-111111111111" } },
       organizationId: ORGANIZATION_ID,
@@ -71,11 +71,15 @@ describe("setContentPageRequiresAuth", () => {
   });
 
   it("denies an entitlement-off workspace before reading or changing a page", async () => {
-    requireEntitlementForAction.mockResolvedValueOnce({ ok: false, mechanic: "cms_pages" });
+    requireEntitlementForMutationAction.mockResolvedValueOnce({
+      ok: false,
+      mechanic: "cms_pages",
+      reason: "commercial_read_only",
+    });
 
     await expect(setContentPageRequiresAuth("page-1", true)).resolves.toEqual({
       ok: false,
-      error: "entitlement_required",
+      error: "commercial_read_only",
     });
     expect(getById).not.toHaveBeenCalled();
     expect(updateLifecycle).not.toHaveBeenCalled();

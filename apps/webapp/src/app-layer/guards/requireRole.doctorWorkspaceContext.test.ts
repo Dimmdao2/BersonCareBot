@@ -34,9 +34,11 @@ import {
   requireDoctorApiSession,
   requireDoctorWorkspaceApiContext,
   requireDoctorWorkspaceContext,
+  requirePlatformOperationsApiContext,
   requireStaffSecurityApiSession,
 } from "./requireRole";
 import { resolveLaunchCapabilities } from "./workspaceCapabilities";
+import { PLATFORM_OPERATIONS_DB_SOURCE } from "@/shared/security/platformOperationsPrincipal";
 
 function session(role: AppSession["user"]["role"]): AppSession {
   return {
@@ -291,6 +293,48 @@ describe("requireDoctorWorkspaceApiContext", () => {
     resolveOrganizationForUserMock.mockRejectedValueOnce(new Error("multiple_active_staff_memberships"));
 
     await expect(requireDoctorWorkspaceApiContext()).rejects.toThrow("multiple_active_staff_memberships");
+  });
+});
+
+describe("requirePlatformOperationsApiContext", () => {
+  it("returns unauthorized without a session", async () => {
+    getCurrentSessionMock.mockResolvedValueOnce(null);
+
+    const gate = await requirePlatformOperationsApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(401);
+  });
+
+  it.each([
+    { role: "doctor" as const, adminMode: false },
+    { role: "admin" as const, adminMode: false },
+    { role: "client" as const, adminMode: false },
+  ])("denies a $role session without explicit platform mode", async ({ role, adminMode }) => {
+    getCurrentSessionMock.mockResolvedValueOnce({ ...session(role), adminMode });
+
+    const gate = await requirePlatformOperationsApiContext();
+
+    expect(gate.ok).toBe(false);
+    if (gate.ok) return;
+    expect(gate.response.status).toBe(403);
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+  });
+
+  it("authorizes explicit platform operations without resolving a clinic", async () => {
+    const admin = { ...session("admin"), adminMode: true };
+    getCurrentSessionMock.mockResolvedValueOnce(admin);
+
+    const gate = await requirePlatformOperationsApiContext();
+
+    expect(gate).toEqual({ ok: true, session: admin });
+    expect(resolveOrganizationForUserMock).not.toHaveBeenCalled();
+    expect(getCurrentDbPrincipal()).toEqual({
+      kind: "platform",
+      platformUserId: admin.user.userId,
+      source: PLATFORM_OPERATIONS_DB_SOURCE,
+    });
   });
 });
 

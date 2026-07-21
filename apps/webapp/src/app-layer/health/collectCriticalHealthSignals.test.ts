@@ -4,6 +4,9 @@ const getConfigBoolMock = vi.hoisted(() => vi.fn());
 const loadTranscodeMetricsMock = vi.hoisted(() => vi.fn());
 const getOperatorJobStatusMock = vi.hoisted(() => vi.fn());
 const checkDbMock = vi.hoisted(() => vi.fn());
+const getPoolRoutingMetricsMock = vi.hoisted(() => vi.fn());
+const readIsolationHealthMock = vi.hoisted(() => vi.fn());
+const readIsolationCanaryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: getConfigBoolMock,
@@ -21,6 +24,10 @@ vi.mock("@/app-layer/health/proxyIntegratorProjectionHealth", () => ({
 
 vi.mock("@/config/env", () => ({
   env: { INTEGRATOR_API_URL: "" },
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getCurrentWebappPoolRoutingMetrics: getPoolRoutingMetricsMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -41,15 +48,23 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listBackupJobStatus: vi.fn().mockResolvedValue([]),
       getOperatorJobStatus: getOperatorJobStatusMock,
       listWebhookBurstSignals: vi.fn().mockResolvedValue([]),
+      listOpenIncidents: vi.fn().mockResolvedValue([]),
+      getTenantIsolationCanarySnapshot: readIsolationCanaryMock,
     },
+    saasIsolationDiagnostics: { readHealth: readIsolationHealthMock },
   }),
 }));
 
-import { collectCriticalHealthSignals } from "./collectCriticalHealthSignals";
+import {
+  collectCriticalHealthSignals,
+  collectOperatorHealthBannerInput,
+} from "./collectCriticalHealthSignals";
+import { resetTenantIsolationCriticalHealthForTest } from "@/modules/operator-health/tenantIsolationCriticalHealth";
 
 describe("collectCriticalHealthSignals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetTenantIsolationCriticalHealthForTest();
     checkDbMock.mockResolvedValue(true);
     getOperatorJobStatusMock.mockResolvedValue(null);
     getConfigBoolMock.mockImplementation(async (key: string) => {
@@ -58,6 +73,20 @@ describe("collectCriticalHealthSignals", () => {
       return false;
     });
     loadTranscodeMetricsMock.mockResolvedValue(null);
+    getPoolRoutingMetricsMock.mockReturnValue({
+      staffSelections: 0,
+      nonstaffSelections: 0,
+      missingPrincipalSelections: 0,
+      bootstrapSelections: 0,
+      infraSelections: 0,
+      poolRoleMismatches: 0,
+      webPushReminderSelections: 0,
+    });
+    readIsolationHealthMock.mockResolvedValue({
+      status: "okay",
+      active: { unexplained: 0 },
+    });
+    readIsolationCanaryMock.mockResolvedValue({ organizations: [], truncated: false });
   });
 
   it("does not mark video transcode error when pipeline disabled and metrics unavailable", async () => {
@@ -69,5 +98,30 @@ describe("collectCriticalHealthSignals", () => {
     getConfigBoolMock.mockImplementation(async (key: string) => key === "video_hls_pipeline_enabled");
     const input = await collectCriticalHealthSignals();
     expect(input.videoTranscodeStatus).toBe("error");
+  });
+
+  it("feeds existing routing and isolation diagnostics into the critical snapshot", async () => {
+    getPoolRoutingMetricsMock.mockReturnValue({
+      missingPrincipalSelections: 2,
+      poolRoleMismatches: 1,
+    });
+    readIsolationHealthMock.mockResolvedValue({
+      status: "critical",
+      active: { unexplained: 3 },
+    });
+    const input = await collectCriticalHealthSignals();
+    expect(input.tenantIsolation).toEqual({
+      runtime: { critical: true, missingPrincipalDelta: 2, poolRoleMismatchDelta: 1 },
+      diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
+      wentDark: { status: "priming", affectedOrganizations: 0 },
+    });
+  });
+
+  it("keeps isolation reads and state advancement out of the doctor banner request path", async () => {
+    const input = await collectOperatorHealthBannerInput();
+    expect(input.tenantIsolation).toBeUndefined();
+    expect(readIsolationHealthMock).not.toHaveBeenCalled();
+    expect(readIsolationCanaryMock).not.toHaveBeenCalled();
+    expect(getPoolRoutingMetricsMock).not.toHaveBeenCalled();
   });
 });

@@ -17,7 +17,7 @@ const {
   getChannelCountsMock,
   requireDoctorAccessMock,
   requireDoctorWorkspaceContextMock,
-  requireEntitlementForActionMock,
+  requireEntitlementForMutationActionMock,
 } = vi.hoisted(() => ({
   previewMock: vi.fn(),
   executeMock: vi.fn(),
@@ -28,7 +28,7 @@ const {
   getChannelCountsMock: vi.fn(),
   requireDoctorAccessMock: vi.fn(),
   requireDoctorWorkspaceContextMock: vi.fn(),
-  requireEntitlementForActionMock: vi.fn(),
+  requireEntitlementForMutationActionMock: vi.fn(),
 }));
 
 const ORGANIZATION_ID = "22222222-2222-4222-8222-222222222222";
@@ -45,7 +45,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlementForAction: (...args: unknown[]) => requireEntitlementForActionMock(...args),
+  requireEntitlementForMutationAction: (...args: unknown[]) => requireEntitlementForMutationActionMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -102,11 +102,11 @@ beforeEach(() => {
   getChannelCountsMock.mockReset();
   requireDoctorAccessMock.mockReset();
   requireDoctorWorkspaceContextMock.mockReset();
-  requireEntitlementForActionMock.mockReset();
+  requireEntitlementForMutationActionMock.mockReset();
 
   requireDoctorAccessMock.mockResolvedValue({ user: { userId: DOCTOR_USER_ID } });
   requireDoctorWorkspaceContextMock.mockResolvedValue(workspaceContext());
-  requireEntitlementForActionMock.mockResolvedValue({ ok: true });
+  requireEntitlementForMutationActionMock.mockResolvedValue({ ok: true });
   revalidatePathMock.mockImplementation(() => {
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
@@ -166,6 +166,8 @@ describe("executeBroadcastAction", () => {
       options: DoctorBroadcastExecutionOptions,
     ) => {
       expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+      expect(options.reserveAudienceGrowth).toBeDefined();
+      await options.reserveAudienceGrowth!(30);
       expect(options.runDeliveryCommit).toBeDefined();
       await options.runDeliveryCommit!(async () => {
         observedCommitPrincipals.push(getCurrentDbPrincipalOrganizationId());
@@ -178,7 +180,11 @@ describe("executeBroadcastAction", () => {
 
     expect(executeMock).toHaveBeenCalledWith(
       { ...baseCommand, actorId: DOCTOR_USER_ID },
-      { organizationId: ORGANIZATION_ID, runDeliveryCommit: expect.any(Function) },
+      {
+        organizationId: ORGANIZATION_ID,
+        reserveAudienceGrowth: expect.any(Function),
+        runDeliveryCommit: expect.any(Function),
+      },
     );
     expect(observedCommitPrincipals).toEqual([ORGANIZATION_ID]);
     expect(result.auditEntry).toEqual(auditEntry);
@@ -189,13 +195,23 @@ describe("executeBroadcastAction", () => {
   });
 
   it("checks entitlement after workspace auth and does not execute a disabled mailing", async () => {
-    requireEntitlementForActionMock.mockResolvedValueOnce({ ok: false, mechanic: "mailings" });
+    requireEntitlementForMutationActionMock.mockResolvedValueOnce({
+      ok: false,
+      mechanic: "mailings",
+      reason: "entitlement_required",
+    });
+    executeMock.mockImplementationOnce(async (
+      _command: BroadcastCommand,
+      options: DoctorBroadcastExecutionOptions,
+    ) => {
+      await options.reserveAudienceGrowth!(1);
+    });
 
     await expect(executeBroadcastAction(baseCommand)).rejects.toThrow("entitlement_required:mailings");
 
-    expect(executeMock).not.toHaveBeenCalled();
+    expect(executeMock).toHaveBeenCalledOnce();
     expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
-      requireEntitlementForActionMock.mock.invocationCallOrder[0]!,
+      requireEntitlementForMutationActionMock.mock.invocationCallOrder[0]!,
     );
   });
 });
@@ -268,10 +284,43 @@ describe("saveDraftAction", () => {
 
     expect(saveDraftMock).toHaveBeenCalledWith(DOCTOR_USER_ID, draft);
     expect(observedPrincipals).toEqual([ORGANIZATION_ID]);
+    expect(requireEntitlementForMutationActionMock).toHaveBeenCalledWith(
+      workspaceContext(),
+      "mailings",
+    );
     expect(requireDoctorWorkspaceContextMock).toHaveBeenCalledTimes(1);
     expect(requireDoctorAccessMock).not.toHaveBeenCalled();
     expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
   });
+
+  it.each([
+    ["read_only", "commercial_read_only"],
+    ["blocked", "commercial_blocked"],
+  ] as const)(
+    "denies draft persistence when the organization lifecycle is %s",
+    async (_lifecycle, reason) => {
+      const draft: BroadcastDraft = {
+        category: "reminder",
+        audience: "with_telegram",
+        channels: ["bot_message"],
+        title: "Заголовок",
+        body: "Текст",
+      };
+      requireEntitlementForMutationActionMock.mockResolvedValueOnce({
+        ok: false,
+        mechanic: "mailings",
+        reason,
+      });
+
+      await expect(saveDraftAction(draft)).rejects.toThrow(`${reason}:mailings`);
+
+      expect(requireDoctorWorkspaceContextMock.mock.invocationCallOrder[0]).toBeLessThan(
+        requireEntitlementForMutationActionMock.mock.invocationCallOrder[0]!,
+      );
+      expect(saveDraftMock).not.toHaveBeenCalled();
+      expect(getCurrentDbPrincipalOrganizationId()).toBeUndefined();
+    },
+  );
 
   it("сохраняет черновик с валидными non-null полями", async () => {
     const draft: BroadcastDraft = {

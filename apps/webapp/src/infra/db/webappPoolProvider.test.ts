@@ -550,7 +550,19 @@ describe("webapp pool provider", () => {
     expect(pools).toHaveLength(1);
     expect(pools[0]?.config).toMatchObject({ connectionString: "postgres://legacy/db", max: 5 });
     expect(pools[0]?.connect).toHaveBeenCalledTimes(2);
-    expect(getWebappPoolRoutingMetrics(pool)).toBeUndefined();
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({
+      missingPrincipalSelections: 0,
+      poolRoleMismatches: 0,
+    });
+  });
+
+  it("counts a missing principal on the legacy single-pool chokepoint", async () => {
+    const { factory } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({ connectionString: "postgres://legacy/db", poolFactory: factory });
+
+    await pool.query("SELECT missing_marker");
+
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({ missingPrincipalSelections: 1 });
   });
 
   it("resolves dual connection strings without requiring legacy DATABASE_URL", () => {

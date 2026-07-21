@@ -38,6 +38,8 @@ import {
   legacyBranchServiceIdBySsaFromMappings,
   pickPreferredSsaId,
 } from "@/modules/booking-scheduling/ssaResolve";
+import { isChainFree } from "@/modules/booking-scheduling/computeSlots";
+import { listBookingBusyIntervals } from "@/infra/repos/pgBookingScheduling";
 import type { BookingEngineCorePort } from "@/modules/booking-engine/ports";
 import type {
   AppointmentStatus,
@@ -209,6 +211,79 @@ async function insertAppointmentInTransaction(
     });
   }
   return appointment;
+}
+
+const ONLINE_LOCK_BUCKET_MS = 60_000;
+const MAX_ONLINE_LOCK_BUCKETS = 8 * 60;
+
+function onlineAppointmentLockKeys(
+  organizationId: string,
+  rangeStart: string,
+  rangeEnd: string,
+): string[] {
+  const startMs = new Date(rangeStart).getTime();
+  const endMs = new Date(rangeEnd).getTime();
+  const bucketCount = (endMs - startMs) / ONLINE_LOCK_BUCKET_MS;
+  if (
+    !Number.isInteger(bucketCount) ||
+    bucketCount < 1 ||
+    bucketCount > MAX_ONLINE_LOCK_BUCKETS ||
+    startMs % ONLINE_LOCK_BUCKET_MS !== 0 ||
+    endMs % ONLINE_LOCK_BUCKET_MS !== 0
+  ) {
+    throw new Error("invalid_online_appointment_lock_range");
+  }
+  return Array.from(
+    { length: bucketCount },
+    (_, index) =>
+      `booking:online-minute:${organizationId}:${new Date(startMs + index * ONLINE_LOCK_BUCKET_MS).toISOString()}`,
+  );
+}
+
+async function lockOnlineAppointmentRange(
+  tx: DrizzleDb,
+  organizationId: string,
+  rangeStart: string,
+  rangeEnd: string,
+): Promise<void> {
+  const lockKeys = onlineAppointmentLockKeys(organizationId, rangeStart, rangeEnd);
+  const lockKeyParameters = sql.join(
+    lockKeys.map((lockKey) => sql`${lockKey}`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    SELECT pg_advisory_xact_lock(hashtextextended(lock_key, 0))
+    FROM unnest(ARRAY[${lockKeyParameters}]::text[]) AS requested_locks(lock_key)
+    ORDER BY lock_key
+  `);
+}
+
+async function insertOnlineAppointmentsIfAvailableInTransaction(
+  tx: DrizzleDb,
+  inputs: readonly CreateAppointmentInput[],
+  now: string,
+): Promise<BeAppointment[]> {
+  const first = inputs[0];
+  const last = inputs.at(-1);
+  if (!first || !last) throw new Error("appointment_chain_required");
+  const organizationId = first.organizationId;
+  if (getCurrentDbPrincipalOrganizationId() !== organizationId) {
+    throw new Error("organization_principal_mismatch");
+  }
+  await lockOnlineAppointmentRange(tx, organizationId, first.startAt, last.endAt);
+  const busy = await listBookingBusyIntervals(tx, {
+    organizationId,
+    specialistId: null,
+    roomId: null,
+    rangeStart: first.startAt,
+    rangeEnd: last.endAt,
+  });
+  if (inputs.some((input) => !isChainFree(input.startAt, 1, input.durationMinutes, busy))) {
+    throw new Error("slot_overlap");
+  }
+  const appointments: BeAppointment[] = [];
+  for (const input of inputs) appointments.push(await insertAppointmentInTransaction(tx, input, now));
+  return appointments;
 }
 
 async function assertManualSpecialistSelection(
@@ -1176,6 +1251,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
       const now = new Date().toISOString();
       return db.transaction((tx) =>
         insertAppointmentInTransaction(tx as DrizzleDb, input, now),
+      );
+    },
+
+    async createOnlineAppointmentsIfAvailable(inputs) {
+      const db = getDrizzle();
+      const now = new Date().toISOString();
+      return db.transaction((tx) =>
+        insertOnlineAppointmentsIfAvailableInTransaction(tx as DrizzleDb, inputs, now),
       );
     },
 

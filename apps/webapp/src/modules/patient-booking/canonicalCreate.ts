@@ -361,9 +361,11 @@ export async function createBookingOnCanonicalEngine(
       };
     });
     appointments =
-      slotCount === 1
-        ? [await deps.bookingEngine.createAppointment(appointmentInputs[0]!)]
-        : await deps.bookingEngine.createAppointmentChain(appointmentInputs);
+      createInput.type === "online"
+        ? await deps.bookingEngine.createOnlineAppointmentsIfAvailable(appointmentInputs)
+        : slotCount === 1
+          ? [await deps.bookingEngine.createAppointment(appointmentInputs[0]!)]
+          : await deps.bookingEngine.createAppointmentChain(appointmentInputs);
   } catch (err) {
     await Promise.allSettled(pendingRows.map((row) => deps.bookingsPort.markFailedSync(row.id)));
     if (isPostgresExclusionViolation(err)) throw new Error("slot_overlap");

@@ -33,6 +33,7 @@ const bookingEngine = {
   },
   createAppointment: vi.fn(),
   createAppointmentChain: vi.fn(),
+  createOnlineAppointmentsIfAvailable: vi.fn(),
   upsertRubitimeAppointmentMapping: vi.fn(),
   getAppointment: vi.fn(),
   getAppointmentIdByRubitimeExternalId: vi.fn(),
@@ -135,6 +136,9 @@ describe("createBookingOnCanonicalEngine", () => {
     bookingEngine.createAppointmentChain.mockImplementation(async (inputs: CreateAppointmentInput[]) =>
       inputs.map((input: CreateAppointmentInput, index: number) => ({ ...input, id: `appt-${index + 1}` })),
     );
+    bookingEngine.createOnlineAppointmentsIfAvailable.mockImplementation(async (inputs: CreateAppointmentInput[]) =>
+      inputs.map((input: CreateAppointmentInput, index: number) => ({ ...input, id: `appt-${index + 1}` })),
+    );
     bookingScheduling.getMaxConsecutiveSlotHours.mockResolvedValue(3);
     bookingEngine.getAppointment.mockResolvedValue({
       id: "appt-1",
@@ -217,7 +221,7 @@ describe("createBookingOnCanonicalEngine", () => {
       },
     );
 
-    expect(bookingEngine.createAppointment).toHaveBeenCalled();
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalled();
     expect(syncPort.createRecord).not.toHaveBeenCalled();
     expect(bookingsPort.markConfirmed).toHaveBeenCalledWith(
       "pb-1",
@@ -486,7 +490,7 @@ describe("createBookingOnCanonicalEngine", () => {
     );
 
     expect(syncPort.createRecord).not.toHaveBeenCalled();
-    expect(bookingEngine.createAppointment).toHaveBeenCalled();
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalled();
     expect(payments.createAppointmentPaymentIntent).toHaveBeenCalled();
     expect(bookingsPort.markAwaitingPayment).toHaveBeenCalledWith("pb-1", "appt-1", {
       rubitimeId: null,
@@ -819,9 +823,9 @@ describe("createBookingOnCanonicalEngine", () => {
       contactName: "Иван",
       contactPhone: "+79001234567",
     });
-    expect(bookingEngine.createAppointment).toHaveBeenCalledWith(
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalledWith([
       expect.objectContaining({ specialistId: null }),
-    );
+    ]);
     expect(result.status).toBe("confirmed");
   });
 
@@ -927,7 +931,7 @@ describe("createBookingOnCanonicalEngine", () => {
       slotStart: input.slotStart,
       slotEnd: input.slotEnd,
     }));
-    bookingEngine.createAppointmentChain.mockRejectedValue({ code: "23P01" });
+    bookingEngine.createOnlineAppointmentsIfAvailable.mockRejectedValue(new Error("slot_overlap"));
 
     await expect(
       createBookingOnCanonicalEngine(deps(false), {
@@ -944,7 +948,7 @@ describe("createBookingOnCanonicalEngine", () => {
     ).rejects.toThrow("slot_overlap");
 
     expect(bookingEngine.createAppointment).not.toHaveBeenCalled();
-    expect(bookingEngine.createAppointmentChain).toHaveBeenCalledWith(
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ startAt: "2026-06-01T10:00:00.000Z", chainPosition: 0 }),
         expect.objectContaining({ startAt: "2026-06-01T11:00:00.000Z", chainPosition: 1 }),
@@ -969,7 +973,7 @@ describe("createBookingOnCanonicalEngine", () => {
         contactPhone: "+79001234567",
       }),
     ).rejects.toThrow("consecutive_slot_cap_exceeded");
-    expect(bookingEngine.createAppointmentChain).not.toHaveBeenCalled();
+    expect(bookingEngine.createOnlineAppointmentsIfAvailable).not.toHaveBeenCalled();
   });
 
   it("reserves one membership visit for every appointment in a chain", async () => {

@@ -15,6 +15,7 @@ import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildOwnHubUrlWithAccessDeniedToast } from "@/shared/lib/appAccessDeniedToast";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import { PLATFORM_OPERATIONS_DB_SOURCE } from "@/shared/security/platformOperationsPrincipal";
 import type { AppSession } from "@/shared/types/session";
 import type { OrganizationMembershipRole } from "@/modules/organization-membership/ports";
 import {
@@ -143,7 +144,7 @@ export async function requirePlatformOperationsApiContext(): Promise<
   try {
     enterWithDbPlatformPrincipal({
       platformUserId: session.user.userId,
-      source: "requirePlatformOperationsApiContext",
+      source: PLATFORM_OPERATIONS_DB_SOURCE,
     });
   } catch {
     return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };

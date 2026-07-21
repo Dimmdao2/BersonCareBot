@@ -32,7 +32,9 @@ SELECT quote_ident(:'specialist_owner_provisioning_owner') AS specialist_owner_p
 BEGIN;
 
 \if :specialist_owner_provisioning_down
+DROP FUNCTION IF EXISTS app.start_provisioned_organization_trial();
 DROP FUNCTION IF EXISTS app.provision_specialist_owner(uuid);
+DROP FUNCTION IF EXISTS app.current_provisioned_owner_organization();
 \else
 SELECT (
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
@@ -41,6 +43,9 @@ SELECT (
   AND to_regclass('public.platform_users') IS NOT NULL
   AND to_regclass('public.be_organizations') IS NOT NULL
   AND to_regclass('public.be_organization_members') IS NOT NULL
+  AND to_regclass('public.saas_tariffs') IS NOT NULL
+  AND to_regclass('public.saas_trial_policy') IS NOT NULL
+  AND to_regclass('public.saas_organization_trials') IS NOT NULL
   AND to_regclass('public.reference_catalog_baselines') IS NOT NULL
   AND to_regprocedure('app.seed_reference_catalog_snapshot(uuid)') IS NOT NULL
   AND to_regprocedure('app.require_staff_security_self_user_id()') IS NOT NULL
@@ -59,6 +64,26 @@ SELECT 1 / 0 AS specialist_owner_provisioning_abort;
 
 -- Retire the former caller-targeted overload before exposing the self-scoped replacement.
 DROP FUNCTION IF EXISTS app.provision_specialist_owner(uuid, uuid);
+DROP FUNCTION IF EXISTS app.current_provisioned_owner_organization();
+
+CREATE FUNCTION app.current_provisioned_owner_organization()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+  SELECT member.organization_id
+  FROM public.be_organization_members AS member
+  INNER JOIN public.be_organizations AS organization
+    ON organization.id = member.organization_id
+   AND organization.is_active
+  WHERE member.platform_user_id = app.current_patient_user_id()
+    AND member.role = 'owner'
+    AND member.status = 'active'
+  ORDER BY member.created_at DESC
+  LIMIT 1
+$function$;
 
 CREATE OR REPLACE FUNCTION app.provision_specialist_owner(p_challenge_id uuid)
 RETURNS TABLE (
@@ -191,6 +216,11 @@ BEGIN
   )
   RETURNING id INTO v_membership_id;
 
+  -- Narrow platform-owned capability derives this exact organization from the signed principal
+  -- and fresh owner membership. It updates commercial state and creates the trial in this same
+  -- transaction; any failure rolls the complete provisioning command back.
+  PERFORM app.start_provisioned_organization_trial();
+
   -- Same SECURITY DEFINER transaction: the new organization is not observable without its own
   -- independent catalog snapshot. The helper only inserts the current repo-managed baseline.
   PERFORM app.seed_reference_catalog_snapshot(v_organization_id);
@@ -211,10 +241,12 @@ COMMENT ON FUNCTION app.provision_specialist_owner(uuid) IS
   'Signed identity-self specialist owner provisioning. Rejects a second active staff organization and defers be_specialists to a real staff principal.';
 
 ALTER FUNCTION app.provision_specialist_owner(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
+ALTER FUNCTION app.current_provisioned_owner_organization() OWNER TO :specialist_owner_provisioning_owner_ident;
 ALTER FUNCTION app.seed_reference_catalog_snapshot(uuid) OWNER TO :specialist_owner_provisioning_owner_ident;
 GRANT SELECT ON TABLE public.reference_catalog_baselines TO :specialist_owner_provisioning_owner_ident;
 
 REVOKE ALL ON FUNCTION app.provision_specialist_owner(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.current_provisioned_owner_organization() FROM PUBLIC, app_staff, app_patient;
 REVOKE ALL ON FUNCTION app.seed_reference_catalog_snapshot(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.provision_specialist_owner(uuid) TO app_patient;
 \endif

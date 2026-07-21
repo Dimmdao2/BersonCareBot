@@ -52,6 +52,7 @@ export type DoctorBroadcastsServiceDeps = {
 
 export type DoctorBroadcastExecutionOptions = {
   organizationId?: string;
+  reserveAudienceGrowth?: (audienceSize: number) => Promise<void>;
   runDeliveryCommit?: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
@@ -105,6 +106,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         webPushEligibleUserIds,
         emailEligibleUserIds,
       } = resolved;
+      await options?.reserveAudienceGrowth?.(audienceSize);
       const messageBody = buildBroadcastMessageText(command.message.title, command.message.body);
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);

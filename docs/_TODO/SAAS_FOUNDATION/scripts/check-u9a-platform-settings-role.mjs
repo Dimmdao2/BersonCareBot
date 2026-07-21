@@ -13,6 +13,7 @@ if (artifact !== renderU9aPlatformSettingsRoleSql())
   throw new Error("U9A platform-settings SQL artifact is not generator-synchronized");
 for (const fragment of [
   "CREATE ROLE app_platform_settings NOLOGIN NOINHERIT NOBYPASSRLS;",
+  "ALTER ROLE app_platform_settings NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;",
   "GRANT app_platform_settings TO app_staff WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;",
   "GRANT SELECT, INSERT, UPDATE ON TABLE public.system_settings TO app_platform_settings;",
   "GRANT INSERT ON TABLE public.system_settings_audit TO app_platform_settings;",
@@ -23,6 +24,7 @@ for (const fragment of [
   "'organizationId', NULL",
   "'debug_forward_to_admin'",
   "'specialist_signup_enabled'",
+  "'patient_unsupported_client_fallback_enabled'",
   "'patient_app_maintenance_enabled'",
   "'patient_app_maintenance_message'",
   "FROM public.system_settings AS setting",

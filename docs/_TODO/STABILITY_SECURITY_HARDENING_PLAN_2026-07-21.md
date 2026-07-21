@@ -155,14 +155,28 @@ already-green expensive steps. Working DEV migration `0224` remained fail-closed
 apply, TEST/PROD or deploy is claimed.
 
 ### Phase 1 — Максимальное снижение риска (параллельно, независимые file-scope)
-- [ ] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
+- [x] **A3. Замкнуть детект в проде.** Завести isolation-события (`missing_principal`) в 5-минутный
       `collectCriticalHealthSignals` алерт-тик + добавить per-org «went-dark» канарейку (падение row-count/активных орг в ноль).
       Файлы: `app-layer/health/collectCriticalHealthSignals.ts`, `infra/db/saasIsolationDbFailureReporting.ts`,
       `infra/db/webappPoolProvider.ts`. Размер: **S-M** · Аудит: полный (детект изоляции).
+      **Закрыто 2026-07-21:** интеграционные коммиты `3f684d135` + `7bc938e03`; существующие in-process
+      missing-principal/role counters, persisted isolation diagnostics и bounded per-org went-dark canary подключены
+      только к существующему 5-минутному critical tick. Первый полный аудит нашёл два P1: новые чтения попадали в
+      doctor/Today request-path, а lifetime state рос при churn. Один coherent correction выделил lightweight banner
+      collector, ввёл hard cap `4096` и доказал active-set→zero/churn semantics. Terminal re-audit — PASS `0/0/0`;
+      targeted suite `66/66`, typecheck и scoped lint — PASS. Production activation/deploy не выполнялись.
 - [ ] **B1. Атомарность захвата платежа.** СНАЧАЛА verify-spike (доказать окна краша живьём), затем: обернуть
       record-event + capture + mark-processed в одну транзакцию ЛИБО сделать capture полностью replay-safe
       (повторная доставка `duplicate` доводит незавершённый захват). Файлы: `payments/service.ts:330-461`.
       Размер: verify **S** + fix **M** · Аудит: **полный** (деньги).
+      **Terminal hard stop 2026-07-21:** изолированный кандидат `1a07bc2e3` закрывает прежние crash/replay,
+      lifecycle-event, changed-body, delivery и product-UoW findings; executable old-base и private PostgreSQL
+      proofs, `85` targeted tests, typecheck/lint/migration gates зелёные. После второго correction-pass финальный
+      аудит всё же нашёл `0 P0 / 1 P1`: locked bootstrap principal публичного webhook не имеет grant/RLS path для
+      pre-org lookup в `be_payment_provider_events`/`be_payment_intents`, поэтому production route не может узнать
+      organization до exact-org signature verification. По hard ceiling третья коррекция не открыта; `#949`
+      blocked/owner-waiting. Возможное продолжение требует отдельного owner gate на узкую least-privilege authority
+      capability, возвращающую только `organization_id`, а не общий доступ bootstrap к payment tables.
 - [x] **B2. `fetchWithTimeout` на все платёжные/OAuth-вызовы** (Yookassa/Tinkoff/Apple/Google) — переиспользовать
       существующий `fetchWithTimeout` из `operatorHealthProbeRunner.ts`. Размер: **S** · Аудит: один.
       **Закрыто 2026-07-21:** интеграционные коммиты `ff11d416a` + `3f484ea60`; единая webapp-граница ограничивает
@@ -172,9 +186,16 @@ apply, TEST/PROD or deploy is claimed.
       stalled-body proof. Terminal re-audit — PASS `0/0`; targeted suite `46/46`, typecheck и scoped lint — PASS.
       Три integrator Google Calendar delivery-callsite остаются P2 owner recommendation вне payment/OAuth scope,
       а не автоматически созданной задачей.
-- [ ] **B3. Закрыть онлайн-слот TOCTOU** — advisory-lock на `(org, slotStart)` вокруг `assertSlotAvailable`+insert
+- [x] **B3. Закрыть онлайн-слот TOCTOU** — advisory-lock на `(org, slotStart)` вокруг `assertSlotAvailable`+insert
       ИЛИ partial exclusion/unique на онлайн-ёмкость (паритет с очным GiST-констрейнтом).
       Файлы: `canonicalCreate.ts:161-203`. Размер: **S-M** · Аудит: полный (конкурентность+деньги).
+      **Закрыто 2026-07-21:** интеграционные коммиты `fdbea3b0e` + `d640d93b9`; online/null-capacity writer
+      валидирует bounded minute-aligned chain, берёт ordered per-minute organization keys одним SQL-вызовом,
+      повторно читает busy intervals и вставляет всю цепочку в той же Drizzle-транзакции. Первый полный аудит нашёл
+      один P1: exact-start keys не закрывали off-grid overlapping starts. Один coherent correction перешёл на весь
+      half-open range; private PostgreSQL proofs закрывают same/distinct-start, chain, adjacent, reverse/deadlock и
+      cross-org случаи. Terminal re-audit — PASS `0/0/0`; targeted suite `31/31`, disposable verifier, typecheck и
+      scoped lint — PASS. Schedule-block linearization остаётся owner question вне утверждённого B3, не новой задачей.
 - [ ] **C1. Трекинг ошибок** (self-hosted per F-2) в 3 сервиса + release-теги. Размер: **M** (вкл. инфру) · Аудит: один.
 
 ### Phase 2 — Остаточная безопасность + контракты (параллельно)

@@ -14,7 +14,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
+  requireEntitlementForMutation: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/guards/doctorWorkspacePrincipal", () => ({
@@ -194,7 +194,10 @@ describe("doctor patient file item route", () => {
 
     expect(res.status).toBe(403);
     expect(order).toEqual(["identity", "file", "entitlement"]);
-    expect(requireEntitlementMock).toHaveBeenCalledWith(expect.objectContaining({ organizationId: ORG_ID }), "files");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_ID }),
+      "files",
+    );
     expect(linkFileToVisit).not.toHaveBeenCalled();
     expect(renameFile).not.toHaveBeenCalled();
   });

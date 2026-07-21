@@ -44,7 +44,7 @@ vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: async () => ({ ok: true }),
+  requireEntitlementForMutation: async () => ({ ok: true }),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

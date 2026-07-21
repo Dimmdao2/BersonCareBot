@@ -5,7 +5,7 @@
 
 import { DateTime } from "luxon";
 import { patientRscPersonalDataGate, requirePatientAccess } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
@@ -44,7 +44,7 @@ export default async function PatientHomePage() {
     source: "app.patient.page",
   });
   const coursesOrganizationId =
-    (await requireEntitlementForAction({ organizationId: patientContext.organizationId }, "courses")).ok
+    (await requireEntitlementForReadAction({ organizationId: patientContext.organizationId }, "courses")).ok
       ? patientContext.organizationId
       : null;
   const appTz = await getAppDisplayTimeZone();

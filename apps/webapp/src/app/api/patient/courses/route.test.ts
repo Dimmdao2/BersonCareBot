@@ -10,7 +10,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: requirePatientApiBusinessAccessMock,
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: requireEntitlementMock,
+  requireEntitlementForRead: requireEntitlementMock,
 }));
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withPatientOrganizationPrincipal: (_ctx: unknown, fn: () => unknown) => fn(),

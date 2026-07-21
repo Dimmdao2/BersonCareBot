@@ -1,7 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { notFound } from "next/navigation";
 import { parsePatientHomeDailyPracticeTarget } from "@/modules/patient-home/todayConfig";
 import { DoctorAppShell } from "@/shared/ui/doctor/DoctorAppShell";
@@ -29,7 +29,7 @@ import {
 
 export default async function DoctorPatientHomeSettingsPage() {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
   if (!entitlement.ok) notFound();
   const session = workspace.session;
   const isAdmin = session.user.role === "admin" && session.adminMode === true;
@@ -39,7 +39,7 @@ export default async function DoctorPatientHomeSettingsPage() {
   const deps = buildAppDeps();
   // P0.11.3: all settings read below are PER-ORG (see orgScopedKeys.ts) — org-first, global-fallback.
   const organizationId = workspace.organizationId;
-  const coursesEnabled = (await requireEntitlementForAction(workspace, "courses")).ok;
+  const coursesEnabled = (await requireEntitlementForReadAction(workspace, "courses")).ok;
   const [
     blocks,
     pages,

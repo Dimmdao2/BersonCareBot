@@ -1288,6 +1288,15 @@ CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overri
 CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_org_entitlement_overrides" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
 \endif
 
+-- public.saas_organization_trials (saas_org_dormant_p0_8_3)
+ALTER TABLE "public"."saas_organization_trials" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."saas_organization_trials";
+\if :phase4_enforce_locked_context
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_organization_trials" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
+\else
+CREATE POLICY "saas_org_dormant_p0_8_3" ON "public"."saas_organization_trials" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
+\endif
+
 -- public.specialist_tasks (saas_org_dormant_p0_8_3)
 ALTER TABLE "public"."specialist_tasks" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_3" ON "public"."specialist_tasks";

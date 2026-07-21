@@ -47,4 +47,7 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
       lastQueueActivityAt: null,
     };
   },
+  async getTenantIsolationCanarySnapshot() {
+    return { organizations: [], truncated: false };
+  },
 };

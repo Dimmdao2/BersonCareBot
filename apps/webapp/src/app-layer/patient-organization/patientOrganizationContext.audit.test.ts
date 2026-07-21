@@ -107,6 +107,7 @@ describe("U5A patient organization context wiring", () => {
   it("keeps locked patient organization reads behind exact capability ACLs", () => {
     const overlay = source("../../deploy/postgres/e1-webapp-runtime-config.sql");
     const entitlementCapability = source("db/drizzle-migrations/0219_current_patient_organization_entitlements.sql");
+    const commercialCapability = source("db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql");
     const entitlementRepository = source("src/infra/repos/pgOrgEntitlements.ts");
     expect(overlay).toContain("ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner");
     expect(overlay).toContain("GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations()");
@@ -120,6 +121,12 @@ describe("U5A patient organization context wiring", () => {
     expect(entitlementCapability).toContain("enrollment.organization_id = v_organization_id");
     expect(entitlementCapability).toContain("enrollment.platform_user_id = v_patient_user_id");
     expect(entitlementCapability).toContain("enrollment.status = 'active'");
+    expect(commercialCapability).toContain("DROP FUNCTION IF EXISTS app.read_current_patient_organization_entitlements()");
+    expect(commercialCapability).toContain("override_expires_at timestamptz");
+    expect(commercialCapability).toContain("trial.status = 'active'");
+    expect(commercialCapability).toContain("WHEN v_now <= trial.grace_ends_at THEN 'grace'");
+    expect(commercialCapability).toContain("WHEN trial.post_trial_behavior = 'tariff' THEN trial.post_trial_tariff_id");
+    expect(commercialCapability).toContain("entitlement_override.expires_at > v_now");
     expect(entitlementRepository).toContain("patient_entitlement_organization_mismatch");
     expect(entitlementRepository).toContain("patient_entitlement_context_denied");
     expect(entitlementRepository).toContain("SELECT * FROM app.read_current_patient_organization_entitlements()");

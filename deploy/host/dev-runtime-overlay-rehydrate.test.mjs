@@ -56,6 +56,8 @@ const canonicalOrder = [
   "deploy/postgres/patient-course-assignment-wall.sql",
   "deploy/postgres/specialist-signup-public-bootstrap-rls.sql",
   "deploy/postgres/specialist-owner-provisioning-rls.sql",
+  "deploy/postgres/u9a-platform-settings-role.sql",
+  "deploy/postgres/c5a-platform-operations-runtime.sql",
   "deploy/postgres/runtime-overlay-app-owner-handoff.sql",
   "deploy/postgres/reference-catalog-rls.sql",
   "deploy/postgres/patient-visible-catalog-rls.sql",
@@ -160,7 +162,11 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
   assertExactOwnerHandoffCoverage(handoff);
 
   const detectedSetRoleReplacements = canonicalOrder.filter((relativePath) => {
-    if (!relativePath.startsWith("deploy/postgres/") || relativePath === canonicalOrder.at(-1)) {
+    if (
+      !relativePath.startsWith("deploy/postgres/") ||
+      relativePath === canonicalOrder.at(-1) ||
+      relativePath === "deploy/postgres/u9a-platform-settings-role.sql"
+    ) {
       return false;
     }
     const overlay = readFileSync(join(repoRoot, relativePath), "utf8");
@@ -169,6 +175,14 @@ test("missing-capable handoff targets map exactly to later overlay creation and 
   assert.deepEqual(
     detectedSetRoleReplacements,
     protectedReplacements.map((replacement) => replacement.relativePath),
+  );
+  const u9aPlatformSettings = readFileSync(
+    join(repoRoot, "deploy/postgres/u9a-platform-settings-role.sql"),
+    "utf8",
+  );
+  assert.match(
+    u9aPlatformSettings,
+    /ALTER FUNCTION app\.enqueue_platform_system_settings_sync\(text\) OWNER TO app_owner;/u,
   );
 
   const handoffIndex = canonicalOrder.indexOf("deploy/postgres/runtime-overlay-app-owner-handoff.sql");
@@ -422,7 +436,10 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /-v phase4_enforce_locked_context=1 \\\n {2}-f "\$PHASE4_LOCKED_POLICIES"/u,
   );
-  assert.match(source, /runtime_overlay_apply_post_migration_chain "\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u);
+  assert.match(
+    source,
+    /runtime_overlay_apply_post_migration_chain\s+\\?\s*"\$REPO_ROOT" "\$TARGET_DB" "\$TARGET_RUNTIME_ROLE" 1/u,
+  );
   assert.match(source, /d3_4_bootstrap_base_role=\$TARGET_RUNTIME_ROLE/u);
   assert.match(source, /d3_4_skip_media_worker=1/u);
   assert.match(source, /d3_4_skip_bootstrap_role_normalization=1/u);
@@ -436,9 +453,7 @@ test("DEV wrapper separates owner and runtime before any overlay and proves live
     source,
     /has_function_privilege\(current_user, 'app\.resolve_public_organization_by_slug\(text\)', 'EXECUTE'\)/u,
   );
-  const sharedOverlayIndex = source.indexOf(
-    'runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1',
-  );
+  const sharedOverlayIndex = source.indexOf("runtime_overlay_apply_post_migration_chain");
   const strictBasePolicyIndex = source.indexOf(
     '-v phase4_enforce_locked_context=1 \\\n  -f "$PHASE4_LOCKED_POLICIES"',
   );

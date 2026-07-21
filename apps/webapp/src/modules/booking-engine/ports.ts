@@ -155,6 +155,8 @@ export type BookingEnginePort = {
   /** Status immediately before transition to `charged_to_package` (for package refund revert). */
   getStatusBeforePackageCharge(appointmentId: string): Promise<AppointmentStatus | null>;
   createAppointment(input: CreateAppointmentInput): Promise<BeAppointment>;
+  /** Range-locks, rechecks and inserts a legacy online/null-capacity chain in one transaction. */
+  createOnlineAppointmentsIfAvailable(inputs: CreateAppointmentInput[]): Promise<BeAppointment[]>;
   /** Staff new-patient identity, invited relationship and scheduled visit in one transaction. */
   createManualPatientVisit(
     input: CreateManualPatientVisitInput,

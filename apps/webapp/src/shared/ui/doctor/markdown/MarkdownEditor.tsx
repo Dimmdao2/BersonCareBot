@@ -117,7 +117,10 @@ export function MarkdownEditor({
       if (applyingExternalValueRef.current) return;
       const next = currentEditor.getMarkdown();
       if (next === lastAcceptedMarkdownRef.current) return;
-      if (next.length > maxLength) {
+      const previousLength = lastAcceptedMarkdownRef.current.length;
+      const isRecoveringFromOverLimit =
+        previousLength > maxLength && next.length < previousLength;
+      if (next.length > maxLength && !isRecoveringFromOverLimit) {
         setLimitReached(true);
         applyingExternalValueRef.current = true;
         currentEditor.commands.setContent(lastAcceptedMarkdownRef.current, {
@@ -128,6 +131,7 @@ export function MarkdownEditor({
         return;
       }
       acceptMarkdown(next);
+      setLimitReached(next.length > maxLength);
     },
   });
 

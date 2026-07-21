@@ -5,7 +5,7 @@ import { z } from "zod";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -16,8 +16,6 @@ export async function saveContentPage(
   formData: FormData,
 ): Promise<SaveContentPageState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
   const deps = buildAppDeps();
 
   const section = (formData.get("section") as string)?.trim() || "";
@@ -58,7 +56,7 @@ export async function saveContentPage(
       return { ok: false, error: "Связанный курс: укажите корректный UUID или оставьте пустым." };
     }
     linkedCourseId = uuidParsed.data;
-    const coursesEntitlement = await requireEntitlementForAction(workspace, "courses");
+    const coursesEntitlement = await requireEntitlementForReadAction(workspace, "courses");
     if (!coursesEntitlement.ok) return { ok: false, error: "entitlement_required" };
   }
 
@@ -101,6 +99,8 @@ export async function saveContentPage(
   }
 
   const editingId = pageIdParsed?.success ? pageIdParsed.data : null;
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
 
   if (editingId) {
     const existingById = await deps.contentPages.getById(editingId);

@@ -7,7 +7,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: requireEntitlementMock,
+  requireEntitlementForMutation: requireEntitlementMock,
 }));
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withPatientOrganizationPrincipal: (_ctx: unknown, fn: () => unknown) => fn(),
@@ -127,7 +127,10 @@ describe("POST /api/patient/courses/[courseId]/enroll", () => {
       params: Promise.resolve({ courseId: COURSE_ID }),
     });
     expect(res.status).toBe(403);
-    expect(requireEntitlementMock).toHaveBeenCalledWith({ organizationId: "org-a" }, "courses");
+    expect(requireEntitlementMock).toHaveBeenCalledWith(
+      { organizationId: "org-a" },
+      "courses",
+    );
     expect(enrollPatientMock).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
 
 const PostSchema = z.object({
@@ -29,7 +29,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlement(gate.ctx, "booking");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "booking");
   if (!entitlement.ok) return entitlement.response;
   const body = await request.json().catch(() => null);
   const parsed = PostSchema.safeParse(body);

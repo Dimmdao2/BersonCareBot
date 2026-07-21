@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolvePatientEnrollmentOrganizationId } from "@/app/api/booking/bookingTenant";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withPatientOrganizationPrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -27,7 +27,10 @@ export async function POST(
   const deps = buildAppDeps();
   const patientOrganization = await resolvePatientEnrollmentOrganizationId(deps, gate.session.user.userId);
   if (!patientOrganization.ok) return patientOrganization.response;
-  const entitlement = await requireEntitlement({ organizationId: patientOrganization.organizationId }, "courses");
+  const entitlement = await requireEntitlementForMutation(
+    { organizationId: patientOrganization.organizationId },
+    "courses",
+  );
   if (!entitlement.ok) return entitlement.response;
   try {
     const instance = await withPatientOrganizationPrincipal(

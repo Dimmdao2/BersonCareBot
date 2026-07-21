@@ -1581,7 +1581,14 @@
       "idx": 225,
       "version": "7",
       "when": 1793539200020,
-      "tag": "0225_payment_capture_replay_safety",
+      "tag": "0225_saas_tariff_quotas_trial",
+      "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1793539200021,
+      "tag": "0226_payment_capture_replay_safety",
       "breakpoints": true
     }
   ]

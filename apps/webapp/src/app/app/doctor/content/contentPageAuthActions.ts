@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { revalidatePatientContentPaths } from "@/app-layer/content/revalidatePatientContentPaths";
 import { requireDoctorWorkspaceContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -14,8 +14,8 @@ export async function setContentPageRequiresAuth(
   requiresAuth: boolean,
 ): Promise<ContentPageAuthState> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
-  if (!entitlement.ok) return { ok: false, error: "entitlement_required" };
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
+  if (!entitlement.ok) return { ok: false, error: entitlement.reason };
   const pageId = id?.trim();
   if (!pageId) return { ok: false, error: "Нет id" };
 

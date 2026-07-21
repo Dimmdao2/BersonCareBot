@@ -10,7 +10,8 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorWorkspaceApiContext: authMock,
 }));
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: entitlementMock,
+  requireEntitlementForRead: entitlementMock,
+  requireEntitlementForMutation: entitlementMock,
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({ courses: { createCourse: createCourseMock, listCoursesForDoctor: listCoursesMock } }),
@@ -62,6 +63,13 @@ describe("courses entitlement ordering", () => {
     const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify(validBody) }));
     expect(response.status).toBe(200);
     expect(createCourseMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns a stable hard-block response when the atomic course quota rejects the insert", async () => {
+    createCourseMock.mockRejectedValueOnce(new Error("saas_quota_reached:courses:3/3"));
+    const response = await POST(new Request("http://localhost", { method: "POST", body: JSON.stringify(validBody) }));
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "quota_reached", mechanic: "courses" });
   });
 
   it("denies list access before the service when courses are disabled", async () => {

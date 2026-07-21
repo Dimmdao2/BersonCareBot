@@ -91,6 +91,52 @@ describe("ContentForm", () => {
     expect(fd.get("body_md")).toBe("# Заголовок");
   });
 
+  it("preserves legacy HTML until an explicit non-empty Markdown replacement", async () => {
+    const user = userEvent.setup();
+    const legacyHtml = "<p>Старый <strong>материал</strong></p><script>unsafe()</script>";
+    render(
+      <ContentForm
+        sections={testSections}
+        page={{
+          id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          section: "lessons",
+          slug: "legacy",
+          title: "Старый материал",
+          summary: "",
+          bodyMd: "",
+          bodyHtml: legacyHtml,
+          sortOrder: 0,
+          isPublished: true,
+          requiresAuth: false,
+          videoUrl: null,
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("textbox", { name: /редактор/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Старый")).toBeInTheDocument();
+    expect(screen.getByText("материал")).toBeInTheDocument();
+    expect(document.querySelector("script")).toBeNull();
+
+    const title = screen.getByRole("textbox", { name: /заголовок/i });
+    await user.type(title, " обновлён");
+    const formBeforeReplacement = title.closest("form");
+    expect(formBeforeReplacement).not.toBeNull();
+    const preserved = new FormData(formBeforeReplacement!);
+    expect(preserved.get("body_md")).toBe("");
+    expect(preserved.get("body_html")).toBe(legacyHtml);
+
+    await user.click(screen.getByRole("button", { name: "Начать замену на Markdown" }));
+    const editor = screen.getByRole("textbox", { name: /редактор/i });
+    expect(formBeforeReplacement!.querySelector('input[name="body_md"]')).toHaveValue("");
+    expect(new FormData(formBeforeReplacement!).get("body_html")).toBe(legacyHtml);
+
+    await user.type(editor, "# Новый материал");
+    const replacement = new FormData(formBeforeReplacement!);
+    expect(replacement.get("body_md")).toBe("# Новый материал");
+    expect(replacement.get("body_html")).toBe(legacyHtml);
+  });
+
   it("defaults section select to initialSectionSlug when creating", () => {
     render(<ContentForm sections={testSectionsTwo} initialSectionSlug="news" />);
     // base-ui Select renders a hidden input for form submission; no native <select>

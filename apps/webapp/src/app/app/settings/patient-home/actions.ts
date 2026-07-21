@@ -5,7 +5,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/guards/doctorWorkspacePrincipal";
 import { requireDoctorWorkspaceContext, type DoctorWorkspaceAccessContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction, requireEntitlementForMutationAction } from "@/app-layer/guards/requireEntitlement";
 import {
   allowedTargetTypesForBlock,
   isPatientHomeBlockCode,
@@ -78,9 +78,16 @@ function fail(error: string): ActionState {
   return { ok: false, error };
 }
 
-async function requireDoctorForPatientHomeBlocks(): Promise<DoctorWorkspaceAccessContext> {
+async function requireDoctorForPatientHomeRead(): Promise<DoctorWorkspaceAccessContext> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForAction(workspace, "cms_pages");
+  const entitlement = await requireEntitlementForReadAction(workspace, "cms_pages");
+  if (!entitlement.ok) throw new Error("forbidden");
+  return workspace;
+}
+
+async function requireDoctorForPatientHomeMutation(): Promise<DoctorWorkspaceAccessContext> {
+  const workspace = await requireDoctorWorkspaceContext();
+  const entitlement = await requireEntitlementForMutationAction(workspace, "cms_pages");
   if (!entitlement.ok) throw new Error("forbidden");
   return workspace;
 }
@@ -90,7 +97,7 @@ async function requireCoursesForPatientHomeReference(
   targetType: string,
 ): Promise<ActionState | null> {
   if (targetType !== "course") return null;
-  const entitlement = await requireEntitlementForAction(workspace, "courses");
+  const entitlement = await requireEntitlementForMutationAction(workspace, "courses");
   return entitlement.ok ? null : fail("entitlement_required");
 }
 
@@ -107,7 +114,7 @@ export async function togglePatientHomeBlockVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.toggle-block", () =>
@@ -122,7 +129,7 @@ export async function togglePatientHomeBlockVisibility(
 
 export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string | null): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
     if (!supportsConfigurablePatientHomeBlockIcon(code)) return fail("block_icon_not_supported");
     const raw = typeof iconImageUrl === "string" ? iconImageUrl.trim() : "";
@@ -143,7 +150,7 @@ export async function setPatientHomeBlockIcon(code: string, iconImageUrl: string
 
 export async function reorderPatientHomeBlocks(orderedCodes: string[]): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const deps = buildAppDeps();
     await withDoctorWorkspacePrincipal(workspace, "doctor.patient-home.reorder-blocks", () =>
       deps.patientHomeBlocks.reorderBlocks(orderedCodes),
@@ -161,7 +168,7 @@ export async function addPatientHomeItem(input: {
   targetRef: string;
 }): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const blockCode = input.blockCode;
     if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const targetTypeParsed = targetTypeSchema.safeParse(input.targetType);
@@ -187,7 +194,7 @@ export async function updatePatientHomeItemVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
@@ -207,7 +214,7 @@ export async function updatePatientHomeItemPresentation(input: {
   showTitle?: boolean;
 }): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const idParsed = parsePatientHomeItemId(input.itemId);
     if (!idParsed.ok) return fail(idParsed.error);
 
@@ -244,7 +251,7 @@ export async function updatePatientHomeItemPresentation(input: {
 
 export async function deletePatientHomeItem(itemId: string): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const idParsed = parsePatientHomeItemId(itemId);
     if (!idParsed.ok) return fail(idParsed.error);
     const deps = buildAppDeps();
@@ -263,7 +270,7 @@ export async function reorderPatientHomeItems(
   orderedItemIds: string[],
 ): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const idsParsed = parsePatientHomeItemIdList(orderedItemIds);
     if (!idsParsed.ok) return fail(idsParsed.error);
@@ -284,7 +291,7 @@ export async function retargetPatientHomeItem(input: {
   targetRef: string;
 }): Promise<ActionState> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const parsed = retargetPatientHomeItemInputSchema.safeParse(input);
     if (!parsed.success) {
       const msg = parsed.error.issues[0]?.message ?? "retarget_failed";
@@ -316,7 +323,7 @@ export async function createContentSectionForPatientHomeBlock(input: {
   iconImageUrl?: string | null;
 }): Promise<{ ok: true; itemId: string; sectionSlug: string } | { ok: false; error: string }> {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeMutation();
     const blockCode = input.blockCode;
     if (!isPatientHomeBlockCode(blockCode)) {
       return { ok: false, error: "invalid_block_code" };
@@ -403,10 +410,10 @@ export async function listPatientHomeCandidates(blockCode: string): Promise<
   | { ok: false; error: string; items: [] }
 > {
   try {
-    const workspace = await requireDoctorForPatientHomeBlocks();
+    const workspace = await requireDoctorForPatientHomeRead();
     if (!isPatientHomeBlockCode(blockCode)) return { ok: false, error: "invalid_block_code", items: [] };
     if (blockCode === "courses") {
-      const entitlement = await requireEntitlementForAction(workspace, "courses");
+      const entitlement = await requireEntitlementForReadAction(workspace, "courses");
       if (!entitlement.ok) return { ok: true, items: [] };
     }
     const deps = buildAppDeps();

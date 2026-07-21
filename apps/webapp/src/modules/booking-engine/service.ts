@@ -15,6 +15,8 @@ import type {
 } from "./types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ONLINE_SLOT_MINUTE_MS = 60_000;
+const MAX_ONLINE_CHAIN_MINUTES = 8 * 60;
 
 function assertUuid(id: string, label = "id"): void {
   if (!UUID_RE.test(id.trim())) throw new Error(`Некорректный UUID: ${label}`);
@@ -80,6 +82,55 @@ export function createBookingEngineService(port: BookingEngineBundlePort) {
         throw new Error("Время окончания должно быть позже начала");
       }
       return port.createAppointment({ ...input, status });
+    },
+
+    async createOnlineAppointmentsIfAvailable(inputs: CreateAppointmentInput[]) {
+      if (inputs.length < 1) throw new Error("appointment_chain_required");
+      const normalized = inputs.map((input) => {
+        assertUuid(input.organizationId, "organizationId");
+        if (input.branchId || input.roomId || input.specialistId || input.serviceId) {
+          throw new Error("online_appointment_context_required");
+        }
+        const status = input.status ?? "created";
+        assertAppointmentStatus(status);
+        const startMs = new Date(input.startAt).getTime();
+        const endMs = new Date(input.endAt).getTime();
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+          throw new Error("Время окончания должно быть позже начала");
+        }
+        if (!Number.isInteger(input.durationMinutes) || input.durationMinutes <= 0) {
+          throw new Error("invalid_appointment_duration");
+        }
+        if (startMs % ONLINE_SLOT_MINUTE_MS !== 0 || endMs % ONLINE_SLOT_MINUTE_MS !== 0) {
+          throw new Error("online_slot_minute_alignment_required");
+        }
+        if (endMs - startMs !== input.durationMinutes * ONLINE_SLOT_MINUTE_MS) {
+          throw new Error("invalid_appointment_duration");
+        }
+        return {
+          ...input,
+          branchId: null,
+          roomId: null,
+          specialistId: null,
+          serviceId: null,
+          startAt: new Date(startMs).toISOString(),
+          endAt: new Date(endMs).toISOString(),
+          status,
+        };
+      });
+      const organizationId = normalized[0]!.organizationId;
+      for (let index = 0; index < normalized.length; index += 1) {
+        const current = normalized[index]!;
+        if (current.organizationId !== organizationId) throw new Error("appointment_chain_organization_mismatch");
+        if (index > 0 && current.startAt !== normalized[index - 1]!.endAt) {
+          throw new Error("appointment_chain_not_consecutive");
+        }
+      }
+      const totalMinutes =
+        (new Date(normalized.at(-1)!.endAt).getTime() - new Date(normalized[0]!.startAt).getTime()) /
+        ONLINE_SLOT_MINUTE_MS;
+      if (totalMinutes > MAX_ONLINE_CHAIN_MINUTES) throw new Error("online_appointment_range_too_large");
+      return port.createOnlineAppointmentsIfAvailable(normalized);
     },
 
     async createManualPatientVisit(input: CreateManualPatientVisitInput) {

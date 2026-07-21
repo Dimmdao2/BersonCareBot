@@ -22,6 +22,12 @@ import type {
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { WEBHOOK_BURST_MIN_COUNT, WEBHOOK_BURST_WINDOW_MINUTES } from "@/modules/operator-health/webhookBurst";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getCurrentWebappPoolRoutingMetrics } from "@/infra/db/client";
+import {
+  observeTenantIsolationCanary,
+  observeTenantIsolationDiagnostics,
+  observeTenantIsolationRuntimeCounters,
+} from "@/modules/operator-health/tenantIsolationCriticalHealth";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -121,8 +127,10 @@ async function probeVideoTranscodeStatus(): Promise<VideoTranscodeHealthStatus> 
   }
 }
 
-async function loadBackupJobsMap(): Promise<Record<string, { lastStatus: string }>> {
-  const rows = await buildAppDeps().operatorHealthRead.listBackupJobStatus();
+async function loadBackupJobsMap(
+  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+): Promise<Record<string, { lastStatus: string }>> {
+  const rows = await read.listBackupJobStatus();
   const backupJobs: Record<string, { lastStatus: string }> = {};
   for (const row of rows) {
     backupJobs[row.jobKey] = { lastStatus: row.lastStatus };
@@ -130,12 +138,10 @@ async function loadBackupJobsMap(): Promise<Record<string, { lastStatus: string 
   return backupJobs;
 }
 
-/**
- * Облегчённый сбор сигналов для critical tick (без media/playback/engagement).
- */
-export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
-  const read = buildAppDeps().operatorHealthRead;
-
+/** Shared lightweight probes (without media/playback/engagement or isolation state). */
+async function collectCriticalHealthSignalsBase(
+  read: ReturnType<typeof buildAppDeps>["operatorHealthRead"],
+): Promise<CriticalHealthSignalsInput> {
   const [
     webappDb,
     integratorApi,
@@ -152,7 +158,7 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     probeProjection(),
     read.getOutgoingDeliveryQueueHealth(),
     read.getIntegratorPushOutboxHealth(),
-    loadBackupJobsMap(),
+    loadBackupJobsMap(read),
     read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
     probeVideoTranscodeStatus(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
@@ -174,10 +180,35 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
   };
 }
 
+/**
+ * Scheduled five-minute critical tick collector. Tenant-isolation reads and
+ * state advancement must stay on this scheduler boundary, never on page reads.
+ */
+export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
+  const deps = buildAppDeps();
+  const [base, isolationDiagnostics, isolationCanary] = await Promise.all([
+    collectCriticalHealthSignalsBase(deps.operatorHealthRead),
+    deps.saasIsolationDiagnostics.readHealth().catch(() => null),
+    deps.operatorHealthRead.getTenantIsolationCanarySnapshot().catch(() => null),
+  ]);
+  const observedAt = Date.now();
+  return {
+    ...base,
+    tenantIsolation: {
+      runtime: observeTenantIsolationRuntimeCounters(getCurrentWebappPoolRoutingMetrics(), observedAt),
+      diagnostics: observeTenantIsolationDiagnostics(isolationDiagnostics, observedAt),
+      wentDark: observeTenantIsolationCanary(isolationCanary, observedAt),
+    },
+  };
+}
+
 /** Снимок для баннера «Сегодня». */
 export async function collectOperatorHealthBannerInput(): Promise<OperatorHealthBannerInput> {
   const read = buildAppDeps().operatorHealthRead;
-  const [base, incidents] = await Promise.all([collectCriticalHealthSignals(), read.listOpenIncidents(100)]);
+  const [base, incidents] = await Promise.all([
+    collectCriticalHealthSignalsBase(read),
+    read.listOpenIncidents(100),
+  ]);
   return {
     ...base,
     operatorIncidentsOpenCount: incidents.length,

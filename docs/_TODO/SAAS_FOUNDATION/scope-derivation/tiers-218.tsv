@@ -52,6 +52,7 @@ INFRA|public.reference_catalog_baselines
 INFRA|public.reference_catalog_snapshot_receipts
 INFRA|public.schema_migrations
 INFRA|public.saas_tariffs
+INFRA|public.saas_trial_policy
 INFRA|public.webapp_schema_migrations
 LEGACY|integrator.rubitime_api_throttle
 LEGACY|integrator.rubitime_booking_profiles
@@ -206,6 +207,7 @@ SCOPED|public.reminder_journal
 SCOPED|public.reminder_occurrence_history
 SCOPED|public.reminder_rules
 SCOPED|public.saas_org_entitlement_overrides
+SCOPED|public.saas_organization_trials
 SCOPED|public.specialist_tasks
 SCOPED|public.support_conversation_messages
 SCOPED|public.support_conversations

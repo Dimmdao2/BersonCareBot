@@ -61,21 +61,28 @@ describe("CMS content legacy actions workspace principal coverage", () => {
   });
 
   it("gates CMS list, direct pages and formerly ungated actions with cms_pages", () => {
-    const paths = [
+    const readPaths = [
       "src/app/app/doctor/content/page.tsx",
       "src/app/app/doctor/content/new/page.tsx",
       "src/app/app/doctor/content/edit/[id]/page.tsx",
       "src/app/app/doctor/content/sections/new/page.tsx",
       "src/app/app/doctor/content/sections/edit/[slug]/page.tsx",
+    ];
+    for (const path of readPaths) {
+      const src = readSource(path);
+      expect(src).toContain("requireDoctorWorkspaceContext");
+      expect(src).toContain('requireEntitlementForReadAction(workspace, "cms_pages")');
+    }
+    const mutationPaths = [
       "src/app/app/doctor/content/contentPageAuthActions.ts",
       "src/app/app/doctor/content/reorderContentPages.ts",
       "src/app/app/doctor/content/sections/reorderContentSections.ts",
       "src/app/app/doctor/content/sections/sectionVisibilityActions.ts",
     ];
-    for (const path of paths) {
+    for (const path of mutationPaths) {
       const src = readSource(path);
       expect(src).toContain("requireDoctorWorkspaceContext");
-      expect(src).toContain('requireEntitlementForAction(workspace, "cms_pages")');
+      expect(src).toContain('requireEntitlementForMutationAction(workspace, "cms_pages")');
     }
   });
 

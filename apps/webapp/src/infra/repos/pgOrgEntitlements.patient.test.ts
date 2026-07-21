@@ -33,10 +33,16 @@ const PATIENT_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const patientRows = [
   {
     tariff_mechanics: { courses: false, clinic_team: true },
+    tariff_quotas: { courses: { kind: "unlimited", limit: null, unit: "items", period: "month", usagePolicy: "consumption" } },
     included_seats: 3,
     override_mechanic: "courses",
     override_enabled: true,
+    override_quota: null,
+    override_expires_at: "2026-08-01T00:00:00.000Z",
     seat_limit_override: null,
+    lifecycle: "grace",
+    effective_tariff_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    access_source: "trial",
   },
 ];
 
@@ -62,11 +68,17 @@ describe("pgOrgEntitlements current-patient capability", () => {
     const port = createPgOrgEntitlementsPort();
     await expect(port.getTariffForOrg(ORGANIZATION_ID)).resolves.toEqual({
       mechanics: { courses: false, clinic_team: true },
+      quotas: patientRows[0]!.tariff_quotas,
       includedSeats: 3,
     });
     await expect(port.listOverrides(ORGANIZATION_ID)).resolves.toEqual([
-      { mechanic: "courses", enabled: true, seatLimitOverride: null },
+      { mechanic: "courses", enabled: true, quota: null, expiresAt: "2026-08-01T00:00:00.000Z", seatLimitOverride: null },
     ]);
+    await expect(port.getEffectiveCommercialAccess(ORGANIZATION_ID)).resolves.toEqual({
+      lifecycle: "grace",
+      tariffId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      source: "trial",
+    });
 
     expect(getDrizzleMock).not.toHaveBeenCalled();
   });
@@ -113,28 +125,31 @@ describe("pgOrgEntitlements current-patient capability", () => {
       organizationId: ORGANIZATION_ID,
       platformUserId: PATIENT_ID,
     });
+    const organizationLimit = vi.fn().mockResolvedValue([{ tariffId: "tariff-1" }]);
+    const organizationWhere = vi.fn(() => ({ limit: organizationLimit }));
+    const trialLimit = vi.fn().mockResolvedValue([]);
+    const trialWhere = vi.fn(() => ({ limit: trialLimit }));
     const tariffLimit = vi.fn().mockResolvedValue([
-      { mechanics: { courses: true }, includedSeats: 2 },
+      { mechanics: { courses: true }, quotas: {}, includedSeats: 2 },
     ]);
     const tariffWhere = vi.fn(() => ({ limit: tariffLimit }));
-    const tariffJoin = vi.fn(() => ({ where: tariffWhere }));
     const overridesWhere = vi.fn().mockResolvedValue([
-      { mechanic: "courses", enabled: false, seatLimitOverride: null },
+      { mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null },
     ]);
     const select = vi
       .fn()
-      .mockReturnValueOnce({ from: vi.fn(() => ({ innerJoin: tariffJoin })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: organizationWhere })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: trialWhere })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: tariffWhere })) })
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: overridesWhere })) });
-    getDrizzleMock.mockReturnValue({ select });
+    getDrizzleMock.mockReturnValue({ transaction: (callback: (tx: { select: typeof select }) => unknown) => callback({ select }) });
 
     const port = createPgOrgEntitlementsPort();
-    await expect(port.getTariffForOrg(ORGANIZATION_ID)).resolves.toEqual({
-      mechanics: { courses: true },
-      includedSeats: 2,
+    await expect(port.getSnapshot(ORGANIZATION_ID)).resolves.toMatchObject({
+      tariff: { mechanics: { courses: true }, quotas: {}, includedSeats: 2 },
+      overrides: [{ mechanic: "courses", enabled: false, quota: null, expiresAt: null, seatLimitOverride: null }],
+      access: { lifecycle: "active", tariffId: "tariff-1", source: "assignment" },
     });
-    await expect(port.listOverrides(ORGANIZATION_ID)).resolves.toEqual([
-      { mechanic: "courses", enabled: false, seatLimitOverride: null },
-    ]);
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 });

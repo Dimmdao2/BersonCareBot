@@ -321,7 +321,9 @@ import { createInMemoryOrganizationMembershipPort } from "@/infra/repos/inMemory
 import { createOrganizationMembershipService } from "@/modules/organization-membership/service";
 import { createPgOrgEntitlementsPort } from "@/infra/repos/pgOrgEntitlements";
 import { createInMemoryOrgEntitlementsPort } from "@/infra/repos/inMemoryOrgEntitlements";
-import { isMechanicEnabled } from "@/modules/org-entitlements/service";
+import { createPgPlatformEntitlementsPort } from "@/infra/repos/pgPlatformEntitlements";
+import { createInMemoryPlatformEntitlementsPort } from "@/infra/repos/inMemoryPlatformEntitlements";
+import { createPlatformEntitlementsService, isMechanicEnabled } from "@/modules/org-entitlements/service";
 import { createPgPatientOrganizationPort } from "@/infra/repos/pgPatientOrganization";
 import { createPatientOrganizationService } from "@/modules/patient-organization/service";
 import { createPgOrganizationProvisioningPort } from "@/infra/repos/pgOrganizationProvisioning";
@@ -521,6 +523,9 @@ const organizationMembershipService = createOrganizationMembershipService({
 const orgEntitlementsPort = !inMemoryRepos
   ? createPgOrgEntitlementsPort()
   : createInMemoryOrgEntitlementsPort();
+const platformEntitlementsService = createPlatformEntitlementsService(
+  !inMemoryRepos ? createPgPlatformEntitlementsPort() : createInMemoryPlatformEntitlementsPort(),
+);
 const patientOrganizationService = !inMemoryRepos
   ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
@@ -1654,6 +1659,7 @@ function _buildAppDeps() {
     patientDailyWarmupVideoViews: patientDailyWarmupVideoViewsPort,
     organizationMembership: organizationMembershipService,
     orgEntitlements: orgEntitlementsPort,
+    platformEntitlements: platformEntitlementsService,
     patientOrganization: patientOrganizationService,
     organizationProvisioning: organizationProvisioningService,
     staffSecurity: staffSecurityService,

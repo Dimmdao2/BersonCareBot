@@ -10,7 +10,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 }));
 
 vi.mock("@/app-layer/guards/requireEntitlement", () => ({
-  requireEntitlement: (...args: unknown[]) => requireEntitlementMock(...args),
+  requireEntitlementForRead: (...args: unknown[]) => requireEntitlementMock(...args),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({

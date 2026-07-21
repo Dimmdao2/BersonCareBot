@@ -8,15 +8,17 @@ import {
   operatorJobStatus,
 } from "../../../db/schema/operatorHealth";
 import { outgoingDeliveryQueue } from "../../../db/schema/outgoingDeliveryQueue";
-import type {
-  IntegratorPushOutboxHealthSnapshot,
-  IntegrationWebhookLastStatusRow,
-  OperatorBackupJobStatusRow,
-  OperatorHealthReadPort,
-  OperatorIncidentOpenRow,
-  OperatorJobStatusTickRow,
-  OutgoingDeliveryQueueHealthSnapshot,
-  WebhookBurstRow,
+import { beOrganizationMembers, beOrganizations } from "../../../db/schema/bookingEngine";
+import {
+  TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
+  type IntegratorPushOutboxHealthSnapshot,
+  type IntegrationWebhookLastStatusRow,
+  type OperatorBackupJobStatusRow,
+  type OperatorHealthReadPort,
+  type OperatorIncidentOpenRow,
+  type OperatorJobStatusTickRow,
+  type OutgoingDeliveryQueueHealthSnapshot,
+  type WebhookBurstRow,
 } from "@/modules/operator-health/ports";
 
 /** Dead queue rows that count toward operator degradation (excludes blocked-bot finals). */
@@ -349,6 +351,30 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       processingCount: procCount,
       oldestProcessingAgeSeconds,
       lastQueueActivityAt: activityRows[0]?.mx ?? null,
+    };
+  },
+
+  async getTenantIsolationCanarySnapshot() {
+    const db = getDrizzle();
+    const rows = await db
+      .select({
+        organizationId: beOrganizations.id,
+        isActive: beOrganizations.isActive,
+        memberRowCount: count(beOrganizationMembers.id),
+      })
+      .from(beOrganizations)
+      .leftJoin(beOrganizationMembers, eq(beOrganizationMembers.organizationId, beOrganizations.id))
+      .groupBy(beOrganizations.id, beOrganizations.isActive)
+      .orderBy(beOrganizations.id)
+      .limit(TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS + 1);
+
+    return {
+      organizations: rows.slice(0, TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS).map((row) => ({
+        organizationId: row.organizationId,
+        isActive: row.isActive,
+        memberRowCount: Number(row.memberRowCount ?? 0),
+      })),
+      truncated: rows.length > TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
     };
   },
 };

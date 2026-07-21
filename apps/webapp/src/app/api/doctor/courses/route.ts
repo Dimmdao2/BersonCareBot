@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForRead, requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { requireDoctorWorkspaceApiContext } from "@/app-layer/guards/requireRole";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 
@@ -26,7 +26,7 @@ const postBodySchema = z.object({
 export async function GET(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
+  const entitlement = await requireEntitlementForRead(auth.ctx, "courses");
   if (!entitlement.ok) return entitlement.response;
 
   const { searchParams } = new URL(request.url);
@@ -48,8 +48,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireDoctorWorkspaceApiContext();
   if (!auth.ok) return auth.response;
-  const entitlement = await requireEntitlement(auth.ctx, "courses");
-  if (!entitlement.ok) return entitlement.response;
   const workspace = auth.ctx;
 
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -57,6 +55,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
+  const entitlement = await requireEntitlementForMutation(auth.ctx, "courses");
+  if (!entitlement.ok) return entitlement.response;
 
   const deps = buildAppDeps();
   try {
@@ -80,6 +80,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, item });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "error";
+    if (msg.includes("saas_quota_reached:courses")) {
+      return NextResponse.json(
+        { ok: false, error: "quota_reached", mechanic: "courses" },
+        { status: 403 },
+      );
+    }
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 }

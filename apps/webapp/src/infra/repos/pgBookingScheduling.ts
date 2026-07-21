@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from "drizzle-orm";
 import type { BreakInterval } from "@/modules/booking-scheduling/ports";
-import { getDrizzle } from "@/app-layer/db/drizzle";
+import { getDrizzle, type DrizzleDb } from "@/app-layer/db/drizzle";
 import { runWebappPgText, runWebappTransaction } from "@/infra/db/runWebappSql";
 import { readAdminSystemSettingInnerValue } from "@/infra/repos/pgSystemSettings";
 import {
@@ -25,6 +25,7 @@ import {
   localDateKey,
   pickWorkingHours,
   workingIntervalsForDate,
+  type BusyInterval,
 } from "@/modules/booking-scheduling/computeSlots";
 import {
   legacyBranchServiceIdBySsaFromMappings,
@@ -52,6 +53,51 @@ const ACTIVE_APPOINTMENT_STATUSES = [
   "rescheduled",
   "manual_review_required",
 ];
+
+export type BookingBusyIntervalsInput = {
+  organizationId: string;
+  specialistId: string | null;
+  roomId: string | null;
+  rangeStart: string;
+  rangeEnd: string;
+  excludeAppointmentId?: string;
+};
+
+/** Shared by availability reads and the transaction-locked online writer. */
+export async function listBookingBusyIntervals(
+  db: DrizzleDb,
+  { organizationId, specialistId, rangeStart, rangeEnd, excludeAppointmentId }: BookingBusyIntervalsInput,
+): Promise<BusyInterval[]> {
+  const apptConds = [
+    eq(beAppointments.organizationId, organizationId),
+    specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
+    isNull(beAppointments.deletedAt),
+    sql`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute')) >= ${rangeStart}`,
+    lte(beAppointments.startAt, rangeEnd),
+    inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
+  ];
+  if (excludeAppointmentId) apptConds.push(ne(beAppointments.id, excludeAppointmentId));
+  const apptRows = await db
+    .select({
+      startAt: beAppointments.startAt,
+      endAt: sql<string>`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute'))`,
+    })
+    .from(beAppointments)
+    .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+    .where(and(...apptConds));
+
+  const blockConds = [
+    eq(beSb.organizationId, organizationId),
+    gte(beSb.endAt, rangeStart),
+    lte(beSb.startAt, rangeEnd),
+  ];
+  if (specialistId) blockConds.push(or(eq(beSb.specialistId, specialistId), isNull(beSb.specialistId))!);
+  const blockRows = await db
+    .select({ startAt: beSb.startAt, endAt: beSb.endAt })
+    .from(beSb)
+    .where(and(...blockConds));
+  return [...apptRows, ...blockRows];
+}
 
 export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<string>): BookingSchedulingPort {
   return {
@@ -258,39 +304,14 @@ export function createPgBookingSchedulingPort(_getDefaultOrgId?: () => Promise<s
 
     async listBusyIntervals({ organizationId, specialistId, roomId, rangeStart, rangeEnd, excludeAppointmentId }) {
       const db = getDrizzle();
-      const apptConds = [
-        eq(beAppointments.organizationId, organizationId),
-        specialistId ? eq(beAppointments.specialistId, specialistId) : sql`true`,
-        // F1b: soft-deleted appointments do not reserve the slot.
-        isNull(beAppointments.deletedAt),
-        sql`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute')) >= ${rangeStart}`,
-        lte(beAppointments.startAt, rangeEnd),
-        inArray(beAppointments.status, ACTIVE_APPOINTMENT_STATUSES),
-      ];
-      if (excludeAppointmentId) {
-        apptConds.push(ne(beAppointments.id, excludeAppointmentId));
-      }
-      const apptRows = await db
-        .select({
-          startAt: beAppointments.startAt,
-          endAt: sql<string>`(${beAppointments.endAt} + (COALESCE(${beClinicServices.bufferAfterMinutes}, 0) * interval '1 minute'))`,
-        })
-        .from(beAppointments)
-        .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
-        .where(and(...apptConds));
-
-      const blockConds = [
-        eq(beSb.organizationId, organizationId),
-        gte(beSb.endAt, rangeStart),
-        lte(beSb.startAt, rangeEnd),
-      ];
-      if (specialistId) blockConds.push(or(eq(beSb.specialistId, specialistId), isNull(beSb.specialistId))!);
-      const blockRows = await db
-        .select({ startAt: beSb.startAt, endAt: beSb.endAt })
-        .from(beSb)
-        .where(and(...blockConds));
-
-      return [...apptRows, ...blockRows];
+      return listBookingBusyIntervals(db, {
+        organizationId,
+        specialistId,
+        roomId,
+        rangeStart,
+        rangeEnd,
+        ...(excludeAppointmentId ? { excludeAppointmentId } : {}),
+      });
     },
 
     async listWorkingHours({ organizationId, specialistId, branchId, roomId }) {

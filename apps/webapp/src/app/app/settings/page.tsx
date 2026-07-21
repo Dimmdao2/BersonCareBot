@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requireEntitlementForAction } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForReadAction } from "@/app-layer/guards/requireEntitlement";
 import { requireOrganizationWorkspaceContext } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { isSeatConsumingMember } from "@/modules/clinic-seats/service";
@@ -94,7 +94,7 @@ export default async function SettingsPage({
   }
 
   if (tab === "team") {
-    const entitlement = await requireEntitlementForAction(
+    const entitlement = await requireEntitlementForReadAction(
       { organizationId: workspace.organizationId },
       "clinic_team",
     );

@@ -4115,6 +4115,25 @@ after the declared final convergence boundary. No third automatic correction, in
 deploy or environment action was started. Task `#751` is blocked/owner-waiting on one exact choice: authorize one
 last convergence pass for both P1 classes or freeze the isolated candidate. S4 residual `#939` remains downstream.
 
+## 2026-07-21 — owner-authorized final C5A pass stops on provisioning-smoke integration (`#751`)
+
+The owner authorized one final convergence pass limited to the two P1 classes above. Candidate commit `8afec6853`
+now installs/reapplies U9A before the C5A runtime capability in the shared rehydrate chain, moves broadcast draft
+save and schedule-block delete to the mutation entitlement boundary, and preserves notification-template GET/preview
+as reads and PUT as a mutation. Focused lifecycle tests (`28`), rehydrate tests (`18`), core C5A tests (`48`), the
+checker self-test, U9A/D3.4 static checks, shell syntax and diff checks passed; prior valid private U9A, two-connection
+quota, `402` changed-test, typecheck and scoped-lint evidence was retained. The S4 checker still reports exactly the
+same twelve pre-base `#939` findings and no candidate-owned delta.
+
+The terminal full-stage audit nevertheless returned `FAIL, 0 P0 / 1 P1 / 0 P2`. The existing disposable
+`smoke-phase3-specialist-signup-provisioning.mjs` fixture does not install migration `0225` or the C5A platform trial
+capability before applying the updated specialist-owner provisioning SQL. It consequently exits on missing
+prerequisites before exercising the canonical owner requirement that a newly created organization atomically receives
+the selected trial tariff and duration. The requirement itself is clear; the unresolved issue is permission for one
+separate integration-proof repair after the declared final pass. No new correction was opened, no C5A commit was
+merged or pushed, and no working database, TEST/PROD, deploy or full CI action ran. Task `#751` is blocked and
+owner-waiting on that single process decision; its isolated clean worktree is retained as evidence.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round
@@ -4203,3 +4222,52 @@ JSON/text stall proofs; terminal re-audit passed `0/0`. Targeted tests passed `4
 raw-fetch census and diff check passed. Full CI is reserved for the accumulated Phase 1 milestone. No DB, network,
 deploy, TEST or PROD action ran. Three unbounded integrator Google Calendar delivery calls were recorded only as a
 P2 owner recommendation outside B2; no task was generated from that audit finding.
+
+## 2026-07-21 — Hardening A3 tenant-isolation detection integrated (`#946`)
+
+Integrated `3f684d135` plus the single audit correction `7bc938e03`. Existing pool counters and persisted isolation
+diagnostics now feed the existing five-minute critical alert tick; a bounded per-organization canary detects member
+visibility and full active-set collapse after a safe priming/debounce period. Alerts expose aggregate counts only,
+without organization/user identifiers, and no second scheduler or request instrumentation was introduced.
+
+The full independent audit found two matching-plan P1s: the first implementation reused the collector from the
+doctor Today banner and therefore added DB reads/state advancement to a page request, and its process-lifetime maps
+could exceed the declared bound under organization churn. One coherent correction separated the lightweight banner
+collector, enforced the lifetime `4096` cap and added exact churn/active-set-zero proofs. Terminal re-audit passed
+`0/0/0`; targeted tests passed `66/66`, typecheck, scoped lint and diff check passed. Full CI remains at the Phase 1
+milestone; production activation, DB apply, deploy, TEST and PROD were not performed.
+
+## 2026-07-21 — Hardening B3 online booking concurrency integrated (`#948`)
+
+Integrated `fdbea3b0e` plus the single audit correction `d640d93b9`. The legacy online/null-capacity writer now
+validates a bounded minute-aligned chain, acquires deterministic organization-scoped keys for the complete half-open
+time range in one SQL call, rechecks the canonical busy set and inserts all appointments/events/history in the same
+principal-aware Drizzle transaction. In-person GiST, payment, projection and idempotency paths remain unchanged.
+
+The first full audit found one matching-plan P1: locking only exact start times allowed two overlapping off-grid
+intervals with different starts to commit. One coherent correction moved to full-range keys. Terminal re-audit
+passed `0/0/0`; worker evidence passed `31/31` targeted tests, private disposable PostgreSQL same-slot,
+distinct-start, chain, adjacent, reverse/deadlock and cross-org proofs, typecheck, scoped lint and diff check. Full CI
+remains at the Phase 1 milestone. Working DB, deploy, TEST and PROD were not touched. Concurrent schedule-block
+linearization remains an explicit owner question outside B3 and did not generate an audit-driven task.
+
+## 2026-07-21 — Hardening B1 reaches terminal locked-role gate (`#949`)
+
+The isolated three-commit candidate ends at `1a07bc2e3`. Across two coherent correction passes it makes capture DB
+effects share the existing Drizzle UoW, keeps external delivery outside that transaction, serializes replay through
+mandatory post-commit delivery, processes the canonical stored event rather than a changed duplicate body, separates
+provider lifecycle states, and moves the legacy product user writer into the same transaction. The final worker
+evidence passed an executable disposable regression on pre-fix base `a3badd17c`, private PostgreSQL dirty-preflight/
+lifecycle/six-boundary rollback/concurrency/delivery proofs, `20` files / `85` tests, webapp typecheck, scoped lint,
+Drizzle journal/frozen-history and diff checks. No working database or external network was used.
+
+The hard-ceiling full audit still returned `FAIL, 0 P0 / 1 P1`. The public webhook must discover the canonical
+organization before verifying against that organization's provider config, but its bootstrap principal cannot read
+`be_payment_provider_events` or `be_payment_intents` under the canonical locked grant/RLS topology before an
+organization principal already exists. The route unit test mocks that DB boundary and therefore cannot prove the
+production path. A general bootstrap grant or RLS bypass would violate the tenant boundary. No third correction,
+integration, push, full CI, DB apply, TEST/PROD or deploy was started. Task `#949` is blocked/owner-waiting on whether
+to authorize a separate narrow DB capability that returns only `organization_id` for a globally unique provider /
+idempotency / event-type authority key, followed by one terminal audit, or freeze B1. Migration number `0225` remains
+owned only by this isolated candidate for now; isolated C5A must be renumbered/rebased if either branch is later
+authorized and integrated first.

@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireClinicManagementApiContext } from "@/app-layer/guards/requireRole";
-import { requireEntitlement } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { systemSettingsOrgContextErrorResponse } from "@/app-layer/guards/systemSettingsOrgContextResponse";
 import { ALLOWED_KEYS, type SystemSetting } from "@/modules/system-settings/types";
 import { isPerOrgSettingKey } from "@/modules/system-settings/orgScopedKeys";
@@ -372,7 +372,7 @@ export async function PATCH(request: Request) {
     );
   }
   if (PAYMENT_ENTITLEMENT_SETTING_KEYS.has(parsed.data.key)) {
-    const entitlement = await requireEntitlement(gate.ctx, "payments");
+    const entitlement = await requireEntitlementForMutation(gate.ctx, "payments");
     if (!entitlement.ok) return entitlement.response;
   }
   if (

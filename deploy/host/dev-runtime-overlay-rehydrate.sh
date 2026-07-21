@@ -21,6 +21,8 @@ P0_5B_GRANTS="$REPO_ROOT/deploy/postgres/p0-5b-grants.sql"
 P2_B_CONTEXT="$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql"
 PHASE4_LOCKED_POLICIES="$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql"
 D3_4_BOOTSTRAP_GRANTS="$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"
+U9A_PLATFORM_SETTINGS_ROLE="$REPO_ROOT/deploy/postgres/u9a-platform-settings-role.sql"
+C5A_PLATFORM_OPERATIONS="$REPO_ROOT/deploy/postgres/c5a-platform-operations-runtime.sql"
 RUNTIME_OVERLAY_APP_OWNER_HANDOFF="$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql"
 POSTGRES=(sudo -n -u postgres env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 
@@ -64,6 +66,8 @@ for guarded_file in \
   "$P2_B_CONTEXT|$REPO_ROOT/deploy/postgres/p2-b-protected-principal-context.sql|P2-B protected context" \
   "$PHASE4_LOCKED_POLICIES|$REPO_ROOT/deploy/postgres/phase4-locked-helper-rls-policies.sql|Phase 4 strict locked-helper policies" \
   "$D3_4_BOOTSTRAP_GRANTS|$REPO_ROOT/deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql|D3.4 bootstrap grants" \
+  "$U9A_PLATFORM_SETTINGS_ROLE|$REPO_ROOT/deploy/postgres/u9a-platform-settings-role.sql|U9A platform settings role" \
+  "$C5A_PLATFORM_OPERATIONS|$REPO_ROOT/deploy/postgres/c5a-platform-operations-runtime.sql|C5A platform operations" \
   "$RUNTIME_OVERLAY_APP_OWNER_HANDOFF|$REPO_ROOT/deploy/postgres/runtime-overlay-app-owner-handoff.sql|runtime overlay app_owner handoff"; do
   IFS='|' read -r guarded_path expected_path guarded_label <<<"$guarded_file"
   if [[ -L "$guarded_path" || ! -f "$guarded_path" || "$(realpath "$guarded_path")" != "$expected_path" ]]; then
@@ -754,7 +758,8 @@ runtime_overlay_admin_psql \
   -f "$PHASE4_LOCKED_POLICIES" >/dev/null
 
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
-runtime_overlay_apply_post_migration_chain "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
+runtime_overlay_apply_post_migration_chain \
+  "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
 
 echo "[dev-runtime-overlay] applying canonical D3.4 DEV bootstrap closure (validated C0; media excluded)"
 runtime_overlay_admin_psql \
