@@ -4063,3 +4063,16 @@ full-current-state requirement. Task `#938` is therefore the mandatory Phase-0 p
 schema baseline, exact ledger manifest, minimal deterministic `.test` seed and disposable restore→pending-migrate→
 ledger/drift verifier. Historical SQL is not rewritten. A1 `#937` returns to `todo` until A0 passes, then resumes the
 real locked/FORCE two-org proof. This is CI/test infrastructure only; no database restore/deploy was authorized.
+
+## 2026-07-21 — N1B0 managed notification templates integrated (`#930`)
+
+Integrated worker `d7cc96916` plus the single coherent audit correction `1f43631c3` as feature commits
+`25bd0c5dd` and `059b662d3`. The existing six notification-template settings now carry safe versioned
+event/audience/channel copy and a fixed server-owned email presentation. Platform defaults and eligible clinic
+overrides preserve the established ownership boundary; no second store or sender was introduced.
+
+The terminal independent re-audit passed with no findings after proving exact safe variable/render limits, explicit
+legacy compatibility state, concurrency-safe dual-write CAS, org/entitlement negatives, escaped HTML+plain output,
+synthetic preview and bounded U9A mirror access. Integration checks passed 74 targeted tests, webapp typecheck,
+scoped lint, U9A static check and diff check. N1B1 sender adoption remains intentionally deferred to the matching N3
+families. Full CI is reserved for the accumulated milestone; DB apply, deploy, TEST/PROD and real sends were excluded.

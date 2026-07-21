@@ -1,6 +1,7 @@
 # NTF-01 — App push and messenger auth-only boundary
 
-Статус: `in_progress`; N0 census и N1 central guard закрыты 2026-07-21. N1A и N1B0 — следующие repository slices.
+Статус: `in_progress`; N0, N1, N1A и N1B0 repository slices закрыты 2026-07-21. N1B1 выполняется позже внутри
+соответствующих N3 family children; editor foundation не означает adoption/send cutover.
 Текущий runtime всё ещё многоканальный до N3/N4/N6 cutover.
 
 ## Цель
@@ -370,16 +371,16 @@ second template store or channel sender.
 > §«Конверт транзакционных писем». This note records the owner design clarification of N1B0; it does not add new
 > stages or change the acceptance criteria below.
 
-- [ ] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
+- [x] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
       platform default → eligible organization override → channel renderer. Platform admin owns defaults;
       organization owner/admin owns org overrides. Per-specialist override is not launch scope until a later owner
       decision.
-- [ ] Replace the current global variable list with a server-enforced allowlist per event/channel/content tier.
+- [x] Replace the current global variable list with a server-enforced allowlist per event/channel/content tier.
       Unknown variable, raw chat/comment, diagnosis, complaint, phone/name where not explicitly allowed, absolute
       untrusted URL and secret/token fail closed.
-- [ ] Email templates have subject, sanitized HTML and required plain-text fallback. Telegram/MAX/push render only
+- [x] Email templates have subject, sanitized HTML and required plain-text fallback. Telegram/MAX/push render only
       their supported safe fields/formatting. Preview uses synthetic data and never performs a real DEV send.
-- [ ] Branding changes presentation only after the existing organization `branding` entitlement and published
+- [x] Branding changes presentation only after the existing organization `branding` entitlement and published
       assets/readiness. Core organization identification remains available without paid branding; custom sender
       identity/readiness remains the separate U8/branding-domain contract.
 - [ ] `N1B1 adoption` is executed inside the matching N3 family child: appointment reminder, exercise reminder and
@@ -390,6 +391,17 @@ Acceptance: current created/cancelled/rescheduled templates migrate without sile
 two-org negatives pass; unsafe variable/render attempts fail server-side; HTML/plain and messenger renderer fixtures
 pass; branding-off fallback is deterministic; template revision/effective source is auditable without logging body;
 no real channel send, provider configuration or TEST/PROD action is part of editor acceptance.
+
+**N1B0 closure (2026-07-21, taskdb `#930`, integration `059b662d3`).** The same six `notif_template:*` carrier keys
+now expose versioned platform/organization templates and one presentation profile. Exact event×audience×channel T1
+policies exclude name/phone/reason, final rendered values are bounded and control-character safe, email uses a fixed
+escaped server envelope plus plain fallback, and preview is synthetic/no-send. Compatible legacy text is adapted;
+incompatible text remains visibly preserved. Exact-row CAS covers the legacy+runtime dual write and returns an
+explicit conflict instead of losing concurrent template/presentation changes. Platform defaults require the platform
+principal and NULL organization; clinic overrides require clinic management plus branding entitlement and exact org.
+One correction pass and terminal independent re-audit passed with 0 P0/P1/P2; integration validation passed 8 files /
+74 tests, typecheck, scoped lint, U9A and diff checks. Full CI waits for the accumulated milestone. No DB apply,
+provider call, sender adoption, deploy, TEST or PROD action occurred.
 
 ### N2 — provider-neutral push target and delivery (`AI`, coordinated with `MOB-03`)
 
