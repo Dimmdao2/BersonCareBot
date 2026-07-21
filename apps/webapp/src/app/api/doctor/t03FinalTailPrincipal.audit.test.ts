@@ -49,6 +49,7 @@ const coveredMarkers = [
   "withAdminBookingCatalogPrincipal",
   "requireAdminBookingCatalogContext",
   "requireClinicManagementApiContext",
+  "requirePlatformOperationsApiContext",
   "requireAdminModeSession",
 ];
 
