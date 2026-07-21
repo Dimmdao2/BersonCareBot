@@ -327,11 +327,19 @@ Reuse base is mandatory: `modules/notif-templates/notifTemplatesService.ts`, exi
 `notif_template:*` global-fallback/per-org settings and the schedule «Тексты уведомлений» editor. Do not fork a
 second template store or channel sender.
 
-> Editor UI note (owner 2026-07-21): the HTML email-body editing surface reuses the shared **Tiptap Simple** WYSIWYG
-> component from taskdb `#931` ([`docs/_TODO/EDITOR_TIPTAP_MIGRATION_PLAN.md`](../../EDITOR_TIPTAP_MIGRATION_PLAN.md),
-> [`docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md`](../../../ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md) §«Редактор
-> контента»). `#931` is a cross-cutting UI enabler, not privacy scope; it lands independently and this stage consumes
-> it. This note references the editor decision only; it does not add or change N1B requirements.
+> Editor UI decision (owner 2026-07-21) — **layout + content split, NOT Tiptap here.** Transactional notification
+> templates (notification texts, appointment reminders, OTP/verification emails) keep the current simple
+> variable-based content editor. The only visually-configured artifact is a single per-organization **HTML envelope
+> (wrapper)** — branding (logo, specialist avatar, signature, contacts) + `{{title}}`/`{{body}}` placeholders where
+> the notification title/body are injected. It is edited as **HTML code with a synthetic live preview**, not WYSIWYG
+> and not a visual email builder. This is exactly N1B0's `sanitized HTML + server-enforced allowlist + preview on
+> synthetic data`: sanitize the wrapper server-side, restrict to the whitelisted placeholder/tag set, strip
+> script/handlers/external resources; sanitize injected content; one wrapper per org gated by the `branding`
+> entitlement (neutral platform wrapper by default). **Tiptap (`#931`) is a separate cross-cutting decision for the
+> markdown editors (broadcasts/CMS/recommendations) and is NOT used in N1B.** Refs:
+> [`docs/ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md`](../../../ARCHITECTURE/TOOLING_AND_PACKAGES_DECISIONS.md)
+> §«HTML-конверт транзакционных писем». This note records the owner design clarification of N1B0; it does not add new
+> stages or change the acceptance criteria below.
 
 - [ ] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
       platform default → eligible organization override → channel renderer. Platform admin owns defaults;
