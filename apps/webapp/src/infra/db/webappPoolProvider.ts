@@ -51,8 +51,10 @@ function createWebappPool(connectionString: string, max: number, poolFactory: (c
     connectionString,
     max,
   });
+  const metrics = createEmptyRoutingMetrics();
   pool.on("connect", prepareWebappPoolClient);
-  installPrincipalAwarePoolQuery(pool);
+  installPrincipalAwarePoolQuery(pool, metrics);
+  poolRoutingMetrics.set(pool, metrics);
   return pool;
 }
 
@@ -132,12 +134,13 @@ function releasePoolClient(client: PoolClient, cleanupError?: unknown): void {
   client.release(cleanupError instanceof Error ? cleanupError : new Error("DB principal cleanup failed"));
 }
 
-function installPrincipalAwarePoolQuery(pool: Pool): void {
+function installPrincipalAwarePoolQuery(pool: Pool, metrics: WebappPoolRoutingMetrics): void {
   const queryWithPrincipal = async (
     principalSnapshot: DbPrincipal | undefined,
     ...args: Parameters<Pool["query"]>
   ): Promise<Awaited<ReturnType<Pool["query"]>>> => {
     const principalApplyOptions = buildDbPrincipalApplyOptionsFromEnv(process.env);
+    if (!principalSnapshot) metrics.missingPrincipalSelections += 1;
     try {
       assertDbPrincipalRequestPoolCheckoutAllowedForPrincipal(principalSnapshot, principalApplyOptions);
     } catch (error) {

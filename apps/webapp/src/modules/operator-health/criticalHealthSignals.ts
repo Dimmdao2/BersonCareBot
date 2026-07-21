@@ -2,6 +2,7 @@ import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from "./adminHealthThresholds";
 import { classifyIntegratorPushOutboxSystemHealthStatus } from "./integratorPushOutboxHealth";
 import type { IntegratorPushOutboxHealthSnapshot, OutgoingDeliveryQueueHealthSnapshot, WebhookBurstRow } from "./ports";
 import { isWebhookBurstCritical, WEBHOOK_BURST_MIN_COUNT } from "./webhookBurst";
+import type { TenantIsolationCriticalHealthSignal } from "./tenantIsolationCriticalHealth";
 
 export const PROBE_CRITICAL_CONSECUTIVE_FAIL_RUNS = 3;
 
@@ -29,6 +30,8 @@ export type CriticalHealthSignalsInput = {
   videoTranscodeStatus: VideoTranscodeHealthStatus;
   /** Burst inbound webhook errors (P8); omit when lightweight collect skips webhook table. */
   webhookBursts?: WebhookBurstRow[];
+  /** A3: low-cardinality tenant-isolation detector, collected only by the five-minute health tick. */
+  tenantIsolation?: TenantIsolationCriticalHealthSignal;
 };
 
 export type OperatorHealthBannerInput = CriticalHealthSignalsInput & {
@@ -66,7 +69,49 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
   const od = input.outgoingDelivery;
   if (od.deadTotal > 0 || od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) return true;
   if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== "ok") return true;
+  if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
   return false;
+}
+
+function classifyTenantIsolationSignals(
+  input: TenantIsolationCriticalHealthSignal | undefined,
+): CriticalAlertCandidate[] {
+  if (!input) return [];
+  const out: CriticalAlertCandidate[] = [];
+  if (input.runtime.critical) {
+    out.push({
+      topic: "tenant_isolation_runtime",
+      dedupKey: "critical:tenant_isolation:runtime",
+      pushTitle: "Критичный сбой: изоляция организаций",
+      lines: [
+        "Изоляция организаций: обнаружено нарушение runtime-контекста",
+        `Без принципала: +${input.runtime.missingPrincipalDelta}, mismatch роли/пула: +${input.runtime.poolRoleMismatchDelta}`,
+      ],
+    });
+  }
+  if (input.diagnostics.status === "critical" || input.diagnostics.status === "unavailable") {
+    out.push({
+      topic: "tenant_isolation_diagnostics",
+      dedupKey: `critical:tenant_isolation:diagnostics:${input.diagnostics.status}`,
+      pushTitle: "Критичный сбой: диагностика изоляции",
+      lines: [
+        `Диагностика изоляции: ${input.diagnostics.status}`,
+        `Активных необъяснённых событий: ${input.diagnostics.activeUnexplainedEvents}`,
+      ],
+    });
+  }
+  if (input.wentDark.status === "critical" || input.wentDark.status === "unavailable") {
+    out.push({
+      topic: "tenant_isolation_went_dark",
+      dedupKey: `critical:tenant_isolation:went_dark:${input.wentDark.status}`,
+      pushTitle: "Критичный сбой: tenant-канарейка",
+      lines: [
+        `Tenant-канарейка: ${input.wentDark.status}`,
+        `Организаций без ожидаемого сигнала: ${input.wentDark.affectedOrganizations}`,
+      ],
+    });
+  }
+  return out;
 }
 
 export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput): CriticalAlertCandidate[] {
@@ -177,6 +222,8 @@ export function classifyCriticalHealthSignals(input: CriticalHealthSignalsInput)
       ],
     });
   }
+
+  out.push(...classifyTenantIsolationSignals(input.tenantIsolation));
 
   return out;
 }

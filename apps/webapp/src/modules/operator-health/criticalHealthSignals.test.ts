@@ -33,6 +33,11 @@ function healthyInput(overrides: Partial<CriticalHealthSignalsInput> = {}): Crit
     probeConsecutiveFailRuns: 0,
     videoTranscodeStatus: "ok",
     webhookBursts: [],
+    tenantIsolation: {
+      runtime: { critical: false, missingPrincipalDelta: 0, poolRoleMismatchDelta: 0 },
+      diagnostics: { status: "okay", activeUnexplainedEvents: 0 },
+      wentDark: { status: "ok", affectedOrganizations: 0 },
+    },
     ...overrides,
   };
 }
@@ -50,6 +55,38 @@ describe("classifyCriticalHealthSignals", () => {
   it("flags integrator api unreachable", () => {
     const c = classifyCriticalHealthSignals(healthyInput({ integratorApi: "unreachable" }));
     expect(c.some((x) => x.topic === "integrator_api")).toBe(true);
+  });
+
+  it("emits three bounded tenant-isolation candidates without organization identifiers", () => {
+    const candidates = classifyCriticalHealthSignals(
+      healthyInput({
+        tenantIsolation: {
+          runtime: { critical: true, missingPrincipalDelta: 2, poolRoleMismatchDelta: 1 },
+          diagnostics: { status: "critical", activeUnexplainedEvents: 3 },
+          wentDark: { status: "critical", affectedOrganizations: 2 },
+        },
+      }),
+    ).filter((candidate) => candidate.topic.startsWith("tenant_isolation"));
+    expect(candidates.map((candidate) => candidate.topic)).toEqual([
+      "tenant_isolation_runtime",
+      "tenant_isolation_diagnostics",
+      "tenant_isolation_went_dark",
+    ]);
+    expect(JSON.stringify(candidates)).not.toContain("organizationId");
+    expect(JSON.stringify(candidates)).not.toContain("org-");
+  });
+
+  it("does not treat debounced detector states as critical", () => {
+    const candidates = classifyCriticalHealthSignals(
+      healthyInput({
+        tenantIsolation: {
+          runtime: { critical: false, missingPrincipalDelta: 0, poolRoleMismatchDelta: 0 },
+          diagnostics: { status: "degraded", activeUnexplainedEvents: 0 },
+          wentDark: { status: "priming", affectedOrganizations: 0 },
+        },
+      }),
+    );
+    expect(candidates.some((candidate) => candidate.topic.startsWith("tenant_isolation"))).toBe(false);
   });
 
   it("flags projection deadCount but not retries only", () => {

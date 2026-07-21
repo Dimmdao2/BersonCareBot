@@ -9,7 +9,11 @@ import {
   type ConfigReaderPoolProvider,
 } from "@/infra/db/configReaderPoolProvider";
 import { withPoolClient } from "@/infra/db/withClient";
-import { createWebappPoolProvider } from "@/infra/db/webappPoolProvider";
+import {
+  createWebappPoolProvider,
+  getWebappPoolRoutingMetrics,
+  type WebappPoolRoutingMetrics,
+} from "@/infra/db/webappPoolProvider";
 
 export const DATABASE_URL_STAFF_ENV = "DATABASE_URL_STAFF";
 export const DATABASE_URL_NONSTAFF_ENV = "DATABASE_URL_NONSTAFF";
@@ -74,6 +78,11 @@ export function getPool(): Pool {
   pool ??= createWebappPoolProvider(resolveWebappPoolProviderConfig(readWebappRuntimeDatabaseEnv()));
 
   return pool;
+}
+
+/** Read the already-collected counters without creating a pool or doing I/O. */
+export function getCurrentWebappPoolRoutingMetrics(): WebappPoolRoutingMetrics | undefined {
+  return pool ? getWebappPoolRoutingMetrics(pool) : undefined;
 }
 
 export function getConfigReaderPool(): ConfigReaderPoolProvider {

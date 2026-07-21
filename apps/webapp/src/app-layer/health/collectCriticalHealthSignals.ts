@@ -22,6 +22,12 @@ import type {
 import { readProbeConsecutiveFailRuns } from "@/modules/operator-health/probeOutboundMeta";
 import { WEBHOOK_BURST_MIN_COUNT, WEBHOOK_BURST_WINDOW_MINUTES } from "@/modules/operator-health/webhookBurst";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getCurrentWebappPoolRoutingMetrics } from "@/infra/db/client";
+import {
+  observeTenantIsolationCanary,
+  observeTenantIsolationDiagnostics,
+  observeTenantIsolationRuntimeCounters,
+} from "@/modules/operator-health/tenantIsolationCriticalHealth";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;
 
@@ -134,7 +140,8 @@ async function loadBackupJobsMap(): Promise<Record<string, { lastStatus: string 
  * Облегчённый сбор сигналов для critical tick (без media/playback/engagement).
  */
 export async function collectCriticalHealthSignals(): Promise<CriticalHealthSignalsInput> {
-  const read = buildAppDeps().operatorHealthRead;
+  const deps = buildAppDeps();
+  const read = deps.operatorHealthRead;
 
   const [
     webappDb,
@@ -146,6 +153,8 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     probeJob,
     videoTranscodeStatus,
     webhookBursts,
+    isolationDiagnostics,
+    isolationCanary,
   ] = await Promise.all([
     probeWebappDb(),
     probeIntegratorApi(),
@@ -156,7 +165,16 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     read.getOperatorJobStatus(OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY),
     probeVideoTranscodeStatus(),
     read.listWebhookBurstSignals(WEBHOOK_BURST_WINDOW_MINUTES, WEBHOOK_BURST_MIN_COUNT),
+    deps.saasIsolationDiagnostics.readHealth().catch(() => null),
+    read.getTenantIsolationCanarySnapshot().catch(() => null),
   ]);
+
+  const observedAt = Date.now();
+  const tenantIsolation = {
+    runtime: observeTenantIsolationRuntimeCounters(getCurrentWebappPoolRoutingMetrics(), observedAt),
+    diagnostics: observeTenantIsolationDiagnostics(isolationDiagnostics, observedAt),
+    wentDark: observeTenantIsolationCanary(isolationCanary, observedAt),
+  };
 
   return {
     webappDb,
@@ -171,6 +189,7 @@ export async function collectCriticalHealthSignals(): Promise<CriticalHealthSign
     probeConsecutiveFailRuns: readProbeConsecutiveFailRuns(probeJob?.metaJson),
     videoTranscodeStatus,
     webhookBursts,
+    tenantIsolation,
   };
 }
 
