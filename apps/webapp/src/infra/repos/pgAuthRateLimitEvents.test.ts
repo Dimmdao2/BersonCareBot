@@ -58,4 +58,37 @@ describe("checkAndRecordAuthRateLimitEvent", () => {
     const insertSql = String(runWebappPgTextMock.mock.calls[2]?.[0] ?? "");
     expect(insertSql).toContain("INSERT INTO auth_rate_limit_events");
   });
+
+  it("prunes stale rows for the full F0 scope before checking a pseudonymous key", async () => {
+    runWebappTransactionMock.mockImplementation(async (fn: (tx: unknown) => Promise<boolean>) => {
+      runWebappPgTextMock
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ c: "0" }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+      return fn({});
+    });
+
+    const pseudonymousKey = `client-boot:v1:${"a".repeat(64)}`;
+    await expect(checkAndRecordAuthRateLimitEvent({
+      scope: "patient.client_boot_report",
+      key: pseudonymousKey,
+      windowMs: 3_600_000,
+      maxPerWindow: 30,
+      scopeRetentionMs: 3_600_000,
+    })).resolves.toBe(false);
+
+    expect(String(runWebappPgTextMock.mock.calls[0]?.[0] ?? "")).toContain(
+      "WHERE scope = $1 AND occurred_at <= $2",
+    );
+    expect(runWebappPgTextMock.mock.calls[0]?.[1]).toEqual([
+      "patient.client_boot_report",
+      expect.any(Date),
+    ]);
+    expect(runWebappPgTextMock.mock.calls[1]?.[1]).toEqual([
+      "patient.client_boot_report",
+      pseudonymousKey,
+      expect.any(Date),
+    ]);
+  });
 });

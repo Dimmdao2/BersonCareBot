@@ -44,6 +44,44 @@ describe("supported client matrix", () => {
     expect(oldChrome).not.toHaveProperty("blocked");
   });
 
+  it.each([
+    [
+      "Firefox",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:99.0) Gecko/20100101 Firefox/99.0",
+      "below_matrix",
+    ],
+    [
+      "Firefox",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
+      "within_matrix",
+    ],
+    [
+      "Samsung Internet",
+      "Mozilla/5.0 (Linux; Android 12; SAMSUNG SM-G991B) AppleWebKit/537.36 SamsungBrowser/19.0 Chrome/102.0 Mobile Safari/537.36",
+      "below_matrix",
+    ],
+    [
+      "Samsung Internet",
+      "Mozilla/5.0 (Linux; Android 12; SAMSUNG SM-G991B) AppleWebKit/537.36 SamsungBrowser/20.0 Chrome/102.0 Mobile Safari/537.36",
+      "within_matrix",
+    ],
+  ] as const)("applies the declared %s threshold", (_name, userAgent, supportBucket) => {
+    expect(parseSupportedClientEnvironment(userAgent).supportBucket).toBe(supportBucket);
+  });
+
+  it("classifies an Android in-app WebView without turning it into an access gate", () => {
+    const parsed = parseSupportedClientEnvironment(
+      "Mozilla/5.0 (Linux; Android 12; Pixel 5 Build/SP2A; wv) AppleWebKit/537.36 Version/4.0 Chrome/101.0 Mobile Safari/537.36 Telegram",
+    );
+    expect(parsed).toMatchObject({
+      osFamily: "android",
+      browserFamily: "chrome",
+      isInAppWebView: true,
+      supportBucket: "within_matrix",
+    });
+    expect(parsed).not.toHaveProperty("allowed");
+  });
+
   it("keeps unparseable clients generic", () => {
     const parsed = parseSupportedClientEnvironment("unknown-client");
     expect(parsed.supportBucket).toBe("unknown");

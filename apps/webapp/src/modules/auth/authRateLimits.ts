@@ -46,6 +46,7 @@ export const isClientBootReportRateLimitedByKey = createSlidingWindowRateLimit({
   scope: "patient.client_boot_report",
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
+  scopeRetentionMs: 60 * 60 * 1000,
   db: authRateLimitDb,
 });
 

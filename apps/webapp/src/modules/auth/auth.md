@@ -120,6 +120,11 @@ Tier **`patient`** (доступ к основному пациентскому 
   доверенному `X-Real-IP` через DB sliding-window port и пишет только structured `info`/`warn` с
   `scope=patient_client_env`, `event=unsupported_client_boot`. Raw UA/stack/body/tokens/account ids не принимаются;
   product analytics, registration failure, audit и operator-health не вызываются.
+- Raw `X-Real-IP` не передаётся в repository и не сохраняется: limiter получает purpose-separated HMAC-SHA256
+  `patient-client-boot-rate-limit:v1` на существующем `SESSION_COOKIE_SECRET`. Ротация session secret меняет
+  псевдоним и может один раз сбросить этот часовой non-security лимит; коллизия полного SHA-256 практически
+  пренебрежима. При любом следующем F0 check repository удаляет просроченные строки всего F0 scope, поэтому очистка
+  не зависит от повторного запроса того же IP.
 - UA-матрица (`supportedClientMatrix.ts`) используется только для классификации/текста и никогда не понижает bundle
   baseline и не ограничивает доступ.
 

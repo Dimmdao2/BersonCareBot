@@ -6,17 +6,26 @@ export type AuthRateLimitCheckParams = {
   key: string;
   windowMs: number;
   maxPerWindow: number;
+  scopeRetentionMs?: number;
 };
 
 /** Returns `true` when the key is rate-limited (event not recorded). */
 export async function checkAndRecordAuthRateLimitEvent(params: AuthRateLimitCheckParams): Promise<boolean> {
-  const { scope, key, windowMs, maxPerWindow } = params;
+  const { scope, key, windowMs, maxPerWindow, scopeRetentionMs } = params;
   const lockKey = `${scope}:${key}`;
 
   return runWebappTransaction(async (tx) => {
     await runWebappSql(tx, sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}::text))`);
 
     const windowStart = new Date(Date.now() - windowMs);
+    if (scopeRetentionMs) {
+      const retentionCutoff = new Date(Date.now() - scopeRetentionMs);
+      await runWebappPgText(
+        "DELETE FROM auth_rate_limit_events WHERE scope = $1 AND occurred_at <= $2",
+        [scope, retentionCutoff],
+        tx,
+      );
+    }
     await runWebappPgText(
       "DELETE FROM auth_rate_limit_events WHERE scope = $1 AND key = $2 AND occurred_at <= $3",
       [scope, key, windowStart],

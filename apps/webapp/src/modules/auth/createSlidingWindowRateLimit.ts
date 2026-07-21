@@ -6,6 +6,8 @@ export type SlidingWindowRateLimitConfig = {
   windowMs: number;
   maxPerWindow: number;
   db: AuthRateLimitDbPort;
+  /** Optional DB retention bound for all rows in this limiter scope. */
+  scopeRetentionMs?: number;
   /** Optional cap on in-memory bucket map size before prune. */
   pruneBucketThreshold?: number;
 };
@@ -49,6 +51,7 @@ export function createSlidingWindowRateLimit(config: SlidingWindowRateLimitConfi
         key,
         windowMs: config.windowMs,
         maxPerWindow: config.maxPerWindow,
+        ...(config.scopeRetentionMs ? { scopeRetentionMs: config.scopeRetentionMs } : {}),
       });
     } catch {
       dbUnavailable = true;

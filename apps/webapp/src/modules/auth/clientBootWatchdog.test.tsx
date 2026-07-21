@@ -80,6 +80,67 @@ describe("unsupported client watchdog", () => {
     });
   });
 
+  it.each([
+    ["syntax_error", () => window.dispatchEvent(new ErrorEvent("error", { message: "SyntaxError", error: new SyntaxError("synthetic") }))],
+    ["runtime_error", () => window.dispatchEvent(new ErrorEvent("error", { message: "synthetic", error: new Error("synthetic") }))],
+    ["script_load_error", () => {
+      const script = document.createElement("script");
+      document.body.append(script);
+      script.dispatchEvent(new Event("error"));
+    }],
+    ["unhandled_rejection", () => window.dispatchEvent(new Event("unhandledrejection"))],
+  ] as const)("reports only the bounded %s captured-error category", (capturedError, dispatchFailure) => {
+    evaluateWatchdog();
+    dispatchFailure();
+    vi.advanceTimersByTime(1_000);
+    const body = JSON.parse(FakeXhr.bodies[0] ?? "{}") as {
+      failureSignals?: { capturedError?: string };
+    };
+    expect(body.failureSignals?.capturedError).toBe(capturedError);
+  });
+
+  it("reports PWA surface and coarse successful service-worker/storage probes", async () => {
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: null, getRegistration: vi.fn().mockResolvedValue({ scope: "/" }) },
+    });
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate: vi.fn().mockResolvedValue({ quota: 100, usage: 96 }) },
+    });
+    evaluateWatchdog();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const body = JSON.parse(FakeXhr.bodies[0] ?? "{}") as {
+      entrySurface?: string;
+      failureSignals?: { swState?: string; storageBucket?: string };
+    };
+    expect(body).toMatchObject({
+      entrySurface: "pwa",
+      failureSignals: { swState: "registered", storageBucket: "near_quota" },
+    });
+  });
+
+  it("keeps failed service-worker/storage probes bounded to categories", async () => {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: null, getRegistration: vi.fn().mockRejectedValue(new Error("synthetic")) },
+    });
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { estimate: vi.fn().mockRejectedValue(new Error("synthetic")) },
+    });
+    evaluateWatchdog();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const body = JSON.parse(FakeXhr.bodies[0] ?? "{}") as {
+      failureSignals?: { swState?: string; storageBucket?: string };
+    };
+    expect(body.failureSignals).toMatchObject({
+      swState: "registration_failed",
+      storageBucket: "unavailable",
+    });
+  });
+
   it("restores healthy content if React mounts after the fallback became visible", () => {
     evaluateWatchdog();
     vi.advanceTimersByTime(1_000);
