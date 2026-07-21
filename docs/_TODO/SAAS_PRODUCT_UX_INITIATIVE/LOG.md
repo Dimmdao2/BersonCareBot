@@ -4012,6 +4012,20 @@ exact-organization ownership, makes the production checker green without a broad
 the affected role/org/action matrix. It can run alongside Hardening A1, must close before C5B/C7, and joins the next
 accumulated milestone CI. No DB apply, TEST/PROD, deploy or host action is authorized by this mapping.
 
+## 2026-07-21 — Hardening A0 greenfield baseline closed (`#938`)
+
+The versioned PII-free greenfield package landed as integration commits `dd4241f65` and `b6222cd40`. It contains a
+schema-only/no-owner/no-privileges/no-comments baseline, repo-bound 63-integrator/224-Drizzle ledger manifest and a
+minimal non-deliverable `.test` seed. The disposable verifier restored 242 empty tables, applied the current pending
+chain, proved exact ledgers and closed migration BYPASS; append-only mutation proof applied one new migration in
+each chain. The correction made source-tree/commit binding, six-position policy-role normalization and privileged
+PostgreSQL binary resolution fail closed, and added executable SIGTERM-during-migration cleanup evidence.
+
+The full independent re-audit returned PASS with no residual findings. Integration static gate and six tests pass.
+A0 intentionally proves DDL/migration reproducibility only: A1/#937 must provision canonical ACL/runtime roles and
+exercise locked/FORCE isolation with non-owner principals; `bcb_a0_owner` is forbidden as RLS-conformance evidence.
+No working database write, TEST/PROD, deploy or full CI was performed. Full CI remains the Phase 0 milestone gate.
+
 The owner-requested Opus orchestration audit `bcb-orchestration-opus-audit-20260721-0750` returned **ON TRACK**:
 the terminal stop, one retained evidence worktree, independent PR-01 pivot and U6B `doing`→`todo` correction match
 the execution canon. Its only LOW recommendation was the provenance split recorded above; no new task or audit round

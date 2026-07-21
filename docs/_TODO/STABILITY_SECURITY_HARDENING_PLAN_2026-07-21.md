@@ -47,8 +47,8 @@ taskdb-карта создаётся только для доказанного 
 
 | Item | Status | Current truth / exact residual |
 |---|---|---|
-| A0 | `new_prerequisite` | Disposable scratch proof показал, что репозиторий не умеет честно поднять полную БД с нуля: integrator `telegram:20260306_0009` идёт раньше core users/identities; documented webapp legacy bootstrap падает на `082_recommendations_domain` до Drizzle `0001`; поздние data-state migrations требуют canonical seed. Нужен PII-free versioned baseline package до A1. |
-| A1 | `dependency_waiting` | `#770/#933` закрывают runtime chokepoint и generic harness, но CI не поднимает реальный PostgreSQL с миграциями и locked/FORCE two-org/no-principal/principal-full route proof. Ждёт A0/#938; synthetic minimal schema запрещена как ложное доказательство. |
+| A0 | `covered` | `#938` закрыт интеграционными коммитами `dd4241f65` + `b6222cd40`: versioned PII-free schema baseline, repo-bound ledger manifest, synthetic `.test` seed, disposable restore/pending-migration proof и fail-closed signal cleanup прошли полный независимый re-audit. A0 доказывает DDL/migration reproducibility, не RLS от owner-role. |
+| A1 | `residual_gap` | `#770/#933` закрывают runtime chokepoint и generic harness; после закрытого A0 следующий исполнимый residual — CI PostgreSQL с canonical ACL/runtime roles и locked/FORCE two-org/no-principal/principal-full route proof только от non-owner principals. Synthetic minimal schema и `bcb_a0_owner` как RLS evidence запрещены. |
 | C2 | `residual_gap` | Logger APIs существуют, но нет единого ALS/header correlation + organization context webapp→integrator→worker. Нужен typed low-cardinality context без DB/network hot-path. |
 | F1 | `residual_gap` | `#934` закрыл текущие advisories; updater automation отсутствует, `shadcn` остаётся runtime dependency. Не дублировать `#881/#934`. |
 | D3 | `residual_gap` | Dev bypass обычно fail-closed в PROD, но env parser не отвергает саму комбинацию `production + flag`, а clinic-invite callsite сохраняет неоднозначную ветку. Нужен startup hard guard + tests. |
@@ -104,7 +104,7 @@ RSS) как часть приёмки этапа.
 ## Фазы (секвенированы по риску и зависимостям)
 
 ### Phase 0 — Фундамент проверяемости (keystone, разблокирует всё)
-- [ ] **A0. PII-free greenfield baseline для CI (`#938`, prerequisite A1).** Версионированный структурный baseline
+- [x] **A0. PII-free greenfield baseline для CI (`#938`, prerequisite A1).** Версионированный структурный baseline
       из текущей подготовленной DEV-схемы (`pg_dump --schema-only --no-owner --no-privileges`, без строк данных),
       точный manifest обоих migration ledgers и минимальный детерминированный seed на зарезервированных
       недоставляемых `.test` идентичностях, достаточный для data-state migration guards. Disposable verifier обязан:
@@ -113,6 +113,8 @@ RSS) как часть приёмки этапа.
       переписываются; raw DEV dump, TEST/PROD, runtime DB и synthetic partial schema запрещены. Baseline обновляется
       только отдельным осознанным schema-stage, не каждым code deploy.
       Размер: **M** · Аудит: **полный адверсарный** (migration integrity + PII-free artifact).
+      **Закрыто 2026-07-21:** интеграционные коммиты `dd4241f65` + `b6222cd40`; static gate `6/6`, обычный и
+      append-only disposable restore, SIGTERM-during-migration cleanup и полный независимый re-audit — PASS.
 - [ ] **A1. RLS-conformance harness в CI.** Поднять Postgres-сервис в `ci.yml`, прогнать миграции в `locked`-режиме,
       посеять org A + org B, три ассерта: (а) принципал видит только свою орг; (б) **запрос без принципала под
       FORCE-RLS → пусто/ошибка, но НЕ строки чужой орг**; (в) principal-full видит строки. Завести в мерж-гейт.

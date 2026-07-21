@@ -705,6 +705,9 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    затем доказать реальный residual A1/#937 и актуальность CI/runtime conformance;
    затем закрыть только оставшиеся C2/F1/D3 gaps. До этого B1/B3/A4 не стартуют. Full CI выполняется один раз на
    phase milestone, targeted checks — на цельных stages.
+   **A0 status (2026-07-21):** [x] `#938` интегрирован как `dd4241f65` + `b6222cd40`, полный независимый re-audit
+   PASS. A1/#937 разблокирован; его locked/FORCE proof обязан использовать canonical non-owner runtime principals,
+   а не baseline owner-role.
 4. **Unsupported-client Ф0/Ф1 — параллельно после Phase 0 contract check:** repository/DEV watchdog, bounded
    ingress, SSR fallback и synthetic old-client/zero-JS proof. Persisted analytics зависит от C6 + `LOG-01`;
    TEST activation и сбор реальной telemetry требуют отдельного owner разрешения. Ф2 admin card создаётся только
