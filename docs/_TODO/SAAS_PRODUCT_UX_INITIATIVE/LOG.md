@@ -1,5 +1,17 @@
 # Log — SaaS Product UX Initiative
 
+## 2026-07-21 — Owner additions: auth-channel controls and editable branded templates (`#929/#930`)
+
+Platform admin must independently allow Email OTP, SMS OTP, Telegram auth/link and MAX auth/link. Existing SMTP,
+SMSC and bot configuration is retained; configured provider readiness is not an enable policy. The flags govern
+authentication/binding only and cannot activate product fallback or platform-funded SMS broadcasts.
+
+The repository already contains `notifTemplatesService`, admin/doctor notification-template routes and the schedule
+notification editor for created/cancelled/rescheduled events. This mechanism is the mandatory reuse base. It will be
+extended with platform defaults, organization owner/admin overrides, per-event/channel safe variables, email
+HTML+plain rendering and Telegram/MAX formatting. Branding presentation is entitlement-gated. Individual specialist
+overrides remain an explicit later owner decision and are not inferred into the first implementation.
+
 ## 2026-07-21 — Owner ruling: notification channel and safe-copy matrix
 
 Appointment reminders may use email through an exact transactional template containing appointment date/time,

@@ -1,5 +1,18 @@
 # Execution log
 
+## 2026-07-21 — Owner additions: platform auth-channel policy and template editor (`#929/#930`)
+
+- Source census confirmed there is no independent Email/SMS/Telegram/MAX auth enable policy. Provider configuration
+  is mixed with behavior; public SMS is hard-disabled in one path; `sms_fallback_enabled` is a legacy doctor/global
+  compatibility setting. N1A now owns four global admin flags, public discovery plus server enforcement and a
+  compatibility-preserving migration. Existing providers/settings/bindings are retained.
+- Source census also found the existing notification-template base: `notifTemplatesService`, admin/doctor routes,
+  `notif_template:*` global-fallback/per-org settings and the schedule editor. N1B extends this mechanism rather than
+  creating a parallel roadmap/store. It separates platform defaults from org owner/admin overrides, adds per-channel
+  safe-variable enforcement and email HTML+plain/messenger rendering, and binds concrete builders only in N3.
+- Branding presentation is entitlement/readiness-gated; custom sender remains a separate branding-domain contract.
+  Individual per-specialist template overrides remain undecided and are not part of the first foundation slice.
+
 ## 2026-07-21 — Owner ruling: exact safe email/push rows
 
 - Appointment reminders may be delivered by an exact email template with date/time, specialist, location/online

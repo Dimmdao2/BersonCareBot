@@ -662,7 +662,10 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 
 - **Outcome:** correction program и launch-included U-stages сведены в один проверяемый TEST candidate; deploy не
   подразумевается автоматически.
-- **Dependencies:** C0-C6 и C2F в фактически включённом launch scope, foundation enforcement handoff и U10. Deferred
+- **Dependencies:** C0-C6 и C2F в фактически включённом launch scope, foundation enforcement handoff, U10 и
+  launch-included repository slices из канонического `RU_PRIVACY_AND_PRODUCTION_READINESS` master plan. Для
+  уведомлений это как минимум принятый N1 guard, N1A platform auth-channel policy и N1B0 safe template foundation;
+  конкретные event builders закрываются соответствующими N3 children. Deferred
   store/course/full CMS branches отмечены отсутствующими и не симулируются пустыми экранами.
 - **Gate:** актуальный TEST SHA, synthetic role/org fixtures, full CI, security/tenant matrices, source-bound
   screenshots, два независимых visual/usability seals, rollback/runbook readiness. Переход в `main`/`test`, deploy

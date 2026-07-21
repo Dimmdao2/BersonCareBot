@@ -255,6 +255,55 @@ DEV fixtures и не получают production release до exact matrix accep
 - **Open gates:** `MOB-O9`, `G-04B`, account-service templates and any TEST/PROD cutover remain owner/legal gates;
   they do not block this repository-only topology guard and are not inferred closed by it.
 
+### N1A — platform auth-channel policy (`AI`, taskdb `#929`, after N1)
+
+- [ ] Add independent global admin runtime flags for `auth_email_enabled`, `auth_sms_enabled`,
+      `auth_telegram_enabled` and `auth_max_enabled` through the existing DB-backed `system_settings` registry,
+      service and public-runtime projection. Provider credentials/readiness remain separate.
+- [ ] Reuse the existing `/app/doctor/admin/auth` settings surface and `/api/admin/settings`; no second config store,
+      env flag or provider adapter is introduced.
+- [ ] Apply each flag to discovery and server execution: check-phone/channel picker/phone start, email OTP starts,
+      Telegram Widget/login, MAX init, channel-link and messenger-bind paths. A crafted request cannot use a disabled
+      channel; re-enable restores only an already configured provider path.
+- [ ] Preserve SMTP/SMSC/Telegram/MAX modules and settings. Existing bindings remain stored when a channel is off.
+      `sms_fallback_enabled` stays a temporary legacy doctor/global compatibility key and is not reused as the new
+      platform auth policy.
+- [ ] Migration-safe rollout preserves current behavior: Email/Telegram/MAX default enabled; SMS seeds from the
+      existing effective public SMS policy and otherwise defaults disabled. Any direct migration write maintains the
+      `public` + `integrator.system_settings` mirror; no migration is executed on TEST/PROD by this stage.
+
+Acceptance: platform admin independently controls four auth/binding channels; disabled channels are neither offered
+nor executable; account-existence responses remain neutral; missing provider config still fails closed; SMS OTP
+tests prove the existing module was retained; settings/mirror, route negatives, picker and auth regressions pass.
+This stage owns auth/binding policy only, never product notification preferences, templates or broadcasts.
+
+### N1B — managed notification templates and branded presentation (`AI`, taskdb `#930`, after N1)
+
+Reuse base is mandatory: `modules/notif-templates/notifTemplatesService.ts`, existing admin/doctor routes,
+`notif_template:*` global-fallback/per-org settings and the schedule «Тексты уведомлений» editor. Do not fork a
+second template store or channel sender.
+
+- [ ] `N1B0 contract/editor`: define typed event × audience × channel templates and versioned effective resolution:
+      platform default → eligible organization override → channel renderer. Platform admin owns defaults;
+      organization owner/admin owns org overrides. Per-specialist override is not launch scope until a later owner
+      decision.
+- [ ] Replace the current global variable list with a server-enforced allowlist per event/channel/content tier.
+      Unknown variable, raw chat/comment, diagnosis, complaint, phone/name where not explicitly allowed, absolute
+      untrusted URL and secret/token fail closed.
+- [ ] Email templates have subject, sanitized HTML and required plain-text fallback. Telegram/MAX/push render only
+      their supported safe fields/formatting. Preview uses synthetic data and never performs a real DEV send.
+- [ ] Branding changes presentation only after the existing organization `branding` entitlement and published
+      assets/readiness. Core organization identification remains available without paid branding; custom sender
+      identity/readiness remains the separate U8/branding-domain contract.
+- [ ] `N1B1 adoption` is executed inside the matching N3 family child: appointment reminder, exercise reminder and
+      neutral message/comment builders bind to exact template ids/classes and channel allowlists. Generic email or
+      messenger relay never becomes a template escape hatch.
+
+Acceptance: current created/cancelled/rescheduled templates migrate without silent loss; platform/org ownership and
+two-org negatives pass; unsafe variable/render attempts fail server-side; HTML/plain and messenger renderer fixtures
+pass; branding-off fallback is deterministic; template revision/effective source is auditable without logging body;
+no real channel send, provider configuration or TEST/PROD action is part of editor acceptance.
+
 ### N2 — provider-neutral push target and delivery (`AI`, coordinated with `MOB-03`)
 
 - [ ] Notification intent отделён от transport; Web Push/APNs/FCM — adapters одного push capability.

@@ -3,7 +3,7 @@
 Статус: `owner_activated_dev_execution` с 2026-07-19. План не меняет порядок текущих SaaS/Product UX работ.
 
 Taskdb: master `#898`; `PR-00/01 #899`; `SEC-02 #900`; `DR-01/02 #901`; `PR-03 #905`; `SEC-04 #906`;
-`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`; `NTF-01 #913`; `LOG-01 #914`. Отдельный native mobile roadmap —
+`PR-02 #907`; `SEC-03 #908`; `PR-04 #909`; `NTF-01 #913` (`N1A #929`, `N1B #930`); `LOG-01 #914`. Отдельный native mobile roadmap —
 `#915`. Security CI остаётся отдельной существующей задачей `#881`. `CRYPTO-01` и `INFRA-01` до выделения exact implementation scopes остаются
 sub-stages umbrella `#898/#900/#901`; отдельные implementation-задачи создаются только с exact file scope и stable
 dependency SHA, чтобы не пересечь активные D3/D4/S5/billing работы.
@@ -23,7 +23,7 @@ production data и secrets этим решением не разрешены.
 | `DR-01` Backup and S3 | проектирование сейчас; TEST до production | шифрованные, проверяемые и отдельно хранимые backups | 4–7 дней |
 | `DR-02` Disaster recovery | после `DR-01` | измеренный restore VPS/DB/S3, утверждённые RPO/RTO | 2–4 дня |
 | `CRYPTO-01` Data/key encryption | ADR сейчас; application после D4/S5-7/legal gates | key lifecycle, S3 client-side encryption, encrypted media migration, выбранные DB fields/secrets | 3–6 недель |
-| `NTF-01` App push / messenger auth-only | N0 сейчас; dispatch/routing по exact scopes; native leg после MOB gates | product push-only, auth-only bots, content tiers, no hidden fallback | 3–6 недель |
+| `NTF-01` App push / messenger auth-only | N1 guard; затем N1A auth-channel admin policy и N1B template foundation; native leg после MOB gates | product push-only, auth-only bots, admin channel controls, safe editable/branded templates, no hidden fallback | 3–6 недель |
 | `LOG-01` Payload hygiene | L0/L1 сейчас; queue/schema после retention gate | no raw SQL params/clinical text in logs, attempts, retries and queues | 1–3 недели |
 | `INFRA-01` Encrypted PROD migration | disposable proof после owner/provider gates; cutover только после PR-04A | новый зашифрованный VPS, rehearsal, phased cutover/rollback и decommission старого | 1–2 недели + окно |
 | `PR-02` Health consent | после D4 + S5-7 + legal text | отдельный versioned consent lifecycle | 4–7 дней |
@@ -45,7 +45,7 @@ production data и secrets этим решением не разрешены.
         SEC-02 preflight ─> TEST rehearsal ─────────────┤
         DR-01 design ─> TEST backup/restore ─> DR-02 ───┤
         CRYPTO-01/C0 ADR ────────────────────────────────┤
-        NTF-01/N0 ─> N1 guard ──────────────────────────┤
+        NTF-01/N0 ─> N1 guard ─> N1A/N1B0 ─────────────┤
         LOG-01/L0 ─> L1 guard ──────────────────────────┤
 D4 + S5-7 closed ─> PR-02 ─> PR-03A ─────┐            gate PR-04A
                               PR-03B ──────┼─> full initiative / purge gate
