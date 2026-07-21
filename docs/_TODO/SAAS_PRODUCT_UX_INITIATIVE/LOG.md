@@ -4190,3 +4190,16 @@ legacy compatibility state, concurrency-safe dual-write CAS, org/entitlement neg
 synthetic preview and bounded U9A mirror access. Integration checks passed 74 targeted tests, webapp typecheck,
 scoped lint, U9A static check and diff check. N1B1 sender adoption remains intentionally deferred to the matching N3
 families. Full CI is reserved for the accumulated milestone; DB apply, deploy, TEST/PROD and real sends were excluded.
+
+## 2026-07-21 — Hardening B2 external-call deadlines integrated (`#947`)
+
+Integrated `ff11d416a` plus the single audit correction `3f484ea60`. One webapp boundary now covers the 12
+launch-scoped YooKassa/Tinkoff and Apple/Google/Yandex OAuth calls and keeps the finite deadline active through
+response-body consumption while preserving payment idempotency and existing provider error/nullable behavior.
+
+The first independent audit found one matching-plan P1: the initial helper cleared its deadline after response
+headers, so a stalled body remained unbounded. One coherent correction added body-owned consumption and adversarial
+JSON/text stall proofs; terminal re-audit passed `0/0`. Targeted tests passed `46/46`; webapp typecheck, scoped lint,
+raw-fetch census and diff check passed. Full CI is reserved for the accumulated Phase 1 milestone. No DB, network,
+deploy, TEST or PROD action ran. Three unbounded integrator Google Calendar delivery calls were recorded only as a
+P2 owner recommendation outside B2; no task was generated from that audit finding.

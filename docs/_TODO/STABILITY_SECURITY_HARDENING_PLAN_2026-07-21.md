@@ -163,8 +163,15 @@ apply, TEST/PROD or deploy is claimed.
       record-event + capture + mark-processed в одну транзакцию ЛИБО сделать capture полностью replay-safe
       (повторная доставка `duplicate` доводит незавершённый захват). Файлы: `payments/service.ts:330-461`.
       Размер: verify **S** + fix **M** · Аудит: **полный** (деньги).
-- [ ] **B2. `fetchWithTimeout` на все платёжные/OAuth-вызовы** (Yookassa/Tinkoff/Apple/Google) — переиспользовать
+- [x] **B2. `fetchWithTimeout` на все платёжные/OAuth-вызовы** (Yookassa/Tinkoff/Apple/Google) — переиспользовать
       существующий `fetchWithTimeout` из `operatorHealthProbeRunner.ts`. Размер: **S** · Аудит: один.
+      **Закрыто 2026-07-21:** интеграционные коммиты `ff11d416a` + `3f484ea60`; единая webapp-граница ограничивает
+      YooKassa/Tinkoff и Apple/Google/Yandex OAuth-вызовы до полного чтения тела ответа, различает timeout и caller
+      abort и сохраняет прежние HTTP/idempotency/nullable-контракты. Первый независимый аудит нашёл один P1 —
+      deadline снимался после заголовков; один coherent correction добавил bounded body-consumption и adversarial
+      stalled-body proof. Terminal re-audit — PASS `0/0`; targeted suite `46/46`, typecheck и scoped lint — PASS.
+      Три integrator Google Calendar delivery-callsite остаются P2 owner recommendation вне payment/OAuth scope,
+      а не автоматически созданной задачей.
 - [ ] **B3. Закрыть онлайн-слот TOCTOU** — advisory-lock на `(org, slotStart)` вокруг `assertSlotAvailable`+insert
       ИЛИ partial exclusion/unique на онлайн-ёмкость (паритет с очным GiST-констрейнтом).
       Файлы: `canonicalCreate.ts:161-203`. Размер: **S-M** · Аудит: полный (конкурентность+деньги).

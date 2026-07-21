@@ -744,6 +744,10 @@ downgrade/over-limit сохраняют memberships и блокируют нов
 5. **Hardening Phase 1 до C5B/C7:** A3 residual, payment atomicity B1, external-call timeouts B2, booking TOCTOU B3
    и self-hosted error-tracking code path. Production detection/host installation не включаются молча: repo/DEV
    implementation передаётся в `SEC-02`/`PR-04` для owner-gated activation.
+   **B2 status (2026-07-21):** [x] `#947` интегрирован как `ff11d416a` + `3f484ea60`; 12 launch-scoped
+   payment/OAuth вызовов имеют единый finite deadline до полного body-consumption. Один matching-plan P1 первого
+   аудита закрыт одним correction-pass; terminal re-audit `0/0`, targeted tests/typecheck/lint — PASS. Integrator
+   Google Calendar delivery timeout остаётся P2 owner recommendation вне B2, без audit-driven task growth.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.
