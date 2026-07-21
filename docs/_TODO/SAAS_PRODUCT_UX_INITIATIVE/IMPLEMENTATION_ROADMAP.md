@@ -769,6 +769,14 @@ downgrade/over-limit сохраняют memberships и блокируют нов
    matching-plan distinct-start P1 первого аудита закрыт одним correction-pass; terminal re-audit `0/0/0`, private
    PostgreSQL concurrency matrix, `31/31` targeted tests, typecheck/lint — PASS. Schedule-block semantics не
    расширялись из audit recommendation.
+   **B1 status (2026-07-21):** [ ] `#949` blocked / not integrated after the second and final correction-pass.
+   Candidate `1a07bc2e3` passes executable old-base crash/replay, private PostgreSQL lifecycle/UoW/concurrency,
+   `85` targeted tests, typecheck/lint and migration gates, and closes every earlier audit finding. The terminal
+   audit returned `0 P0 / 1 P1`: canonical locked roles deny the bootstrap webhook principal both table privilege
+   and pre-organization RLS visibility for the authority lookup now required before exact-org signature verification.
+   No third correction, full CI, merge, DB apply or deploy starts automatically. A narrow least-privilege authority
+   capability may be designed only after a new explicit owner authorization; general bootstrap payment-table access
+   is not an acceptable fallback.
 6. **Hardening Phase 2 до C7:** launch-relevant session revocation/TTL, CSRF/origin и integrator↔webapp contract
    SSOT. Общий HTTP response builder внедряется инкрементально и не превращается в обязательный mass-refactor перед
    release, если risk-relevant routes уже закрыты.

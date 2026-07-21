@@ -4250,3 +4250,24 @@ passed `0/0/0`; worker evidence passed `31/31` targeted tests, private disposabl
 distinct-start, chain, adjacent, reverse/deadlock and cross-org proofs, typecheck, scoped lint and diff check. Full CI
 remains at the Phase 1 milestone. Working DB, deploy, TEST and PROD were not touched. Concurrent schedule-block
 linearization remains an explicit owner question outside B3 and did not generate an audit-driven task.
+
+## 2026-07-21 — Hardening B1 reaches terminal locked-role gate (`#949`)
+
+The isolated three-commit candidate ends at `1a07bc2e3`. Across two coherent correction passes it makes capture DB
+effects share the existing Drizzle UoW, keeps external delivery outside that transaction, serializes replay through
+mandatory post-commit delivery, processes the canonical stored event rather than a changed duplicate body, separates
+provider lifecycle states, and moves the legacy product user writer into the same transaction. The final worker
+evidence passed an executable disposable regression on pre-fix base `a3badd17c`, private PostgreSQL dirty-preflight/
+lifecycle/six-boundary rollback/concurrency/delivery proofs, `20` files / `85` tests, webapp typecheck, scoped lint,
+Drizzle journal/frozen-history and diff checks. No working database or external network was used.
+
+The hard-ceiling full audit still returned `FAIL, 0 P0 / 1 P1`. The public webhook must discover the canonical
+organization before verifying against that organization's provider config, but its bootstrap principal cannot read
+`be_payment_provider_events` or `be_payment_intents` under the canonical locked grant/RLS topology before an
+organization principal already exists. The route unit test mocks that DB boundary and therefore cannot prove the
+production path. A general bootstrap grant or RLS bypass would violate the tenant boundary. No third correction,
+integration, push, full CI, DB apply, TEST/PROD or deploy was started. Task `#949` is blocked/owner-waiting on whether
+to authorize a separate narrow DB capability that returns only `organization_id` for a globally unique provider /
+idempotency / event-type authority key, followed by one terminal audit, or freeze B1. Migration number `0225` remains
+owned only by this isolated candidate for now; isolated C5A must be renumbered/rebased if either branch is later
+authorized and integrated first.

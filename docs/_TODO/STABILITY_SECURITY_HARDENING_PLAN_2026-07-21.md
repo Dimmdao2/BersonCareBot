@@ -169,6 +169,14 @@ apply, TEST/PROD or deploy is claimed.
       record-event + capture + mark-processed в одну транзакцию ЛИБО сделать capture полностью replay-safe
       (повторная доставка `duplicate` доводит незавершённый захват). Файлы: `payments/service.ts:330-461`.
       Размер: verify **S** + fix **M** · Аудит: **полный** (деньги).
+      **Terminal hard stop 2026-07-21:** изолированный кандидат `1a07bc2e3` закрывает прежние crash/replay,
+      lifecycle-event, changed-body, delivery и product-UoW findings; executable old-base и private PostgreSQL
+      proofs, `85` targeted tests, typecheck/lint/migration gates зелёные. После второго correction-pass финальный
+      аудит всё же нашёл `0 P0 / 1 P1`: locked bootstrap principal публичного webhook не имеет grant/RLS path для
+      pre-org lookup в `be_payment_provider_events`/`be_payment_intents`, поэтому production route не может узнать
+      organization до exact-org signature verification. По hard ceiling третья коррекция не открыта; `#949`
+      blocked/owner-waiting. Возможное продолжение требует отдельного owner gate на узкую least-privilege authority
+      capability, возвращающую только `organization_id`, а не общий доступ bootstrap к payment tables.
 - [x] **B2. `fetchWithTimeout` на все платёжные/OAuth-вызовы** (Yookassa/Tinkoff/Apple/Google) — переиспользовать
       существующий `fetchWithTimeout` из `operatorHealthProbeRunner.ts`. Размер: **S** · Аудит: один.
       **Закрыто 2026-07-21:** интеграционные коммиты `ff11d416a` + `3f484ea60`; единая webapp-граница ограничивает
