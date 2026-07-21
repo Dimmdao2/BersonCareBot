@@ -67,7 +67,6 @@ runtime_overlay_apply_post_migration_chain() {
   local database_name="$2"
   local e1_runtime_role="$3"
   local protected_context_installed="$4"
-  local platform_operations_login_role="$5"
   local relative_path
 
   declare -F runtime_overlay_admin_psql >/dev/null || {
@@ -80,9 +79,6 @@ runtime_overlay_apply_post_migration_chain() {
   fi
   runtime_overlay_validate_pg_identifier "runtime overlay database" "$database_name" || return 1
   runtime_overlay_validate_pg_identifier "runtime overlay E1 role" "$e1_runtime_role" || return 1
-  runtime_overlay_validate_pg_identifier \
-    "runtime overlay platform operations login role" \
-    "$platform_operations_login_role" || return 1
   if [[ "$protected_context_installed" != "0" && "$protected_context_installed" != "1" ]]; then
     echo "FATAL: protected-context state must be 0 or 1" >&2
     return 1
@@ -95,6 +91,7 @@ runtime_overlay_apply_post_migration_chain() {
     deploy/postgres/patient-course-assignment-wall.sql
     deploy/postgres/specialist-signup-public-bootstrap-rls.sql
     deploy/postgres/specialist-owner-provisioning-rls.sql
+    deploy/postgres/c5a-platform-operations-runtime.sql
   )
   local -a protected_overlays=(
     deploy/postgres/runtime-overlay-app-owner-handoff.sql
@@ -113,15 +110,6 @@ runtime_overlay_apply_post_migration_chain() {
     runtime_overlay_admin_psql -d "$database_name" -X -v ON_ERROR_STOP=1 \
       -f "$repo_root/$relative_path" || return 1
   done
-
-  relative_path=deploy/postgres/c5a-platform-operations-runtime.sql
-  runtime_overlay_assert_canonical_file \
-    "$repo_root/$relative_path" \
-    "$repo_root/$relative_path" \
-    "runtime overlay $relative_path" || return 1
-  runtime_overlay_admin_psql -d "$database_name" -X -v ON_ERROR_STOP=1 \
-    -v c5a_platform_login_role="$platform_operations_login_role" \
-    -f "$repo_root/$relative_path" || return 1
 
   if [[ "$protected_context_installed" == "1" ]]; then
     for relative_path in "${protected_overlays[@]}"; do

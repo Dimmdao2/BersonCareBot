@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import {
   DECLARED_NO_SURFACE,
@@ -21,13 +22,21 @@ function actionKey(file: string, exportName: string) {
 }
 
 export function exportedActionNames(source: string): string[] {
-  return [...source.matchAll(/export\s+async\s+function\s+([A-Za-z_$][\w$]*)\b/g)].map((match) => match[1]!);
+  return [...source.matchAll(
+    /export\s+(?:async\s+function\s+([A-Za-z_$][\w$]*)\b|const\s+([A-Za-z_$][\w$]*)\s*=\s*async\b)/g,
+  )].map((match) => (match[1] ?? match[2])!);
 }
 
 function exportedActionSource(source: string, exportName: string): string | null {
-  const start = source.search(new RegExp(`export\\s+async\\s+function\\s+${exportName}\\b`));
+  const escapedExportName = exportName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const declarationPattern = new RegExp(
+    `export\\s+(?:async\\s+function\\s+${escapedExportName}\\b|const\\s+${escapedExportName}\\s*=\\s*async\\b)`,
+  );
+  const start = source.search(declarationPattern);
   if (start < 0) return null;
-  const next = source.slice(start + 1).search(/\nexport\s+async\s+function\s+/);
+  const next = source.slice(start + 1).search(
+    /\nexport\s+(?:async\s+function\s+|const\s+[A-Za-z_$][\w$]*\s*=\s*async\b)/,
+  );
   return next < 0 ? source.slice(start) : source.slice(start, start + next + 1);
 }
 
@@ -180,7 +189,7 @@ export function runSelfTest(): Finding[] {
   const omittedExport = validateMechanicBearingExports(
     [sample],
     [],
-    () => "export async function POST() {}\nexport async function PUT() {}",
+    () => "export async function POST() {}\nexport const PUT = async () => {}",
     ["src/app/app/doctor/content/omittedActions.ts"],
   );
   return [
@@ -194,26 +203,28 @@ export function runSelfTest(): Finding[] {
   ];
 }
 
-if (process.argv.includes("--self-test")) {
-  const findings = runSelfTest();
-  const requiredMessages = [
-    "duplicate mapping id",
-    "unknown exported action MISSING",
-    "duplicate mapping for file/export",
-    "unregistered mechanic surface",
-    "unregistered exported action in mechanic-bearing file",
-    "direct entitlement resolver or tariff/override read outside approved boundary",
-  ];
-  if (!requiredMessages.every((message) => findings.some((finding) => finding.message === message))) {
-    throw new Error(`checker self-test failed: ${JSON.stringify(findings)}`);
-  }
-  console.log("S4 entitlement coverage checker self-test passed");
-} else {
-  const findings = runS4EntitlementCoverageCheck();
-  if (findings.length > 0) {
-    for (const finding of findings) console.error(`${finding.id}: ${finding.message}`);
-    process.exitCode = 1;
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes("--self-test")) {
+    const findings = runSelfTest();
+    const requiredMessages = [
+      "duplicate mapping id",
+      "unknown exported action MISSING",
+      "duplicate mapping for file/export",
+      "unregistered mechanic surface",
+      "unregistered exported action in mechanic-bearing file",
+      "direct entitlement resolver or tariff/override read outside approved boundary",
+    ];
+    if (!requiredMessages.every((message) => findings.some((finding) => finding.message === message))) {
+      throw new Error(`checker self-test failed: ${JSON.stringify(findings)}`);
+    }
+    console.log("S4 entitlement coverage checker self-test passed");
   } else {
-    console.log(`S4 entitlement coverage passed: ${PROTECTED_ACTION_MAPPINGS.length} protected actions mapped`);
+    const findings = runS4EntitlementCoverageCheck();
+    if (findings.length > 0) {
+      for (const finding of findings) console.error(`${finding.id}: ${finding.message}`);
+      process.exitCode = 1;
+    } else {
+      console.log(`S4 entitlement coverage passed: ${PROTECTED_ACTION_MAPPINGS.length} protected actions mapped`);
+    }
   }
 }

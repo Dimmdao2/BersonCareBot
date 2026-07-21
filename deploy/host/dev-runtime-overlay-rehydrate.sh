@@ -757,7 +757,7 @@ runtime_overlay_admin_psql \
 
 echo "[dev-runtime-overlay] applying shared canonical post-migration overlay chain"
 runtime_overlay_apply_post_migration_chain \
-  "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 bcb_dev_runtime_staff_login >/dev/null
+  "$REPO_ROOT" "$TARGET_DB" "$TARGET_RUNTIME_ROLE" 1 >/dev/null
 
 echo "[dev-runtime-overlay] applying canonical D3.4 DEV bootstrap closure (validated C0; media excluded)"
 runtime_overlay_admin_psql \

@@ -10,7 +10,7 @@ const setBuiltInOnlineLocationStateMock = vi.hoisted(() => vi.fn());
 vi.mock("../_requireAdminBookingEngine", () => ({
   requireClinicManagementBookingEngine: requireClinicManagementBookingEngineMock,
 }));
-vi.mock("@/app-layer/guards/requireEntitlement", () => ({ requireEntitlementForRead: requireEntitlementMock }));
+vi.mock("@/app-layer/guards/requireEntitlement", () => ({ requireEntitlementForMutation: requireEntitlementMock }));
 vi.mock("@/app-layer/principal/withOrganizationPrincipal", () => ({
   withDoctorWorkspacePrincipal: withDoctorWorkspacePrincipalMock,
 }));
@@ -65,17 +65,22 @@ describe("PUT /api/admin/booking-engine/online-location", () => {
     );
   });
 
-  it("denies the write when booking entitlement is absent", async () => {
+  it.each([
+    "entitlement_required",
+    "commercial_read_only",
+    "commercial_blocked",
+  ] as const)("denies the write when the entitlement gate returns %s", async (error) => {
     const { NextResponse } = await import("next/server");
     requireEntitlementMock.mockResolvedValueOnce({
       ok: false,
-      response: NextResponse.json({ ok: false, error: "entitlement_required" }, { status: 403 }),
+      response: NextResponse.json({ ok: false, error, mechanic: "booking" }, { status: 403 }),
     });
 
     const res = await PUT(
       new Request("http://localhost", { method: "PUT", body: JSON.stringify({ isActive: false }) }),
     );
     expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ ok: false, error, mechanic: "booking" });
     expect(setBuiltInOnlineLocationStateMock).not.toHaveBeenCalled();
   });
 });

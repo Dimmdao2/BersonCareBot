@@ -9,7 +9,7 @@
 -- Nothing is GATED here (that is P1 requireEntitlement). No BYPASSRLS. Idempotent (IF NOT EXISTS / DROP POLICY IF
 -- EXISTS). saas_org_entitlement_overrides is FORCE-RLS org-scoped (same idiom as be_specialists / courses).
 -- saas_tariffs is a platform-global reference catalog: ordinary staff may read it, while all
--- commercial writes belong exclusively to app_platform_operations.
+-- commercial writes belong exclusively to the dedicated app_platform_settings principal.
 
 \set ON_ERROR_STOP on
 \pset pager off

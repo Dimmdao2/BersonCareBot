@@ -464,17 +464,14 @@ SQL
 }
 
 rehydrate_post_restore_runtime_overlays(){
-  local e1_runtime_role platform_operations_login_role
+  local e1_runtime_role
   e1_runtime_role="$(discover_webapp_bootstrap_base_role)"
-  platform_operations_login_role="$(discover_webapp_staff_runtime_role)"
   validate_pg_identifier "webapp.test E1 runtime role" "$e1_runtime_role"
-  validate_pg_identifier "webapp.test platform operations role" "$platform_operations_login_role"
   runtime_overlay_apply_post_migration_chain \
     "$DEPLOY_REPO" \
     "$DB" \
     "$e1_runtime_role" \
-    "$P2_B_CONTEXT_INSTALLED" \
-    "$platform_operations_login_role"
+    "$P2_B_CONTEXT_INSTALLED"
   echo "   post-restore runtime overlays: OK"
 }
 

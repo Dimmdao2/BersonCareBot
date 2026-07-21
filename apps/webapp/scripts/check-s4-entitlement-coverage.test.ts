@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  exportedActionNames,
   runS4ProtectedActionCoverageCheck,
   runSelfTest,
   staticBypassFindings,
@@ -48,6 +49,36 @@ describe("S4 entitlement coverage checker", () => {
     expect(unregisteredMechanic).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "mailings", message: "unregistered mechanic surface" })]),
     );
+  });
+
+  it("recognizes and validates async const action exports", () => {
+    const file = "src/app/app/doctor/content/constActions.ts";
+    const source = [
+      "export const POST = async () => {",
+      "  await requireEntitlementForRead(ctx, 'courses');",
+      "};",
+      "export const PUT = async () => {};",
+    ].join("\n");
+
+    expect(exportedActionNames(source)).toEqual(["POST", "PUT"]);
+    expect(
+      validateProtectedActionMappings(
+        [{ ...PROTECTED_ACTION_MAPPINGS[0]!, id: "const.post", file, exportName: "POST" }],
+        () => source,
+        ["courses"],
+        {},
+      ),
+    ).toEqual([]);
+    expect(
+      validateMechanicBearingExports(
+        [{ ...PROTECTED_ACTION_MAPPINGS[0]!, id: "const.post", file, exportName: "POST" }],
+        [],
+        () => source,
+        [file],
+      ),
+    ).toEqual([
+      { id: `${file}:PUT`, message: "unregistered exported action in mechanic-bearing file" },
+    ]);
   });
 
   it("rejects direct resolver and tariff bypass outside the approved boundary", () => {

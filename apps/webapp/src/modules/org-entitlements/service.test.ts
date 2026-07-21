@@ -269,7 +269,7 @@ describe("platform tariff constructor validation", () => {
     expect(MECHANIC_REGISTRY.courses.quotaEnforcement).toBe("atomic_snapshot");
     expect(MECHANIC_REGISTRY.booking.quotaEnforcement).toBe("declared_no_enforcement");
     const migration = readFileSync(
-      resolve(process.cwd(), "db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql"),
+      resolve(process.cwd(), "db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql"),
       "utf8",
     );
     expect(migration).toContain("CREATE TRIGGER courses_snapshot_quota_guard");

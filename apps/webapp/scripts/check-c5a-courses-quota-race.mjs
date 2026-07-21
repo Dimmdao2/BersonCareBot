@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * C5A executable last-slot proof. It starts a private PostgreSQL 16 cluster below /tmp,
- * extracts the authoritative trigger function from migration 0223, and runs two independent
+ * extracts the authoritative trigger function from the C5A migration, and runs two independent
  * connections against it. It never reads application environment files or a configured database.
  */
 import { spawnSync } from "node:child_process";
@@ -14,6 +14,10 @@ import pg from "pg";
 const root = path.resolve(import.meta.dirname, "..", "..", "..");
 const pgBin = "/usr/lib/postgresql/16/bin";
 const osUser = userInfo().username;
+const migrationPath = path.join(
+  root,
+  "apps/webapp/db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql",
+);
 
 function fail(message) {
   throw new Error(`C5A courses quota race proof failed: ${message}`);
@@ -22,12 +26,12 @@ function fail(message) {
 export function extractQuotaFunction(migration) {
   const start = migration.indexOf("CREATE OR REPLACE FUNCTION app.enforce_courses_snapshot_quota()");
   const end = migration.indexOf("ALTER FUNCTION app.enforce_courses_snapshot_quota()", start);
-  if (start < 0 || end < 0) fail("could not extract app.enforce_courses_snapshot_quota from 0223");
+  if (start < 0 || end < 0) fail("could not extract app.enforce_courses_snapshot_quota from the C5A migration");
   return migration.slice(start, end);
 }
 
 function selfTest() {
-  const migration = readFileSync(path.join(root, "apps/webapp/db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql"), "utf8");
+  const migration = readFileSync(migrationPath, "utf8");
   const functionSql = extractQuotaFunction(migration);
   for (const fragment of ["pg_advisory_xact_lock", "FROM public.courses", "saas_quota_reached:courses", "v_count * 5 >= v_limit * 4"]) {
     if (!functionSql.includes(fragment)) fail(`migration function is missing ${fragment}`);
@@ -82,7 +86,7 @@ async function withClient(fn) {
 }
 
 async function installSchema() {
-  const migration = readFileSync(path.join(root, "apps/webapp/db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql"), "utf8");
+  const migration = readFileSync(migrationPath, "utf8");
   const quotaFunction = extractQuotaFunction(migration);
   await withClient(async (connection) => {
     await connection.query(`

@@ -107,7 +107,7 @@ describe("U5A patient organization context wiring", () => {
   it("keeps locked patient organization reads behind exact capability ACLs", () => {
     const overlay = source("../../deploy/postgres/e1-webapp-runtime-config.sql");
     const entitlementCapability = source("db/drizzle-migrations/0219_current_patient_organization_entitlements.sql");
-    const commercialCapability = source("db/drizzle-migrations/0223_saas_tariff_quotas_trial.sql");
+    const commercialCapability = source("db/drizzle-migrations/0225_saas_tariff_quotas_trial.sql");
     const entitlementRepository = source("src/infra/repos/pgOrgEntitlements.ts");
     expect(overlay).toContain("ALTER FUNCTION app.read_current_patient_active_organizations() OWNER TO app_owner");
     expect(overlay).toContain("GRANT EXECUTE ON FUNCTION app.read_current_patient_active_organizations()");

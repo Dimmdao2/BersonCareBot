@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireEntitlementForRead } from "@/app-layer/guards/requireEntitlement";
+import { requireEntitlementForMutation } from "@/app-layer/guards/requireEntitlement";
 import { withDoctorWorkspacePrincipal } from "@/app-layer/principal/withOrganizationPrincipal";
 import { setBuiltInOnlineLocationState } from "@/modules/booking-engine/onlineLocation";
 import { requireClinicManagementBookingEngine } from "../_requireAdminBookingEngine";
@@ -10,7 +10,7 @@ const PutSchema = z.object({ isActive: z.boolean() }).strict();
 export async function PUT(request: Request) {
   const gate = await requireClinicManagementBookingEngine();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForRead(gate.ctx, "booking");
+  const entitlement = await requireEntitlementForMutation(gate.ctx, "booking");
   if (!entitlement.ok) return entitlement.response;
 
   const parsed = PutSchema.safeParse(await request.json().catch(() => null));
