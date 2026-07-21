@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { enterStaffSecuritySelfPrincipal } from "@/app-layer/principal/staffSecuritySelfPrincipal";
 import {
   ensureDbPrincipalContext,
+  enterWithDbPlatformPrincipal,
   enterWithDbPatientPrincipal,
   enterWithDbStaffPrincipal,
   getCurrentDbPrincipal,
@@ -114,7 +115,40 @@ export async function requirePlatformOperationsPage(): Promise<AppSession> {
   if (!hasLaunchCapability(capabilities, "platform.operations")) {
     redirect("/app");
   }
+  if (isRestrictedStaffSecuritySession(session)) {
+    redirect("/app");
+  }
   return session;
+}
+
+/** Platform-only API boundary. It intentionally has no organization resolution path. */
+export async function requirePlatformOperationsApiContext(): Promise<
+  { ok: true; session: AppSession } | { ok: false; response: NextResponse }
+> {
+  ensureDbPrincipalContext({ source: "requirePlatformOperationsApiContext:pending" });
+  const session = await getCurrentSession();
+  if (!session) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }) };
+  }
+  const capabilities = resolveLaunchCapabilities({
+    sessionRole: session.user.role,
+    adminMode: session.adminMode,
+  });
+  if (!hasLaunchCapability(capabilities, "platform.operations") || isRestrictedStaffSecuritySession(session)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  if (!isPlatformUserUuid(session.user.userId)) {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  try {
+    enterWithDbPlatformPrincipal({
+      platformUserId: session.user.userId,
+      source: "requirePlatformOperationsApiContext",
+    });
+  } catch {
+    return { ok: false, response: NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 }) };
+  }
+  return { ok: true, session };
 }
 
 export type DoctorWorkspaceAccessContext = {

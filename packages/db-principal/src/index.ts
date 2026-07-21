@@ -13,6 +13,7 @@ export const DB_PRINCIPAL_SIGNING_SECRET_ENV = "DB_PRINCIPAL_SIGNING_SECRET";
 export const DEFAULT_DB_PRINCIPAL_CONTEXT_MODE = "legacy-guc";
 export const DB_PRINCIPAL_STAFF_ROLE = "app_staff";
 export const DB_PRINCIPAL_PATIENT_ROLE = "app_patient";
+export const DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE = "app_platform_settings";
 
 export type DbOperationalRuntimeRole =
   | "app_operational_diagnostic"
@@ -22,7 +23,7 @@ export type DbOperationalRuntimeRole =
   | "app_operational_web_push_reminder"
   | "app_config_reader";
 
-export type DbPrincipalKind = "organization" | "staff" | "patient" | "integrator" | "bootstrap" | "infra";
+export type DbPrincipalKind = "organization" | "staff" | "patient" | "integrator" | "platform" | "bootstrap" | "infra";
 
 export type DbOrganizationPrincipal = {
   kind: "organization";
@@ -51,6 +52,13 @@ export type DbIntegratorPrincipal = {
   source?: string;
 };
 
+/** Platform operations are deliberately unscoped: they never borrow an organization. */
+export type DbPlatformPrincipal = {
+  kind: "platform";
+  platformUserId: string;
+  source?: string;
+};
+
 export type DbBootstrapPrincipal = {
   kind: "bootstrap";
   source?: string;
@@ -67,6 +75,7 @@ export type DbPrincipal =
   | DbStaffPrincipal
   | DbPatientPrincipal
   | DbIntegratorPrincipal
+  | DbPlatformPrincipal
   | DbBootstrapPrincipal
   | DbInfraPrincipal;
 
@@ -90,6 +99,11 @@ export type DbPatientPrincipalInput = {
 export type DbIntegratorPrincipalInput = {
   organizationId: string;
   integratorUserId: string | number | bigint;
+  source?: string;
+};
+
+export type DbPlatformPrincipalInput = {
+  platformUserId: string;
   source?: string;
 };
 
@@ -140,6 +154,11 @@ export async function setDbOperationalRuntimeRole(
       throw new Error("Unsupported DB operational runtime role");
   }
   await client.query(statement);
+}
+
+/** Selects the only runtime role permitted for platform-global settings requests. */
+export async function setDbPlatformSettingsRuntimeRole(client: DbPrincipalQueryable): Promise<void> {
+  await client.query(`SET ROLE ${DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE}`);
 }
 
 /** Clears a role selected through `setDbOperationalRuntimeRole` at the shared DB chokepoint. */
@@ -258,6 +277,8 @@ export function normalizeDbPrincipal(principal: DbPrincipal): DbPrincipal {
       return createDbPatientPrincipal(principal);
     case "integrator":
       return createDbIntegratorPrincipal(principal);
+    case "platform":
+      return createDbPlatformPrincipal(principal);
     case "bootstrap":
       return createDbBootstrapPrincipal(principal);
     case "infra":
@@ -302,6 +323,14 @@ export function createDbIntegratorPrincipal(input: DbIntegratorPrincipalInput): 
   };
 }
 
+export function createDbPlatformPrincipal(input: DbPlatformPrincipalInput): DbPlatformPrincipal {
+  return {
+    kind: "platform",
+    platformUserId: normalizeDbPrincipalPlatformUserId(input.platformUserId),
+    ...copyOptionalSource(input),
+  };
+}
+
 export function createDbBootstrapPrincipal(input: DbBootstrapPrincipalInput = {}): DbBootstrapPrincipal {
   return {
     kind: "bootstrap",
@@ -339,7 +368,7 @@ export function getCurrentDbPrincipalOrganizationId(): string | undefined {
 
 export function getCurrentDbPrincipalPlatformUserId(): string | undefined {
   const principal = getCurrentDbPrincipal();
-  if (principal?.kind === "staff" || principal?.kind === "patient") {
+  if (principal?.kind === "staff" || principal?.kind === "patient" || principal?.kind === "platform") {
     return principal.platformUserId;
   }
   return undefined;
@@ -432,6 +461,14 @@ export function enterWithDbIntegratorPrincipal(input: DbIntegratorPrincipalInput
   enterWithDbPrincipal(createDbIntegratorPrincipal(input));
 }
 
+export function runWithDbPlatformPrincipal<T>(input: DbPlatformPrincipalInput, fn: () => T): T {
+  return runWithDbPrincipal(createDbPlatformPrincipal(input), fn);
+}
+
+export function enterWithDbPlatformPrincipal(input: DbPlatformPrincipalInput): void {
+  enterWithDbPrincipal(createDbPlatformPrincipal(input));
+}
+
 export function runWithDbBootstrapPrincipal<T>(input: DbBootstrapPrincipalInput, fn: () => T): T {
   return runWithDbPrincipal(createDbBootstrapPrincipal(input), fn);
 }
@@ -511,6 +548,10 @@ export async function applyDbPrincipalToTransaction(
   principal: DbPrincipal | undefined,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
+  if (principal?.kind === "platform") {
+    await applyDbPrincipal(client, principal, "transaction");
+    return true;
+  }
   if (options.mode === "locked" || options.mode === "shadow") {
     return applySignedDbPrincipal(client, principal, options);
   }
@@ -540,6 +581,10 @@ export async function applyDbPrincipalToConnection(
   principal: DbPrincipal | undefined,
   options: DbPrincipalApplyOptions = {},
 ): Promise<boolean> {
+  if (principal?.kind === "platform") {
+    await applyDbPrincipal(client, principal, "connection");
+    return true;
+  }
   if (options.mode === "locked" || options.mode === "shadow") {
     return applySignedDbPrincipal(client, principal, options);
   }
@@ -555,7 +600,16 @@ export async function applyDbPrincipalToConnection(
 export async function clearDbPrincipalFromConnection(
   client: DbPrincipalQueryable,
   options: DbPrincipalApplyOptions = {},
+  principal?: DbPrincipal,
 ): Promise<void> {
+  if (principal?.kind === "platform") {
+    try {
+      await clearDbPrincipalConfig(client, "connection");
+    } finally {
+      await resetDbOperationalRuntimeRole(client);
+    }
+    return;
+  }
   if (options.mode === "locked" || options.mode === "shadow") {
     await releaseSignedDbPrincipal(client, options);
     return;
@@ -634,6 +688,10 @@ async function applyDbPrincipal(
       await setDbPrincipalConfig(client, APP_PATIENT_USER_CONFIG_KEY, "", scope);
       await setDbPrincipalConfig(client, APP_INTEGRATOR_USER_CONFIG_KEY, principal.integratorUserId, scope);
       return;
+    case "platform":
+      await setDbPlatformSettingsRuntimeRole(client);
+      await clearDbPrincipalConfig(client, scope);
+      return;
     case "bootstrap":
     case "infra":
       await clearDbPrincipalConfig(client, scope);
@@ -675,6 +733,14 @@ async function applySignedDbPrincipal(
   if (principal.kind === "bootstrap" || principal.kind === "infra") {
     await releaseSignedDbPrincipal(client, options);
     return false;
+  }
+
+  // Platform settings never use the signed organization/patient context: their
+  // dedicated role is the complete DB authority boundary and has no tenant id.
+  if (principal.kind === "platform") {
+    await setDbPlatformSettingsRuntimeRole(client);
+    await clearDbPrincipalConfig(client, "connection");
+    return true;
   }
 
   if (options.mode === "locked") {

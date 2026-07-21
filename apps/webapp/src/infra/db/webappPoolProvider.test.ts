@@ -7,6 +7,7 @@ import {
   runWithDbBootstrapPrincipal,
   runWithDbInfraPrincipal,
   runWithDbPatientPrincipal,
+  runWithDbPlatformPrincipal,
   runWithDbStaffPrincipal,
 } from "@bersoncare/db-principal";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -246,6 +247,26 @@ describe("webapp pool provider", () => {
       nonstaffSelections: 0,
       poolRoleMismatches: 0,
     });
+  });
+
+  it("routes the platform principal through staff transport, SET ROLEs narrowly, and cleans up", async () => {
+    const { factory, pools } = createFakePoolFactory();
+    const pool = createWebappPoolProvider({
+      staffConnectionString: "postgres://staff/db",
+      nonstaffConnectionString: "postgres://nonstaff/db",
+      poolFactory: factory,
+    });
+    await runWithDbPlatformPrincipal({ platformUserId: STAFF_USER_ID, source: "platform-test" }, () =>
+      pool.query("SELECT platform_settings_marker"),
+    );
+    expect(pools[0]?.connect).toHaveBeenCalledOnce();
+    expect(pools[1]?.connect).not.toHaveBeenCalled();
+    expect(pools[0]?.clients[0]?.query.mock.calls.map(([statement]) => statement)).toEqual(expect.arrayContaining([
+      "SET ROLE app_platform_settings",
+      "SELECT platform_settings_marker",
+      "RESET ROLE",
+    ]));
+    expect(getWebappPoolRoutingMetrics(pool)).toMatchObject({ staffSelections: 1, nonstaffSelections: 0 });
   });
 
   it("routes patient, bootstrap, and missing principals to the nonstaff pool before checkout", async () => {

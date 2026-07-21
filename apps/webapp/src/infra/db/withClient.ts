@@ -37,10 +37,14 @@ async function prepareClientForRequest(
   await applyDbPrincipalToConnection(client, principal, options);
 }
 
-async function releasePreparedClient(client: PoolClient, options: DbPrincipalApplyOptions): Promise<void> {
+async function releasePreparedClient(
+  client: PoolClient,
+  options: DbPrincipalApplyOptions,
+  principal: DbPrincipal | undefined,
+): Promise<void> {
   let cleanupError: unknown;
   try {
-    await clearDbPrincipalFromConnection(client, options);
+    await clearDbPrincipalFromConnection(client, options, principal);
   } catch (err) {
     cleanupError = err;
     await reportDbCleanupFailure();
@@ -57,9 +61,10 @@ async function releasePreparedClient(client: PoolClient, options: DbPrincipalApp
 async function releasePreparedClientAfterSetupFailure(
   client: PoolClient,
   options: DbPrincipalApplyOptions,
+  principal: DbPrincipal | undefined,
 ): Promise<void> {
   try {
-    await clearDbPrincipalFromConnection(client, options);
+    await clearDbPrincipalFromConnection(client, options, principal);
   } catch (err) {
     client.release(err instanceof Error ? err : new Error("DB principal cleanup failed"));
     return;
@@ -112,7 +117,7 @@ export async function withPoolClient<T>(pool: Pool, fn: (client: PoolClient) => 
     if (operationalWebPushReminder) {
       await releaseOperationalClient(client);
     } else {
-      await releasePreparedClient(client, principalApplyOptions);
+      await releasePreparedClient(client, principalApplyOptions, principalSnapshot);
     }
   }
 }
@@ -167,7 +172,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
         err instanceof Error ? err : new Error("Web Push reminder transaction setup failed"),
       );
     } else {
-      await releasePreparedClientAfterSetupFailure(client, principalApplyOptions);
+      await releasePreparedClientAfterSetupFailure(client, principalApplyOptions, principalSnapshot);
     }
     throw err;
   }
@@ -183,7 +188,7 @@ export async function startPoolTransaction(pool: Pool): Promise<PoolTransactionH
       if (operationalWebPushReminder) {
         await releaseOperationalClient(client);
       } else {
-        await releasePreparedClient(client, principalApplyOptions);
+        await releasePreparedClient(client, principalApplyOptions, principalSnapshot);
       }
     },
   };

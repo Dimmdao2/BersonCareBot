@@ -179,7 +179,7 @@ function installPrincipalAwarePoolQuery(pool: Pool): void {
     } finally {
       let cleanupError: unknown;
       try {
-        await clearDbPrincipalFromConnection(client, principalApplyOptions);
+        await clearDbPrincipalFromConnection(client, principalApplyOptions, principalSnapshot);
       } catch (err) {
         cleanupError = err;
         await reportSaasIsolationEventBestEffort({
@@ -208,7 +208,9 @@ function choosePoolKindForPrincipal(
   metrics: WebappPoolRoutingMetrics,
 ): WebappRuntimePoolKind {
   const poolKind: WebappRuntimePoolKind =
-    principal?.kind === "organization" || principal?.kind === "staff" ? "staff" : "nonstaff";
+    principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "platform"
+      ? "staff"
+      : "nonstaff";
 
   if (poolKind === "staff") {
     metrics.staffSelections += 1;
@@ -224,7 +226,10 @@ function choosePoolKindForPrincipal(
     metrics.infraSelections += 1;
   }
 
-  const expectedPoolKind = principal?.kind === "organization" || principal?.kind === "staff" ? "staff" : "nonstaff";
+  const expectedPoolKind =
+    principal?.kind === "organization" || principal?.kind === "staff" || principal?.kind === "platform"
+      ? "staff"
+      : "nonstaff";
   if (poolKind !== expectedPoolKind) {
     metrics.poolRoleMismatches += 1;
     console.error("webapp_db_pool_role_mismatch", {
