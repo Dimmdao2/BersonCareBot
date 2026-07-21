@@ -83,6 +83,7 @@ function psqlProveGrantDenied(database, roleIdent) {
     GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;
     GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;
     GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;
+    GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO PUBLIC;
     RESET SESSION AUTHORIZATION;
     SELECT 1 / (NOT EXISTS (
       SELECT 1
@@ -94,7 +95,8 @@ function psqlProveGrantDenied(database, roleIdent) {
         'app.read_public_runtime_setting(text,text)'::regprocedure,
         'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
         'app.resolve_public_organization_slug(text)'::regprocedure,
-        'app.resolve_public_organization_by_slug(text)'::regprocedure
+        'app.resolve_public_organization_by_slug(text)'::regprocedure,
+        'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
       )
         AND privilege.grantee = 0
         AND privilege.privilege_type = 'EXECUTE'
@@ -151,10 +153,12 @@ const functionSignatures = [...artifact.matchAll(/ON FUNCTION\s+(app\.[^(\s]+\([
     "app.resolve_public_booking_organization(uuid, uuid, uuid)",
     "app.resolve_public_organization_slug(text)",
     "app.resolve_public_organization_by_slug(text)",
+    "app.resolve_payment_webhook_organization(text, text, text)",
   ].includes(signature))
   .filter((signature, index, all) => all.indexOf(signature) === index);
 const tableNames = [...artifact.matchAll(/ON TABLE\s+(public\.[a-zA-Z0-9_]+)/g)]
   .map((match) => match[1])
+  .concat(["public.be_payment_intents"])
   .filter((table, index, all) => all.indexOf(table) === index);
 
 const setupSql = [
@@ -229,6 +233,16 @@ const setupSql = [
         ELSE NULL::uuid
       END
     $$;`,
+  `CREATE FUNCTION app.resolve_payment_webhook_organization(text, text, text)
+    RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+    AS $$
+      SELECT CASE
+        WHEN $1 = 'mock' AND $2 = 'payment-event-1' AND $3 = 'payment.succeeded'
+        THEN '53000000-0000-4000-8000-000000000001'::uuid
+        ELSE NULL::uuid
+      END
+    $$;`,
   "REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;",
   "REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text) FROM PUBLIC;",
   `GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO ${staffIdent}, ${patientIdent}, ${arbitraryCapabilityIdent};`,
@@ -244,11 +258,14 @@ const setupSql = [
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
   `GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
+  `GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO ${patientIdent}, ${arbitraryCapabilityIdent};`,
+  `GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO ${bootstrapIdent} WITH GRANT OPTION;`,
   `SET SESSION AUTHORIZATION ${bootstrapIdent};`,
   "GRANT EXECUTE ON FUNCTION app.read_public_runtime_setting(text, text) TO PUBLIC;",
   "GRANT EXECUTE ON FUNCTION app.resolve_public_booking_organization(uuid, uuid, uuid) TO PUBLIC;",
   "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_slug(text) TO PUBLIC;",
   "GRANT EXECUTE ON FUNCTION app.resolve_public_organization_by_slug(text) TO PUBLIC;",
+  "GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO PUBLIC;",
   "RESET SESSION AUTHORIZATION;",
   `GRANT EXECUTE ON FUNCTION app.release_principal_context() TO ${staffIdent}, ${patientIdent};`,
   `GRANT EXECUTE ON FUNCTION app.current_org_id() TO ${patientIdent};`,
@@ -388,6 +405,8 @@ SELECT 1 / ((
 ) = 1)::int;
 SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.app_runtime_settings', 'SELECT'))::int;
 SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.system_settings', 'SELECT'))::int;
+SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.be_payment_provider_events', 'SELECT'))::int;
+SELECT 1 / (NOT has_table_privilege(${quoteLiteral(bootstrapRole)}, 'public.be_payment_intents', 'SELECT'))::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_public_runtime_setting(text,text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.read_webapp_server_runtime_setting(text,text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_booking_organization(uuid,uuid,uuid)', 'EXECUTE')::int;
@@ -399,6 +418,9 @@ SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)},
 SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE')::int;
 SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE')::int;
 SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_public_organization_by_slug(text)', 'EXECUTE'))::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(bootstrapRole)}, 'app.resolve_payment_webhook_organization(text,text,text)', 'EXECUTE')::int;
+SELECT 1 / has_function_privilege(${quoteLiteral(patientRole)}, 'app.resolve_payment_webhook_organization(text,text,text)', 'EXECUTE')::int;
+SELECT 1 / (NOT has_function_privilege(${quoteLiteral(arbitraryCapabilityRole)}, 'app.resolve_payment_webhook_organization(text,text,text)', 'EXECUTE'))::int;
 SELECT 1 / (NOT EXISTS (
   SELECT 1
   FROM pg_proc procedure
@@ -432,7 +454,8 @@ SELECT 1 / (NOT EXISTS (
     'app.read_webapp_server_runtime_setting(text,text)'::regprocedure,
     'app.resolve_public_booking_organization(uuid,uuid,uuid)'::regprocedure,
     'app.resolve_public_organization_slug(text)'::regprocedure,
-    'app.resolve_public_organization_by_slug(text)'::regprocedure
+    'app.resolve_public_organization_by_slug(text)'::regprocedure,
+    'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
   )
     AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = ${quoteLiteral(bootstrapRole)})
     AND privilege.is_grantable
@@ -453,6 +476,10 @@ SELECT 1 / (
 )::int;
 SELECT 1 / (
   app.resolve_public_organization_by_slug(' SaaS-Test-Clinic-A ')
+  = '53000000-0000-4000-8000-000000000001'::uuid
+)::int;
+SELECT 1 / (
+  app.resolve_payment_webhook_organization('mock', 'payment-event-1', 'payment.succeeded')
   = '53000000-0000-4000-8000-000000000001'::uuid
 )::int;
 SET ROLE ${patientIdent};

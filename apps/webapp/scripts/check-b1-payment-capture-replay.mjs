@@ -40,7 +40,11 @@ function fail(label) {
 const serviceSource = readFileSync(path.join(root, "apps/webapp/src/modules/payments/service.ts"), "utf8");
 const repoSource = readFileSync(path.join(root, "apps/webapp/src/infra/repos/pgPayments.ts"), "utf8");
 const migrationSql = readFileSync(
-  path.join(root, "apps/webapp/db/drizzle-migrations/0225_payment_capture_replay_safety.sql"),
+  path.join(root, "apps/webapp/db/drizzle-migrations/0226_payment_capture_replay_safety.sql"),
+  "utf8",
+);
+const bootstrapGrantSql = readFileSync(
+  path.join(root, "deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql"),
   "utf8",
 );
 const captureParticipantSources = [
@@ -85,6 +89,24 @@ function selfTest() {
   }
   if (!migrationSql.includes("be_payment_history_capture_uidx")) fail("migration lacks capture unique index");
   if (!migrationSql.includes("intent_ref")) fail("migration lacks canonical provider intent reference");
+  for (const fragment of [
+    "app.resolve_payment_webhook_organization",
+    "SECURITY DEFINER",
+    "SET search_path = pg_catalog",
+    "REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization",
+  ]) {
+    if (!migrationSql.includes(fragment)) fail(`migration lacks bootstrap authority boundary ${fragment}`);
+  }
+  if (!repoSource.includes("SELECT app.resolve_payment_webhook_organization")) {
+    fail("payment repository bypasses the narrow bootstrap authority resolver");
+  }
+  for (const fragment of [
+    "GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization",
+    "public.be_payment_provider_events",
+    "public.be_payment_intents",
+  ]) {
+    if (!bootstrapGrantSql.includes(fragment)) fail(`bootstrap grant closure lacks ${fragment}`);
+  }
 }
 
 function baseRegressionProof() {
@@ -238,6 +260,12 @@ async function withClient(fn) {
 async function installSchema() {
   await withClient((client) =>
     client.query(`
+    CREATE ROLE app_owner NOLOGIN BYPASSRLS;
+    CREATE ROLE app_patient NOLOGIN;
+    CREATE ROLE app_runtime_nonstaff_login LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    CREATE ROLE app_unrelated NOLOGIN;
+    GRANT app_patient TO app_runtime_nonstaff_login WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
+    CREATE SCHEMA app AUTHORIZATION app_owner;
     CREATE TABLE be_payment_intents (
       id uuid PRIMARY KEY,
       organization_id uuid NOT NULL,
@@ -438,6 +466,135 @@ async function proveMigrationPreflight() {
     if (!rejected) fail("migration did not fail closed on ambiguous lifecycle event authority");
     await client.query("TRUNCATE be_payment_provider_events");
     await client.query(migrationSql);
+  });
+}
+
+async function proveBootstrapAuthorityBoundary() {
+  await withClient(async (client) => {
+    await client.query(`
+      ALTER FUNCTION app.resolve_payment_webhook_organization(text, text, text) OWNER TO app_owner;
+      REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) FROM PUBLIC;
+      GRANT USAGE ON SCHEMA app TO app_runtime_nonstaff_login;
+      GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text)
+        TO app_runtime_nonstaff_login;
+      REVOKE ALL ON TABLE be_payment_provider_events, be_payment_intents
+        FROM app_runtime_nonstaff_login, app_patient, app_unrelated;
+      ALTER TABLE be_payment_provider_events ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE be_payment_provider_events FORCE ROW LEVEL SECURITY;
+      ALTER TABLE be_payment_intents ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE be_payment_intents FORCE ROW LEVEL SECURITY;
+    `);
+
+    await client.query(
+      `INSERT INTO be_payment_intents(id, organization_id, provider_id, idempotency_key, status)
+       VALUES ($1, $2, 'mock', 'intent-authority', 'pending')`,
+      [intent, org],
+    );
+    await client.query(
+      `INSERT INTO be_payment_provider_events(
+         id, organization_id, provider_id, idempotency_key, event_type, payload_json
+       ) VALUES ($1, $2, 'mock', 'event-authority', 'payment.succeeded',
+         '{"amount":999,"patient":"must-not-leak"}'::jsonb)`,
+      [event, org],
+    );
+
+    const acl = await client.query(`
+      SELECT
+        procedure.prosecdef,
+        procedure.proconfig,
+        pg_get_userbyid(procedure.proowner) AS owner_name,
+        has_function_privilege(
+          'app_runtime_nonstaff_login',
+          'app.resolve_payment_webhook_organization(text,text,text)',
+          'EXECUTE'
+        ) AS runtime_execute,
+        has_function_privilege(
+          'app_unrelated',
+          'app.resolve_payment_webhook_organization(text,text,text)',
+          'EXECUTE'
+        ) AS unrelated_execute,
+        EXISTS (
+          SELECT 1
+          FROM aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege
+          WHERE privilege.grantee = 0 AND privilege.privilege_type = 'EXECUTE'
+        ) AS public_execute
+      FROM pg_proc procedure
+      WHERE procedure.oid = 'app.resolve_payment_webhook_organization(text,text,text)'::regprocedure
+    `);
+    const boundary = acl.rows[0];
+    if (
+      !boundary?.prosecdef ||
+      boundary.owner_name !== "app_owner" ||
+      !boundary.runtime_execute ||
+      boundary.unrelated_execute ||
+      boundary.public_execute ||
+      !boundary.proconfig?.includes("search_path=pg_catalog")
+    ) {
+      fail("bootstrap authority function ownership/ACL/search_path boundary is unsafe");
+    }
+
+    const tableAcl = await client.query(`
+      SELECT
+        has_table_privilege('app_runtime_nonstaff_login', 'be_payment_provider_events', 'SELECT') AS event_select,
+        has_table_privilege('app_runtime_nonstaff_login', 'be_payment_intents', 'SELECT') AS intent_select
+    `);
+    if (tableAcl.rows[0]?.event_select || tableAcl.rows[0]?.intent_select) {
+      fail("bootstrap role received direct payment table SELECT");
+    }
+
+    await client.query("SET ROLE app_runtime_nonstaff_login");
+    const eventAuthority = await client.query(
+      `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
+      ["mock", "event-authority", "payment.succeeded"],
+    );
+    if (
+      eventAuthority.rows[0]?.organization_id !== org ||
+      Object.keys(eventAuthority.rows[0] ?? {}).join(",") !== "organization_id"
+    ) {
+      fail("bootstrap event authority exposed more than the exact organization id");
+    }
+    const intentAuthority = await client.query(
+      `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
+      ["mock", "intent-authority", "payment.succeeded"],
+    );
+    if (intentAuthority.rows[0]?.organization_id !== org) {
+      fail("bootstrap intent fallback did not resolve exact organization");
+    }
+    const unknown = await client.query(
+      `SELECT app.resolve_payment_webhook_organization($1, $2, $3)::text AS organization_id`,
+      ["mock", "unknown", "payment.succeeded"],
+    );
+    if (unknown.rows[0]?.organization_id !== null) fail("unknown payment authority did not fail closed");
+
+    let directReadDenied = false;
+    try {
+      await client.query("SELECT payload_json FROM be_payment_provider_events LIMIT 1");
+    } catch (error) {
+      directReadDenied = String(error.message).includes("permission denied");
+    }
+    if (!directReadDenied) fail("bootstrap role could browse payment event payloads");
+    await client.query("RESET ROLE");
+
+    await client.query("DROP INDEX be_payment_provider_events_lifecycle_uidx");
+    await client.query(
+      `INSERT INTO be_payment_provider_events(
+         id, organization_id, provider_id, idempotency_key, event_type, payload_json
+       ) VALUES
+       ('50000000-0000-4000-8000-000000000091', $1, 'mock', 'ambiguous', 'payment.succeeded', '{}'),
+       ('50000000-0000-4000-8000-000000000092', '10000000-0000-4000-8000-000000000002', 'mock', 'ambiguous', 'payment.succeeded', '{}')`,
+      [org],
+    );
+    await client.query("SET ROLE app_runtime_nonstaff_login");
+    const ambiguous = await client.query(
+      `SELECT app.resolve_payment_webhook_organization('mock', 'ambiguous', 'payment.succeeded')::text AS organization_id`,
+    );
+    if (ambiguous.rows[0]?.organization_id !== null) fail("ambiguous payment authority did not fail closed");
+    await client.query("RESET ROLE");
+    await client.query("DELETE FROM be_payment_provider_events WHERE id IN ('50000000-0000-4000-8000-000000000091', '50000000-0000-4000-8000-000000000092')");
+    await client.query(`
+      CREATE UNIQUE INDEX be_payment_provider_events_lifecycle_uidx
+        ON be_payment_provider_events(provider_id, idempotency_key, event_type)
+    `);
   });
 }
 
@@ -673,6 +830,7 @@ try {
   run(path.join(pgBin, "createdb"), ["-h", socket, "-p", String(port), database], "private database creation");
   await installSchema();
   await proveMigrationPreflight();
+  await proveBootstrapAuthorityBoundary();
   await provePersistedProviderEventWinsChangedDuplicate();
   await proveLifecycleIdentity();
   await proveCrashReplay();
@@ -680,7 +838,7 @@ try {
   await proveConcurrentReplayAndPostCommitDelivery();
   await proveDeliveryFailureRemainsReplayable();
   console.log(
-    "B1 #949 payment capture proof: OK — dirty migration preflights, lifecycle identity, canonical stored duplicate body, six rollback boundaries, product identity/grant rollback isolation, session-serialized duplicates, mandatory delivery failure/retry and exact-once DB effects verified on private PostgreSQL 16",
+    "B1 #949 payment capture proof: OK — dirty migration preflights, least-privilege bootstrap tenant authority (event + intent fallback, ambiguity/unknown fail-closed, no table/payload access), lifecycle identity, canonical stored duplicate body, six rollback boundaries, product identity/grant rollback isolation, session-serialized duplicates, mandatory delivery failure/retry and exact-once DB effects verified on private PostgreSQL 16",
   );
 } finally {
   if (serverStarted) {

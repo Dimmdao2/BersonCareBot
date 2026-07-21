@@ -32,7 +32,8 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
-    ('app.resolve_public_organization_by_slug(text)')
+    ('app.resolve_public_organization_by_slug(text)'),
+    ('app.resolve_payment_webhook_organization(text,text,text)')
 ), database_owner AS (
   SELECT datdba
   FROM pg_database
@@ -60,7 +61,8 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
-    ('app.resolve_public_organization_by_slug(text)')
+    ('app.resolve_public_organization_by_slug(text)'),
+    ('app.resolve_payment_webhook_organization(text,text,text)')
 )
 SELECT format('ALTER FUNCTION %s OWNER TO app_owner', procedure.oid::regprocedure)
 FROM exact_targets AS target
@@ -72,7 +74,8 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
-    ('app.resolve_public_organization_by_slug(text)')
+    ('app.resolve_public_organization_by_slug(text)'),
+    ('app.resolve_payment_webhook_organization(text,text,text)')
 )
 SELECT NOT EXISTS (
   SELECT 1

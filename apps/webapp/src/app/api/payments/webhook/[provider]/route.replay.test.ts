@@ -52,12 +52,11 @@ function createRouteHarness() {
     processedAt: null,
   };
   const port = {
-    findProviderEventAuthority: vi.fn(async (_provider: string, key: string, eventType: string) =>
+    resolveProviderWebhookOrganization: vi.fn(async (_provider: string, key: string, eventType: string) =>
       key === stableKey && eventType === "payment.succeeded"
-        ? { id: stored.id, organizationId }
+        ? organizationId
         : null,
     ),
-    findIntentByProviderEventKey: vi.fn(),
     recordProviderEvent: vi.fn().mockResolvedValue(stored),
     getProviderEventById: vi.fn().mockResolvedValue(stored),
     findIntentById: vi.fn(async (id: string) => (id === intent.id ? intent : null)),

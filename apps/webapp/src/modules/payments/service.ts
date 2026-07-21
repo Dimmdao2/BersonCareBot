@@ -288,14 +288,11 @@ export function createPaymentsService(deps: {
       const idempotencyKey = input.idempotencyKey.trim();
       const eventType = input.eventType.trim();
       if (!providerId || !idempotencyKey || !eventType) return null;
-      const stored = await deps.port.findProviderEventAuthority(
+      return deps.port.resolveProviderWebhookOrganization(
         providerId,
         idempotencyKey,
         eventType,
       );
-      if (stored) return stored.organizationId;
-      const intent = await deps.port.findIntentByProviderEventKey(providerId, idempotencyKey);
-      return intent?.organizationId ?? null;
     },
 
     async createAppointmentPaymentIntent(input: {

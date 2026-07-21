@@ -62,3 +62,63 @@ CREATE UNIQUE INDEX IF NOT EXISTS be_payment_provider_events_lifecycle_uidx
 CREATE UNIQUE INDEX IF NOT EXISTS be_payment_history_capture_uidx
   ON public.be_payment_history_events (organization_id, payment_id, event_type)
   WHERE payment_id IS NOT NULL AND event_type = 'payment_captured';
+
+-- Public provider webhooks arrive before an organization principal can be installed. Expose only
+-- the exact tenant authority lookup needed to cross that boundary; payload, amounts and all other
+-- payment data remain inaccessible to bootstrap callers.
+CREATE OR REPLACE FUNCTION app.resolve_payment_webhook_organization(
+  p_provider_id text,
+  p_idempotency_key text,
+  p_event_type text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $function$
+DECLARE
+  v_organization_ids uuid[];
+BEGIN
+  IF p_provider_id IS NULL
+     OR p_idempotency_key IS NULL
+     OR p_event_type IS NULL
+     OR btrim(p_provider_id) = ''
+     OR btrim(p_idempotency_key) = ''
+     OR btrim(p_event_type) = '' THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT array_agg(DISTINCT event.organization_id)
+  INTO v_organization_ids
+  FROM public.be_payment_provider_events AS event
+  WHERE event.provider_id = p_provider_id
+    AND event.idempotency_key = p_idempotency_key
+    AND event.event_type = p_event_type;
+
+  IF cardinality(v_organization_ids) = 1 THEN
+    RETURN v_organization_ids[1];
+  END IF;
+  IF cardinality(v_organization_ids) > 1 THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT array_agg(DISTINCT intent.organization_id)
+  INTO v_organization_ids
+  FROM public.be_payment_intents AS intent
+  WHERE intent.provider_id = p_provider_id
+    AND intent.idempotency_key = p_idempotency_key;
+
+  IF cardinality(v_organization_ids) = 1 THEN
+    RETURN v_organization_ids[1];
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+COMMENT ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) IS
+  'Narrow fail-closed bootstrap resolver for provider webhook tenant authority; returns only organization_id from an exact lifecycle event or intent identity.';
+
+REVOKE ALL ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.resolve_payment_webhook_organization(text, text, text) TO app_patient;
+GRANT SELECT ON TABLE public.be_payment_provider_events, public.be_payment_intents TO app_owner;

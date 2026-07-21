@@ -5,6 +5,7 @@ import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
 } from "@/infra/db/drizzleMutationTx";
+import { runWebappPgText } from "@/infra/db/runWebappSql";
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -257,19 +258,16 @@ export function createPgPaymentsPort(): PaymentsPort {
       return rows[0] ? mapIntent(rows[0]) : null;
     },
 
-    async findIntentByProviderEventKey(providerId, idempotencyKey) {
-      const db = getDrizzleOrMutationTx();
-      const rows = await db
-        .select()
-        .from(bePaymentIntents)
-        .where(
-          and(
-            eq(bePaymentIntents.providerId, providerId),
-            eq(bePaymentIntents.idempotencyKey, idempotencyKey),
-          ),
-        )
-        .limit(2);
-      return rows.length === 1 ? mapIntent(rows[0]!) : null;
+    async resolveProviderWebhookOrganization(providerId, idempotencyKey, eventType) {
+      const result = await runWebappPgText<{ organization_id: string | null }>(
+        `SELECT app.resolve_payment_webhook_organization(
+           $1::text,
+           $2::text,
+           $3::text
+         )::text AS organization_id`,
+        [providerId, idempotencyKey, eventType],
+      );
+      return result.rows[0]?.organization_id ?? null;
     },
 
     async findLatestIntentByAppointment(appointmentId) {
@@ -445,25 +443,6 @@ export function createPgPaymentsPort(): PaymentsPort {
       );
       if (!rows[0]) throw new Error("provider_event_persist_failed");
       return mapProviderEvent(rows[0], false);
-    },
-
-    async findProviderEventAuthority(providerId, idempotencyKey, eventType) {
-      const db = getDrizzleOrMutationTx();
-      const rows = await db
-        .select({
-          id: bePaymentProviderEvents.id,
-          organizationId: bePaymentProviderEvents.organizationId,
-        })
-        .from(bePaymentProviderEvents)
-        .where(
-          and(
-            eq(bePaymentProviderEvents.providerId, providerId),
-            eq(bePaymentProviderEvents.idempotencyKey, idempotencyKey),
-            eq(bePaymentProviderEvents.eventType, eventType),
-          ),
-        )
-        .limit(2);
-      return rows.length === 1 ? rows[0]! : null;
     },
 
     async getProviderEventById(id, organizationId) {

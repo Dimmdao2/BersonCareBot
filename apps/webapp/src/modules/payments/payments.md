@@ -15,6 +15,12 @@
 3. Cancel с retain/refund → `applyCancelPaymentOutcome` (из lifecycle этапа 4).
 4. Reschedule → `recordReschedulePaymentCarryOver` → history event.
 
+Публичный provider webhook до установки tenant-principal определяет организацию только через
+`app.resolve_payment_webhook_organization(provider_id, idempotency_key, event_type)`. Это узкий
+`SECURITY DEFINER`-контракт: наружу возвращается только `organization_id`; payload, суммы и прямое
+чтение платёжных таблиц bootstrap-роли не выдаются. Сначала проверяется уже сохранённое lifecycle-
+событие, затем исходный intent с тем же provider/idempotency key; неоднозначность даёт `NULL`.
+
 ## API
 
 См. `apps/webapp/src/app/api/api.md` — секции **booking/** (patient/public payment routes), **payments/** (webhook), **admin/booking-engine/** (`prepayment-policies`, `appointments/[id]/payment`).

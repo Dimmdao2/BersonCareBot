@@ -560,14 +560,10 @@ describe("createPaymentsService", () => {
 
   it("resolves webhook organization from canonical lifecycle event before intent authority", async () => {
     const port = {
-      findProviderEventAuthority: vi
+      resolveProviderWebhookOrganization: vi
         .fn()
-        .mockResolvedValueOnce({ id: "event-1", organizationId: "org-from-event" })
-        .mockResolvedValueOnce(null),
-      findIntentByProviderEventKey: vi.fn().mockResolvedValueOnce({
-        id: "intent-2",
-        organizationId: "org-from-intent-key",
-      }),
+        .mockResolvedValueOnce("org-from-event")
+        .mockResolvedValueOnce("org-from-intent-key"),
     };
     const svc = createPaymentsService({
       port: port as never,
@@ -589,7 +585,11 @@ describe("createPaymentsService", () => {
         eventType: "payment.succeeded",
       }),
     ).resolves.toBe("org-from-event");
-    expect(port.findIntentByProviderEventKey).not.toHaveBeenCalled();
+    expect(port.resolveProviderWebhookOrganization).toHaveBeenCalledWith(
+      "mock",
+      "key-1",
+      "payment.succeeded",
+    );
 
     await expect(
       svc.resolveProviderWebhookOrganizationId({
@@ -598,7 +598,11 @@ describe("createPaymentsService", () => {
         eventType: "payment.refunded",
       }),
     ).resolves.toBe("org-from-intent-key");
-    expect(port.findIntentByProviderEventKey).toHaveBeenCalledWith("mock", "key-2");
+    expect(port.resolveProviderWebhookOrganization).toHaveBeenCalledWith(
+      "mock",
+      "key-2",
+      "payment.refunded",
+    );
   });
 
   it("links and confirms every appointment in a paid chain", async () => {
