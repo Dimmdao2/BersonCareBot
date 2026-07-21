@@ -49,6 +49,7 @@ and is not proof that a fixture exists or works.
     "patientProgramItemId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "mediaFileId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "publicBookingServiceId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
+    "publicBookingOrganizationSlug": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE",
     "clinicAAppointmentId": "REDACTED_OPAQUE_TEST_REF_NON_RUNNABLE"
   },
   "forbiddenBodyText": ["REDACTED_TEST_SENTINEL_NON_RUNNABLE"]

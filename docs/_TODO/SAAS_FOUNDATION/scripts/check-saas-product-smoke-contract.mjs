@@ -230,6 +230,15 @@ function runFixtureGateDocChecks(overrides = new Map()) {
       );
     }
   }
+  const publicBookingSlots = scenariosById.get('public.booking.slots');
+  if (
+    !contract.requiredFixtureRefs?.includes('publicBookingOrganizationSlug') ||
+    !publicBookingSlots?.path?.includes('orgSlug={publicBookingOrganizationSlug}')
+  ) {
+    throw new Error(
+      `${files.contract} must bind public booking slots to the exact public organization slug`,
+    );
+  }
 
   const discussionExpectation = scenariosById.get(
     'patient.program.item.discussion-summary',
@@ -335,6 +344,11 @@ function runSelfTest() {
       '/api/doctor/treatment-program-instances/{patientProgramInstanceId}/action-log',
       '/api/admin/product-analytics',
     ),
+  );
+  expectDocMutationRejected(
+    'public booking organization binding mutation',
+    files.contract,
+    contractText.replace('&orgSlug={publicBookingOrganizationSlug}', ''),
   );
 
   const { tempDir, fixturePath } = makeSyntheticFixtureFile({ globalAdminMode: false });

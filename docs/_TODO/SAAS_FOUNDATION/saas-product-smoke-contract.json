@@ -18,6 +18,7 @@
     "patientProgramItemId",
     "mediaFileId",
     "publicBookingServiceId",
+    "publicBookingOrganizationSlug",
     "clinicAAppointmentId"
   ],
   "readOnlyScenarios": [
@@ -275,7 +276,7 @@
       "actor": "public",
       "category": "public_booking",
       "method": "GET",
-      "path": "/api/booking/public/slots?type=in_person&branchServiceId={publicBookingServiceId}",
+      "path": "/api/booking/public/slots?type=in_person&branchServiceId={publicBookingServiceId}&orgSlug={publicBookingOrganizationSlug}",
       "expectStatus": 200,
       "jsonExpectation": {
         "type": "object",

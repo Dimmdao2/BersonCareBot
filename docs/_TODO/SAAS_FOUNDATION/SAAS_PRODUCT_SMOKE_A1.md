@@ -91,6 +91,7 @@ Minimal shape:
     "patientProgramItemId": "opaque-item-id",
     "mediaFileId": "opaque-media-id",
     "publicBookingServiceId": "opaque-service-id",
+    "publicBookingOrganizationSlug": "opaque-organization-slug",
     "clinicAAppointmentId": "opaque-appointment-id"
   },
   "forbiddenBodyText": ["unexpected test sentinel"]
